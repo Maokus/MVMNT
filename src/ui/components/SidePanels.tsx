@@ -1,33 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SceneEditor from './SceneEditor';
 import { ConfigEditor } from './config-editor';
-// @ts-ignore
-import { MacroConfigUI } from '../macro-config-ui.js';
+import MacroConfig from './MacroConfig';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
 }
 
 const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
-    const macroConfigRef = useRef<HTMLDivElement>(null);
-    const [macroConfigUI, setMacroConfigUI] = useState<any>(null);
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
-
-    // Initialize macro config UI
-    useEffect(() => {
-        if (macroConfigRef.current && !macroConfigUI) {
-            try {
-                // Initialize macro config UI with container
-                const macroUI = new MacroConfigUI(macroConfigRef.current);
-                setMacroConfigUI(macroUI);
-                console.log('MacroConfigUI initialized successfully');
-            } catch (error) {
-                console.error('Failed to initialize MacroConfigUI:', error);
-            }
-        }
-    }, [macroConfigUI]);
 
     // Handle element selection from SceneEditor
     const handleElementSelect = (elementId: string | null) => {
@@ -119,9 +102,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
                             <div className="settings-grid">
                                 {/* Global Macros Section */}
                                 <div className="setting-group">
-                                    <div className="macro-config-container" ref={macroConfigRef}>
-                                        {/* Macro configuration UI will be injected here */}
-                                    </div>
+                                    <MacroConfig sceneBuilder={visualizer?.getSceneBuilder()} />
                                 </div>
 
                                 <div className="setting-group">
