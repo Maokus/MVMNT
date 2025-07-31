@@ -1,9 +1,9 @@
 import { MIDIVisualizer } from '../visualizer/visualizer.js';
 import { SceneEditorUI } from './scene-editor-ui.js';
 import { sceneElementRegistry } from '../visualizer/scene-element-registry.js';
-import { MIDIParser } from '../core/midi-parser.js';
-import { ImageSequenceGenerator } from '../core/image-sequence-generator.js';
-import { globalTimingManager } from '../core/timing-manager.js';
+import { MIDIParser } from '../core/midi-parser';
+import { ImageSequenceGenerator } from '../core/image-sequence-generator';
+import { globalTimingManager } from '../core/timing-manager';
 import { SceneNameGenerator } from './scene-name-generator.js';
 import { MacroConfigUI } from './macro-config-ui.js';
 

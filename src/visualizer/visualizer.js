@@ -1,8 +1,8 @@
 // Main MIDI Visualizer class
-import { NoteManager } from '../core/manager.js';
+import { NoteManager } from '../core/manager';
 import { ModularRenderer } from './modular-renderer.js';
 import { HybridSceneBuilder } from '../ui/hybrid-scene-builder.js';
-import { globalTimingManager } from '../core/timing-manager.js';
+import { globalTimingManager } from '../core/timing-manager';
 import { sceneElementRegistry } from './scene-element-registry.js';
 import { SceneEditorUI } from '../ui/scene-editor-ui.js';
 

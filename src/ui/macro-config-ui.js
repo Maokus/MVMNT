@@ -2,7 +2,7 @@
  * MacroConfigUI - User interface for managing global macros
  * Allows users to create, edit, and assign macros to scene elements
  */
-import { globalMacroManager } from '../core/macro-manager.js';
+import { globalMacroManager } from '../core/macro-manager';
 
 export class MacroConfigUI {
     constructor(container) {

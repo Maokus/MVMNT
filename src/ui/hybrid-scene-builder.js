@@ -8,8 +8,8 @@ import {
 } from '../visualizer/scene-elements/index.js';
 import { MIDIVisualizer } from '../visualizer/visualizer.js';
 import { SceneElement } from '../visualizer/scene-elements/base.js';
-import { globalTimingManager } from '../core/timing-manager.js';
-import { globalMacroManager } from '../core/macro-manager.js';
+import { globalTimingManager } from '../core/timing-manager';
+import { globalMacroManager } from '../core/macro-manager';
 import { sceneElementRegistry } from '../visualizer/scene-element-registry.js';
 import { SceneNameGenerator } from './scene-name-generator.js';
 

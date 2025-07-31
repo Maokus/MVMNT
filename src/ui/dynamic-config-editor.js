@@ -1,5 +1,5 @@
 // Dynamic UI component for scene element configuration
-import { globalMacroManager } from '../core/macro-manager.js';
+import { globalMacroManager } from '../core/macro-manager';
 
 export class DynamicConfigEditor {
     constructor(container) {

@@ -2,10 +2,10 @@
 import { SceneElement } from '../base.js';
 import { Line, Text, Rectangle } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
-import { globalTimingManager } from '../../../core/timing-manager.js';
+import { globalTimingManager } from '../../../core/timing-manager';
 import { LocalTimingManager } from '../../../core/local-timing-manager.js';
-import { globalMacroManager } from '../../../core/macro-manager.js';
-import { NoteBlock } from '../../../core/note-block.js';
+import { globalMacroManager } from '../../../core/macro-manager';
+import { NoteBlock } from '../../../core/note-block';
 
 export class TimeUnitPianoRollElement extends SceneElement {
     constructor(id = 'timeUnitPianoRoll', config = {}, timingManager = null) {

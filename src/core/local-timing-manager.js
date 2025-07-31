@@ -2,7 +2,7 @@
  * LocalTimingManager - Element-specific timing manager for independent timing configurations
  * Each scene element can have its own timing settings, allowing for complex compositions
  */
-import { globalMacroManager } from './macro-manager.js';
+import { globalMacroManager } from './macro-manager';
 
 export class LocalTimingManager {
     constructor(elementId = null) {
