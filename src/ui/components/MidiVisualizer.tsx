@@ -4,11 +4,11 @@ import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
 import ProgressOverlay from './ProgressOverlay';
 // @ts-ignore
-import { MIDIVisualizer as MIDIVisualizerCore } from '../visualizer/visualizer.js';
+import { MIDIVisualizer as MIDIVisualizerCore } from '../../visualizer/visualizer.js';
 // @ts-ignore
-import { MIDIParser } from '../core/midi-parser.js';
+import { MIDIParser } from '../../core/midi-parser';
 // @ts-ignore
-import { ImageSequenceGenerator } from '../core/image-sequence-generator.js';
+import { ImageSequenceGenerator } from '../../core/image-sequence-generator';
 
 const MidiVisualizer: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,7 +34,7 @@ const MidiVisualizer: React.FC = () => {
             setVisualizer(vis);
 
             // Initialize image sequence generator for export functionality
-            const generator = new ImageSequenceGenerator(vis);
+            const generator = new ImageSequenceGenerator(canvasRef.current, vis);
             setImageSequenceGenerator(generator);
 
             console.log('MIDIVisualizer initialized successfully');

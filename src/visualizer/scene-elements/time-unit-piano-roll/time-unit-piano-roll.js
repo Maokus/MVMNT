@@ -623,7 +623,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             console.log(`Loading MIDI file for element ${this.id}:`, file.name);
 
             // Import MIDIParser dynamically to avoid circular imports
-            const { MIDIParser } = await import('../../../core/midi-parser.js');
+            const { MIDIParser } = await import('../../../core/midi-parser.ts');
             const parser = new MIDIParser();
 
             // Parse the MIDI file

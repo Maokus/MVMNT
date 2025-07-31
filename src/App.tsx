@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import MidiVisualizer from './components/MidiVisualizer';
+import MidiVisualizer from './ui/components/MidiVisualizer';
 
 function App() {
   return (

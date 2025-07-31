@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 // @ts-ignore
-import { SceneEditorUI } from '../ui/scene-editor-ui.js';
+import { SceneEditorUI } from '../scene-editor-ui.js';
 // @ts-ignore
-import { MacroConfigUI } from '../ui/macro-config-ui.js';
+import { MacroConfigUI } from '../macro-config-ui.js';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
