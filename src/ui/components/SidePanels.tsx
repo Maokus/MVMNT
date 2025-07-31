@@ -55,8 +55,12 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
         if (sceneBuilder) {
             sceneBuilder.updateElementConfig(elementId, configChanges);
 
-            // Refresh visualization
-            if (visualizer.render) {
+            // Force immediate re-render of the visualization
+            if (visualizer.renderAtTime) {
+                visualizer.renderAtTime(visualizer.currentTime || 0);
+            } else if (visualizer.invalidateRender) {
+                visualizer.invalidateRender();
+            } else if (visualizer.render) {
                 visualizer.render();
             }
         }
