@@ -71,7 +71,7 @@ export class ImageSequenceGenerator {
       this.canvas.height = height;
       this.visualizer.resize(width, height);
 
-      const duration = this.visualizer.getDuration();
+      const duration = this.visualizer.getCurrentDuration ? this.visualizer.getCurrentDuration() : this.visualizer.duration;
       const totalFrames = Math.ceil(duration * fps);
 
       // Get maximum frames from options, default to unlimited (full duration)

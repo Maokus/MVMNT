@@ -20,7 +20,7 @@ const MidiVisualizer: React.FC = () => {
     const [currentMidiData, setCurrentMidiData] = useState<any>(null);
     const [currentTime, setCurrentTime] = useState('00:00 / 00:00');
     const [sceneName, setSceneName] = useState(SceneNameGenerator.generate());
-    const [exportStatus, setExportStatus] = useState('Load MIDI to enable export');
+    const [exportStatus, setExportStatus] = useState('Load MIDI or create scene to enable export');
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState({ progress: 0, text: 'Generating images...' });
     const [sceneRefreshTrigger, setSceneRefreshTrigger] = useState(0);
@@ -85,8 +85,8 @@ const MidiVisualizer: React.FC = () => {
                     lastCurrentTime = currentTime;
 
                     // Update export status only when time changes (and we have fresh duration)
-                    const hasAnyMidiData = !!currentMidiData || total > 0;
-                    const newExportStatus = hasAnyMidiData ? 'Ready to export' : 'Load MIDI to enable export';
+                    const hasValidScene = total > 0;
+                    const newExportStatus = hasValidScene ? 'Ready to export' : 'Load MIDI or create scene to enable export';
                     if (newExportStatus !== lastExportStatus) {
                         setExportStatus(newExportStatus);
                         lastExportStatus = newExportStatus;
@@ -184,20 +184,25 @@ const MidiVisualizer: React.FC = () => {
     };
 
     const handleExport = async () => {
-        if (!visualizer || !imageSequenceGenerator || !currentMidiData) return;
+        if (!visualizer || !imageSequenceGenerator) return;
 
         setShowProgressOverlay(true);
         setProgressData({ progress: 0, text: 'Generating images...' });
 
         try {
-            await imageSequenceGenerator.generateImageSequence(
-                currentMidiData,
-                {
-                    onProgress: (progress: number, text: string) => {
-                        setProgressData({ progress, text });
-                    }
+            await imageSequenceGenerator.generateImageSequence({
+                fps: 30,
+                width: 1500,
+                height: 1500,
+                sceneName: sceneName,
+                maxFrames: null, // Generate full duration
+                onProgress: (progress: number, text: string = 'Generating images...') => {
+                    setProgressData({ progress, text });
+                },
+                onComplete: (blob: Blob) => {
+                    console.log('Image sequence generation completed');
                 }
-            );
+            });
         } catch (error) {
             console.error('Export error:', error);
             alert('Export failed: ' + (error instanceof Error ? error.message : String(error)));
@@ -214,7 +219,7 @@ const MidiVisualizer: React.FC = () => {
                 onMidiLoad={handleMidiLoad}
                 onExport={handleExport}
                 exportStatus={exportStatus}
-                canExport={!!currentMidiData || (visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0)}
+                canExport={visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0}
                 visualizer={visualizer}
                 onSceneRefresh={handleSceneRefresh}
             />

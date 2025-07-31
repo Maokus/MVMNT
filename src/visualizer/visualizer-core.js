@@ -315,14 +315,16 @@ export class MIDIVisualizerCore {
     }
 
     stepForward() {
-        const stepSize = 1.0; // 1 second step
+        const frameRate = 30; // Standard frame rate for frame stepping
+        const stepSize = 1.0 / frameRate; // Frame time (1/30th of a second)
         const currentDuration = this.getCurrentDuration();
         const newTime = Math.min(this.currentTime + stepSize, currentDuration);
         this.seek(newTime);
     }
 
     stepBackward() {
-        const stepSize = 1.0; // 1 second step
+        const frameRate = 30; // Standard frame rate for frame stepping
+        const stepSize = 1.0 / frameRate; // Frame time (1/30th of a second)
         const newTime = Math.max(this.currentTime - stepSize, -0.5);
         this.seek(newTime);
     }
