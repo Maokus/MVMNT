@@ -29,7 +29,6 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
             style={{
                 position: 'absolute',
                 top: '100%',
-                left: 0,
                 right: 0,
                 zIndex: 1000,
                 background: '#2d2d30',
@@ -39,6 +38,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                 maxHeight: '300px',
                 overflowY: 'auto',
                 boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
+                minWidth: '200px',
             }}
         >
             {Object.entries(categories).map(([category, categoryTypes]) => (

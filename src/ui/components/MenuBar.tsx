@@ -68,26 +68,34 @@ const MenuBar: React.FC<MenuBarProps> = ({
             try {
                 const sceneBuilder = visualizer.getSceneBuilder();
                 if (sceneBuilder) {
-                    // Get scene configuration
+                    // Get scene configuration using the hybrid scene builder's serialize method
+                    const sceneData = sceneBuilder.serializeScene();
                     const sceneConfig = {
                         name: sceneName,
-                        elements: sceneBuilder.getAllElements().map((element: any) => ({
-                            type: element.type,
-                            id: element.id,
-                            config: element.config,
-                            visible: element.visible,
-                            zIndex: element.zIndex
-                        })),
+                        ...sceneData,
                         timestamp: new Date().toISOString()
                     };
 
-                    // Save to localStorage for now
+                    // Save to localStorage for compatibility
                     const savedScenes = JSON.parse(localStorage.getItem('midivis-scenes') || '[]');
                     savedScenes.push(sceneConfig);
                     localStorage.setItem('midivis-scenes', JSON.stringify(savedScenes));
 
-                    console.log(`Scene "${sceneName}" saved successfully`);
-                    alert(`Scene "${sceneName}" saved successfully!`);
+                    // Also trigger JSON download
+                    const jsonStr = JSON.stringify(sceneConfig, null, 2);
+                    const blob = new Blob([jsonStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${sceneName.replace(/[^a-zA-Z0-9]/g, '_')}_scene.json`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    console.log(`Scene "${sceneName}" saved successfully and downloaded as JSON`);
+                    alert(`Scene "${sceneName}" saved successfully and downloaded as JSON!`);
                 } else {
                     console.log('Save scene: scene builder not available');
                 }
@@ -102,67 +110,75 @@ const MenuBar: React.FC<MenuBarProps> = ({
     };
 
     const loadScene = () => {
-        if (visualizer) {
-            try {
-                const savedScenes = JSON.parse(localStorage.getItem('midivis-scenes') || '[]');
-                if (savedScenes.length === 0) {
-                    alert('No saved scenes found.');
-                    setShowSceneMenu(false);
-                    return;
-                }
-
-                // For now, just load the most recent scene
-                // TODO: Implement a proper scene selection dialog
-                const mostRecentScene = savedScenes[savedScenes.length - 1];
-
-                const sceneBuilder = visualizer.getSceneBuilder();
-                if (sceneBuilder) {
-                    // Clear current scene
-                    sceneBuilder.clearElements();
-
-                    // Load elements from saved scene
-                    mostRecentScene.elements.forEach((elementConfig: any) => {
-                        const success = sceneBuilder.addElement(
-                            elementConfig.type,
-                            elementConfig.id,
-                            elementConfig.config
-                        );
-
-                        if (success) {
-                            const element = sceneBuilder.getElement(elementConfig.id);
-                            if (element) {
-                                element.visible = elementConfig.visible;
-                                if (elementConfig.zIndex !== undefined) {
-                                    element.zIndex = elementConfig.zIndex;
+        // Create a file input for JSON upload
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+        
+        fileInput.onchange = async (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            const file = target.files?.[0];
+            
+            if (file) {
+                try {
+                    const text = await file.text();
+                    const sceneConfig = JSON.parse(text);
+                    
+                    // Validate that this is a valid scene file
+                    if (!sceneConfig.elements && !sceneConfig.version) {
+                        throw new Error('Invalid scene file format - missing elements or version');
+                    }
+                    
+                    if (visualizer) {
+                        const sceneBuilder = visualizer.getSceneBuilder();
+                        if (sceneBuilder) {
+                            // Use the scene builder's loadScene method
+                            const success = sceneBuilder.loadScene(sceneConfig);
+                            
+                            if (success) {
+                                // Update scene name
+                                if (sceneConfig.name) {
+                                    onSceneNameChange(sceneConfig.name);
                                 }
+
+                                if (visualizer.render) {
+                                    visualizer.render();
+                                }
+
+                                // Trigger refresh of UI components
+                                if (onSceneRefresh) {
+                                    onSceneRefresh();
+                                }
+
+                                console.log(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON`);
+                                alert(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON!`);
+                            } else {
+                                alert('Failed to load scene from JSON file. The file may be corrupted or incompatible.');
                             }
+                        } else {
+                            alert('Scene builder not available. Please try again.');
                         }
-                    });
-
-                    // Update scene name
-                    onSceneNameChange(mostRecentScene.name);
-
-                    if (visualizer.render) {
-                        visualizer.render();
+                    } else {
+                        alert('Visualizer not available. Please try again.');
                     }
-
-                    // Trigger refresh of UI components
-                    if (onSceneRefresh) {
-                        onSceneRefresh();
-                    }
-
-                    console.log(`Scene "${mostRecentScene.name}" loaded successfully`);
-                    alert(`Scene "${mostRecentScene.name}" loaded successfully!`);
-                } else {
-                    console.log('Load scene: scene builder not available');
+                } catch (error) {
+                    console.error('Error loading scene from JSON:', error);
+                    alert('Error loading scene from JSON. Please check that the file is a valid scene JSON file.');
                 }
-            } catch (error) {
-                console.error('Error loading scene:', error);
-                alert('Error loading scene. Check console for details.');
             }
-        } else {
-            console.log('Load scene functionality: visualizer not available');
-        }
+            
+            // Clean up
+            document.body.removeChild(fileInput);
+        };
+        
+        // Handle case where user cancels file dialog
+        fileInput.oncancel = () => {
+            document.body.removeChild(fileInput);
+        };
+        
+        document.body.appendChild(fileInput);
+        fileInput.click();
         setShowSceneMenu(false);
     };
 
@@ -281,8 +297,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
                         </button>
                         {showSceneMenu && (
                             <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
-                                <div className="scene-menu-item" onClick={saveScene}>💾 Save Scene</div>
-                                <div className="scene-menu-item" onClick={loadScene}>📂 Load Scene</div>
+                                <div className="scene-menu-item" onClick={saveScene}>💾 Save Scene (Download JSON)</div>
+                                <div className="scene-menu-item" onClick={loadScene}>📂 Load Scene (Upload JSON)</div>
                                 <div className="scene-menu-item" onClick={clearScene}>🗑️ Clear All Layers</div>
                                 <div className="scene-menu-item" onClick={createNewDefaultScene}>✨ New Default Scene</div>
                             </div>
