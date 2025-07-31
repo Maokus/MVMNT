@@ -1,5 +1,5 @@
 // Main exports for the MIDI Visualizer module
-export { MIDIVisualizer } from './visualizer.js';
+export { MIDIVisualizerCore as MIDIVisualizer } from './visualizer-core.js';
 export { ModularRenderer } from './modular-renderer.js';
 export { Easing } from './easing.js';
 

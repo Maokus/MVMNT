@@ -5,7 +5,7 @@ import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { globalTimingManager } from '../core/timing-manager';
 import { sceneElementRegistry } from './scene-element-registry.js';
 
-export class MIDIVisualizer {
+export class MIDIVisualizerCore {
     constructor(canvas, timingManager = null) {
         if (!canvas) {
             throw new Error('Canvas element is required');

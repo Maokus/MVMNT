@@ -1,8 +1,5 @@
 // Modular Renderer - works with RenderObjects for clean separation of concerns
 export class ModularRenderer {
-    constructor() {
-        // This renderer is stateless and works with RenderObject arrays
-    }
 
     /**
      * Main render method - renders an array of RenderObjects

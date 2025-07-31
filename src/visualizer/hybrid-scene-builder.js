@@ -6,12 +6,8 @@ import {
     ProgressDisplayElement,
     TimeUnitPianoRollElement
 } from './scene-elements/index.js';
-import { MIDIVisualizer } from './visualizer.js';
-import { SceneElement } from './scene-elements/base.js';
-import { globalTimingManager } from '../core/timing-manager.ts';
 import { globalMacroManager } from '../core/macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
-import { SceneNameGenerator } from '../ui/scene-name-generator.js';
 
 export class HybridSceneBuilder {
     constructor() {

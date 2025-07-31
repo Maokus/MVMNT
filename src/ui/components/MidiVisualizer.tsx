@@ -4,7 +4,7 @@ import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
 import ProgressOverlay from './ProgressOverlay';
 // @ts-ignore
-import { MIDIVisualizer as MIDIVisualizerCore } from '../../visualizer/visualizer.js';
+import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
 import { MIDIParser } from '../../core/midi-parser';
 // @ts-ignore
