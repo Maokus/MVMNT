@@ -85,7 +85,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                     const jsonStr = JSON.stringify(sceneConfig, null, 2);
                     const blob = new Blob([jsonStr], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
-                    
+
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = `${sceneName.replace(/[^a-zA-Z0-9]/g, '_')}_scene.json`;
@@ -115,27 +115,27 @@ const MenuBar: React.FC<MenuBarProps> = ({
         fileInput.type = 'file';
         fileInput.accept = '.json';
         fileInput.style.display = 'none';
-        
+
         fileInput.onchange = async (e: Event) => {
             const target = e.target as HTMLInputElement;
             const file = target.files?.[0];
-            
+
             if (file) {
                 try {
                     const text = await file.text();
                     const sceneConfig = JSON.parse(text);
-                    
+
                     // Validate that this is a valid scene file
                     if (!sceneConfig.elements && !sceneConfig.version) {
                         throw new Error('Invalid scene file format - missing elements or version');
                     }
-                    
+
                     if (visualizer) {
                         const sceneBuilder = visualizer.getSceneBuilder();
                         if (sceneBuilder) {
                             // Use the scene builder's loadScene method
                             const success = sceneBuilder.loadScene(sceneConfig);
-                            
+
                             if (success) {
                                 // Update scene name
                                 if (sceneConfig.name) {
@@ -167,16 +167,16 @@ const MenuBar: React.FC<MenuBarProps> = ({
                     alert('Error loading scene from JSON. Please check that the file is a valid scene JSON file.');
                 }
             }
-            
+
             // Clean up
             document.body.removeChild(fileInput);
         };
-        
+
         // Handle case where user cancels file dialog
         fileInput.oncancel = () => {
             document.body.removeChild(fileInput);
         };
-        
+
         document.body.appendChild(fileInput);
         fileInput.click();
         setShowSceneMenu(false);
