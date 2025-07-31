@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
 
 interface MenuBarProps {
     sceneName: string;
@@ -7,6 +8,7 @@ interface MenuBarProps {
     onExport: () => void;
     exportStatus: string;
     canExport: boolean;
+    visualizer?: any; // Add visualizer prop to handle scene operations
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
@@ -15,7 +17,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
     onMidiLoad,
     onExport,
     exportStatus,
-    canExport
+    canExport,
+    visualizer
 }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
@@ -54,14 +57,30 @@ const MenuBar: React.FC<MenuBarProps> = ({
     };
 
     const clearScene = () => {
-        // TODO: Implement scene clearing
-        console.log('Clear scene functionality to be implemented');
+        if (visualizer) {
+            visualizer.sceneBuilder.clearElements();
+            visualizer.render();
+            console.log('Scene cleared - all layers removed');
+        } else {
+            console.log('Clear scene functionality: visualizer not available');
+        }
         setShowSceneMenu(false);
     };
 
     const createNewDefaultScene = () => {
-        // TODO: Implement new default scene
-        console.log('New default scene functionality to be implemented');
+        if (visualizer) {
+            // Generate a new scene name using the scene name generator
+            const newSceneName = SceneNameGenerator.generate();
+
+            // Update scene name first
+            onSceneNameChange(newSceneName);
+
+            // Reset to default scene
+            visualizer.resetToDefaultScene();
+            console.log(`New default scene created with name: ${newSceneName}`);
+        } else {
+            console.log('New default scene functionality: visualizer not available');
+        }
         setShowSceneMenu(false);
     };
 

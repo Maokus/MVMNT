@@ -230,6 +230,13 @@ export class MIDIVisualizerCore {
         const hasGlobalEvents = this.events.length > 0;
         const hasElementEvents = this.getCurrentDuration() > 0;
 
+        console.log('MIDIVisualizerCore.play() called:', {
+            hasGlobalEvents,
+            globalEventCount: this.events.length,
+            hasElementEvents,
+            elementDuration: this.getCurrentDuration()
+        });
+
         if (!hasGlobalEvents && !hasElementEvents) {
             console.log('No MIDI data available to play (neither global nor element-specific)');
             return;
@@ -298,6 +305,12 @@ export class MIDIVisualizerCore {
     getCurrentDuration() {
         // Get maximum duration from all elements with timing managers
         const maxDuration = this.sceneBuilder.getMaxDuration();
+
+        console.log('MIDIVisualizerCore.getCurrentDuration():', {
+            elementMaxDuration: maxDuration,
+            globalDuration: this.duration,
+            usingElementDuration: maxDuration > 0
+        });
 
         // If we have elements with their own durations, use that, otherwise fallback to loaded MIDI duration
         return maxDuration > 0 ? maxDuration : this.duration;

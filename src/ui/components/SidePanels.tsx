@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import SceneEditor from './SceneEditor';
 import { ConfigEditor } from './config-editor';
 import MacroConfig from './MacroConfig';
@@ -11,6 +11,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
+    const sidePanelsRef = useRef<HTMLDivElement>(null);
 
     // Handle element selection from SceneEditor
     const handleElementSelect = (elementId: string | null) => {
@@ -72,8 +73,58 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
         }
     }, [visualizer]);
 
+    // Handle clicks outside of side panels to clear selection and show global settings
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            // Check if the click is outside the side panels
+            if (sidePanelsRef.current && !sidePanelsRef.current.contains(event.target as Node)) {
+                console.log('Click detected outside side panels, clearing selection');
+                // Only clear selection if something is currently selected
+                if (selectedElementId) {
+                    setSelectedElementId(null);
+                    setSelectedElement(null);
+                    setSelectedElementSchema(null);
+
+                    // Reset properties header
+                    const propertiesHeader = document.getElementById('propertiesHeader');
+                    if (propertiesHeader) {
+                        propertiesHeader.textContent = '⚙️ Properties';
+                        propertiesHeader.title = '';
+                    }
+                }
+            }
+        };
+
+        const handleKeyPress = (event: KeyboardEvent) => {
+            // Clear selection on Escape key
+            if (event.key === 'Escape' && selectedElementId) {
+                console.log('Escape key pressed, clearing selection');
+                setSelectedElementId(null);
+                setSelectedElement(null);
+                setSelectedElementSchema(null);
+
+                // Reset properties header
+                const propertiesHeader = document.getElementById('propertiesHeader');
+                if (propertiesHeader) {
+                    propertiesHeader.textContent = '⚙️ Properties';
+                    propertiesHeader.title = '';
+                }
+            }
+        };
+
+        // Add event listeners to document
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyPress);
+
+        // Cleanup event listeners on unmount
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyPress);
+        };
+    }, [selectedElementId]); // Dependency on selectedElementId to re-create listener when selection changes
+
     return (
-        <div className="side-panels">
+        <div className="side-panels" ref={sidePanelsRef}>
             {/* Layer Panel */}
             <div className="layer-panel">
                 <div className="panel-header">

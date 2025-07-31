@@ -8,7 +8,9 @@ import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
 import { MIDIParser } from '../../visualizer/midi-parser';
 // @ts-ignore
-import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
+import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator.ts';
+// @ts-ignore
+import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
 
 const MidiVisualizer: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -17,7 +19,7 @@ const MidiVisualizer: React.FC = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentMidiData, setCurrentMidiData] = useState<any>(null);
     const [currentTime, setCurrentTime] = useState('00:00 / 00:00');
-    const [sceneName, setSceneName] = useState('My Scene');
+    const [sceneName, setSceneName] = useState(SceneNameGenerator.generate());
     const [exportStatus, setExportStatus] = useState('Load MIDI to enable export');
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState({ progress: 0, text: 'Generating images...' });
@@ -169,6 +171,7 @@ const MidiVisualizer: React.FC = () => {
                 onExport={handleExport}
                 exportStatus={exportStatus}
                 canExport={!!currentMidiData}
+                visualizer={visualizer}
             />
 
             <div className="main-workspace">
