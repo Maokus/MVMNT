@@ -182,6 +182,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
                     {selectedElementId && selectedElement && selectedElementSchema && (
                         <div className="element-config" id="elementConfig">
                             <ConfigEditor
+                                key={selectedElementId}
                                 element={selectedElement}
                                 schema={{
                                     ...selectedElementSchema,

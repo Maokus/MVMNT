@@ -76,7 +76,10 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
         for (const [key, propSchema] of Object.entries(schema.properties)) {
             const assignedMacro = elementMacros.find((m: any) => m.propertyPath === key);
             const isAssignedToMacro = !!assignedMacro;
-            const value = element[key] !== undefined ? element[key] : (propSchema as any).default;
+
+            // Use element.config[key] first, then fall back to element[key] for direct properties
+            const value = element.config?.[key] !== undefined ? element.config[key] :
+                (element[key] !== undefined ? element[key] : (propSchema as any).default);
 
             fields.push({
                 key,
