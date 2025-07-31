@@ -21,6 +21,25 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
             try {
                 // Initialize scene editor with container and visualizer
                 const editor = new SceneEditorUI(sceneEditorRef.current, visualizer);
+
+                // Override the createUI method to not overwrite the container
+                // @ts-ignore
+                editor.createUI = function () {
+                    // Store references to existing elements
+                    // @ts-ignore
+                    this.panels.elementList = document.getElementById('elementList');
+                    // @ts-ignore
+                    this.panels.addLayerBtn = document.getElementById('addLayerBtn');
+                    // @ts-ignore
+                    this.panels.elementDropdown = document.getElementById('elementDropdown');
+                    // @ts-ignore
+                    this.panels.addElementBtn = document.getElementById('addElementBtn');
+
+                    // Populate element type dropdown
+                    // @ts-ignore
+                    this.populateElementTypes();
+                };
+
                 editor.init();
                 setSceneEditor(editor);
                 console.log('SceneEditorUI initialized successfully');
@@ -56,26 +75,34 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
             <div className="layer-panel">
                 <div className="panel-header">
                     <h3>📚 Layers</h3>
-                    <button className="btn btn-add" onClick={handleAddLayer}>
+                    <button className="btn btn-add" id="addLayerBtn" onClick={handleAddLayer}>
                         Add ▾
                     </button>
-                    <div className="element-dropdown" ref={elementDropdownRef} style={{ display: 'none' }}>
+                    <div className="element-dropdown" id="elementDropdown" ref={elementDropdownRef} style={{ display: 'none' }}>
                         {/* Element types will be populated by sceneEditor */}
+                        <button id="addElementBtn" style={{ display: 'none' }}>Add Element</button>
                     </div>
                 </div>
                 <div className="scene-editor-container" ref={sceneEditorRef}>
                     {/* Scene elements will be injected here by SceneEditorUI */}
+                    <div className="scene-editor">
+                        <div className="elements-panel">
+                            <div className="element-list" id="elementList">
+                                {/* Elements will be populated here */}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             {/* Properties Panel */}
             <div className="properties-panel">
                 <div className="panel-header">
-                    <h3>⚙️ Properties</h3>
+                    <h3 id="propertiesHeader">⚙️ Properties</h3>
                 </div>
                 <div className="properties-content" ref={propertiesContentRef}>
                     {/* Global settings (shown when nothing is selected) */}
-                    <div className="global-settings">
+                    <div className="global-settings" id="globalSettings">
                         <div className="settings-grid">
                             {/* Global Macros Section */}
                             <div className="setting-group">
@@ -106,7 +133,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
                     </div>
 
                     {/* Element configuration will be injected here when an element is selected */}
-                    <div className="element-config" style={{ display: 'none' }}>
+                    <div className="element-config" id="elementConfig" style={{ display: 'none' }}>
                         {/* Dynamic element configuration will appear here */}
                     </div>
                 </div>

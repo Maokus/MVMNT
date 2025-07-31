@@ -27,6 +27,10 @@ const MidiVisualizer: React.FC = () => {
         if (canvasRef.current && !visualizer) {
             console.log('Initializing MIDIVisualizer...');
             const vis = new MIDIVisualizerCore(canvasRef.current);
+
+            // Render the initial default scene
+            vis.render();
+
             setVisualizer(vis);
 
             // Initialize image sequence generator for export functionality
@@ -44,26 +48,31 @@ const MidiVisualizer: React.FC = () => {
         let animationId: number;
 
         const animate = () => {
-            if (visualizer && visualizer.isPlaying) {
-                if (visualizer.animate) {
-                    visualizer.animate();
-                }
+            if (visualizer) {
+                // Always render to show static elements like background and text overlays
                 if (visualizer.render) {
                     visualizer.render();
                 }
 
-                // Update time display
-                const current = Math.max(0, visualizer.currentTime || 0);
-                const total = visualizer.duration || 0;
-                const currentMin = Math.floor(current / 60);
-                const currentSec = Math.floor(current % 60);
-                const totalMin = Math.floor(total / 60);
-                const totalSec = Math.floor(total % 60);
+                // Only animate when playing
+                if (visualizer.isPlaying) {
+                    if (visualizer.animate) {
+                        visualizer.animate();
+                    }
 
-                setCurrentTime(
-                    `${currentMin.toString().padStart(2, '0')}:${currentSec.toString().padStart(2, '0')} / ` +
-                    `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
-                );
+                    // Update time display
+                    const current = Math.max(0, visualizer.currentTime || 0);
+                    const total = visualizer.duration || 0;
+                    const currentMin = Math.floor(current / 60);
+                    const currentSec = Math.floor(current % 60);
+                    const totalMin = Math.floor(total / 60);
+                    const totalSec = Math.floor(total % 60);
+
+                    setCurrentTime(
+                        `${currentMin.toString().padStart(2, '0')}:${currentSec.toString().padStart(2, '0')} / ` +
+                        `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
+                    );
+                }
             }
 
             animationId = requestAnimationFrame(animate);
