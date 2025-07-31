@@ -81,24 +81,6 @@ export class HybridSceneBuilder {
     }
 
     /**
-     * Handle macro assignment by immediately applying the macro's current value
-     * @private
-     */
-    _handleMacroAssignment(data) {
-        const { macroName, elementId, propertyPath, currentValue } = data;
-
-        const element = this.getElement(elementId);
-        if (element) {
-            // Create a partial config update
-            const configUpdate = {};
-            configUpdate[propertyPath] = currentValue;
-
-            // Update the element configuration
-            element.updateConfig(configUpdate);
-
-            console.log(`Applied macro '${macroName}' value to ${elementId}.${propertyPath}:`, currentValue);
-        }
-    }    /**
      * Add a scene element to the scene
      * @param {SceneElement|string} elementOrType - The scene element to add, or element type string
      * @param {string} [id] - Element ID (when first param is type string)
@@ -298,14 +280,6 @@ export class HybridSceneBuilder {
      */
     getElementsByType(type) {
         return this.elements.filter(element => element.type === type);
-    }
-
-    /**
-     * Get all currently registered elements
-     * @returns {SceneElement[]}
-     */
-    getAllElements() {
-        return [...this.elements];
     }
 
     /**

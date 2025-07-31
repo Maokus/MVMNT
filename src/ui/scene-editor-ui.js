@@ -1,5 +1,5 @@
 // Scene Editor UI Manager - Complete UI for managing scene elements
-import { DynamicConfigEditor } from './dynamic-config-editor.js';
+import { ReactConfigEditorWrapper } from './components/config-editor';
 import { sceneElementRegistry } from '../visualizer/scene-element-registry.js';
 
 export class SceneEditorUI {
@@ -123,7 +123,7 @@ export class SceneEditorUI {
             elementConfig.innerHTML = '';
 
             // Create a new config editor
-            this.configEditor = new DynamicConfigEditor(elementConfig);
+            this.configEditor = new ReactConfigEditorWrapper(elementConfig);
             this.configEditor.setChangeCallback((elementId, configChanges) => {
                 this.handleElementConfigChange(elementId, configChanges);
             });

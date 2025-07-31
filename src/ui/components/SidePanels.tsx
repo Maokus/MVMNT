@@ -42,12 +42,25 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
 
                 editor.init();
                 setSceneEditor(editor);
+
+                // Expose to global scope for inline onclick handlers
+                (window as any).sceneEditorUI = editor;
+
                 console.log('SceneEditorUI initialized successfully');
             } catch (error) {
                 console.error('Failed to initialize SceneEditorUI:', error);
             }
         }
     }, [visualizer, sceneEditor]);
+
+    // Cleanup global reference when component unmounts
+    useEffect(() => {
+        return () => {
+            if ((window as any).sceneEditorUI) {
+                (window as any).sceneEditorUI = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (macroConfigRef.current && !macroConfigUI) {
