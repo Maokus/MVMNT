@@ -95,8 +95,8 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
             element.visible = !element.visible;
             refreshElements();
 
-            if (visualizer?.render) {
-                visualizer.render();
+            if (visualizer?.invalidateRender) {
+                visualizer.invalidateRender();
             }
         }
     }, [sceneBuilder, refreshElements, visualizer]);
@@ -141,8 +141,8 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
 
             refreshElements();
 
-            if (visualizer?.render) {
-                visualizer.render();
+            if (visualizer?.invalidateRender) {
+                visualizer.invalidateRender();
             }
 
             onElementDelete?.(elementId);
@@ -168,8 +168,8 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
 
             refreshElements();
 
-            if (visualizer?.render) {
-                visualizer.render();
+            if (visualizer?.invalidateRender) {
+                visualizer.invalidateRender();
             }
 
             onElementIdChange?.(oldId, newId);

@@ -64,9 +64,9 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
                 Object.assign(element.config, changes);
                 element._applyConfig();
 
-                // Trigger re-render
-                if (visualizer.render) {
-                    visualizer.render();
+                // Trigger re-render using invalidateRender to ensure the render happens
+                if (visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
                 }
             }
         }
@@ -99,8 +99,9 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
                     propertiesHeader.title = `Properties | ${element.id}`;
                 }
 
-                if (visualizer.render) {
-                    visualizer.render();
+                // Trigger re-render using invalidateRender to ensure the render happens
+                if (visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
                 }
 
                 // Trigger refresh of SceneEditor elements list

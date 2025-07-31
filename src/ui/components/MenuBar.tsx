@@ -142,8 +142,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
                                     onSceneNameChange(sceneConfig.name);
                                 }
 
-                                if (visualizer.render) {
-                                    visualizer.render();
+                                if (visualizer.invalidateRender) {
+                                    visualizer.invalidateRender();
                                 }
 
                                 // Trigger refresh of UI components
@@ -187,8 +187,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
             const sceneBuilder = visualizer.getSceneBuilder();
             if (sceneBuilder) {
                 sceneBuilder.clearElements();
-                if (visualizer.render) {
-                    visualizer.render();
+                if (visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
                 }
 
                 // Trigger refresh of UI components
@@ -226,8 +226,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
                 }
             }
 
-            if (visualizer.render) {
-                visualizer.render();
+            if (visualizer.invalidateRender) {
+                visualizer.invalidateRender();
             }
 
             // Trigger refresh of UI components
