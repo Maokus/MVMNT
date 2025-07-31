@@ -640,15 +640,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         note: event.note,
                         channel: event.channel,
                         velocity: event.velocity,
-                        startTime: event.timeInSeconds
+                        startTime: event.time
                     });
                 } else if (event.type === 'noteOff') {
                     const noteOn = noteMap.get(noteKey);
                     if (noteOn) {
                         notes.push({
                             ...noteOn,
-                            endTime: event.timeInSeconds,
-                            duration: event.timeInSeconds - noteOn.startTime
+                            endTime: event.time,
+                            duration: event.time - noteOn.startTime
                         });
                         noteMap.delete(noteKey);
                     }
