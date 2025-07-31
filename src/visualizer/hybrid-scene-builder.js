@@ -6,7 +6,7 @@ import {
     ProgressDisplayElement,
     TimeUnitPianoRollElement
 } from './scene-elements/index.js';
-import { globalMacroManager } from '../core/macro-manager.ts';
+import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
 
 export class HybridSceneBuilder {

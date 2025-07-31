@@ -7,7 +7,7 @@ import RangeInput from './inputs/RangeInput';
 import FileInput from './inputs/FileInput';
 import TextInput from './inputs/TextInput';
 // @ts-ignore
-import { globalMacroManager } from '../../../core/macro-manager';
+import { globalMacroManager } from '../../../visualizer/macro-manager';
 
 interface ConfigEditorProps {
     element: any;

@@ -2,10 +2,10 @@
 import { SceneElement } from '../base.js';
 import { Line, Text, Rectangle } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
-import { globalTimingManager } from '../../../core/timing-manager';
-import { LocalTimingManager } from '../../../core/local-timing-manager.js';
-import { globalMacroManager } from '../../../core/macro-manager';
-import { NoteBlock } from '../../../core/note-block';
+import { globalTimingManager } from '../../timing-manager';
+import { LocalTimingManager } from '../../local-timing-manager.js';
+import { globalMacroManager } from '../../macro-manager';
+import { NoteBlock } from '../../note-block';
 
 export class TimeUnitPianoRollElement extends SceneElement {
     constructor(id = 'timeUnitPianoRoll', config = {}, timingManager = null) {
@@ -623,7 +623,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             console.log(`Loading MIDI file for element ${this.id}:`, file.name);
 
             // Import MIDIParser dynamically to avoid circular imports
-            const { MIDIParser } = await import('../../../core/midi-parser.ts');
+            const { MIDIParser } = await import('../../midi-parser.ts');
             const parser = new MIDIParser();
 
             // Parse the MIDI file

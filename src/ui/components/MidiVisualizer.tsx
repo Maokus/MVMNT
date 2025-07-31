@@ -6,9 +6,9 @@ import ProgressOverlay from './ProgressOverlay';
 // @ts-ignore
 import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
-import { MIDIParser } from '../../core/midi-parser';
+import { MIDIParser } from '../../visualizer/midi-parser';
 // @ts-ignore
-import { ImageSequenceGenerator } from '../../core/image-sequence-generator';
+import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
 
 const MidiVisualizer: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);

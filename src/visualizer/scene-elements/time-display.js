@@ -1,8 +1,8 @@
 // Time display element for showing current time
 import { SceneElement } from './base.js';
 import { Text, Rectangle } from '../render-objects/index.js';
-import { globalTimingManager } from '../../core/timing-manager';
-import { LocalTimingManager } from '../../core/local-timing-manager.js';
+import { globalTimingManager } from '../timing-manager';
+import { LocalTimingManager } from '../local-timing-manager.js';
 
 export class TimeDisplayElement extends SceneElement {
     constructor(id = 'timeDisplay', position = 'bottomLeft', showProgress = true, config = {}, timingManager = null) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { globalMacroManager } from '../../core/macro-manager';
+import { globalMacroManager } from '../../visualizer/macro-manager';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
