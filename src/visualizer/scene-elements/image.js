@@ -125,61 +125,29 @@ export class ImageElement extends SceneElement {
     _applyConfig() {
         super._applyConfig();
 
-        // Debug configuration before applying
-        console.log('Applying config to ImageElement:', this.config);
-
         if (this.config.x !== undefined) this.x = this.config.x;
         if (this.config.y !== undefined) this.y = this.config.y;
         if (this.config.width !== undefined) this.width = this.config.width;
         if (this.config.height !== undefined) this.height = this.config.height;
         if (this.config.imageSource !== undefined) this.imageSource = this.config.imageSource;
         if (this.config.scaleX !== undefined) {
-            console.log(`Setting scaleX from ${this.scaleX} to ${this.config.scaleX}`);
             this.scaleX = parseFloat(this.config.scaleX);
         }
         if (this.config.scaleY !== undefined) {
-            console.log(`Setting scaleY from ${this.scaleY} to ${this.config.scaleY}`);
             this.scaleY = parseFloat(this.config.scaleY);
         }
         if (this.config.opacity !== undefined) {
-            console.log(`Setting opacity from ${this.opacity} to ${this.config.opacity}`);
             this.opacity = parseFloat(this.config.opacity);
         }
         if (this.config.rotation !== undefined) {
-            console.log(`Setting rotation from ${this.rotation} to ${this.config.rotation}`);
             this.rotation = parseFloat(this.config.rotation);
         }
         if (this.config.fitMode !== undefined) this.fitMode = this.config.fitMode;
         if (this.config.preserveAspectRatio !== undefined) this.preserveAspectRatio = this.config.preserveAspectRatio;
-
-        // Debug element state after applying config
-        console.log('ImageElement state after applying config:', {
-            id: this.id,
-            opacity: this.opacity,
-            rotation: this.rotation,
-            scaleX: this.scaleX,
-            scaleY: this.scaleY
-        });
     }
 
     buildRenderObjects(config, targetTime) {
         if (!this.visible || !this.imageSource) return [];
-
-        // Debug element state before rendering
-        console.log('ImageElement state before building render objects:', {
-            id: this.id,
-            x: this.x,
-            y: this.y,
-            width: this.width,
-            height: this.height,
-            opacity: this.opacity,
-            rotation: this.rotation,
-            scaleX: this.scaleX,
-            scaleY: this.scaleY,
-            imageSource: typeof this.imageSource === 'string' ?
-                (this.imageSource.startsWith('data:') ? 'data:URL' : this.imageSource) :
-                'HTMLImageElement'
-        });
 
         const image = new Image(
             this.x,
@@ -197,21 +165,10 @@ export class ImageElement extends SceneElement {
         // Convert rotation from degrees to radians
         const rotationRad = (this.rotation * Math.PI) / 180;
         image.rotation = rotationRad;
-        console.log(`Setting image rotation: ${this.rotation}° = ${rotationRad} radians`);
 
         // Apply fit mode and aspect ratio settings
         image.setFitMode(this.fitMode);
         image.setPreserveAspectRatio(this.preserveAspectRatio);
-
-        // Debug the created render object
-        console.log('Image render object created with:', {
-            x: image.x,
-            y: image.y,
-            opacity: image.opacity,
-            rotation: image.rotation,
-            scaleX: image.scaleX,
-            scaleY: image.scaleY
-        });
 
         return [image];
     }

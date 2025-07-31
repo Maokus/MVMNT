@@ -25,6 +25,10 @@ export class MIDIVisualizerCore {
         this.animationId = null;
         this.currentTime = -0.5; // Start with buffer time so first notes can animate in
 
+        // Render invalidation system
+        this._needsRender = true;
+        this._lastRenderTime = -1;
+
         // Timing management
         this.timingManager = timingManager || globalTimingManager;
 
@@ -158,7 +162,7 @@ export class MIDIVisualizerCore {
         this.updateTimeUnit();
         // Update note manager with new time unit
         this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.render();
+        this.invalidateRender();
     }
 
     setBeatsPerBar(beats) {
@@ -167,7 +171,7 @@ export class MIDIVisualizerCore {
         this.updateTimeUnit();
         // Update note manager with new time unit
         this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.render();
+        this.invalidateRender();
     }
 
     setTimeSignature(timeSignature) {
@@ -176,7 +180,7 @@ export class MIDIVisualizerCore {
         this.updateTimeUnit();
         // Update note manager with new time unit
         this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.render();
+        this.invalidateRender();
     }
 
     setBPM(bpm) {
@@ -200,7 +204,7 @@ export class MIDIVisualizerCore {
 
             // Update time unit and redraw
             this.updateTimeUnit();
-            this.render();
+            this.invalidateRender();
 
             console.log(`BPM changed from ${oldBpm} to ${bpm}, new duration: ${this.duration.toFixed(2)}s`);
         } catch (error) {
@@ -222,7 +226,7 @@ export class MIDIVisualizerCore {
         this.duration = this.timingManager.scaleTimeByTempo(this.duration, tempoRatio);
 
         this.updateTimeUnit();
-        this.render();
+        this.invalidateRender();
     }
 
     play() {
@@ -276,7 +280,7 @@ export class MIDIVisualizerCore {
         this.noteManager.resetTracking();
 
         // Redraw with new state
-        this.render();
+        this.invalidateRender();
     }
 
     seek(time) {
@@ -299,21 +303,28 @@ export class MIDIVisualizerCore {
         if (this.events.length > 0) {
             this.noteManager.updateActiveNotes(this.events, this.currentTime);
         }
-        this.render();
+        this.invalidateRender();
     }
 
     getCurrentDuration() {
         // Get maximum duration from all elements with timing managers
         const maxDuration = this.sceneBuilder.getMaxDuration();
 
-        console.log('MIDIVisualizerCore.getCurrentDuration():', {
-            elementMaxDuration: maxDuration,
-            globalDuration: this.duration,
-            usingElementDuration: maxDuration > 0
-        });
-
         // If we have elements with their own durations, use that, otherwise fallback to loaded MIDI duration
         return maxDuration > 0 ? maxDuration : this.duration;
+    }
+
+    stepForward() {
+        const stepSize = 1.0; // 1 second step
+        const currentDuration = this.getCurrentDuration();
+        const newTime = Math.min(this.currentTime + stepSize, currentDuration);
+        this.seek(newTime);
+    }
+
+    stepBackward() {
+        const stepSize = 1.0; // 1 second step
+        const newTime = Math.max(this.currentTime - stepSize, -0.5);
+        this.seek(newTime);
     }
 
     animate() {
@@ -359,8 +370,21 @@ export class MIDIVisualizerCore {
     }
 
     render() {
-        // Use the stateless rendering system
-        this.renderAtTime(this.currentTime);
+        // Only render if invalidated or time has changed
+        if (this._needsRender || this.currentTime !== this._lastRenderTime || this.isPlaying) {
+            this.renderAtTime(this.currentTime);
+            this._needsRender = false;
+            this._lastRenderTime = this.currentTime;
+        }
+    }
+
+    // Force a re-render on next frame
+    invalidateRender() {
+        this._needsRender = true;
+        // Dispatch event to notify React component
+        if (this.canvas) {
+            this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
+        }
     }
 
     // Stateless render method - can render any frame without maintaining state
@@ -403,7 +427,7 @@ export class MIDIVisualizerCore {
             // Set a timeout to batch multiple image loads into a single re-render
             this._imageLoadDebounceTimeout = setTimeout(() => {
                 console.log(`Image load complete, rendering ${this._pendingImageLoads.size} images`);
-                this.render();
+                this.invalidateRender();
                 // Clear the pending image loads after rendering
                 this._pendingImageLoads.clear();
                 this._imageLoadDebounceTimeout = null;
@@ -420,7 +444,7 @@ export class MIDIVisualizerCore {
         console.log(`Canvas resized: width=${this.canvas.width}, height=${this.canvas.height}`);
 
         this.setupPiano();
-        this.render();
+        this.invalidateRender();
     }
 
     getCurrentTime() {
@@ -443,7 +467,7 @@ export class MIDIVisualizerCore {
     // Color control methods (core visualization colors only)
     setBackgroundColor(color) {
         this.backgroundColor = color || '#000000';
-        this.render();
+        this.invalidateRender();
     }
 
     getBackgroundColor() {
@@ -453,7 +477,7 @@ export class MIDIVisualizerCore {
     setChannelColor(channel, color) {
         if (channel >= 0 && channel < this.channelColors.length && color) {
             this.channelColors[channel] = color;
-            this.render();
+            this.invalidateRender();
         }
     }
 
@@ -464,7 +488,7 @@ export class MIDIVisualizerCore {
     setChannelColors(colors) {
         if (Array.isArray(colors) && colors.length > 0) {
             this.channelColors = [...colors];
-            this.render();
+            this.invalidateRender();
         }
     }
 
@@ -542,7 +566,7 @@ export class MIDIVisualizerCore {
         // Use the imported registry directly
         const element = this.sceneBuilder.addElementFromRegistry(type, config);
         if (element) {
-            this.render();
+            this.invalidateRender();
         }
         return element;
     }
@@ -555,7 +579,7 @@ export class MIDIVisualizerCore {
     removeSceneElement(elementId) {
         const removed = this.sceneBuilder.removeElement(elementId);
         if (removed) {
-            this.render();
+            this.invalidateRender();
         }
         return removed;
     }
@@ -569,7 +593,7 @@ export class MIDIVisualizerCore {
     updateSceneElementConfig(elementId, config) {
         const updated = this.sceneBuilder.updateElementConfig(elementId, config);
         if (updated) {
-            this.render();
+            this.invalidateRender();
         }
         return updated;
     }
@@ -626,7 +650,7 @@ export class MIDIVisualizerCore {
             batchLoadTimeout = setTimeout(() => {
                 console.log('All images loaded, restoring handler and rendering');
                 this._handleImageLoaded = originalImageLoadListener;
-                this.render();
+                this.invalidateRender();
             }, 100);
         };
 
@@ -656,7 +680,7 @@ export class MIDIVisualizerCore {
             } else {
                 // No images to load, restore handler immediately
                 this._handleImageLoaded = originalImageLoadListener;
-                this.render();
+                this.invalidateRender();
             }
         } else {
             // If scene loading failed, restore the original handler
@@ -669,7 +693,7 @@ export class MIDIVisualizerCore {
      */
     resetToDefaultScene() {
         this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
-        this.render();
+        this.invalidateRender();
     }
 
     /**
@@ -716,7 +740,7 @@ export class MIDIVisualizerCore {
         const element = this.sceneBuilder.getElement(elementId);
         if (element) {
             element.setVisible(visible);
-            this.render();
+            this.invalidateRender();
         }
     }
 
@@ -729,7 +753,7 @@ export class MIDIVisualizerCore {
         const element = this.sceneBuilder.getElement(elementId);
         if (element) {
             element.setZIndex(zIndex);
-            this.render();
+            this.invalidateRender();
         }
     }
 
@@ -740,7 +764,7 @@ export class MIDIVisualizerCore {
      */
     moveSceneElement(elementId, newIndex) {
         if (this.sceneBuilder.moveElement(elementId, newIndex)) {
-            this.render();
+            this.invalidateRender();
         }
     }
 
@@ -753,7 +777,7 @@ export class MIDIVisualizerCore {
     duplicateSceneElement(sourceId, newId) {
         const element = this.sceneBuilder.duplicateElement(sourceId, newId);
         if (element) {
-            this.render();
+            this.invalidateRender();
         }
         return element;
     }

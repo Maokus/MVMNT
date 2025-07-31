@@ -30,11 +30,8 @@ export class AnimationController {
         const renderObjects = [];
 
         if (!noteBlocks || noteBlocks.length === 0) {
-            console.log('No note blocks available for rendering');
             return renderObjects;
         }
-
-        console.log(`Building notes: ${noteBlocks.length} note blocks, target time: ${targetTime}`);
 
         for (const block of noteBlocks) {
             // Check if note should be shown in current time window
@@ -69,7 +66,6 @@ export class AnimationController {
             renderObjects.push(...noteRenderObjects);
         }
 
-        console.log(`Generated ${renderObjects.length} note render objects`);
         return renderObjects;
     }
 

@@ -48,25 +48,32 @@ const MidiVisualizer: React.FC = () => {
         if (!visualizer) return;
 
         let animationId: number;
+        let lastCurrentTime = -1;
+        let lastExportStatus = '';
+        let needsRender = true; // Force initial render
 
         const animate = () => {
             if (visualizer) {
-                // Always render to show static elements like background and text overlays
-                if (visualizer.render) {
-                    visualizer.render();
+                const currentTime = Math.max(0, visualizer.currentTime || 0);
+
+                // Only render if something has changed or if playing
+                const timeChanged = currentTime !== lastCurrentTime;
+                const isPlaying = visualizer.isPlaying;
+
+                if (needsRender || isPlaying || timeChanged) {
+                    if (visualizer.render) {
+                        visualizer.render();
+                    }
+                    needsRender = false;
                 }
 
-                // Only animate when playing
-                if (visualizer.isPlaying) {
-                    if (visualizer.animate) {
-                        visualizer.animate();
-                    }
+                // Update time display only when time changes
+                if (timeChanged) {
+                    // Only get total duration when time changes, not every frame
+                    const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
 
-                    // Update time display
-                    const current = Math.max(0, visualizer.currentTime || 0);
-                    const total = visualizer.duration || 0;
-                    const currentMin = Math.floor(current / 60);
-                    const currentSec = Math.floor(current % 60);
+                    const currentMin = Math.floor(currentTime / 60);
+                    const currentSec = Math.floor(currentTime % 60);
                     const totalMin = Math.floor(total / 60);
                     const totalSec = Math.floor(total % 60);
 
@@ -74,6 +81,22 @@ const MidiVisualizer: React.FC = () => {
                         `${currentMin.toString().padStart(2, '0')}:${currentSec.toString().padStart(2, '0')} / ` +
                         `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
                     );
+                    lastCurrentTime = currentTime;
+
+                    // Update export status only when time changes (and we have fresh duration)
+                    const hasAnyMidiData = !!currentMidiData || total > 0;
+                    const newExportStatus = hasAnyMidiData ? 'Ready to export' : 'Load MIDI to enable export';
+                    if (newExportStatus !== lastExportStatus) {
+                        setExportStatus(newExportStatus);
+                        lastExportStatus = newExportStatus;
+                    }
+                }
+
+                // Only animate when playing
+                if (isPlaying) {
+                    if (visualizer.animate) {
+                        visualizer.animate();
+                    }
                 }
             }
 
@@ -82,12 +105,25 @@ const MidiVisualizer: React.FC = () => {
 
         animate();
 
+        // Listen for visualizer changes that require re-render
+        const handleVisualizerUpdate = () => {
+            needsRender = true;
+        };
+
+        // Add event listeners for changes that require re-render
+        if (visualizer.canvas) {
+            visualizer.canvas.addEventListener('visualizer-update', handleVisualizerUpdate);
+        }
+
         return () => {
             if (animationId) {
                 cancelAnimationFrame(animationId);
             }
+            if (visualizer.canvas) {
+                visualizer.canvas.removeEventListener('visualizer-update', handleVisualizerUpdate);
+            }
         };
-    }, [visualizer, isPlaying]);
+    }, [visualizer, currentMidiData]);
 
     const handleMidiLoad = async (file: File) => {
         if (!visualizer) return;
@@ -170,7 +206,7 @@ const MidiVisualizer: React.FC = () => {
                 onMidiLoad={handleMidiLoad}
                 onExport={handleExport}
                 exportStatus={exportStatus}
-                canExport={!!currentMidiData}
+                canExport={!!currentMidiData || (visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0)}
                 visualizer={visualizer}
             />
 

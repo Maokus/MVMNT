@@ -176,22 +176,16 @@ export class HybridSceneBuilder {
     getMaxDuration() {
         let maxDuration = 0;
 
-        console.log('HybridSceneBuilder.getMaxDuration() checking elements:', this.elements.length);
-
         for (const element of this.elements) {
             // Check if element has a local timing manager with duration
             if (element.timingManager && typeof element.timingManager.getDuration === 'function') {
                 const duration = element.timingManager.getDuration();
-                console.log(`Element ${element.id} duration:`, duration);
                 if (duration > maxDuration) {
                     maxDuration = duration;
                 }
-            } else {
-                console.log(`Element ${element.id} has no timing manager or getDuration method`);
             }
         }
 
-        console.log('HybridSceneBuilder.getMaxDuration() returning:', maxDuration);
         return maxDuration;
     }
 

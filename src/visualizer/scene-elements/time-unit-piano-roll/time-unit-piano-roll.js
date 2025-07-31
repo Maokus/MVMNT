@@ -335,8 +335,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         const renderObjects = [];
 
-        // Debug: Log timing values occasionally during playback
-        if (config.isPlaying && Math.floor(targetTime) % 5 === 0 && Math.floor(targetTime * 10) % 10 === 0) { // Log every 5 seconds
+        // Debug: Log timing values occasionally during playback (reduced frequency)
+        if (config.isPlaying && Math.floor(targetTime) % 30 === 0 && Math.floor(targetTime * 10) % 10 === 0) { // Log every 30 seconds instead of 5
             console.log(`TimeUnitPianoRoll (${this.id}) timing during playback:`, {
                 localBPM: this.timingManager.bpm,
                 localBeatsPerBar: this.timingManager.beatsPerBar,
@@ -701,7 +701,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const notes = this._getNotesForTimeWindow(config, time);
 
         if (!notes || notes.length === 0) {
-            console.log(`No notes available for element ${this.id} at time ${time}`);
             return [];
         }
 
@@ -714,7 +713,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
             note.velocity || 127
         ));
 
-        console.log(`Created ${noteBlocks.length} note blocks for element ${this.id} at time ${time}`);
         return noteBlocks;
     }
 
