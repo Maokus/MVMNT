@@ -1,38 +1,1504 @@
-.App {
-  text-align: center;
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+        sans-serif;
+    background: #1e1e1e;
+    color: #ffffff;
+    height: 100vh;
+    overflow: hidden;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+/* Main App Container */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+/* Menu Bar */
+.menu-bar {
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    height: 48px;
+    flex-shrink: 0;
 }
 
-.App-link {
-  color: #61dafb;
+.menu-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.menu-section h3 {
+    font-size: 12px;
+    color: #cccccc;
+    margin-right: 8px;
+    font-weight: 500;
+}
+
+/* Scene Name Section */
+.scene-name-section {
+    flex: 1;
+    justify-content: center;
+    position: relative;
+}
+
+.scene-name-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+}
+
+.scene-name-display {
+    font-size: 14px;
+    color: #ffffff;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scene-name-display:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.scene-name-input {
+    font-size: 14px;
+    color: #ffffff;
+    background: #3c3c3c;
+    border: 1px solid #007acc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    outline: none;
+    min-width: 150px;
+    max-width: 300px;
+}
+
+.scene-name-edit-btn {
+    background: none;
+    border: none;
+    color: #cccccc;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 3px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.scene-name-edit-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+/* Scene Menu Dropdown */
+.scene-menu-container {
+    position: relative;
+}
+
+.scene-menu-btn {
+    background: none;
+    border: none;
+    color: #cccccc;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.scene-menu-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.scene-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #3c3c3c;
+    border: 1px solid #5a5a5a;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    min-width: 180px;
+    display: none;
+    margin-top: 4px;
+}
+
+.scene-menu-dropdown.show {
+    display: block;
+}
+
+.scene-menu-item {
+    padding: 8px 12px;
+    color: #cccccc;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scene-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.scene-menu-item:first-child {
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+}
+
+.scene-menu-item:last-child {
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+/* Main Workspace */
+.main-workspace {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Preview Panel (2/3 width) */
+.preview-panel {
+    flex: 2;
+    background: #252526;
+    border-right: 1px solid #3e3e42;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.canvas-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    min-height: 0;
+}
+
+#canvas {
+    width: 400px;
+    height: 400px;
+    max-width: calc(100% - 40px);
+    max-height: calc(100% - 40px);
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    background: #000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.playback-controls {
+    background: #2d2d30;
+    border-top: 1px solid #3e3e42;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.progress-bar-container {
+    position: relative;
+    height: 8px;
+    background-color: #3e3e42;
+    border-radius: 4px;
+    flex-grow: 1;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: #0078d7;
+    width: 0%;
+}
+
+#playPauseBtn {
+    min-width: 38px;
+    padding: 0 10px;
+}
+
+/* Side Panels (1/3 width) */
+.side-panels {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 320px;
+}
+
+/* Layer Panel */
+.layer-panel {
+    flex: 1;
+    background: #252526;
+    border-bottom: 1px solid #3e3e42;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 250px;
+}
+
+/* Properties Panel */
+.properties-panel {
+    flex: 1;
+    background: #252526;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.panel-header {
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    padding: 8px 16px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.panel-header h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #cccccc;
+}
+
+.btn-add {
+    background: #3c3c3c;
+    color: #ffffff;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-add:hover {
+    background: #4a4a4a;
+}
+
+.element-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 16px;
+    background: #2d2d30;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    z-index: 100;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.element-dropdown.show {
+    display: block;
+}
+
+.element-dropdown-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #cccccc;
+    transition: background-color 0.15s;
+}
+
+.element-dropdown-item:hover {
+    background: #3e3e42;
+}
+
+.element-dropdown-category {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #8a8a8a;
+    background: #252526;
+    border-top: 1px solid #3e3e42;
+    border-bottom: 1px solid #3e3e42;
+    text-transform: uppercase;
+}
+
+.properties-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.scene-editor-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* Button Styles */
+.btn {
+    padding: 4px 12px;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    background: #3c3c3c;
+    color: #cccccc;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: fit-content;
+}
+
+.btn:hover {
+    background: #464647;
+    border-color: #565657;
+}
+
+.btn-primary {
+    background: #0e639c;
+    border-color: #1177bb;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1177bb;
+    border-color: #1890d4;
+}
+
+.btn-secondary {
+    background: #5a5a5a;
+    border-color: #6a6a6a;
+}
+
+.btn-secondary:hover {
+    background: #6a6a6a;
+    border-color: #7a7a7a;
+}
+
+.btn-success {
+    background: #196127;
+    border-color: #2d7a3d;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #2d7a3d;
+    border-color: #3d8a4d;
+}
+
+.btn-warning {
+    background: #b8860b;
+    border-color: #daa520;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #daa520;
+    border-color: #ffb347;
+}
+
+.btn-export {
+    background: #8b5cf6;
+    border-color: #a855f7;
+    color: white;
+    padding: 6px 16px;
+    font-weight: 600;
+}
+
+.btn-export:hover {
+    background: #a855f7;
+    border-color: #c084fc;
+}
+
+.btn-export:disabled {
+    background: #4a4a4a;
+    border-color: #5a5a5a;
+    color: #888888;
+    cursor: not-allowed;
+}
+
+/* File Input Styling */
+.file-input {
+    display: none;
+}
+
+.file-input + label {
+    cursor: pointer;
+}
+
+.file-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-input-label {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #0078d4;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: background-color 0.2s;
+    width: fit-content;
+}
+
+.file-input-label:hover {
+    background: #106ebe;
+}
+
+.current-file {
+    font-size: 11px;
+    color: #cccccc;
+    font-style: italic;
+}
+
+/* Macro File Input Wrapper */
+.file-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-file {
+    padding: 4px 8px;
+    background: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background-color 0.2s;
+}
+
+.btn-file:hover {
+    background: #106ebe;
+}
+
+.file-name {
+    font-size: 11px;
+    color: #cccccc;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.file-preview {
+    margin-top: 4px;
+    border: 1px dashed #464647;
+    border-radius: 4px;
+    padding: 8px;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.file-preview:empty {
+    display: none;
+}
+
+.file-preview img {
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Time Display */
+.time-display {
+    background: #3c3c3c;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-size: 11px;
+    color: #cccccc;
+    border: 1px solid #464647;
+}
+
+/* Settings Styles */
+.settings-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Settings panel styles */
+.setting-group {
+    margin-bottom: 20px;
+}
+
+.setting-group h4 {
+    margin-bottom: 12px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid #3e3e42;
+    padding-bottom: 4px;
+}
+
+.setting-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 12px;
+    color: #ffffff;
+}
+
+.setting-group input,
+.setting-group select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #3c3c3c;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.setting-group input:focus,
+.setting-group select:focus {
+    outline: none;
+    border-color: #0e639c;
+    box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
+}
+
+.setting-group input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+    accent-color: #0e639c;
+}
+
+.time-signature-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.time-signature-controls select {
+    width: auto;
+    min-width: 50px;
+    margin-bottom: 0;
+}
+
+.apply-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+/* Progress Overlay */
+.progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.progress-modal {
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    padding: 24px;
+    min-width: 400px;
+    text-align: center;
+}
+
+.progress-modal h3 {
+    margin-bottom: 20px;
+    color: #ffffff;
+}
+
+.progress-section {
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #3c3c3c;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0e639c, #1177bb);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 12px;
+    color: #cccccc;
+}
+
+.download-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #196127;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.download-btn:hover {
+    background: #2d7a3d;
+}
+
+/* Scene Editor Styles (for layer panel content) */
+.scene-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    color: #cccccc;
+}
+
+.elements-panel {
+    background: transparent;
+}
+
+.config-panel {
+    background: transparent;
+}
+
+.element-list {
+    margin-bottom: 16px;
+}
+
+.element-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 12px;
+    margin-bottom: 4px;
+    background: #3c3c3c;
+    border: 1px solid #464647;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.element-item:hover {
+    background: #464647;
+    border-color: #565657;
+}
+
+.element-item.selected {
+    background: #0e639c;
+    border-color: #1177bb;
+    color: white;
+}
+
+.element-info {
+    flex: 1;
+}
+
+.element-name-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.element-name {
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.edit-id-btn {
+    background: transparent !important;
+    border: none !important;
+    font-size: 10px !important;
+    padding: 0 2px !important;
+    opacity: 0.6;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.edit-id-btn:hover {
+    opacity: 1;
+}
+
+.element-id-input {
+    font-family: inherit;
+    outline: none;
+}
+
+.element-type {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.element-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.element-controls button {
+    padding: 2px 6px;
+    font-size: 10px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    color: currentColor;
+}
+
+.element-controls button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.element-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.scene-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+/* The add-element-section has been removed and replaced by the dropdown in the header */
+
+.no-selection {
+    text-align: center;
+    color: #888888;
+    font-style: italic;
+    padding: 20px;
+    font-size: 12px;
+}
+
+.visibility-toggle {
+    opacity: 0.5;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    background: transparent !important;
+    border: none !important;
+    font-size: 12px !important;
+}
+
+.visibility-toggle.visible {
+    opacity: 1;
+}
+
+.z-index-controls {
+    display: flex;
+    gap: 2px;
+}
+
+.z-index-controls button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+/* Dynamic Config Editor Styles */
+.config-editor {
+    color: #ffffff;
+}
+
+.config-editor-header {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.config-editor-header h3 {
+    margin: 0 0 5px 0;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.config-editor-header .description {
+    margin: 0;
+    color: #cccccc;
+    font-size: 12px;
+}
+
+.config-editor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Form field styles - used by config editor */
+.form-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+}
+
+.form-field label {
+    font-weight: 500;
+    color: #ffffff;
+    font-size: 12px;
+    min-width: 80px;
+    flex-shrink: 0;
+    text-align: left;
+}
+
+.form-field input,
+.form-field select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #3c3c3c;
+    color: #ffffff;
+    min-width: 0;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+    outline: none;
+    border-color: #0e639c;
+    box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
+}
+
+.form-field input[type="checkbox"] {
+    flex: none;
+    width: auto;
+    margin: 0;
+    accent-color: #0e639c;
+}
+
+.form-field.checkbox-field {
+    justify-content: flex-start;
+}
+
+.form-field.checkbox-field input[type="checkbox"] {
+    order: 1;
+}
+
+.form-field.checkbox-field label {
+    margin-left: 8px;
+    order: 2;
+}
+
+.form-field input[type="color"] {
+    flex: none;
+    width: 60px;
+    height: 32px;
+    padding: 2px;
+    border-radius: 3px;
+}
+
+.form-field input[type="range"] {
+    flex: 1;
+}
+
+/* Range input styling */
+.range-input-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.range-input-container input[type="range"] {
+    flex: 1;
+}
+
+.field-description {
+    color: #cccccc;
+    font-size: 11px;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+/* Form fields with descriptions */
+.form-field.has-description {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.form-field.has-description .field-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.form-field.has-description label {
+    min-width: 80px;
+}
+
+.form-field.has-description input,
+.form-field.has-description select {
+    flex: 1;
+}
+
+/* Config section styles - legacy style, consider consolidating with form-field */
+.config-section {
+    margin-bottom: 16px;
+}
+
+.config-section h4 {
+    margin-bottom: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid #3e3e42;
+    padding-bottom: 4px;
+}
+
+.config-property {
+    margin-bottom: 12px;
+}
+
+.config-property label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    font-size: 12px;
+    color: #ffffff;
+}
+
+.config-property .property-description {
+    font-size: 11px;
+    color: #cccccc;
+    margin-bottom: 4px;
+}
+
+.config-property input,
+.config-property select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #3c3c3c;
+    color: #ffffff;
+}
+
+.config-property input:focus,
+.config-property select:focus {
+    outline: none;
+    border-color: #0e639c;
+    box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
+}
+
+.config-property input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+    accent-color: #0e639c;
+}
+
+.config-property input[type="color"] {
+    width: 60px;
+    height: 32px;
+    padding: 2px;
+    border-radius: 3px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2d2d30;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #464647;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #565657;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .main-workspace {
+        flex-direction: column;
+    }
+
+    .preview-panel {
+        flex: 1;
+        border-right: none;
+        border-bottom: 1px solid #3e3e42;
+    }
+
+    .side-panels {
+        flex-direction: row;
+        height: 40vh;
+    }
+
+    .layer-panel {
+        border-bottom: none;
+        border-right: 1px solid #3e3e42;
+        max-height: unset;
+    }
+
+    .scene-name-display {
+        max-width: 250px;
+    }
+
+    .scene-name-input {
+        max-width: 250px;
+    }
+
+    #canvas {
+        width: 300px;
+        height: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .menu-bar {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: 48px;
+        padding: 8px;
+    }
+
+    .menu-section {
+        margin-bottom: 4px;
+    }
+
+    .scene-name-section {
+        order: -1; /* Move scene name to top row */
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .scene-name-display {
+        max-width: 200px;
+    }
+
+    .scene-name-input {
+        max-width: 200px;
+    }
+
+    .side-panels {
+        flex-direction: column;
+        height: 50vh;
+    }
+
+    .layer-panel {
+        border-right: none;
+        border-bottom: 1px solid #3e3e42;
+        max-height: unset;
+    }
+
+    #canvas {
+        width: 250px;
+        height: 250px;
+    }
+}
+
+/* ================================
+   MACRO CONFIGURATION UI STYLES
+   ================================ */
+
+.macro-config {
+    margin-bottom: 20px;
+}
+
+.macro-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.macro-header h4 {
+    margin: 0;
+    font-size: 16px;
+    color: #cccccc;
+}
+
+.macro-add-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.macro-add-btn:hover {
+    background: #1177bb;
+}
+
+.macro-list {
+    background: #252526;
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.macro-empty {
+    padding: 20px;
+    text-align: center;
+    color: #8e8e93;
+    font-size: 14px;
+    font-style: italic;
+}
+
+.macro-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.macro-item:last-child {
+    border-bottom: none;
+}
+
+.macro-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.macro-label {
+    font-weight: 500;
+    color: #cccccc;
+    min-width: 80px;
+    font-size: 13px;
+}
+
+.macro-control input,
+.macro-control select {
+    flex: 1;
+    padding: 2px 6px;
+    border: 1px solid #3e3e42;
+    background: #1e1e1e;
+    color: #cccccc;
+    border-radius: 2px;
+    font-size: 12px;
+}
+
+.macro-control input[type="checkbox"] {
+    flex: none;
+    width: auto;
+}
+
+.macro-control input[type="color"] {
+    width: 30px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+}
+
+.macro-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: #8e8e93;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+}
+
+.btn-icon:hover {
+    background: #3e3e42;
+    color: #cccccc;
+}
+
+.macro-assignments {
+    font-size: 11px;
+    color: #8e8e93;
+    margin-left: 88px;
+}
+
+.macro-create-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.macro-assignment-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dialog-content {
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 6px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 500px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    margin: auto;
+}
+
+.dialog-content h4 {
+    margin: 0 0 15px 0;
+    color: #cccccc;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #cccccc;
+    font-size: 13px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #3e3e42;
+    background: #1e1e1e;
+    color: #cccccc;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: monospace;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #3e3e42;
+}
+
+.current-assignment {
+    margin-bottom: 15px;
+    padding: 8px;
+    background: #252526;
+    border-radius: 3px;
+}
+
+.macro-options {
+    margin-bottom: 15px;
+}
+
+.macro-options label {
+    display: block;
+    margin-bottom: 8px;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.macro-options label:hover {
+    background: #3e3e42;
+}
+
+.macro-options input[type="radio"] {
+    margin-right: 8px;
+}
+
+/* ================================
+   ENHANCED FORM FIELD STYLES
+   ================================ */
+
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.macro-btn {
+    background: none;
+    border: 1px solid #3e3e42;
+    color: #8e8e93;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.macro-btn:hover {
+    background: #3e3e42;
+    color: #cccccc;
+}
+
+.macro-btn.assigned {
+    background: #0e639c;
+    color: white;
+    border-color: #0e639c;
+}
+
+.macro-btn.assigned:hover {
+    background: #1177bb;
+    border-color: #1177bb;
+}
+
+.macro-assignment-select {
+    background: #1e1e1e;
+    border: 1px solid #3e3e42;
+    color: #cccccc;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    margin-left: 8px;
+    min-width: 120px;
+}
+
+/* Disabled inputs controlled by macros */
+input:disabled[title*="macro"],
+select:disabled[title*="macro"] {
+    background: #2a2a2a !important;
+    color: #666666 !important;
+    border-color: #666666 !important;
+    cursor: not-allowed;
+}
+
+input:disabled[title*="macro"]::placeholder {
+    color: #555555;
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.field-row label {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+}
+
+.field-row input,
+.field-row select {
+    flex: 1;
+}
+
+/* File input enhancements */
+.file-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.file-input-label {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #0e639c;
+    color: white;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+}
+
+.file-input-label:hover {
+    background: #1177bb;
+}
+
+.file-preview {
+    min-height: 40px;
+    border: 1px dashed #3e3e42;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+}
+
+.file-preview img {
+    border-radius: 2px;
+}
+
+.current-file {
+    font-size: 11px;
+    color: #8e8e93;
+    font-style: italic;
+}
+
+.file-input-container input[type="file"] {
+    display: none;
 }

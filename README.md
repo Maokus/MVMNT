@@ -1,8 +1,12 @@
-# Getting Started with Create React App
+# MIDI Social Post Visualizer v2
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based MIDI visualization application for creating social media videos from MIDI files.
 
-## Available Scripts
+## Migration Summary
+
+The application has been successfully migrated from a vanilla JavaScript web app to a React TypeScript application while preserving all core functionality.
+
+### Available Scripts
 
 In the project directory, you can run:
 
