@@ -41,10 +41,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
         }
     };
 
-    const handleLoadMidi = () => {
-        fileInputRef.current?.click();
-    };
-
     const saveScene = () => {
         // TODO: Implement scene saving
         console.log('Save scene functionality to be implemented');
@@ -81,9 +77,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
             <div className="menu-section quick-actions">
                 <h3>Midivis v0.7a</h3>
-                <button className="btn btn-primary" onClick={handleLoadMidi}>
-                    📁 Load MIDI
-                </button>
             </div>
 
             <div className="menu-section scene-name-section">
