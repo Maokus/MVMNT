@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ConfigEditor } from './config-editor';
 import { ElementList, ElementDropdown } from './scene-editor';
 
 interface SceneEditorProps {
@@ -195,19 +194,6 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
         }
     }, [sceneBuilder, selectedElementId, refreshElements, visualizer, onElementIdChange]);
 
-    // Handle element config changes
-    const handleElementConfigChange = useCallback((elementId: string, configChanges: { [key: string]: any }) => {
-        if (!sceneBuilder) return;
-
-        sceneBuilder.updateElementConfig(elementId, configChanges);
-
-        if (visualizer?.render) {
-            visualizer.render();
-        }
-
-        onElementConfigChange?.(elementId, configChanges);
-    }, [sceneBuilder, visualizer, onElementConfigChange]);
-
     // Handle clicks outside dropdown to close it
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -223,15 +209,6 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
             };
         }
     }, [showDropdown]);
-
-    // Get current selected element for config editor
-    const selectedElement = selectedElementId && sceneBuilder
-        ? sceneBuilder.getElement(selectedElementId)
-        : null;
-
-    const selectedElementSchema = selectedElement && sceneBuilder?.sceneElementRegistry
-        ? sceneBuilder.sceneElementRegistry.getSchema(selectedElement.type)
-        : null;
 
     if (error) {
         return (
@@ -295,15 +272,6 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
                 </div>
             </div>
 
-            {selectedElement && selectedElementSchema && (
-                <div className="element-config">
-                    <ConfigEditor
-                        element={selectedElement}
-                        schema={selectedElementSchema}
-                        onConfigChange={handleElementConfigChange}
-                    />
-                </div>
-            )}
         </div>
     );
 };
