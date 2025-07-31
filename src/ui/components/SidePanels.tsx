@@ -2,16 +2,21 @@ import React, { useEffect, useState, useRef } from 'react';
 import SceneEditor from './SceneEditor';
 import { ConfigEditor } from './config-editor';
 import MacroConfig from './MacroConfig';
+import { ElementDropdown } from './scene-editor';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
+    sceneRefreshTrigger?: number; // Trigger refresh when this changes
 }
 
-const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
+const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger }) => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
+    const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
+    const addElementDropdownRef = useRef<HTMLDivElement>(null);
 
     // Handle element selection from SceneEditor
     const handleElementSelect = (elementId: string | null) => {
@@ -48,22 +53,62 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
     };
 
     // Handle element config changes
-    const handleElementConfigChange = (elementId: string, configChanges: { [key: string]: any }) => {
+    const handleElementConfigChange = (elementId: string, changes: { [key: string]: any }) => {
+        if (!elementId || !visualizer) return;
+
+        const sceneBuilder = visualizer.getSceneBuilder();
+        if (sceneBuilder) {
+            const element = sceneBuilder.getElement(elementId);
+            if (element) {
+                // Apply changes to element config
+                Object.assign(element.config, changes);
+                element._applyConfig();
+
+                // Trigger re-render
+                if (visualizer.render) {
+                    visualizer.render();
+                }
+            }
+        }
+    };
+
+    // Handle adding new element from header
+    const handleAddElement = (elementType: string) => {
         if (!visualizer) return;
 
         const sceneBuilder = visualizer.getSceneBuilder();
         if (sceneBuilder) {
-            sceneBuilder.updateElementConfig(elementId, configChanges);
+            const uniqueId = `${elementType}_${Date.now()}`;
+            const success = sceneBuilder.addElement(elementType, uniqueId);
 
-            // Force immediate re-render of the visualization
-            if (visualizer.renderAtTime) {
-                visualizer.renderAtTime(visualizer.currentTime || 0);
-            } else if (visualizer.invalidateRender) {
-                visualizer.invalidateRender();
-            } else if (visualizer.render) {
-                visualizer.render();
+            if (success) {
+                setSelectedElementId(uniqueId);
+
+                // Get the newly added element
+                const element = sceneBuilder.getElement(uniqueId);
+                const schema = sceneBuilder.sceneElementRegistry.getSchema(element?.type);
+
+                setSelectedElement(element);
+                setSelectedElementSchema(schema);
+
+                // Update properties header
+                const propertiesHeader = document.getElementById('propertiesHeader');
+                if (propertiesHeader && element) {
+                    const truncatedId = element.id.length > 15 ? element.id.substring(0, 12) + '...' : element.id;
+                    propertiesHeader.textContent = `⚙️ Properties | ${truncatedId}`;
+                    propertiesHeader.title = `Properties | ${element.id}`;
+                }
+
+                if (visualizer.render) {
+                    visualizer.render();
+                }
+
+                // Trigger refresh of SceneEditor elements list
+                setRefreshTrigger(prev => prev + 1);
             }
         }
+
+        setShowAddElementDropdown(false);
     };
 
     // Scene Builder integration
@@ -80,6 +125,11 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            // Close add element dropdown if clicked outside
+            if (addElementDropdownRef.current && !addElementDropdownRef.current.contains(event.target as Node)) {
+                setShowAddElementDropdown(false);
+            }
+
             // Check if the click is outside the side panels
             if (sidePanelsRef.current && !sidePanelsRef.current.contains(event.target as Node)) {
                 console.log('Click detected outside side panels, clearing selection');
@@ -125,7 +175,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId]); // Dependency on selectedElementId to re-create listener when selection changes
+    }, [selectedElementId, showAddElementDropdown]); // Dependency on selectedElementId and showAddElementDropdown to re-create listener when selection changes
 
     return (
         <div className="side-panels" ref={sidePanelsRef}>
@@ -133,6 +183,27 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
             <div className="layer-panel">
                 <div className="panel-header">
                     <h3>📚 Layers</h3>
+                    <div style={{ position: 'relative' }} ref={addElementDropdownRef}>
+                        <button
+                            className="btn primary"
+                            onClick={() => setShowAddElementDropdown(!showAddElementDropdown)}
+                            title="Add element"
+                            style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                marginLeft: 'auto'
+                            }}
+                        >
+                            + Add
+                        </button>
+
+                        {showAddElementDropdown && (
+                            <ElementDropdown
+                                onAddElement={handleAddElement}
+                                onClose={() => setShowAddElementDropdown(false)}
+                            />
+                        )}
+                    </div>
                 </div>
                 <div className="scene-editor-container">
                     {visualizer && (
@@ -140,6 +211,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
                             visualizer={visualizer}
                             onElementSelect={handleElementSelect}
                             onElementConfigChange={handleElementConfigChange}
+                            refreshTrigger={refreshTrigger + (sceneRefreshTrigger || 0)}
                         />
                     )}
                 </div>

@@ -23,6 +23,7 @@ const MidiVisualizer: React.FC = () => {
     const [exportStatus, setExportStatus] = useState('Load MIDI to enable export');
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState({ progress: 0, text: 'Generating images...' });
+    const [sceneRefreshTrigger, setSceneRefreshTrigger] = useState(0);
 
     // Initialize the visualizer when canvas is ready
     useEffect(() => {
@@ -144,6 +145,11 @@ const MidiVisualizer: React.FC = () => {
         }
     };
 
+    // Handle scene refresh trigger
+    const handleSceneRefresh = () => {
+        setSceneRefreshTrigger(prev => prev + 1);
+    };
+
     const handlePlayPause = () => {
         if (!visualizer) return;
 
@@ -195,6 +201,8 @@ const MidiVisualizer: React.FC = () => {
         } catch (error) {
             console.error('Export error:', error);
             alert('Export failed: ' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setShowProgressOverlay(false);
         }
     };
 
@@ -208,6 +216,7 @@ const MidiVisualizer: React.FC = () => {
                 exportStatus={exportStatus}
                 canExport={!!currentMidiData || (visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0)}
                 visualizer={visualizer}
+                onSceneRefresh={handleSceneRefresh}
             />
 
             <div className="main-workspace">
@@ -223,6 +232,7 @@ const MidiVisualizer: React.FC = () => {
 
                 <SidePanels
                     visualizer={visualizer}
+                    sceneRefreshTrigger={sceneRefreshTrigger}
                 />
             </div>
 

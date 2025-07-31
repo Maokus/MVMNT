@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
 
 interface MenuBarProps {
@@ -9,6 +9,7 @@ interface MenuBarProps {
     exportStatus: string;
     canExport: boolean;
     visualizer?: any; // Add visualizer prop to handle scene operations
+    onSceneRefresh?: () => void; // Add scene refresh callback
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
@@ -18,11 +19,29 @@ const MenuBar: React.FC<MenuBarProps> = ({
     onExport,
     exportStatus,
     canExport,
-    visualizer
+    visualizer,
+    onSceneRefresh
 }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const sceneMenuRef = useRef<HTMLDivElement>(null);
+
+    // Handle clicks outside scene menu to close it
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sceneMenuRef.current && !sceneMenuRef.current.contains(event.target as Node)) {
+                setShowSceneMenu(false);
+            }
+        };
+
+        if (showSceneMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }
+    }, [showSceneMenu]);
 
     const handleSceneNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -45,22 +64,126 @@ const MenuBar: React.FC<MenuBarProps> = ({
     };
 
     const saveScene = () => {
-        // TODO: Implement scene saving
-        console.log('Save scene functionality to be implemented');
+        if (visualizer) {
+            try {
+                const sceneBuilder = visualizer.getSceneBuilder();
+                if (sceneBuilder) {
+                    // Get scene configuration
+                    const sceneConfig = {
+                        name: sceneName,
+                        elements: sceneBuilder.getAllElements().map((element: any) => ({
+                            type: element.type,
+                            id: element.id,
+                            config: element.config,
+                            visible: element.visible,
+                            zIndex: element.zIndex
+                        })),
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // Save to localStorage for now
+                    const savedScenes = JSON.parse(localStorage.getItem('midivis-scenes') || '[]');
+                    savedScenes.push(sceneConfig);
+                    localStorage.setItem('midivis-scenes', JSON.stringify(savedScenes));
+
+                    console.log(`Scene "${sceneName}" saved successfully`);
+                    alert(`Scene "${sceneName}" saved successfully!`);
+                } else {
+                    console.log('Save scene: scene builder not available');
+                }
+            } catch (error) {
+                console.error('Error saving scene:', error);
+                alert('Error saving scene. Check console for details.');
+            }
+        } else {
+            console.log('Save scene functionality: visualizer not available');
+        }
         setShowSceneMenu(false);
     };
 
     const loadScene = () => {
-        // TODO: Implement scene loading
-        console.log('Load scene functionality to be implemented');
+        if (visualizer) {
+            try {
+                const savedScenes = JSON.parse(localStorage.getItem('midivis-scenes') || '[]');
+                if (savedScenes.length === 0) {
+                    alert('No saved scenes found.');
+                    setShowSceneMenu(false);
+                    return;
+                }
+
+                // For now, just load the most recent scene
+                // TODO: Implement a proper scene selection dialog
+                const mostRecentScene = savedScenes[savedScenes.length - 1];
+
+                const sceneBuilder = visualizer.getSceneBuilder();
+                if (sceneBuilder) {
+                    // Clear current scene
+                    sceneBuilder.clearElements();
+
+                    // Load elements from saved scene
+                    mostRecentScene.elements.forEach((elementConfig: any) => {
+                        const success = sceneBuilder.addElement(
+                            elementConfig.type,
+                            elementConfig.id,
+                            elementConfig.config
+                        );
+
+                        if (success) {
+                            const element = sceneBuilder.getElement(elementConfig.id);
+                            if (element) {
+                                element.visible = elementConfig.visible;
+                                if (elementConfig.zIndex !== undefined) {
+                                    element.zIndex = elementConfig.zIndex;
+                                }
+                            }
+                        }
+                    });
+
+                    // Update scene name
+                    onSceneNameChange(mostRecentScene.name);
+
+                    if (visualizer.render) {
+                        visualizer.render();
+                    }
+
+                    // Trigger refresh of UI components
+                    if (onSceneRefresh) {
+                        onSceneRefresh();
+                    }
+
+                    console.log(`Scene "${mostRecentScene.name}" loaded successfully`);
+                    alert(`Scene "${mostRecentScene.name}" loaded successfully!`);
+                } else {
+                    console.log('Load scene: scene builder not available');
+                }
+            } catch (error) {
+                console.error('Error loading scene:', error);
+                alert('Error loading scene. Check console for details.');
+            }
+        } else {
+            console.log('Load scene functionality: visualizer not available');
+        }
         setShowSceneMenu(false);
     };
 
     const clearScene = () => {
         if (visualizer) {
-            visualizer.sceneBuilder.clearElements();
-            visualizer.render();
-            console.log('Scene cleared - all layers removed');
+            const sceneBuilder = visualizer.getSceneBuilder();
+            if (sceneBuilder) {
+                sceneBuilder.clearElements();
+                if (visualizer.render) {
+                    visualizer.render();
+                }
+
+                // Trigger refresh of UI components
+                if (onSceneRefresh) {
+                    onSceneRefresh();
+                }
+
+                console.log('Scene cleared - all layers removed');
+            } else {
+                console.log('Clear scene functionality: scene builder not available');
+            }
         } else {
             console.log('Clear scene functionality: visualizer not available');
         }
@@ -76,7 +199,26 @@ const MenuBar: React.FC<MenuBarProps> = ({
             onSceneNameChange(newSceneName);
 
             // Reset to default scene
-            visualizer.resetToDefaultScene();
+            if (visualizer.resetToDefaultScene) {
+                visualizer.resetToDefaultScene();
+            } else {
+                // Fallback: clear and create default scene manually
+                const sceneBuilder = visualizer.getSceneBuilder();
+                if (sceneBuilder && sceneBuilder.createDefaultMIDIScene) {
+                    sceneBuilder.clearElements();
+                    sceneBuilder.createDefaultMIDIScene();
+                }
+            }
+
+            if (visualizer.render) {
+                visualizer.render();
+            }
+
+            // Trigger refresh of UI components
+            if (onSceneRefresh) {
+                onSceneRefresh();
+            }
+
             console.log(`New default scene created with name: ${newSceneName}`);
         } else {
             console.log('New default scene functionality: visualizer not available');
@@ -129,7 +271,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                         ✏️
                     </button>
 
-                    <div className="scene-menu-container">
+                    <div className="scene-menu-container" ref={sceneMenuRef}>
                         <button
                             className="scene-menu-btn"
                             onClick={() => setShowSceneMenu(!showSceneMenu)}
@@ -138,7 +280,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                             ⋯
                         </button>
                         {showSceneMenu && (
-                            <div className="scene-menu-dropdown">
+                            <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
                                 <div className="scene-menu-item" onClick={saveScene}>💾 Save Scene</div>
                                 <div className="scene-menu-item" onClick={loadScene}>📂 Load Scene</div>
                                 <div className="scene-menu-item" onClick={clearScene}>🗑️ Clear All Layers</div>

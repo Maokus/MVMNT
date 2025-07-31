@@ -297,6 +297,15 @@ body {
     color: #cccccc;
 }
 
+/* Header add element button and dropdown */
+.panel-header .element-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 1001;
+    margin-top: 4px;
+}
+
 .btn-add {
     background: #3c3c3c;
     color: #ffffff;

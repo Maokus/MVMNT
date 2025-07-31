@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ElementList, ElementDropdown } from './scene-editor';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ElementList } from './scene-editor';
 
 interface SceneEditorProps {
     visualizer: any;
@@ -8,6 +8,7 @@ interface SceneEditorProps {
     onElementDelete?: (elementId: string) => void;
     onElementConfigChange?: (elementId: string, changes: { [key: string]: any }) => void;
     onElementIdChange?: (oldId: string, newId: string) => void;
+    refreshTrigger?: number; // Add refresh trigger
 }
 
 const SceneEditor: React.FC<SceneEditorProps> = ({
@@ -17,13 +18,12 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
     onElementDelete,
     onElementConfigChange,
     onElementIdChange,
+    refreshTrigger,
 }) => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [elements, setElements] = useState<any[]>([]);
-    const [showDropdown, setShowDropdown] = useState(false);
     const [sceneBuilder, setSceneBuilder] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Initialize scene builder
     useEffect(() => {
@@ -73,32 +73,18 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
         }
     }, [sceneBuilder, refreshElements]);
 
+    // Refresh when external trigger changes
+    useEffect(() => {
+        if (refreshTrigger !== undefined && sceneBuilder) {
+            refreshElements();
+        }
+    }, [refreshTrigger, sceneBuilder, refreshElements]);
+
     // Handle element selection
     const handleElementSelect = useCallback((elementId: string | null) => {
         setSelectedElementId(elementId);
         onElementSelect?.(elementId);
     }, [onElementSelect]);
-
-    // Handle adding new element
-    const handleAddElement = useCallback((elementType: string) => {
-        if (!sceneBuilder) return;
-
-        const uniqueId = `${elementType}_${Date.now()}`;
-        const success = sceneBuilder.addElement(elementType, uniqueId);
-
-        if (success) {
-            refreshElements();
-            handleElementSelect(uniqueId);
-
-            if (visualizer?.render) {
-                visualizer.render();
-            }
-
-            onElementAdd?.(elementType, uniqueId);
-        }
-
-        setShowDropdown(false);
-    }, [sceneBuilder, refreshElements, handleElementSelect, visualizer, onElementAdd]);
 
     // Handle element visibility toggle
     const handleToggleVisibility = useCallback((elementId: string) => {
@@ -194,22 +180,6 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
         }
     }, [sceneBuilder, selectedElementId, refreshElements, visualizer, onElementIdChange]);
 
-    // Handle clicks outside dropdown to close it
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
-            }
-        };
-
-        if (showDropdown) {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => {
-                document.removeEventListener('mousedown', handleClickOutside);
-            };
-        }
-    }, [showDropdown]);
-
     if (error) {
         return (
             <div className="scene-editor">
@@ -253,25 +223,7 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
                         />
                     )}
                 </div>
-
-                <div style={{ position: 'relative' }} ref={dropdownRef}>
-                    <button
-                        className="btn primary"
-                        onClick={() => setShowDropdown(!showDropdown)}
-                        title="Add element"
-                    >
-                        + Add Element
-                    </button>
-
-                    {showDropdown && (
-                        <ElementDropdown
-                            onAddElement={handleAddElement}
-                            onClose={() => setShowDropdown(false)}
-                        />
-                    )}
-                </div>
             </div>
-
         </div>
     );
 };
