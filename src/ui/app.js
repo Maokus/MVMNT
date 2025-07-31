@@ -1,5 +1,4 @@
 import { MIDIVisualizer } from '../visualizer/visualizer.js';
-import { SceneEditorUI } from './scene-editor-ui.js';
 import { sceneElementRegistry } from '../visualizer/scene-element-registry.js';
 import { MIDIParser } from '../core/midi-parser';
 import { ImageSequenceGenerator } from '../core/image-sequence-generator';

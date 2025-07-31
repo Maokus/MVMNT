@@ -4,7 +4,6 @@ import { ModularRenderer } from './modular-renderer.js';
 import { HybridSceneBuilder } from '../ui/hybrid-scene-builder.js';
 import { globalTimingManager } from '../core/timing-manager';
 import { sceneElementRegistry } from './scene-element-registry.js';
-import { SceneEditorUI } from '../ui/scene-editor-ui.js';
 
 export class MIDIVisualizer {
     constructor(canvas, timingManager = null) {
@@ -510,17 +509,6 @@ export class MIDIVisualizer {
     }
 
     // Scene management methods for the new dynamic system
-
-    /**
-     * Create a scene editor UI
-     * @param {HTMLElement} container - Container element for the UI
-     * @returns {SceneEditorUI} The scene editor instance
-     */
-    createSceneEditor(container) {
-        // Use the SceneEditorUI directly from import
-        console.log('Creating SceneEditorUI instance...');
-        return new SceneEditorUI(container, this);
-    }
 
     /**
      * Get available scene element types from registry

@@ -3,6 +3,6 @@
 // Global window extensions
 declare global {
     interface Window {
-        sceneEditorUI: any;
+        // Add any future global window extensions here
     }
 }
