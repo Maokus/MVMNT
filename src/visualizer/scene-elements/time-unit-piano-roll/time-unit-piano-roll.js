@@ -2,9 +2,7 @@
 import { SceneElement } from '../base.js';
 import { Line, Text, Rectangle } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
-import { globalTimingManager } from '../../timing-manager';
 import { LocalTimingManager } from '../../local-timing-manager.js';
-import { globalMacroManager } from '../../macro-manager';
 import { NoteBlock } from '../../note-block';
 
 export class TimeUnitPianoRollElement extends SceneElement {
