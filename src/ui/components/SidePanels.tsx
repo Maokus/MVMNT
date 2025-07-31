@@ -21,26 +21,6 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer }) => {
             try {
                 // Initialize scene editor with container and visualizer
                 const editor = new SceneEditorUI(sceneEditorRef.current, visualizer);
-
-                // Override the createUI method to not overwrite the container
-                // @ts-ignore
-                editor.createUI = function () {
-                    // Store references to existing elements
-                    // @ts-ignore
-                    this.panels.elementList = document.getElementById('elementList');
-                    // @ts-ignore
-                    this.panels.addLayerBtn = document.getElementById('addLayerBtn');
-                    // @ts-ignore
-                    this.panels.elementDropdown = document.getElementById('elementDropdown');
-                    // @ts-ignore
-                    this.panels.addElementBtn = document.getElementById('addElementBtn');
-
-                    // Populate element type dropdown
-                    // @ts-ignore
-                    this.populateElementTypes();
-                };
-
-                editor.init();
                 setSceneEditor(editor);
 
                 // Expose to global scope for inline onclick handlers

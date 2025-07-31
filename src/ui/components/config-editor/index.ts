@@ -1,5 +1,4 @@
 export { default as ConfigEditor } from './ConfigEditor';
-export { ReactConfigEditorWrapper } from './ReactConfigEditorWrapper';
 export { default as BooleanInput } from './inputs/BooleanInput';
 export { default as NumberInput } from './inputs/NumberInput';
 export { default as SelectInput } from './inputs/SelectInput';
