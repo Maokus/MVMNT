@@ -1,8 +1,6 @@
 // Base SceneElement class for declarative scene definition
 import { RenderObjectInterface, ConfigSchema, SceneElementInterface } from '../types.js';
 import { 
-    composeTransformMatrix, 
-    decomposeTransformMatrix, 
     createGroupTransformMatrix,
     multiplyMatrices, 
     createTranslationMatrix
@@ -84,35 +82,60 @@ export class SceneElement implements SceneElementInterface {
         const offsetMatrix = createTranslationMatrix(this.offsetX, this.offsetY);
         const finalGroupMatrix = multiplyMatrices(groupMatrix, offsetMatrix);
 
-        // Apply scene-level transforms to each render object using matrix composition
-        return renderObjects.map(obj => {
-            // Get the object's local transform matrix
-            const objMatrix = composeTransformMatrix({
-                x: obj.x,
-                y: obj.y,
-                scaleX: obj.scaleX,
-                scaleY: obj.scaleY,
-                rotation: obj.rotation,
-                skewX: obj.skewX,
-                skewY: obj.skewY
-            });
-            
-            // Compose group transformation with object's local transform: result = groupMatrix * objMatrix
-            const resultMatrix = multiplyMatrices(finalGroupMatrix, objMatrix);
-            
-            // Decompose the result matrix back to transform properties
-            const transforms = decomposeTransformMatrix(resultMatrix);
-            
-            // Apply the final transforms to the render object (including global offset)
-            obj.setPosition(transforms.x, transforms.y);
-            obj.setScale(transforms.scaleX, transforms.scaleY);
-            obj.setRotation(transforms.rotation);
-            obj.setSkew(transforms.skewX, transforms.skewY);
-            obj.setOpacity(obj.opacity * this.globalOpacity);
-            obj.setVisible(obj.visible && this.visible);
-            
-            return obj;
-        });
+        // Capture the scene element context for the wrapper
+        const sceneElement = this;
+
+        // Create a wrapper object that applies group transforms at render time
+        // This avoids the numerical instability of matrix decomposition
+        const groupTransformWrapper = {
+            matrix: finalGroupMatrix,
+            renderObjects: renderObjects.slice(), // Create a copy
+            render: function(ctx: CanvasRenderingContext2D, config: any, currentTime: number) {
+                // Save the context state
+                ctx.save();
+                
+                // Apply the group transformation matrix directly to the canvas context
+                const [a, b, c, d, e, f] = this.matrix;
+                ctx.transform(a, b, c, d, e, f);
+                
+                // Render all contained objects with their original transforms
+                for (const obj of this.renderObjects) {
+                    if (obj && typeof obj.render === 'function') {
+                        obj.setOpacity(obj.opacity * sceneElement.globalOpacity);
+                        obj.setVisible(obj.visible && sceneElement.visible);
+                        obj.render(ctx, config, currentTime);
+                    }
+                }
+                
+                // Restore the context state
+                ctx.restore();
+            },
+            getBounds: function() {
+                // Calculate the bounds of all contained objects
+                if (this.renderObjects.length === 0) {
+                    return { x: 0, y: 0, width: 0, height: 0 };
+                }
+                
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (const obj of this.renderObjects) {
+                    const bounds = obj.getBounds();
+                    minX = Math.min(minX, bounds.x);
+                    minY = Math.min(minY, bounds.y);
+                    maxX = Math.max(maxX, bounds.x + bounds.width);
+                    maxY = Math.max(maxY, bounds.y + bounds.height);
+                }
+                
+                return {
+                    x: minX,
+                    y: minY,
+                    width: maxX - minX,
+                    height: maxY - minY
+                };
+            }
+        };
+
+        // Return the wrapper as a single render object that handles the group transform
+        return [groupTransformWrapper as any];
     }
 
     /**
