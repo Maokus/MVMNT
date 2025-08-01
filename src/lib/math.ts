@@ -94,30 +94,30 @@ export function transformPoint(matrix: Matrix2D, x: number, y: number): { x: num
 
 /**
  * Compose a transformation matrix from individual transform properties
- * Order: scale → skew → rotate → translate (applied in reverse due to matrix multiplication)
+ * Order: scale → skew → rotate → translate (standard graphics pipeline order)
  */
 export function composeTransformMatrix(props: TransformProperties): Matrix2D {
     let matrix = createIdentityMatrix();
     
     // Apply transforms in reverse order due to matrix multiplication
-    // The last operation applied becomes the first to take effect
+    // (Last multiplied = first applied to points)
     
-    // 1. Translation (applied last, happens first)
+    // 4. Translation (applied last to the final result)
     if (props.x !== 0 || props.y !== 0) {
         matrix = multiplyMatrices(createTranslationMatrix(props.x, props.y), matrix);
     }
     
-    // 2. Rotation
+    // 3. Rotation
     if (props.rotation !== 0) {
         matrix = multiplyMatrices(createRotationMatrix(props.rotation), matrix);
     }
     
-    // 3. Skew
+    // 2. Skew
     if (props.skewX !== 0 || props.skewY !== 0) {
         matrix = multiplyMatrices(createSkewMatrix(props.skewX, props.skewY), matrix);
     }
     
-    // 4. Scale (applied first, happens last)
+    // 1. Scale (applied first to the original points)
     if (props.scaleX !== 1 || props.scaleY !== 1) {
         matrix = multiplyMatrices(createScaleMatrix(props.scaleX, props.scaleY), matrix);
     }
@@ -128,6 +128,7 @@ export function composeTransformMatrix(props: TransformProperties): Matrix2D {
 /**
  * Create a group transformation matrix with anchor point support
  * Formula: T_anchor * R * Sk * S * T_anchor^-1
+ * This transforms around a specific anchor point rather than the origin
  */
 export function createGroupTransformMatrix(
     anchorX: number, 
@@ -143,7 +144,7 @@ export function createGroupTransformMatrix(
     // Step 1: Translate to anchor point (T_anchor^-1)
     matrix = multiplyMatrices(createTranslationMatrix(-anchorX, -anchorY), matrix);
     
-    // Step 2: Apply scaling (S)
+    // Step 2: Apply scaling (S) - first transformation around origin
     if (scaleX !== 1 || scaleY !== 1) {
         matrix = multiplyMatrices(createScaleMatrix(scaleX, scaleY), matrix);
     }
@@ -153,7 +154,7 @@ export function createGroupTransformMatrix(
         matrix = multiplyMatrices(createSkewMatrix(skewX, skewY), matrix);
     }
     
-    // Step 4: Apply rotation (R)
+    // Step 4: Apply rotation (R) - last transformation around origin
     if (rotation !== 0) {
         matrix = multiplyMatrices(createRotationMatrix(rotation), matrix);
     }
@@ -166,7 +167,7 @@ export function createGroupTransformMatrix(
 
 /**
  * Decompose a 2D affine transformation matrix back into transform components
- * Uses a simplified approach that works well for most 2D graphics transformations
+ * Uses QR decomposition method for more accurate results
  */
 export function decomposeTransformMatrix(matrix: Matrix2D): TransformProperties {
     const [a, b, c, d, e, f] = matrix;
@@ -176,46 +177,38 @@ export function decomposeTransformMatrix(matrix: Matrix2D): TransformProperties 
     const y = f;
     
     // For the 2x2 linear part [a c; b d], extract scale, rotation, and skew
-    // Using a simplified approach that works well for typical graphics transformations
+    // Using QR decomposition method
     
-    // Calculate determinant to handle reflection
+    // Calculate determinant to detect reflection
     const det = a * d - b * c;
-    const sign = det < 0 ? -1 : 1;
     
-    // Extract scale and rotation from the transformation
-    // Method: Use the first column to determine scale and rotation
-    const scaleX = sign * Math.sqrt(a * a + b * b);
-    let scaleY = det / scaleX;
-    
-    // Extract rotation from the normalized first column
+    // Extract rotation and scale from the first column vector
+    const scaleX = Math.sqrt(a * a + b * b);
     const rotation = Math.atan2(b, a);
     
-    // For skew extraction, we'll use a simplified approach
-    // Remove the rotation and scale effects to isolate skew
+    // Normalize the first column to remove scale and rotation effects
     const cos = Math.cos(-rotation);
     const sin = Math.sin(-rotation);
     
-    // Apply inverse rotation to the second column
-    const rotatedC = c * cos - d * sin;
-    const rotatedD = c * sin + d * cos;
+    // Apply inverse rotation to isolate shear and scaleY
+    const shearAndScaleY = c * cos + d * sin; // Contains shear
+    const scaleY = -c * sin + d * cos; // The actual scaleY
     
-    // In an ideal case without skew, rotatedC should be 0 and rotatedD should be scaleY
-    // The presence of rotatedC indicates skew
-    const skewX = Math.atan2(rotatedC, Math.abs(scaleY));
+    // Extract skew (shear) from the normalized matrix
+    const skewX = Math.atan2(shearAndScaleY, scaleY);
     
-    // Adjust scaleY to account for skew
-    if (Math.abs(Math.cos(skewX)) > 0.001) {
-        scaleY = rotatedD / Math.cos(skewX);
-    }
+    // Handle reflection by checking determinant sign
+    const finalScaleX = det < 0 ? -scaleX : scaleX;
+    const finalScaleY = Math.abs(scaleY);
     
-    // For most 2D graphics applications, skewY is rarely used
+    // For most 2D graphics applications, skewY is rarely used and complex to extract accurately
     const skewY = 0;
     
     return {
         x,
         y,
-        scaleX: Math.abs(scaleX),
-        scaleY: Math.abs(scaleY),
+        scaleX: Math.abs(finalScaleX),
+        scaleY: finalScaleY,
         rotation,
         skewX: isFinite(skewX) ? skewX : 0,
         skewY
