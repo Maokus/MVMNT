@@ -179,7 +179,7 @@ export class TimeDisplayElement extends SceneElement {
         }
     }
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
@@ -281,8 +281,7 @@ export class TimeDisplayElement extends SceneElement {
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }
 
-        // Apply global transforms and visibility from base class
-        return this.applyTransformsToRenderObjects(renderObjects);
+        return renderObjects;
     }
 
     setPosition(position: 'bottomLeft' | 'topLeft' | 'topRight' | 'bottomRight'): this {

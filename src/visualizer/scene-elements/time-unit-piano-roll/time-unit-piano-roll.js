@@ -334,7 +334,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return this.timingManager.getTimeUnitDuration(this.timeUnitBars);
     }
 
-    buildRenderObjects(config, targetTime) {
+    _buildRenderObjects(config, targetTime) {
         if (!this.visible) return [];
 
         const renderObjects = [];
@@ -379,8 +379,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const playheadObjects = this._buildPlayhead(localConfig);
         renderObjects.push(...playheadObjects);
 
-        // Apply global transforms and visibility from base class
-        return this.applyTransformsToRenderObjects(renderObjects);
+        return renderObjects;
     }
 
     _buildPianoRoll(config) {

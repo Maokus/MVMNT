@@ -17,6 +17,10 @@ export class SceneElement implements SceneElementInterface {
     // Global visibility properties
     public globalOpacity: number = 1;
     
+    // Anchor point for global transforms (0-1 range)
+    public anchorX: number = 0.5; // 0 = left, 0.5 = center, 1 = right
+    public anchorY: number = 0.5; // 0 = top, 0.5 = center, 1 = bottom
+    
     public config: { [key: string]: any }; // Store configuration object
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
@@ -27,13 +31,46 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
-     * Abstract method for building RenderObjects from this element
+     * Template method for building RenderObjects with automatic transform application
+     * Child classes should override _buildRenderObjects instead
      * @param config - Current visualization configuration
      * @param targetTime - Current time to render at
-     * @returns Array of RenderObjects to render
+     * @returns Array of RenderObjects to render with transforms applied
      */
     buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
-        throw new Error('buildRenderObjects must be implemented by subclasses');
+        if (!this.visible) return [];
+
+        // Call the child class implementation
+        const renderObjects = this._buildRenderObjects(config, targetTime);
+
+        // Apply global transforms and visibility to all render objects
+        return renderObjects.map(obj => {
+            // Set global transform properties on each render object
+            obj.globalOffsetX = this.offsetX;
+            obj.globalOffsetY = this.offsetY;
+            obj.globalScaleX = this.globalScaleX;
+            obj.globalScaleY = this.globalScaleY;
+            obj.globalRotation = this.globalRotation;
+            obj.globalOpacity = this.globalOpacity;
+            obj.globalAnchorX = this.anchorX;
+            obj.globalAnchorY = this.anchorY;
+            
+            // Apply visibility
+            obj.visible = obj.visible && this.visible;
+            
+            return obj;
+        });
+    }
+
+    /**
+     * Abstract method for child classes to implement their specific RenderObject creation
+     * This replaces the old buildRenderObjects method that child classes used to override
+     * @param config - Current visualization configuration
+     * @param targetTime - Current time to render at
+     * @returns Array of RenderObjects to render (before global transforms)
+     */
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+        throw new Error('_buildRenderObjects must be implemented by subclasses');
     }
 
     /**
@@ -120,6 +157,25 @@ export class SceneElement implements SceneElementInterface {
                     max: 1,
                     step: 0.01,
                     description: 'Global transparency level (0 = invisible, 1 = opaque)'
+                },
+                // Anchor point controls
+                anchorX: {
+                    type: 'number',
+                    label: 'Anchor X',
+                    default: 0.5,
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                    description: 'Horizontal anchor point for transforms (0 = left, 0.5 = center, 1 = right)'
+                },
+                anchorY: {
+                    type: 'number',
+                    label: 'Anchor Y',
+                    default: 0.5,
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                    description: 'Vertical anchor point for transforms (0 = top, 0.5 = center, 1 = bottom)'
                 }
             }
         };
@@ -150,6 +206,8 @@ export class SceneElement implements SceneElementInterface {
             globalScaleY: this.globalScaleY,
             globalRotation: this.globalRotation * (180 / Math.PI), // Convert to degrees for UI
             globalOpacity: this.globalOpacity,
+            anchorX: this.anchorX,
+            anchorY: this.anchorY,
             ...this.config
         };
     }
@@ -184,6 +242,13 @@ export class SceneElement implements SceneElementInterface {
         // Global visibility properties
         if (this.config.globalOpacity !== undefined) {
             this.setGlobalOpacity(this.config.globalOpacity);
+        }
+        // Anchor point properties
+        if (this.config.anchorX !== undefined) {
+            this.setAnchorX(this.config.anchorX);
+        }
+        if (this.config.anchorY !== undefined) {
+            this.setAnchorY(this.config.anchorY);
         }
     }
 
@@ -247,32 +312,20 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    /**
-     * Apply transforms and visibility to render objects
-     * This method should be called by child classes when creating render objects
-     * @param renderObjects - Array of render objects to apply transforms to
-     * @returns Modified render objects
-     */
-    protected applyTransformsToRenderObjects(renderObjects: RenderObjectInterface[]): RenderObjectInterface[] {
-        return renderObjects.map(obj => {
-            // Apply global transform offsets
-            obj.x += this.offsetX;
-            obj.y += this.offsetY;
-            
-            // Apply global scaling (multiply existing scale)
-            obj.scaleX *= this.globalScaleX;
-            obj.scaleY *= this.globalScaleY;
-            
-            // Apply global rotation (add to existing rotation)
-            obj.rotation += this.globalRotation;
-            
-            // Apply global opacity (multiply existing opacity)
-            obj.opacity *= this.globalOpacity;
-            
-            // Apply visibility
-            obj.visible = obj.visible && this.visible;
-            
-            return obj;
-        });
+    // Anchor point setters
+    setAnchorX(anchorX: number): this {
+        this.anchorX = Math.max(0, Math.min(1, anchorX));
+        return this;
+    }
+
+    setAnchorY(anchorY: number): this {
+        this.anchorY = Math.max(0, Math.min(1, anchorY));
+        return this;
+    }
+
+    setAnchor(anchorX: number, anchorY: number): this {
+        this.setAnchorX(anchorX);
+        this.setAnchorY(anchorY);
+        return this;
     }
 }

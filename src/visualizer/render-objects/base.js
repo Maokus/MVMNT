@@ -8,6 +8,20 @@ export class RenderObject {
         this.opacity = opacity;
         this.visible = true;
         this.rotation = 0; // Optional rotation support
+
+        // Anchor point for unified transformations (relative to object position)
+        this.anchorX = 0; // 0 = left, 0.5 = center, 1 = right
+        this.anchorY = 0; // 0 = top, 0.5 = center, 1 = bottom
+
+        // Global transform properties (applied by scene elements)
+        this.globalOffsetX = 0;
+        this.globalOffsetY = 0;
+        this.globalScaleX = 1;
+        this.globalScaleY = 1;
+        this.globalRotation = 0;
+        this.globalOpacity = 1;
+        this.globalAnchorX = 0.5; // Default to center for scene-level transforms
+        this.globalAnchorY = 0.5;
     }
 
     /**
@@ -17,14 +31,43 @@ export class RenderObject {
      * @param {number} currentTime - Current time for animation calculations
      */
     render(ctx, config, currentTime) {
-        if (!this.visible || this.opacity <= 0) {
+        if (!this.visible || this.opacity <= 0 || this.globalOpacity <= 0) {
             return;
         }
 
         // Save context state
         ctx.save();
 
-        // Apply transformations
+        // Apply global transforms first (scene-level transforms)
+        // Note: For proper scene-level transforms, we should calculate a shared anchor point
+        // but for simplicity, we'll apply them relative to each object for now
+        if (this.globalOffsetX !== 0 || this.globalOffsetY !== 0) {
+            ctx.translate(this.globalOffsetX, this.globalOffsetY);
+        }
+
+        if (this.globalRotation !== 0) {
+            // For rotation, we need to rotate around the anchor point
+            const bounds = this.getBounds();
+            const anchorX = bounds.x + bounds.width * this.globalAnchorX;
+            const anchorY = bounds.y + bounds.height * this.globalAnchorY;
+
+            ctx.translate(anchorX, anchorY);
+            ctx.rotate(this.globalRotation);
+            ctx.translate(-anchorX, -anchorY);
+        }
+
+        if (this.globalScaleX !== 1 || this.globalScaleY !== 1) {
+            // For scaling, we need to scale around the anchor point
+            const bounds = this.getBounds();
+            const anchorX = bounds.x + bounds.width * this.globalAnchorX;
+            const anchorY = bounds.y + bounds.height * this.globalAnchorY;
+
+            ctx.translate(anchorX, anchorY);
+            ctx.scale(this.globalScaleX, this.globalScaleY);
+            ctx.translate(-anchorX, -anchorY);
+        }
+
+        // Apply local transformations (object-specific transforms)
         ctx.translate(this.x, this.y);
 
         if (this.rotation !== 0) {
@@ -35,8 +78,10 @@ export class RenderObject {
             ctx.scale(this.scaleX, this.scaleY);
         }
 
-        if (this.opacity !== 1) {
-            ctx.globalAlpha *= this.opacity;
+        // Apply opacity (combine local and global)
+        const finalOpacity = this.opacity * this.globalOpacity;
+        if (finalOpacity !== 1) {
+            ctx.globalAlpha *= finalOpacity;
         }
 
         // Call the subclass-specific rendering method
@@ -96,6 +141,30 @@ export class RenderObject {
      */
     setRotation(rotation) {
         this.rotation = rotation;
+        return this;
+    }
+
+    /**
+     * Set anchor point for local transformations
+     */
+    setAnchor(anchorX, anchorY) {
+        this.anchorX = anchorX;
+        this.anchorY = anchorY;
+        return this;
+    }
+
+    /**
+     * Set global transform properties (typically called by scene elements)
+     */
+    setGlobalTransform(offsetX, offsetY, scaleX, scaleY, rotation, opacity, anchorX, anchorY) {
+        this.globalOffsetX = offsetX || 0;
+        this.globalOffsetY = offsetY || 0;
+        this.globalScaleX = scaleX !== undefined ? scaleX : 1;
+        this.globalScaleY = scaleY !== undefined ? scaleY : 1;
+        this.globalRotation = rotation || 0;
+        this.globalOpacity = opacity !== undefined ? opacity : 1;
+        this.globalAnchorX = anchorX !== undefined ? anchorX : 0.5;
+        this.globalAnchorY = anchorY !== undefined ? anchorY : 0.5;
         return this;
     }
 

@@ -139,7 +139,7 @@ export class TextOverlayElement extends SceneElement {
         }
     }
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
@@ -152,8 +152,7 @@ export class TextOverlayElement extends SceneElement {
         const textElement = new Text(this.x, this.y, this.text, font, this.color, align, 'top');
         renderObjects.push(textElement);
 
-        // Apply base transform and visibility properties (these will be offsets/modifiers)
-        return this.applyTransformsToRenderObjects(renderObjects);
+        return renderObjects;
     }
 
     setJustification(justification: 'left' | 'center' | 'right'): this {

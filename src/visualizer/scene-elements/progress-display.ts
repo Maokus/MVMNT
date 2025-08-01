@@ -94,7 +94,7 @@ export class ProgressDisplayElement extends SceneElement {
         }
     }
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
@@ -181,8 +181,7 @@ export class ProgressDisplayElement extends SceneElement {
             renderObjects.push(notesLabel);
         }
 
-        // Apply global transforms and visibility from base class
-        return this.applyTransformsToRenderObjects(renderObjects);
+        return renderObjects;
     }
 
     private _formatTime(seconds: number): string {

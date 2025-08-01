@@ -161,7 +161,7 @@ export class ImageElement extends SceneElement {
         if (this.config.preserveAspectRatio !== undefined) this.preserveAspectRatio = this.config.preserveAspectRatio;
     }
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible || !this.imageSource) return [];
 
         const image = new Image(
@@ -185,8 +185,7 @@ export class ImageElement extends SceneElement {
         image.setFitMode(this.fitMode);
         image.setPreserveAspectRatio(this.preserveAspectRatio);
 
-        // Apply global transforms and visibility from base class
-        return this.applyTransformsToRenderObjects([image]);
+        return [image];
     }
 
     // Setter methods for programmatic control

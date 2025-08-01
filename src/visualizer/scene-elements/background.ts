@@ -35,14 +35,13 @@ export class BackgroundElement extends SceneElement {
         }
     }
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
         const { canvas } = config;
         const background = new Rectangle(0, 0, canvas.width, canvas.height, this.backgroundColor);
         
-        // Apply global transforms and visibility from base class
-        return this.applyTransformsToRenderObjects([background]);
+        return [background];
     }
 
     setBackgroundColor(color: string): this {
