@@ -159,21 +159,21 @@ export class SceneElement implements SceneElementInterface {
         let matrix = [1, 0, 0, 1, 0, 0]; // [a, b, c, d, e, f]
         
         // Step 1: Translate to anchor point
-        matrix = this._multiplyMatrices(matrix, [1, 0, 0, 1, -anchorX, -anchorY]);
+        matrix = this._multiplyMatrices([1, 0, 0, 1, -anchorX, -anchorY], matrix);
         
         // Step 2: Apply scaling
-        matrix = this._multiplyMatrices(matrix, [this.globalScaleX, 0, 0, this.globalScaleY, 0, 0]);
+        matrix = this._multiplyMatrices([this.globalScaleX, 0, 0, this.globalScaleY, 0, 0], matrix);
         
         // Step 3: Apply skew
-        matrix = this._multiplyMatrices(matrix, [1, Math.tan(this.globalSkewY), Math.tan(this.globalSkewX), 1, 0, 0]);
+        matrix = this._multiplyMatrices([1, Math.tan(this.globalSkewY), Math.tan(this.globalSkewX), 1, 0, 0], matrix);
         
         // Step 4: Apply rotation
         const cos = Math.cos(this.globalRotation);
         const sin = Math.sin(this.globalRotation);
-        matrix = this._multiplyMatrices(matrix, [cos, sin, -sin, cos, 0, 0]);
+        matrix = this._multiplyMatrices([cos, sin, -sin, cos, 0, 0], matrix);
         
         // Step 5: Translate back from anchor point
-        matrix = this._multiplyMatrices(matrix, [1, 0, 0, 1, anchorX, anchorY]);
+        matrix = this._multiplyMatrices([1, 0, 0, 1, anchorX, anchorY], matrix);
         
         return matrix;
     }
