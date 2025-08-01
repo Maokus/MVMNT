@@ -149,3 +149,100 @@ export interface TimeUnitConfig {
   beats: number;
   subdivision: number;
 }
+
+// ==========================================
+// Scene Element Types
+// ==========================================
+
+export interface RenderObjectInterface {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  opacity: number;
+  visible: boolean;
+  rotation: number;
+  render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
+}
+
+export interface BaseSceneElementConfig {
+  id?: string;
+  visible?: boolean;
+  zIndex?: number;
+}
+
+export interface ConfigSchemaProperty {
+  type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range';
+  label: string;
+  default: any;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: Array<{ value: any; label: string }>;
+  description?: string;
+}
+
+export interface ConfigSchema {
+  name: string;
+  description: string;
+  category: string;
+  properties: { [key: string]: ConfigSchemaProperty };
+}
+
+export interface SceneElementInterface {
+  type: string;
+  id: string | null;
+  visible: boolean;
+  zIndex: number;
+  config: { [key: string]: any };
+  
+  buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[];
+  updateConfig(newConfig: { [key: string]: any }): void;
+  getConfig(): { [key: string]: any };
+  setVisible(visible: boolean): this;
+  setZIndex(zIndex: number): this;
+}
+
+export interface BackgroundElementConfig extends BaseSceneElementConfig {
+  backgroundColor?: string;
+}
+
+export interface TextOverlayElementConfig extends BaseSceneElementConfig {
+  justification?: 'left' | 'center' | 'right';
+  x?: number;
+  y?: number;
+  text?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+  fontSize?: number;
+  color?: string;
+}
+
+export interface ImageElementConfig extends BaseSceneElementConfig {
+  src?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  opacity?: number;
+}
+
+export interface ProgressDisplayConfig extends BaseSceneElementConfig {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+}
+
+export interface TimeDisplayConfig extends BaseSceneElementConfig {
+  x?: number;
+  y?: number;
+  fontSize?: number;
+  color?: string;
+  fontFamily?: string;
+  format?: 'mm:ss' | 'hh:mm:ss' | 'seconds';
+}
