@@ -26,6 +26,13 @@ const MidiVisualizer: React.FC = () => {
     const [progressData, setProgressData] = useState({ progress: 0, text: 'Generating images...' });
     const [sceneRefreshTrigger, setSceneRefreshTrigger] = useState(0);
 
+    // Export settings managed at the top level
+    const [exportSettings, setExportSettings] = useState({
+        fps: 30,
+        resolution: 1500,
+        fullDuration: true
+    });
+
     // Initialize the visualizer when canvas is ready
     useEffect(() => {
         if (canvasRef.current && !visualizer) {
@@ -127,6 +134,23 @@ const MidiVisualizer: React.FC = () => {
         };
     }, [visualizer, currentMidiData]);
 
+    // Handle export settings changes, especially resolution changes
+    useEffect(() => {
+        if (visualizer && canvasRef.current) {
+            // Update canvas resolution when export settings change
+            const canvas = canvasRef.current;
+            if (canvas.width !== exportSettings.resolution || canvas.height !== exportSettings.resolution) {
+                console.log(`Updating canvas resolution to ${exportSettings.resolution}x${exportSettings.resolution}`);
+                visualizer.resize(exportSettings.resolution, exportSettings.resolution);
+            }
+
+            // Update visualizer's export settings
+            if (visualizer.updateExportSettings) {
+                visualizer.updateExportSettings(exportSettings);
+            }
+        }
+    }, [visualizer, exportSettings]);
+
     const handleMidiLoad = async (file: File) => {
         if (!visualizer) return;
 
@@ -149,6 +173,11 @@ const MidiVisualizer: React.FC = () => {
     // Handle scene refresh trigger
     const handleSceneRefresh = () => {
         setSceneRefreshTrigger(prev => prev + 1);
+    };
+
+    // Handle export settings changes
+    const handleExportSettingsChange = (newSettings: typeof exportSettings) => {
+        setExportSettings(newSettings);
     };
 
     // Use the MenuBar hook to get menu actions
@@ -241,14 +270,17 @@ const MidiVisualizer: React.FC = () => {
                     onStepForward={handleStepForward}
                     onStepBackward={handleStepBackward}
                     currentTime={currentTime}
+                    resolution={exportSettings.resolution}
                 />
 
                 <SidePanels
                     visualizer={visualizer}
                     sceneRefreshTrigger={sceneRefreshTrigger}
-                    onExport={handleExport}
+                    onExport={(settings) => handleExport(settings)}
                     exportStatus={exportStatus}
                     canExport={visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0}
+                    exportSettings={exportSettings}
+                    onExportSettingsChange={handleExportSettingsChange}
                 />
             </div>
 

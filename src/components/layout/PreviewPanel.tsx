@@ -8,6 +8,7 @@ interface PreviewPanelProps {
     onStepForward: () => void;
     onStepBackward: () => void;
     currentTime: string;
+    resolution: number;
 }
 
 const PreviewPanel: React.FC<PreviewPanelProps> = ({
@@ -17,12 +18,23 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({
     onStop,
     onStepForward,
     onStepBackward,
-    currentTime
+    currentTime,
+    resolution
 }) => {
     return (
         <div className="preview-panel">
             <div className="canvas-container">
-                <canvas id='canvas' ref={canvasRef} width="1500" height="1500"></canvas>
+                <canvas
+                    id='canvas'
+                    ref={canvasRef}
+                    width={resolution}
+                    height={resolution}
+                    style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        aspectRatio: '1/1'
+                    }}
+                ></canvas>
             </div>
 
             <div className="playback-controls">

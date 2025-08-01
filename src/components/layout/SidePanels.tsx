@@ -11,28 +11,46 @@ interface SidePanelsProps {
     onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
     exportStatus: string;
     canExport: boolean;
+    exportSettings: { fps: number; resolution: number; fullDuration: boolean };
+    onExportSettingsChange: (settings: { fps: number; resolution: number; fullDuration: boolean }) => void;
 }
 
-const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger, onExport, exportStatus, canExport }) => {
+const SidePanels: React.FC<SidePanelsProps> = ({
+    visualizer,
+    sceneRefreshTrigger,
+    onExport,
+    exportStatus,
+    canExport,
+    exportSettings,
+    onExportSettingsChange
+}) => {
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Use the SidePanels hook to get state and actions
+    // Use the SidePanels hook to get state and actions (excluding export settings which are managed externally)
     const {
         selectedElementId,
         selectedElement,
         selectedElementSchema,
         refreshTrigger,
-        exportSettings,
         handleElementSelect,
         handleElementConfigChange,
         handleAddElement,
         setSelectedElementId,
         setSelectedElement,
-        setSelectedElementSchema,
-        updateExportSetting
+        setSelectedElementSchema
     } = useSidePanels({ visualizer, sceneRefreshTrigger });
+
+    // Create a local function to handle export setting updates
+    const updateExportSetting = (key: 'fps' | 'resolution' | 'fullDuration', value: any) => {
+        const newSettings = {
+            ...exportSettings,
+            [key]: value
+        };
+        onExportSettingsChange(newSettings);
+
+    };
 
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
