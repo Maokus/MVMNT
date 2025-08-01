@@ -281,7 +281,8 @@ export class TimeDisplayElement extends SceneElement {
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }
 
-        return renderObjects;
+        // Apply global transforms and visibility from base class
+        return this.applyTransformsToRenderObjects(renderObjects);
     }
 
     setPosition(position: 'bottomLeft' | 'topLeft' | 'topRight' | 'bottomRight'): this {

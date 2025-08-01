@@ -169,6 +169,16 @@ export interface BaseSceneElementConfig {
   id?: string;
   visible?: boolean;
   zIndex?: number;
+  
+  // Global transform properties
+  offsetX?: number;
+  offsetY?: number;
+  globalScaleX?: number;
+  globalScaleY?: number;
+  globalRotation?: number;
+  
+  // Global visibility properties
+  globalOpacity?: number;
 }
 
 export interface ConfigSchemaProperty {
@@ -194,6 +204,17 @@ export interface SceneElementInterface {
   id: string | null;
   visible: boolean;
   zIndex: number;
+  
+  // Global transform properties
+  offsetX: number;
+  offsetY: number;
+  globalScaleX: number;
+  globalScaleY: number;
+  globalRotation: number;
+  
+  // Global visibility properties
+  globalOpacity: number;
+  
   config: { [key: string]: any };
   
   buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[];
@@ -201,6 +222,19 @@ export interface SceneElementInterface {
   getConfig(): { [key: string]: any };
   setVisible(visible: boolean): this;
   setZIndex(zIndex: number): this;
+  
+  // Global transform methods
+  setOffsetX(offsetX: number): this;
+  setOffsetY(offsetY: number): this;
+  setOffset(offsetX: number, offsetY: number): this;
+  setGlobalScaleX(scaleX: number): this;
+  setGlobalScaleY(scaleY: number): this;
+  setGlobalScale(scaleX: number, scaleY?: number): this;
+  setGlobalRotation(rotation: number): this;
+  setGlobalRotationRadians(rotation: number): this;
+  
+  // Global visibility methods
+  setGlobalOpacity(opacity: number): this;
 }
 
 export interface BackgroundElementConfig extends BaseSceneElementConfig {

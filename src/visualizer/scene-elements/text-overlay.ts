@@ -144,15 +144,16 @@ export class TextOverlayElement extends SceneElement {
 
         const renderObjects: RenderObjectInterface[] = [];
 
-        // Use the x,y coordinates directly with the justification as alignment
+        // Use the element's own x,y coordinates for text positioning
         const align = this.justification; // 'left', 'center', 'right'
 
-        // Create text render object
+        // Create text render object using element's own position
         const font = `${this.fontWeight} ${this.fontSize}px ${this.fontFamily}, sans-serif`;
         const textElement = new Text(this.x, this.y, this.text, font, this.color, align, 'top');
         renderObjects.push(textElement);
 
-        return renderObjects;
+        // Apply base transform and visibility properties (these will be offsets/modifiers)
+        return this.applyTransformsToRenderObjects(renderObjects);
     }
 
     setJustification(justification: 'left' | 'center' | 'right'): this {

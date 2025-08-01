@@ -185,7 +185,8 @@ export class ImageElement extends SceneElement {
         image.setFitMode(this.fitMode);
         image.setPreserveAspectRatio(this.preserveAspectRatio);
 
-        return [image];
+        // Apply global transforms and visibility from base class
+        return this.applyTransformsToRenderObjects([image]);
     }
 
     // Setter methods for programmatic control

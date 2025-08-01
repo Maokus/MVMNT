@@ -40,7 +40,9 @@ export class BackgroundElement extends SceneElement {
 
         const { canvas } = config;
         const background = new Rectangle(0, 0, canvas.width, canvas.height, this.backgroundColor);
-        return [background];
+        
+        // Apply global transforms and visibility from base class
+        return this.applyTransformsToRenderObjects([background]);
     }
 
     setBackgroundColor(color: string): this {

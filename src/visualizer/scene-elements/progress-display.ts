@@ -181,7 +181,8 @@ export class ProgressDisplayElement extends SceneElement {
             renderObjects.push(notesLabel);
         }
 
-        return renderObjects;
+        // Apply global transforms and visibility from base class
+        return this.applyTransformsToRenderObjects(renderObjects);
     }
 
     private _formatTime(seconds: number): string {
