@@ -58,7 +58,7 @@ export class TestAnchorTransformElement extends SceneElement {
         const titleText = new Text(
             width * 0.5,
             height * 0.25,
-            'Transform Test',
+            'Anchor Point Transform Test',
             'bold 24px Arial',
             '#FFFFFF',
             'center',
@@ -66,17 +66,30 @@ export class TestAnchorTransformElement extends SceneElement {
         );
         renderObjects.push(titleText);
 
-        // Subtitle text below the rectangle
+        // Subtitle text showing current anchor point
+        const anchorInfo = `Anchor: (${this.anchorX.toFixed(2)}, ${this.anchorY.toFixed(2)})`;
         const subtitleText = new Text(
             width * 0.5,
             height * 0.75,
-            'All objects transform together',
+            anchorInfo,
             '16px Arial',
             '#CCCCCC',
             'center',
             'middle'
         );
         renderObjects.push(subtitleText);
+
+        // Instructions text
+        const instructionText = new Text(
+            width * 0.5,
+            height * 0.8,
+            'Try rotating: All objects should rotate around the anchor point',
+            '14px Arial',
+            '#AAAAAA',
+            'center',
+            'middle'
+        );
+        renderObjects.push(instructionText);
 
         // Corner markers to show the extent of the scene element
         const topLeftMarker = new Rectangle(
@@ -97,30 +110,71 @@ export class TestAnchorTransformElement extends SceneElement {
         );
         renderObjects.push(bottomRightMarker);
 
-        // Cross lines to show anchor point visualization
-        const centerX = width * 0.5;
-        const centerY = height * 0.5;
+        // Cross lines to show anchor point visualization  
+        const bounds = this._calculateBounds(renderObjects);
+        const anchorPixelX = bounds.x + bounds.width * this.anchorX;
+        const anchorPixelY = bounds.y + bounds.height * this.anchorY;
         
+        // Horizontal line through anchor
         const horizontalLine = new Line(
-            width * 0.2, 
-            centerY, 
-            width * 0.8, 
-            centerY, 
-            'rgba(255, 255, 0, 0.5)', 
-            1
+            bounds.x, 
+            anchorPixelY, 
+            bounds.x + bounds.width, 
+            anchorPixelY, 
+            'rgba(255, 255, 0, 0.8)', 
+            2
         );
         renderObjects.push(horizontalLine);
 
+        // Vertical line through anchor
         const verticalLine = new Line(
-            centerX, 
-            height * 0.15, 
-            centerX, 
-            height * 0.85, 
-            'rgba(255, 255, 0, 0.5)', 
-            1
+            anchorPixelX, 
+            bounds.y, 
+            anchorPixelX, 
+            bounds.y + bounds.height, 
+            'rgba(255, 255, 0, 0.8)', 
+            2
         );
         renderObjects.push(verticalLine);
 
+        // Anchor point marker
+        const anchorMarker = new Rectangle(
+            anchorPixelX - 5, 
+            anchorPixelY - 5, 
+            10, 
+            10, 
+            '#FFFF00'
+        );
+        anchorMarker.setStroke('#FF0000', 2);
+        renderObjects.push(anchorMarker);
+
         return renderObjects;
+    }
+
+    // Helper method to calculate bounds before transforms are applied
+    private _calculateBounds(renderObjects: RenderObjectInterface[]) {
+        if (renderObjects.length === 0) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        for (const obj of renderObjects) {
+            const bounds = obj.getBounds();
+            minX = Math.min(minX, bounds.x);
+            minY = Math.min(minY, bounds.y);
+            maxX = Math.max(maxX, bounds.x + bounds.width);
+            maxY = Math.max(maxY, bounds.y + bounds.height);
+        }
+
+        return {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+        };
     }
 }

@@ -16,6 +16,10 @@ export class SceneElement implements SceneElementInterface {
     public globalSkewX: number = 0; // in radians
     public globalSkewY: number = 0; // in radians
     
+    // Anchor point properties (for transform origin)
+    public anchorX: number = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
+    public anchorY: number = 0.5; // 0.0 = top, 0.5 = center, 1.0 = bottom
+    
     // Global visibility properties
     public globalOpacity: number = 1;
     
@@ -31,6 +35,16 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Template method for building RenderObjects with automatic transform application
      * Child classes should override _buildRenderObjects instead
+     * 
+     * TRANSFORMATION SYSTEM:
+     * This method implements a matrix-based group transformation system where all render objects
+     * in the scene element transform together around a configurable anchor point. The transformation
+     * matrix follows the formula: G = T_anchor * R * Sk * S * T_anchor^-1
+     * 
+     * This ensures that when you have multiple objects (e.g., two squares at (0,0) and (100,0))
+     * and apply a 90° rotation, they rotate as a unified group around the anchor point rather than
+     * each rotating around their individual centers.
+     * 
      * @param config - Current visualization configuration
      * @param targetTime - Current time to render at
      * @returns Array of RenderObjects to render with transforms applied
@@ -43,39 +57,43 @@ export class SceneElement implements SceneElementInterface {
 
         if (renderObjects.length === 0) return [];
 
-        // Calculate the centroid of all render objects for transformation anchor
+        // Calculate the bounding box and anchor point for transformation
         const bounds = this._calculateSceneElementBounds(renderObjects);
-        const anchorX = bounds.x + bounds.width * 0.5; // Use center as anchor
-        const anchorY = bounds.y + bounds.height * 0.5; // Use center as anchor
+        const anchorX = bounds.x + bounds.width * this.anchorX;
+        const anchorY = bounds.y + bounds.height * this.anchorY;
 
-        // Apply scene-level transforms to each render object
+        // Compute the group transformation matrix: G = T_anchor * R * Sk * S * T_anchor^-1
+        const groupMatrix = this._computeGroupTransformMatrix(anchorX, anchorY);
+
+        // Apply scene-level transforms to each render object using matrix composition
         return renderObjects.map(obj => {
-            // Apply transforms in the order: scale, skew, rotate, translate
-            // All transforms are applied relative to the calculated anchor point
+            // Create a position-only matrix for the object (individual transforms preserved separately)
+            const objPositionMatrix = [1, 0, 0, 1, obj.x, obj.y];
             
-            // Calculate the object's position relative to the anchor
-            const relativeX = obj.x - anchorX;
-            const relativeY = obj.y - anchorY;
+            // Apply group transformation to the object's position
+            const transformedPosition = this._multiplyMatrices(groupMatrix, objPositionMatrix);
             
-            // Apply scaling
-            const scaledX = relativeX * this.globalScaleX;
-            const scaledY = relativeY * this.globalScaleY;
+            // Extract the new position
+            const newX = transformedPosition[4];
+            const newY = transformedPosition[5];
             
-            // Apply rotation around anchor point
-            const cos = Math.cos(this.globalRotation);
-            const sin = Math.sin(this.globalRotation);
-            const rotatedX = scaledX * cos - scaledY * sin;
-            const rotatedY = scaledX * sin + scaledY * cos;
+            // For individual object transforms, we need to consider how they compose with group transforms
+            // The group scale affects the object's existing scale
+            const finalScaleX = obj.scaleX * this.globalScaleX;
+            const finalScaleY = obj.scaleY * this.globalScaleY;
             
-            // Calculate new position (anchor + rotated offset + global offset)
-            const newX = anchorX + rotatedX + this.offsetX;
-            const newY = anchorY + rotatedY + this.offsetY;
+            // The group rotation affects the object's existing rotation
+            const finalRotation = obj.rotation + this.globalRotation;
             
-            // Apply transforms to the render object
-            obj.setPosition(newX, newY);
-            obj.setScale(obj.scaleX * this.globalScaleX, obj.scaleY * this.globalScaleY);
-            obj.setRotation(obj.rotation + this.globalRotation);
-            obj.setSkew(obj.skewX + this.globalSkewX, obj.skewY + this.globalSkewY);
+            // The group skew affects the object's existing skew
+            const finalSkewX = obj.skewX + this.globalSkewX;
+            const finalSkewY = obj.skewY + this.globalSkewY;
+            
+            // Apply the final transforms to the render object
+            obj.setPosition(newX + this.offsetX, newY + this.offsetY);
+            obj.setScale(finalScaleX, finalScaleY);
+            obj.setRotation(finalRotation);
+            obj.setSkew(finalSkewX, finalSkewY);
             obj.setOpacity(obj.opacity * this.globalOpacity);
             obj.setVisible(obj.visible && this.visible);
             
@@ -124,6 +142,60 @@ export class SceneElement implements SceneElementInterface {
             width: maxX - minX,
             height: maxY - minY
         };
+    }
+
+    /**
+     * Compute the group transformation matrix for the scene element
+     * Formula: G = T_anchor * R * Sk * S * T_anchor^-1
+     * @param anchorX - Anchor point X coordinate in world space
+     * @param anchorY - Anchor point Y coordinate in world space
+     * @returns 3x3 transformation matrix as flat array [a, b, c, d, e, f] representing:
+     *          | a  c  e |
+     *          | b  d  f |
+     *          | 0  0  1 |
+     */
+    protected _computeGroupTransformMatrix(anchorX: number, anchorY: number): number[] {
+        // Start with identity matrix
+        let matrix = [1, 0, 0, 1, 0, 0]; // [a, b, c, d, e, f]
+        
+        // Step 1: Translate to anchor point
+        matrix = this._multiplyMatrices(matrix, [1, 0, 0, 1, -anchorX, -anchorY]);
+        
+        // Step 2: Apply scaling
+        matrix = this._multiplyMatrices(matrix, [this.globalScaleX, 0, 0, this.globalScaleY, 0, 0]);
+        
+        // Step 3: Apply skew
+        matrix = this._multiplyMatrices(matrix, [1, Math.tan(this.globalSkewY), Math.tan(this.globalSkewX), 1, 0, 0]);
+        
+        // Step 4: Apply rotation
+        const cos = Math.cos(this.globalRotation);
+        const sin = Math.sin(this.globalRotation);
+        matrix = this._multiplyMatrices(matrix, [cos, sin, -sin, cos, 0, 0]);
+        
+        // Step 5: Translate back from anchor point
+        matrix = this._multiplyMatrices(matrix, [1, 0, 0, 1, anchorX, anchorY]);
+        
+        return matrix;
+    }
+
+    /**
+     * Multiply two 2D transformation matrices
+     * @param a - First matrix [a, b, c, d, e, f]
+     * @param b - Second matrix [a, b, c, d, e, f]
+     * @returns Result matrix [a, b, c, d, e, f]
+     */
+    protected _multiplyMatrices(a: number[], b: number[]): number[] {
+        const [a1, b1, c1, d1, e1, f1] = a;
+        const [a2, b2, c2, d2, e2, f2] = b;
+        
+        return [
+            a1 * a2 + c1 * b2,           // a
+            b1 * a2 + d1 * b2,           // b  
+            a1 * c2 + c1 * d2,           // c
+            b1 * c2 + d1 * d2,           // d
+            a1 * e2 + c1 * f2 + e1,      // e
+            b1 * e2 + d1 * f2 + f1       // f
+        ];
     }
 
     /**
@@ -201,6 +273,25 @@ export class SceneElement implements SceneElementInterface {
                     step: 1,
                     description: 'Global rotation angle in degrees'
                 },
+                // Anchor point controls
+                anchorX: {
+                    type: 'number',
+                    label: 'Anchor X',
+                    default: 0.5,
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                    description: 'Horizontal anchor point for transforms (0 = left, 0.5 = center, 1 = right)'
+                },
+                anchorY: {
+                    type: 'number',
+                    label: 'Anchor Y',
+                    default: 0.5,
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                    description: 'Vertical anchor point for transforms (0 = top, 0.5 = center, 1 = bottom)'
+                },
                 // Global skew controls
                 globalSkewX: {
                     type: 'number',
@@ -258,6 +349,8 @@ export class SceneElement implements SceneElementInterface {
             globalScaleX: this.globalScaleX,
             globalScaleY: this.globalScaleY,
             globalRotation: this.globalRotation * (180 / Math.PI), // Convert to degrees for UI
+            anchorX: this.anchorX,
+            anchorY: this.anchorY,
             globalSkewX: this.globalSkewX * (180 / Math.PI), // Convert to degrees for UI
             globalSkewY: this.globalSkewY * (180 / Math.PI), // Convert to degrees for UI
             globalOpacity: this.globalOpacity,
@@ -291,6 +384,12 @@ export class SceneElement implements SceneElementInterface {
         }
         if (this.config.globalRotation !== undefined) {
             this.setGlobalRotation(this.config.globalRotation);
+        }
+        if (this.config.anchorX !== undefined) {
+            this.setAnchorX(this.config.anchorX);
+        }
+        if (this.config.anchorY !== undefined) {
+            this.setAnchorY(this.config.anchorY);
         }
         if (this.config.globalSkewX !== undefined) {
             this.setGlobalSkewX(this.config.globalSkewX);
@@ -355,6 +454,23 @@ export class SceneElement implements SceneElementInterface {
 
     setGlobalRotationRadians(rotation: number): this {
         this.globalRotation = rotation;
+        return this;
+    }
+
+    // Anchor point setters
+    setAnchorX(anchorX: number): this {
+        this.anchorX = Math.max(0, Math.min(1, anchorX));
+        return this;
+    }
+
+    setAnchorY(anchorY: number): this {
+        this.anchorY = Math.max(0, Math.min(1, anchorY));
+        return this;
+    }
+
+    setAnchor(anchorX: number, anchorY: number): this {
+        this.setAnchorX(anchorX);
+        this.setAnchorY(anchorY);
         return this;
     }
 
