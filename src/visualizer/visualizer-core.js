@@ -1,8 +1,6 @@
 // Main MIDI Visualizer class
-import { NoteManager } from './manager';
 import { ModularRenderer } from './modular-renderer.js';
 import { HybridSceneBuilder } from './hybrid-scene-builder.js';
-import { globalTimingManager } from './timing-manager';
 import { sceneElementRegistry } from './scene-element-registry.js';
 
 export class MIDIVisualizerCore {
@@ -29,204 +27,21 @@ export class MIDIVisualizerCore {
         this._needsRender = true;
         this._lastRenderTime = -1;
 
-        // Timing management
-        this.timingManager = timingManager || globalTimingManager;
-
-        // Note management system
-        this.noteManager = new NoteManager(this.timingManager);
-
-        // Piano roll specific settings (deprecated - moved to TimingManager)
-        this.timeUnit = 4; // Time unit in seconds (1 bar at 120 BPM = 2 seconds)
-        this.timeUnitBars = 1; // Number of bars to show
-        this.beatsPerBar = 4;
-        this.bpm = 120; // Default BPM, will be updated from MIDI if available
-        this.referenceBpm = 120; // Store original BPM for tempo adjustments
-
-        // Visual settings
-        this.noteHeight = 20;
-        this.pianoWidth = 0; // No piano needed
-
         // Note rendering system - using modular approach with RenderObjects
         // Main rendering system - stateless renderer for all drawing operations
         this.modularRenderer = new ModularRenderer(); // New modular renderer
         this.sceneBuilder = new HybridSceneBuilder(); // Scene builder for creating RenderObjects
 
-        // Animation system - now handled by individual scene elements
-
-        // Played notes tracking
-        // (Note: playedNoteEvents and totalNoteEvents are now managed by noteManager)
-
-        // Color settings - now managed by individual scene elements, keeping only core visualization colors
-        this.backgroundColor = '#000000';
-
-        // Listen for image loaded events to automatically re-render
         this._setupImageLoadedListener();
-        this.channelColors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-            '#F8C471', '#82E0AA', '#F1948A', '#85DEEE', '#D7BDE2'
-        ];
-
-        this.setupPiano();
 
         // Initialize the default scene
         this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
-    }
-
-    setupPiano() {
-        if (!this.canvas) {
-            console.error('Canvas not available for piano setup');
-            return;
-        }
-
-        // Use a more practical note range for visualization (C3 to C6)
-        this.noteRange = { min: 48, max: 84 }; // 3 octaves
-        this.totalNotes = this.noteRange.max - this.noteRange.min + 1;
-
-        // For piano roll, notes span the full width
-        this.noteHeight = (this.canvas.height - 100) / this.totalNotes; // Leave space for progress bar
-        this.rollWidth = this.canvas.width; // Full width available for the time axis
-    }
-
-    loadMIDIData(midiData) {
-        console.log('MIDIVisualizer.loadMIDIData called with:', midiData);
-
-        this.events = midiData.events;
-        this.duration = midiData.duration;
-        this.currentTime = -0.5; // Start with buffer time so first notes can animate in
-
-        // Load timing data into TimingManager
-        if (midiData.timingManager) {
-            console.log('Using TimingManager from MIDI data:', midiData.timingManager);
-            // Use the TimingManager from MIDI data if available
-            this.timingManager = midiData.timingManager;
-            this.noteManager = new NoteManager(this.timingManager);
-
-            // Update all scene elements to use the new timing manager
-            this.updateSceneElementTimingManager();
-        } else {
-            console.log('No TimingManager in MIDI data, loading data into global timing manager');
-            // Fallback: load data into global timing manager
-            this.timingManager.loadFromMIDIData(midiData);
-        }
-
-        console.log('TimingManager after loading:', {
-            bpm: this.timingManager.bpm,
-            tempo: this.timingManager.tempo,
-            timeSignature: this.timingManager.timeSignature,
-            beatsPerBar: this.timingManager.beatsPerBar
-        });
-
-        // Store trimming information for debugging
-        this.trimmedTicks = midiData.trimmedTicks || 0;
-        this.trimmedSeconds = this.trimmedTicks * this.timingManager.getSecondsPerTick();
-
-        // Get timing values from TimingManager
-        this.bpm = this.timingManager.bpm;
-        this.beatsPerBar = this.timingManager.beatsPerBar;
-        this.referenceBpm = this.bpm; // Store original BPM as reference
-
-        // Calculate time unit in seconds based on TimingManager
-        this.updateTimeUnit();
-
-        // Group events by note for better visualization
-        this.noteEvents = new Map();
-
-        for (const event of this.events) {
-            if (!this.noteEvents.has(event.note)) {
-                this.noteEvents.set(event.note, []);
-            }
-            this.noteEvents.get(event.note).push(event);
-        }
-
-        // Load MIDI data into note manager
-        this.noteManager.loadMIDIData(this.events, this.timeUnit);
-    }
-
-    updateTimeUnit() {
-        // Use TimingManager to calculate time unit
-        this.timeUnit = this.timingManager.getTimeUnitDuration(this.timeUnitBars);
-
-        // Log timing information for debugging
-        this.timingManager.logConfiguration();
     }
 
     updateSceneElementTimingManager() {
         // The most reliable way to update timing manager references is to recreate the scene
         // This ensures all elements get the correct timing manager reference
         this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
-    }
-
-    setTimeUnitBars(bars) {
-        this.timeUnitBars = bars;
-        this.updateTimeUnit();
-        // Update note manager with new time unit
-        this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.invalidateRender();
-    }
-
-    setBeatsPerBar(beats) {
-        this.timingManager.setBeatsPerBar(beats);
-        this.beatsPerBar = this.timingManager.beatsPerBar; // Update local copy
-        this.updateTimeUnit();
-        // Update note manager with new time unit
-        this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.invalidateRender();
-    }
-
-    setTimeSignature(timeSignature) {
-        this.timingManager.setTimeSignature(timeSignature);
-        this.beatsPerBar = this.timingManager.beatsPerBar; // Update local copy
-        this.updateTimeUnit();
-        // Update note manager with new time unit
-        this.noteManager.updateTimeUnit(this.events, this.timeUnit);
-        this.invalidateRender();
-    }
-
-    setBPM(bpm) {
-        try {
-            const oldBpm = this.bpm;
-            this.timingManager.setBPM(bpm);
-            this.bpm = this.timingManager.bpm; // Update local copy
-
-            // Let note manager handle the recalculation
-            this.noteManager.recalculateNoteTimings(oldBpm, bpm, this.events, this.timeUnit);
-
-            // Recalculate duration using TimingManager
-            const tempoRatio = this.timingManager.calculateTempoRatio(oldBpm, bpm);
-            this.duration = this.timingManager.scaleTimeByTempo(this.duration, tempoRatio);
-
-            // Reset animation frame and timing state to prevent any leftover state
-            if (this.animationId) {
-                cancelAnimationFrame(this.animationId);
-                this.animationId = null;
-            }
-
-            // Update time unit and redraw
-            this.updateTimeUnit();
-            this.invalidateRender();
-
-            console.log(`BPM changed from ${oldBpm} to ${bpm}, new duration: ${this.duration.toFixed(2)}s`);
-        } catch (error) {
-            console.error('Error updating BPM:', error);
-        }
-    }
-
-    setBPMFromMIDITempo(tempo) {
-        if (!tempo) return;
-        const oldBpm = this.bpm;
-        this.timingManager.setTempo(tempo);
-        this.bpm = this.timingManager.bpm; // Update local copy
-
-        // Let note manager handle the recalculation
-        this.noteManager.recalculateNoteTimings(oldBpm, this.bpm, this.events, this.timeUnit);
-
-        // Recalculate duration using TimingManager
-        const tempoRatio = this.timingManager.calculateTempoRatio(oldBpm, this.bpm);
-        this.duration = this.timingManager.scaleTimeByTempo(this.duration, tempoRatio);
-
-        this.updateTimeUnit();
-        this.invalidateRender();
     }
 
     play() {
@@ -397,11 +212,6 @@ export class MIDIVisualizerCore {
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
     }
 
-    isBlackKey(midiNote) {
-        const noteInOctave = midiNote % 12;
-        return [1, 3, 6, 8, 10].includes(noteInOctave); // C#, D#, F#, G#, A#
-    }
-
     /**
      * Set up image loaded event listener for auto re-render when images finish loading
      * @private
@@ -461,43 +271,6 @@ export class MIDIVisualizerCore {
         return this.isPlaying;
     }
 
-    // Get played note events statistics
-    getPlayedNotesStats() {
-        return this.noteManager.getPlayedNotesStats();
-    }
-
-    // Color control methods (core visualization colors only)
-    setBackgroundColor(color) {
-        this.backgroundColor = color || '#000000';
-        this.invalidateRender();
-    }
-
-    getBackgroundColor() {
-        return this.backgroundColor;
-    }
-
-    setChannelColor(channel, color) {
-        if (channel >= 0 && channel < this.channelColors.length && color) {
-            this.channelColors[channel] = color;
-            this.invalidateRender();
-        }
-    }
-
-    getChannelColor(channel) {
-        return this.channelColors[channel % this.channelColors.length];
-    }
-
-    setChannelColors(colors) {
-        if (Array.isArray(colors) && colors.length > 0) {
-            this.channelColors = [...colors];
-            this.invalidateRender();
-        }
-    }
-
-    getChannelColors() {
-        return [...this.channelColors];
-    }
-
     // Get access to render objects for advanced customization
     getRenderObjects(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
@@ -517,22 +290,7 @@ export class MIDIVisualizerCore {
     getSceneConfig() {
         return {
             canvas: this.canvas,
-            noteBlocks: this.noteManager.getNoteBlocks(),
-            noteRange: this.noteRange,
-            totalNotes: this.totalNotes,
-            noteHeight: this.noteHeight,
-            timeUnit: this.timeUnit,
             duration: this.duration,
-            pianoWidth: this.pianoWidth,
-            rollWidth: this.rollWidth,
-            beatsPerBar: this.timingManager.beatsPerBar, // Always use current timing manager value
-            timeUnitBars: this.timeUnitBars,
-            bpm: this.timingManager.bpm, // Always use current timing manager value
-            backgroundColor: this.backgroundColor,
-            channelColors: this.channelColors,
-            playedNoteEvents: this.noteManager.playedNoteEvents,
-            totalNoteEvents: this.noteManager.totalNoteEvents,
-            events: this.events,
             isPlaying: this.isPlaying // Add playing state for debugging
         };
     }
@@ -690,7 +448,9 @@ export class MIDIVisualizerCore {
         }
 
         return loaded;
-    }    /**
+    }
+
+    /**
      * Reset to default scene
      */
     resetToDefaultScene() {
@@ -724,7 +484,9 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this.animationId);
             this.animationId = null;
         }
-    }    /**
+    }
+
+    /**
      * Get scene element by ID
      * @param {string} elementId - Element ID
      * @returns {SceneElement|null} The element or null if not found
