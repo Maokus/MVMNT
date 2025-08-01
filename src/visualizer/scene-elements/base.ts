@@ -13,13 +13,11 @@ export class SceneElement implements SceneElementInterface {
     public globalScaleX: number = 1;
     public globalScaleY: number = 1;
     public globalRotation: number = 0; // in radians
+    public globalSkewX: number = 0; // in radians
+    public globalSkewY: number = 0; // in radians
     
     // Global visibility properties
     public globalOpacity: number = 1;
-    
-    // Anchor point for global transforms (0-1 range)
-    public anchorX: number = 0.5; // 0 = left, 0.5 = center, 1 = right
-    public anchorY: number = 0.5; // 0 = top, 0.5 = center, 1 = bottom
     
     public config: { [key: string]: any }; // Store configuration object
 
@@ -40,49 +38,46 @@ export class SceneElement implements SceneElementInterface {
     buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
-        // Call the child class implementation
+        // Call the child class implementation to build the base render objects
         const renderObjects = this._buildRenderObjects(config, targetTime);
 
         if (renderObjects.length === 0) return [];
 
-        // Calculate the bounding box that encompasses all render objects
-        const sceneElementBounds = this._calculateSceneElementBounds(renderObjects);
+        // Calculate the centroid of all render objects for transformation anchor
+        const bounds = this._calculateSceneElementBounds(renderObjects);
+        const anchorX = bounds.x + bounds.width * 0.5; // Use center as anchor
+        const anchorY = bounds.y + bounds.height * 0.5; // Use center as anchor
 
-        // Calculate the absolute anchor point for the scene element
-        const absoluteAnchorX = sceneElementBounds.x + (sceneElementBounds.width * this.anchorX);
-        const absoluteAnchorY = sceneElementBounds.y + (sceneElementBounds.height * this.anchorY);
-
-        // Debug logging for anchor point calculations (can be removed in production)
-        if (this.globalScaleX !== 1 || this.globalScaleY !== 1 || this.globalRotation !== 0) {
-            console.log(`Scene element ${this.id} anchor calculation:`, {
-                bounds: sceneElementBounds,
-                relativeAnchor: { x: this.anchorX, y: this.anchorY },
-                absoluteAnchor: { x: absoluteAnchorX, y: absoluteAnchorY },
-                transforms: { 
-                    scale: { x: this.globalScaleX, y: this.globalScaleY },
-                    rotation: this.globalRotation,
-                    offset: { x: this.offsetX, y: this.offsetY }
-                }
-            });
-        }
-
-        // Apply global transforms and visibility to all render objects
+        // Apply scene-level transforms to each render object
         return renderObjects.map(obj => {
-            // Set global transform properties on each render object
-            obj.globalOffsetX = this.offsetX;
-            obj.globalOffsetY = this.offsetY;
-            obj.globalScaleX = this.globalScaleX;
-            obj.globalScaleY = this.globalScaleY;
-            obj.globalRotation = this.globalRotation;
-            obj.globalOpacity = this.globalOpacity;
+            // Apply transforms in the order: scale, skew, rotate, translate
+            // All transforms are applied relative to the calculated anchor point
             
-            // Set the same absolute anchor point for all render objects
-            // This ensures they all transform around the same point
-            obj.globalAnchorX = absoluteAnchorX;
-            obj.globalAnchorY = absoluteAnchorY;
+            // Calculate the object's position relative to the anchor
+            const relativeX = obj.x - anchorX;
+            const relativeY = obj.y - anchorY;
             
-            // Apply visibility
-            obj.visible = obj.visible && this.visible;
+            // Apply scaling
+            const scaledX = relativeX * this.globalScaleX;
+            const scaledY = relativeY * this.globalScaleY;
+            
+            // Apply rotation around anchor point
+            const cos = Math.cos(this.globalRotation);
+            const sin = Math.sin(this.globalRotation);
+            const rotatedX = scaledX * cos - scaledY * sin;
+            const rotatedY = scaledX * sin + scaledY * cos;
+            
+            // Calculate new position (anchor + rotated offset + global offset)
+            const newX = anchorX + rotatedX + this.offsetX;
+            const newY = anchorY + rotatedY + this.offsetY;
+            
+            // Apply transforms to the render object
+            obj.setPosition(newX, newY);
+            obj.setScale(obj.scaleX * this.globalScaleX, obj.scaleY * this.globalScaleY);
+            obj.setRotation(obj.rotation + this.globalRotation);
+            obj.setSkew(obj.skewX + this.globalSkewX, obj.skewY + this.globalSkewY);
+            obj.setOpacity(obj.opacity * this.globalOpacity);
+            obj.setVisible(obj.visible && this.visible);
             
             return obj;
         });
@@ -206,6 +201,25 @@ export class SceneElement implements SceneElementInterface {
                     step: 1,
                     description: 'Global rotation angle in degrees'
                 },
+                // Global skew controls
+                globalSkewX: {
+                    type: 'number',
+                    label: 'Global Skew X (degrees)',
+                    default: 0,
+                    min: -45,
+                    max: 45,
+                    step: 1,
+                    description: 'Global horizontal skew angle in degrees'
+                },
+                globalSkewY: {
+                    type: 'number',
+                    label: 'Global Skew Y (degrees)',
+                    default: 0,
+                    min: -45,
+                    max: 45,
+                    step: 1,
+                    description: 'Global vertical skew angle in degrees'
+                },
                 // Global visibility controls
                 globalOpacity: {
                     type: 'number',
@@ -215,25 +229,6 @@ export class SceneElement implements SceneElementInterface {
                     max: 1,
                     step: 0.01,
                     description: 'Global transparency level (0 = invisible, 1 = opaque)'
-                },
-                // Anchor point controls
-                anchorX: {
-                    type: 'number',
-                    label: 'Anchor X',
-                    default: 0.5,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Horizontal anchor point for scene transforms (0 = left, 0.5 = center, 1 = right) - all render objects will transform around this common point'
-                },
-                anchorY: {
-                    type: 'number',
-                    label: 'Anchor Y',
-                    default: 0.5,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Vertical anchor point for scene transforms (0 = top, 0.5 = center, 1 = bottom) - all render objects will transform around this common point'
                 }
             }
         };
@@ -263,9 +258,9 @@ export class SceneElement implements SceneElementInterface {
             globalScaleX: this.globalScaleX,
             globalScaleY: this.globalScaleY,
             globalRotation: this.globalRotation * (180 / Math.PI), // Convert to degrees for UI
+            globalSkewX: this.globalSkewX * (180 / Math.PI), // Convert to degrees for UI
+            globalSkewY: this.globalSkewY * (180 / Math.PI), // Convert to degrees for UI
             globalOpacity: this.globalOpacity,
-            anchorX: this.anchorX,
-            anchorY: this.anchorY,
             ...this.config
         };
     }
@@ -297,16 +292,15 @@ export class SceneElement implements SceneElementInterface {
         if (this.config.globalRotation !== undefined) {
             this.setGlobalRotation(this.config.globalRotation);
         }
+        if (this.config.globalSkewX !== undefined) {
+            this.setGlobalSkewX(this.config.globalSkewX);
+        }
+        if (this.config.globalSkewY !== undefined) {
+            this.setGlobalSkewY(this.config.globalSkewY);
+        }
         // Global visibility properties
         if (this.config.globalOpacity !== undefined) {
             this.setGlobalOpacity(this.config.globalOpacity);
-        }
-        // Anchor point properties
-        if (this.config.anchorX !== undefined) {
-            this.setAnchorX(this.config.anchorX);
-        }
-        if (this.config.anchorY !== undefined) {
-            this.setAnchorY(this.config.anchorY);
         }
     }
 
@@ -364,26 +358,28 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
+    // Global skew setters
+    setGlobalSkewX(skewX: number): this {
+        // Convert degrees to radians if the value seems to be in degrees
+        this.globalSkewX = skewX * (Math.PI / 180);
+        return this;
+    }
+
+    setGlobalSkewY(skewY: number): this {
+        // Convert degrees to radians if the value seems to be in degrees
+        this.globalSkewY = skewY * (Math.PI / 180);
+        return this;
+    }
+
+    setGlobalSkew(skewX: number, skewY: number): this {
+        this.setGlobalSkewX(skewX);
+        this.setGlobalSkewY(skewY);
+        return this;
+    }
+
     // Global visibility setters
     setGlobalOpacity(opacity: number): this {
         this.globalOpacity = Math.max(0, Math.min(1, opacity));
-        return this;
-    }
-
-    // Anchor point setters
-    setAnchorX(anchorX: number): this {
-        this.anchorX = Math.max(0, Math.min(1, anchorX));
-        return this;
-    }
-
-    setAnchorY(anchorY: number): this {
-        this.anchorY = Math.max(0, Math.min(1, anchorY));
-        return this;
-    }
-
-    setAnchor(anchorX: number, anchorY: number): this {
-        this.setAnchorX(anchorX);
-        this.setAnchorY(anchorY);
         return this;
     }
 }

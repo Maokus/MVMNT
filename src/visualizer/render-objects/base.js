@@ -5,23 +5,11 @@ export class RenderObject {
         this.y = y;
         this.scaleX = scaleX;
         this.scaleY = scaleY;
+        this.skewX = 0; // Skew in radians
+        this.skewY = 0; // Skew in radians
         this.opacity = opacity;
         this.visible = true;
-        this.rotation = 0; // Optional rotation support
-
-        // Anchor point for unified transformations (absolute pixel coordinates)
-        this.anchorX = 0; // Absolute X pixel coordinate for anchor point
-        this.anchorY = 0; // Absolute Y pixel coordinate for anchor point
-
-        // Global transform properties (applied by scene elements)
-        this.globalOffsetX = 0;
-        this.globalOffsetY = 0;
-        this.globalScaleX = 1;
-        this.globalScaleY = 1;
-        this.globalRotation = 0;
-        this.globalOpacity = 1;
-        this.globalAnchorX = 0; // Absolute X pixel coordinate for scene-level transforms
-        this.globalAnchorY = 0; // Absolute Y pixel coordinate for scene-level transforms
+        this.rotation = 0; // Rotation in radians
     }
 
     /**
@@ -31,33 +19,14 @@ export class RenderObject {
      * @param {number} currentTime - Current time for animation calculations
      */
     render(ctx, config, currentTime) {
-        if (!this.visible || this.opacity <= 0 || this.globalOpacity <= 0) {
+        if (!this.visible || this.opacity <= 0) {
             return;
         }
 
         // Save context state
         ctx.save();
 
-        // Apply global transforms first (scene-level transforms)
-        if (this.globalOffsetX !== 0 || this.globalOffsetY !== 0) {
-            ctx.translate(this.globalOffsetX, this.globalOffsetY);
-        }
-
-        if (this.globalRotation !== 0) {
-            // Rotate around the absolute global anchor point
-            ctx.translate(this.globalAnchorX, this.globalAnchorY);
-            ctx.rotate(this.globalRotation);
-            ctx.translate(-this.globalAnchorX, -this.globalAnchorY);
-        }
-
-        if (this.globalScaleX !== 1 || this.globalScaleY !== 1) {
-            // Scale around the absolute global anchor point
-            ctx.translate(this.globalAnchorX, this.globalAnchorY);
-            ctx.scale(this.globalScaleX, this.globalScaleY);
-            ctx.translate(-this.globalAnchorX, -this.globalAnchorY);
-        }
-
-        // Apply local transformations (object-specific transforms)
+        // Apply transformations in order: translate, rotate, scale, skew
         ctx.translate(this.x, this.y);
 
         if (this.rotation !== 0) {
@@ -68,10 +37,19 @@ export class RenderObject {
             ctx.scale(this.scaleX, this.scaleY);
         }
 
-        // Apply opacity (combine local and global)
-        const finalOpacity = this.opacity * this.globalOpacity;
-        if (finalOpacity !== 1) {
-            ctx.globalAlpha *= finalOpacity;
+        // Apply skew transformation using transform matrix
+        if (this.skewX !== 0 || this.skewY !== 0) {
+            const transform = [
+                1, Math.tan(this.skewY), // skewY affects how Y coordinates map to X
+                Math.tan(this.skewX), 1, // skewX affects how X coordinates map to Y
+                0, 0
+            ];
+            ctx.transform(...transform);
+        }
+
+        // Apply opacity
+        if (this.opacity !== 1) {
+            ctx.globalAlpha *= this.opacity;
         }
 
         // Call the subclass-specific rendering method
@@ -111,6 +89,15 @@ export class RenderObject {
     }
 
     /**
+     * Set skew (in radians)
+     */
+    setSkew(skewX, skewY) {
+        this.skewX = skewX;
+        this.skewY = skewY;
+        return this;
+    }
+
+    /**
      * Set opacity
      */
     setOpacity(opacity) {
@@ -135,30 +122,6 @@ export class RenderObject {
     }
 
     /**
-     * Set anchor point for local transformations (absolute pixel coordinates)
-     */
-    setAnchor(anchorX, anchorY) {
-        this.anchorX = anchorX;
-        this.anchorY = anchorY;
-        return this;
-    }
-
-    /**
-     * Set global transform properties (typically called by scene elements)
-     */
-    setGlobalTransform(offsetX, offsetY, scaleX, scaleY, rotation, opacity, anchorX, anchorY) {
-        this.globalOffsetX = offsetX || 0;
-        this.globalOffsetY = offsetY || 0;
-        this.globalScaleX = scaleX !== undefined ? scaleX : 1;
-        this.globalScaleY = scaleY !== undefined ? scaleY : 1;
-        this.globalRotation = rotation || 0;
-        this.globalOpacity = opacity !== undefined ? opacity : 1;
-        this.globalAnchorX = anchorX !== undefined ? anchorX : 0;
-        this.globalAnchorY = anchorY !== undefined ? anchorY : 0;
-        return this;
-    }
-
-    /**
      * Get bounding box (to be overridden by subclasses if needed)
      */
     getBounds() {
@@ -167,39 +130,6 @@ export class RenderObject {
             y: this.y,
             width: 0,
             height: 0
-        };
-    }
-
-    /**
-     * Animation helper methods
-     */
-    animateOpacity(targetOpacity, duration, easing = 'linear') {
-        // This could be expanded to support actual animation systems
-        return {
-            property: 'opacity',
-            target: targetOpacity,
-            duration: duration,
-            easing: easing
-        };
-    }
-
-    animateScale(targetScaleX, targetScaleY, duration, easing = 'linear') {
-        return {
-            property: 'scale',
-            targetX: targetScaleX,
-            targetY: targetScaleY,
-            duration: duration,
-            easing: easing
-        };
-    }
-
-    animatePosition(targetX, targetY, duration, easing = 'linear') {
-        return {
-            property: 'position',
-            targetX: targetX,
-            targetY: targetY,
-            duration: duration,
-            easing: easing
         };
     }
 }

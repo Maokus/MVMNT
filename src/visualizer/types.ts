@@ -159,27 +159,19 @@ export interface RenderObjectInterface {
   y: number;
   scaleX: number;
   scaleY: number;
+  skewX: number;
+  skewY: number;
   opacity: number;
   visible: boolean;
   rotation: number;
   
-  // Anchor points for transformations
-  anchorX: number;
-  anchorY: number;
-  
-  // Global transform properties
-  globalOffsetX: number;
-  globalOffsetY: number;
-  globalScaleX: number;
-  globalScaleY: number;
-  globalRotation: number;
-  globalOpacity: number;
-  globalAnchorX: number;
-  globalAnchorY: number;
-  
   render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
-  setGlobalTransform(offsetX: number, offsetY: number, scaleX: number, scaleY: number, rotation: number, opacity: number, anchorX: number, anchorY: number): any;
-  setAnchor(anchorX: number, anchorY: number): any;
+  setPosition(x: number, y: number): any;
+  setScale(scaleX: number, scaleY?: number): any;
+  setSkew(skewX: number, skewY: number): any;
+  setRotation(rotation: number): any;
+  setOpacity(opacity: number): any;
+  setVisible(visible: boolean): any;
   getBounds(): { x: number; y: number; width: number; height: number };
 }
 
@@ -194,13 +186,11 @@ export interface BaseSceneElementConfig {
   globalScaleX?: number;
   globalScaleY?: number;
   globalRotation?: number;
+  globalSkewX?: number;
+  globalSkewY?: number;
   
   // Global visibility properties
   globalOpacity?: number;
-  
-  // Anchor point properties
-  anchorX?: number;
-  anchorY?: number;
 }
 
 export interface ConfigSchemaProperty {
@@ -233,13 +223,11 @@ export interface SceneElementInterface {
   globalScaleX: number;
   globalScaleY: number;
   globalRotation: number;
+  globalSkewX: number;
+  globalSkewY: number;
   
   // Global visibility properties
   globalOpacity: number;
-  
-  // Anchor point properties
-  anchorX: number;
-  anchorY: number;
   
   config: { [key: string]: any };
   
@@ -258,14 +246,12 @@ export interface SceneElementInterface {
   setGlobalScale(scaleX: number, scaleY?: number): this;
   setGlobalRotation(rotation: number): this;
   setGlobalRotationRadians(rotation: number): this;
+  setGlobalSkewX(skewX: number): this;
+  setGlobalSkewY(skewY: number): this;
+  setGlobalSkew(skewX: number, skewY: number): this;
   
   // Global visibility methods
   setGlobalOpacity(opacity: number): this;
-  
-  // Anchor point methods
-  setAnchorX(anchorX: number): this;
-  setAnchorY(anchorY: number): this;
-  setAnchor(anchorX: number, anchorY: number): this;
 }
 
 export interface BackgroundElementConfig extends BaseSceneElementConfig {
