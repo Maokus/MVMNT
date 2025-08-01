@@ -11,9 +11,6 @@ interface MenuBarProps {
     sceneName: string;
     onSceneNameChange: (name: string) => void;
     onMidiLoad: (file: File) => void;
-    onExport: () => void;
-    exportStatus: string;
-    canExport: boolean;
     menuBarActions: MenuBarActions;
 }
 
@@ -21,9 +18,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
     sceneName,
     onSceneNameChange,
     onMidiLoad,
-    onExport,
-    exportStatus,
-    canExport,
     menuBarActions
 }) => {
     const [isEditingName, setIsEditingName] = useState(false);
@@ -150,17 +144,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
                         )}
                     </div>
                 </div>
-            </div>
-
-            <div className="menu-section export-actions">
-                <button
-                    className="btn-export"
-                    onClick={onExport}
-                    disabled={!canExport}
-                >
-                    📸 Export PNG Sequence
-                </button>
-                <span id="exportStatus">{exportStatus}</span>
             </div>
         </div>
     );

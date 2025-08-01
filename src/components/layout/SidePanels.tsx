@@ -8,9 +8,12 @@ import { useSidePanels } from '../hooks/useSidePanels';
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
     sceneRefreshTrigger?: number; // Trigger refresh when this changes
+    onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    exportStatus: string;
+    canExport: boolean;
 }
 
-const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger }) => {
+const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger, onExport, exportStatus, canExport }) => {
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
@@ -21,12 +24,14 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
         selectedElement,
         selectedElementSchema,
         refreshTrigger,
+        exportSettings,
         handleElementSelect,
         handleElementConfigChange,
         handleAddElement,
         setSelectedElementId,
         setSelectedElement,
-        setSelectedElementSchema
+        setSelectedElementSchema,
+        updateExportSetting
     } = useSidePanels({ visualizer, sceneRefreshTrigger });
 
     // Handle clicks outside of side panels to clear selection and show global settings
@@ -147,7 +152,11 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
                                 <div className="setting-group">
                                     <h4>Export Settings</h4>
                                     <label htmlFor="resolutionSelect">Resolution:</label>
-                                    <select id="resolutionSelect">
+                                    <select
+                                        id="resolutionSelect"
+                                        value={exportSettings.resolution}
+                                        onChange={(e) => updateExportSetting('resolution', parseInt(e.target.value))}
+                                    >
                                         <option value="1500">1500x1500px (Default)</option>
                                         <option value="1080">1080x1080px (Instagram)</option>
                                         <option value="720">720x720px (Smaller)</option>
@@ -155,12 +164,49 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
                                     </select>
 
                                     <label htmlFor="fpsInput">Frame Rate (FPS):</label>
-                                    <input type="number" id="fpsInput" min="24" max="60" defaultValue="30" />
+                                    <input
+                                        type="number"
+                                        id="fpsInput"
+                                        min="24"
+                                        max="60"
+                                        value={exportSettings.fps}
+                                        onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
+                                    />
 
                                     <label>
-                                        <input type="checkbox" id="fullDurationExport" defaultChecked />
+                                        <input
+                                            type="checkbox"
+                                            id="fullDurationExport"
+                                            checked={exportSettings.fullDuration}
+                                            onChange={(e) => updateExportSetting('fullDuration', e.target.checked)}
+                                        />
                                         Export full duration
                                     </label>
+
+                                    <div className="export-actions" style={{ marginTop: '16px' }}>
+                                        <button
+                                            className="btn-export"
+                                            onClick={() => onExport(exportSettings)}
+                                            disabled={!canExport}
+                                            style={{
+                                                width: '100%',
+                                                padding: '8px 16px',
+                                                fontSize: '14px',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            📸 Export PNG Sequence
+                                        </button>
+                                        <span style={{
+                                            fontSize: '12px',
+                                            color: '#666',
+                                            marginTop: '8px',
+                                            display: 'block',
+                                            textAlign: 'center'
+                                        }}>
+                                            {exportStatus}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

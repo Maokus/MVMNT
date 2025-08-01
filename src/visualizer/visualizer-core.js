@@ -23,6 +23,13 @@ export class MIDIVisualizerCore {
         this.animationId = null;
         this.currentTime = -0.5; // Start with buffer time so first notes can animate in
 
+        // Export settings for frame stepping and export functionality
+        this.exportSettings = {
+            fps: 30,
+            resolution: 1500,
+            fullDuration: true
+        };
+
         // Render invalidation system
         this._needsRender = true;
         this._lastRenderTime = -1;
@@ -121,17 +128,36 @@ export class MIDIVisualizerCore {
         return maxDuration > 0 ? maxDuration : this.duration;
     }
 
+    /**
+     * Update export settings that affect frame stepping and export functionality
+     * @param {Object} settings - Export settings object
+     * @param {number} settings.fps - Frame rate for stepping and export
+     * @param {number} settings.resolution - Resolution for export
+     * @param {boolean} settings.fullDuration - Whether to export full duration
+     */
+    updateExportSettings(settings) {
+        this.exportSettings = { ...this.exportSettings, ...settings };
+    }
+
+    /**
+     * Get current export settings
+     * @returns {Object} Current export settings
+     */
+    getExportSettings() {
+        return { ...this.exportSettings };
+    }
+
     stepForward() {
-        const frameRate = 30; // Standard frame rate for frame stepping
-        const stepSize = 1.0 / frameRate; // Frame time (1/30th of a second)
+        const frameRate = this.exportSettings.fps; // Use configurable frame rate
+        const stepSize = 1.0 / frameRate; // Frame time based on current fps setting
         const currentDuration = this.getCurrentDuration();
         const newTime = Math.min(this.currentTime + stepSize, currentDuration);
         this.seek(newTime);
     }
 
     stepBackward() {
-        const frameRate = 30; // Standard frame rate for frame stepping
-        const stepSize = 1.0 / frameRate; // Frame time (1/30th of a second)
+        const frameRate = this.exportSettings.fps; // Use configurable frame rate
+        const stepSize = 1.0 / frameRate; // Frame time based on current fps setting
         const newTime = Math.max(this.currentTime - stepSize, -0.5);
         this.seek(newTime);
     }

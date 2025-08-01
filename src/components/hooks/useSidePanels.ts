@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 
+interface ExportSettings {
+    fps: number;
+    resolution: number;
+    fullDuration: boolean;
+}
+
 interface UseSidePanelsProps {
     visualizer: any;
     sceneRefreshTrigger?: number;
@@ -10,6 +16,7 @@ interface SidePanelsState {
     selectedElement: any;
     selectedElementSchema: any;
     refreshTrigger: number;
+    exportSettings: ExportSettings;
 }
 
 interface SidePanelsActions {
@@ -20,6 +27,7 @@ interface SidePanelsActions {
     setSelectedElementId: React.Dispatch<React.SetStateAction<string | null>>;
     setSelectedElement: React.Dispatch<React.SetStateAction<any>>;
     setSelectedElementSchema: React.Dispatch<React.SetStateAction<any>>;
+    updateExportSetting: (key: keyof ExportSettings, value: any) => void;
 }
 
 export const useSidePanels = ({ 
@@ -30,6 +38,11 @@ export const useSidePanels = ({
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [exportSettings, setExportSettings] = useState<ExportSettings>({
+        fps: 30,
+        resolution: 1500,
+        fullDuration: true
+    });
 
     // Handle element selection from SceneEditor
     const handleElementSelect = (elementId: string | null) => {
@@ -123,6 +136,23 @@ export const useSidePanels = ({
         }
     };
 
+    // Handle export settings changes
+    const updateExportSetting = (key: keyof ExportSettings, value: any) => {
+        setExportSettings(prev => {
+            const newSettings = {
+                ...prev,
+                [key]: value
+            };
+            
+            // Update the visualizer's export settings if available
+            if (visualizer && visualizer.updateExportSettings) {
+                visualizer.updateExportSettings(newSettings);
+            }
+            
+            return newSettings;
+        });
+    };
+
     // Scene Builder integration
     useEffect(() => {
         if (visualizer) {
@@ -131,20 +161,27 @@ export const useSidePanels = ({
                 // Scene builder is available - no additional setup needed
                 console.log('Scene builder integrated with React components');
             }
+            
+            // Initialize visualizer export settings with current state
+            if (visualizer.updateExportSettings) {
+                visualizer.updateExportSettings(exportSettings);
+            }
         }
-    }, [visualizer]);
+    }, [visualizer, exportSettings]);
 
     return {
         selectedElementId,
         selectedElement,
         selectedElementSchema,
         refreshTrigger,
+        exportSettings,
         handleElementSelect,
         handleElementConfigChange,
         handleAddElement,
         setRefreshTrigger,
         setSelectedElementId,
         setSelectedElement,
-        setSelectedElementSchema
+        setSelectedElementSchema,
+        updateExportSetting
     };
 };

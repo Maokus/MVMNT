@@ -128,11 +128,6 @@ export class ImageSequenceGenerator {
       // Use the stateless rendering method from the visualizer
       this.visualizer.renderAtTime(currentTime);
 
-      // Update the played note events counter
-      this.visualizer.noteManager.updatePlayedNoteEvents(this.visualizer.events, currentTime);
-
-      // Debugging logs to verify events and currentTime
-      console.log('Debug: Events:', this.visualizer.events);
       console.log('Debug: Current Time:', this.visualizer.currentTime);
 
       // Convert canvas to PNG blob

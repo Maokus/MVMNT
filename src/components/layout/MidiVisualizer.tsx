@@ -192,19 +192,22 @@ const MidiVisualizer: React.FC = () => {
         }
     };
 
-    const handleExport = async () => {
+    const handleExport = async (exportSettings?: { fps: number; resolution: number; fullDuration: boolean }) => {
         if (!visualizer || !imageSequenceGenerator) return;
+
+        // Use passed settings or defaults
+        const settings = exportSettings || { fps: 30, resolution: 1500, fullDuration: true };
 
         setShowProgressOverlay(true);
         setProgressData({ progress: 0, text: 'Generating images...' });
 
         try {
             await imageSequenceGenerator.generateImageSequence({
-                fps: 30,
-                width: 1500,
-                height: 1500,
+                fps: settings.fps,
+                width: settings.resolution,
+                height: settings.resolution,
                 sceneName: sceneName,
-                maxFrames: null, // Generate full duration
+                maxFrames: settings.fullDuration ? null : Math.ceil(visualizer.getCurrentDuration() * settings.fps * 0.5), // 50% if not full duration
                 onProgress: (progress: number, text: string = 'Generating images...') => {
                     setProgressData({ progress, text });
                 },
@@ -226,9 +229,6 @@ const MidiVisualizer: React.FC = () => {
                 sceneName={sceneName}
                 onSceneNameChange={setSceneName}
                 onMidiLoad={handleMidiLoad}
-                onExport={handleExport}
-                exportStatus={exportStatus}
-                canExport={visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0}
                 menuBarActions={menuBarActions}
             />
 
@@ -246,6 +246,9 @@ const MidiVisualizer: React.FC = () => {
                 <SidePanels
                     visualizer={visualizer}
                     sceneRefreshTrigger={sceneRefreshTrigger}
+                    onExport={handleExport}
+                    exportStatus={exportStatus}
+                    canExport={visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0}
                 />
             </div>
 
