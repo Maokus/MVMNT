@@ -1,5 +1,11 @@
 // Base SceneElement class for declarative scene definition
 import { RenderObjectInterface, ConfigSchema, SceneElementInterface } from '../types.js';
+import { 
+    composeTransformMatrix, 
+    decomposeTransformMatrix, 
+    createGroupTransformMatrix,
+    multiplyMatrices 
+} from '../../lib/math';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
@@ -63,18 +69,34 @@ export class SceneElement implements SceneElementInterface {
         const anchorY = bounds.y + bounds.height * this.anchorY;
 
         // Compute the group transformation matrix: G = T_anchor * R * Sk * S * T_anchor^-1
-        const groupMatrix = this._computeGroupTransformMatrix(anchorX, anchorY);
+        const groupMatrix = createGroupTransformMatrix(
+            anchorX, 
+            anchorY,
+            this.globalScaleX,
+            this.globalScaleY,
+            this.globalRotation,
+            this.globalSkewX,
+            this.globalSkewY
+        );
 
         // Apply scene-level transforms to each render object using matrix composition
         return renderObjects.map(obj => {
             // Get the object's local transform matrix
-            const objMatrix = this._composeMatrixFromObject(obj);
+            const objMatrix = composeTransformMatrix({
+                x: obj.x,
+                y: obj.y,
+                scaleX: obj.scaleX,
+                scaleY: obj.scaleY,
+                rotation: obj.rotation,
+                skewX: obj.skewX,
+                skewY: obj.skewY
+            });
             
             // Compose group transformation with object's local transform: result = groupMatrix * objMatrix
-            const resultMatrix = this._multiplyMatrices(groupMatrix, objMatrix);
+            const resultMatrix = multiplyMatrices(groupMatrix, objMatrix);
             
             // Decompose the result matrix back to transform properties
-            const transforms = this._decomposeMatrix(resultMatrix);
+            const transforms = decomposeTransformMatrix(resultMatrix);
             
             // Apply the final transforms to the render object (including global offset)
             obj.setPosition(transforms.x + this.offsetX, transforms.y + this.offsetY);
@@ -128,150 +150,6 @@ export class SceneElement implements SceneElementInterface {
             y: minY,
             width: maxX - minX,
             height: maxY - minY
-        };
-    }
-
-    /**
-     * Compute the group transformation matrix for the scene element
-     * Formula: G = T_anchor * R * Sk * S * T_anchor^-1
-     * @param anchorX - Anchor point X coordinate in world space
-     * @param anchorY - Anchor point Y coordinate in world space
-     * @returns 3x3 transformation matrix as flat array [a, b, c, d, e, f] representing:
-     *          | a  c  e |
-     *          | b  d  f |
-     *          | 0  0  1 |
-     */
-    protected _computeGroupTransformMatrix(anchorX: number, anchorY: number): number[] {
-        // Start with identity matrix
-        let matrix = [1, 0, 0, 1, 0, 0]; // [a, b, c, d, e, f]
-        
-        // Step 1: Translate to anchor point
-        matrix = this._multiplyMatrices([1, 0, 0, 1, -anchorX, -anchorY], matrix);
-        
-        // Step 2: Apply scaling
-        matrix = this._multiplyMatrices([this.globalScaleX, 0, 0, this.globalScaleY, 0, 0], matrix);
-        
-        // Step 3: Apply skew
-        matrix = this._multiplyMatrices([1, Math.tan(this.globalSkewY), Math.tan(this.globalSkewX), 1, 0, 0], matrix);
-        
-        // Step 4: Apply rotation
-        const cos = Math.cos(this.globalRotation);
-        const sin = Math.sin(this.globalRotation);
-        matrix = this._multiplyMatrices([cos, sin, -sin, cos, 0, 0], matrix);
-        
-        // Step 5: Translate back from anchor point
-        matrix = this._multiplyMatrices([1, 0, 0, 1, anchorX, anchorY], matrix);
-        
-        return matrix;
-    }
-
-    /**
-     * Multiply two 2D transformation matrices
-     * @param a - First matrix [a, b, c, d, e, f]
-     * @param b - Second matrix [a, b, c, d, e, f]
-     * @returns Result matrix [a, b, c, d, e, f]
-     */
-    protected _multiplyMatrices(a: number[], b: number[]): number[] {
-        const [a1, b1, c1, d1, e1, f1] = a;
-        const [a2, b2, c2, d2, e2, f2] = b;
-        
-        return [
-            a1 * a2 + c1 * b2,           // a
-            b1 * a2 + d1 * b2,           // b  
-            a1 * c2 + c1 * d2,           // c
-            b1 * c2 + d1 * d2,           // d
-            a1 * e2 + c1 * f2 + e1,      // e
-            b1 * e2 + d1 * f2 + f1       // f
-        ];
-    }
-
-    /**
-     * Compose a 2D affine transformation matrix from a render object's transform properties
-     * @param obj - The render object with transform properties
-     * @returns 2D affine matrix [a, b, c, d, e, f] representing the object's local transform
-     */
-    protected _composeMatrixFromObject(obj: RenderObjectInterface): number[] {
-        // Start with identity matrix
-        let matrix = [1, 0, 0, 1, 0, 0];
-        
-        // Apply transforms in order: translate, scale, skew, rotate
-        // Translation
-        matrix = this._multiplyMatrices(matrix, [1, 0, 0, 1, obj.x, obj.y]);
-        
-        // Scale
-        if (obj.scaleX !== 1 || obj.scaleY !== 1) {
-            matrix = this._multiplyMatrices(matrix, [obj.scaleX, 0, 0, obj.scaleY, 0, 0]);
-        }
-        
-        // Skew
-        if (obj.skewX !== 0 || obj.skewY !== 0) {
-            matrix = this._multiplyMatrices(matrix, [1, Math.tan(obj.skewY), Math.tan(obj.skewX), 1, 0, 0]);
-        }
-        
-        // Rotation
-        if (obj.rotation !== 0) {
-            const cos = Math.cos(obj.rotation);
-            const sin = Math.sin(obj.rotation);
-            matrix = this._multiplyMatrices(matrix, [cos, sin, -sin, cos, 0, 0]);
-        }
-        
-        return matrix;
-    }
-
-    /**
-     * Decompose a 2D affine transformation matrix back into transform components
-     * Uses QR decomposition for robust extraction of scale, rotation, and skew
-     * @param matrix - 2D affine matrix [a, b, c, d, e, f]
-     * @returns Object containing decomposed transform values
-     */
-    protected _decomposeMatrix(matrix: number[]): {
-        x: number, y: number, scaleX: number, scaleY: number, 
-        rotation: number, skewX: number, skewY: number
-    } {
-        const [a, b, c, d, e, f] = matrix;
-        
-        // Extract translation (straightforward)
-        const x = e;
-        const y = f;
-        
-        // QR decomposition for scale, rotation, and skew
-        // The 2x2 linear part represents: [a c; b d]
-        
-        // Calculate determinant to handle reflection
-        const det = a * d - b * c;
-        const sign = det < 0 ? -1 : 1;
-        
-        // Extract scale and rotation from the first column
-        const scaleX = sign * Math.sqrt(a * a + b * b);
-        
-        // Normalize the first column to get rotation angle
-        const rotation = Math.atan2(b, a);
-        
-        // Remove rotation and scale from the matrix to isolate skew
-        const cos = Math.cos(-rotation);
-        const sin = Math.sin(-rotation);
-        
-        // Apply inverse rotation and scaling to the second column
-        const normalizedC = (c * cos - d * sin) / scaleX;
-        const normalizedD = (c * sin + d * cos) / scaleX;
-        
-        // The normalized second column should be [skewX, scaleY] for a proper decomposition
-        const skewX = Math.atan(normalizedC);
-        const scaleY = normalizedD / Math.cos(skewX);
-        
-        // For skewY, we need to look at how the transformation affects the Y-axis
-        // This is more complex, so for most use cases, we'll set it to 0
-        // In practice, most 2D graphics transformations don't use skewY extensively
-        const skewY = 0;
-        
-        return {
-            x,
-            y,
-            scaleX: Math.abs(scaleX),
-            scaleY: Math.abs(scaleY),
-            rotation,
-            skewX: isFinite(skewX) ? skewX : 0,
-            skewY
         };
     }
 
