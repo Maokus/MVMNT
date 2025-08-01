@@ -4,8 +4,9 @@ import { RenderObject } from './base.js';
 export class Line extends RenderObject {
     constructor(x1, y1, x2, y2, color = '#FFFFFF', lineWidth = 1) {
         super(x1, y1);
-        this.x2 = x2;
-        this.y2 = y2;
+        // Store relative vector from start to end point
+        this.deltaX = x2 - x1;
+        this.deltaY = y2 - y1;
         this.color = color;
         this.lineWidth = lineWidth;
         this.lineCap = 'butt'; // 'butt', 'round', 'square'
@@ -23,7 +24,7 @@ export class Line extends RenderObject {
 
         ctx.beginPath();
         ctx.moveTo(0, 0); // Start point (already transformed)
-        ctx.lineTo(this.x2 - this.x, this.y2 - this.y); // End point relative to start
+        ctx.lineTo(this.deltaX, this.deltaY); // End point relative to start
         ctx.stroke();
 
         if (this.lineDash.length > 0) {
@@ -32,9 +33,29 @@ export class Line extends RenderObject {
     }
 
     setEndPoint(x2, y2) {
-        this.x2 = x2;
-        this.y2 = y2;
+        this.deltaX = x2 - this.x;
+        this.deltaY = y2 - this.y;
         return this;
+    }
+
+    getEndPoint() {
+        return {
+            x: this.x + this.deltaX,
+            y: this.y + this.deltaY
+        };
+    }
+
+    setDelta(deltaX, deltaY) {
+        this.deltaX = deltaX;
+        this.deltaY = deltaY;
+        return this;
+    }
+
+    getDelta() {
+        return {
+            x: this.deltaX,
+            y: this.deltaY
+        };
     }
 
     setColor(color) {
@@ -58,11 +79,13 @@ export class Line extends RenderObject {
     }
 
     getBounds() {
+        const x2 = this.x + this.deltaX;
+        const y2 = this.y + this.deltaY;
         return {
-            x: Math.min(this.x, this.x2),
-            y: Math.min(this.y, this.y2),
-            width: Math.abs(this.x2 - this.x),
-            height: Math.abs(this.y2 - this.y)
+            x: Math.min(this.x, x2),
+            y: Math.min(this.y, y2),
+            width: Math.abs(this.deltaX),
+            height: Math.abs(this.deltaY)
         };
     }
 

@@ -1,6 +1,6 @@
 // Background element for rendering the main background
 import { SceneElement } from './base';
-import { Rectangle } from '../render-objects/index.js';
+import { Line, Rectangle } from '../render-objects/index.js';
 import { ConfigSchema, BackgroundElementConfig, RenderObjectInterface } from '../types.js';
 
 export class DebugElement extends SceneElement {
@@ -38,13 +38,21 @@ export class DebugElement extends SceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         if (!this.visible) return [];
 
-        const { canvas } = config;
         const renderObjects: RenderObjectInterface[] = [];
-        
-        // Main background - mark it as a background element so it doesn't affect transforms
-        const background = new Rectangle(0, 0, canvas.width, canvas.height, this.backgroundColor);
-        (background as any).isBackground = true; // Mark as background for bounds calculation
-        renderObjects.push(background);
+
+        for (let i=-10; i < 50; i++) {
+            for (let j=0; j < 40; j++) {
+                var testLine = new Line(50*j+5, 100 + (i * 50), 50*(j+1), 100 + (i * 50), "#FFFFFF", 1);
+                renderObjects.push(testLine);
+            }
+        }
+
+        for (let i=-10; i < 50; i++) {
+            for (let j=0; j < 40; j++) {
+                var testLine2 = new Line(50*j, 100 + (i * 50), 50*(j), 100 + ((i+1) * 50)+5, "#FFFFFF", 1);
+                renderObjects.push(testLine2);
+            }
+        }
 
         const testRect1 = new Rectangle(100, 100, 100, 100, "#FF0000");
         renderObjects.push(testRect1);
@@ -56,41 +64,6 @@ export class DebugElement extends SceneElement {
         renderObjects.push(testRect3);
 
         return renderObjects;
-    }
-
-    /**
-     * Override bounding box calculation to exclude the main background rectangle
-     * This allows transforms to work around the debug squares rather than the entire canvas
-     */
-    protected _calculateSceneElementBounds(renderObjects: RenderObjectInterface[]): { x: number, y: number, width: number, height: number } {
-        // Filter out background elements for bounds calculation
-        const nonBackgroundObjects = renderObjects.filter(obj => !(obj as any).isBackground);
-        
-        if (nonBackgroundObjects.length === 0) {
-            // If only background elements exist, fall back to default behavior
-            return super._calculateSceneElementBounds(renderObjects);
-        }
-
-        // Calculate bounds based only on non-background objects
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-
-        for (const obj of nonBackgroundObjects) {
-            const bounds = obj.getBounds();
-            minX = Math.min(minX, bounds.x);
-            minY = Math.min(minY, bounds.y);
-            maxX = Math.max(maxX, bounds.x + bounds.width);
-            maxY = Math.max(maxY, bounds.y + bounds.height);
-        }
-
-        return {
-            x: minX,
-            y: minY,
-            width: maxX - minX,
-            height: maxY - minY
-        };
     }
 
     setBackgroundColor(color: string): this {

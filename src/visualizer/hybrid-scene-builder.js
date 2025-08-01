@@ -4,7 +4,8 @@ import {
     TimeDisplayElement,
     TextOverlayElement,
     ProgressDisplayElement,
-    TimeUnitPianoRollElement
+    TimeUnitPianoRollElement,
+    DebugElement
 } from './scene-elements/index';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
@@ -321,6 +322,11 @@ export class HybridSceneBuilder {
         artistElement.setY(190); // Set explicit Y position instead of overriding the render method
         artistElement.setX(75);
         this.addElement(artistElement);
+
+        const debugElement = new DebugElement('debugOverlay');
+        debugElement.setZIndex(100);
+        debugElement.setVisible(true);
+        this.addElement(debugElement);
 
         // Assign macros to relevant element properties
         this._assignDefaultMacros();

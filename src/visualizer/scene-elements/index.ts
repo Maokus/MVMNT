@@ -5,6 +5,7 @@ export { TimeDisplayElement } from './time-display';
 export { TextOverlayElement } from './text-overlay';
 export { ProgressDisplayElement } from './progress-display';
 export { ImageElement } from './image';
+export { DebugElement } from './debug';
 
 // New consolidated element
 export { TimeUnitPianoRollElement } from './time-unit-piano-roll/index.js';
