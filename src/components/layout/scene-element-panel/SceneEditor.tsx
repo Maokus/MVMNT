@@ -1,6 +1,6 @@
 import React from 'react';
-import { ElementList } from './scene-editor';
-import { useSceneEditor } from '../hooks/useSceneEditor';
+import ElementList from './ElementList';
+import { useSceneEditor } from '../../hooks/useSceneEditor';
 
 interface SceneEditorProps {
     visualizer: any;

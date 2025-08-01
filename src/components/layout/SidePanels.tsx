@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import SceneEditor from './SceneEditor';
-import { ConfigEditor } from './config-editor';
+import SceneEditor from './scene-element-panel/SceneEditor';
+import { ConfigEditor } from './properties-panel';
 import MacroConfig from './MacroConfig';
-import { ElementDropdown } from './scene-editor';
+import { ElementDropdown } from './scene-element-panel';
 import { useSidePanels } from '../hooks/useSidePanels';
 
 interface SidePanelsProps {
