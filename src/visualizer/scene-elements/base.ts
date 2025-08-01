@@ -4,7 +4,8 @@ import {
     composeTransformMatrix, 
     decomposeTransformMatrix, 
     createGroupTransformMatrix,
-    multiplyMatrices 
+    multiplyMatrices, 
+    createTranslationMatrix
 } from '../../lib/math';
 
 export class SceneElement implements SceneElementInterface {
@@ -68,7 +69,7 @@ export class SceneElement implements SceneElementInterface {
         const anchorX = bounds.x + bounds.width * this.anchorX;
         const anchorY = bounds.y + bounds.height * this.anchorY;
 
-        // Compute the group transformation matrix: G = T_anchor * R * Sk * S * T_anchor^-1
+        // Compute the group transformation matrix
         const groupMatrix = createGroupTransformMatrix(
             anchorX, 
             anchorY,
@@ -78,6 +79,10 @@ export class SceneElement implements SceneElementInterface {
             this.globalSkewX,
             this.globalSkewY
         );
+
+        // Apply offset as part of the group matrix
+        const offsetMatrix = createTranslationMatrix(this.offsetX, this.offsetY);
+        const finalGroupMatrix = multiplyMatrices(groupMatrix, offsetMatrix);
 
         // Apply scene-level transforms to each render object using matrix composition
         return renderObjects.map(obj => {
@@ -93,13 +98,13 @@ export class SceneElement implements SceneElementInterface {
             });
             
             // Compose group transformation with object's local transform: result = groupMatrix * objMatrix
-            const resultMatrix = multiplyMatrices(groupMatrix, objMatrix);
+            const resultMatrix = multiplyMatrices(finalGroupMatrix, objMatrix);
             
             // Decompose the result matrix back to transform properties
             const transforms = decomposeTransformMatrix(resultMatrix);
             
             // Apply the final transforms to the render object (including global offset)
-            obj.setPosition(transforms.x + this.offsetX, transforms.y + this.offsetY);
+            obj.setPosition(transforms.x, transforms.y);
             obj.setScale(transforms.scaleX, transforms.scaleY);
             obj.setRotation(transforms.rotation);
             obj.setSkew(transforms.skewX, transforms.skewY);

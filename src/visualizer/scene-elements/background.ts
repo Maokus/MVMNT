@@ -45,6 +45,15 @@ export class BackgroundElement extends SceneElement {
         const background = new Rectangle(0, 0, canvas.width, canvas.height, this.backgroundColor);
         renderObjects.push(background);
 
+        const testRect1 = new Rectangle(100, 100, 100, 100, "#FF0000");
+        renderObjects.push(testRect1);
+
+        const testRect2 = new Rectangle(300, 500, 200, 100, "#00FF00");
+        renderObjects.push(testRect2);
+
+        const testRect3 = new Rectangle(1000, 800, 100, 100, "#0000FF");
+        renderObjects.push(testRect3);
+
         return renderObjects;
     }
 
