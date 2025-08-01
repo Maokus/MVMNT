@@ -8,3 +8,6 @@ export { ImageElement } from './image';
 
 // New consolidated element
 export { TimeUnitPianoRollElement } from './time-unit-piano-roll/index.js';
+
+// Test element for anchor point transformation
+export { TestAnchorTransformElement } from './test-anchor-transform';

@@ -43,6 +43,29 @@ export class SceneElement implements SceneElementInterface {
         // Call the child class implementation
         const renderObjects = this._buildRenderObjects(config, targetTime);
 
+        if (renderObjects.length === 0) return [];
+
+        // Calculate the bounding box that encompasses all render objects
+        const sceneElementBounds = this._calculateSceneElementBounds(renderObjects);
+
+        // Calculate the absolute anchor point for the scene element
+        const absoluteAnchorX = sceneElementBounds.x + (sceneElementBounds.width * this.anchorX);
+        const absoluteAnchorY = sceneElementBounds.y + (sceneElementBounds.height * this.anchorY);
+
+        // Debug logging for anchor point calculations (can be removed in production)
+        if (this.globalScaleX !== 1 || this.globalScaleY !== 1 || this.globalRotation !== 0) {
+            console.log(`Scene element ${this.id} anchor calculation:`, {
+                bounds: sceneElementBounds,
+                relativeAnchor: { x: this.anchorX, y: this.anchorY },
+                absoluteAnchor: { x: absoluteAnchorX, y: absoluteAnchorY },
+                transforms: { 
+                    scale: { x: this.globalScaleX, y: this.globalScaleY },
+                    rotation: this.globalRotation,
+                    offset: { x: this.offsetX, y: this.offsetY }
+                }
+            });
+        }
+
         // Apply global transforms and visibility to all render objects
         return renderObjects.map(obj => {
             // Set global transform properties on each render object
@@ -52,8 +75,11 @@ export class SceneElement implements SceneElementInterface {
             obj.globalScaleY = this.globalScaleY;
             obj.globalRotation = this.globalRotation;
             obj.globalOpacity = this.globalOpacity;
-            obj.globalAnchorX = this.anchorX;
-            obj.globalAnchorY = this.anchorY;
+            
+            // Set the same absolute anchor point for all render objects
+            // This ensures they all transform around the same point
+            obj.globalAnchorX = absoluteAnchorX;
+            obj.globalAnchorY = absoluteAnchorY;
             
             // Apply visibility
             obj.visible = obj.visible && this.visible;
@@ -71,6 +97,38 @@ export class SceneElement implements SceneElementInterface {
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         throw new Error('_buildRenderObjects must be implemented by subclasses');
+    }
+
+    /**
+     * Calculate the bounding box that encompasses all render objects in this scene element
+     * @param renderObjects - Array of render objects to calculate bounds for
+     * @returns Bounding box containing all render objects
+     */
+    protected _calculateSceneElementBounds(renderObjects: RenderObjectInterface[]): { x: number, y: number, width: number, height: number } {
+        if (renderObjects.length === 0) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
+        // Calculate the min/max bounds across all render objects
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        for (const obj of renderObjects) {
+            const bounds = obj.getBounds();
+            minX = Math.min(minX, bounds.x);
+            minY = Math.min(minY, bounds.y);
+            maxX = Math.max(maxX, bounds.x + bounds.width);
+            maxY = Math.max(maxY, bounds.y + bounds.height);
+        }
+
+        return {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+        };
     }
 
     /**
@@ -166,7 +224,7 @@ export class SceneElement implements SceneElementInterface {
                     min: 0,
                     max: 1,
                     step: 0.01,
-                    description: 'Horizontal anchor point for transforms (0 = left, 0.5 = center, 1 = right)'
+                    description: 'Horizontal anchor point for scene transforms (0 = left, 0.5 = center, 1 = right) - all render objects will transform around this common point'
                 },
                 anchorY: {
                     type: 'number',
@@ -175,7 +233,7 @@ export class SceneElement implements SceneElementInterface {
                     min: 0,
                     max: 1,
                     step: 0.01,
-                    description: 'Vertical anchor point for transforms (0 = top, 0.5 = center, 1 = bottom)'
+                    description: 'Vertical anchor point for scene transforms (0 = top, 0.5 = center, 1 = bottom) - all render objects will transform around this common point'
                 }
             }
         };

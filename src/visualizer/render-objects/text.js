@@ -104,12 +104,17 @@ export class Text extends RenderObject {
     }
 
     getBounds() {
-        // This is approximate - for precise bounds, you'd need access to the canvas context
+        // For more accurate bounds, we'd need canvas context, but this is a reasonable approximation
+        // The actual font metrics would require access to the canvas context during measurement
+        const fontSize = parseInt(this.font) || 16;
+        const estimatedWidth = this.text.length * fontSize * 0.6; // Rough character width estimation
+        const estimatedHeight = fontSize * 1.2; // Include line height
+
         return {
             x: this.x,
             y: this.y,
-            width: this.text.length * 10, // Rough estimate
-            height: 16 // Rough estimate
+            width: estimatedWidth,
+            height: estimatedHeight
         };
     }
 
