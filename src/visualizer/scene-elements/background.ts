@@ -1,5 +1,5 @@
 // Background element for rendering the main background
-import { SceneElement } from './base.js';
+import { SceneElement } from './base';
 import { Rectangle } from '../render-objects/index.js';
 import { ConfigSchema, BackgroundElementConfig, RenderObjectInterface } from '../types.js';
 

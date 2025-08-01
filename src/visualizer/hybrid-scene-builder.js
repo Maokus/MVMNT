@@ -5,7 +5,7 @@ import {
     TextOverlayElement,
     ProgressDisplayElement,
     TimeUnitPianoRollElement
-} from './scene-elements/index.js';
+} from './scene-elements/index';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
 

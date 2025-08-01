@@ -1,5 +1,5 @@
 // Text element for displaying a single line of text
-import { SceneElement } from './base.js';
+import { SceneElement } from './base';
 import { Text } from '../render-objects/index.js';
 import { ConfigSchema, TextOverlayElementConfig, RenderObjectInterface } from '../types.js';
 

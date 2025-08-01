@@ -6,7 +6,7 @@ import {
     ProgressDisplayElement,
     ImageElement,
     TimeUnitPianoRollElement
-} from './scene-elements/index.js';
+} from './scene-elements/index.ts';
 
 export class SceneElementRegistry {
     constructor() {

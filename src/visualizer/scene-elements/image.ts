@@ -1,5 +1,5 @@
 // Image scene element for displaying images with transformations
-import { SceneElement } from './base.js';
+import { SceneElement } from './base';
 import { Image } from '../render-objects/index.js';
 import { ConfigSchema, ImageElementConfig, RenderObjectInterface } from '../types.js';
 

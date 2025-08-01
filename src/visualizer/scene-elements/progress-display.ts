@@ -1,7 +1,7 @@
 // Progress display element for showing playback progress
-import { SceneElement } from './base.js';
+import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects/index.js';
-import { ConfigSchema, ProgressDisplayConfig, RenderObjectInterface } from '../types.js';
+import { ConfigSchema, ProgressDisplayConfig, RenderObjectInterface } from '../types';
 
 export class ProgressDisplayElement extends SceneElement {
     public showBar: boolean = true;

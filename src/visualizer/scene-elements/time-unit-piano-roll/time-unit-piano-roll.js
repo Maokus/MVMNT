@@ -1,5 +1,5 @@
 // TimeUnitPianoRoll scene element - consolidates playhead, beat display, and piano roll
-import { SceneElement } from '../base.js';
+import { SceneElement } from '../base.ts';
 import { Line, Text, Rectangle } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';

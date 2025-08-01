@@ -1,5 +1,5 @@
 // Time display element for showing current time
-import { SceneElement } from './base.js';
+import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
 import { LocalTimingManager } from '../local-timing-manager.js';
 import { ConfigSchema, TimeDisplayConfig, RenderObjectInterface } from '../types.js';
