@@ -48,6 +48,9 @@ const MidiVisualizer: React.FC = () => {
             const generator = new ImageSequenceGenerator(canvasRef.current, vis);
             setImageSequenceGenerator(generator);
 
+            // Expose for debugging
+            (window as any).debugVisualizer = vis;
+
             console.log('MIDIVisualizer initialized successfully');
         }
     }, [visualizer]);
@@ -224,6 +227,73 @@ const MidiVisualizer: React.FC = () => {
         if (visualizer.stepBackward) {
             visualizer.stepBackward();
         }
+    };
+
+    // Debug function to test transforms
+    const handleDebugTransforms = () => {
+        if (!visualizer) {
+            console.error('Visualizer not available');
+            return;
+        }
+
+        const sceneBuilder = visualizer.getSceneBuilder();
+        const backgroundElement = sceneBuilder.getElement('background');
+
+        if (!backgroundElement) {
+            console.error('Background element not found');
+            return;
+        }
+
+        console.log('🔧 DEBUG: Testing background element transforms');
+        console.log('Found background element:', backgroundElement);
+
+        // Reset transforms first
+        backgroundElement.setGlobalRotation(0);
+        backgroundElement.setGlobalSkewX(0);
+        backgroundElement.setGlobalSkewY(0);
+        backgroundElement.setGlobalScale(1, 1);
+        visualizer.invalidateRender();
+
+        // Test sequence with delays
+        setTimeout(() => {
+            console.log('📐 Applying 45-degree rotation...');
+            backgroundElement.setGlobalRotation(Math.PI / 4);
+            visualizer.invalidateRender();
+        }, 500);
+
+        setTimeout(() => {
+            console.log('📐 Resetting rotation, applying skewX...');
+            backgroundElement.setGlobalRotation(0);
+            backgroundElement.setGlobalSkewX(Math.PI / 6);
+            visualizer.invalidateRender();
+        }, 2500);
+
+        setTimeout(() => {
+            console.log('📐 Resetting skewX, applying skewY...');
+            backgroundElement.setGlobalSkewX(0);
+            backgroundElement.setGlobalSkewY(Math.PI / 6);
+            visualizer.invalidateRender();
+        }, 4500);
+
+        setTimeout(() => {
+            console.log('📐 Testing combined transforms...');
+            backgroundElement.setGlobalSkewY(0);
+            backgroundElement.setGlobalRotation(Math.PI / 8);
+            backgroundElement.setGlobalSkewX(Math.PI / 12);
+            backgroundElement.setGlobalSkewY(Math.PI / 24);
+            backgroundElement.setGlobalScale(1.2, 0.8);
+            visualizer.invalidateRender();
+        }, 6500);
+
+        setTimeout(() => {
+            console.log('📐 Resetting all transforms...');
+            backgroundElement.setGlobalRotation(0);
+            backgroundElement.setGlobalSkewX(0);
+            backgroundElement.setGlobalSkewY(0);
+            backgroundElement.setGlobalScale(1, 1);
+            visualizer.invalidateRender();
+            console.log('✅ Transform test complete!');
+        }, 8500);
     };
 
     const handleExport = async (exportSettings?: { fps: number; resolution: number; fullDuration: boolean }) => {
