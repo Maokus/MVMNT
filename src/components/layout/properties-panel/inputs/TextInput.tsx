@@ -33,6 +33,12 @@ const TextInput: React.FC<TextInputProps> = ({
         onChange(newValue);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // This will deselect the input
+        }
+    };
+
     return (
         <input
             type="text"
@@ -41,6 +47,7 @@ const TextInput: React.FC<TextInputProps> = ({
             disabled={disabled}
             title={title}
             onChange={handleChange}
+            onKeyDown={handleKeyDown}
         />
     );
 };

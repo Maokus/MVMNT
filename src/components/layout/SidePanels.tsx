@@ -49,7 +49,13 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             [key]: value
         };
         onExportSettingsChange(newSettings);
+    };
 
+    // Handle Enter key on export settings inputs
+    const handleExportInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // This will deselect the input
+        }
     };
 
     // Handle clicks outside of side panels to clear selection and show global settings
@@ -164,7 +170,10 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                             <div className="settings-grid">
                                 {/* Global Macros Section */}
                                 <div className="setting-group">
-                                    <MacroConfig sceneBuilder={visualizer?.getSceneBuilder()} />
+                                    <MacroConfig
+                                        sceneBuilder={visualizer?.getSceneBuilder()}
+                                        visualizer={visualizer}
+                                    />
                                 </div>
 
                                 <div className="setting-group">
@@ -189,6 +198,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                                         max="60"
                                         value={exportSettings.fps}
                                         onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
+                                        onKeyDown={handleExportInputKeyDown}
                                     />
 
                                     <label>

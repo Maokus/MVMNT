@@ -142,6 +142,11 @@ const MidiVisualizer: React.FC = () => {
             if (canvas.width !== exportSettings.resolution || canvas.height !== exportSettings.resolution) {
                 console.log(`Updating canvas resolution to ${exportSettings.resolution}x${exportSettings.resolution}`);
                 visualizer.resize(exportSettings.resolution, exportSettings.resolution);
+
+                // Trigger a rerender to show the resolution change immediately
+                if (visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
+                }
             }
 
             // Update visualizer's export settings

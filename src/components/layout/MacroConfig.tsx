@@ -3,6 +3,7 @@ import { globalMacroManager } from '../../visualizer/macro-manager';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
+    visualizer?: any; // Add visualizer prop to trigger rerenders
 }
 
 interface Macro {
@@ -24,7 +25,7 @@ interface MacroAssignment {
     propertyPath: string;
 }
 
-const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
+const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {
     const [macros, setMacros] = useState<Macro[]>([]);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
@@ -129,6 +130,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
         const success = globalMacroManager.updateMacroValue(name, value);
         if (!success) {
             console.warn(`MacroConfig: Failed to update macro '${name}' with value:`, value);
+        } else {
+            // Trigger visualizer rerender when macro changes
+            if (visualizer && visualizer.invalidateRender) {
+                visualizer.invalidateRender();
+            }
         }
     };
 
@@ -148,6 +154,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
             const success = globalMacroManager.updateMacroValue(macroName, numericValue);
             if (!success) {
                 console.warn(`MacroConfig: Failed to update macro '${macroName}' with numeric value:`, numericValue);
+            } else {
+                // Trigger visualizer rerender when macro changes
+                if (visualizer && visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
+                }
             }
         } else {
             console.log(`MacroConfig: Invalid numeric value for '${macroName}':`, inputValue);
@@ -221,6 +232,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
     };
 
     const renderMacroInput = (macro: Macro) => {
+        const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter') {
+                e.currentTarget.blur(); // This will deselect the input
+            }
+        };
+
         switch (macro.type) {
             case 'number':
                 return (
@@ -232,6 +249,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
                         step={macro.options.step || 'any'}
                         onChange={(e) => handleNumberInputChange(macro.name, e.target.value)}
                         onBlur={() => handleNumberInputBlur(macro.name)}
+                        onKeyDown={handleKeyDown}
                     />
                 );
 
@@ -297,6 +315,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
                         type="text"
                         value={macro.value}
                         onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
+                        onKeyDown={handleKeyDown}
                     />
                 );
         }

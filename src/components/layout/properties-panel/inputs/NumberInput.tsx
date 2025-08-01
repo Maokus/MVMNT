@@ -42,6 +42,12 @@ const NumberInput: React.FC<NumberInputProps> = ({
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // This will deselect the input
+        }
+    };
+
     return (
         <input
             type="number"
@@ -53,6 +59,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
             disabled={disabled}
             title={title}
             onChange={handleChange}
+            onKeyDown={handleKeyDown}
         />
     );
 };
