@@ -8,7 +8,7 @@ import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
 import { MIDIParser } from '../../visualizer/midi-parser';
 // @ts-ignore
-import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator.ts';
+import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
 // @ts-ignore
 import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
 
