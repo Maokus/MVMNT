@@ -3,6 +3,7 @@ import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
 import ProgressOverlay from './ProgressOverlay';
+import { useMenuBar } from '../hooks/useMenuBar';
 // @ts-ignore
 import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
@@ -150,6 +151,14 @@ const MidiVisualizer: React.FC = () => {
         setSceneRefreshTrigger(prev => prev + 1);
     };
 
+    // Use the MenuBar hook to get menu actions
+    const menuBarActions = useMenuBar({
+        visualizer,
+        sceneName,
+        onSceneNameChange: setSceneName,
+        onSceneRefresh: handleSceneRefresh
+    });
+
     const handlePlayPause = () => {
         if (!visualizer) return;
 
@@ -220,8 +229,7 @@ const MidiVisualizer: React.FC = () => {
                 onExport={handleExport}
                 exportStatus={exportStatus}
                 canExport={visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0}
-                visualizer={visualizer}
-                onSceneRefresh={handleSceneRefresh}
+                menuBarActions={menuBarActions}
             />
 
             <div className="main-workspace">

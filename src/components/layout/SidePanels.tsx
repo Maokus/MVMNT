@@ -3,6 +3,7 @@ import SceneEditor from './SceneEditor';
 import { ConfigEditor } from './config-editor';
 import MacroConfig from './MacroConfig';
 import { ElementDropdown } from './scene-editor';
+import { useSidePanels } from '../hooks/useSidePanels';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
@@ -10,118 +11,23 @@ interface SidePanelsProps {
 }
 
 const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger }) => {
-    const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-    const [selectedElement, setSelectedElement] = useState<any>(null);
-    const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Handle element selection from SceneEditor
-    const handleElementSelect = (elementId: string | null) => {
-        setSelectedElementId(elementId);
-
-        if (elementId && visualizer) {
-            const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder) {
-                const element = sceneBuilder.getElement(elementId);
-                const schema = sceneBuilder.sceneElementRegistry.getSchema(element?.type);
-
-                setSelectedElement(element);
-                setSelectedElementSchema(schema);
-
-                // Update properties header
-                const propertiesHeader = document.getElementById('propertiesHeader');
-                if (propertiesHeader && element) {
-                    const truncatedId = element.id.length > 15 ? element.id.substring(0, 12) + '...' : element.id;
-                    propertiesHeader.textContent = `⚙️ Properties | ${truncatedId}`;
-                    propertiesHeader.title = `Properties | ${element.id}`;
-                }
-            }
-        } else {
-            setSelectedElement(null);
-            setSelectedElementSchema(null);
-
-            // Reset properties header
-            const propertiesHeader = document.getElementById('propertiesHeader');
-            if (propertiesHeader) {
-                propertiesHeader.textContent = '⚙️ Properties';
-                propertiesHeader.title = '';
-            }
-        }
-    };
-
-    // Handle element config changes
-    const handleElementConfigChange = (elementId: string, changes: { [key: string]: any }) => {
-        if (!elementId || !visualizer) return;
-
-        const sceneBuilder = visualizer.getSceneBuilder();
-        if (sceneBuilder) {
-            const element = sceneBuilder.getElement(elementId);
-            if (element) {
-                // Apply changes to element config
-                Object.assign(element.config, changes);
-                element._applyConfig();
-
-                // Trigger re-render using invalidateRender to ensure the render happens
-                if (visualizer.invalidateRender) {
-                    visualizer.invalidateRender();
-                }
-            }
-        }
-    };
-
-    // Handle adding new element from header
-    const handleAddElement = (elementType: string) => {
-        if (!visualizer) return;
-
-        const sceneBuilder = visualizer.getSceneBuilder();
-        if (sceneBuilder) {
-            const uniqueId = `${elementType}_${Date.now()}`;
-            const success = sceneBuilder.addElement(elementType, uniqueId);
-
-            if (success) {
-                setSelectedElementId(uniqueId);
-
-                // Get the newly added element
-                const element = sceneBuilder.getElement(uniqueId);
-                const schema = sceneBuilder.sceneElementRegistry.getSchema(element?.type);
-
-                setSelectedElement(element);
-                setSelectedElementSchema(schema);
-
-                // Update properties header
-                const propertiesHeader = document.getElementById('propertiesHeader');
-                if (propertiesHeader && element) {
-                    const truncatedId = element.id.length > 15 ? element.id.substring(0, 12) + '...' : element.id;
-                    propertiesHeader.textContent = `⚙️ Properties | ${truncatedId}`;
-                    propertiesHeader.title = `Properties | ${element.id}`;
-                }
-
-                // Trigger re-render using invalidateRender to ensure the render happens
-                if (visualizer.invalidateRender) {
-                    visualizer.invalidateRender();
-                }
-
-                // Trigger refresh of SceneEditor elements list
-                setRefreshTrigger(prev => prev + 1);
-            }
-        }
-
-        setShowAddElementDropdown(false);
-    };
-
-    // Scene Builder integration
-    useEffect(() => {
-        if (visualizer) {
-            const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder) {
-                // Scene builder is available - no additional setup needed
-                console.log('Scene builder integrated with React components');
-            }
-        }
-    }, [visualizer]);
+    // Use the SidePanels hook to get state and actions
+    const {
+        selectedElementId,
+        selectedElement,
+        selectedElementSchema,
+        refreshTrigger,
+        handleElementSelect,
+        handleElementConfigChange,
+        handleAddElement,
+        setSelectedElementId,
+        setSelectedElement,
+        setSelectedElementSchema
+    } = useSidePanels({ visualizer, sceneRefreshTrigger });
 
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
@@ -131,11 +37,10 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
                 setShowAddElementDropdown(false);
             }
 
-            // Check if the click is outside the side panels
+            // Clear selection if clicked outside the side panels
             if (sidePanelsRef.current && !sidePanelsRef.current.contains(event.target as Node)) {
-                console.log('Click detected outside side panels, clearing selection');
-                // Only clear selection if something is currently selected
                 if (selectedElementId) {
+                    console.log('Clicked outside side panels, clearing selection');
                     setSelectedElementId(null);
                     setSelectedElement(null);
                     setSelectedElementSchema(null);
@@ -176,7 +81,13 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, showAddElementDropdown]); // Dependency on selectedElementId and showAddElementDropdown to re-create listener when selection changes
+    }, [selectedElementId, showAddElementDropdown, setSelectedElement, setSelectedElementId, setSelectedElementSchema]); // Dependency on selectedElementId and showAddElementDropdown to re-create listener when selection changes
+
+    // Wrapper to handle adding element and closing dropdown
+    const handleAddElementAndCloseDropdown = (elementType: string) => {
+        handleAddElement(elementType);
+        setShowAddElementDropdown(false);
+    };
 
     return (
         <div className="side-panels" ref={sidePanelsRef}>
@@ -200,7 +111,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({ visualizer, sceneRefreshTrigger
 
                         {showAddElementDropdown && (
                             <ElementDropdown
-                                onAddElement={handleAddElement}
+                                onAddElement={handleAddElementAndCloseDropdown}
                                 onClose={() => setShowAddElementDropdown(false)}
                             />
                         )}
