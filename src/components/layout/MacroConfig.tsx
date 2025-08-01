@@ -27,6 +27,7 @@ interface MacroAssignment {
 const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
     const [macros, setMacros] = useState<Macro[]>([]);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [newMacro, setNewMacro] = useState({
         name: '',
         type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file',
@@ -42,6 +43,15 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
     const updateMacros = useCallback(() => {
         const allMacros = globalMacroManager.getAllMacros();
         setMacros(allMacros);
+
+        // Initialize input values for number inputs
+        const newInputValues: { [key: string]: string } = {};
+        allMacros.forEach(macro => {
+            if (macro.type === 'number') {
+                newInputValues[macro.name] = macro.value.toString();
+            }
+        });
+        setInputValues(newInputValues);
     }, []);
 
     useEffect(() => {
@@ -115,7 +125,44 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
     };
 
     const handleUpdateMacroValue = (name: string, value: any) => {
-        globalMacroManager.updateMacroValue(name, value);
+        console.log(`MacroConfig: Updating macro '${name}' to:`, value);
+        const success = globalMacroManager.updateMacroValue(name, value);
+        if (!success) {
+            console.warn(`MacroConfig: Failed to update macro '${name}' with value:`, value);
+        }
+    };
+
+    const handleNumberInputChange = (macroName: string, inputValue: string) => {
+        console.log(`MacroConfig: Number input change for '${macroName}':`, inputValue);
+
+        // Update local input state immediately for responsive UI
+        setInputValues(prev => ({
+            ...prev,
+            [macroName]: inputValue
+        }));
+
+        // Try to parse and update the macro if valid
+        const numericValue = parseFloat(inputValue);
+        if (!isNaN(numericValue)) {
+            console.log(`MacroConfig: Parsed numeric value for '${macroName}':`, numericValue);
+            const success = globalMacroManager.updateMacroValue(macroName, numericValue);
+            if (!success) {
+                console.warn(`MacroConfig: Failed to update macro '${macroName}' with numeric value:`, numericValue);
+            }
+        } else {
+            console.log(`MacroConfig: Invalid numeric value for '${macroName}':`, inputValue);
+        }
+    };
+
+    const handleNumberInputBlur = (macroName: string) => {
+        // On blur, ensure the input shows the actual macro value
+        const macro = globalMacroManager.getMacro(macroName);
+        if (macro) {
+            setInputValues(prev => ({
+                ...prev,
+                [macroName]: macro.value.toString()
+            }));
+        }
     };
 
     const handleFileInput = async (macroName: string, file: File | null) => {
@@ -179,11 +226,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder }) => {
                 return (
                     <input
                         type="number"
-                        value={macro.value}
+                        value={inputValues[macro.name] ?? macro.value.toString()}
                         min={macro.options.min}
                         max={macro.options.max}
                         step={macro.options.step || 'any'}
-                        onChange={(e) => handleUpdateMacroValue(macro.name, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumberInputChange(macro.name, e.target.value)}
+                        onBlur={() => handleNumberInputBlur(macro.name)}
                     />
                 );
 

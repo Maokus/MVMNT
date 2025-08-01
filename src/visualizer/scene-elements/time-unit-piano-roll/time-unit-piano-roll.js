@@ -57,6 +57,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Animation controller
         this.animationController = new AnimationController(this);
 
+        // Track currently loaded MIDI file to avoid reloading
+        this._currentMidiFile = null;
+
         this._applyConfig();
     }
 
@@ -254,9 +257,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this.timingManager.setBeatsPerBar(this.config.beatsPerBar);
         }
 
-        // MIDI file handling
-        if (this.config.midiFile !== undefined) {
+        // MIDI file handling - only reload if file has changed
+        if (this.config.midiFile !== undefined && this.config.midiFile !== this._currentMidiFile) {
             this._handleMIDIFileConfig(this.config.midiFile);
+            this._currentMidiFile = this.config.midiFile;
         }
 
         // Time unit settings - update TimingManager
@@ -664,7 +668,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
             }
 
             // Load the data into our local timing manager
-            this.timingManager.loadMIDIData(midiData, notes);
+            // Reset macro values if this is a new MIDI file being loaded
+            const resetMacroValues = this._currentMidiFile !== file;
+            this.timingManager.loadMIDIData(midiData, notes, resetMacroValues);
 
             console.log(`Successfully loaded MIDI file for element ${this.id}:`, {
                 duration: this.timingManager.getDuration(),

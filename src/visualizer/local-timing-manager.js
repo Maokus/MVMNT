@@ -29,6 +29,9 @@ export class LocalTimingManager {
         this.notes = [];
         this.duration = 0;
 
+        // Track if macro values are active (to prevent MIDI from overriding them)
+        this._hasMacroValues = false;
+
         // Macro integration
         this._setupMacroIntegration();
     }
@@ -61,6 +64,9 @@ export class LocalTimingManager {
         for (const assignment of relevantAssignments) {
             this._applyMacroValue(assignment.propertyPath, data.value);
         }
+
+        // Mark that we have active macro values that should not be overridden
+        this._hasMacroValues = true;
     }
 
     /**
@@ -68,6 +74,9 @@ export class LocalTimingManager {
      * @private
      */
     _applyMacroValue(propertyPath, value) {
+        // Mark that we have macro values active
+        this._hasMacroValues = true;
+
         // Handle specific timing properties that need special processing
         if (propertyPath === 'bpm') {
             this.setBPM(value);
@@ -109,10 +118,17 @@ export class LocalTimingManager {
      * Load MIDI data specific to this element
      * @param {Object} midiData - Parsed MIDI data
      * @param {Array} notes - Array of note events
+     * @param {boolean} resetMacroValues - Whether to reset macro value protection (default: false)
      */
-    loadMIDIData(midiData, notes = []) {
+    loadMIDIData(midiData, notes = [], resetMacroValues = false) {
         this.midiData = midiData;
         this.notes = notes;
+
+        // If explicitly requested, reset macro value protection
+        // This should only be done when a user intentionally loads a new MIDI file
+        if (resetMacroValues) {
+            this._hasMacroValues = false;
+        }
 
         // Store original user-configured values to preserve them
         const userBPM = this.bpm;
@@ -191,7 +207,9 @@ export class LocalTimingManager {
             duration: this.duration,
             noteCount: this.notes.length,
             preservedUserTiming: hadUserTimingConfig,
-            rescaleRatio: rescaleRatio !== 1.0 ? rescaleRatio.toFixed(3) : null
+            rescaleRatio: rescaleRatio !== 1.0 ? rescaleRatio.toFixed(3) : null,
+            hasMacroValues: this._hasMacroValues,
+            resetMacroValues: resetMacroValues
         });
     }
 
@@ -201,6 +219,11 @@ export class LocalTimingManager {
      */
     _hasUserTimingConfig() {
         if (!this.elementId) return false;
+
+        // Check if macro values are currently active (highest priority)
+        if (this._hasMacroValues) {
+            return true;
+        }
 
         // Check if this element has macro assignments for timing properties
         const elementMacros = globalMacroManager.getElementMacros(this.elementId);
