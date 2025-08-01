@@ -91,8 +91,7 @@ export class MIDIVisualizerCore {
         this.currentTime = -0.5; // Start at buffer time so first notes can animate in
         this.startTime = 0; // Reset start time to prevent miscalculations
 
-        // Reset note tracking state
-        this.noteManager.resetTracking();
+        // Note: noteManager functionality is now handled by scene elements
 
         // Redraw with new state
         this.invalidateRender();
@@ -103,21 +102,14 @@ export class MIDIVisualizerCore {
         const currentDuration = this.getCurrentDuration();
         this.currentTime = Math.max(-bufferTime, Math.min(time, currentDuration + bufferTime));
 
-        // Reset and update note manager tracking (only if we have global events)
-        if (this.events.length > 0) {
-            this.noteManager.resetTracking();
-            this.noteManager.updatePlayedNoteEvents(this.events, this.currentTime);
-        }
+        // Note: Note manager functionality is now handled by scene elements
 
         // If playing, update start time to maintain correct playback position
         if (this.isPlaying) {
             this.startTime = performance.now() - ((this.currentTime + 0.5) * 1000);
         }
 
-        // Update active notes for current time (only if we have global events)
-        if (this.events.length > 0) {
-            this.noteManager.updateActiveNotes(this.events, this.currentTime);
-        }
+        // Note: Active notes updates are now handled by scene elements
         this.invalidateRender();
     }
 
@@ -165,10 +157,7 @@ export class MIDIVisualizerCore {
             }
 
             // Update note state based on current time (only if we have global events)
-            if (this.events.length > 0) {
-                this.noteManager.updateActiveNotes(this.events, this.currentTime);
-                this.noteManager.updatePlayedNoteEvents(this.events, this.currentTime);
-            }
+            // Note: Note state updates are now handled by scene elements
 
             // Render the current frame
             this.render();
@@ -248,14 +237,16 @@ export class MIDIVisualizerCore {
 
         // Add the event listener
         document.addEventListener('imageLoaded', this._handleImageLoaded);
-    } resize(width, height) {
+    }
+
+    resize(width, height) {
         this.canvas.width = width;
         this.canvas.height = height;
 
         // Log canvas dimensions for debugging
         console.log(`Canvas resized: width=${this.canvas.width}, height=${this.canvas.height}`);
 
-        this.setupPiano();
+        // Note: Piano setup is now handled by scene elements
         this.invalidateRender();
     }
 
@@ -288,10 +279,31 @@ export class MIDIVisualizerCore {
 
     // Helper method to create configuration object for the renderer
     getSceneConfig() {
+        // Calculate standard layout dimensions that were previously part of the core
+        const canvasWidth = this.canvas.width;
+        const pianoWidth = Math.max(120, canvasWidth * 0.15); // 15% of canvas width, minimum 120px
+        const rollWidth = canvasWidth - pianoWidth;
+
+        // Define standard theme colors that were previously part of the core
+        const themeColors = {
+            playheadColor: '#ff6b6b',
+            textColor: '#ffffff',
+            textTertiaryColor: '#cccccc',
+            fontFamily: 'Arial',
+            fontWeight: '400'
+        };
+
         return {
             canvas: this.canvas,
             duration: this.duration,
-            isPlaying: this.isPlaying // Add playing state for debugging
+            isPlaying: this.isPlaying, // Add playing state for debugging
+
+            // Layout dimensions
+            pianoWidth: pianoWidth,
+            rollWidth: rollWidth,
+
+            // Theme colors and fonts
+            ...themeColors
         };
     }
 

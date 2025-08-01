@@ -454,7 +454,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (this.showBeatLabels) {
             const timeUnitInSeconds = this.getTimeUnit();
             const currentBarNum = Math.floor(config.targetTime / timeUnitInSeconds) + 1;
-            const windowStart = Math.floor(config.targetTime / timeUnitInSeconds) * timeUnitInSeconds;
             const beatsInUnit = this.getBeatsPerBar() * this.timeUnitBars;
 
             const fontSize = 12;
@@ -656,7 +655,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             }
 
             // Handle any notes that didn't get a noteOff event
-            for (const [key, note] of noteMap) {
+            for (const [, note] of noteMap) {
                 notes.push({
                     ...note,
                     endTime: note.startTime + 1.0, // Default 1 second duration
@@ -686,9 +685,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
      */
     _getNotesForTimeWindow(config, targetTime) {
         // Use local timing manager's notes instead of config.notes
-        const timeUnitDuration = this.getTimeUnit();
         const time = targetTime || config.targetTime; // Use provided targetTime or fallback to config.targetTime
-        const windowStart = Math.floor(time / timeUnitDuration) * timeUnitDuration;
 
         return this.timingManager.getNotesInTimeUnit(time, this.timeUnitBars);
     }
