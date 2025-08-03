@@ -1,4 +1,4 @@
-# MIDI Social Post Visualizer v2
+# MIDI Social Post Visualizer
 
 A React-based MIDI visualization application for creating social media videos from MIDI files.
 

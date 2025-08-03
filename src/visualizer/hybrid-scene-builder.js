@@ -305,7 +305,12 @@ export class HybridSceneBuilder {
         this.addElement(timeUnitPianoRoll);
 
         // Time display with local timing
-        this.addElement(new TimeDisplayElement('timeDisplay', 'bottomLeft', true, {}).setZIndex(40));
+        const timeDisplay = new TimeDisplayElement('timeDisplay', 'bottomLeft', true, {})
+            .setZIndex(40)
+            .setAnchor(0, 1)
+            .setOffset(100, 1400)
+        this.addElement(timeDisplay);
+
         this.addElement(new ProgressDisplayElement().setZIndex(45));
 
         // Add two separate text elements - one for title, one for artist
@@ -456,7 +461,7 @@ export class HybridSceneBuilder {
      */
     serializeScene() {
         return {
-            version: '1.0',
+            version: '0.7.2',
             elements: this.elements.map(element => ({
                 ...this.getElementConfig(element.id),
                 index: this.elements.indexOf(element)

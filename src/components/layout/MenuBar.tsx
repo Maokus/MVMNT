@@ -92,7 +92,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
             />
 
             <div className="menu-section quick-actions">
-                <h3>Midivis v0.7a</h3>
+                <h3>Midivis v0.7.2</h3>
             </div>
 
             <div className="menu-section scene-name-section">
