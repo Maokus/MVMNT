@@ -172,6 +172,12 @@ export class SceneElement implements SceneElementInterface {
                     y: result.y + result.height * this.anchorY 
                 }
             });
+            
+            console.debug('Calculating bounds for scene element:', this.id);
+            renderObjects.forEach((obj, idx) => {
+                const bounds = obj.getBounds();
+                console.debug(`RenderObject[${idx}] (${obj.constructor.name}) bounds:`, bounds);
+            });
         }
 
         return result;

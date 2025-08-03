@@ -3,7 +3,16 @@ import { RenderObject } from './base.js';
 
 export class Text extends RenderObject {
     constructor(x, y, text, font = '16px Arial', color = '#FFFFFF', align = 'left', baseline = 'top') {
-        super(x, y);
+        // Validate and clamp extreme position values to prevent layout issues
+        const maxPosition = 1000000; // 1 million pixels should be more than enough for any reasonable canvas
+        const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
+        const clampedY = Math.max(-maxPosition, Math.min(maxPosition, y));
+
+        if (clampedX !== x || clampedY !== y) {
+            console.warn(`Text constructor: Extreme position values clamped - original: (${x}, ${y}), clamped: (${clampedX}, ${clampedY})`);
+        }
+
+        super(clampedX, clampedY);
         this.text = text;
         this.font = font;
         this.color = color;
@@ -108,6 +117,12 @@ export class Text extends RenderObject {
         // This is still an approximation but more accurate than before
         const fontSize = this._extractFontSize(this.font);
 
+        // Validate inputs first
+        if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(fontSize)) {
+            console.warn(`Text getBounds: Invalid values detected - x=${this.x}, y=${this.y}, fontSize=${fontSize}, font=${this.font}`);
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
         // Improved character width estimation based on font type
         let charWidthRatio = 0.6; // Default for Arial/Helvetica
         if (this.font.toLowerCase().includes('mono')) {
@@ -152,12 +167,28 @@ export class Text extends RenderObject {
                 break;
         }
 
-        return {
+        const result = {
             x: boundsX,
             y: boundsY,
             width: estimatedWidth,
             height: estimatedHeight
         };
+
+        // Validate final result
+        if (!isFinite(result.x) || !isFinite(result.y) || !isFinite(result.width) || !isFinite(result.height) ||
+            result.width < 0 || result.height < 0) {
+            console.warn(`Text getBounds: Invalid result detected`, {
+                text: this.text,
+                font: this.font,
+                position: { x: this.x, y: this.y },
+                align: this.align,
+                baseline: this.baseline,
+                result: result
+            });
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
+        return result;
     }
 
     // Helper method to extract font size from font string

@@ -3,9 +3,22 @@ import { RenderObject } from './base.js';
 
 export class Rectangle extends RenderObject {
     constructor(x, y, width, height, fillColor = '#FFFFFF', strokeColor = null, strokeWidth = 1) {
-        super(x, y);
-        this.width = width;
-        this.height = height;
+        // Validate and clamp extreme values
+        const maxPosition = 1000000;
+        const maxSize = 1000000;
+
+        const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
+        const clampedY = Math.max(-maxPosition, Math.min(maxPosition, y));
+        const clampedWidth = Math.max(0, Math.min(maxSize, width));
+        const clampedHeight = Math.max(0, Math.min(maxSize, height));
+
+        if (clampedX !== x || clampedY !== y || clampedWidth !== width || clampedHeight !== height) {
+            console.warn(`Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`);
+        }
+
+        super(clampedX, clampedY);
+        this.width = clampedWidth;
+        this.height = clampedHeight;
         this.fillColor = fillColor;
         this.strokeColor = strokeColor;
         this.strokeWidth = strokeWidth;
