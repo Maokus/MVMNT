@@ -42,7 +42,8 @@ export class DebugElement extends SceneElement {
 
         const testGrid = false;
         const testRect = true;
-        const testDots = false;
+        const testDots = true;
+        const anchorVis = true;
 
         if(testGrid){
             for (let i=-10; i < 50; i++) {
@@ -76,8 +77,21 @@ export class DebugElement extends SceneElement {
             const testRect3 = new Rectangle(1000, 800, 100, 100, "#0000FF");
             renderObjects.push(testRect3);
 
-            // Add anchor point visualization
-            if (renderObjects.length > 0) {
+
+        }
+
+        if(testDots){
+            for(let i=0; i<10; i++){
+                for(let j=0; j<10; j++){
+                    var testDot = new Rectangle(i*100, j*100, 5, 5, "#FFFFFF");
+                    var testCoords = new Text( i*100 + 10, j*100 + 10,`(${i*100}, ${j*100})`, "Arial 20px", "#FFFFFF");
+                    renderObjects.push(testDot);
+                    renderObjects.push(testCoords);
+                }
+            }
+        }
+
+        if(anchorVis && renderObjects.length > 0){
                 const bounds = this._calculateSceneElementBounds(renderObjects);
                 const anchorPixelX = bounds.x + bounds.width * this.anchorX;
                 const anchorPixelY = bounds.y + bounds.height * this.anchorY;
@@ -112,18 +126,6 @@ export class DebugElement extends SceneElement {
                 );
                 renderObjects.push(anchorText);
             }
-        }
-
-        if(testDots){
-            for(let i=0; i<10; i++){
-                for(let j=0; j<10; j++){
-                    var testDot = new Rectangle(i*100, j*100, 5, 5, "#FFFFFF");
-                    var testCoords = new Text( i*100 + 10, j*100 + 10,`(${i*100}, ${j*100})`, "Arial 20px", "#FFFFFF");
-                    renderObjects.push(testDot);
-                    renderObjects.push(testCoords);
-                }
-            }
-        }
 
         return renderObjects;
     }

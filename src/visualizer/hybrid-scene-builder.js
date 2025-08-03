@@ -291,7 +291,11 @@ export class HybridSceneBuilder {
         this._createDefaultMacros();
 
         // Add elements in z-index order (background first, overlay last)
-        this.addElement(new BackgroundElement().setZIndex(0));
+        this.addElement(new BackgroundElement()
+            .setZIndex(0)
+            .setOffsetX(750)
+            .setOffsetY(750)
+        );
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
         const timeUnitPianoRoll = new TimeUnitPianoRollElement('main', {})
@@ -326,6 +330,8 @@ export class HybridSceneBuilder {
         const debugElement = new DebugElement('debugOverlay');
         debugElement.setZIndex(100);
         debugElement.setVisible(true);
+        debugElement.setOffsetX(750);
+        debugElement.setOffsetY(750);
         this.addElement(debugElement);
 
         // Assign macros to relevant element properties
