@@ -10,6 +10,7 @@ export class RenderObject {
         this.opacity = opacity;
         this.visible = true;
         this.rotation = 0; // Rotation in radians
+        this.children = []; // Array of child render objects
     }
 
     /**
@@ -54,6 +55,13 @@ export class RenderObject {
 
         // Call the subclass-specific rendering method
         this._renderSelf(ctx, config, currentTime);
+
+        // Render all children with the current transform context
+        for (const child of this.children) {
+            if (child && typeof child.render === 'function') {
+                child.render(ctx, config, currentTime);
+            }
+        }
 
         // Restore context state
         ctx.restore();
@@ -118,6 +126,42 @@ export class RenderObject {
      */
     setRotation(rotation) {
         this.rotation = rotation;
+        return this;
+    }
+
+    /**
+     * Add a child render object
+     */
+    addChild(child) {
+        if (child && !this.children.includes(child)) {
+            this.children.push(child);
+        }
+        return this;
+    }
+
+    /**
+     * Remove a child render object
+     */
+    removeChild(child) {
+        const index = this.children.indexOf(child);
+        if (index !== -1) {
+            this.children.splice(index, 1);
+        }
+        return this;
+    }
+
+    /**
+     * Get all children
+     */
+    getChildren() {
+        return this.children.slice(); // Return a copy
+    }
+
+    /**
+     * Clear all children
+     */
+    clearChildren() {
+        this.children = [];
         return this;
     }
 

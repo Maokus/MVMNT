@@ -164,6 +164,7 @@ export interface RenderObjectInterface {
   opacity: number;
   visible: boolean;
   rotation: number;
+  children: RenderObjectInterface[];
   
   render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
   setPosition(x: number, y: number): any;
@@ -172,6 +173,10 @@ export interface RenderObjectInterface {
   setRotation(rotation: number): any;
   setOpacity(opacity: number): any;
   setVisible(visible: boolean): any;
+  addChild(child: RenderObjectInterface): any;
+  removeChild(child: RenderObjectInterface): any;
+  getChildren(): RenderObjectInterface[];
+  clearChildren(): any;
   getBounds(): { x: number; y: number; width: number; height: number };
 }
 

@@ -1,10 +1,6 @@
 // Base SceneElement class for declarative scene definition
 import { RenderObjectInterface, ConfigSchema, SceneElementInterface } from '../types.js';
-import { 
-    createGroupTransformMatrix,
-    multiplyMatrices, 
-    createTranslationMatrix
-} from '../../lib/math';
+import { EmptyRenderObject } from '../render-objects/empty.js';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
@@ -42,13 +38,10 @@ export class SceneElement implements SceneElementInterface {
      * Child classes should override _buildRenderObjects instead
      * 
      * TRANSFORMATION SYSTEM:
-     * This method implements a matrix-based group transformation system where all render objects
-     * in the scene element transform together around a configurable anchor point. The transformation
-     * matrix follows the formula: G = T_anchor * R * Sk * S * T_anchor^-1
-     * 
-     * This ensures that when you have multiple objects (e.g., two squares at (0,0) and (100,0))
-     * and apply a 90° rotation, they rotate as a unified group around the anchor point rather than
-     * each rotating around their individual centers.
+     * This method creates an EmptyRenderObject container that applies the scene element's
+     * global transforms (position, scale, rotation, skew) and then renders all the child
+     * render objects within that transformed context. This maintains proper separation
+     * of concerns between scene elements and canvas operations.
      * 
      * @param config - Current visualization configuration
      * @param targetTime - Current time to render at
@@ -58,84 +51,44 @@ export class SceneElement implements SceneElementInterface {
         if (!this.visible) return [];
 
         // Call the child class implementation to build the base render objects
-        const renderObjects = this._buildRenderObjects(config, targetTime);
+        const childRenderObjects = this._buildRenderObjects(config, targetTime);
 
-        if (renderObjects.length === 0) return [];
+        if (childRenderObjects.length === 0) return [];
 
         // Calculate the bounding box and anchor point for transformation
-        const bounds = this._calculateSceneElementBounds(renderObjects);
+        const bounds = this._calculateSceneElementBounds(childRenderObjects);
         const anchorX = bounds.x + bounds.width * this.anchorX;
         const anchorY = bounds.y + bounds.height * this.anchorY;
 
-        // Compute the group transformation matrix
-        const groupMatrix = createGroupTransformMatrix(
-            anchorX, 
-            anchorY,
+        // Create an empty render object that will contain all child objects
+        // This object handles the group transformation
+        const containerObject = new EmptyRenderObject(
+            this.offsetX - anchorX, // Position offset accounting for anchor
+            this.offsetY - anchorY,
             this.globalScaleX,
             this.globalScaleY,
-            this.globalRotation,
-            this.globalSkewX,
-            this.globalSkewY
+            this.globalOpacity
         );
 
-        // Apply offset as part of the group matrix
-        const offsetMatrix = createTranslationMatrix(this.offsetX, this.offsetY);
-        const finalGroupMatrix = multiplyMatrices(groupMatrix, offsetMatrix);
+        // Set additional transform properties
+        containerObject.setRotation(this.globalRotation);
+        containerObject.setSkew(this.globalSkewX, this.globalSkewY);
+        containerObject.setVisible(this.visible);
 
-        // Capture the scene element context for the wrapper
-        const sceneElement = this;
-
-        // Create a wrapper object that applies group transforms at render time
-        // This avoids the numerical instability of matrix decomposition
-        const groupTransformWrapper = {
-            matrix: finalGroupMatrix,
-            renderObjects: renderObjects.slice(), // Create a copy
-            render: function(ctx: CanvasRenderingContext2D, config: any, currentTime: number) {
-                // Save the context state
-                ctx.save();
-                
-                // Apply the group transformation matrix directly to the canvas context
-                const [a, b, c, d, e, f] = this.matrix;
-                ctx.transform(a, b, c, d, e, f);
-                
-                // Render all contained objects with their original transforms
-                for (const obj of this.renderObjects) {
-                    if (obj && typeof obj.render === 'function') {
-                        obj.setOpacity(obj.opacity * sceneElement.globalOpacity);
-                        obj.setVisible(obj.visible && sceneElement.visible);
-                        obj.render(ctx, config, currentTime);
-                    }
-                }
-                
-                // Restore the context state
-                ctx.restore();
-            },
-            getBounds: function() {
-                // Calculate the bounds of all contained objects
-                if (this.renderObjects.length === 0) {
-                    return { x: 0, y: 0, width: 0, height: 0 };
-                }
-                
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                for (const obj of this.renderObjects) {
-                    const bounds = obj.getBounds();
-                    minX = Math.min(minX, bounds.x);
-                    minY = Math.min(minY, bounds.y);
-                    maxX = Math.max(maxX, bounds.x + bounds.width);
-                    maxY = Math.max(maxY, bounds.y + bounds.height);
-                }
-                
-                return {
-                    x: minX,
-                    y: minY,
-                    width: maxX - minX,
-                    height: maxY - minY
-                };
+        // Add all child render objects to the container
+        for (const childObj of childRenderObjects) {
+            if (childObj) {
+                // Adjust child position relative to anchor point
+                childObj.setPosition(
+                    childObj.x + anchorX,
+                    childObj.y + anchorY
+                );
+                containerObject.addChild(childObj);
             }
-        };
+        }
 
-        // Return the wrapper as a single render object that handles the group transform
-        return [groupTransformWrapper as any];
+        // Return the container as the single render object for this scene element
+        return [containerObject];
     }
 
     /**
