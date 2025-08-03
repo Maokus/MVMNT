@@ -6,7 +6,6 @@ import {
     ProgressDisplayElement,
     ImageElement,
     TimeUnitPianoRollElement,
-    TestAnchorTransformElement
 } from './scene-elements/index.ts';
 
 export class SceneElementRegistry {
@@ -119,11 +118,6 @@ export class SceneElementRegistry {
             return element;
         }, TimeUnitPianoRollElement.getConfigSchema());
 
-        // Test Anchor Transform Element (for testing the new anchor system)
-        this.registerElement('testAnchorTransform', (config) => {
-            const element = new TestAnchorTransformElement(config.id || 'testAnchorTransform', config);
-            return element;
-        }, TestAnchorTransformElement.getConfigSchema());
     }
 }
 

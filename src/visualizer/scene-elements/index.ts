@@ -6,9 +6,5 @@ export { TextOverlayElement } from './text-overlay';
 export { ProgressDisplayElement } from './progress-display';
 export { ImageElement } from './image';
 export { DebugElement } from './debug';
-
-// New consolidated element
 export { TimeUnitPianoRollElement } from './time-unit-piano-roll/index.js';
 
-// Test element for anchor point transformation
-export { TestAnchorTransformElement } from './test-anchor-transform';

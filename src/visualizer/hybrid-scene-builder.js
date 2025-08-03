@@ -293,14 +293,15 @@ export class HybridSceneBuilder {
         // Add elements in z-index order (background first, overlay last)
         this.addElement(new BackgroundElement()
             .setZIndex(0)
-            .setOffsetX(750)
-            .setOffsetY(750)
+            .setAnchor(0, 0)
         );
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
         const timeUnitPianoRoll = new TimeUnitPianoRollElement('main', {})
             .setZIndex(10)
-            .setTimeUnitBars(1);
+            .setTimeUnitBars(1)
+            .setOffset(750, 750)
+            .setAnchor(0.5, 0.5);
         this.addElement(timeUnitPianoRoll);
 
         // Time display with local timing
@@ -308,30 +309,30 @@ export class HybridSceneBuilder {
         this.addElement(new ProgressDisplayElement().setZIndex(45));
 
         // Add two separate text elements - one for title, one for artist
-        const titleElement = new TextOverlayElement('titleText', 'topCenter');
-        titleElement.setText('Song Title'); // Default placeholder text
-        titleElement.setFontSize(100);
-        titleElement.setFontWeight('bold');
-        titleElement.setZIndex(50);
-        titleElement.setY(80);
-        titleElement.setX(70);
+        const titleElement = new TextOverlayElement('titleText', 'topCenter')
+            .setText('Song Title') // Default placeholder text
+            .setFontSize(100)
+            .setFontWeight('bold')
+            .setZIndex(50)
+            .setOffset(100, 100)
+            .setAnchor(0, 0);
         this.addElement(titleElement);
 
         // Position artist text 40px below the title text
-        const artistElement = new TextOverlayElement('artistText', 'topCenter');
-        artistElement.setText('Artist Name'); // Set initial artist name text
-        artistElement.setFontSize(40);
-        artistElement.setFontWeight('normal');
-        artistElement.setZIndex(51);
-        artistElement.setY(190); // Set explicit Y position instead of overriding the render method
-        artistElement.setX(75);
+        const artistElement = new TextOverlayElement('artistText', 'topCenter')
+            .setText('Artist Name') // Set initial artist name text
+            .setFontSize(40)
+            .setFontWeight('normal')
+            .setZIndex(51)
+            .setOffset(105, 210)
+            .setAnchor(0, 0);
         this.addElement(artistElement);
 
-        const debugElement = new DebugElement('debugOverlay');
-        debugElement.setZIndex(100);
-        debugElement.setVisible(true);
-        debugElement.setOffsetX(750);
-        debugElement.setOffsetY(750);
+        const debugElement = new DebugElement('debugOverlay')
+            .setZIndex(100)
+            .setVisible(true)
+            .setOffset(750, 750);
+
         this.addElement(debugElement);
 
         // Assign macros to relevant element properties
