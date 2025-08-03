@@ -334,4 +334,16 @@ export class Image extends RenderObject {
     isReady() {
         return this.imageElement && this.imageLoaded;
     }
+
+    /**
+     * Get bounding box for the image element
+     */
+    getBounds() {
+        return {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height
+        };
+    }
 }

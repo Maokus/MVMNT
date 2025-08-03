@@ -125,7 +125,7 @@ export class Text extends RenderObject {
         let boundsX = this.x;
         let boundsY = this.y;
 
-        switch (this.textAlign) {
+        switch (this.align) {
             case 'center':
                 boundsX = this.x - estimatedWidth / 2;
                 break;
@@ -137,7 +137,7 @@ export class Text extends RenderObject {
                 break;
         }
 
-        switch (this.textBaseline) {
+        switch (this.baseline) {
             case 'middle':
                 boundsY = this.y - estimatedHeight / 2;
                 break;

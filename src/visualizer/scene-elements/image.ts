@@ -138,6 +138,37 @@ export class ImageElement extends SceneElement {
         };
     }
 
+    /**
+     * Handle different image source types including File objects from macros
+     * @private
+     */
+    private _handleImageSource(source: any): void {
+        if (source === null || source === undefined) {
+            this.imageSource = null;
+            return;
+        }
+
+        // If it's a File object (from macro), convert to data URL
+        if (source instanceof File) {
+            console.log('Converting File object to data URL for image element:', source.name);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (e.target?.result) {
+                    this.imageSource = e.target.result as string;
+                    console.log('Successfully converted File to data URL');
+                }
+            };
+            reader.onerror = (error) => {
+                console.error('Error converting File to data URL:', error);
+                this.imageSource = null;
+            };
+            reader.readAsDataURL(source);
+        } else {
+            // It's already a string URL or data URL
+            this.imageSource = source;
+        }
+    }
+
     protected _applyConfig(): void {
         super._applyConfig();
 
@@ -145,7 +176,9 @@ export class ImageElement extends SceneElement {
         if (this.config.y !== undefined) this.y = this.config.y;
         if (this.config.width !== undefined) this.width = this.config.width;
         if (this.config.height !== undefined) this.height = this.config.height;
-        if (this.config.imageSource !== undefined) this.imageSource = this.config.imageSource;
+        if (this.config.imageSource !== undefined) {
+            this._handleImageSource(this.config.imageSource);
+        }
         if (this.config.scaleX !== undefined) {
             this.scaleX = parseFloat(this.config.scaleX);
         }
