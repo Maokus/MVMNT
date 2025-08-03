@@ -461,7 +461,7 @@ export class HybridSceneBuilder {
      */
     serializeScene() {
         return {
-            version: '0.7.2',
+            version: process.env.REACT_APP_VERSION,
             elements: this.elements.map(element => ({
                 ...this.getElementConfig(element.id),
                 index: this.elements.indexOf(element)
