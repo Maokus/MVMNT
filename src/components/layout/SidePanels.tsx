@@ -13,6 +13,8 @@ interface SidePanelsProps {
     canExport: boolean;
     exportSettings: { fps: number; resolution: number; fullDuration: boolean };
     onExportSettingsChange: (settings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    debugSettings: { showAnchorPoints: boolean };
+    onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
 }
 
 const SidePanels: React.FC<SidePanelsProps> = ({
@@ -22,7 +24,9 @@ const SidePanels: React.FC<SidePanelsProps> = ({
     exportStatus,
     canExport,
     exportSettings,
-    onExportSettingsChange
+    onExportSettingsChange,
+    debugSettings,
+    onDebugSettingsChange
 }) => {
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
@@ -49,6 +53,15 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             [key]: value
         };
         onExportSettingsChange(newSettings);
+    };
+
+    // Create a local function to handle debug setting updates
+    const updateDebugSetting = (key: 'showAnchorPoints', value: any) => {
+        const newSettings = {
+            ...debugSettings,
+            [key]: value
+        };
+        onDebugSettingsChange(newSettings);
     };
 
     // Handle Enter key on export settings inputs
@@ -235,6 +248,19 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                                             {exportStatus}
                                         </span>
                                     </div>
+                                </div>
+
+                                <div className="setting-group">
+                                    <h4>Debug Settings</h4>
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            id="showAnchorPoints"
+                                            checked={debugSettings.showAnchorPoints}
+                                            onChange={(e) => updateDebugSetting('showAnchorPoints', e.target.checked)}
+                                        />
+                                        Show Anchor Points
+                                    </label>
                                 </div>
                             </div>
                         </div>

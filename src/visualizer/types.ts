@@ -222,16 +222,24 @@ export interface SceneElementInterface {
   visible: boolean;
   zIndex: number;
   
-  // Global transform properties
+  // Element transform properties
   offsetX: number;
   offsetY: number;
+  elementScaleX: number;
+  elementScaleY: number;
+  elementRotation: number;
+  elementSkewX: number;
+  elementSkewY: number;
+  
+  // Element visibility properties
+  elementOpacity: number;
+  
+  // Backward compatibility properties
   globalScaleX: number;
   globalScaleY: number;
   globalRotation: number;
   globalSkewX: number;
   globalSkewY: number;
-  
-  // Global visibility properties
   globalOpacity: number;
   
   config: { [key: string]: any };
@@ -242,10 +250,20 @@ export interface SceneElementInterface {
   setVisible(visible: boolean): this;
   setZIndex(zIndex: number): this;
   
-  // Global transform methods
+  // Element transform methods
   setOffsetX(offsetX: number): this;
   setOffsetY(offsetY: number): this;
   setOffset(offsetX: number, offsetY: number): this;
+  setElementScaleX(scaleX: number): this;
+  setElementScaleY(scaleY: number): this;
+  setElementScale(scaleX: number, scaleY?: number): this;
+  setElementRotation(rotation: number): this;
+  setElementRotationRadians(rotation: number): this;
+  setElementSkewX(skewX: number): this;
+  setElementSkewY(skewY: number): this;
+  setElementSkew(skewX: number, skewY: number): this;
+  setElementOpacity(opacity: number): this;
+  // Backward compatibility methods
   setGlobalScaleX(scaleX: number): this;
   setGlobalScaleY(scaleY: number): this;
   setGlobalScale(scaleX: number, scaleY?: number): this;
@@ -254,8 +272,6 @@ export interface SceneElementInterface {
   setGlobalSkewX(skewX: number): this;
   setGlobalSkewY(skewY: number): this;
   setGlobalSkew(skewX: number, skewY: number): this;
-  
-  // Global visibility methods
   setGlobalOpacity(opacity: number): this;
 }
 

@@ -43,7 +43,7 @@ export class DebugElement extends SceneElement {
         const testGrid = false;
         const testRect = true;
         const testDots = true;
-        const anchorVis = true;
+        const anchorVis = false;
 
         if(testGrid){
             for (let i=-10; i < 50; i++) {
@@ -137,9 +137,9 @@ export class DebugElement extends SceneElement {
 
     // Debug method to test transforms
     setDebugTransforms(rotation: number = 0, skewX: number = 0, skewY: number = 0): this {
-        this.globalRotation = rotation;
-        this.globalSkewX = skewX;
-        this.globalSkewY = skewY;
+        this.setElementRotation(rotation);
+        this.setElementSkewX(skewX);
+        this.setElementSkewY(skewY);
         console.log(`Debug transforms set: rotation=${rotation}, skewX=${skewX}, skewY=${skewY}`);
         console.log(`Current anchor point: (${this.anchorX}, ${this.anchorY})`);
         return this;

@@ -19,6 +19,18 @@ export class EmptyRenderObject extends RenderObject {
     }
 
     /**
+     * Set anchor visualization data for debugging
+     */
+    setAnchorVisualizationData(bounds, anchorX, anchorY) {
+        this.anchorVisualizationData = {
+            bounds,
+            anchorX,
+            anchorY
+        };
+        return this;
+    }
+
+    /**
      * Override render method to handle anchor-based transforms properly
      */
     render(ctx, config, currentTime) {
@@ -74,6 +86,12 @@ export class EmptyRenderObject extends RenderObject {
             }
         }
 
+        // Render anchor visualization if enabled and we have the data
+        if (config.showAnchorPoints && this.anchorVisualizationData) {
+            this.renderAnchorVisualization(ctx, this.anchorVisualizationData.bounds,
+                this.anchorVisualizationData.anchorX, this.anchorVisualizationData.anchorY);
+        }
+
         // Restore context state
         ctx.restore();
     }
@@ -84,6 +102,74 @@ export class EmptyRenderObject extends RenderObject {
      */
     _renderSelf(ctx, config, currentTime) {
         // This object doesn't render anything itself, only its children
+    }
+
+    /**
+     * Render anchor point visualization for debugging
+     * @param {CanvasRenderingContext2D} ctx - Canvas context
+     * @param {Object} bounds - Bounds of the scene element
+     * @param {number} anchorX - Anchor X position (0-1)
+     * @param {number} anchorY - Anchor Y position (0-1)
+     */
+    renderAnchorVisualization(ctx, bounds, anchorX, anchorY) {
+        if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
+
+        // Calculate anchor point in pixel coordinates
+        const anchorPixelX = bounds.x + bounds.width * anchorX;
+        const anchorPixelY = bounds.y + bounds.height * anchorY;
+
+        // Save context state
+        ctx.save();
+
+        // Draw bounding box outline
+        ctx.strokeStyle = '#00FFFF'; // Cyan color for bounds
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]); // Dashed line
+        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        // Draw cross lines through anchor point
+        ctx.setLineDash([]); // Solid line
+        ctx.strokeStyle = '#FFFF00'; // Yellow color for anchor lines
+        ctx.lineWidth = 2;
+
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(bounds.x, anchorPixelY);
+        ctx.lineTo(bounds.x + bounds.width, anchorPixelY);
+        ctx.stroke();
+
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(anchorPixelX, bounds.y);
+        ctx.lineTo(anchorPixelX, bounds.y + bounds.height);
+        ctx.stroke();
+
+        // Draw anchor point marker
+        ctx.fillStyle = '#FFFF00'; // Yellow color for anchor marker
+        ctx.fillRect(anchorPixelX - 5, anchorPixelY - 5, 10, 10);
+
+        // Draw anchor coordinates text
+        ctx.fillStyle = '#FFFFFF'; // White color for text
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const text = `Anchor: (${anchorX.toFixed(2)}, ${anchorY.toFixed(2)})`;
+
+        // Add background for text readability
+        const textMetrics = ctx.measureText(text);
+        const textX = anchorPixelX + 15;
+        const textY = anchorPixelY - 15;
+        const textWidth = textMetrics.width;
+        const textHeight = 14;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Semi-transparent black background
+        ctx.fillRect(textX - 2, textY - 2, textWidth + 4, textHeight + 4);
+
+        ctx.fillStyle = '#FFFFFF'; // White text
+        ctx.fillText(text, textX, textY);
+
+        // Restore context state
+        ctx.restore();
     }
 
     /**

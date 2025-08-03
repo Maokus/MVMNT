@@ -30,6 +30,11 @@ export class MIDIVisualizerCore {
             fullDuration: true
         };
 
+        // Debug settings
+        this.debugSettings = {
+            showAnchorPoints: false
+        };
+
         // Render invalidation system
         this._needsRender = true;
         this._lastRenderTime = -1;
@@ -145,6 +150,24 @@ export class MIDIVisualizerCore {
      */
     getExportSettings() {
         return { ...this.exportSettings };
+    }
+
+    /**
+     * Update debug settings that affect visualization behavior
+     * @param {Object} settings - Debug settings object
+     * @param {boolean} settings.showAnchorPoints - Whether to show anchor point visualization
+     */
+    updateDebugSettings(settings) {
+        this.debugSettings = { ...this.debugSettings, ...settings };
+        this.invalidateRender(); // Re-render with new debug settings
+    }
+
+    /**
+     * Get current debug settings
+     * @returns {Object} Current debug settings
+     */
+    getDebugSettings() {
+        return { ...this.debugSettings };
     }
 
     stepForward() {
@@ -323,6 +346,9 @@ export class MIDIVisualizerCore {
             canvas: this.canvas,
             duration: this.duration,
             isPlaying: this.isPlaying, // Add playing state for debugging
+
+            // Debug settings
+            showAnchorPoints: this.debugSettings.showAnchorPoints,
 
             // Layout dimensions
             pianoWidth: pianoWidth,

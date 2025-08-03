@@ -8,21 +8,21 @@ export class SceneElement implements SceneElementInterface {
     public visible: boolean = true;
     public zIndex: number = 0; // For layering control
     
-    // Global transform properties (applied to all render objects)
+    // Element transform properties (applied to all render objects)
     public offsetX: number = 0;
     public offsetY: number = 0;
-    public globalScaleX: number = 1;
-    public globalScaleY: number = 1;
-    public globalRotation: number = 0; // in radians
-    public globalSkewX: number = 0; // in radians
-    public globalSkewY: number = 0; // in radians
+    public elementScaleX: number = 1;
+    public elementScaleY: number = 1;
+    public elementRotation: number = 0; // in radians
+    public elementSkewX: number = 0; // in radians
+    public elementSkewY: number = 0; // in radians
     
     // Anchor point properties (for transform origin)
     public anchorX: number = 0.5; // 0.0 = left, 0.5 = center, 1.0 = right
     public anchorY: number = 0.5; // 0.0 = top, 0.5 = center, 1.0 = bottom
     
-    // Global visibility properties
-    public globalOpacity: number = 1;
+    // Element visibility properties
+    public elementOpacity: number = 1;
     
     public config: { [key: string]: any }; // Store configuration object
 
@@ -67,9 +67,9 @@ export class SceneElement implements SceneElementInterface {
         const containerObject = new EmptyRenderObject(
             this.offsetX - anchorPixelX, // Position offset accounting for anchor
             this.offsetY - anchorPixelY,
-            this.globalScaleX,
-            this.globalScaleY,
-            this.globalOpacity
+            this.elementScaleX,
+            this.elementScaleY,
+            this.elementOpacity
         );
 
         // Set anchor offset for proper rotation/scaling center
@@ -77,8 +77,8 @@ export class SceneElement implements SceneElementInterface {
         containerObject.setAnchorOffset(anchorPixelX, anchorPixelY);
 
         // Set additional transform properties
-        containerObject.setRotation(this.globalRotation);
-        containerObject.setSkew(this.globalSkewX, this.globalSkewY);
+        containerObject.setRotation(this.elementRotation);
+        containerObject.setSkew(this.elementSkewX, this.elementSkewY);
         containerObject.setVisible(this.visible);
 
         // Add all child render objects to the container
@@ -90,6 +90,11 @@ export class SceneElement implements SceneElementInterface {
                 // within the scene element's bounding box
                 containerObject.addChild(childObj);
             }
+        }
+
+        // Add anchor point visualization if enabled
+        if (config.showAnchorPoints) {
+            containerObject.setAnchorVisualizationData(bounds, this.anchorX, this.anchorY);
         }
 
         // Return the container as the single render object for this scene element
@@ -223,7 +228,7 @@ export class SceneElement implements SceneElementInterface {
                     max: 100,
                     step: 1
                 },
-                // Global transform controls (applied to all render objects)
+                // Element transform controls (applied to all render objects)
                 offsetX: {
                     type: 'number',
                     label: 'Offset X',
@@ -231,7 +236,7 @@ export class SceneElement implements SceneElementInterface {
                     min: -1000,
                     max: 1000,
                     step: 1,
-                    description: 'Global horizontal position offset'
+                    description: 'Element horizontal position offset'
                 },
                 offsetY: {
                     type: 'number',
@@ -240,34 +245,34 @@ export class SceneElement implements SceneElementInterface {
                     min: -1000,
                     max: 1000,
                     step: 1,
-                    description: 'Global vertical position offset'
+                    description: 'Element vertical position offset'
                 },
-                globalScaleX: {
+                elementScaleX: {
                     type: 'number',
-                    label: 'Global Scale X',
+                    label: 'Element Scale X',
                     default: 1,
                     min: 0.01,
                     max: 5,
                     step: 0.01,
-                    description: 'Global horizontal scaling factor'
+                    description: 'Element horizontal scaling factor'
                 },
-                globalScaleY: {
+                elementScaleY: {
                     type: 'number',
-                    label: 'Global Scale Y',
+                    label: 'Element Scale Y',
                     default: 1,
                     min: 0.01,
                     max: 5,
                     step: 0.01,
-                    description: 'Global vertical scaling factor'
+                    description: 'Element vertical scaling factor'
                 },
-                globalRotation: {
+                elementRotation: {
                     type: 'number',
-                    label: 'Global Rotation (degrees)',
+                    label: 'Element Rotation (degrees)',
                     default: 0,
                     min: -360,
                     max: 360,
                     step: 1,
-                    description: 'Global rotation angle in degrees'
+                    description: 'Element rotation angle in degrees'
                 },
                 // Anchor point controls
                 anchorX: {
@@ -288,34 +293,34 @@ export class SceneElement implements SceneElementInterface {
                     step: 0.01,
                     description: 'Vertical anchor point for transforms (0 = top, 0.5 = center, 1 = bottom)'
                 },
-                // Global skew controls
-                globalSkewX: {
+                // Element skew controls
+                elementSkewX: {
                     type: 'number',
-                    label: 'Global Skew X (degrees)',
+                    label: 'Element Skew X (degrees)',
                     default: 0,
                     min: -45,
                     max: 45,
                     step: 1,
-                    description: 'Global horizontal skew angle in degrees'
+                    description: 'Element horizontal skew angle in degrees'
                 },
-                globalSkewY: {
+                elementSkewY: {
                     type: 'number',
-                    label: 'Global Skew Y (degrees)',
+                    label: 'Element Skew Y (degrees)',
                     default: 0,
                     min: -45,
                     max: 45,
                     step: 1,
-                    description: 'Global vertical skew angle in degrees'
+                    description: 'Element vertical skew angle in degrees'
                 },
-                // Global visibility controls
-                globalOpacity: {
+                // Element visibility controls
+                elementOpacity: {
                     type: 'number',
-                    label: 'Global Opacity',
+                    label: 'Element Opacity',
                     default: 1,
                     min: 0,
                     max: 1,
                     step: 0.01,
-                    description: 'Global transparency level (0 = invisible, 1 = opaque)'
+                    description: 'Element transparency level (0 = invisible, 1 = opaque)'
                 }
             }
         };
@@ -342,14 +347,14 @@ export class SceneElement implements SceneElementInterface {
             zIndex: this.zIndex,
             offsetX: this.offsetX,
             offsetY: this.offsetY,
-            globalScaleX: this.globalScaleX,
-            globalScaleY: this.globalScaleY,
-            globalRotation: this.globalRotation * (180 / Math.PI), // Convert to degrees for UI
+            elementScaleX: this.elementScaleX,
+            elementScaleY: this.elementScaleY,
+            elementRotation: this.elementRotation * (180 / Math.PI), // Convert to degrees for UI
             anchorX: this.anchorX,
             anchorY: this.anchorY,
-            globalSkewX: this.globalSkewX * (180 / Math.PI), // Convert to degrees for UI
-            globalSkewY: this.globalSkewY * (180 / Math.PI), // Convert to degrees for UI
-            globalOpacity: this.globalOpacity,
+            elementSkewX: this.elementSkewX * (180 / Math.PI), // Convert to degrees for UI
+            elementSkewY: this.elementSkewY * (180 / Math.PI), // Convert to degrees for UI
+            elementOpacity: this.elementOpacity,
             ...this.config
         };
     }
@@ -365,21 +370,21 @@ export class SceneElement implements SceneElementInterface {
         if (this.config.zIndex !== undefined) {
             this.setZIndex(this.config.zIndex);
         }
-        // Global transform properties
+        // Element transform properties
         if (this.config.offsetX !== undefined) {
             this.setOffsetX(this.config.offsetX);
         }
         if (this.config.offsetY !== undefined) {
             this.setOffsetY(this.config.offsetY);
         }
-        if (this.config.globalScaleX !== undefined) {
-            this.setGlobalScaleX(this.config.globalScaleX);
+        if (this.config.elementScaleX !== undefined) {
+            this.setElementScaleX(this.config.elementScaleX);
         }
-        if (this.config.globalScaleY !== undefined) {
-            this.setGlobalScaleY(this.config.globalScaleY);
+        if (this.config.elementScaleY !== undefined) {
+            this.setElementScaleY(this.config.elementScaleY);
         }
-        if (this.config.globalRotation !== undefined) {
-            this.setGlobalRotation(this.config.globalRotation);
+        if (this.config.elementRotation !== undefined) {
+            this.setElementRotation(this.config.elementRotation);
         }
         if (this.config.anchorX !== undefined) {
             this.setAnchorX(this.config.anchorX);
@@ -387,15 +392,15 @@ export class SceneElement implements SceneElementInterface {
         if (this.config.anchorY !== undefined) {
             this.setAnchorY(this.config.anchorY);
         }
-        if (this.config.globalSkewX !== undefined) {
-            this.setGlobalSkewX(this.config.globalSkewX);
+        if (this.config.elementSkewX !== undefined) {
+            this.setElementSkewX(this.config.elementSkewX);
         }
-        if (this.config.globalSkewY !== undefined) {
-            this.setGlobalSkewY(this.config.globalSkewY);
+        if (this.config.elementSkewY !== undefined) {
+            this.setElementSkewY(this.config.elementSkewY);
         }
-        // Global visibility properties
-        if (this.config.globalOpacity !== undefined) {
-            this.setGlobalOpacity(this.config.globalOpacity);
+        // Element visibility properties
+        if (this.config.elementOpacity !== undefined) {
+            this.setElementOpacity(this.config.elementOpacity);
         }
     }
 
@@ -409,7 +414,7 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    // Global transform setters
+    // Element transform setters
     setOffsetX(offsetX: number): this {
         this.offsetX = offsetX;
         return this;
@@ -426,30 +431,30 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    setGlobalScaleX(scaleX: number): this {
-        this.globalScaleX = scaleX;
+    setElementScaleX(scaleX: number): this {
+        this.elementScaleX = scaleX;
         return this;
     }
 
-    setGlobalScaleY(scaleY: number): this {
-        this.globalScaleY = scaleY;
+    setElementScaleY(scaleY: number): this {
+        this.elementScaleY = scaleY;
         return this;
     }
 
-    setGlobalScale(scaleX: number, scaleY: number = scaleX): this {
-        this.globalScaleX = scaleX;
-        this.globalScaleY = scaleY;
+    setElementScale(scaleX: number, scaleY: number = scaleX): this {
+        this.elementScaleX = scaleX;
+        this.elementScaleY = scaleY;
         return this;
     }
 
-    setGlobalRotation(rotation: number): this {
+    setElementRotation(rotation: number): this {
         // Convert degrees to radians if the value seems to be in degrees
-        this.globalRotation = rotation * (Math.PI / 180);
+        this.elementRotation = rotation * (Math.PI / 180);
         return this;
     }
 
-    setGlobalRotationRadians(rotation: number): this {
-        this.globalRotation = rotation;
+    setElementRotationRadians(rotation: number): this {
+        this.elementRotation = rotation;
         return this;
     }
 
@@ -470,28 +475,73 @@ export class SceneElement implements SceneElementInterface {
         return this;
     }
 
-    // Global skew setters
-    setGlobalSkewX(skewX: number): this {
+    // Element skew setters
+    setElementSkewX(skewX: number): this {
         // Convert degrees to radians if the value seems to be in degrees
-        this.globalSkewX = skewX * (Math.PI / 180);
+        this.elementSkewX = skewX * (Math.PI / 180);
         return this;
+    }
+
+    setElementSkewY(skewY: number): this {
+        // Convert degrees to radians if the value seems to be in degrees
+        this.elementSkewY = skewY * (Math.PI / 180);
+        return this;
+    }
+
+    setElementSkew(skewX: number, skewY: number): this {
+        this.setElementSkewX(skewX);
+        this.setElementSkewY(skewY);
+        return this;
+    }
+
+    // Element visibility setters
+    setElementOpacity(opacity: number): this {
+        this.elementOpacity = Math.max(0, Math.min(1, opacity));
+        return this;
+    }
+
+    // Backward compatibility methods - map to new property names
+    setGlobalScaleX(scaleX: number): this {
+        return this.setElementScaleX(scaleX);
+    }
+
+    setGlobalScaleY(scaleY: number): this {
+        return this.setElementScaleY(scaleY);
+    }
+
+    setGlobalScale(scaleX: number, scaleY: number = scaleX): this {
+        return this.setElementScale(scaleX, scaleY);
+    }
+
+    setGlobalRotation(rotation: number): this {
+        return this.setElementRotation(rotation);
+    }
+
+    setGlobalRotationRadians(rotation: number): this {
+        return this.setElementRotationRadians(rotation);
+    }
+
+    setGlobalSkewX(skewX: number): this {
+        return this.setElementSkewX(skewX);
     }
 
     setGlobalSkewY(skewY: number): this {
-        // Convert degrees to radians if the value seems to be in degrees
-        this.globalSkewY = skewY * (Math.PI / 180);
-        return this;
+        return this.setElementSkewY(skewY);
     }
 
     setGlobalSkew(skewX: number, skewY: number): this {
-        this.setGlobalSkewX(skewX);
-        this.setGlobalSkewY(skewY);
-        return this;
+        return this.setElementSkew(skewX, skewY);
     }
 
-    // Global visibility setters
     setGlobalOpacity(opacity: number): this {
-        this.globalOpacity = Math.max(0, Math.min(1, opacity));
-        return this;
+        return this.setElementOpacity(opacity);
     }
+
+    // Backward compatibility getters
+    get globalScaleX(): number { return this.elementScaleX; }
+    get globalScaleY(): number { return this.elementScaleY; }
+    get globalRotation(): number { return this.elementRotation; }
+    get globalSkewX(): number { return this.elementSkewX; }
+    get globalSkewY(): number { return this.elementSkewY; }
+    get globalOpacity(): number { return this.elementOpacity; }
 }
