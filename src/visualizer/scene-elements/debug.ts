@@ -1,6 +1,6 @@
 // Background element for rendering the main background
 import { SceneElement } from './base';
-import { Line, Rectangle } from '../render-objects/index.js';
+import { Line, Rectangle, Text } from '../render-objects/index.js';
 import { ConfigSchema, BackgroundElementConfig, RenderObjectInterface } from '../types.js';
 
 export class DebugElement extends SceneElement {
@@ -40,35 +40,53 @@ export class DebugElement extends SceneElement {
 
         const renderObjects: RenderObjectInterface[] = [];
 
-        /*
-        for (let i=-10; i < 50; i++) {
-            for (let j=0; j < 40; j++) {
-                var testLine = new Line(50*j+5, 100 + (i * 50), 50*(j+1), 100 + (i * 50), "#FFFFFF", 1);
-                renderObjects.push(testLine);
+        const testGrid = false;
+        const testRect = false;
+        const testDots = true;
+
+        if(testGrid){
+            for (let i=-10; i < 50; i++) {
+                for (let j=0; j < 40; j++) {
+                    var testLine = new Line(50*j+5, 100 + (i * 50), 50*(j+1), 100 + (i * 50), "#FFFFFF", 1);
+                    renderObjects.push(testLine);
+                }
+            }
+
+            for (let i=-10; i < 50; i++) {
+                for (let j=0; j < 40; j++) {
+                    var testLine2 = new Line(50*j, 100 + (i * 50), 50*(j), 100 + ((i+1) * 50)+5, "#FFFFFF", 1);
+                    renderObjects.push(testLine2);
+                }
+            }
+            for (let i=-10; i < 50; i++) {
+                for (let j=0; j < 40; j++) {
+                    var testLine3 = new Line(50*j, 100 + (i * 50), 50*(j+1), 100 + ((i+1) * 50)+5, "#FF0000", 1);
+                    renderObjects.push(testLine3);
+                }
             }
         }
 
-        for (let i=-10; i < 50; i++) {
-            for (let j=0; j < 40; j++) {
-                var testLine2 = new Line(50*j, 100 + (i * 50), 50*(j), 100 + ((i+1) * 50)+5, "#FFFFFF", 1);
-                renderObjects.push(testLine2);
+        if(testRect){
+            const testRect1 = new Rectangle(100, 100, 100, 100, "#FF0000");
+            renderObjects.push(testRect1);
+
+            const testRect2 = new Rectangle(300, 500, 200, 100, "#00FF00");
+            renderObjects.push(testRect2);
+
+            const testRect3 = new Rectangle(1000, 800, 100, 100, "#0000FF");
+            renderObjects.push(testRect3);
+        }
+
+        if(testDots){
+            for(let i=0; i<10; i++){
+                for(let j=0; j<10; j++){
+                    var testDot = new Rectangle(i*100, j*100, 5, 5, "#FFFFFF");
+                    var testCoords = new Text( i*100 + 10, j*100 + 10,`(${i*100}, ${j*100})`, "Arial 20px", "#FFFFFF");
+                    renderObjects.push(testDot);
+                    renderObjects.push(testCoords);
+                }
             }
         }
-        for (let i=-10; i < 50; i++) {
-            for (let j=0; j < 40; j++) {
-                var testLine3 = new Line(50*j, 100 + (i * 50), 50*(j+1), 100 + ((i+1) * 50)+5, "#FF0000", 1);
-                renderObjects.push(testLine3);
-            }
-        }*/
-
-        const testRect1 = new Rectangle(100, 100, 100, 100, "#FF0000");
-        renderObjects.push(testRect1);
-
-        const testRect2 = new Rectangle(300, 500, 200, 100, "#00FF00");
-        renderObjects.push(testRect2);
-
-        const testRect3 = new Rectangle(1000, 800, 100, 100, "#0000FF");
-        renderObjects.push(testRect3);
 
         return renderObjects;
     }
