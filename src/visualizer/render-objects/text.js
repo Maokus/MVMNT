@@ -193,13 +193,13 @@ export class Text extends RenderObject {
 
     // Helper method to extract font size from font string
     _extractFontSize(fontString) {
-        const match = fontString.match(/(\d+)px/);
+        const match = fontString.match(/(\d*\.?\d+)px/);
         if (match) {
-            return parseInt(match[1]);
+            return parseFloat(match[1]);
         }
-        // Fallback: try to find any number in the font string
-        const numberMatch = fontString.match(/(\d+)/);
-        return numberMatch ? parseInt(numberMatch[1]) : 16;
+        // Fallback: try to find any number (including decimals) in the font string
+        const numberMatch = fontString.match(/(\d*\.?\d+)/);
+        return numberMatch ? parseFloat(numberMatch[1]) : 16;
     }
 
     // Utility method to create common text styles

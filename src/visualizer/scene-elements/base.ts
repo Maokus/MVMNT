@@ -160,26 +160,6 @@ export class SceneElement implements SceneElementInterface {
             height: maxY - minY
         };
         
-        // Debug logging for bounds calculation (can be disabled in production)
-        if (process.env.NODE_ENV === 'development') {
-            console.debug(`Scene element ${this.id} bounds:`, {
-                objects: renderObjects.length,
-                validBoundsCount,
-                bounds: result,
-                anchor: { x: this.anchorX, y: this.anchorY },
-                computedAnchor: { 
-                    x: result.x + result.width * this.anchorX, 
-                    y: result.y + result.height * this.anchorY 
-                }
-            });
-            
-            console.debug('Calculating bounds for scene element:', this.id);
-            renderObjects.forEach((obj, idx) => {
-                const bounds = obj.getBounds();
-                console.debug(`RenderObject[${idx}] (${obj.constructor.name}) bounds:`, bounds);
-            });
-        }
-
         return result;
     }
     

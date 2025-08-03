@@ -3,6 +3,7 @@ import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
 import { LocalTimingManager } from '../local-timing-manager.js';
 import { ConfigSchema, TimeDisplayConfig, RenderObjectInterface } from '../types.js';
+import { render } from '@testing-library/react';
 
 interface BarBeatTick {
     bar: number;
