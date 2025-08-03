@@ -127,6 +127,7 @@ export class SceneElement implements SceneElementInterface {
         let minY = Infinity;
         let maxX = -Infinity;
         let maxY = -Infinity;
+        let validBoundsCount = 0;
 
         for (const obj of renderObjects) {
             const bounds = obj.getBounds();
@@ -137,10 +138,19 @@ export class SceneElement implements SceneElementInterface {
                 continue;
             }
             
+            // Count valid bounds
+            validBoundsCount++;
+            
             minX = Math.min(minX, bounds.x);
             minY = Math.min(minY, bounds.y);
             maxX = Math.max(maxX, bounds.x + bounds.width);
             maxY = Math.max(maxY, bounds.y + bounds.height);
+        }
+
+        // If no valid bounds were found, return empty bounds
+        if (validBoundsCount === 0) {
+            console.warn(`No valid bounds found for scene element ${this.id}, returning empty bounds`);
+            return { x: 0, y: 0, width: 0, height: 0 };
         }
 
         const result = {
@@ -154,6 +164,7 @@ export class SceneElement implements SceneElementInterface {
         if (process.env.NODE_ENV === 'development') {
             console.debug(`Scene element ${this.id} bounds:`, {
                 objects: renderObjects.length,
+                validBoundsCount,
                 bounds: result,
                 anchor: { x: this.anchorX, y: this.anchorY },
                 computedAnchor: { 

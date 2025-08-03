@@ -8,6 +8,8 @@ export class BackgroundElement extends SceneElement {
 
     constructor(id: string = 'background', config: BackgroundElementConfig = {}) {
         super('background', id, config);
+        this.anchorX = 0;
+        this.anchorY = 0;
         this._applyConfig();
     }
 

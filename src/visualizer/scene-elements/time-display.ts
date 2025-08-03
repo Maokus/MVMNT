@@ -258,7 +258,8 @@ export class TimeDisplayElement extends SceneElement {
 
         // Progress bars if enabled
         if (this.showProgress) {
-            const tickProgress = barBeatTick.tick / 960;
+            // Ensure progress values are between 0 and 1 to prevent negative dimensions
+            const tickProgress = Math.max(0, Math.min(1, barBeatTick.tick / 960));
             const tickBarWidth = baseFontSize * 2;
             const tickBarX = x + baseFontSize * 6 - tickBarWidth;
             const tickBarY = beatY + baseFontSize * 0.1;
@@ -268,7 +269,7 @@ export class TimeDisplayElement extends SceneElement {
             const tickBar = new Rectangle(tickBarX, tickBarY, tickBarWidth * tickProgress, 4,
                 this.getColorWithOpacity(this.textSecondaryColor, 0.6));
 
-            const beatProgress = (barBeatTick.beat - 1) / this.timingManager.beatsPerBar;
+            const beatProgress = Math.max(0, Math.min(1, (barBeatTick.beat - 1) / this.timingManager.beatsPerBar));
             const beatBarWidth = baseFontSize * 1;
             const beatBarX = x + baseFontSize * 3.8 - beatBarWidth;
             const beatBarY = beatY + baseFontSize * 0.1;
@@ -280,9 +281,6 @@ export class TimeDisplayElement extends SceneElement {
 
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }
-
-        console.log(`TimeDisplayElement: Rendered at ${targetTime}s - Bar: ${barBeatTick.bar}, Beat: ${barBeatTick.beat}, Tick: ${barBeatTick.tick}`);
-        console.log(renderObjects);
 
         return renderObjects;
     }

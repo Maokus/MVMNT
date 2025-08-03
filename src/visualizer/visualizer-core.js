@@ -47,7 +47,7 @@ export class MIDIVisualizerCore {
         this._setupImageLoadedListener();
 
         // Initialize the default scene
-        this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
+        //this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
     }
 
     updateSceneElementTimingManager() {
