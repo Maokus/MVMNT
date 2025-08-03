@@ -57,14 +57,16 @@ export class SceneElement implements SceneElementInterface {
 
         // Calculate the bounding box and anchor point for transformation
         const bounds = this._calculateSceneElementBounds(childRenderObjects);
-        const anchorX = bounds.x + bounds.width * this.anchorX;
-        const anchorY = bounds.y + bounds.height * this.anchorY;
+        const anchorPixelX = bounds.x + bounds.width * this.anchorX;
+        const anchorPixelY = bounds.y + bounds.height * this.anchorY;
 
         // Create an empty render object that will contain all child objects
         // This object handles the group transformation
+        // Position it so that when the anchor point is at (0,0) locally,
+        // it appears at (offsetX, offsetY) globally
         const containerObject = new EmptyRenderObject(
-            this.offsetX - anchorX, // Position offset accounting for anchor
-            this.offsetY - anchorY,
+            this.offsetX - anchorPixelX, // Position offset accounting for anchor
+            this.offsetY - anchorPixelY,
             this.globalScaleX,
             this.globalScaleY,
             this.globalOpacity
@@ -76,13 +78,12 @@ export class SceneElement implements SceneElementInterface {
         containerObject.setVisible(this.visible);
 
         // Add all child render objects to the container
+        // Children keep their original positions relative to the bounding box
+        // The container's position offset handles the anchor point adjustment
         for (const childObj of childRenderObjects) {
             if (childObj) {
-                // Adjust child position relative to anchor point
-                childObj.setPosition(
-                    childObj.x + anchorX,
-                    childObj.y + anchorY
-                );
+                // Don't modify child positions - they maintain their relative positions
+                // within the scene element's bounding box
                 containerObject.addChild(childObj);
             }
         }
@@ -120,18 +121,73 @@ export class SceneElement implements SceneElementInterface {
 
         for (const obj of renderObjects) {
             const bounds = obj.getBounds();
+            
+            // Validate bounds - catch potential issues early
+            if (!this._validateBounds(bounds, obj)) {
+                console.warn(`Invalid bounds detected for ${obj.constructor.name}:`, bounds);
+                continue;
+            }
+            
             minX = Math.min(minX, bounds.x);
             minY = Math.min(minY, bounds.y);
             maxX = Math.max(maxX, bounds.x + bounds.width);
             maxY = Math.max(maxY, bounds.y + bounds.height);
         }
 
-        return {
+        const result = {
             x: minX,
             y: minY,
             width: maxX - minX,
             height: maxY - minY
         };
+        
+        // Debug logging for bounds calculation (can be disabled in production)
+        if (process.env.NODE_ENV === 'development') {
+            console.debug(`Scene element ${this.id} bounds:`, {
+                objects: renderObjects.length,
+                bounds: result,
+                anchor: { x: this.anchorX, y: this.anchorY },
+                computedAnchor: { 
+                    x: result.x + result.width * this.anchorX, 
+                    y: result.y + result.height * this.anchorY 
+                }
+            });
+        }
+
+        return result;
+    }
+    
+    /**
+     * Validate bounds object for correctness
+     * @param bounds - Bounds object to validate
+     * @param obj - The render object (for debugging)
+     * @returns True if bounds are valid
+     */
+    private _validateBounds(bounds: any, obj?: any): boolean {
+        if (!bounds || typeof bounds !== 'object') {
+            return false;
+        }
+        
+        const { x, y, width, height } = bounds;
+        
+        // Check for required properties
+        if (typeof x !== 'number' || typeof y !== 'number' || 
+            typeof width !== 'number' || typeof height !== 'number') {
+            return false;
+        }
+        
+        // Check for invalid values
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) {
+            return false;
+        }
+        
+        // Check for negative dimensions (usually indicates an error)
+        if (width < 0 || height < 0) {
+            console.warn(`Negative dimensions detected in bounds:`, bounds, obj?.constructor?.name);
+            return false;
+        }
+        
+        return true;
     }
 
     /**

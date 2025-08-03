@@ -104,18 +104,71 @@ export class Text extends RenderObject {
     }
 
     getBounds() {
-        // For more accurate bounds, we'd need canvas context, but this is a reasonable approximation
-        // The actual font metrics would require access to the canvas context during measurement
-        const fontSize = parseInt(this.font) || 16;
-        const estimatedWidth = this.text.length * fontSize * 0.6; // Rough character width estimation
-        const estimatedHeight = fontSize * 1.2; // Include line height
+        // For more accurate bounds, we need better text measurement
+        // This is still an approximation but more accurate than before
+        const fontSize = this._extractFontSize(this.font);
+
+        // Improved character width estimation based on font type
+        let charWidthRatio = 0.6; // Default for Arial/Helvetica
+        if (this.font.toLowerCase().includes('mono')) {
+            charWidthRatio = 0.6; // Monospace fonts
+        } else if (this.font.toLowerCase().includes('serif')) {
+            charWidthRatio = 0.55; // Serif fonts tend to be narrower
+        } else if (this.font.toLowerCase().includes('bold')) {
+            charWidthRatio = 0.65; // Bold fonts are wider
+        }
+
+        const estimatedWidth = this.text.length * fontSize * charWidthRatio;
+        const estimatedHeight = fontSize * 1.3; // Include ascenders/descenders
+
+        // Adjust bounds based on text alignment
+        let boundsX = this.x;
+        let boundsY = this.y;
+
+        switch (this.textAlign) {
+            case 'center':
+                boundsX = this.x - estimatedWidth / 2;
+                break;
+            case 'right':
+                boundsX = this.x - estimatedWidth;
+                break;
+            default:
+                // 'left' is default - no adjustment needed
+                break;
+        }
+
+        switch (this.textBaseline) {
+            case 'middle':
+                boundsY = this.y - estimatedHeight / 2;
+                break;
+            case 'bottom':
+                boundsY = this.y - estimatedHeight;
+                break;
+            case 'alphabetic':
+                boundsY = this.y - estimatedHeight * 0.8; // Rough baseline adjustment
+                break;
+            default:
+                // 'top' is default - no adjustment needed
+                break;
+        }
 
         return {
-            x: this.x,
-            y: this.y,
+            x: boundsX,
+            y: boundsY,
             width: estimatedWidth,
             height: estimatedHeight
         };
+    }
+
+    // Helper method to extract font size from font string
+    _extractFontSize(fontString) {
+        const match = fontString.match(/(\d+)px/);
+        if (match) {
+            return parseInt(match[1]);
+        }
+        // Fallback: try to find any number in the font string
+        const numberMatch = fontString.match(/(\d+)/);
+        return numberMatch ? parseInt(numberMatch[1]) : 16;
     }
 
     // Utility method to create common text styles

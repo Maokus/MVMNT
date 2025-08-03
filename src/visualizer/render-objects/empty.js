@@ -16,11 +16,9 @@ export class EmptyRenderObject extends RenderObject {
     }
 
     /**
-     * Calculate bounds based on children
+     * Calculate bounds based on children with proper transform application
      */
     getBounds() {
-        console.log('Calculating bounds for EmptyRenderObject with children:', this.children.length);
-
         if (this.children.length === 0) {
             return { x: this.x, y: this.y, width: 0, height: 0 };
         }
@@ -32,17 +30,25 @@ export class EmptyRenderObject extends RenderObject {
 
         for (const child of this.children) {
             const bounds = child.getBounds();
-            console.log(`Child bounds: ${JSON.stringify(bounds)}`);
-            // Transform child bounds by this object's transform
-            // For simplicity, we'll use the child bounds as-is
-            // In a more complete implementation, you'd apply the transforms
-            minX = Math.min(minX, bounds.x + this.x);
-            minY = Math.min(minY, bounds.y + this.y);
-            maxX = Math.max(maxX, bounds.x + bounds.width + this.x);
-            maxY = Math.max(maxY, bounds.y + bounds.height + this.y);
-        }
 
-        console.log(`Calculated bounds: { x: ${minX}, y: ${minY}, width: ${maxX - minX}, height: ${maxY - minY} }`);
+            // Apply this object's transform to child bounds
+            // For a complete implementation, we'd need to transform all 4 corners
+            // and find the new bounding box. For now, we'll use a simpler approach
+            // that works for translation and uniform scaling.
+
+            // Apply scale to dimensions
+            const scaledWidth = bounds.width * this.scaleX;
+            const scaledHeight = bounds.height * this.scaleY;
+
+            // Apply position transform
+            const transformedX = (bounds.x * this.scaleX) + this.x;
+            const transformedY = (bounds.y * this.scaleY) + this.y;
+
+            minX = Math.min(minX, transformedX);
+            minY = Math.min(minY, transformedY);
+            maxX = Math.max(maxX, transformedX + scaledWidth);
+            maxY = Math.max(maxY, transformedY + scaledHeight);
+        }
 
         return {
             x: minX,

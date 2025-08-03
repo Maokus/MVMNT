@@ -81,11 +81,15 @@ export class Line extends RenderObject {
     getBounds() {
         const x2 = this.x + this.deltaX;
         const y2 = this.y + this.deltaY;
+        const minX = Math.min(this.x, x2);
+        const minY = Math.min(this.y, y2);
+        const maxX = Math.max(this.x, x2);
+        const maxY = Math.max(this.y, y2);
         return {
-            x: Math.min(this.x, x2),
-            y: Math.min(this.y, y2),
-            width: Math.abs(this.deltaX),
-            height: Math.abs(this.deltaY)
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
         };
     }
 
