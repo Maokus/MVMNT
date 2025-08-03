@@ -40,6 +40,7 @@ export class DebugElement extends SceneElement {
 
         const renderObjects: RenderObjectInterface[] = [];
 
+        /*
         for (let i=-10; i < 50; i++) {
             for (let j=0; j < 40; j++) {
                 var testLine = new Line(50*j+5, 100 + (i * 50), 50*(j+1), 100 + (i * 50), "#FFFFFF", 1);
@@ -58,7 +59,7 @@ export class DebugElement extends SceneElement {
                 var testLine3 = new Line(50*j, 100 + (i * 50), 50*(j+1), 100 + ((i+1) * 50)+5, "#FF0000", 1);
                 renderObjects.push(testLine3);
             }
-        }
+        }*/
 
         const testRect1 = new Rectangle(100, 100, 100, 100, "#FF0000");
         renderObjects.push(testRect1);

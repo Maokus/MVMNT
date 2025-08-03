@@ -19,6 +19,8 @@ export class EmptyRenderObject extends RenderObject {
      * Calculate bounds based on children
      */
     getBounds() {
+        console.log('Calculating bounds for EmptyRenderObject with children:', this.children.length);
+
         if (this.children.length === 0) {
             return { x: this.x, y: this.y, width: 0, height: 0 };
         }
@@ -30,6 +32,7 @@ export class EmptyRenderObject extends RenderObject {
 
         for (const child of this.children) {
             const bounds = child.getBounds();
+            console.log(`Child bounds: ${JSON.stringify(bounds)}`);
             // Transform child bounds by this object's transform
             // For simplicity, we'll use the child bounds as-is
             // In a more complete implementation, you'd apply the transforms
@@ -38,6 +41,8 @@ export class EmptyRenderObject extends RenderObject {
             maxX = Math.max(maxX, bounds.x + bounds.width + this.x);
             maxY = Math.max(maxY, bounds.y + bounds.height + this.y);
         }
+
+        console.log(`Calculated bounds: { x: ${minX}, y: ${minY}, width: ${maxX - minX}, height: ${maxY - minY} }`);
 
         return {
             x: minX,
