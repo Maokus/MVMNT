@@ -72,6 +72,10 @@ export class SceneElement implements SceneElementInterface {
             this.globalOpacity
         );
 
+        // Set anchor offset for proper rotation/scaling center
+        // The anchor offset is relative to the container's position
+        containerObject.setAnchorOffset(anchorPixelX, anchorPixelY);
+
         // Set additional transform properties
         containerObject.setRotation(this.globalRotation);
         containerObject.setSkew(this.globalSkewX, this.globalSkewY);

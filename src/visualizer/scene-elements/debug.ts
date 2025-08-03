@@ -41,8 +41,8 @@ export class DebugElement extends SceneElement {
         const renderObjects: RenderObjectInterface[] = [];
 
         const testGrid = false;
-        const testRect = false;
-        const testDots = true;
+        const testRect = true;
+        const testDots = false;
 
         if(testGrid){
             for (let i=-10; i < 50; i++) {
@@ -75,6 +75,43 @@ export class DebugElement extends SceneElement {
 
             const testRect3 = new Rectangle(1000, 800, 100, 100, "#0000FF");
             renderObjects.push(testRect3);
+
+            // Add anchor point visualization
+            if (renderObjects.length > 0) {
+                const bounds = this._calculateSceneElementBounds(renderObjects);
+                const anchorPixelX = bounds.x + bounds.width * this.anchorX;
+                const anchorPixelY = bounds.y + bounds.height * this.anchorY;
+                
+                // Draw cross lines through anchor point
+                const horizontalLine = new Line(
+                    bounds.x, anchorPixelY, 
+                    bounds.x + bounds.width, anchorPixelY, 
+                    "#FFFF00", 2
+                );
+                const verticalLine = new Line(
+                    anchorPixelX, bounds.y, 
+                    anchorPixelX, bounds.y + bounds.height, 
+                    "#FFFF00", 2
+                );
+                
+                // Draw anchor point marker
+                const anchorMarker = new Rectangle(
+                    anchorPixelX - 5, anchorPixelY - 5, 
+                    10, 10, 
+                    "#FFFF00"
+                );
+                
+                renderObjects.push(horizontalLine, verticalLine, anchorMarker);
+                
+                // Add text showing anchor coordinates
+                const anchorText = new Text(
+                    anchorPixelX + 15, anchorPixelY - 15,
+                    `Anchor: (${this.anchorX.toFixed(2)}, ${this.anchorY.toFixed(2)})`,
+                    "Arial 16px",
+                    "#FFFFFF"
+                );
+                renderObjects.push(anchorText);
+            }
         }
 
         if(testDots){
@@ -101,7 +138,16 @@ export class DebugElement extends SceneElement {
         this.globalRotation = rotation;
         this.globalSkewX = skewX;
         this.globalSkewY = skewY;
-        console.log(`Background transforms set: rotation=${rotation}, skewX=${skewX}, skewY=${skewY}`);
+        console.log(`Debug transforms set: rotation=${rotation}, skewX=${skewX}, skewY=${skewY}`);
+        console.log(`Current anchor point: (${this.anchorX}, ${this.anchorY})`);
+        return this;
+    }
+
+    // Test anchor point changes
+    setTestAnchor(anchorX: number, anchorY: number): this {
+        this.anchorX = anchorX;
+        this.anchorY = anchorY;
+        console.log(`Anchor point changed to: (${anchorX}, ${anchorY})`);
         return this;
     }
 }
