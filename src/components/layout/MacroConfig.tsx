@@ -8,7 +8,7 @@ interface MacroConfigProps {
 
 interface Macro {
     name: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file';
+    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image';
     value: any;
     options: {
         min?: number;

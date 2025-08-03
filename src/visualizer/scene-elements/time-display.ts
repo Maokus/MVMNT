@@ -281,6 +281,9 @@ export class TimeDisplayElement extends SceneElement {
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }
 
+        console.log(`TimeDisplayElement: Rendered at ${targetTime}s - Bar: ${barBeatTick.bar}, Beat: ${barBeatTick.beat}, Tick: ${barBeatTick.tick}`);
+        console.log(renderObjects);
+
         return renderObjects;
     }
 

@@ -891,9 +891,15 @@ body {
 /* Form field styles - used by config editor */
 .form-field {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 4px;
     min-height: 32px;
+}
+
+.form-field .field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .form-field label {
@@ -905,9 +911,21 @@ body {
     text-align: left;
 }
 
+.form-field .macro-assignment-select {
+    width: 120px;
+    flex-shrink: 0;
+    padding: 6px 8px;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #3c3c3c;
+    color: #ffffff;
+}
+
 .form-field input,
-.form-field select {
-    flex: 1;
+.form-field select:not(.macro-assignment-select) {
+    width: 120px;
+    flex-shrink: 0;
     padding: 6px 8px;
     border: 1px solid #464647;
     border-radius: 3px;
@@ -925,27 +943,16 @@ body {
 }
 
 .form-field input[type="checkbox"] {
-    flex: none;
     width: auto;
     margin: 0;
     accent-color: #0e639c;
 }
 
 .form-field.checkbox-field {
-    justify-content: flex-start;
-}
-
-.form-field.checkbox-field input[type="checkbox"] {
-    order: 1;
-}
-
-.form-field.checkbox-field label {
-    margin-left: 8px;
-    order: 2;
+    /* Remove the custom checkbox styling, use standard field-row layout */
 }
 
 .form-field input[type="color"] {
-    flex: none;
     width: 60px;
     height: 32px;
     padding: 2px;
@@ -953,7 +960,49 @@ body {
 }
 
 .form-field input[type="range"] {
-    flex: 1;
+    width: 120px;
+}
+
+/* File input styling */
+.file-input-container {
+    width: 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.file-input-label {
+    background: #0e639c;
+    color: white;
+    padding: 6px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 12px;
+    border: none;
+    transition: background-color 0.2s;
+}
+
+.file-input-label:hover {
+    background: #1177bb;
+}
+
+.current-file {
+    font-size: 10px;
+    color: #cccccc;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.file-preview {
+    display: flex;
+    justify-content: center;
+}
+
+.file-preview img {
+    border-radius: 3px;
+    border: 1px solid #464647;
 }
 
 /* Range input styling */
@@ -961,7 +1010,7 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex: 1;
+    width: 120px;
 }
 
 .range-input-container input[type="range"] {
@@ -985,16 +1034,20 @@ body {
 .form-field.has-description .field-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .form-field.has-description label {
     min-width: 80px;
 }
 
+.form-field.has-description .macro-assignment-select {
+    width: 120px;
+}
+
 .form-field.has-description input,
-.form-field.has-description select {
-    flex: 1;
+.form-field.has-description select:not(.macro-assignment-select) {
+    width: 120px;
 }
 
 /* Config section styles - legacy style, consider consolidating with form-field */

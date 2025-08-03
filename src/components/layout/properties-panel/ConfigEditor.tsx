@@ -126,7 +126,24 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
         return ['number', 'string', 'boolean', 'color', 'select', 'file'].includes(propertyType);
     };
 
-    const getMacroOptions = (propertyType: string) => {
+    const getMacroOptions = (propertyType: string, propertySchema: any) => {
+        if (propertyType === 'file') {
+            // For file inputs, filter by accept type
+            const accept = propertySchema?.accept;
+            let targetFileType = 'file'; // default generic file type
+
+            if (accept) {
+                if (accept.includes('.mid') || accept.includes('.midi')) {
+                    targetFileType = 'file-midi';
+                } else if (accept.includes('image')) {
+                    targetFileType = 'file-image';
+                }
+            }
+
+            return globalMacroManager.getAllMacros()
+                .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
+        }
+
         return globalMacroManager.getAllMacros()
             .filter((macro: any) => macro.type === propertyType);
     };
@@ -172,7 +189,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
     const renderMacroDropdown = (field: FormField) => {
         if (!canAssignMacro(field.propSchema.type)) return null;
 
-        const macros = getMacroOptions(field.propSchema.type);
+        const macros = getMacroOptions(field.propSchema.type, field.propSchema);
         const currentAssignment = field.assignedMacro;
 
         return (
@@ -228,23 +245,21 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
                                     </small>
                                 </>
                             ) : isCheckbox ? (
-                                <>
-                                    {renderInput(field)}
+                                <div className="field-row">
                                     <label htmlFor={`config-${key}`}>
                                         {propSchema.label || key}
                                     </label>
                                     {renderMacroDropdown(field)}
-                                </>
-                            ) : (
-                                <>
-                                    <div className="label-row">
-                                        <label htmlFor={`config-${key}`}>
-                                            {propSchema.label || key}
-                                        </label>
-                                        {renderMacroDropdown(field)}
-                                    </div>
                                     {renderInput(field)}
-                                </>
+                                </div>
+                            ) : (
+                                <div className="field-row">
+                                    <label htmlFor={`config-${key}`}>
+                                        {propSchema.label || key}
+                                    </label>
+                                    {renderMacroDropdown(field)}
+                                    {renderInput(field)}
+                                </div>
                             )}
                         </div>
                     );

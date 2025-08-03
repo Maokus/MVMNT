@@ -199,13 +199,14 @@ export interface BaseSceneElementConfig {
 }
 
 export interface ConfigSchemaProperty {
-  type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range';
+  type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image';
   label: string;
   default: any;
   min?: number;
   max?: number;
   step?: number;
   options?: Array<{ value: any; label: string }>;
+  accept?: string; // For file inputs
   description?: string;
 }
 

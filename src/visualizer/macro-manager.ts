@@ -3,22 +3,23 @@
  * Provides a "plug and play" system for reusable templates and centralized control
  */
 
-type MacroType = 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file';
+export type MacroType = 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image';
 
 interface MacroOptions {
   min?: number;
   max?: number;
   step?: number;
   selectOptions?: { value: any; label: string; }[];
+  accept?: string; // For file inputs
   [key: string]: any;
 }
 
-interface MacroAssignment {
+export interface MacroAssignment {
   elementId: string;
   propertyPath: string;
 }
 
-interface Macro {
+export interface Macro {
   name: string;
   type: MacroType;
   value: any;
@@ -29,7 +30,7 @@ interface Macro {
   lastModified: number;
 }
 
-interface ElementMacro {
+export interface ElementMacro {
   macroName: string;
   propertyPath: string;
   value: any;

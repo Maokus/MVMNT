@@ -42,10 +42,11 @@ export class ImageElement extends SceneElement {
             properties: {
                 ...super.getConfigSchema().properties,
                 imageSource: {
-                    type: 'string', // Changed from 'file' to 'string' for TypeScript compatibility
+                    type: 'file',
                     label: 'Image File',
                     default: '',
-                    description: 'Image file path or URL to display'
+                    accept: 'image/*',
+                    description: 'Image file to display'
                 },
                 x: {
                     type: 'number',
