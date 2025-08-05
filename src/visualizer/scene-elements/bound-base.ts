@@ -484,18 +484,15 @@ export class BoundSceneElement implements SceneElementInterface {
      * Apply configuration from either raw values or binding data
      */
     protected _applyConfig(config: { [key: string]: any }): void {
-        console.log(`[_applyConfig] Applying config for element ${this.id}:`, config);
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 
             // Check if this is binding data
             if (value && typeof value === 'object' && value.type && (value.type === 'constant' || value.type === 'macro')) {
                 // This is serialized binding data
-                console.log(`[_applyConfig] Creating binding for ${key} from serialized data:`, value);
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {
                 // This is a raw value, create a constant binding
-                console.log(`[_applyConfig] Creating constant binding for ${key} with value:`, value);
                 this.bindings.set(key, new ConstantBinding(value));
             }
             

@@ -76,7 +76,6 @@ export class MacroManager {
     this.assignments.set(name, []);
     this._notifyListeners('macroCreated', { name, macro });
 
-    console.log(`Created macro '${name}' with type '${type}' and default value:`, defaultValue);
     return true;
   }
 

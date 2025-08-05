@@ -1,10 +1,10 @@
 // TimeUnitPianoRoll scene element with Property Binding System
-import { BoundSceneElement } from './bound-base';
-import { RenderObjectInterface, ConfigSchema } from '../types.js';
-import { Line, Text } from '../render-objects/index.js';
-import { AnimationController } from './time-unit-piano-roll/animation-controller.js';
-import { LocalTimingManager } from '../local-timing-manager.js';
-import { NoteBlock } from '../note-block';
+import { BoundSceneElement } from '../bound-base';
+import { RenderObjectInterface, ConfigSchema } from '../../types.js';
+import { Line, Text } from '../../render-objects/index.js';
+import { AnimationController } from './animation-controller.js';
+import { LocalTimingManager } from '../../local-timing-manager.js';
+import { NoteBlock } from '../../note-block';
 
 export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
     public timingManager: LocalTimingManager;
@@ -276,7 +276,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
             console.log(`Loading MIDI file for bound element ${this.id}:`, file.name);
 
             // Import MIDIParser dynamically to avoid circular imports
-            const { MIDIParser } = await import('../midi-parser');
+            const { MIDIParser } = await import('../../midi-parser');
             const parser = new MIDIParser();
 
             // Parse the MIDI file

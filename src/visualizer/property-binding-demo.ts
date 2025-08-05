@@ -1,5 +1,5 @@
 // Demonstration of the new Property Binding System
-import { BoundTimeUnitPianoRollElement } from './scene-elements/bound-time-unit-piano-roll';
+import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
 import { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder';
 import { globalMacroManager } from './macro-manager';
 

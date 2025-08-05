@@ -21,7 +21,7 @@ export {
 } from './property-bindings';
 export type { PropertyBindingData } from './property-bindings';
 export { BoundSceneElement } from './scene-elements/bound-base';
-export { BoundTimeUnitPianoRollElement } from './scene-elements/bound-time-unit-piano-roll';
+export { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
 export { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder';
 
 // ==========================================
