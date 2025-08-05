@@ -192,6 +192,23 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                     max: 2.0,
                     step: 0.1,
                     description: 'Duration of note animations in seconds'
+                },
+
+                // Playhead properties
+                playheadLineWidth: {
+                    type: 'number',
+                    label: 'Playhead Line Width',
+                    default: 2,
+                    min: 1,
+                    max: 10,
+                    step: 1,
+                    description: 'Width of the playhead line in pixels'
+                },
+                showPlayhead: {
+                    type: 'boolean',
+                    label: 'Show Playhead',
+                    default: true,
+                    description: 'Show the playhead line'
                 }
             }
         };
@@ -216,6 +233,8 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         const noteColor = this.getProperty<string>('noteColor');
         const noteHeight = this.getProperty<number>('noteHeight');
         const animationType = this.getProperty<string>('animationType');
+        const showPlayhead = this.getProperty<boolean>('showPlayhead');
+        const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
 
         // Handle MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');
@@ -233,13 +252,17 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         const notesInTimeUnit = this.timingManager.getNotesInTimeUnit(targetTime);
         
         // Create render objects for the piano roll
+        console.log(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${notesInTimeUnit.length} notes`);
         if (showNotes && notesInTimeUnit.length > 0) {
             const noteBlocks = this._createNoteBlocks(notesInTimeUnit, targetTime);
+            console.log(`[_buildRenderObjects] Created ${noteBlocks.length} note blocks for rendering`);
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { animationType, noteColor, noteHeight, minNote, maxNote, pianoWidth, rollWidth },
                 noteBlocks,
                 targetTime
             );
+            console.log(`[_buildRenderObjects] Created ${animatedRenderObjects.length} animated note blocks`);
+            console.log(animatedRenderObjects);
             renderObjects.push(...animatedRenderObjects);
         }
 
@@ -261,6 +284,11 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         // Add beat labels
         if (showBeatLabels) {
             renderObjects.push(...this._createBeatLabels(timeUnitBars, beatsPerBar, pianoWidth, rollWidth || 800));
+        }
+
+        // Add playhead
+        if (showPlayhead) {
+            renderObjects.push(...this._createPlayhead(config, targetTime, pianoWidth, rollWidth || 800, (maxNote - minNote + 1) * noteHeight, playheadLineWidth));
         }
 
         return renderObjects;
@@ -431,6 +459,40 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         }
 
         return labels;
+    }
+
+    /**
+     * Create playhead line
+     */
+    private _createPlayhead(config: any, targetTime: number, pianoWidth: number, rollWidth: number, totalHeight: number, lineWidth: number): RenderObjectInterface[] {
+        const playheadObjects: RenderObjectInterface[] = [];
+        
+        // Get playhead color from config (defaults from visualizer core)
+        const playheadColor = config.playheadColor || '#ff6b6b';
+        
+        // Calculate playhead position
+        const timeUnitInSeconds = this.getTimeUnit();
+        const windowStart = Math.floor(targetTime / timeUnitInSeconds) * timeUnitInSeconds;
+        const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
+        const playheadX = pianoWidth + playheadPosition;
+
+        // Create playhead line using Line.createPlayhead if available, otherwise use regular Line
+        if (Line.createPlayhead) {
+            const playhead = Line.createPlayhead(
+                playheadX,
+                0,
+                totalHeight,
+                playheadColor,
+                lineWidth
+            );
+            playheadObjects.push(playhead);
+        } else {
+            // Fallback to regular line
+            const playhead = new Line(playheadX, 0, playheadX, totalHeight, playheadColor, lineWidth);
+            playheadObjects.push(playhead);
+        }
+
+        return playheadObjects;
     }
 
     /**

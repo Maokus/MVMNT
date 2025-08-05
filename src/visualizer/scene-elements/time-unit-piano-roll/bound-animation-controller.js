@@ -8,8 +8,13 @@ export class BoundAnimationController {
         this.noteAnimations = new NoteAnimations();
     }
 
-    buildNoteRenderObjects(config, noteRange, totalNotes, noteHeight) {
-        const { noteBlocks, targetTime } = config;
+    buildNoteRenderObjects(config, noteBlocks, targetTime) {
+        console.log(`[BoundAnimationController] buildNoteRenderObjects called with:`, {
+            configKeys: Object.keys(config),
+            noteBlocksCount: noteBlocks ? noteBlocks.length : 0,
+            targetTime,
+            noteBlocks: noteBlocks ? noteBlocks.slice(0, 3) : null // First few for debugging
+        });
 
         // Get animation settings from bound element
         const animationType = this.boundTimeUnitPianoRoll.getProperty('animationType');
@@ -17,13 +22,21 @@ export class BoundAnimationController {
         const animationDuration = this.boundTimeUnitPianoRoll.getProperty('animationDuration') || 0.5;
         const animationEnabled = animationType !== 'none';
 
+        // Extract config values
+        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth } = config;
+        const noteRange = { min: minNote, max: maxNote };
+        const totalNotes = maxNote - minNote + 1;
+
         // Calculate time window using the element's time unit settings
         const timeUnitInSeconds = this.boundTimeUnitPianoRoll.getTimeUnit();
         const windowStart = Math.floor(targetTime / timeUnitInSeconds) * timeUnitInSeconds;
         const windowEnd = windowStart + timeUnitInSeconds;
         const renderObjects = [];
 
+        console.log(`[BoundAnimationController] Time window: ${windowStart} - ${windowEnd}, timeUnit: ${timeUnitInSeconds}`);
+
         if (!noteBlocks || noteBlocks.length === 0) {
+            console.log(`[BoundAnimationController] No note blocks to process`);
             return renderObjects;
         }
 
@@ -31,18 +44,21 @@ export class BoundAnimationController {
             // Check if note should be shown in current time window
             const shouldShow = block.shouldShow(targetTime, windowStart, windowEnd);
 
+            console.log(`[BoundAnimationController] Note ${block.note} (${block.startTime}-${block.endTime}): shouldShow=${shouldShow}`);
+
             if (!shouldShow) {
                 continue;
             }
 
             const noteIndex = block.note - noteRange.min;
             if (noteIndex < 0 || noteIndex >= totalNotes) {
+                console.log(`[BoundAnimationController] Note ${block.note} outside range (${noteRange.min}-${noteRange.max})`);
                 continue;
             }
 
             const y = (totalNotes - noteIndex - 1) * noteHeight;
             const channelColors = this.boundTimeUnitPianoRoll.getChannelColors();
-            const noteColor = channelColors[block.channel % channelColors.length];
+            const finalNoteColor = channelColors[block.channel % channelColors.length];
 
             // Calculate timing
             const noteStartTime = block.startTime;
@@ -50,51 +66,71 @@ export class BoundAnimationController {
             const startTimeInWindow = noteStartTime - windowStart;
             const endTimeInWindow = noteEndTime - windowStart;
 
-            const x = config.pianoWidth + (startTimeInWindow / timeUnitInSeconds) * config.rollWidth;
-            const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / timeUnitInSeconds) * config.rollWidth);
+            const x = pianoWidth + (startTimeInWindow / timeUnitInSeconds) * rollWidth;
+            const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / timeUnitInSeconds) * rollWidth);
+
+            console.log(`[BoundAnimationController] Creating render objects for note ${block.note}: x=${x}, y=${y}, width=${width}, color=${finalNoteColor}`);
 
             // Create note render objects using animation system
             const noteRenderObjects = this._createAnimatedNoteRenderObjects(
-                block, x, y, width, noteHeight, noteColor, targetTime, 
+                block, x, y, width, noteHeight, finalNoteColor, targetTime,
                 animationType, animationSpeed, animationDuration, animationEnabled
             );
 
+            console.log(`[BoundAnimationController] Created ${noteRenderObjects.length} render objects for note ${block.note}`);
             renderObjects.push(...noteRenderObjects);
         }
 
+        console.log(`[BoundAnimationController] Total render objects created: ${renderObjects.length}`);
         return renderObjects;
     }
 
     _createAnimatedNoteRenderObjects(block, x, y, width, height, color, currentTime, animationType, animationSpeed, animationDuration, animationEnabled) {
+        console.log(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
+            x, y, width, height, color, currentTime, animationType, animationEnabled
+        });
+
         if (!animationEnabled || animationType === 'none') {
             // No animation - create simple render object
-            return this.noteAnimations.createStaticNote(block, x, y, width, height, color);
+            const staticObjects = this.noteAnimations.createStaticNote(block, x, y, width, height, color);
+            console.log(`[_createAnimatedNoteRenderObjects] Created ${staticObjects.length} static render objects`);
+            return staticObjects;
         }
 
         // Get animation state for this note
         const animationState = this._calculateAnimationState(block, currentTime, animationDuration);
 
+        console.log(`[_createAnimatedNoteRenderObjects] Animation state:`, animationState);
+
         if (!animationState) {
+            console.log(`[_createAnimatedNoteRenderObjects] No animation state - note not visible`);
             return []; // Note not visible
         }
 
         // Create animated render objects based on state
         switch (animationState.type) {
             case 'onset':
-                return this.noteAnimations.createOnsetAnimation(
+                const onsetObjects = this.noteAnimations.createOnsetAnimation(
                     block, x, y, width, height, color,
                     animationType, animationState.progress
                 );
+                console.log(`[_createAnimatedNoteRenderObjects] Created ${onsetObjects.length} onset animation objects`);
+                return onsetObjects;
             case 'sustained':
-                return this.noteAnimations.createSustainedNote(
+                const sustainedObjects = this.noteAnimations.createSustainedNote(
                     block, x, y, width, height, color
                 );
+                console.log(`[_createAnimatedNoteRenderObjects] Created ${sustainedObjects.length} sustained note objects`);
+                return sustainedObjects;
             case 'offset':
-                return this.noteAnimations.createOffsetAnimation(
+                const offsetObjects = this.noteAnimations.createOffsetAnimation(
                     block, x, y, width, height, color,
                     animationType, animationState.progress
                 );
+                console.log(`[_createAnimatedNoteRenderObjects] Created ${offsetObjects.length} offset animation objects`);
+                return offsetObjects;
             default:
+                console.log(`[_createAnimatedNoteRenderObjects] Unknown animation state type: ${animationState.type}`);
                 return [];
         }
     }
@@ -156,7 +192,7 @@ export class BoundAnimationController {
     // Validate animation configuration to prevent timing bugs
     validateAnimationConfig() {
         const issues = [];
-        
+
         const animationType = this.boundTimeUnitPianoRoll.getProperty('animationType');
         const animationSpeed = this.boundTimeUnitPianoRoll.getProperty('animationSpeed');
         const animationDuration = this.boundTimeUnitPianoRoll.getProperty('animationDuration') || 0.5;
