@@ -8,6 +8,7 @@ import {
     PropertyBindingUtils, 
     PropertyBindingData 
 } from '../property-bindings';
+import { globalMacroManager } from '../macro-manager';
 
 export class BoundSceneElement implements SceneElementInterface {
     public type: string;
@@ -29,6 +30,27 @@ export class BoundSceneElement implements SceneElementInterface {
         
         // Apply configuration, converting values to bindings
         this._applyConfig(config);
+        
+        // Set up macro change listener to invalidate cache
+        this._setupMacroListener();
+    }
+
+    /**
+     * Set up listener for macro changes to invalidate cache
+     */
+    private _setupMacroListener(): void {
+        globalMacroManager.addListener((eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+            console.log(`[MacroListener] Event: ${eventType}, data:`, data);
+            if (eventType === 'macroValueChanged') {
+                // Invalidate cache for properties bound to this macro
+                this.bindings.forEach((binding, key) => {
+                    if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
+                        console.log(`[MacroListener] Invalidating cache for property '${key}' bound to macro '${data.name}'`);
+                        this._cacheValid.set(key, false);
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -65,6 +87,7 @@ export class BoundSceneElement implements SceneElementInterface {
     protected getProperty<T>(key: string): T {
         // Check cache first
         if (this._cacheValid.get(key)) {
+            console.log(`[getProperty] Using cached value for ${key}:`, this._cachedValues.get(key));
             return this._cachedValues.get(key);
         }
 
@@ -75,6 +98,7 @@ export class BoundSceneElement implements SceneElementInterface {
         }
 
         const value = binding.getValue();
+        console.log(`[getProperty] Fresh value for ${key}:`, value, 'from binding:', binding);
         
         // Cache the value
         this._cachedValues.set(key, value);
@@ -460,15 +484,18 @@ export class BoundSceneElement implements SceneElementInterface {
      * Apply configuration from either raw values or binding data
      */
     protected _applyConfig(config: { [key: string]: any }): void {
+        console.log(`[_applyConfig] Applying config for element ${this.id}:`, config);
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 
             // Check if this is binding data
             if (value && typeof value === 'object' && value.type && (value.type === 'constant' || value.type === 'macro')) {
                 // This is serialized binding data
+                console.log(`[_applyConfig] Creating binding for ${key} from serialized data:`, value);
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {
                 // This is a raw value, create a constant binding
+                console.log(`[_applyConfig] Creating constant binding for ${key} with value:`, value);
                 this.bindings.set(key, new ConstantBinding(value));
             }
             

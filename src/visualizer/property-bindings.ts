@@ -99,10 +99,12 @@ export class MacroBinding<T = any> extends PropertyBinding<T> {
 
   getValue(): T {
     const macro = globalMacroManager.getMacro(this.macroId);
+    console.log(`[MacroBinding.getValue] Looking for macro '${this.macroId}', found:`, macro);
     if (!macro) {
       console.warn(`Macro '${this.macroId}' not found, returning undefined`);
       return undefined as T;
     }
+    console.log(`[MacroBinding.getValue] Returning macro value:`, macro.value);
     return macro.value as T;
   }
 
