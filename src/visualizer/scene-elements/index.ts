@@ -1,6 +1,3 @@
-// Export all scene elements from a single entry point
-export { SceneElement } from './base';
-
 // Export bound scene elements
 export { BoundSceneElement } from './bound-base';
 export { BoundBackgroundElement } from './bound-background';

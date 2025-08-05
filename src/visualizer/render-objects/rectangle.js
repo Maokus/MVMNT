@@ -35,8 +35,6 @@ export class Rectangle extends RenderObject {
     }
 
     _renderSelf(ctx, config, currentTime) {
-        console.log(`[Rectangle._renderSelf] Rendering rectangle at (${this.x}, ${this.y}) size ${this.width}x${this.height}, color: ${this.fillColor}, alpha: ${this.globalAlpha}`);
-
         // Apply global alpha
         const originalAlpha = ctx.globalAlpha;
         ctx.globalAlpha = originalAlpha * this.opacity;

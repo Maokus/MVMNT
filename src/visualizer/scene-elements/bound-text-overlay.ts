@@ -127,29 +127,4 @@ export class BoundTextOverlayElement extends BoundSceneElement {
         return renderObjects;
     }
 
-    setText(text: string): this {
-        this.setProperty('text', text);
-        return this;
-    }
-
-    setFontFamily(family: string): this {
-        this.setProperty('fontFamily', family);
-        return this;
-    }
-
-    setFontWeight(weight: string): this {
-        this.setProperty('fontWeight', weight);
-        return this;
-    }
-
-    setFontSize(size: number): this {
-        this.setProperty('fontSize', size);
-        return this;
-    }
-
-    setColor(color: string): this {
-        this.setProperty('color', color);
-        return this;
-    }
-
 }

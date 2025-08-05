@@ -290,52 +290,62 @@ export class HybridSceneBuilder {
         this._createDefaultMacros();
 
         // Add elements in z-index order (background first, overlay last)
-        this.addElement(new BoundBackgroundElement()
-            .setZIndex(0)
-            .setAnchor(0, 0)
-        );
+        this.addElement(new BoundBackgroundElement("background", {
+            zIndex: 0,
+            anchorX: 0,
+            anchorY: 0
+        }));
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
-        const timeUnitPianoRoll = new BoundTimeUnitPianoRollElement('main', {})
-            .setZIndex(10)
-            .setTimeUnitBars(1)
-            .setOffset(750, 750)
-            .setAnchor(0.5, 0.5);
-        this.addElement(timeUnitPianoRoll);
+        this.addElement(new BoundTimeUnitPianoRollElement('main', {
+            zIndex: 10,
+            timeUnitBars: 1,
+            offsetX: 750,
+            offsetY: 750,
+            anchorX: 0.5,
+            anchorY: 0.5,
+        }));
 
         // Time display with local timing
-        const timeDisplay = new BoundTimeDisplayElement('timeDisplay', 'bottomLeft', true, {})
-            .setZIndex(40)
-            .setAnchor(0, 1)
-            .setOffset(100, 1400)
-        this.addElement(timeDisplay);
+        this.addElement(new BoundTimeDisplayElement('timeDisplay', {
+            zIndex: 40,
+            anchorX: 0,
+            anchorY: 1,
+            offsetX: 100,
+            offsetY: 1400,
+        }));
 
-        const progressDisplay = new BoundProgressDisplayElement()
-            .setZIndex(45)
-            .setAnchor(0, 1)
-            .setOffset(10, 1500)
-
-        this.addElement(progressDisplay);
+        this.addElement(new BoundProgressDisplayElement('progressDisplay', {
+            zIndex: 45,
+            anchorX: 0,
+            anchorY: 1,
+            offsetX: 10,
+            offsetY: 1500,
+        }));
 
         // Add two separate text elements - one for title, one for artist
-        const titleElement = new BoundTextOverlayElement('titleText', 'topCenter')
-            .setText('Song Title') // Default placeholder text
-            .setFontSize(100)
-            .setFontWeight('bold')
-            .setZIndex(50)
-            .setOffset(100, 100)
-            .setAnchor(0, 0);
-        this.addElement(titleElement);
+        this.addElement(new BoundTextOverlayElement('titleText', {
+            zIndex: 50,
+            anchorX: 0,
+            anchorY: 0,
+            offsetX: 100,
+            offsetY: 100,
+            text: 'Song Title', // Default placeholder text
+            fontSize: 100,
+            fontWeight: 'bold',
+        }));
 
         // Position artist text 40px below the title text
-        const artistElement = new BoundTextOverlayElement('artistText', 'topCenter')
-            .setText('Artist Name') // Set initial artist name text
-            .setFontSize(40)
-            .setFontWeight('normal')
-            .setZIndex(51)
-            .setOffset(105, 210)
-            .setAnchor(0, 0);
-        this.addElement(artistElement);
+        this.addElement(new BoundTextOverlayElement('artistText', {
+            zIndex: 51,
+            anchorX: 0,
+            anchorY: 0,
+            offsetX: 105,
+            offsetY: 210,
+            text: 'Artist Name', // Default placeholder text
+            fontSize: 40,
+            fontWeight: 'normal',
+        }));
 
         // Assign macros to relevant element properties
         this._assignDefaultMacros();

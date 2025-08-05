@@ -506,8 +506,9 @@ export class BoundSceneElement implements SceneElementInterface {
     /**
      * Update configuration with new values
      */
-    updateConfig(newConfig: { [key: string]: any }): void {
+    updateConfig(newConfig: { [key: string]: any }): this {
         this._applyConfig(newConfig);
+        return this;
     }
 
     // Setter methods that work with the binding system
