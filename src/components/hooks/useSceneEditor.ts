@@ -96,17 +96,39 @@ export const useSceneEditor = ({
     const handleToggleVisibility = useCallback((elementId: string) => {
         if (!sceneBuilder) return;
 
-        const element = sceneBuilder.getElement(elementId);
-        if (element) {
-            element.visible = !element.visible;
-            refreshElements();
+        // Get current element config to determine current visibility
+        const currentConfig = sceneBuilder.getElementConfig?.(elementId);
+        if (currentConfig) {
+            const newVisibility = !currentConfig.visible;
+            
+            // Use the scene builder's updateElementConfig method if available
+            if (typeof sceneBuilder.updateElementConfig === 'function') {
+                const success = sceneBuilder.updateElementConfig(elementId, { visible: newVisibility });
+                
+                if (success) {
+                    refreshElements();
 
-            if (visualizer?.invalidateRender) {
-                visualizer.invalidateRender();
+                    if (visualizer?.invalidateRender) {
+                        visualizer.invalidateRender();
+                    }
+
+                    // Trigger element config change event with visibility update
+                    onElementConfigChange?.(elementId, { visible: newVisibility });
+                }
+            } else {
+                // Fallback to direct element access for older scene builders
+                const element = sceneBuilder.getElement(elementId);
+                if (element) {
+                    element.visible = newVisibility;
+                    refreshElements();
+
+                    if (visualizer?.invalidateRender) {
+                        visualizer.invalidateRender();
+                    }
+
+                    onElementConfigChange?.(elementId, { visible: newVisibility });
+                }
             }
-
-            // Trigger element config change event with visibility update
-            onElementConfigChange?.(elementId, { visible: element.visible });
         }
     }, [sceneBuilder, refreshElements, visualizer, onElementConfigChange]);
 

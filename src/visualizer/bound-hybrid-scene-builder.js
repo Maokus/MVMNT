@@ -293,6 +293,48 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
     }
 
     /**
+     * Enhanced updateElementConfig that handles both legacy and bound elements
+     * @param {string} id - Element ID
+     * @param {Object} newConfig - New configuration object
+     * @returns {boolean} True if element was found and updated
+     */
+    updateElementConfig(id, newConfig) {
+        const element = this.getElement(id);
+        if (!element) {
+            return false;
+        }
+
+        // Check if this is a bound element
+        if (element instanceof BoundSceneElement) {
+            // Use the bound element's updateConfig method
+            element.updateConfig(newConfig);
+            return true;
+        } else {
+            // Fall back to parent implementation for legacy elements
+            return super.updateElementConfig(id, newConfig);
+        }
+    }
+
+    /**
+     * Enhanced getElementConfig that handles both legacy and bound elements
+     * @param {string} id - Element ID
+     * @returns {Object|null} Current element configuration or null if not found
+     */
+    getElementConfig(id) {
+        const element = this.getElement(id);
+        if (!element) return null;
+
+        // Check if this is a bound element
+        if (element instanceof BoundSceneElement) {
+            // Use the bound element's getConfig method
+            return element.getConfig();
+        } else {
+            // Fall back to parent implementation for legacy elements
+            return super.getElementConfig(id);
+        }
+    }
+
+    /**
      * Create a default scene with bound elements
      */
     createDefaultBoundScene() {

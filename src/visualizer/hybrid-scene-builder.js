@@ -378,13 +378,29 @@ export class HybridSceneBuilder {
             return false;
         }
 
-        // Update the element's config object with new values
-        Object.assign(element.config, newConfig);
+        try {
+            // Check if element has the expected config structure
+            if (!element.config) {
+                console.warn(`Element '${id}' does not have a config property`);
+                return false;
+            }
 
-        // Apply the updated configuration
-        element._applyConfig();
+            // Update the element's config object with new values
+            Object.assign(element.config, newConfig);
 
-        return true;
+            // Apply the updated configuration if the method exists
+            if (typeof element._applyConfig === 'function') {
+                element._applyConfig();
+            } else {
+                console.warn(`Element '${id}' does not have _applyConfig method`);
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Error updating config for element '${id}':`, error);
+            return false;
+        }
     }
 
     /**
