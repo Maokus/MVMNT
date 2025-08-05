@@ -1,11 +1,11 @@
 // Scene Element Registry for dynamic element creation
 import {
-    BackgroundElement,
-    TimeDisplayElement,
-    TextOverlayElement,
-    ProgressDisplayElement,
-    ImageElement,
-    TimeUnitPianoRollElement,
+    BoundTimeUnitPianoRollElement,
+    BoundBackgroundElement,
+    BoundImageElement,
+    BoundProgressDisplayElement,
+    BoundTextOverlayElement,
+    BoundTimeDisplayElement
 } from './scene-elements/index.ts';
 
 export class SceneElementRegistry {
@@ -78,45 +78,43 @@ export class SceneElementRegistry {
      * Register default scene element types
      */
     registerDefaultElements() {
-        // Background Element
-        this.registerElement('background', (config) => {
-            const element = new BackgroundElement(config.id || 'background', config);
-            return element;
-        }, BackgroundElement.getConfigSchema());
 
-        // Time Display Element
-        this.registerElement('timeDisplay', (config) => {
-            const element = new TimeDisplayElement(config.id || 'timeDisplay',
-                config.position, config.showProgress, config);
+        // Register the bound time unit piano roll
+        this.registerElement('boundTimeUnitPianoRoll', (config) => {
+            const element = new BoundTimeUnitPianoRollElement(config.id || 'boundTimeUnitPianoRoll', config);
             return element;
-        }, TimeDisplayElement.getConfigSchema());
+        }, BoundTimeUnitPianoRollElement.getConfigSchema());
 
-        // Text Overlay Element
-        this.registerElement('textOverlay', (config) => {
-            const element = new TextOverlayElement(config.id || 'textOverlay',
-                config.position, config);
+        // Register bound background element
+        this.registerElement('boundBackground', (config) => {
+            const element = new BoundBackgroundElement(config.id || 'boundBackground', config);
             return element;
-        }, TextOverlayElement.getConfigSchema());
+        }, BoundBackgroundElement.getConfigSchema());
 
-        // Progress Display Element
-        this.registerElement('progressDisplay', (config) => {
-            const element = new ProgressDisplayElement(config.id || 'progressDisplay',
-                config.showBar, config.showStats, config.position, config);
+        // Register bound image element
+        this.registerElement('boundImage', (config) => {
+            const element = new BoundImageElement(config.id || 'boundImage', config);
             return element;
-        }, ProgressDisplayElement.getConfigSchema());
+        }, BoundImageElement.getConfigSchema());
 
-        // Image Element
-        this.registerElement('image', (config) => {
-            const element = new ImageElement(config.id || 'image',
-                config.x, config.y, config.width, config.height, config.imageSource, config);
+        // Register bound progress display element
+        this.registerElement('boundProgressDisplay', (config) => {
+            const element = new BoundProgressDisplayElement(config.id || 'boundProgressDisplay', config);
             return element;
-        }, ImageElement.getConfigSchema());
+        }, BoundProgressDisplayElement.getConfigSchema());
 
-        // Time Unit Piano Roll Element (consolidated)
-        this.registerElement('timeUnitPianoRoll', (config) => {
-            const element = new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config);
+        // Register bound text overlay element
+        this.registerElement('boundTextOverlay', (config) => {
+            const element = new BoundTextOverlayElement(config.id || 'boundTextOverlay', config);
             return element;
-        }, TimeUnitPianoRollElement.getConfigSchema());
+        }, BoundTextOverlayElement.getConfigSchema());
+
+        // Register bound time display element
+        this.registerElement('boundTimeDisplay', (config) => {
+            const element = new BoundTimeDisplayElement(config.id || 'boundTimeDisplay', config);
+            return element;
+        }, BoundTimeDisplayElement.getConfigSchema());
+
 
     }
 }

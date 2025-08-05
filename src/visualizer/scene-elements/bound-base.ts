@@ -474,6 +474,7 @@ export class BoundSceneElement implements SceneElementInterface {
 
         // Add all bindings in serialized form
         this.bindings.forEach((binding, key) => {
+            console.log(`[getSerializableConfig] Serializing binding for ${key}:`, binding);
             config[key] = binding.serialize();
         });
 

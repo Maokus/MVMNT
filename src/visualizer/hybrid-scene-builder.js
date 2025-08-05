@@ -1,11 +1,10 @@
 // Hybrid SceneBuilder - converts declarative SceneElements to stateless RenderObjects
 import {
-    BackgroundElement,
-    TimeDisplayElement,
-    TextOverlayElement,
-    ProgressDisplayElement,
-    TimeUnitPianoRollElement,
-    DebugElement
+    BoundBackgroundElement,
+    BoundTimeDisplayElement,
+    BoundTextOverlayElement,
+    BoundProgressDisplayElement,
+    BoundTimeUnitPianoRollElement,
 } from './scene-elements/index';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
@@ -291,13 +290,13 @@ export class HybridSceneBuilder {
         this._createDefaultMacros();
 
         // Add elements in z-index order (background first, overlay last)
-        this.addElement(new BackgroundElement()
+        this.addElement(new BoundBackgroundElement()
             .setZIndex(0)
             .setAnchor(0, 0)
         );
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
-        const timeUnitPianoRoll = new TimeUnitPianoRollElement('main', {})
+        const timeUnitPianoRoll = new BoundTimeUnitPianoRollElement('main', {})
             .setZIndex(10)
             .setTimeUnitBars(1)
             .setOffset(750, 750)
@@ -305,13 +304,13 @@ export class HybridSceneBuilder {
         this.addElement(timeUnitPianoRoll);
 
         // Time display with local timing
-        const timeDisplay = new TimeDisplayElement('timeDisplay', 'bottomLeft', true, {})
+        const timeDisplay = new BoundTimeDisplayElement('timeDisplay', 'bottomLeft', true, {})
             .setZIndex(40)
             .setAnchor(0, 1)
             .setOffset(100, 1400)
         this.addElement(timeDisplay);
 
-        const progressDisplay = new ProgressDisplayElement()
+        const progressDisplay = new BoundProgressDisplayElement()
             .setZIndex(45)
             .setAnchor(0, 1)
             .setOffset(10, 1500)
@@ -319,7 +318,7 @@ export class HybridSceneBuilder {
         this.addElement(progressDisplay);
 
         // Add two separate text elements - one for title, one for artist
-        const titleElement = new TextOverlayElement('titleText', 'topCenter')
+        const titleElement = new BoundTextOverlayElement('titleText', 'topCenter')
             .setText('Song Title') // Default placeholder text
             .setFontSize(100)
             .setFontWeight('bold')
@@ -329,7 +328,7 @@ export class HybridSceneBuilder {
         this.addElement(titleElement);
 
         // Position artist text 40px below the title text
-        const artistElement = new TextOverlayElement('artistText', 'topCenter')
+        const artistElement = new BoundTextOverlayElement('artistText', 'topCenter')
             .setText('Artist Name') // Set initial artist name text
             .setFontSize(40)
             .setFontWeight('normal')
@@ -337,13 +336,6 @@ export class HybridSceneBuilder {
             .setOffset(105, 210)
             .setAnchor(0, 0);
         this.addElement(artistElement);
-
-        const debugElement = new DebugElement('debugOverlay')
-            .setZIndex(100)
-            .setVisible(true)
-            .setOffset(750, 750);
-
-        this.addElement(debugElement);
 
         // Assign macros to relevant element properties
         this._assignDefaultMacros();
