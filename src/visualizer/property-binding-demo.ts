@@ -50,7 +50,7 @@ export function demonstratePropertyBindingSystem() {
     });
 
     // Bind the BPM property to our custom macro
-    pianoRoll.bindBPMToMacro('customTempo');
+    pianoRoll.bindToMacro('bpm', 'customTempo');
     console.log(`After binding to customTempo macro: BPM=${pianoRoll.getBPM()}`);
 
     // Change the macro value - this should update the element
@@ -65,8 +65,6 @@ export function demonstratePropertyBindingSystem() {
     console.log(JSON.stringify(elementConfig, null, 2));
 
     const sceneData = sceneBuilder.serializeScene();
-    console.log('Scene serialization version:', sceneData.version);
-    console.log('Binding system version:', sceneData.bindingSystemVersion);
     console.log('Number of elements:', sceneData.elements.length);
     console.log('Number of macros:', Object.keys(sceneData.macros.macros).length);
 
@@ -148,7 +146,7 @@ export function compareSerializationFormats() {
 
     // Old format (conceptual - this is what we're replacing):
     const oldFormat = {
-        version: '1.0.0',
+        version: '1.7.4',
         elements: [
             {
                 id: 'piano1',
@@ -174,8 +172,8 @@ export function compareSerializationFormats() {
 
     // New format:
     const newFormat = {
-        version: '2.0.0',
-        bindingSystemVersion: '1.0.0',
+        version: "0.8.0",
+        bindingSystemVersion: "1.0.0",
         elements: [
             {
                 id: 'piano1',
@@ -209,3 +207,5 @@ export function compareSerializationFormats() {
 
     console.log('=== Comparison Complete ===');
 }
+
+demonstratePropertyBindingSystem();

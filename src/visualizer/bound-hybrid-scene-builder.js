@@ -17,10 +17,10 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
      */
     _registerBoundElements() {
         // Register the bound time unit piano roll
-        this.sceneElementRegistry.register('boundTimeUnitPianoRoll', {
-            class: BoundTimeUnitPianoRollElement,
-            schema: BoundTimeUnitPianoRollElement.getConfigSchema()
-        });
+        this.sceneElementRegistry.registerElement('boundTimeUnitPianoRoll', (config) => {
+            const element = new BoundTimeUnitPianoRollElement(config.id || 'background', config);
+            return element;
+        }, BoundTimeUnitPianoRollElement.getConfigSchema());
     }
 
     /**
@@ -51,11 +51,11 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
         // and referenced through macros, so we don't need scene-level MIDI data
 
         return {
-            version: process.env.REACT_APP_VERSION || '2.0.0', // Increment version for new format
+            version: process.env.REACT_APP_VERSION, // Increment version for new format
             elements: serializedElements,
             macros: macroData,
             serializedAt: new Date().toISOString(),
-            bindingSystemVersion: '1.0.0' // Indicate this uses the property binding system
+            bindingSystemVersion: process.env.REACT_APP_BINDING_VERSION // Indicate this uses the property binding system
         };
     }
 

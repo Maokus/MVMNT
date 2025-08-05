@@ -491,7 +491,7 @@ export class HybridSceneBuilder {
         }
 
         return {
-            version: process.env.REACT_APP_VERSION || '1.0.0',
+            version: process.env.REACT_APP_VERSION,
             elements: serializedElements,
             macros: macroData,
             midiData: midiData,
