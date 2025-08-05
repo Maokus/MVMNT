@@ -484,6 +484,8 @@ export class BoundSceneElement implements SceneElementInterface {
      * Apply configuration from either raw values or binding data
      */
     protected _applyConfig(config: { [key: string]: any }): void {
+        console.log(`[BoundSceneElement] Applying config for ${this.id}:`, config);
+        
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 

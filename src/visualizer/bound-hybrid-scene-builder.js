@@ -21,6 +21,8 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
             const element = new BoundTimeUnitPianoRollElement(config.id || 'background', config);
             return element;
         }, BoundTimeUnitPianoRollElement.getConfigSchema());
+
+        window.SER = this.sceneElementRegistry; // For debugging purposes
     }
 
     /**
