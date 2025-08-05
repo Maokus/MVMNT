@@ -3,6 +3,7 @@ import { ModularRenderer } from './modular-renderer.js';
 import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { sceneElementRegistry } from './scene-element-registry.js';
 import { globalMacroManager } from './macro-manager.ts';
+import { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder.js';
 
 export class MIDIVisualizerCore {
     constructor(canvas, timingManager = null) {
@@ -43,7 +44,7 @@ export class MIDIVisualizerCore {
         // Note rendering system - using modular approach with RenderObjects
         // Main rendering system - stateless renderer for all drawing operations
         this.modularRenderer = new ModularRenderer(); // New modular renderer
-        this.sceneBuilder = new HybridSceneBuilder(); // Scene builder for creating RenderObjects
+        this.sceneBuilder = new BoundHybridSceneBuilder(); // Scene builder for creating RenderObjects
 
         this._setupImageLoadedListener();
 

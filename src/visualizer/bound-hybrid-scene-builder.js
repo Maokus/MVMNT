@@ -1,7 +1,7 @@
 // Enhanced Hybrid Scene Builder with Property Binding Support
 import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { BoundSceneElement } from './scene-elements/bound-base';
-import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll.js';
+import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
 import { globalMacroManager } from './macro-manager';
 
 export class BoundHybridSceneBuilder extends HybridSceneBuilder {
