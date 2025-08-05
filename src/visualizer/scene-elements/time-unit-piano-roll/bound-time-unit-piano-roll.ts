@@ -86,7 +86,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 rollWidth: {
                     type: 'number',
                     label: 'Roll Width',
-                    default: null,
+                    default: 800,
                     min: 200,
                     max: 2000,
                     step: 50,
@@ -115,7 +115,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 minNote: {
                     type: 'number',
                     label: 'Minimum Note',
-                    default: 60, // Changed from 21 to 60 (middle C) for debugging
+                    default: 30, // Changed from 21 to 60 (middle C) for debugging
                     min: 0,
                     max: 127,
                     step: 1,
