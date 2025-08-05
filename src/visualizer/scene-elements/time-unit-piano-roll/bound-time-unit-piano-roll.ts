@@ -2,13 +2,13 @@
 import { BoundSceneElement } from '../bound-base';
 import { RenderObjectInterface, ConfigSchema } from '../../types.js';
 import { Line, Text } from '../../render-objects/index.js';
-import { AnimationController } from './animation-controller.js';
+import { BoundAnimationController } from './bound-animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';
 import { NoteBlock } from '../../note-block';
 
 export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
     public timingManager: LocalTimingManager;
-    public animationController: AnimationController;
+    public animationController: BoundAnimationController;
     private _currentMidiFile: File | null = null;
     private channelColors: string[] = [
         '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd',
@@ -21,8 +21,8 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         // Initialize timing manager with this element's ID
         this.timingManager = new LocalTimingManager(this.id as any);
         
-        // Initialize animation controller
-        this.animationController = new AnimationController(this);
+        // Initialize bound animation controller
+        this.animationController = new BoundAnimationController(this);
     }
 
     static getConfigSchema(): ConfigSchema {
@@ -183,6 +183,15 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                     max: 5.0,
                     step: 0.1,
                     description: 'Speed multiplier for animations'
+                },
+                animationDuration: {
+                    type: 'number',
+                    label: 'Animation Duration',
+                    default: 0.5,
+                    min: 0.1,
+                    max: 2.0,
+                    step: 0.1,
+                    description: 'Duration of note animations in seconds'
                 }
             }
         };
@@ -473,6 +482,10 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         return this;
     }
 
+    getTimeUnit(): number {
+        return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
+    }
+
     getMidiFile(): File | null {
         return this.getProperty<File>('midiFile');
     }
@@ -496,6 +509,13 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
     bindMidiFileToMacro(macroId: string): this {
         this.bindToMacro('midiFile', macroId);
         return this;
+    }
+
+    /**
+     * Get channel colors for MIDI channels
+     */
+    getChannelColors(): string[] {
+        return this.channelColors;
     }
 
     /**
