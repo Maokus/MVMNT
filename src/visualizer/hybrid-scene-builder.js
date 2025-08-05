@@ -311,7 +311,12 @@ export class HybridSceneBuilder {
             .setOffset(100, 1400)
         this.addElement(timeDisplay);
 
-        this.addElement(new ProgressDisplayElement().setZIndex(45));
+        const progressDisplay = new ProgressDisplayElement()
+            .setZIndex(45)
+            .setAnchor(0, 1)
+            .setOffset(10, 1500)
+
+        this.addElement(progressDisplay);
 
         // Add two separate text elements - one for title, one for artist
         const titleElement = new TextOverlayElement('titleText', 'topCenter')

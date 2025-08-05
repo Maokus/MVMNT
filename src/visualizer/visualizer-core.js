@@ -328,11 +328,6 @@ export class MIDIVisualizerCore {
 
     // Helper method to create configuration object for the renderer
     getSceneConfig() {
-        // Calculate standard layout dimensions that were previously part of the core
-        const canvasWidth = this.canvas.width;
-        const pianoWidth = Math.max(120, canvasWidth * 0.15); // 15% of canvas width, minimum 120px
-        const rollWidth = canvasWidth - pianoWidth;
-
         // Define standard theme colors that were previously part of the core
         const themeColors = {
             playheadColor: '#ff6b6b',
@@ -342,17 +337,17 @@ export class MIDIVisualizerCore {
             fontWeight: '400'
         };
 
+        // Calculate the current scene duration
+        const sceneDuration = this.getCurrentDuration();
+
         return {
             canvas: this.canvas,
             duration: this.duration,
+            sceneDuration: sceneDuration, // Total scene length including all elements
             isPlaying: this.isPlaying, // Add playing state for debugging
 
             // Debug settings
             showAnchorPoints: this.debugSettings.showAnchorPoints,
-
-            // Layout dimensions
-            pianoWidth: pianoWidth,
-            rollWidth: rollWidth,
 
             // Theme colors and fonts
             ...themeColors

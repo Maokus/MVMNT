@@ -98,11 +98,14 @@ export class ProgressDisplayElement extends SceneElement {
         if (!this.visible) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
-        const { canvas, duration, playedNoteEvents, totalNoteEvents } = config;
+        const { canvas, duration, sceneDuration, playedNoteEvents, totalNoteEvents } = config;
         const { width, height } = canvas;
 
-        // Calculate progress
-        const progress = Math.max(0, Math.min(1, targetTime / duration));
+        // Use sceneDuration if available (total scene length), fallback to duration
+        const totalDuration = sceneDuration || duration;
+
+        // Calculate progress based on the total scene duration
+        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, targetTime / totalDuration)) : 0;
 
         // Position calculation
         const y = this.position === 'top' ? this.margin : height - this.height - this.margin;
@@ -153,7 +156,7 @@ export class ProgressDisplayElement extends SceneElement {
 
             // Time progress
             const currentTimeText = this._formatTime(targetTime);
-            const durationText = this._formatTime(duration);
+            const durationText = this._formatTime(totalDuration);
             const timeText = `${currentTimeText} / ${durationText}`;
 
             const timeLabel = new Text(

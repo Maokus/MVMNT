@@ -26,6 +26,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Time unit settings (now managed by TimingManager)
         this.timeUnitBars = 1; // Number of bars to show
 
+        // Layout settings for piano roll
+        this.pianoWidth = 120; // Width of piano keys section
+        this.rollWidth = null; // Width of roll section (auto-calculated if null)
+
         // Piano roll settings
         this.showNoteGrid = true;
         this.showNoteLabels = true;
@@ -108,6 +112,26 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     max: 8,
                     step: 1,
                     description: 'Number of bars shown in each time unit'
+                },
+
+                // Layout properties
+                pianoWidth: {
+                    type: 'number',
+                    label: 'Piano Width',
+                    default: 120,
+                    min: 80,
+                    max: 300,
+                    step: 10,
+                    description: 'Width of the piano keys section in pixels'
+                },
+                rollWidth: {
+                    type: 'number',
+                    label: 'Roll Width',
+                    default: null,
+                    min: 200,
+                    max: 2000,
+                    step: 50,
+                    description: 'Width of the roll section in pixels (auto-calculated if empty)'
                 },
 
                 // Piano roll properties
@@ -268,6 +292,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this.timeUnitBars = this.config.timeUnitBars;
         }
 
+        // Layout settings
+        if (this.config.pianoWidth !== undefined) {
+            this.pianoWidth = this.config.pianoWidth;
+        }
+        if (this.config.rollWidth !== undefined) {
+            this.rollWidth = this.config.rollWidth;
+        }
+
         // Piano roll settings
         if (this.config.showNoteGrid !== undefined) {
             this.showNoteGrid = this.config.showNoteGrid;
@@ -350,6 +382,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
             });
         }
 
+        // Calculate local layout dimensions
+        const canvasWidth = config.canvas.width;
+        const localPianoWidth = this.pianoWidth;
+        const localRollWidth = this.rollWidth !== null ? this.rollWidth : (canvasWidth - localPianoWidth);
+
         // Create local config with timing settings from local TimingManager
         const localConfig = {
             ...config,
@@ -358,6 +395,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
             beatsPerBar: this.timingManager.beatsPerBar,
             bpm: this.timingManager.bpm,
             targetTime: targetTime,
+            // Use local layout dimensions instead of global ones
+            pianoWidth: localPianoWidth,
+            rollWidth: localRollWidth,
             // Override notes with local timing manager's notes
             notes: this._getNotesForTimeWindow(config, targetTime),
             duration: this.timingManager.getDuration() || config.duration
@@ -384,8 +424,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     _buildPianoRoll(config) {
         const renderObjects = [];
-        const { canvas, pianoWidth, rollWidth, fontFamily, fontWeight } = config;
+        const { canvas, fontFamily, fontWeight } = config;
         const { width, height } = canvas;
+
+        // Use local layout dimensions from the element configuration  
+        const pianoWidth = config.pianoWidth;
 
         // Calculate note range and dimensions using element properties
         const noteRange = { min: this.minNote, max: this.maxNote };
@@ -426,13 +469,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
             // Create noteBlocks from local timing manager's notes
             const noteBlocks = this._createNoteBlocks(config, config.targetTime);
 
-            const extendedConfig = {
+            // Update local config with note blocks
+            const configWithNotes = {
                 ...config,
-                pianoWidth: pianoWidth,
-                rollWidth: rollWidth,
                 noteBlocks: noteBlocks
             };
-            const noteRenderObjects = this.animationController.buildNoteRenderObjects(extendedConfig, noteRange, totalNotes, noteHeight);
+            const noteRenderObjects = this.animationController.buildNoteRenderObjects(configWithNotes, noteRange, totalNotes, noteHeight);
             renderObjects.push(...noteRenderObjects);
         }
 
@@ -441,8 +483,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     _buildBeatDisplay(config) {
         const renderObjects = [];
-        const { canvas, pianoWidth, rollWidth, duration } = config;
+        const { canvas, duration } = config;
         const { width, height } = canvas;
+
+        // Use local layout dimensions from the element configuration
+        const pianoWidth = config.pianoWidth;
+        const rollWidth = config.rollWidth;
 
         // Vertical grid lines for beats
         if (this.showBeatGrid) {
@@ -506,7 +552,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     _buildPlayhead(config) {
         const renderObjects = [];
-        const { canvas, playheadColor, pianoWidth, rollWidth, targetTime } = config;
+        const { canvas, playheadColor, targetTime } = config;
+
+        // Use local layout dimensions from the element configuration
+        const pianoWidth = config.pianoWidth;
+        const rollWidth = config.rollWidth;
 
         // Calculate playhead position directly
         const timeUnitInSeconds = this.getTimeUnit();
@@ -597,6 +647,25 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     getNoteRange() {
         return { min: this.minNote, max: this.maxNote };
+    }
+
+    // Layout getters and setters
+    getPianoWidth() {
+        return this.pianoWidth;
+    }
+
+    setPianoWidth(width) {
+        this.pianoWidth = width;
+        return this;
+    }
+
+    getRollWidth() {
+        return this.rollWidth;
+    }
+
+    setRollWidth(width) {
+        this.rollWidth = width;
+        return this;
     }
 
     /**
