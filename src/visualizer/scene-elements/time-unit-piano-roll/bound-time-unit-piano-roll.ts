@@ -115,7 +115,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 minNote: {
                     type: 'number',
                     label: 'Minimum Note',
-                    default: 21,
+                    default: 60, // Changed from 21 to 60 (middle C) for debugging
                     min: 0,
                     max: 127,
                     step: 1,
@@ -124,7 +124,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 maxNote: {
                     type: 'number',
                     label: 'Maximum Note',
-                    default: 108,
+                    default: 72, // Changed from 108 to 72 (C5) for debugging  
                     min: 0,
                     max: 127,
                     step: 1,
@@ -155,7 +155,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 noteHeight: {
                     type: 'number',
                     label: 'Note Height',
-                    default: 8,
+                    default: 20, // Changed from 8 to 20 for debugging
                     min: 4,
                     max: 20,
                     step: 1,
@@ -166,7 +166,7 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 animationType: {
                     type: 'select',
                     label: 'Animation Type',
-                    default: 'fade',
+                    default: 'none', // Changed from 'fade' to 'none' for debugging
                     options: [
                         { value: 'fade', label: 'Fade In/Out' },
                         { value: 'slide', label: 'Slide' },

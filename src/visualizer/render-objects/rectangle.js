@@ -35,7 +35,13 @@ export class Rectangle extends RenderObject {
     }
 
     _renderSelf(ctx, config, currentTime) {
-        // Apply shadow if set
+        console.log(`[Rectangle._renderSelf] Rendering rectangle at (${this.x}, ${this.y}) size ${this.width}x${this.height}, color: ${this.fillColor}, alpha: ${this.globalAlpha}`);
+
+        // Apply global alpha
+        const originalAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = originalAlpha * this.opacity;
+
+        // Apply shadow if present
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = this.shadowColor;
             ctx.shadowBlur = this.shadowBlur;

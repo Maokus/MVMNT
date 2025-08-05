@@ -60,6 +60,8 @@ export class BoundAnimationController {
             const channelColors = this.boundTimeUnitPianoRoll.getChannelColors();
             const finalNoteColor = channelColors[block.channel % channelColors.length];
 
+            console.log(`[BoundAnimationController] Note ${block.note}: noteIndex=${noteIndex}, totalNotes=${totalNotes}, y=${y}, noteHeight=${noteHeight}`);
+
             // Calculate timing
             const noteStartTime = block.startTime;
             const noteEndTime = block.endTime;
@@ -69,6 +71,7 @@ export class BoundAnimationController {
             const x = pianoWidth + (startTimeInWindow / timeUnitInSeconds) * rollWidth;
             const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / timeUnitInSeconds) * rollWidth);
 
+            console.log(`[BoundAnimationController] Note timing: startTime=${noteStartTime}, endTime=${noteEndTime}, windowStart=${windowStart}, x=${x}, width=${width}`);
             console.log(`[BoundAnimationController] Creating render objects for note ${block.note}: x=${x}, y=${y}, width=${width}, color=${finalNoteColor}`);
 
             // Create note render objects using animation system
@@ -140,6 +143,8 @@ export class BoundAnimationController {
         const noteStartTime = block.originalStartTime || block.startTime;
         const noteEndTime = block.originalEndTime || block.endTime;
 
+        console.log(`[_calculateAnimationState] Note ${block.note}: startTime=${noteStartTime}, endTime=${noteEndTime}, currentTime=${currentTime}, duration=${animationDuration}`);
+
         // Determine animation duration based on configuration
         const noteDuration = noteEndTime - noteStartTime;
         animationDuration = Math.min(animationDuration, noteDuration * 0.3); // Max 30% of note duration
@@ -155,37 +160,46 @@ export class BoundAnimationController {
         const offsetAnimationStart = noteEndTime - animationDuration;
         const offsetAnimationEnd = noteEndTime;
 
+        console.log(`[_calculateAnimationState] Animation windows: onset(${onsetAnimationStart}-${onsetAnimationEnd}), sustained(${onsetAnimationEnd}-${offsetAnimationStart}), offset(${offsetAnimationStart}-${offsetAnimationEnd})`);
+
         // Check if we're within the onset animation window
         if (currentTime >= onsetAnimationStart && currentTime <= onsetAnimationEnd) {
-            return {
+            const state = {
                 type: 'onset',
                 progress: (currentTime - onsetAnimationStart) / animationDuration,
                 startTime: onsetAnimationStart,
                 endTime: onsetAnimationEnd
             };
+            console.log(`[_calculateAnimationState] Note ${block.note} in ONSET state:`, state);
+            return state;
         }
 
         // Check if we're within the offset animation window
         if (currentTime >= offsetAnimationStart && currentTime <= offsetAnimationEnd) {
-            return {
+            const state = {
                 type: 'offset',
                 progress: (currentTime - offsetAnimationStart) / animationDuration,
                 startTime: offsetAnimationStart,
                 endTime: offsetAnimationEnd
             };
+            console.log(`[_calculateAnimationState] Note ${block.note} in OFFSET state:`, state);
+            return state;
         }
 
         // If we're between onset and offset animations, show sustained note
         if (currentTime > onsetAnimationEnd && currentTime < offsetAnimationStart) {
-            return {
+            const state = {
                 type: 'sustained',
                 progress: 1,
                 startTime: null,
                 endTime: null
             };
+            console.log(`[_calculateAnimationState] Note ${block.note} in SUSTAINED state:`, state);
+            return state;
         }
 
         // Note not visible or no animation needed
+        console.log(`[_calculateAnimationState] Note ${block.note} NOT VISIBLE - currentTime ${currentTime} outside note duration`);
         return null;
     }
 
