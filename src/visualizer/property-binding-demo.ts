@@ -60,11 +60,13 @@ export function demonstratePropertyBindingSystem() {
     // 7. Demonstrate serialization
     console.log('\n--- Serialization ---');
     
-    const elementConfig = pianoRoll.getSerializableConfig();
-    console.log('Serialized element config (with bindings):');
-    console.log(JSON.stringify(elementConfig, null, 2));
+    //const elementConfig = pianoRoll.getSerializableConfig();
+    //console.log('Serialized element config (with bindings):');
+    //console.log(JSON.stringify(elementConfig, null, 2));
 
     const sceneData = sceneBuilder.serializeScene();
+    console.log('Serialized scene data:');
+    console.log(JSON.stringify(sceneData, null, 2));
     console.log('Number of elements:', sceneData.elements.length);
     console.log('Number of macros:', Object.keys(sceneData.macros.macros).length);
 
