@@ -2,6 +2,11 @@
 import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { BoundSceneElement } from './scene-elements/bound-base';
 import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
+import { BoundBackgroundElement } from './scene-elements/bound-background';
+import { BoundImageElement } from './scene-elements/bound-image';
+import { BoundProgressDisplayElement } from './scene-elements/bound-progress-display';
+import { BoundTextOverlayElement } from './scene-elements/bound-text-overlay';
+import { BoundTimeDisplayElement } from './scene-elements/bound-time-display';
 import { globalMacroManager } from './macro-manager';
 
 export class BoundHybridSceneBuilder extends HybridSceneBuilder {
@@ -18,9 +23,39 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
     _registerBoundElements() {
         // Register the bound time unit piano roll
         this.sceneElementRegistry.registerElement('boundTimeUnitPianoRoll', (config) => {
-            const element = new BoundTimeUnitPianoRollElement(config.id || 'background', config);
+            const element = new BoundTimeUnitPianoRollElement(config.id || 'boundTimeUnitPianoRoll', config);
             return element;
         }, BoundTimeUnitPianoRollElement.getConfigSchema());
+
+        // Register bound background element
+        this.sceneElementRegistry.registerElement('boundBackground', (config) => {
+            const element = new BoundBackgroundElement(config.id || 'boundBackground', config);
+            return element;
+        }, BoundBackgroundElement.getConfigSchema());
+
+        // Register bound image element
+        this.sceneElementRegistry.registerElement('boundImage', (config) => {
+            const element = new BoundImageElement(config.id || 'boundImage', config);
+            return element;
+        }, BoundImageElement.getConfigSchema());
+
+        // Register bound progress display element
+        this.sceneElementRegistry.registerElement('boundProgressDisplay', (config) => {
+            const element = new BoundProgressDisplayElement(config.id || 'boundProgressDisplay', config);
+            return element;
+        }, BoundProgressDisplayElement.getConfigSchema());
+
+        // Register bound text overlay element
+        this.sceneElementRegistry.registerElement('boundTextOverlay', (config) => {
+            const element = new BoundTextOverlayElement(config.id || 'boundTextOverlay', config);
+            return element;
+        }, BoundTextOverlayElement.getConfigSchema());
+
+        // Register bound time display element
+        this.sceneElementRegistry.registerElement('boundTimeDisplay', (config) => {
+            const element = new BoundTimeDisplayElement(config.id || 'boundTimeDisplay', config);
+            return element;
+        }, BoundTimeDisplayElement.getConfigSchema());
 
         window.SER = this.sceneElementRegistry; // For debugging purposes
     }
