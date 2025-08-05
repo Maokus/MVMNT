@@ -11,6 +11,20 @@ export { ImageSequenceGenerator } from './image-sequence-generator';
 export { MacroManager, globalMacroManager } from './macro-manager';
 
 // ==========================================
+// Property Binding System Exports
+// ==========================================
+export { 
+    PropertyBinding, 
+    ConstantBinding, 
+    MacroBinding, 
+    PropertyBindingUtils
+} from './property-bindings';
+export type { PropertyBindingData } from './property-bindings';
+export { BoundSceneElement } from './scene-elements/bound-base';
+export { BoundTimeUnitPianoRollElement } from './scene-elements/bound-time-unit-piano-roll';
+export { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder';
+
+// ==========================================
 // Visualizer Rendering Exports
 // ==========================================
 export { MIDIVisualizerCore as MIDIVisualizer } from './visualizer-core.js';

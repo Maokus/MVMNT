@@ -203,13 +203,6 @@ export class MacroManager {
   }
 
   /**
-   * Get all macros
-   */
-  getAllMacros(): Macro[] {
-    return Array.from(this.macros.values());
-  }
-
-  /**
    * Get a specific macro
    */
   getMacro(name: string): Macro | null {
@@ -262,24 +255,47 @@ export class MacroManager {
   }
 
   /**
-   * Export macros and assignments to JSON
+   * Get all macros as an array (backward compatibility)
+   */
+  getAllMacros(): Macro[] {
+    return Array.from(this.macros.values());
+  }
+
+  /**
+   * Get all macros as an object (for inspection)
+   */
+  getAllMacrosObject(): { [name: string]: Macro } {
+    const result: { [name: string]: Macro } = {};
+    this.macros.forEach((macro, name) => {
+      result[name] = { ...macro };
+    });
+    return result;
+  }  /**
+   * Export macros to a serializable format
+   * In the new system, we only export macro definitions and values,
+   * not assignments (since those are stored in element bindings)
    */
   exportMacros(): MacroExportData {
-    const macroData: MacroExportData = {
-      macros: {},
-      assignments: {},
+    const macroData: { [key: string]: Macro } = {};
+    
+    this.macros.forEach((macro, name) => {
+      macroData[name] = {
+        ...macro,
+        // Include assignments for backward compatibility
+        assignments: this.assignments.get(name) || []
+      };
+    });
+
+    const assignmentData: { [key: string]: MacroAssignment[] } = {};
+    this.assignments.forEach((assignments, name) => {
+      assignmentData[name] = [...assignments];
+    });
+
+    return {
+      macros: macroData,
+      assignments: assignmentData, // Kept for backward compatibility
       exportedAt: Date.now()
     };
-
-    this.macros.forEach((macro, name) => {
-      macroData.macros[name] = { ...macro };
-    });
-
-    this.assignments.forEach((assignments, name) => {
-      macroData.assignments[name] = [...assignments];
-    });
-
-    return macroData;
   }
 
   /**

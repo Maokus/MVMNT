@@ -1,0 +1,196 @@
+/**
+ * Property Binding System
+ * 
+ * This system replaces direct property storage in scene elements with a binding system
+ * that can either hold constant values or reference macros. This enables proper
+ * serialization and macro management without the need for a separate assignments system.
+ */
+
+import { globalMacroManager } from './macro-manager';
+
+export type BindingType = 'constant' | 'macro';
+
+export interface PropertyBindingData {
+  type: BindingType;
+  value?: any;
+  macroId?: string;
+}
+
+/**
+ * Abstract base class for property bindings
+ */
+export abstract class PropertyBinding<T = any> {
+  public readonly type: BindingType;
+  
+  constructor(type: BindingType) {
+    this.type = type;
+  }
+
+  /**
+   * Get the current value of the property
+   */
+  abstract getValue(): T;
+
+  /**
+   * Set the value of the property
+   */
+  abstract setValue(value: T): void;
+
+  /**
+   * Serialize the binding to a data structure
+   */
+  abstract serialize(): PropertyBindingData;
+
+  /**
+   * Create a binding from serialized data
+   */
+  static fromSerialized(data: PropertyBindingData): PropertyBinding {
+    switch (data.type) {
+      case 'constant':
+        return new ConstantBinding(data.value);
+      case 'macro':
+        if (!data.macroId) {
+          throw new Error('Macro binding requires macroId');
+        }
+        return new MacroBinding(data.macroId);
+      default:
+        throw new Error(`Unknown binding type: ${data.type}`);
+    }
+  }
+}
+
+/**
+ * Constant binding - holds a direct value
+ */
+export class ConstantBinding<T = any> extends PropertyBinding<T> {
+  private value: T;
+
+  constructor(value: T) {
+    super('constant');
+    this.value = value;
+  }
+
+  getValue(): T {
+    return this.value;
+  }
+
+  setValue(value: T): void {
+    this.value = value;
+  }
+
+  serialize(): PropertyBindingData {
+    return {
+      type: 'constant',
+      value: this.value
+    };
+  }
+}
+
+/**
+ * Macro binding - references a macro by ID
+ */
+export class MacroBinding<T = any> extends PropertyBinding<T> {
+  private macroId: string;
+
+  constructor(macroId: string) {
+    super('macro');
+    this.macroId = macroId;
+  }
+
+  getValue(): T {
+    const macro = globalMacroManager.getMacro(this.macroId);
+    if (!macro) {
+      console.warn(`Macro '${this.macroId}' not found, returning undefined`);
+      return undefined as T;
+    }
+    return macro.value as T;
+  }
+
+  setValue(value: T): void {
+    globalMacroManager.updateMacroValue(this.macroId, value);
+  }
+
+  getMacroId(): string {
+    return this.macroId;
+  }
+
+  serialize(): PropertyBindingData {
+    return {
+      type: 'macro',
+      macroId: this.macroId
+    };
+  }
+}
+
+/**
+ * Utility functions for working with property bindings
+ */
+export class PropertyBindingUtils {
+  /**
+   * Create a constant binding
+   */
+  static constant<T>(value: T): ConstantBinding<T> {
+    return new ConstantBinding(value);
+  }
+
+  /**
+   * Create a macro binding
+   */
+  static macro(macroId: string): MacroBinding {
+    return new MacroBinding(macroId);
+  }
+
+  /**
+   * Convert a raw value to a binding
+   * If the value is already a binding, return it unchanged
+   * Otherwise, create a constant binding
+   */
+  static ensureBinding<T>(value: T | PropertyBinding<T>): PropertyBinding<T> {
+    if (value instanceof PropertyBinding) {
+      return value;
+    }
+    return new ConstantBinding(value);
+  }
+
+  /**
+   * Get the raw value from a binding or value
+   */
+  static getValue<T>(binding: T | PropertyBinding<T>): T {
+    if (binding instanceof PropertyBinding) {
+      return binding.getValue();
+    }
+    return binding;
+  }
+
+  /**
+   * Set a value on a binding or return a new constant binding
+   */
+  static setValue<T>(binding: T | PropertyBinding<T>, value: T): PropertyBinding<T> {
+    if (binding instanceof PropertyBinding) {
+      binding.setValue(value);
+      return binding;
+    }
+    return new ConstantBinding(value);
+  }
+
+  /**
+   * Convert a binding to a serializable format
+   */
+  static serialize<T>(binding: T | PropertyBinding<T>): PropertyBindingData {
+    if (binding instanceof PropertyBinding) {
+      return binding.serialize();
+    }
+    // If it's not a binding, treat it as a constant
+    return {
+      type: 'constant',
+      value: binding
+    };
+  }
+
+  /**
+   * Check if a value is bound to a specific macro
+   */
+  static isBoundToMacro<T>(binding: T | PropertyBinding<T>, macroId: string): boolean {
+    return binding instanceof MacroBinding && binding.getMacroId() === macroId;
+  }
+}
