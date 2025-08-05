@@ -67,6 +67,16 @@ const SceneEditor: React.FC<SceneEditorProps> = (props) => {
                         />
                     )}
                 </div>
+                {/* Clear selection when clicking empty space */}
+                <div
+                    className="clear-selection-area"
+                    onClick={() => handleElementSelect(null)}
+                    style={{
+                        minHeight: '20px',
+                        flex: 1,
+                        cursor: 'default'
+                    }}
+                />
             </div>
         </div>
     );

@@ -465,12 +465,38 @@ export class HybridSceneBuilder {
      * @returns {Object} Serializable scene data
      */
     serializeScene() {
+        // Serialize all elements with their complete configuration
+        const serializedElements = this.elements.map(element => ({
+            ...this.getElementConfig(element.id),
+            index: this.elements.indexOf(element)
+        }));
+
+        // Get macro data from the global macro manager
+        const macroData = globalMacroManager.exportMacros();
+
+        // Get MIDI data from elements that have it (usually TimeUnitPianoRoll elements)
+        let midiData = null;
+        let midiFileName = null;
+
+        for (const element of this.elements) {
+            if (element.type === 'timeUnitPianoRoll' && element.timingManager && element.timingManager.midiData) {
+                midiData = element.timingManager.midiData;
+                // Try to get the original file name from the macro manager if it exists
+                const midiFileMacro = globalMacroManager.getMacro('midiFile');
+                if (midiFileMacro && midiFileMacro.value && midiFileMacro.value.name) {
+                    midiFileName = midiFileMacro.value.name;
+                }
+                break; // Use the first piano roll element's MIDI data
+            }
+        }
+
         return {
-            version: process.env.REACT_APP_VERSION,
-            elements: this.elements.map(element => ({
-                ...this.getElementConfig(element.id),
-                index: this.elements.indexOf(element)
-            }))
+            version: process.env.REACT_APP_VERSION || '1.0.0',
+            elements: serializedElements,
+            macros: macroData,
+            midiData: midiData,
+            midiFileName: midiFileName,
+            serializedAt: new Date().toISOString()
         };
     }
 
@@ -480,24 +506,84 @@ export class HybridSceneBuilder {
      * @returns {boolean} True if scene was loaded successfully
      */
     loadScene(sceneData) {
-        if (!sceneData || !sceneData.elements) return false;
-
-        this.clearElements();
-
-        // Sort by index to maintain order
-        const sortedElements = [...sceneData.elements].sort((a, b) => (a.index || 0) - (b.index || 0));
-
-        for (const elementData of sortedElements) {
-            const element = this.addElementFromRegistry(elementData.type, elementData);
-            if (element && elementData.visible !== undefined) {
-                element.setVisible(elementData.visible);
-            }
-            if (element && elementData.zIndex !== undefined) {
-                element.setZIndex(elementData.zIndex);
-            }
+        if (!sceneData || !sceneData.elements) {
+            console.error('Invalid scene data: missing elements');
+            return false;
         }
 
-        return true;
+        try {
+            // Clear existing elements
+            this.clearElements();
+
+            // Import macros first if they exist
+            if (sceneData.macros) {
+                console.log('Importing macros from scene data...');
+                const macroImportSuccess = globalMacroManager.importMacros(sceneData.macros);
+                if (!macroImportSuccess) {
+                    console.warn('Failed to import macros, but continuing with scene load');
+                }
+            } else {
+                console.log('No macro data found in scene, creating default macros...');
+                // Create default macros if none exist
+                this._createDefaultMacros();
+            }
+
+            // Sort elements by index to maintain order
+            const sortedElements = [...sceneData.elements].sort((a, b) => (a.index || 0) - (b.index || 0));
+
+            // Load all elements
+            for (const elementData of sortedElements) {
+                const element = this.addElementFromRegistry(elementData.type, elementData);
+                if (element) {
+                    // Set visibility and z-index if specified
+                    if (elementData.visible !== undefined) {
+                        element.setVisible(elementData.visible);
+                    }
+                    if (elementData.zIndex !== undefined) {
+                        element.setZIndex(elementData.zIndex);
+                    }
+                } else {
+                    console.warn(`Failed to create element of type '${elementData.type}' with id '${elementData.id}'`);
+                }
+            }
+
+            // Load MIDI data if it exists
+            if (sceneData.midiData) {
+                console.log('Loading MIDI data from scene...', {
+                    fileName: sceneData.midiFileName || 'Unknown',
+                    eventCount: sceneData.midiData.events?.length || 0,
+                    duration: sceneData.midiData.duration
+                });
+
+                // Find TimeUnitPianoRoll elements and load the MIDI data into them
+                const pianoRollElements = this.getElementsByType('timeUnitPianoRoll');
+                for (const element of pianoRollElements) {
+                    if (element.timingManager && element.timingManager.loadMIDIData) {
+                        // Convert MIDI events back to note format for the element
+                        const notes = this._convertMidiEventsToNotes(sceneData.midiData.events);
+                        element.timingManager.loadMIDIData(sceneData.midiData, notes, false);
+                        console.log(`Loaded MIDI data into piano roll element '${element.id}'`);
+                    }
+                }
+
+                // Update the MIDI file macro if it exists
+                const midiFileMacro = globalMacroManager.getMacro('midiFile');
+                if (midiFileMacro && sceneData.midiFileName) {
+                    // Create a mock file object for the macro
+                    const mockFile = new File([], sceneData.midiFileName, { type: 'audio/midi' });
+                    globalMacroManager.updateMacroValue('midiFile', mockFile);
+                }
+            } else {
+                console.log('No MIDI data found in scene data');
+            }
+
+            console.log(`Scene loaded successfully: ${sortedElements.length} elements, macros: ${sceneData.macros ? 'yes' : 'no'}, MIDI: ${sceneData.midiData ? 'yes' : 'no'}`);
+            return true;
+
+        } catch (error) {
+            console.error('Error loading scene:', error);
+            return false;
+        }
     }
 
     /**
@@ -537,29 +623,97 @@ export class HybridSceneBuilder {
      * @private
      */
     _assignDefaultMacros() {
-        console.log('Assigning default macros to scene elements...');
+        console.log('Assigning default macros to element properties...');
 
-        // Assign macros to TimeUnitPianoRoll element
-        const pianoRollElement = this.getElement('main');
-        if (pianoRollElement) {
-            console.log('Found piano roll element, assigning macros...');
-            globalMacroManager.assignMacroToProperty('midiFile', 'main', 'midiFile');
-            globalMacroManager.assignMacroToProperty('tempo', 'main', 'bpm');
-            globalMacroManager.assignMacroToProperty('beatsPerBar', 'main', 'beatsPerBar');
-        } else {
-            console.warn('Piano roll element not found for macro assignment');
+        // Find elements to assign macros to
+        const textElements = this.getElementsByType('textOverlay');
+        const pianoRollElements = this.getElementsByType('timeUnitPianoRoll');
+        const timeDisplayElements = this.getElementsByType('timeDisplay');
+
+        // Assign text macros to text elements
+        textElements.forEach((element, index) => {
+            if (index < 3) { // Only assign to first 3 text elements
+                const macroName = `text${index + 1}`;
+                globalMacroManager.assignMacroToProperty(macroName, element.id, 'text');
+                console.log(`Assigned macro '${macroName}' to text element '${element.id}'`);
+            }
+        });
+
+        // Assign MIDI file macro to piano roll elements
+        pianoRollElements.forEach(element => {
+            globalMacroManager.assignMacroToProperty('midiFile', element.id, 'midiFile');
+            globalMacroManager.assignMacroToProperty('tempo', element.id, 'bpm');
+            globalMacroManager.assignMacroToProperty('beatsPerBar', element.id, 'beatsPerBar');
+            console.log(`Assigned MIDI macros to piano roll element '${element.id}'`);
+        });
+
+        // Assign tempo macro to time display elements
+        timeDisplayElements.forEach(element => {
+            globalMacroManager.assignMacroToProperty('tempo', element.id, 'bpm');
+            globalMacroManager.assignMacroToProperty('beatsPerBar', element.id, 'beatsPerBar');
+            console.log(`Assigned timing macros to time display element '${element.id}'`);
+        });
+
+        console.log('Default macro assignments completed');
+    }
+
+    /**
+     * Convert MIDI events back to note format for loading into elements
+     * @param {Array} midiEvents - Array of MIDI events
+     * @returns {Array} Array of note objects
+     * @private
+     */
+    _convertMidiEventsToNotes(midiEvents) {
+        if (!midiEvents || !Array.isArray(midiEvents)) {
+            return [];
         }
 
-        // Assign macros to TimeDisplay element
-        const timeDisplayElement = this.getElement('timeDisplay');
-        if (timeDisplayElement) {
-            console.log('Found time display element, assigning macros...');
-            globalMacroManager.assignMacroToProperty('tempo', 'timeDisplay', 'bpm');
-            globalMacroManager.assignMacroToProperty('beatsPerBar', 'timeDisplay', 'beatsPerBar');
-        } else {
-            console.warn('Time display element not found for macro assignment');
+        const notes = [];
+        const noteOnEvents = new Map(); // Track note on events to pair with note off
+
+        for (const event of midiEvents) {
+            if (event.type === 'noteOn' && event.velocity > 0) {
+                // Store note on event
+                const key = `${event.note}_${event.channel || 0}`;
+                noteOnEvents.set(key, event);
+            } else if ((event.type === 'noteOff') || (event.type === 'noteOn' && event.velocity === 0)) {
+                // Find matching note on event
+                const key = `${event.note}_${event.channel || 0}`;
+                const noteOnEvent = noteOnEvents.get(key);
+
+                if (noteOnEvent) {
+                    // Create note object
+                    const note = {
+                        note: event.note,
+                        velocity: noteOnEvent.velocity,
+                        startTime: noteOnEvent.time,
+                        endTime: event.time,
+                        duration: event.time - noteOnEvent.time,
+                        channel: event.channel || 0
+                    };
+                    notes.push(note);
+                    noteOnEvents.delete(key);
+                }
+            }
         }
 
-        console.log('Macro assignments completed');
+        // Handle any remaining note on events (notes that don't have corresponding note off)
+        for (const [, noteOnEvent] of noteOnEvents) {
+            const note = {
+                note: noteOnEvent.note,
+                velocity: noteOnEvent.velocity,
+                startTime: noteOnEvent.time,
+                endTime: noteOnEvent.time + 1.0, // Default 1 second duration
+                duration: 1.0,
+                channel: noteOnEvent.channel || 0
+            };
+            notes.push(note);
+        }
+
+        // Sort notes by start time
+        notes.sort((a, b) => a.startTime - b.startTime);
+
+        console.log(`Converted ${midiEvents.length} MIDI events to ${notes.length} notes`);
+        return notes;
     }
 }

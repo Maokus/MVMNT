@@ -181,6 +181,9 @@ const MidiVisualizer: React.FC = () => {
             const parser = new MIDIParser();
             const midiData = await parser.parseMIDIFile(file);
 
+            // Add the file name to the MIDI data for saving purposes
+            midiData.fileName = file.name;
+
             visualizer.loadMIDIData(midiData);
             setCurrentMidiData(midiData);
             setExportStatus('Ready to export');

@@ -2,6 +2,7 @@
 import { ModularRenderer } from './modular-renderer.js';
 import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { sceneElementRegistry } from './scene-element-registry.js';
+import { globalMacroManager } from './macro-manager.ts';
 
 export class MIDIVisualizerCore {
     constructor(canvas, timingManager = null) {
@@ -131,6 +132,105 @@ export class MIDIVisualizerCore {
 
         // If we have elements with their own durations, use that, otherwise fallback to loaded MIDI duration
         return maxDuration > 0 ? maxDuration : this.duration;
+    }
+
+    /**
+     * Load MIDI data into the visualizer
+     * @param {Object} midiData - Parsed MIDI data from MIDIParser
+     */
+    loadMIDIData(midiData) {
+        console.log('MIDIVisualizerCore.loadMIDIData called with:', {
+            eventCount: midiData.events?.length || 0,
+            duration: midiData.duration,
+            tempo: midiData.tempo,
+            fileName: midiData.fileName || 'Unknown'
+        });
+
+        // Store MIDI data globally for compatibility
+        this.events = midiData.events || [];
+        this.duration = midiData.duration || 0;
+
+        // Update the MIDI file macro
+        if (midiData.fileName) {
+            const mockFile = new File([], midiData.fileName, { type: 'audio/midi' });
+            globalMacroManager.updateMacroValue('midiFile', mockFile);
+        }
+
+        // Convert MIDI events to notes format
+        const notes = this._convertMidiEventsToNotes(midiData.events);
+
+        // Load MIDI data into all TimeUnitPianoRoll elements
+        const pianoRollElements = this.sceneBuilder.getElementsByType('timeUnitPianoRoll');
+        for (const element of pianoRollElements) {
+            if (element.timingManager && element.timingManager.loadMIDIData) {
+                element.timingManager.loadMIDIData(midiData, notes, true); // Reset macro values on new load
+                console.log(`Loaded MIDI data into piano roll element '${element.id}'`);
+            }
+        }
+
+        // Force re-render to show the new data
+        this.invalidateRender();
+
+        console.log(`MIDI data loaded: ${notes.length} notes, duration: ${midiData.duration}s`);
+    }
+
+    /**
+     * Convert MIDI events to note format (helper method)
+     * @param {Array} midiEvents - Array of MIDI events
+     * @returns {Array} Array of note objects
+     * @private
+     */
+    _convertMidiEventsToNotes(midiEvents) {
+        if (!midiEvents || !Array.isArray(midiEvents)) {
+            return [];
+        }
+
+        const notes = [];
+        const noteOnEvents = new Map(); // Track note on events to pair with note off
+
+        for (const event of midiEvents) {
+            if (event.type === 'noteOn' && event.velocity > 0) {
+                // Store note on event
+                const key = `${event.note}_${event.channel || 0}`;
+                noteOnEvents.set(key, event);
+            } else if ((event.type === 'noteOff') || (event.type === 'noteOn' && event.velocity === 0)) {
+                // Find matching note on event
+                const key = `${event.note}_${event.channel || 0}`;
+                const noteOnEvent = noteOnEvents.get(key);
+
+                if (noteOnEvent) {
+                    // Create note object
+                    const note = {
+                        note: event.note,
+                        velocity: noteOnEvent.velocity,
+                        startTime: noteOnEvent.time,
+                        endTime: event.time,
+                        duration: event.time - noteOnEvent.time,
+                        channel: event.channel || 0
+                    };
+                    notes.push(note);
+                    noteOnEvents.delete(key);
+                }
+            }
+        }
+
+        // Handle any remaining note on events (notes that don't have corresponding note off)
+        for (const [, noteOnEvent] of noteOnEvents) {
+            const note = {
+                note: noteOnEvent.note,
+                velocity: noteOnEvent.velocity,
+                startTime: noteOnEvent.time,
+                endTime: noteOnEvent.time + 1.0, // Default 1 second duration
+                duration: 1.0,
+                channel: noteOnEvent.channel || 0
+            };
+            notes.push(note);
+        }
+
+        // Sort notes by start time
+        notes.sort((a, b) => a.startTime - b.startTime);
+
+        return notes;
     }
 
     /**
