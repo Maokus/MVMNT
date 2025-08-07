@@ -141,6 +141,73 @@ export function demonstrateMIDIFileBinding() {
 }
 
 /**
+ * Demo function showing the improved macro binding and deletion handling
+ */
+export function demonstrateMacroBindingImprovements() {
+    console.log('\n=== Macro Binding Improvements Demonstration ===');
+
+    const sceneBuilder = new BoundHybridSceneBuilder();
+    sceneBuilder.createDefaultBoundScene();
+
+    // Get a piano roll element
+    const pianoRoll = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll')[0] as BoundTimeUnitPianoRollElement;
+    
+    // 1. Demonstrate property binding through macro assignment
+    console.log('\n--- Property Binding Through Macro Assignment ---');
+    
+    // Create a custom macro
+    globalMacroManager.createMacro('testTempo', 'number', 100, {
+        min: 60,
+        max: 200,
+        step: 1,
+        description: 'Test tempo macro for demonstration'
+    });
+
+    console.log('Before binding - BPM property type:', typeof pianoRoll.getBinding('bpm')?.type);
+    console.log('Before binding - BPM value:', pianoRoll.getBPM());
+
+    // Bind the BPM property to the macro (this now creates a MacroBinding instead of just updating the value)
+    pianoRoll.bindToMacro('bpm', 'testTempo');
+    
+    console.log('After binding - BPM property type:', pianoRoll.getBinding('bpm')?.type);
+    console.log('After binding - BPM value:', pianoRoll.getBPM());
+    console.log('After binding - is bound to testTempo:', pianoRoll.isBoundToMacro('bpm', 'testTempo'));
+
+    // Update the macro value and see it reflected in the element
+    globalMacroManager.updateMacroValue('testTempo', 150);
+    console.log('After macro update - BPM value:', pianoRoll.getBPM());
+
+    // 2. Demonstrate macro deletion and conversion to constant binding
+    console.log('\n--- Macro Deletion and Constant Binding Conversion ---');
+    
+    console.log('Before deletion - BPM binding type:', pianoRoll.getBinding('bpm')?.type);
+    console.log('Before deletion - BPM value:', pianoRoll.getBPM());
+    
+    // Delete the macro - this should convert all macro bindings to constant bindings
+    globalMacroManager.deleteMacro('testTempo');
+    
+    console.log('After deletion - BPM binding type:', pianoRoll.getBinding('bpm')?.type);
+    console.log('After deletion - BPM value:', pianoRoll.getBPM());
+    console.log('After deletion - is still bound to testTempo:', pianoRoll.isBoundToMacro('bpm', 'testTempo'));
+
+    // 3. Demonstrate serialization without redundant assignment data
+    console.log('\n--- Clean Serialization ---');
+    
+    const serializedData = sceneBuilder.serializeScene();
+    console.log('Serialized macros count:', Object.keys(serializedData.macros.macros).length);
+    console.log('Serialized assignments count (should be empty):', 
+        Object.values(serializedData.macros.macros).map((m: any) => m.assignments.length).reduce((a, b) => a + b, 0));
+    
+    // Check that element properties contain binding information
+    const serializedPianoRoll = serializedData.elements.find((e: any) => e.id === pianoRoll.id);
+    if (serializedPianoRoll && (serializedPianoRoll as any).bpm) {
+        console.log('BPM property in serialization:', (serializedPianoRoll as any).bpm);
+    }
+
+    console.log('=== Macro Binding Improvements Demo Complete ===');
+}
+
+/**
  * Show the difference between old and new serialization formats
  */
 export function compareSerializationFormats() {
@@ -210,4 +277,4 @@ export function compareSerializationFormats() {
     console.log('=== Comparison Complete ===');
 }
 
-demonstratePropertyBindingSystem();
+demonstrateMacroBindingImprovements();

@@ -74,8 +74,33 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
         const fields: FormField[] = [];
 
         for (const [key, propSchema] of Object.entries(schema.properties)) {
-            const assignedMacro = elementMacros.find((m: any) => m.propertyPath === key);
-            const isAssignedToMacro = !!assignedMacro;
+            // Check for macro binding in the new property binding system
+            let assignedMacro = null;
+            let isAssignedToMacro = false;
+
+            if (element && typeof element.getBinding === 'function') {
+                // New property binding system
+                const binding = element.getBinding(key);
+                if (binding && binding.type === 'macro') {
+                    const macroId = binding.getMacroId ? binding.getMacroId() : null;
+                    if (macroId) {
+                        const macro = globalMacroManager.getMacro(macroId);
+                        if (macro) {
+                            assignedMacro = {
+                                macroName: macroId,
+                                propertyPath: key,
+                                value: macro.value,
+                                type: macro.type
+                            };
+                            isAssignedToMacro = true;
+                        }
+                    }
+                }
+            } else {
+                // Legacy system fallback
+                assignedMacro = elementMacros.find((m: any) => m.propertyPath === key);
+                isAssignedToMacro = !!assignedMacro;
+            }
 
             // Use element.config[key] first, then fall back to element[key] for direct properties
             const value = element.config?.[key] !== undefined ? element.config[key] :
@@ -102,20 +127,27 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
     const handleMacroAssignment = (propertyKey: string, macroName: string) => {
         const elementId = element.id;
 
-        // Remove any existing assignment for this property
-        const elementMacros = globalMacroManager.getElementMacros(elementId);
-        const currentAssignment = elementMacros.find((m: any) => m.propertyPath === propertyKey);
-        if (currentAssignment) {
-            globalMacroManager.unassignMacroFromProperty(
-                currentAssignment.macroName,
-                elementId,
-                propertyKey
-            );
-        }
+        // Check if this is a bound element that supports the new property binding system
+        if (element && typeof element.bindToMacro === 'function' && typeof element.unbindFromMacro === 'function') {
+            // New property binding system: directly bind/unbind the property
+            if (macroName) {
+                // Bind to the selected macro
+                element.bindToMacro(propertyKey, macroName);
+                console.log(`Bound property '${propertyKey}' to macro '${macroName}' using property binding system`);
+            } else {
+                // Unbind from macro (convert to constant binding)
+                element.unbindFromMacro(propertyKey);
+                console.log(`Unbound property '${propertyKey}' from macro using property binding system`);
+            }
 
-        // Add new assignment if a macro was selected
-        if (macroName) {
-            globalMacroManager.assignMacroToProperty(macroName, elementId, propertyKey);
+            // Trigger config change to update the UI
+            if (onConfigChange) {
+                // Get the current value to update the form
+                const currentValue = element.getProperty ? element.getProperty(propertyKey) : element[propertyKey];
+                onConfigChange(elementId, { [propertyKey]: currentValue });
+            }
+        } else {
+            console.warn(`Element ${elementId} does not support the new property binding system`);
         }
 
         // Trigger re-render

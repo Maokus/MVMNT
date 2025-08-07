@@ -3,6 +3,8 @@ import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { BoundSceneElement } from './scene-elements/bound-base';
 import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
 import { globalMacroManager } from './macro-manager';
+import { BoundTextOverlayElement } from './scene-elements/bound-text-overlay';
+import { BoundBackgroundElement } from './scene-elements/bound-background';
 
 export class BoundHybridSceneBuilder extends HybridSceneBuilder {
 
@@ -99,6 +101,12 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
             // Handle legacy MIDI data if present (for backward compatibility)
             if (sceneData.midiData && !hasBindingSystem) {
                 this._handleLegacyMIDIData(sceneData.midiData, sceneData.midiFileName);
+            }
+
+            // Migrate legacy macro assignments to property bindings if this is an older scene
+            if (!hasBindingSystem) {
+                console.log('Migrating legacy macro assignments to property bindings...');
+                globalMacroManager.migrateAssignmentsToBindings(this);
             }
 
             console.log(`Scene loaded successfully: ${sortedElements.length} elements, binding system: ${hasBindingSystem ? 'yes' : 'no'}`);
@@ -233,13 +241,6 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
             description: 'Number of beats in each bar for all timing elements'
         });
 
-        // Create text macros
-        for (let i = 1; i <= 3; i++) {
-            globalMacroManager.createMacro(`text${i}`, 'string', `Text ${i}`, {
-                description: `Text content for text element ${i}`
-            });
-        }
-
         console.log('Default macros created for bound elements');
     }
 
@@ -257,16 +258,6 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
                 element.bindBPMToMacro('tempo');
                 element.bindBeatsPerBarToMacro('beatsPerBar');
                 console.log(`Auto-bound piano roll element '${element.id}' to MIDI macros`);
-            }
-        });
-
-        // Find text elements and bind them to text macros
-        const textElements = this.getElementsByType('boundTextOverlay');
-        textElements.forEach((element, index) => {
-            if (index < 3 && element instanceof BoundSceneElement) {
-                const macroName = `text${index + 1}`;
-                element.bindToMacro('text', macroName);
-                console.log(`Auto-bound text element '${element.id}' to macro '${macroName}'`);
             }
         });
 
@@ -324,19 +315,30 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
         // Create default macros
         this._createDefaultMacros();
 
-        // Add a background element
-        // TODO: Implement BoundBackgroundElement
+        this.addElement(new BoundBackgroundElement('background'));
 
-        // Add a bound time unit piano roll
-        const timeUnitPianoRoll = new BoundTimeUnitPianoRollElement('main')
-            .setZIndex(10)
-            .setOffset(750, 750)
-            .setAnchor(0.5, 0.5);
+        this.addElement(new BoundTextOverlayElement('titleText', {
+            zIndex: 50,
+            anchorX: 0,
+            anchorY: 0,
+            offsetX: 100,
+            offsetY: 100,
+            text: 'Text 1', // Default placeholder text
+            fontSize: 100,
+            fontWeight: 'bold',
+        }));
 
-        this.addElement(timeUnitPianoRoll);
-
-        // Add a debug element
-        // TODO: Implement BoundDebugElement
+        // Position artist text 40px below the title text
+        this.addElement(new BoundTextOverlayElement('artistText', {
+            zIndex: 51,
+            anchorX: 0,
+            anchorY: 0,
+            offsetX: 105,
+            offsetY: 210,
+            text: 'Text 2', // Default placeholder text
+            fontSize: 40,
+            fontWeight: 'normal',
+        }));
 
         // Auto-bind elements to macros
         this.autoBindElements();

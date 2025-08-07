@@ -81,6 +81,8 @@ export class MacroManager {
 
   /**
    * Delete a macro and remove all its assignments
+   * In the new property binding system, this will cause all bound elements
+   * to convert their macro bindings to constant bindings
    */
   deleteMacro(name: string): boolean {
     if (!this.macros.has(name)) {
@@ -88,12 +90,16 @@ export class MacroManager {
       return false;
     }
 
-    // Remove all assignments for this macro
+    // Get assignments before deletion for the notification
     const assignments = this.assignments.get(name) || [];
+    
+    // Notify listeners BEFORE deleting the macro so bound elements can get the final value
+    this._notifyListeners('macroDeleted', { name, assignments });
+    
+    // Now remove the macro and its assignments
     this.assignments.delete(name);
     this.macros.delete(name);
 
-    this._notifyListeners('macroDeleted', { name, assignments });
     console.log(`Deleted macro '${name}' and removed ${assignments.length} assignments`);
     return true;
   }
@@ -128,76 +134,6 @@ export class MacroManager {
     });
 
     console.log(`Updated macro '${name}' from`, oldValue, 'to', value);
-    return true;
-  }
-
-  /**
-   * Assign a macro to an element property
-   */
-  assignMacroToProperty(macroName: string, elementId: string, propertyPath: string): boolean {
-    const macro = this.macros.get(macroName);
-    if (!macro) {
-      console.warn(`Macro '${macroName}' does not exist`);
-      return false;
-    }
-
-    const assignments = this.assignments.get(macroName) || [];
-
-    // Check if this assignment already exists
-    const existingAssignment = assignments.find(a =>
-      a.elementId === elementId && a.propertyPath === propertyPath
-    );
-
-    if (existingAssignment) {
-      console.warn(`Macro '${macroName}' is already assigned to ${elementId}.${propertyPath}`);
-      return false;
-    }
-
-    // Add the assignment
-    const assignment: MacroAssignment = { elementId, propertyPath };
-    assignments.push(assignment);
-    this.assignments.set(macroName, assignments);
-
-    this._notifyListeners('macroAssigned', {
-      macroName,
-      elementId,
-      propertyPath,
-      currentValue: macro.value
-    });
-
-    console.log(`Assigned macro '${macroName}' to ${elementId}.${propertyPath}`);
-    return true;
-  }
-
-  /**
-   * Remove a macro assignment from an element property
-   */
-  unassignMacroFromProperty(macroName: string, elementId: string, propertyPath: string): boolean {
-    const assignments = this.assignments.get(macroName);
-    if (!assignments) {
-      console.warn(`No assignments found for macro '${macroName}'`);
-      return false;
-    }
-
-    const index = assignments.findIndex(a =>
-      a.elementId === elementId && a.propertyPath === propertyPath
-    );
-
-    if (index === -1) {
-      console.warn(`No assignment found for macro '${macroName}' to ${elementId}.${propertyPath}`);
-      return false;
-    }
-
-    assignments.splice(index, 1);
-    this.assignments.set(macroName, assignments);
-
-    this._notifyListeners('macroUnassigned', {
-      macroName,
-      elementId,
-      propertyPath
-    });
-
-    console.log(`Removed macro assignment '${macroName}' from ${elementId}.${propertyPath}`);
     return true;
   }
 
@@ -271,20 +207,27 @@ export class MacroManager {
     return result;
   }  /**
    * Export macros to a serializable format
-   * In the new system, we only export macro definitions and values,
-   * not assignments (since those are stored in element bindings)
+   * In the new property binding system, we only export macro definitions and values.
+   * Assignment information is no longer needed since bindings are stored in element properties.
    */
   exportMacros(): MacroExportData {
     const macroData: { [key: string]: Macro } = {};
     
     this.macros.forEach((macro, name) => {
+      // Only export the essential macro data, not assignments
       macroData[name] = {
-        ...macro,
-        // Include assignments for backward compatibility
-        assignments: this.assignments.get(name) || []
+        name: macro.name,
+        type: macro.type,
+        value: macro.value,
+        defaultValue: macro.defaultValue,
+        options: macro.options,
+        assignments: [], // Empty array - assignments are now stored in property bindings
+        createdAt: macro.createdAt,
+        lastModified: macro.lastModified
       };
     });
 
+    // For backward compatibility, include assignments data but mark it as deprecated
     const assignmentData: { [key: string]: MacroAssignment[] } = {};
     this.assignments.forEach((assignments, name) => {
       assignmentData[name] = [...assignments];
@@ -292,7 +235,7 @@ export class MacroManager {
 
     return {
       macros: macroData,
-      assignments: assignmentData, // Kept for backward compatibility
+      assignments: assignmentData, // Kept for backward compatibility only - will be removed in future version
       exportedAt: Date.now()
     };
   }
@@ -373,6 +316,38 @@ export class MacroManager {
         console.error('Error in macro listener:', error);
       }
     });
+  }
+
+  /**
+   * Utility method to help migrate from legacy assignment system to property binding system
+   * This can be called during scene loading to ensure bound elements are properly set up
+   */
+  migrateAssignmentsToBindings(sceneBuilder: any): void {
+    if (!sceneBuilder || typeof sceneBuilder.getElement !== 'function') {
+      console.warn('Invalid scene builder provided for migration');
+      return;
+    }
+
+    console.log('Migrating legacy macro assignments to property bindings...');
+    let migratedCount = 0;
+
+    this.assignments.forEach((assignments, macroName) => {
+      assignments.forEach(assignment => {
+        const element = sceneBuilder.getElement(assignment.elementId);
+        if (element && typeof element.bindToMacro === 'function') {
+          // This is a bound element - migrate the assignment
+          try {
+            element.bindToMacro(assignment.propertyPath, macroName);
+            console.log(`Migrated assignment: ${assignment.elementId}.${assignment.propertyPath} -> macro '${macroName}'`);
+            migratedCount++;
+          } catch (error) {
+            console.warn(`Failed to migrate assignment ${assignment.elementId}.${assignment.propertyPath} to macro '${macroName}':`, error);
+          }
+        }
+      });
+    });
+
+    console.log(`Migration completed: ${migratedCount} assignments migrated to property bindings`);
   }
 }
 

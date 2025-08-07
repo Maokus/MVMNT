@@ -1,6 +1,5 @@
 // Main MIDI Visualizer class
 import { ModularRenderer } from './modular-renderer.js';
-import { HybridSceneBuilder } from './hybrid-scene-builder.js';
 import { sceneElementRegistry } from './scene-element-registry.js';
 import { globalMacroManager } from './macro-manager.ts';
 import { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder.js';
@@ -49,7 +48,9 @@ export class MIDIVisualizerCore {
         this._setupImageLoadedListener();
 
         // Initialize the default scene
-        this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
+        //this.sceneBuilder.createDefaultMIDIScene();
+        this.sceneBuilder.createDefaultBoundScene();
+
     }
 
     updateSceneElementTimingManager() {

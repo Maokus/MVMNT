@@ -280,10 +280,9 @@ export class HybridSceneBuilder {
 
     /**
      * Create a default MIDI visualizer scene with common elements
-     * @param {TimingManager} [timingManager] - Optional timing manager (legacy support)
      * @returns {HybridSceneBuilder} Returns this for chaining
      */
-    createDefaultMIDIScene(timingManager = null) {
+    createDefaultMIDIScene() {
         this.clearElements();
 
         // Create default macros for MIDI properties
@@ -641,38 +640,7 @@ export class HybridSceneBuilder {
      * @private
      */
     _assignDefaultMacros() {
-        console.log('Assigning default macros to element properties...');
-
-        // Find elements to assign macros to
-        const textElements = this.getElementsByType('textOverlay');
-        const pianoRollElements = this.getElementsByType('timeUnitPianoRoll');
-        const timeDisplayElements = this.getElementsByType('timeDisplay');
-
-        // Assign text macros to text elements
-        textElements.forEach((element, index) => {
-            if (index < 3) { // Only assign to first 3 text elements
-                const macroName = `text${index + 1}`;
-                globalMacroManager.assignMacroToProperty(macroName, element.id, 'text');
-                console.log(`Assigned macro '${macroName}' to text element '${element.id}'`);
-            }
-        });
-
-        // Assign MIDI file macro to piano roll elements
-        pianoRollElements.forEach(element => {
-            globalMacroManager.assignMacroToProperty('midiFile', element.id, 'midiFile');
-            globalMacroManager.assignMacroToProperty('tempo', element.id, 'bpm');
-            globalMacroManager.assignMacroToProperty('beatsPerBar', element.id, 'beatsPerBar');
-            console.log(`Assigned MIDI macros to piano roll element '${element.id}'`);
-        });
-
-        // Assign tempo macro to time display elements
-        timeDisplayElements.forEach(element => {
-            globalMacroManager.assignMacroToProperty('tempo', element.id, 'bpm');
-            globalMacroManager.assignMacroToProperty('beatsPerBar', element.id, 'beatsPerBar');
-            console.log(`Assigned timing macros to time display element '${element.id}'`);
-        });
-
-        console.log('Default macro assignments completed');
+        // TODO: Use new macro binding system to assign default macros to elements
     }
 
     /**

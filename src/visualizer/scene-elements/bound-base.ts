@@ -49,6 +49,18 @@ export class BoundSceneElement implements SceneElementInterface {
                         this._cacheValid.set(key, false);
                     }
                 });
+            } else if (eventType === 'macroDeleted') {
+                // Convert all macro bindings for this macro to constant bindings
+                this.bindings.forEach((binding, key) => {
+                    if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
+                        console.log(`[MacroListener] Converting macro binding for property '${key}' to constant binding due to macro '${data.name}' deletion`);
+                        // Get the last known value before conversion
+                        const currentValue = binding.getValue();
+                        // Convert to constant binding
+                        this.bindings.set(key, new ConstantBinding(currentValue));
+                        this._cacheValid.set(key, false);
+                    }
+                });
             }
         });
     }
