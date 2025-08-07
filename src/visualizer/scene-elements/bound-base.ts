@@ -6,7 +6,8 @@ import {
     ConstantBinding, 
     MacroBinding, 
     PropertyBindingUtils, 
-    PropertyBindingData 
+    PropertyBindingData,
+    BindingType
 } from '../property-bindings';
 import { globalMacroManager } from '../macro-manager';
 
@@ -186,6 +187,36 @@ export class BoundSceneElement implements SceneElementInterface {
         this.bindings.forEach((binding, key) => {
             if (binding instanceof MacroBinding) {
                 result[key] = binding.getMacroId();
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Search through bindings for bindings of a certain type
+     * @param bindingType - The type of binding to search for ('macro' | 'constant')
+     * @returns Array of objects containing property path and binding details
+     */
+    getBindingsByType(bindingType: BindingType): Array<{ propertyPath: string; binding: PropertyBinding }> {
+        const result: Array<{ propertyPath: string; binding: PropertyBinding }> = [];
+        this.bindings.forEach((binding, propertyPath) => {
+            if (binding.type === bindingType) {
+                result.push({ propertyPath, binding });
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Get all macro bindings for a specific macro
+     * @param macroId - The ID of the macro to search for
+     * @returns Array of property paths that are bound to this macro
+     */
+    getMacroBindingsForMacro(macroId: string): string[] {
+        const result: string[] = [];
+        this.bindings.forEach((binding, propertyPath) => {
+            if (binding instanceof MacroBinding && binding.getMacroId() === macroId) {
+                result.push(propertyPath);
             }
         });
         return result;

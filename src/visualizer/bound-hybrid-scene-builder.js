@@ -205,6 +205,44 @@ export class BoundHybridSceneBuilder {
     }
 
     /**
+     * Get all macro assignments from all scene elements
+     * @param {string} [macroId] - Optional macro ID to filter by. If provided, only returns assignments for this macro
+     * @returns {Array} Array of macro assignment objects with elementId, propertyPath, and macroId
+     */
+    getAllMacroAssignments(macroId = null) {
+        const assignments = [];
+
+        for (const element of this.elements) {
+            // Only process bound elements that have the getMacroBindingsForMacro method
+            if (element instanceof BoundSceneElement) {
+                if (macroId) {
+                    // Get bindings for a specific macro
+                    const propertyPaths = element.getMacroBindingsForMacro(macroId);
+                    for (const propertyPath of propertyPaths) {
+                        assignments.push({
+                            elementId: element.id,
+                            propertyPath: propertyPath,
+                            macroId: macroId
+                        });
+                    }
+                } else {
+                    // Get all macro bindings
+                    const macroBindings = element.getBindingsByType('macro');
+                    for (const { propertyPath, binding } of macroBindings) {
+                        assignments.push({
+                            elementId: element.id,
+                            propertyPath: propertyPath,
+                            macroId: binding.getMacroId()
+                        });
+                    }
+                }
+            }
+        }
+
+        return assignments;
+    }
+
+    /**
      * Set the complete scene elements array
      * @param {SceneElement[]} elements - Array of scene elements
      */

@@ -23,6 +23,7 @@ interface Macro {
 interface MacroAssignment {
     elementId: string;
     propertyPath: string;
+    macroId?: string; // Optional for backward compatibility
 }
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {
@@ -197,7 +198,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     };
 
     const handleShowAssignmentDialog = (macroName: string) => {
-        const assignments = globalMacroManager.getMacroAssignments(macroName);
+        const assignments = sceneBuilder ? sceneBuilder.getAllMacroAssignments(macroName) : [];
         if (assignments.length === 0) {
             alert(`Macro "${macroName}" has no assignments.\n\nTo assign this macro to element properties, you'll need to select an element and look for the macro assignment options in the property editor.`);
         } else {
@@ -323,7 +324,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     };
 
     const renderMacroItem = (macro: Macro) => {
-        const assignments = globalMacroManager.getMacroAssignments(macro.name);
+        const assignments = sceneBuilder ? sceneBuilder.getAllMacroAssignments(macro.name) : [];
 
         return (
             <div key={macro.name} className="macro-item" data-macro={macro.name}>
