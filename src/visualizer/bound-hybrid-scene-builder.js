@@ -40,6 +40,7 @@ export class BoundHybridSceneBuilder {
      */
     _handleMacroValueChange(data) {
         const { name, value, assignments } = data;
+        //globalMacroManager.updateMacroValue(name, value);
 
         // Update each assigned element
         for (const assignment of assignments) {
