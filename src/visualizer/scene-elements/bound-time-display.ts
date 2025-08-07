@@ -133,13 +133,14 @@ export class BoundTimeDisplayElement extends BoundSceneElement {
         const bpm = this.getProperty('bpm') as number;
         const beatsPerBar = this.getProperty('beatsPerBar') as number;
         
-        this.timingManager.applyConfig({
-            bpm,
-            beatsPerBar,
-            timeSignature: `${beatsPerBar}/4`,
-            ticksPerQuarter: 960,
-            tempo: bpm
-        });
+        // Force update the timing manager on every frame to ensure property bindings take precedence
+        this.timingManager.setBPM(bpm);
+        this.timingManager.setBeatsPerBar(beatsPerBar);
+        this.timingManager.setTicksPerQuarter(960);
+
+        // Debug logging for timing calculations
+        const secondsPerBeat = this.timingManager.getSecondsPerBeat();
+        console.log(`BoundTimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Get bar:beat:tick info
         const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
@@ -210,7 +211,7 @@ export class BoundTimeDisplayElement extends BoundSceneElement {
         // Progress bars if enabled
         if (showProgress) {
             // Ensure progress values are between 0 and 1 to prevent negative dimensions
-            const tickProgress = Math.max(0, Math.min(1, barBeatTick.tick / 960));
+            const tickProgress = Math.max(0, Math.min(1, barBeatTick.tick / this.timingManager.ticksPerQuarter));
             const tickBarWidth = baseFontSize * 2;
             const tickBarX = x + baseFontSize * 6 - tickBarWidth;
             const tickBarY = beatY + baseFontSize * 0.1;
