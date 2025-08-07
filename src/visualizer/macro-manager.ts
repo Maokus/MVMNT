@@ -25,7 +25,6 @@ export interface Macro {
   value: any;
   defaultValue: any;
   options: MacroOptions;
-  assignments: MacroAssignment[];
   createdAt: number;
   lastModified: number;
 }
@@ -39,7 +38,6 @@ export interface ElementMacro {
 
 interface MacroExportData {
   macros: { [key: string]: Macro };
-  assignments: { [key: string]: MacroAssignment[] };
   exportedAt: number;
 }
 
@@ -67,7 +65,6 @@ export class MacroManager {
       value: defaultValue,
       defaultValue,
       options,
-      assignments: [], // Array of {elementId, propertyPath} objects
       createdAt: Date.now(),
       lastModified: Date.now()
     };
@@ -221,7 +218,6 @@ export class MacroManager {
         value: macro.value,
         defaultValue: macro.defaultValue,
         options: macro.options,
-        assignments: [], // Empty array - assignments are now stored in property bindings
         createdAt: macro.createdAt,
         lastModified: macro.lastModified
       };
@@ -235,7 +231,6 @@ export class MacroManager {
 
     return {
       macros: macroData,
-      assignments: assignmentData, // Kept for backward compatibility only - will be removed in future version
       exportedAt: Date.now()
     };
   }
@@ -252,11 +247,6 @@ export class MacroManager {
       // Import macros
       for (const [name, macro] of Object.entries(macroData.macros)) {
         this.macros.set(name, { ...macro });
-      }
-
-      // Import assignments
-      for (const [name, assignments] of Object.entries(macroData.assignments)) {
-        this.assignments.set(name, [...assignments]);
       }
 
       this._notifyListeners('macrosImported', { macroData });

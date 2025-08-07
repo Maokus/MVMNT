@@ -87,8 +87,7 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
                     // New format: create element from registry and let it handle binding deserialization
                     element = this.addElementFromRegistry(elementConfig.type, elementConfig);
                 } else {
-                    // Legacy format: convert to new format
-                    element = this._convertLegacyElement(elementConfig);
+                    console.warn(`[loadScene] Legacy format detected for element '${elementConfig.id}'`);
                 }
 
                 if (element) {
@@ -119,40 +118,6 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
     }
 
     /**
-     * Convert legacy element configuration to new binding format
-     */
-    _convertLegacyElement(elementConfig) {
-        console.log(`Converting legacy element '${elementConfig.id}' to bound format`);
-
-        // Create a new configuration with constant bindings for all properties
-        const boundConfig = {
-            id: elementConfig.id,
-            type: this._mapLegacyTypeToNew(elementConfig.type)
-        };
-
-        // Convert all properties to constant bindings
-        for (const [key, value] of Object.entries(elementConfig)) {
-            if (key !== 'id' && key !== 'type' && key !== 'index') {
-                boundConfig[key] = {
-                    type: 'constant',
-                    value: value
-                };
-            }
-        }
-
-        // Check for macro assignments in legacy format
-        const macroAssignments = this._getLegacyMacroAssignments(elementConfig.id);
-        for (const [propertyKey, macroId] of Object.entries(macroAssignments)) {
-            boundConfig[propertyKey] = {
-                type: 'macro',
-                macroId: macroId
-            };
-        }
-
-        return this.addElementFromRegistry(boundConfig.type, boundConfig);
-    }
-
-    /**
      * Map legacy element types to new bound types
      */
     _mapLegacyTypeToNew(legacyType) {
@@ -167,26 +132,6 @@ export class BoundHybridSceneBuilder extends HybridSceneBuilder {
         };
 
         return typeMapping[legacyType] || legacyType;
-    }
-
-    /**
-     * Get macro assignments for a legacy element from the macro manager
-     */
-    _getLegacyMacroAssignments(elementId) {
-        const assignments = {};
-        const allMacros = globalMacroManager.getAllMacrosObject();
-
-        for (const [macroId, macro] of Object.entries(allMacros)) {
-            if (macro.assignments) {
-                for (const assignment of macro.assignments) {
-                    if (assignment.elementId === elementId) {
-                        assignments[assignment.propertyPath] = macroId;
-                    }
-                }
-            }
-        }
-
-        return assignments;
     }
 
     /**
