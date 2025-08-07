@@ -6,6 +6,7 @@ import {
     BoundProgressDisplayElement,
     BoundTimeUnitPianoRollElement,
 } from './scene-elements/index';
+import { BoundSceneElement } from './scene-elements/bound-base.ts';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
 
@@ -65,7 +66,13 @@ export class HybridSceneBuilder {
 
         const element = this.getElement(elementId);
         if (element) {
-            // Create a partial config update with the macro's current value
+            // Skip this handler for bound elements - they handle macro binding internally
+            if (element instanceof BoundSceneElement) {
+                console.log(`Skipping legacy macro assignment handler for bound element ${elementId} - property binding system handles this internally`);
+                return;
+            }
+
+            // Create a partial config update with the macro's current value (legacy elements only)
             const configUpdate = {};
             configUpdate[propertyPath] = currentValue;
 

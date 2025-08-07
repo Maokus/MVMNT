@@ -99,7 +99,6 @@ export class BoundSceneElement implements SceneElementInterface {
     protected getProperty<T>(key: string): T {
         // Check cache first
         if (this._cacheValid.get(key)) {
-            console.log(`[getProperty] Using cached value for ${key}:`, this._cachedValues.get(key));
             return this._cachedValues.get(key);
         }
 
@@ -110,7 +109,6 @@ export class BoundSceneElement implements SceneElementInterface {
         }
 
         const value = binding.getValue();
-        console.log(`[getProperty] Fresh value for ${key}:`, value, 'from binding:', binding);
         
         // Cache the value
         this._cachedValues.set(key, value);

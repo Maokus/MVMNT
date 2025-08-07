@@ -39,7 +39,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
         options: '',
         accept: '.mid,.midi'
     });
-    console.log(`[MacroConfig] Initializing with ${macros.length} macros`);
 
     // Update macros when globalMacroManager changes
     const updateMacros = useCallback(() => {

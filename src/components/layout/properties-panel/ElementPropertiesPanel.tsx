@@ -139,14 +139,12 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 console.log(`Unbound property '${propertyKey}' from macro using property binding system`);
             }
 
-            // Trigger config change to update the UI
-            if (onConfigChange) {
-                // Get the current value to update the form
-                const currentValue = element.getProperty ? element.getProperty(propertyKey) : element[propertyKey];
-                onConfigChange(elementId, { [propertyKey]: currentValue });
-            }
+            // For bound elements, we don't need to trigger onConfigChange because:
+            // 1. The binding is handled internally by the element
+            // 2. Calling onConfigChange would trigger updateConfig which overwrites the binding
+            // 3. The UI will be updated through the macro listener system
         } else {
-            console.warn(`Element ${elementId} does not support the new property binding system`);
+            console.warn(`[handleMacroAssignment] Element ${elementId} does not support the new property binding system`);
         }
 
         // Trigger re-render
