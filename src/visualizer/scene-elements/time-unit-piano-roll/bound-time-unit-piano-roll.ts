@@ -246,7 +246,6 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         // Update timing manager with current values
         this.timingManager.setBPM(bpm);
         this.timingManager.setBeatsPerBar(beatsPerBar);
-        // Note: timeUnitBars is handled locally, not by the timing manager
 
         // Get notes for the current time window
         const notesInTimeUnit = this.timingManager.getNotesInTimeUnit(targetTime);

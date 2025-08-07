@@ -2,8 +2,6 @@
  * LocalTimingManager - Element-specific timing manager for independent timing configurations
  * Each scene element can have its own timing settings, allowing for complex compositions
  */
-import { globalMacroManager } from './macro-manager';
-
 export class LocalTimingManager {
     constructor(elementId = null) {
         this.elementId = elementId;
@@ -51,23 +49,21 @@ export class LocalTimingManager {
 
         // Store original user-configured values to preserve them
         const userBPM = this.bpm;
-        const userBeatsPerBar = this.beatsPerBar;
-        const hadUserTimingConfig = this._hasUserTimingConfig();
 
         // Store original MIDI timing for rescaling notes if needed
         let originalBPM = null;
         let rescaleRatio = 1.0;
 
         // Extract timing information from MIDI data only if user hasn't configured timing
-        if (midiData.tempo && !hadUserTimingConfig) {
+        if (midiData.tempo) {
             this.setTempo(midiData.tempo);
-        } else if (midiData.tempo && hadUserTimingConfig) {
+        } else if (midiData.tempo) {
             // Calculate the original BPM from MIDI tempo for note rescaling
             originalBPM = 60000000 / midiData.tempo; // Convert microseconds per quarter to BPM
             rescaleRatio = userBPM / originalBPM;
         }
 
-        if (midiData.timeSignature && !hadUserTimingConfig) {
+        if (midiData.timeSignature) {
             this.setTimeSignature(midiData.timeSignature);
         }
 
@@ -75,45 +71,7 @@ export class LocalTimingManager {
             this.setTicksPerQuarter(midiData.ticksPerQuarter);
         }
 
-        // If user had timing configuration, restore it after MIDI loading and rescale notes
-        if (hadUserTimingConfig) {
-            this.bpm = userBPM;
-            this.beatsPerBar = userBeatsPerBar;
-            this._invalidateCache();
-
-            // Rescale note timings to match user's tempo
-            if (rescaleRatio !== 1.0 && notes.length > 0) {
-                console.log(`Rescaling note timings by factor ${rescaleRatio.toFixed(3)} (${originalBPM?.toFixed(1)} -> ${userBPM} BPM)`);
-
-                // Log a few sample notes before rescaling
-                const sampleNotes = notes.slice(0, 3);
-                console.log('Sample notes before rescaling:', sampleNotes.map(n => ({
-                    note: n.note,
-                    start: n.startTime?.toFixed(2),
-                    end: n.endTime?.toFixed(2)
-                })));
-
-                this.notes = notes.map(note => ({
-                    ...note,
-                    startTime: note.startTime / rescaleRatio,
-                    endTime: (note.endTime || note.startTime) / rescaleRatio,
-                    duration: (note.duration || 0) / rescaleRatio
-                }));
-
-                // Log the same notes after rescaling
-                const rescaledSampleNotes = this.notes.slice(0, 3);
-                console.log('Sample notes after rescaling:', rescaledSampleNotes.map(n => ({
-                    note: n.note,
-                    start: n.startTime?.toFixed(2),
-                    end: n.endTime?.toFixed(2)
-                })));
-            } else {
-                this.notes = notes;
-            }
-        } else {
-            this.notes = notes;
-        }
-
+        this.notes = notes;
         // Calculate duration from notes (use rescaled notes if available)
         const notesToUse = this.notes.length > 0 ? this.notes : notes;
         if (notesToUse.length > 0) {
@@ -125,7 +83,6 @@ export class LocalTimingManager {
             bpm: this.bpm,
             duration: this.duration,
             noteCount: this.notes.length,
-            preservedUserTiming: hadUserTimingConfig,
             rescaleRatio: rescaleRatio !== 1.0 ? rescaleRatio.toFixed(3) : null,
             hasMacroValues: this._hasMacroValues,
             resetMacroValues: resetMacroValues
@@ -133,35 +90,10 @@ export class LocalTimingManager {
     }
 
     /**
-     * Check if user has configured timing settings (via macros or direct config)
-     * @private
-     */
-    _hasUserTimingConfig() {
-        if (!this.elementId) return false;
-
-        // Check if macro values are currently active (highest priority)
-        if (this._hasMacroValues) {
-            return true;
-        }
-
-        // Check if this element has macro assignments for timing properties
-        const elementMacros = globalMacroManager.getElementMacros(this.elementId);
-        const hasTimingMacros = elementMacros.some(macro =>
-            macro.propertyPath === 'bpm' ||
-            macro.propertyPath === 'beatsPerBar' ||
-            macro.propertyPath === 'tempo'
-        );
-
-        // Also check if timing values differ from defaults (indicating user configuration)
-        const hasNonDefaultValues = this.bpm !== 120 || this.beatsPerBar !== 4;
-
-        return hasTimingMacros || hasNonDefaultValues;
-    }
-
-    /**
      * Set BPM and update tempo
      */
     setBPM(bpm) {
+        if (this.bpm === bpm) { return; }
         const oldBPM = this.bpm;
         this.bpm = Math.max(20, Math.min(300, bpm));
         this.tempo = 60000000 / this.bpm; // Convert BPM to microseconds per quarter note
@@ -208,6 +140,7 @@ export class LocalTimingManager {
      * Set tempo in microseconds per quarter note
      */
     setTempo(tempo) {
+        if (this.tempo === tempo) { return; }
         this.tempo = tempo;
         this.bpm = 60000000 / tempo;
         this._invalidateCache();
@@ -218,6 +151,7 @@ export class LocalTimingManager {
      * Set beats per bar
      */
     setBeatsPerBar(beatsPerBar) {
+        if (this.beatsPerBar === beatsPerBar) { return; }
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
         this._invalidateCache();
         console.log(`LocalTimingManager (${this.elementId}) beats per bar set to:`, this.beatsPerBar);
@@ -227,6 +161,12 @@ export class LocalTimingManager {
      * Set time signature
      */
     setTimeSignature(timeSignature) {
+        if (this.timeSignature.numerator === timeSignature.numerator &&
+            this.timeSignature.denominator === timeSignature.denominator &&
+            this.timeSignature.clocksPerClick === timeSignature.clocksPerClick &&
+            this.timeSignature.thirtysecondNotesPerBeat === timeSignature.thirtysecondNotesPerBeat) {
+            return; // No change
+        }
         this.timeSignature = { ...this.timeSignature, ...timeSignature };
         this.beatsPerBar = this.timeSignature.numerator;
         this._invalidateCache();
@@ -237,6 +177,7 @@ export class LocalTimingManager {
      * Set ticks per quarter note
      */
     setTicksPerQuarter(ticksPerQuarter) {
+        if (this.ticksPerQuarter === ticksPerQuarter) { return; }
         this.ticksPerQuarter = ticksPerQuarter;
         this._invalidateCache();
         console.log(`LocalTimingManager (${this.elementId}) ticks per quarter set to:`, ticksPerQuarter);
