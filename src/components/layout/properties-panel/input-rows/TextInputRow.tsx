@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
-interface NumberInputProps {
+interface TextInputRowProps {
     id: string;
-    value: number;
+    value: string;
     schema: any;
     disabled?: boolean;
     title?: string;
-    onChange: (value: number) => void;
+    onChange: (value: string) => void;
 }
 
-const NumberInput: React.FC<NumberInputProps> = ({
+const TextInputRow: React.FC<TextInputRowProps> = ({
     id,
     value,
     schema,
@@ -22,24 +22,15 @@ const NumberInput: React.FC<NumberInputProps> = ({
 
     // Initialize local value when the prop value changes (new element selected)
     useEffect(() => {
-        const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
-            (typeof schema.default === 'number' ? schema.default.toString() : '0');
+        const displayValue = typeof value === 'string' ? value :
+            (typeof schema.default === 'string' ? schema.default : '');
         setLocalValue(displayValue);
     }, [value, schema.default]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const inputValue = e.target.value;
-        setLocalValue(inputValue);
-
-        if (inputValue === '' || inputValue === '-') {
-            // Allow empty value or minus sign during editing, but don't call onChange yet
-            return;
-        }
-
-        const numValue = parseFloat(inputValue);
-        if (!isNaN(numValue)) {
-            onChange(numValue);
-        }
+        const newValue = e.target.value;
+        setLocalValue(newValue);
+        onChange(newValue);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -50,12 +41,9 @@ const NumberInput: React.FC<NumberInputProps> = ({
 
     return (
         <input
-            type="number"
+            type="text"
             id={id}
             value={localValue}
-            min={schema.min}
-            max={schema.max}
-            step={schema.step}
             disabled={disabled}
             title={title}
             onChange={handleChange}
@@ -64,4 +52,4 @@ const NumberInput: React.FC<NumberInputProps> = ({
     );
 };
 
-export default NumberInput;
+export default TextInputRow;

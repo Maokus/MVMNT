@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 
-interface FileInputProps {
+interface FileInputRowProps {
     id: string;
     value: any;
     schema: any;
@@ -9,7 +9,7 @@ interface FileInputProps {
     onChange: (value: any) => void;
 }
 
-const FileInput: React.FC<FileInputProps> = ({
+const FileInputRow: React.FC<FileInputRowProps> = ({
     id,
     value,
     schema,
@@ -124,4 +124,4 @@ const FileInput: React.FC<FileInputProps> = ({
     );
 };
 
-export default FileInput;
+export default FileInputRow;

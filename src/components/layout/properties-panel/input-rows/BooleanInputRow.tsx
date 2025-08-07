@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface BooleanInputProps {
+interface BooleanInputRowProps {
     id: string;
     value: boolean;
     schema: any;
@@ -9,7 +9,7 @@ interface BooleanInputProps {
     onChange: (value: boolean) => void;
 }
 
-const BooleanInput: React.FC<BooleanInputProps> = ({
+const BooleanInputRow: React.FC<BooleanInputRowProps> = ({
     id,
     value,
     schema,
@@ -29,4 +29,4 @@ const BooleanInput: React.FC<BooleanInputProps> = ({
     );
 };
 
-export default BooleanInput;
+export default BooleanInputRow;

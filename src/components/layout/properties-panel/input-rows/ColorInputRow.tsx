@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface SelectInputProps {
+interface ColorInputRowProps {
     id: string;
     value: string;
     schema: any;
@@ -9,7 +9,7 @@ interface SelectInputProps {
     onChange: (value: string) => void;
 }
 
-const SelectInput: React.FC<SelectInputProps> = ({
+const ColorInputRow: React.FC<ColorInputRowProps> = ({
     id,
     value,
     schema,
@@ -18,20 +18,15 @@ const SelectInput: React.FC<SelectInputProps> = ({
     onChange
 }) => {
     return (
-        <select
+        <input
+            type="color"
             id={id}
-            value={value}
+            value={value || schema.default || '#000000'}
             disabled={disabled}
             title={title}
             onChange={(e) => onChange(e.target.value)}
-        >
-            {schema.options?.map((option: any) => (
-                <option key={option.value} value={option.value}>
-                    {option.label || option.value}
-                </option>
-            ))}
-        </select>
+        />
     );
 };
 
-export default SelectInput;
+export default ColorInputRow;

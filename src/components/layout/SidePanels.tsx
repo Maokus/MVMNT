@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import SceneEditor from './scene-element-panel/SceneEditor';
-import { ConfigEditor } from './properties-panel';
+import { PropertiesPanel } from './properties-panel';
 import MacroConfig from './MacroConfig';
 import { ElementDropdown } from './scene-element-panel';
 import { useSidePanels } from '../hooks/useSidePanels';
@@ -266,24 +266,22 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                         </div>
                     )}
 
-                    {/* Element configuration (shown when an element is selected) */}
-                    {selectedElementId && selectedElement && selectedElementSchema && (
-                        <div className="element-config" id="elementConfig">
-                            <ConfigEditor
-                                key={selectedElementId}
-                                element={selectedElement}
-                                schema={{
-                                    ...selectedElementSchema,
-                                    properties: Object.fromEntries(
-                                        Object.entries(selectedElementSchema.properties || {}).filter(
-                                            ([key]) => key !== 'id' && key !== 'visible'
-                                        )
+                    {/* Properties panel (shows global props when no element selected, element props when selected) */}
+                    <div className="properties-config" id="propertiesConfig">
+                        <PropertiesPanel
+                            key={selectedElementId || 'global'}
+                            element={selectedElement}
+                            schema={selectedElementSchema ? {
+                                ...selectedElementSchema,
+                                properties: Object.fromEntries(
+                                    Object.entries(selectedElementSchema.properties || {}).filter(
+                                        ([key]) => key !== 'id' && key !== 'visible'
                                     )
-                                }}
-                                onConfigChange={handleElementConfigChange}
-                            />
-                        </div>
-                    )}
+                                )
+                            } : undefined}
+                            onConfigChange={handleElementConfigChange}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

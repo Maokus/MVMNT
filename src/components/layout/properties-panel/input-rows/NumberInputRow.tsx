@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
-interface TextInputProps {
+interface NumberInputRowProps {
     id: string;
-    value: string;
+    value: number;
     schema: any;
     disabled?: boolean;
     title?: string;
-    onChange: (value: string) => void;
+    onChange: (value: number) => void;
 }
 
-const TextInput: React.FC<TextInputProps> = ({
+const NumberInputRow: React.FC<NumberInputRowProps> = ({
     id,
     value,
     schema,
@@ -22,15 +22,24 @@ const TextInput: React.FC<TextInputProps> = ({
 
     // Initialize local value when the prop value changes (new element selected)
     useEffect(() => {
-        const displayValue = typeof value === 'string' ? value :
-            (typeof schema.default === 'string' ? schema.default : '');
+        const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
+            (typeof schema.default === 'number' ? schema.default.toString() : '0');
         setLocalValue(displayValue);
     }, [value, schema.default]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newValue = e.target.value;
-        setLocalValue(newValue);
-        onChange(newValue);
+        const inputValue = e.target.value;
+        setLocalValue(inputValue);
+
+        if (inputValue === '' || inputValue === '-') {
+            // Allow empty value or minus sign during editing, but don't call onChange yet
+            return;
+        }
+
+        const numValue = parseFloat(inputValue);
+        if (!isNaN(numValue)) {
+            onChange(numValue);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -41,9 +50,12 @@ const TextInput: React.FC<TextInputProps> = ({
 
     return (
         <input
-            type="text"
+            type="number"
             id={id}
             value={localValue}
+            min={schema.min}
+            max={schema.max}
+            step={schema.step}
             disabled={disabled}
             title={title}
             onChange={handleChange}
@@ -52,4 +64,4 @@ const TextInput: React.FC<TextInputProps> = ({
     );
 };
 
-export default TextInput;
+export default NumberInputRow;

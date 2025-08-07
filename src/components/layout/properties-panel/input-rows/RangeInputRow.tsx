@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface RangeInputProps {
+interface RangeInputRowProps {
     id: string;
     value: number;
     schema: any;
@@ -9,7 +9,7 @@ interface RangeInputProps {
     onChange: (value: number) => void;
 }
 
-const RangeInput: React.FC<RangeInputProps> = ({
+const RangeInputRow: React.FC<RangeInputRowProps> = ({
     id,
     value,
     schema,
@@ -41,4 +41,4 @@ const RangeInput: React.FC<RangeInputProps> = ({
     );
 };
 
-export default RangeInput;
+export default RangeInputRow;

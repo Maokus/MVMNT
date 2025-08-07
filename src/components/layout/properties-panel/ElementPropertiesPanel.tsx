@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import BooleanInput from './inputs/BooleanInput';
-import NumberInput from './inputs/NumberInput';
-import SelectInput from './inputs/SelectInput';
-import ColorInput from './inputs/ColorInput';
-import RangeInput from './inputs/RangeInput';
-import FileInput from './inputs/FileInput';
-import TextInput from './inputs/TextInput';
+import BooleanInputRow from './input-rows/BooleanInputRow';
+import NumberInputRow from './input-rows/NumberInputRow';
+import SelectInputRow from './input-rows/SelectInputRow';
+import ColorInputRow from './input-rows/ColorInputRow';
+import RangeInputRow from './input-rows/RangeInputRow';
+import FileInputRow from './input-rows/FileInputRow';
+import TextInputRow from './input-rows/TextInputRow';
 // @ts-ignore
 import { globalMacroManager } from '../../../visualizer/macro-manager';
 
-interface ConfigEditorProps {
+interface ElementPropertiesPanelProps {
     element: any;
     schema: any;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
@@ -23,7 +23,11 @@ interface FormField {
     assignedMacro?: any;
 }
 
-const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigChange }) => {
+const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
+    element,
+    schema,
+    onConfigChange
+}) => {
     const [formFields, setFormFields] = useState<FormField[]>([]);
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
@@ -201,20 +205,20 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
 
         switch (propSchema.type) {
             case 'boolean':
-                return <BooleanInput {...commonProps} />;
+                return <BooleanInputRow {...commonProps} />;
             case 'number':
-                return <NumberInput {...commonProps} />;
+                return <NumberInputRow {...commonProps} />;
             case 'select':
-                return <SelectInput {...commonProps} />;
+                return <SelectInputRow {...commonProps} />;
             case 'color':
-                return <ColorInput {...commonProps} />;
+                return <ColorInputRow {...commonProps} />;
             case 'range':
-                return <RangeInput {...commonProps} />;
+                return <RangeInputRow {...commonProps} />;
             case 'file':
-                return <FileInput {...commonProps} />;
+                return <FileInputRow {...commonProps} />;
             case 'string':
             default:
-                return <TextInput {...commonProps} />;
+                return <TextInputRow {...commonProps} />;
         }
     };
 
@@ -246,13 +250,13 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
     }
 
     return (
-        <div className="config-editor">
-            <div className="config-editor-header">
+        <div className="element-properties-panel">
+            <div className="element-properties-header">
                 <h3>{schema.name}</h3>
                 <p className="description">{schema.description}</p>
             </div>
 
-            <form className="config-editor-form" onSubmit={(e) => e.preventDefault()}>
+            <form className="element-properties-form" onSubmit={(e) => e.preventDefault()}>
                 {formFields.map((field) => {
                     const { key, propSchema } = field;
                     const hasDescription = !!propSchema.description;
@@ -301,4 +305,4 @@ const ConfigEditor: React.FC<ConfigEditorProps> = ({ element, schema, onConfigCh
     );
 };
 
-export default ConfigEditor;
+export default ElementPropertiesPanel;
