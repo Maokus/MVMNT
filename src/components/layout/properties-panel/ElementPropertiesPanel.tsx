@@ -10,8 +10,8 @@ import TextInputRow from './input-rows/TextInputRow';
 import { globalMacroManager } from '../../../visualizer/macro-manager';
 
 interface ElementPropertiesPanelProps {
-    element: any;
-    schema: any;
+    element: any; // Required - element must be selected
+    schema: any;  // Required - schema must be provided
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
 }
 
@@ -69,11 +69,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     // Update form fields when element or schema changes
     useEffect(() => {
-        if (!element || !schema) {
-            setFormFields([]);
-            return;
-        }
-
         const elementMacros = globalMacroManager.getElementMacros(element.id);
         const fields: FormField[] = [];
 
@@ -244,10 +239,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             </select>
         );
     };
-
-    if (!element || !schema) {
-        return <p>No element selected</p>;
-    }
 
     return (
         <div className="element-properties-panel">

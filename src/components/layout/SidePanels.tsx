@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import SceneEditor from './scene-element-panel/SceneEditor';
 import { PropertiesPanel } from './properties-panel';
-import MacroConfig from './MacroConfig';
 import { ElementDropdown } from './scene-element-panel';
 import { useSidePanels } from '../hooks/useSidePanels';
 
@@ -46,15 +45,6 @@ const SidePanels: React.FC<SidePanelsProps> = ({
         setSelectedElementSchema
     } = useSidePanels({ visualizer, sceneRefreshTrigger });
 
-    // Create a local function to handle export setting updates
-    const updateExportSetting = (key: 'fps' | 'resolution' | 'fullDuration', value: any) => {
-        const newSettings = {
-            ...exportSettings,
-            [key]: value
-        };
-        onExportSettingsChange(newSettings);
-    };
-
     // Create a local function to handle debug setting updates
     const updateDebugSetting = (key: 'showAnchorPoints', value: any) => {
         const newSettings = {
@@ -62,13 +52,6 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             [key]: value
         };
         onDebugSettingsChange(newSettings);
-    };
-
-    // Handle Enter key on export settings inputs
-    const handleExportInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
-            e.currentTarget.blur(); // This will deselect the input
-        }
     };
 
     // Handle clicks outside of side panels to clear selection and show global settings
@@ -177,94 +160,6 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                     <h3 id="propertiesHeader">⚙️ Properties</h3>
                 </div>
                 <div className="properties-content">
-                    {/* Global settings (shown when nothing is selected) */}
-                    {!selectedElementId && (
-                        <div className="global-settings" id="globalSettings">
-                            <div className="settings-grid">
-                                {/* Global Macros Section */}
-                                <div className="setting-group">
-                                    <MacroConfig
-                                        sceneBuilder={visualizer?.getSceneBuilder()}
-                                        visualizer={visualizer}
-                                    />
-                                </div>
-
-                                <div className="setting-group">
-                                    <h4>Export Settings</h4>
-                                    <label htmlFor="resolutionSelect">Resolution:</label>
-                                    <select
-                                        id="resolutionSelect"
-                                        value={exportSettings.resolution}
-                                        onChange={(e) => updateExportSetting('resolution', parseInt(e.target.value))}
-                                    >
-                                        <option value="1500">1500x1500px (Default)</option>
-                                        <option value="1080">1080x1080px (Instagram)</option>
-                                        <option value="720">720x720px (Smaller)</option>
-                                        <option value="2160">2160x2160px (4K)</option>
-                                    </select>
-
-                                    <label htmlFor="fpsInput">Frame Rate (FPS):</label>
-                                    <input
-                                        type="number"
-                                        id="fpsInput"
-                                        min="24"
-                                        max="60"
-                                        value={exportSettings.fps}
-                                        onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
-                                        onKeyDown={handleExportInputKeyDown}
-                                    />
-
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            id="fullDurationExport"
-                                            checked={exportSettings.fullDuration}
-                                            onChange={(e) => updateExportSetting('fullDuration', e.target.checked)}
-                                        />
-                                        Export full duration
-                                    </label>
-
-                                    <div className="export-actions" style={{ marginTop: '16px' }}>
-                                        <button
-                                            className="btn-export"
-                                            onClick={() => onExport(exportSettings)}
-                                            disabled={!canExport}
-                                            style={{
-                                                width: '100%',
-                                                padding: '8px 16px',
-                                                fontSize: '14px',
-                                                fontWeight: 'bold'
-                                            }}
-                                        >
-                                            📸 Export PNG Sequence
-                                        </button>
-                                        <span style={{
-                                            fontSize: '12px',
-                                            color: '#666',
-                                            marginTop: '8px',
-                                            display: 'block',
-                                            textAlign: 'center'
-                                        }}>
-                                            {exportStatus}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="setting-group">
-                                    <h4>Debug Settings</h4>
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            id="showAnchorPoints"
-                                            checked={debugSettings.showAnchorPoints}
-                                            onChange={(e) => updateDebugSetting('showAnchorPoints', e.target.checked)}
-                                        />
-                                        Show Anchor Points
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Properties panel (shows global props when no element selected, element props when selected) */}
                     <div className="properties-config" id="propertiesConfig">
@@ -280,8 +175,33 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                                 )
                             } : undefined}
                             onConfigChange={handleElementConfigChange}
+                            visualizer={visualizer}
+                            onExport={onExport}
+                            exportStatus={exportStatus}
+                            canExport={canExport}
+                            exportSettings={exportSettings}
+                            onExportSettingsChange={onExportSettingsChange}
                         />
                     </div>
+                    {/* Debug settings (shown when nothing is selected) */}
+                    {!selectedElementId && (
+                        <div className="debug-settings" id="debugSettings">
+                            <div className="settings-grid">
+                                <div className="setting-group">
+                                    <h4>Debug Settings</h4>
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            id="showAnchorPoints"
+                                            checked={debugSettings.showAnchorPoints}
+                                            onChange={(e) => updateDebugSetting('showAnchorPoints', e.target.checked)}
+                                        />
+                                        Show Anchor Points
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

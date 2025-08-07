@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { globalMacroManager } from '../../visualizer/macro-manager';
+import { globalMacroManager } from '../../../visualizer/macro-manager';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
@@ -39,6 +39,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
         options: '',
         accept: '.mid,.midi'
     });
+    console.log(`[MacroConfig] Initializing with ${macros.length} macros`);
 
     // Update macros when globalMacroManager changes
     const updateMacros = useCallback(() => {
@@ -192,6 +193,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     const handleDeleteMacro = (name: string) => {
         if (window.confirm(`Are you sure you want to delete the macro "${name}"?`)) {
             globalMacroManager.deleteMacro(name);
+            setMacros(prev => prev.filter(m => m.name !== name));
         }
     };
 
