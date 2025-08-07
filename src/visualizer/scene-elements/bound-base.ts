@@ -137,6 +137,7 @@ export class BoundSceneElement implements SceneElementInterface {
      * Bind a property to a macro
      */
     bindToMacro(propertyKey: string, macroId: string): void {
+        console.log(`[bindToMacro] Binding property '${propertyKey}' to macro '${macroId}'`);
         this.bindings.set(propertyKey, new MacroBinding(macroId));
         this._cacheValid.set(propertyKey, false);
     }

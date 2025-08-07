@@ -771,6 +771,16 @@ export class BoundHybridSceneBuilder {
      */
     _assignDefaultMacros() {
         // TODO: Use new macro binding system to assign default macros to elements
+        const pianoRoll = this.getElementsByType('boundTimeUnitPianoRoll')[0];
+        const timeDisplay = this.getElementsByType('boundTimeDisplay')[0];
+
+        pianoRoll.bindToMacro('bpm', 'tempo');
+        pianoRoll.bindToMacro('beatsPerBar', 'beatsPerBar');
+        pianoRoll.bindToMacro('midiFile', 'midiFile');
+        timeDisplay.bindToMacro('bpm', 'tempo');
+        timeDisplay.bindToMacro('beatsPerBar', 'beatsPerBar');
+
+        console.log(`[_assignDefaultMacros] assigned default macros.`)
     }
 
     /**
@@ -796,13 +806,22 @@ export class BoundHybridSceneBuilder {
     /**
      * Create a default scene with bound elements
      */
-    createDefaultBoundScene() {
+    createTestScene() {
         this.clearElements();
 
         // Create default macros
         this._createDefaultMacros();
 
         this.addElement(new BoundBackgroundElement('background'));
+
+        this.addElement(new BoundTimeUnitPianoRollElement('main', {
+            zIndex: 10,
+            timeUnitBars: 1,
+            offsetX: 750,
+            offsetY: 750,
+            anchorX: 0.5,
+            anchorY: 0.5,
+        }));
 
         this.addElement(new BoundTextOverlayElement('titleText', {
             zIndex: 50,

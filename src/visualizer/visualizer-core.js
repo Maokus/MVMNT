@@ -48,8 +48,10 @@ export class MIDIVisualizerCore {
         this._setupImageLoadedListener();
 
         // Initialize the default scene
-        //this.sceneBuilder.createDefaultMIDIScene();
-        this.sceneBuilder.createDefaultBoundScene();
+        this.sceneBuilder.createDefaultMIDIScene();
+
+        // For debug: add to window for easy access in console
+        window.vis = this;
 
     }
 

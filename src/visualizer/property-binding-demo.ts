@@ -13,7 +13,7 @@ export function demonstratePropertyBindingSystem() {
     const sceneBuilder = new BoundHybridSceneBuilder();
     
     // 2. Create default scene with bound elements
-    sceneBuilder.createDefaultBoundScene();
+    sceneBuilder.createTestScene();
     console.log('✓ Created default bound scene');
 
     // 3. Get a piano roll element to work with
@@ -112,7 +112,7 @@ export function demonstrateMIDIFileBinding() {
     console.log('\n=== MIDI File Binding Demonstration ===');
 
     const sceneBuilder = new BoundHybridSceneBuilder();
-    sceneBuilder.createDefaultBoundScene();
+    sceneBuilder.createTestScene();
 
     // Get piano roll element
     const pianoRoll = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll')[0] as BoundTimeUnitPianoRollElement;
@@ -147,7 +147,7 @@ export function demonstrateMacroBindingImprovements() {
     console.log('\n=== Macro Binding Improvements Demonstration ===');
 
     const sceneBuilder = new BoundHybridSceneBuilder();
-    sceneBuilder.createDefaultBoundScene();
+    sceneBuilder.createTestScene();
 
     // Get a piano roll element
     const pianoRoll = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll')[0] as BoundTimeUnitPianoRollElement;
