@@ -69,7 +69,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     // Update form fields when element or schema changes
     useEffect(() => {
-        const elementMacros = globalMacroManager.getElementMacros(element.id);
         const fields: FormField[] = [];
 
         for (const [key, propSchema] of Object.entries(schema.properties)) {
@@ -96,9 +95,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     }
                 }
             } else {
-                // Legacy system fallback
-                assignedMacro = elementMacros.find((m: any) => m.propertyPath === key);
-                isAssignedToMacro = !!assignedMacro;
+                console.warn(`[ElementPropertiesPanel] Element ${element?.id} does not support the new property binding system`);
             }
 
             // Use element.config[key] first, then fall back to element[key] for direct properties

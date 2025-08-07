@@ -47,7 +47,6 @@ type MacroListener = (eventType: MacroEventType, data: any) => void;
 
 export class MacroManager {
   private macros: Map<string, Macro> = new Map();
-  private assignments: Map<string, MacroAssignment[]> = new Map(); // Maps macro names to element property assignments
   private listeners: Set<MacroListener> = new Set(); // For notifying UI of macro changes
 
   /**
@@ -70,7 +69,6 @@ export class MacroManager {
     };
 
     this.macros.set(name, macro);
-    this.assignments.set(name, []);
     this._notifyListeners('macroCreated', { name, macro });
 
     return true;
@@ -86,18 +84,14 @@ export class MacroManager {
       console.warn(`Macro '${name}' does not exist`);
       return false;
     }
-
-    // Get assignments before deletion for the notification
-    const assignments = this.assignments.get(name) || [];
     
     // Notify listeners BEFORE deleting the macro so bound elements can get the final value
-    this._notifyListeners('macroDeleted', { name, assignments });
+    this._notifyListeners('macroDeleted', { name });
     
     // Now remove the macro and its assignments
-    this.assignments.delete(name);
     this.macros.delete(name);
 
-    console.log(`Deleted macro '${name}' and removed ${assignments.length} assignments`);
+    console.log(`Deleted macro '${name}'`);
     return true;
   }
 
@@ -122,12 +116,10 @@ export class MacroManager {
     macro.lastModified = Date.now();
 
     // Propagate to all assignments
-    const assignments = this.assignments.get(name) || [];
     this._notifyListeners('macroValueChanged', {
       name,
       value,
-      oldValue,
-      assignments
+      oldValue
     });
 
     console.log(`Updated macro '${name}' from`, oldValue, 'to', value);
@@ -139,37 +131,6 @@ export class MacroManager {
    */
   getMacro(name: string): Macro | null {
     return this.macros.get(name) || null;
-  }
-
-  /**
-   * Get all assignments for a macro
-   */
-  getMacroAssignments(name: string): MacroAssignment[] {
-    return this.assignments.get(name) || [];
-  }
-
-  /**
-   * Get all macros assigned to a specific element
-   */
-  getElementMacros(elementId: string): ElementMacro[] {
-    const elementMacros: ElementMacro[] = [];
-
-    this.assignments.forEach((assignments, macroName) => {
-      const elementAssignments = assignments.filter((a: MacroAssignment) => a.elementId === elementId);
-      for (const assignment of elementAssignments) {
-        const macro = this.macros.get(macroName);
-        if (macro) {
-          elementMacros.push({
-            macroName,
-            propertyPath: assignment.propertyPath,
-            value: macro.value,
-            type: macro.type
-          });
-        }
-      }
-    });
-
-    return elementMacros;
   }
 
   /**
@@ -223,12 +184,6 @@ export class MacroManager {
       };
     });
 
-    // For backward compatibility, include assignments data but mark it as deprecated
-    const assignmentData: { [key: string]: MacroAssignment[] } = {};
-    this.assignments.forEach((assignments, name) => {
-      assignmentData[name] = [...assignments];
-    });
-
     return {
       macros: macroData,
       exportedAt: Date.now()
@@ -242,7 +197,6 @@ export class MacroManager {
     try {
       // Clear existing macros
       this.macros.clear();
-      this.assignments.clear();
 
       // Import macros
       for (const [name, macro] of Object.entries(macroData.macros)) {
@@ -306,38 +260,6 @@ export class MacroManager {
         console.error('Error in macro listener:', error);
       }
     });
-  }
-
-  /**
-   * Utility method to help migrate from legacy assignment system to property binding system
-   * This can be called during scene loading to ensure bound elements are properly set up
-   */
-  migrateAssignmentsToBindings(sceneBuilder: any): void {
-    if (!sceneBuilder || typeof sceneBuilder.getElement !== 'function') {
-      console.warn('Invalid scene builder provided for migration');
-      return;
-    }
-
-    console.log('Migrating legacy macro assignments to property bindings...');
-    let migratedCount = 0;
-
-    this.assignments.forEach((assignments, macroName) => {
-      assignments.forEach(assignment => {
-        const element = sceneBuilder.getElement(assignment.elementId);
-        if (element && typeof element.bindToMacro === 'function') {
-          // This is a bound element - migrate the assignment
-          try {
-            element.bindToMacro(assignment.propertyPath, macroName);
-            console.log(`Migrated assignment: ${assignment.elementId}.${assignment.propertyPath} -> macro '${macroName}'`);
-            migratedCount++;
-          } catch (error) {
-            console.warn(`Failed to migrate assignment ${assignment.elementId}.${assignment.propertyPath} to macro '${macroName}':`, error);
-          }
-        }
-      });
-    });
-
-    console.log(`Migration completed: ${migratedCount} assignments migrated to property bindings`);
   }
 }
 
