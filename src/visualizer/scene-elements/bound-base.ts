@@ -549,6 +549,7 @@ export class BoundSceneElement implements SceneElementInterface {
      * Update configuration with new values
      */
     updateConfig(newConfig: { [key: string]: any }): this {
+        console.log(`[BoundSceneElement] Updating config for ${this.id}:`, newConfig);
         this._applyConfig(newConfig);
         return this;
     }

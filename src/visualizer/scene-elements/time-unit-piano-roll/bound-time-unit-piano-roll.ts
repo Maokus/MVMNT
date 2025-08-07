@@ -5,6 +5,7 @@ import { Line, Text } from '../../render-objects/index.js';
 import { BoundAnimationController } from './bound-animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';
 import { NoteBlock } from '../../note-block';
+import { globalMacroManager } from '../../macro-manager';
 
 export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
     public timingManager: LocalTimingManager;
@@ -23,6 +24,9 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
         
         // Initialize bound animation controller
         this.animationController = new BoundAnimationController(this);
+        
+        // Set up specific MIDI file change handling
+        this._setupMIDIFileListener();
     }
 
     static getConfigSchema(): ConfigSchema {
@@ -513,6 +517,26 @@ export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
                 detail: { elementId: this.id }
             }));
         }
+    }
+
+    /**
+     * Set up listener specifically for MIDI file changes to immediately process file
+     */
+    private _setupMIDIFileListener(): void {
+        globalMacroManager.addListener((eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+            if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
+                // Check if this element is bound to the midiFile macro
+                if (this.isBoundToMacro('midiFile', 'midiFile')) {
+                    console.log(`[MIDI File Listener] Processing MIDI file change for element ${this.id}`);
+                    // Get the new MIDI file and process it immediately
+                    const newMidiFile = this.getProperty<File>('midiFile');
+                    if (newMidiFile !== this._currentMidiFile) {
+                        this._handleMIDIFileConfig(newMidiFile);
+                        this._currentMidiFile = newMidiFile;
+                    }
+                }
+            }
+        });
     }
 
     // Convenience methods for property access

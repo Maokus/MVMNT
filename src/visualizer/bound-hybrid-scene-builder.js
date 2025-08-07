@@ -366,29 +366,7 @@ export class BoundHybridSceneBuilder {
             element.updateConfig(newConfig);
             return true;
         } else {
-            try {
-                // Check if element has the expected config structure
-                if (!element.config) {
-                    console.warn(`Element '${id}' does not have a config property`);
-                    return false;
-                }
-
-                // Update the element's config object with new values
-                Object.assign(element.config, newConfig);
-
-                // Apply the updated configuration if the method exists
-                if (typeof element._applyConfig === 'function') {
-                    element._applyConfig();
-                } else {
-                    console.warn(`Element '${id}' does not have _applyConfig method`);
-                    return false;
-                }
-
-                return true;
-            } catch (error) {
-                console.error(`Error updating config for element '${id}':`, error);
-                return false;
-            }
+            console.warn(`[updateElementConfig] Element '${id}' is not a bound element`);
         }
     }
 
