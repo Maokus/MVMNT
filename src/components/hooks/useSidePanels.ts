@@ -84,20 +84,7 @@ export const useSidePanels = ({
                     console.warn(`Failed to update config for element '${elementId}'`);
                 }
             } else {
-                // Fallback to direct element access for older scene builders
-                const element = sceneBuilder.getElement(elementId);
-                if (element && element.config && typeof element._applyConfig === 'function') {
-                    // Apply changes to element config
-                    Object.assign(element.config, changes);
-                    element._applyConfig();
-
-                    // Trigger re-render
-                    if (visualizer.invalidateRender) {
-                        visualizer.invalidateRender();
-                    }
-                } else {
-                    console.warn(`Element '${elementId}' does not support direct config updates`);
-                }
+                console.warn(`[handleElementConfigChange] SceneBuilder does not support updateElementConfig method for element '${elementId}'`);
             }
         }
     };

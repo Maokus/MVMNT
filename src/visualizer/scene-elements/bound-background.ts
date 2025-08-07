@@ -7,6 +7,14 @@ export class BoundBackgroundElement extends BoundSceneElement {
 
     constructor(id: string = 'boundBackground', config: { [key: string]: any } = {}) {
         super('boundBackground', id, config);
+        this.updateConfig({
+            anchorX: 0,
+            anchorY: 0,
+            offsetX: 0,
+            offsetY: 0,
+            zIndex: -1000, // Ensure background is always at the back
+            backgroundColor: '#1a1a1a' // Default background color
+        });
     }
 
     static getConfigSchema(): ConfigSchema {
