@@ -7,8 +7,6 @@ import { useMenuBar } from '../hooks/useMenuBar';
 // @ts-ignore
 import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
 // @ts-ignore
-import { MIDIParser } from '../../visualizer/midi-parser';
-// @ts-ignore
 import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
 // @ts-ignore
 import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
@@ -18,7 +16,6 @@ const MidiVisualizer: React.FC = () => {
     const [visualizer, setVisualizer] = useState<any>(null);
     const [imageSequenceGenerator, setImageSequenceGenerator] = useState<any>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [currentMidiData, setCurrentMidiData] = useState<any>(null);
     const [currentTime, setCurrentTime] = useState('00:00 / 00:00');
     const [sceneName, setSceneName] = useState(SceneNameGenerator.generate());
     const [exportStatus, setExportStatus] = useState('Load MIDI or create scene to enable export');
@@ -140,7 +137,7 @@ const MidiVisualizer: React.FC = () => {
                 visualizer.canvas.removeEventListener('visualizer-update', handleVisualizerUpdate);
             }
         };
-    }, [visualizer, currentMidiData]);
+    }, [visualizer]);
 
     // Handle export settings changes, especially resolution changes
     useEffect(() => {
@@ -172,28 +169,6 @@ const MidiVisualizer: React.FC = () => {
             }
         }
     }, [visualizer, debugSettings]);
-
-    const handleMidiLoad = async (file: File) => {
-        if (!visualizer) return;
-
-        try {
-            console.log('Loading MIDI file:', file.name);
-            const parser = new MIDIParser();
-            const midiData = await parser.parseMIDIFile(file);
-
-            // Add the file name to the MIDI data for saving purposes
-            midiData.fileName = file.name;
-
-            visualizer.loadMIDIData(midiData);
-            setCurrentMidiData(midiData);
-            setExportStatus('Ready to export');
-
-            console.log('MIDI file loaded successfully');
-        } catch (error) {
-            console.error('Error loading MIDI file:', error);
-            alert('Error loading MIDI file: ' + (error instanceof Error ? error.message : String(error)));
-        }
-    };
 
     // Handle scene refresh trigger
     const handleSceneRefresh = () => {
@@ -287,7 +262,6 @@ const MidiVisualizer: React.FC = () => {
             <MenuBar
                 sceneName={sceneName}
                 onSceneNameChange={setSceneName}
-                onMidiLoad={handleMidiLoad}
                 menuBarActions={menuBarActions}
             />
 

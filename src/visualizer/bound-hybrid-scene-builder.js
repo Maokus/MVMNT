@@ -121,6 +121,8 @@ export class BoundHybridSceneBuilder {
             // Check if element has a local timing manager with duration
             if (element.timingManager && typeof element.timingManager.getDuration === 'function') {
                 const duration = element.timingManager.getDuration();
+                console.log(`[getMaxDuration] ${duration}`);
+                console.log(element.timingManager);
                 if (duration > maxDuration) {
                     maxDuration = duration;
                 }
@@ -493,28 +495,10 @@ export class BoundHybridSceneBuilder {
         // Get macro data from the global macro manager
         const macroData = globalMacroManager.exportMacros();
 
-        // Get MIDI data from elements that have it (for backward compatibility)
-        let midiData = null;
-        let midiFileName = null;
-
-        for (const element of this.elements) {
-            if (element.type === 'timeUnitPianoRoll' && element.timingManager && element.timingManager.midiData) {
-                midiData = element.timingManager.midiData;
-                // Try to get the original file name from the macro manager if it exists
-                const midiFileMacro = globalMacroManager.getMacro('midiFile');
-                if (midiFileMacro && midiFileMacro.value && midiFileMacro.value.name) {
-                    midiFileName = midiFileMacro.value.name;
-                }
-                break; // Use the first piano roll element's MIDI data
-            }
-        }
-
         return {
             version: process.env.REACT_APP_VERSION,
             elements: serializedElements,
             macros: macroData,
-            midiData: midiData,
-            midiFileName: midiFileName,
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: process.env.REACT_APP_BINDING_VERSION
         };

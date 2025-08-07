@@ -10,19 +10,16 @@ interface MenuBarActions {
 interface MenuBarProps {
     sceneName: string;
     onSceneNameChange: (name: string) => void;
-    onMidiLoad: (file: File) => void;
     menuBarActions: MenuBarActions;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
     sceneName,
     onSceneNameChange,
-    onMidiLoad,
     menuBarActions
 }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
 
     // Handle clicks outside scene menu to close it
@@ -54,13 +51,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
         }
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            onMidiLoad(file);
-        }
-    };
-
     const saveScene = () => {
         menuBarActions.saveScene();
         setShowSceneMenu(false);
@@ -83,14 +73,6 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
     return (
         <div className="menu-bar">
-            <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept=".mid,.midi"
-                onChange={handleFileChange}
-            />
-
             <div className="menu-section quick-actions">
                 <h3>Midivis v{process.env.REACT_APP_VERSION}</h3>
             </div>
