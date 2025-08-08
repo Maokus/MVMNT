@@ -212,6 +212,14 @@ export class MacroManager {
     }
   }
 
+  clearMacros(): void {
+    try{
+      this.macros.clear();
+    } catch (error) {
+      console.error('Failed to clear macros:', error);
+    }
+  }
+
   /**
    * Validate a value against a macro type and options
    * @private

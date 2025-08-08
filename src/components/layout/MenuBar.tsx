@@ -120,7 +120,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                             <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
                                 <div className="scene-menu-item" onClick={saveScene}>💾 Save Scene (Download JSON)</div>
                                 <div className="scene-menu-item" onClick={loadScene}>📂 Load Scene (Upload JSON)</div>
-                                <div className="scene-menu-item" onClick={clearScene}>🗑️ Clear All Layers</div>
+                                <div className="scene-menu-item" onClick={clearScene}>🗑️ Clear Scene</div>
                                 <div className="scene-menu-item" onClick={createNewDefaultScene}>✨ New Default Scene</div>
                             </div>
                         )}

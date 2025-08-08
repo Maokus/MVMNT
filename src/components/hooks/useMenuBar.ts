@@ -1,4 +1,5 @@
-import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
+import { globalMacroManager } from '../../visualizer/macro-manager';
+import { SceneNameGenerator } from '../../visualizer/scene-name-generator';
 
 interface UseMenuBarProps {
     visualizer: any;
@@ -143,6 +144,7 @@ export const useMenuBar = ({
             const sceneBuilder = visualizer.getSceneBuilder();
             if (sceneBuilder) {
                 sceneBuilder.clearElements();
+                globalMacroManager.clearMacros();
                 if (visualizer.invalidateRender) {
                     visualizer.invalidateRender();
                 }
