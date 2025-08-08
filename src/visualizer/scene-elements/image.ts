@@ -24,20 +24,6 @@ export class ImageElement extends SceneElement {
                     accept: 'image/*',
                     description: 'Image file to display'
                 },
-                x: {
-                    type: 'number',
-                    label: 'X Position',
-                    default: 0,
-                    step: 1,
-                    description: 'Horizontal position in pixels'
-                },
-                y: {
-                    type: 'number',
-                    label: 'Y Position',
-                    default: 0,
-                    step: 1,
-                    description: 'Vertical position in pixels'
-                },
                 width: {
                     type: 'number',
                     label: 'Width',
@@ -55,42 +41,6 @@ export class ImageElement extends SceneElement {
                     max: 2000,
                     step: 10,
                     description: 'Height of the image container in pixels'
-                },
-                scaleX: {
-                    type: 'range',
-                    label: 'Scale X',
-                    default: 1,
-                    min: 0.1,
-                    max: 3,
-                    step: 0.1,
-                    description: 'Horizontal scale factor'
-                },
-                scaleY: {
-                    type: 'range',
-                    label: 'Scale Y',
-                    default: 1,
-                    min: 0.1,
-                    max: 3,
-                    step: 0.1,
-                    description: 'Vertical scale factor'
-                },
-                opacity: {
-                    type: 'range',
-                    label: 'Opacity',
-                    default: 1,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Image opacity (0 = transparent, 1 = opaque)'
-                },
-                rotation: {
-                    type: 'number',
-                    label: 'Rotation (degrees)',
-                    default: 0,
-                    min: -360,
-                    max: 360,
-                    step: 1,
-                    description: 'Rotation angle in degrees'
                 },
                 fitMode: {
                     type: 'select',
@@ -151,33 +101,20 @@ export class ImageElement extends SceneElement {
         if (!this._currentImageSource) return [];
 
         // Get all properties from bindings
-        const x = this.getProperty('x') as number;
-        const y = this.getProperty('y') as number;
         const width = this.getProperty('width') as number;
         const height = this.getProperty('height') as number;
-        const scaleX = this.getProperty('scaleX') as number;
-        const scaleY = this.getProperty('scaleY') as number;
-        const opacity = this.getProperty('opacity') as number;
-        const rotation = this.getProperty('rotation') as number;
         const fitMode = this.getProperty('fitMode') as 'contain' | 'cover' | 'fill' | 'none';
         const preserveAspectRatio = this.getProperty('preserveAspectRatio') as boolean;
 
+        // Create image at origin (positioning and transformations handled by transform system)
         const image = new Image(
-            x,
-            y,
+            0,
+            0,
             width,
             height,
             this._currentImageSource,
-            opacity
+            1 // Full opacity at render object level, element opacity is handled by transform system
         );
-
-        // Apply transformations
-        image.scaleX = scaleX;
-        image.scaleY = scaleY;
-
-        // Convert rotation from degrees to radians
-        const rotationRad = (rotation * Math.PI) / 180;
-        image.rotation = rotationRad;
 
         // Apply fit mode and aspect ratio settings
         image.setFitMode(fitMode);

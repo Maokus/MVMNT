@@ -28,16 +28,6 @@ export class ProgressDisplayElement extends SceneElement {
                     default: true,
                     description: 'Display time and note count statistics'
                 },
-                position: {
-                    type: 'select',
-                    label: 'Position',
-                    default: 'bottom',
-                    options: [
-                        { value: 'top', label: 'Top' },
-                        { value: 'bottom', label: 'Bottom' }
-                    ],
-                    description: 'Position on screen'
-                },
                 height: {
                     type: 'number',
                     label: 'Height',
@@ -46,15 +36,6 @@ export class ProgressDisplayElement extends SceneElement {
                     max: 50,
                     step: 5,
                     description: 'Height of the progress bar in pixels'
-                },
-                margin: {
-                    type: 'number',
-                    label: 'Margin',
-                    default: 10,
-                    min: 0,
-                    max: 50,
-                    step: 5,
-                    description: 'Margin from screen edge in pixels'
                 }
             }
         };
@@ -64,15 +45,12 @@ export class ProgressDisplayElement extends SceneElement {
         if (!this.getProperty('visible')) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
-        const { canvas, duration, sceneDuration, playedNoteEvents, totalNoteEvents } = config;
-        const { width, height } = canvas;
+        const { duration, sceneDuration, playedNoteEvents, totalNoteEvents } = config;
 
         // Get properties from bindings
         const showBar = this.getProperty('showBar') as boolean;
         const showStats = this.getProperty('showStats') as boolean;
-        const position = this.getProperty('position') as 'top' | 'bottom';
         const barHeight = this.getProperty('height') as number;
-        const margin = this.getProperty('margin') as number;
 
         // Use sceneDuration if available (total scene length), fallback to duration
         const totalDuration = sceneDuration || duration;
@@ -80,17 +58,18 @@ export class ProgressDisplayElement extends SceneElement {
         // Calculate progress based on the total scene duration
         const progress = totalDuration > 0 ? Math.max(0, Math.min(1, targetTime / totalDuration)) : 0;
 
-        // Position calculation
-        const y = position === 'top' ? margin : height - barHeight - margin;
-        const barY = y;
-        const textY = y + barHeight + 5;
+        // Fixed width for progress bar (positioning handled by transform system)
+        const barWidth = 400;
+        const margin = 0;
+        const barY = 0;
+        const textY = barHeight + 5;
 
         // Progress bar background
         if (showBar) {
             const progressBg = new Rectangle(
                 margin,
                 barY,
-                width - 2 * margin,
+                barWidth,
                 barHeight,
                 'rgba(255, 255, 255, 0.1)'
             );
@@ -100,9 +79,9 @@ export class ProgressDisplayElement extends SceneElement {
             const progressFill = new Rectangle(
                 margin,
                 barY,
-                (width - 2 * margin) * progress,
+                barWidth * progress,
                 barHeight,
-                config.textSecondaryColor
+                config.textSecondaryColor || '#cccccc'
             );
             renderObjects.push(progressFill);
 
@@ -111,13 +90,13 @@ export class ProgressDisplayElement extends SceneElement {
             const borderColor = 'rgba(255, 255, 255, 0.3)';
             
             // Top border
-            const topBorder = new Rectangle(margin, barY, width - 2 * margin, borderWidth, borderColor);
+            const topBorder = new Rectangle(margin, barY, barWidth, borderWidth, borderColor);
             // Bottom border  
-            const bottomBorder = new Rectangle(margin, barY + barHeight - borderWidth, width - 2 * margin, borderWidth, borderColor);
+            const bottomBorder = new Rectangle(margin, barY + barHeight - borderWidth, barWidth, borderWidth, borderColor);
             // Left border
             const leftBorder = new Rectangle(margin, barY, borderWidth, barHeight, borderColor);
             // Right border
-            const rightBorder = new Rectangle(margin + width - 2 * margin - borderWidth, barY, borderWidth, barHeight, borderColor);
+            const rightBorder = new Rectangle(margin + barWidth - borderWidth, barY, borderWidth, barHeight, borderColor);
             
             renderObjects.push(topBorder, bottomBorder, leftBorder, rightBorder);
         }
@@ -125,7 +104,7 @@ export class ProgressDisplayElement extends SceneElement {
         // Statistics text
         if (showStats) {
             const fontSize = 12;
-            const font = `${config.fontWeight} ${fontSize}px ${config.fontFamily}, sans-serif`;
+            const font = `${config.fontWeight || 'normal'} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
 
             // Time progress
             const currentTimeText = this._formatTime(targetTime);
@@ -134,25 +113,25 @@ export class ProgressDisplayElement extends SceneElement {
 
             const timeLabel = new Text(
                 margin,
-                position === 'top' ? textY : barY - 5,
+                textY,
                 timeText,
                 font,
-                config.textTertiaryColor,
+                config.textTertiaryColor || '#cccccc',
                 'left',
-                position === 'top' ? 'top' : 'bottom'
+                'top'
             );
             renderObjects.push(timeLabel);
 
             // Notes progress
-            const notesText = `${playedNoteEvents} / ${totalNoteEvents} notes`;
+            const notesText = `${playedNoteEvents || 0} / ${totalNoteEvents || 0} notes`;
             const notesLabel = new Text(
-                width - margin,
-                position === 'top' ? textY : barY - 5,
+                barWidth,
+                textY,
                 notesText,
                 font,
-                config.textTertiaryColor,
+                config.textTertiaryColor || '#cccccc',
                 'right',
-                position === 'top' ? 'top' : 'bottom'
+                'top'
             );
             renderObjects.push(notesLabel);
         }

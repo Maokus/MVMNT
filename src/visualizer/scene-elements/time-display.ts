@@ -55,18 +55,6 @@ export class TimeDisplayElement extends SceneElement {
                     description: 'Number of beats in each bar for this display'
                 },
 
-                position: {
-                    type: 'select',
-                    label: 'Position',
-                    default: 'bottomLeft',
-                    options: [
-                        { value: 'topLeft', label: 'Top Left' },
-                        { value: 'topRight', label: 'Top Right' },
-                        { value: 'bottomLeft', label: 'Bottom Left' },
-                        { value: 'bottomRight', label: 'Bottom Right' }
-                    ],
-                    description: 'Position of the time display on screen'
-                },
                 showProgress: {
                     type: 'boolean',
                     label: 'Show Progress Bars',
@@ -118,11 +106,8 @@ export class TimeDisplayElement extends SceneElement {
         if (!this.getProperty('visible')) return [];
 
         const renderObjects: RenderObjectInterface[] = [];
-        const { canvas } = config;
-        const { width, height } = canvas;
 
         // Get properties from bindings
-        const position = this.getProperty('position') as 'bottomLeft' | 'topLeft' | 'topRight' | 'bottomRight';
         const showProgress = this.getProperty('showProgress') as boolean;
         const fontFamily = this.getProperty('fontFamily') as string;
         const fontWeight = this.getProperty('fontWeight') as string;
@@ -153,9 +138,7 @@ export class TimeDisplayElement extends SceneElement {
 
         const minSecMs: MinSecMs = { minutes, seconds, milliseconds };
 
-        const margin = width * 0.03;
-        const bottomMargin = height * 0.08;
-        const baseFontSize = Math.max(height * 0.035, 16);
+        const baseFontSize = 24; // Fixed size, scaling handled by transform system
 
         // Format display text with zero-padding
         const barText = String(barBeatTick.bar).padStart(3, '0');
@@ -165,29 +148,10 @@ export class TimeDisplayElement extends SceneElement {
         const secText = String(minSecMs.seconds).padStart(2, '0');
         const msText = String(minSecMs.milliseconds).padStart(3, '0');
 
-        // Calculate position based on position setting
-        let x: number, timeY: number, beatY: number;
-        switch (position) {
-            case 'topLeft':
-                x = margin;
-                timeY = margin + baseFontSize;
-                beatY = timeY + baseFontSize * 1.8;
-                break;
-            case 'topRight':
-                x = width - margin - baseFontSize * 6;
-                timeY = margin + baseFontSize;
-                beatY = timeY + baseFontSize * 1.8;
-                break;
-            case 'bottomRight':
-                x = width - margin - baseFontSize * 6;
-                beatY = height - bottomMargin;
-                timeY = beatY - baseFontSize * 1.8;
-                break;
-            default: // bottomLeft
-                x = margin;
-                beatY = height - bottomMargin;
-                timeY = beatY - baseFontSize * 1.8;
-        }
+        // Layout elements at origin (positioning handled by transform system)
+        const x = 0;
+        const timeY = 0;
+        const beatY = baseFontSize * 1.8;
 
         const font = `${fontWeight} ${baseFontSize}px ${fontFamily}, sans-serif`;
         const labelFont = `${fontWeight} ${baseFontSize * 0.8}px ${fontFamily}, sans-serif`;

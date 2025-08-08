@@ -7,14 +7,22 @@ export class BackgroundElement extends SceneElement {
 
     constructor(id: string = 'background', config: { [key: string]: any } = {}) {
         super('background', id, config);
-        this.updateConfig({
+        // Only set defaults if not already specified in config
+        const defaults = {
             anchorX: 0,
             anchorY: 0,
             offsetX: 0,
             offsetY: 0,
             zIndex: -1000, // Ensure background is always at the back
             backgroundColor: '#1a1a1a' // Default background color
-        });
+        };
+        
+        // Apply defaults only for properties not already in config
+        for (const [key, value] of Object.entries(defaults)) {
+            if (!(key in config)) {
+                this.setProperty(key, value);
+            }
+        }
     }
 
     static getConfigSchema(): ConfigSchema {

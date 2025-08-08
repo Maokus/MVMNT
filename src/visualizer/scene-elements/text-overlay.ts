@@ -16,35 +16,6 @@ export class TextOverlayElement extends SceneElement {
             category: 'info',
             properties: {
                 ...super.getConfigSchema().properties,
-                justification: {
-                    type: 'select',
-                    label: 'Justification',
-                    default: 'center',
-                    options: [
-                        { value: 'left', label: 'Left' },
-                        { value: 'center', label: 'Center' },
-                        { value: 'right', label: 'Right' }
-                    ],
-                    description: 'Text alignment and anchor point'
-                },
-                x: {
-                    type: 'number',
-                    label: 'X Position',
-                    default: 200,
-                    min: 0,
-                    max: 800,
-                    step: 1,
-                    description: 'Horizontal position of the reference point'
-                },
-                y: {
-                    type: 'number',
-                    label: 'Y Position',
-                    default: 100,
-                    min: 0,
-                    max: 800,
-                    step: 1,
-                    description: 'Vertical position of the reference point'
-                },
                 text: {
                     type: 'string',
                     label: 'Text',
@@ -107,21 +78,15 @@ export class TextOverlayElement extends SceneElement {
         const renderObjects: RenderObjectInterface[] = [];
 
         // Get properties from bindings
-        const justification = this.getProperty('justification') as 'left' | 'center' | 'right';
-        const x = this.getProperty('x') as number;
-        const y = this.getProperty('y') as number;
         const text = this.getProperty('text') as string;
         const fontFamily = this.getProperty('fontFamily') as string;
         const fontWeight = this.getProperty('fontWeight') as string;
         const fontSize = this.getProperty('fontSize') as number;
         const color = this.getProperty('color') as string;
 
-        // Use the element's own x,y coordinates for text positioning
-        const align = justification; // 'left', 'center', 'right'
-
-        // Create text render object using element's own position
+        // Create text render object at origin (positioning handled by transform system)
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
-        const textElement = new Text(x, y, text, font, color, align, 'top');
+        const textElement = new Text(0, 0, text, font, color, 'center', 'middle');
         renderObjects.push(textElement);
 
         return renderObjects;

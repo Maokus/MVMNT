@@ -6,10 +6,13 @@ import { Rectangle, Text } from '../render-objects';
 export class DebugElement extends SceneElement {
     constructor(id: string | null = null, config: { [key: string]: any } = {}) {
         super('debug', id, config);
-        this.updateConfig({
-            xOffset: 750,
-            yOffset: 750
-        })
+        // Set default position using the new offset properties if not specified in config
+        if (!('offsetX' in config)) {
+            this.setProperty('offsetX', 750);
+        }
+        if (!('offsetY' in config)) {
+            this.setProperty('offsetY', 750);
+        }
     }
 
     static getConfigSchema(): ConfigSchema {
