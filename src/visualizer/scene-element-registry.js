@@ -5,7 +5,8 @@ import {
     ImageElement,
     ProgressDisplayElement,
     TextOverlayElement,
-    TimeDisplayElement
+    TimeDisplayElement,
+    DebugElement
 } from './scene-elements/index';
 
 export class SceneElementRegistry {
@@ -114,6 +115,11 @@ export class SceneElementRegistry {
             const element = new TimeDisplayElement(config.id || 'timeDisplay', config);
             return element;
         }, TimeDisplayElement.getConfigSchema());
+
+        this.registerElement('debug', (config) => {
+            const element = new DebugElement(config.id || 'debug', config);
+            return element;
+        }, DebugElement.getConfigSchema());
 
 
     }

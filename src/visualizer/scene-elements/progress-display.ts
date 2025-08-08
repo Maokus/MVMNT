@@ -11,8 +11,8 @@ export class ProgressDisplayElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Progress Display',
-            description: 'Playback progress bar and statistics with property bindings',
+            name: 'Progress Display',
+            description: 'Playback progress bar and statistics',
             category: 'info',
             properties: {
                 ...super.getConfigSchema().properties,

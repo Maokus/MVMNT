@@ -272,17 +272,6 @@ export class LocalTimingManager {
         const windowEnd = windowStart + timeUnitDuration;
 
         const notesInWindow = this.getNotesInTimeWindow(windowStart, windowEnd);
-
-        console.log(`LocalTimingManager (${this.elementId}) getNotesInTimeUnit:`, {
-            currentTime,
-            timeUnitBars,
-            timeUnitDuration,
-            windowStart,
-            windowEnd,
-            totalNotes: this.notes.length,
-            notesInWindow: notesInWindow.length
-        });
-
         return notesInWindow;
     }
 

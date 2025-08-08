@@ -19,8 +19,8 @@ export class BackgroundElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Background',
-            description: 'Solid background color for the visualization with property bindings',
+            name: 'Background',
+            description: 'Solid background color for the visualization',
             category: 'layout',
             properties: {
                 ...super.getConfigSchema().properties,

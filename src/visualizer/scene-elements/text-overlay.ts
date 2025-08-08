@@ -11,8 +11,8 @@ export class TextOverlayElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Text Element',
-            description: 'Single line text display with property bindings',
+            name: 'Text',
+            description: 'Single line text display',
             category: 'info',
             properties: {
                 ...super.getConfigSchema().properties,

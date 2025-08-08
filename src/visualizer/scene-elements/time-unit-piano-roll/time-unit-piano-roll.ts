@@ -31,8 +31,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Time Unit Piano Roll',
-            description: 'Complete MIDI visualization with property bindings',
+            name: 'Time Unit Piano Roll',
+            description: 'Piano Roll visualization split into time units',
             category: 'complete',
             properties: {
                 ...super.getConfigSchema().properties,

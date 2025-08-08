@@ -29,8 +29,8 @@ export class TimeDisplayElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Time Display',
-            description: 'Current time and beat position display with property bindings',
+            name: 'Time Display',
+            description: 'Current time and beat position display',
             category: 'info',
             properties: {
                 ...super.getConfigSchema().properties,
@@ -140,7 +140,7 @@ export class TimeDisplayElement extends SceneElement {
 
         // Debug logging for timing calculations
         const secondsPerBeat = this.timingManager.getSecondsPerBeat();
-        console.log(`BoundTimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
+        console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Get bar:beat:tick info
         const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);

@@ -12,8 +12,8 @@ export class ImageElement extends SceneElement {
 
     static getConfigSchema(): ConfigSchema {
         return {
-            name: 'Bound Image',
-            description: 'Display an image with transformations and property bindings',
+            name: 'Image',
+            description: 'Display an image with transformations',
             category: 'media',
             properties: {
                 ...super.getConfigSchema().properties,

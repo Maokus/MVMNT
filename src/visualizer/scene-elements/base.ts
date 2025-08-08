@@ -138,7 +138,6 @@ export class SceneElement implements SceneElementInterface {
      * Bind a property to a macro
      */
     bindToMacro(propertyKey: string, macroId: string): void {
-        console.log(`[bindToMacro] Binding property '${propertyKey}' to macro '${macroId}'`);
         this.bindings.set(propertyKey, new MacroBinding(macroId));
         this._cacheValid.set(propertyKey, false);
     }
@@ -527,8 +526,6 @@ export class SceneElement implements SceneElementInterface {
      * Apply configuration from either raw values or binding data
      */
     protected _applyConfig(config: { [key: string]: any }): void {
-        console.log(`[BoundSceneElement] Applying config for ${this.id}:`, config);
-        
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 
@@ -549,7 +546,6 @@ export class SceneElement implements SceneElementInterface {
      * Update configuration with new values
      */
     updateConfig(newConfig: { [key: string]: any }): this {
-        console.log(`[BoundSceneElement] Updating config for ${this.id}:`, newConfig);
         this._applyConfig(newConfig);
         return this;
     }

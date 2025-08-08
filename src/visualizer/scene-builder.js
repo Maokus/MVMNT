@@ -5,6 +5,7 @@ import {
     TextOverlayElement,
     ProgressDisplayElement,
     TimeUnitPianoRollElement,
+    DebugElement,
 } from './scene-elements/index';
 import { SceneElement } from './scene-elements/base.ts';
 import { globalMacroManager } from './macro-manager.ts';
@@ -121,8 +122,6 @@ export class HybridSceneBuilder {
             // Check if element has a local timing manager with duration
             if (element.timingManager && typeof element.timingManager.getDuration === 'function') {
                 const duration = element.timingManager.getDuration();
-                console.log(`[getMaxDuration] ${duration}`);
-                console.log(element.timingManager);
                 if (duration > maxDuration) {
                     maxDuration = duration;
                 }
@@ -326,6 +325,11 @@ export class HybridSceneBuilder {
             fontSize: 40,
             fontWeight: 'normal',
         }));
+
+        this.addElement(new DebugElement("debug", {
+            offsetX: 750,
+            offsetY: 750,
+        }))
 
         // Assign macros to relevant element properties
         this._assignDefaultMacros();
@@ -714,7 +718,6 @@ export class HybridSceneBuilder {
         timeDisplay.bindToMacro('bpm', 'tempo');
         timeDisplay.bindToMacro('beatsPerBar', 'beatsPerBar');
 
-        console.log(`[_assignDefaultMacros] assigned default macros.`)
     }
 
     /**
