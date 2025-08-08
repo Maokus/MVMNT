@@ -1,13 +1,13 @@
-// Bound Image scene element for displaying images with transformations and property bindings
-import { BoundSceneElement } from './bound-base';
+// Image scene element for displaying images with transformations and property bindings
+import { SceneElement } from './base';
 import { Image } from '../render-objects/index.js';
 import { ConfigSchema, RenderObjectInterface } from '../types.js';
 
-export class BoundImageElement extends BoundSceneElement {
+export class ImageElement extends SceneElement {
     private _currentImageSource: string | null = null;
 
-    constructor(id: string = 'boundImage', config: { [key: string]: any } = {}) {
-        super('boundImage', id, config);
+    constructor(id: string = 'image', config: { [key: string]: any } = {}) {
+        super('image', id, config);
     }
 
     static getConfigSchema(): ConfigSchema {

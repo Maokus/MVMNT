@@ -1,5 +1,5 @@
-// Bound Time display element for showing current time with property bindings
-import { BoundSceneElement } from './bound-base';
+// Time display element for showing current time with property bindings
+import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
 import { LocalTimingManager } from '../local-timing-manager.js';
 import { ConfigSchema, RenderObjectInterface } from '../types.js';
@@ -17,11 +17,11 @@ interface MinSecMs {
     milliseconds: number;
 }
 
-export class BoundTimeDisplayElement extends BoundSceneElement {
+export class TimeDisplayElement extends SceneElement {
     public timingManager: LocalTimingManager;
 
-    constructor(id: string = 'boundTimeDisplay', config: { [key: string]: any } = {}) {
-        super('boundTimeDisplay', id, config);
+    constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
+        super('timeDisplay', id, config);
 
         // Use local timing manager by default for independent timing control
         this.timingManager = new LocalTimingManager(null);

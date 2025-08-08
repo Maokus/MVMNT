@@ -1,12 +1,12 @@
-// Bound Progress display element for showing playback progress with property bindings
-import { BoundSceneElement } from './bound-base';
+// Progress display element for showing playback progress with property bindings
+import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects/index.js';
 import { ConfigSchema, RenderObjectInterface } from '../types';
 
-export class BoundProgressDisplayElement extends BoundSceneElement {
+export class ProgressDisplayElement extends SceneElement {
 
-    constructor(id: string = 'boundProgressDisplay', config: { [key: string]: any } = {}) {
-        super('boundProgressDisplay', id, config);
+    constructor(id: string = 'progressDisplay', config: { [key: string]: any } = {}) {
+        super('progressDisplay', id, config);
     }
 
     static getConfigSchema(): ConfigSchema {

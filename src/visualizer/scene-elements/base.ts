@@ -11,7 +11,7 @@ import {
 } from '../property-bindings';
 import { globalMacroManager } from '../macro-manager';
 
-export class BoundSceneElement implements SceneElementInterface {
+export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
     

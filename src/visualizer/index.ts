@@ -19,9 +19,9 @@ export {
     PropertyBindingUtils
 } from './property-bindings';
 export type { PropertyBindingData } from './property-bindings';
-export { BoundSceneElement } from './scene-elements/bound-base';
-export { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
-export { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder';
+export { SceneElement } from './scene-elements/base';
+export { TimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/time-unit-piano-roll';
+export { HybridSceneBuilder } from './scene-builder';
 
 // ==========================================
 // Visualizer Rendering Exports

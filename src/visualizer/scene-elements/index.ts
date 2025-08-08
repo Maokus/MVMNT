@@ -1,9 +1,9 @@
-// Export bound scene elements
-export { BoundSceneElement } from './bound-base';
-export { BoundBackgroundElement } from './bound-background';
-export { BoundImageElement } from './bound-image';
-export { BoundProgressDisplayElement } from './bound-progress-display';
-export { BoundTextOverlayElement } from './bound-text-overlay';
-export { BoundTimeDisplayElement } from './bound-time-display';
-export { BoundTimeUnitPianoRollElement } from './time-unit-piano-roll/bound-time-unit-piano-roll';
+// Export scene elements
+export { SceneElement } from './base';
+export { BackgroundElement } from './background';
+export { ImageElement } from './image';
+export { ProgressDisplayElement } from './progress-display';
+export { TextOverlayElement } from './text-overlay';
+export { TimeDisplayElement } from './time-display';
+export { TimeUnitPianoRollElement } from './time-unit-piano-roll/time-unit-piano-roll';
 

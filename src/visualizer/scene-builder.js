@@ -1,16 +1,16 @@
 // Hybrid SceneBuilder - converts declarative SceneElements to stateless RenderObjects
 import {
-    BoundBackgroundElement,
-    BoundTimeDisplayElement,
-    BoundTextOverlayElement,
-    BoundProgressDisplayElement,
-    BoundTimeUnitPianoRollElement,
+    BackgroundElement,
+    TimeDisplayElement,
+    TextOverlayElement,
+    ProgressDisplayElement,
+    TimeUnitPianoRollElement,
 } from './scene-elements/index';
-import { BoundSceneElement } from './scene-elements/bound-base.ts';
+import { SceneElement } from './scene-elements/base.ts';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
 
-export class BoundHybridSceneBuilder {
+export class HybridSceneBuilder {
     constructor() {
         this.elements = [];
         this.elementRegistry = new Map();
@@ -150,7 +150,7 @@ export class BoundHybridSceneBuilder {
 
         for (const element of this.elements) {
             // Only process bound elements that have the getMacroBindingsForMacro method
-            if (element instanceof BoundSceneElement) {
+            if (element instanceof SceneElement) {
                 if (macroId) {
                     // Get bindings for a specific macro
                     const propertyPaths = element.getMacroBindingsForMacro(macroId);
@@ -270,14 +270,14 @@ export class BoundHybridSceneBuilder {
         this._createDefaultMacros();
 
         // Add elements in z-index order (background first, overlay last)
-        this.addElement(new BoundBackgroundElement("background", {
+        this.addElement(new BackgroundElement("background", {
             zIndex: 0,
             anchorX: 0,
             anchorY: 0
         }));
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
-        this.addElement(new BoundTimeUnitPianoRollElement('main', {
+        this.addElement(new TimeUnitPianoRollElement('main', {
             zIndex: 10,
             timeUnitBars: 1,
             offsetX: 750,
@@ -287,7 +287,7 @@ export class BoundHybridSceneBuilder {
         }));
 
         // Time display with local timing
-        this.addElement(new BoundTimeDisplayElement('timeDisplay', {
+        this.addElement(new TimeDisplayElement('timeDisplay', {
             zIndex: 40,
             anchorX: 0,
             anchorY: 1,
@@ -295,7 +295,7 @@ export class BoundHybridSceneBuilder {
             offsetY: 1400,
         }));
 
-        this.addElement(new BoundProgressDisplayElement('progressDisplay', {
+        this.addElement(new ProgressDisplayElement('progressDisplay', {
             zIndex: 45,
             anchorX: 0,
             anchorY: 1,
@@ -304,7 +304,7 @@ export class BoundHybridSceneBuilder {
         }));
 
         // Add two separate text elements - one for title, one for artist
-        this.addElement(new BoundTextOverlayElement('titleText', {
+        this.addElement(new TextOverlayElement('titleText', {
             zIndex: 50,
             anchorX: 0,
             anchorY: 0,
@@ -316,7 +316,7 @@ export class BoundHybridSceneBuilder {
         }));
 
         // Position artist text 40px below the title text
-        this.addElement(new BoundTextOverlayElement('artistText', {
+        this.addElement(new TextOverlayElement('artistText', {
             zIndex: 51,
             anchorX: 0,
             anchorY: 0,
@@ -361,7 +361,7 @@ export class BoundHybridSceneBuilder {
         }
 
         // Check if this is a bound element
-        if (element instanceof BoundSceneElement) {
+        if (element instanceof SceneElement) {
             // Use the bound element's updateConfig method
             element.updateConfig(newConfig);
             return true;
@@ -380,7 +380,7 @@ export class BoundHybridSceneBuilder {
         if (!element) return null;
 
         // Check if this is a bound element
-        if (element instanceof BoundSceneElement) {
+        if (element instanceof SceneElement) {
             // Use the bound element's getConfig method
             return element.getConfig();
         } else {
@@ -456,7 +456,7 @@ export class BoundHybridSceneBuilder {
         // Serialize elements with binding information
         const serializedElements = this.elements.map(element => {
             // Check if this is a bound element
-            if (element instanceof BoundSceneElement) {
+            if (element instanceof SceneElement) {
                 return {
                     ...element.getSerializableConfig(),
                     index: this.elements.indexOf(element)
@@ -567,17 +567,17 @@ export class BoundHybridSceneBuilder {
     }
 
     /**
-     * Map legacy element types to new bound types
+     * Map legacy element types to new types
      */
     _mapLegacyTypeToNew(legacyType) {
         const typeMapping = {
-            'timeUnitPianoRoll': 'boundTimeUnitPianoRoll',
-            'textOverlay': 'boundTextOverlay',
-            'background': 'boundBackground',
-            'debug': 'boundDebug',
-            'image': 'boundImage',
-            'progressDisplay': 'boundProgressDisplay',
-            'timeDisplay': 'boundTimeDisplay'
+            'boundTimeUnitPianoRoll': 'timeUnitPianoRoll',
+            'boundTextOverlay': 'textOverlay',
+            'boundBackground': 'background',
+            'boundDebug': 'debug',
+            'boundImage': 'image',
+            'boundProgressDisplay': 'progressDisplay',
+            'boundTimeDisplay': 'timeDisplay'
         };
 
         return typeMapping[legacyType] || legacyType;
@@ -592,7 +592,7 @@ export class BoundHybridSceneBuilder {
         // Find bound piano roll elements and load the MIDI data into them
         const pianoRollElements = this.getElementsByType('boundTimeUnitPianoRoll');
         for (const element of pianoRollElements) {
-            if (element instanceof BoundTimeUnitPianoRollElement) {
+            if (element instanceof TimeUnitPianoRollElement) {
                 // Convert MIDI events to notes format
                 const notes = this._convertMidiEventsToNotes(midiData.events);
                 element.loadMIDIData(midiData, notes);
@@ -705,8 +705,8 @@ export class BoundHybridSceneBuilder {
      */
     _assignDefaultMacros() {
         // TODO: Use new macro binding system to assign default macros to elements
-        const pianoRoll = this.getElementsByType('boundTimeUnitPianoRoll')[0];
-        const timeDisplay = this.getElementsByType('boundTimeDisplay')[0];
+        const pianoRoll = this.getElementsByType('timeUnitPianoRoll')[0];
+        const timeDisplay = this.getElementsByType('timeDisplay')[0];
 
         pianoRoll.bindToMacro('bpm', 'tempo');
         pianoRoll.bindToMacro('beatsPerBar', 'beatsPerBar');
@@ -726,7 +726,7 @@ export class BoundHybridSceneBuilder {
         // Find bound piano roll elements and bind them to MIDI macros
         const pianoRollElements = this.getElementsByType('boundTimeUnitPianoRoll');
         pianoRollElements.forEach(element => {
-            if (element instanceof BoundTimeUnitPianoRollElement) {
+            if (element instanceof TimeUnitPianoRollElement) {
                 element.bindMidiFileToMacro('midiFile');
                 element.bindBPMToMacro('tempo');
                 element.bindBeatsPerBarToMacro('beatsPerBar');
@@ -746,9 +746,9 @@ export class BoundHybridSceneBuilder {
         // Create default macros
         this._createDefaultMacros();
 
-        this.addElement(new BoundBackgroundElement('background'));
+        this.addElement(new BackgroundElement('background'));
 
-        this.addElement(new BoundTimeUnitPianoRollElement('main', {
+        this.addElement(new TimeUnitPianoRollElement('main', {
             zIndex: 10,
             timeUnitBars: 1,
             offsetX: 750,
@@ -757,7 +757,7 @@ export class BoundHybridSceneBuilder {
             anchorY: 0.5,
         }));
 
-        this.addElement(new BoundTextOverlayElement('titleText', {
+        this.addElement(new TextOverlayElement('titleText', {
             zIndex: 50,
             anchorX: 0,
             anchorY: 0,
@@ -769,7 +769,7 @@ export class BoundHybridSceneBuilder {
         }));
 
         // Position artist text 40px below the title text
-        this.addElement(new BoundTextOverlayElement('artistText', {
+        this.addElement(new TextOverlayElement('artistText', {
             zIndex: 51,
             anchorX: 0,
             anchorY: 0,

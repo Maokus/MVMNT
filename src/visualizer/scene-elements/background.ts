@@ -1,12 +1,12 @@
-// Bound Background element for rendering the main background with property bindings
-import { BoundSceneElement } from './bound-base';
+// Background element for rendering the main background with property bindings
+import { SceneElement } from './base';
 import { Rectangle } from '../render-objects/index.js';
 import { ConfigSchema, RenderObjectInterface } from '../types.js';
 
-export class BoundBackgroundElement extends BoundSceneElement {
+export class BackgroundElement extends SceneElement {
 
-    constructor(id: string = 'boundBackground', config: { [key: string]: any } = {}) {
-        super('boundBackground', id, config);
+    constructor(id: string = 'background', config: { [key: string]: any } = {}) {
+        super('background', id, config);
         this.updateConfig({
             anchorX: 0,
             anchorY: 0,

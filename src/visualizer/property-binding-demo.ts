@@ -1,6 +1,6 @@
 // Demonstration of the new Property Binding System
-import { BoundTimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/bound-time-unit-piano-roll';
-import { BoundHybridSceneBuilder } from './bound-hybrid-scene-builder';
+import { TimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/time-unit-piano-roll';
+import { HybridSceneBuilder } from './scene-builder';
 import { globalMacroManager } from './macro-manager';
 
 /**
@@ -10,20 +10,20 @@ export function demonstratePropertyBindingSystem() {
     console.log('=== Property Binding System Demonstration ===');
 
     // 1. Create a bound scene builder
-    const sceneBuilder = new BoundHybridSceneBuilder();
+    const sceneBuilder = new HybridSceneBuilder();
     
     // 2. Create default scene with bound elements
     sceneBuilder.createTestScene();
     console.log('✓ Created default bound scene');
 
     // 3. Get a piano roll element to work with
-    const pianoRollElements = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll');
+    const pianoRollElements = sceneBuilder.getElementsByType('timeUnitPianoRoll');
     if (pianoRollElements.length === 0) {
         console.log('❌ No piano roll elements found');
         return;
     }
 
-    const pianoRoll = pianoRollElements[0] as BoundTimeUnitPianoRollElement;
+    const pianoRoll = pianoRollElements[0] as TimeUnitPianoRollElement;
     console.log(`✓ Working with piano roll element: ${pianoRoll.id}`);
 
     // 4. Demonstrate property access through bindings
@@ -83,14 +83,14 @@ export function demonstratePropertyBindingSystem() {
     console.log('\n--- Deserialization ---');
     
     // Create a new scene builder and load the serialized data
-    const newSceneBuilder = new BoundHybridSceneBuilder();
+    const newSceneBuilder = new HybridSceneBuilder();
     const loadSuccess = newSceneBuilder.loadScene(sceneData);
     console.log(`Scene loading ${loadSuccess ? 'succeeded' : 'failed'}`);
 
     if (loadSuccess) {
-        const loadedPianoRolls = newSceneBuilder.getElementsByType('boundTimeUnitPianoRoll');
+        const loadedPianoRolls = newSceneBuilder.getElementsByType('timeUnitPianoRoll');
         if (loadedPianoRolls.length > 0) {
-            const loadedElement = loadedPianoRolls[0] as BoundTimeUnitPianoRollElement;
+            const loadedElement = loadedPianoRolls[0] as TimeUnitPianoRollElement;
             console.log(`Loaded element BPM: ${loadedElement.getBPM()}`);
             console.log(`Loaded element macro bindings:`, loadedElement.getMacroBoundProperties());
         }
@@ -111,11 +111,11 @@ export function demonstratePropertyBindingSystem() {
 export function demonstrateMIDIFileBinding() {
     console.log('\n=== MIDI File Binding Demonstration ===');
 
-    const sceneBuilder = new BoundHybridSceneBuilder();
+    const sceneBuilder = new HybridSceneBuilder();
     sceneBuilder.createTestScene();
 
     // Get piano roll element
-    const pianoRoll = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll')[0] as BoundTimeUnitPianoRollElement;
+    const pianoRoll = sceneBuilder.getElementsByType('timeUnitPianoRoll')[0] as TimeUnitPianoRollElement;
 
     // In the new system, MIDI files are bound to macros
     // This means multiple piano rolls can share the same MIDI file
@@ -146,11 +146,11 @@ export function demonstrateMIDIFileBinding() {
 export function demonstrateMacroBindingImprovements() {
     console.log('\n=== Macro Binding Improvements Demonstration ===');
 
-    const sceneBuilder = new BoundHybridSceneBuilder();
+    const sceneBuilder = new HybridSceneBuilder();
     sceneBuilder.createTestScene();
 
     // Get a piano roll element
-    const pianoRoll = sceneBuilder.getElementsByType('boundTimeUnitPianoRoll')[0] as BoundTimeUnitPianoRollElement;
+    const pianoRoll = sceneBuilder.getElementsByType('timeUnitPianoRoll')[0] as TimeUnitPianoRollElement;
     
     // 1. Demonstrate property binding through macro assignment
     console.log('\n--- Property Binding Through Macro Assignment ---');
@@ -246,7 +246,7 @@ export function compareSerializationFormats() {
         elements: [
             {
                 id: 'piano1',
-                type: 'boundTimeUnitPianoRoll',
+                type: 'timeUnitPianoRoll',
                 bpm: { type: 'macro', macroId: 'tempo' },
                 beatsPerBar: { type: 'constant', value: 4 },
                 midiFile: { type: 'macro', macroId: 'midiFile' },

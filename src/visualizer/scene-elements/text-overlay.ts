@@ -1,12 +1,12 @@
-// Bound Text overlay element for displaying a single line of text with property bindings
-import { BoundSceneElement } from './bound-base';
+// Text overlay element for displaying a single line of text with property bindings
+import { SceneElement } from './base';
 import { Text } from '../render-objects/index.js';
 import { ConfigSchema, RenderObjectInterface } from '../types.js';
 
-export class BoundTextOverlayElement extends BoundSceneElement {
+export class TextOverlayElement extends SceneElement {
 
-    constructor(id: string = 'boundTextOverlay', config: { [key: string]: any } = {}) {
-        super('boundTextOverlay', id, config);
+    constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
+        super('textOverlay', id, config);
     }
 
     static getConfigSchema(): ConfigSchema {

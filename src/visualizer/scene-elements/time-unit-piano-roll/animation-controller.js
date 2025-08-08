@@ -1,19 +1,19 @@
-// BoundAnimationController - handles animation states and processing of notes into render objects
-// Compatible with the property binding system used in BoundTimeUnitPianoRollElement
+// AnimationController - handles animation states and processing of notes into render objects
+// Compatible with the property binding system used in TimeUnitPianoRollElement
 import { NoteAnimations } from './note-animations.js';
 
-export class BoundAnimationController {
-    constructor(boundTimeUnitPianoRoll) {
-        this.boundTimeUnitPianoRoll = boundTimeUnitPianoRoll;
+export class AnimationController {
+    constructor(timeUnitPianoRoll) {
+        this.timeUnitPianoRoll = timeUnitPianoRoll;
         this.noteAnimations = new NoteAnimations();
     }
 
     buildNoteRenderObjects(config, noteBlocks, targetTime) {
 
         // Get animation settings from bound element
-        const animationType = this.boundTimeUnitPianoRoll.getProperty('animationType');
-        const animationSpeed = this.boundTimeUnitPianoRoll.getProperty('animationSpeed');
-        const animationDuration = this.boundTimeUnitPianoRoll.getProperty('animationDuration') || 0.5;
+        const animationType = this.timeUnitPianoRoll.getProperty('animationType');
+        const animationSpeed = this.timeUnitPianoRoll.getProperty('animationSpeed');
+        const animationDuration = this.timeUnitPianoRoll.getProperty('animationDuration') || 0.5;
         const animationEnabled = animationType !== 'none';
 
         // Extract config values
@@ -22,7 +22,7 @@ export class BoundAnimationController {
         const totalNotes = maxNote - minNote + 1;
 
         // Calculate time window using the element's time unit settings
-        const timeUnitInSeconds = this.boundTimeUnitPianoRoll.getTimeUnit();
+        const timeUnitInSeconds = this.timeUnitPianoRoll.getTimeUnit();
         const windowStart = Math.floor(targetTime / timeUnitInSeconds) * timeUnitInSeconds;
         const windowEnd = windowStart + timeUnitInSeconds;
         const renderObjects = [];
@@ -45,7 +45,7 @@ export class BoundAnimationController {
             }
 
             const y = (totalNotes - noteIndex - 1) * noteHeight;
-            const channelColors = this.boundTimeUnitPianoRoll.getChannelColors();
+            const channelColors = this.timeUnitPianoRoll.getChannelColors();
             const finalNoteColor = channelColors[block.channel % channelColors.length];
 
             // Calculate timing
@@ -189,9 +189,9 @@ export class BoundAnimationController {
     validateAnimationConfig() {
         const issues = [];
 
-        const animationType = this.boundTimeUnitPianoRoll.getProperty('animationType');
-        const animationSpeed = this.boundTimeUnitPianoRoll.getProperty('animationSpeed');
-        const animationDuration = this.boundTimeUnitPianoRoll.getProperty('animationDuration') || 0.5;
+        const animationType = this.timeUnitPianoRoll.getProperty('animationType');
+        const animationSpeed = this.timeUnitPianoRoll.getProperty('animationSpeed');
+        const animationDuration = this.timeUnitPianoRoll.getProperty('animationDuration') || 0.5;
         const animationEnabled = animationType !== 'none';
 
         if (animationEnabled) {
@@ -199,7 +199,7 @@ export class BoundAnimationController {
                 issues.push('Invalid animation duration');
             }
 
-            if (animationDuration > this.boundTimeUnitPianoRoll.getTimeUnit()) {
+            if (animationDuration > this.timeUnitPianoRoll.getTimeUnit()) {
                 issues.push('Animation duration longer than time unit');
             }
 
@@ -241,9 +241,9 @@ export class BoundAnimationController {
     }
 
     getAnimationState() {
-        const animationType = this.boundTimeUnitPianoRoll.getProperty('animationType');
-        const animationSpeed = this.boundTimeUnitPianoRoll.getProperty('animationSpeed');
-        const animationDuration = this.boundTimeUnitPianoRoll.getProperty('animationDuration') || 0.5;
+        const animationType = this.timeUnitPianoRoll.getProperty('animationType');
+        const animationSpeed = this.timeUnitPianoRoll.getProperty('animationSpeed');
+        const animationDuration = this.timeUnitPianoRoll.getProperty('animationDuration') || 0.5;
         const animationEnabled = animationType !== 'none';
 
         return {

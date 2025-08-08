@@ -1,12 +1,12 @@
 // Scene Element Registry for dynamic element creation
 import {
-    BoundTimeUnitPianoRollElement,
-    BoundBackgroundElement,
-    BoundImageElement,
-    BoundProgressDisplayElement,
-    BoundTextOverlayElement,
-    BoundTimeDisplayElement
-} from './scene-elements/index.ts';
+    TimeUnitPianoRollElement,
+    BackgroundElement,
+    ImageElement,
+    ProgressDisplayElement,
+    TextOverlayElement,
+    TimeDisplayElement
+} from './scene-elements/index';
 
 export class SceneElementRegistry {
     constructor() {
@@ -80,40 +80,40 @@ export class SceneElementRegistry {
     registerDefaultElements() {
 
         // Register the bound time unit piano roll
-        this.registerElement('boundTimeUnitPianoRoll', (config) => {
-            const element = new BoundTimeUnitPianoRollElement(config.id || 'boundTimeUnitPianoRoll', config);
+        this.registerElement('timeUnitPianoRoll', (config) => {
+            const element = new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config);
             return element;
-        }, BoundTimeUnitPianoRollElement.getConfigSchema());
+        }, TimeUnitPianoRollElement.getConfigSchema());
 
         // Register bound background element
-        this.registerElement('boundBackground', (config) => {
-            const element = new BoundBackgroundElement(config.id || 'boundBackground', config);
+        this.registerElement('background', (config) => {
+            const element = new BackgroundElement(config.id || 'background', config);
             return element;
-        }, BoundBackgroundElement.getConfigSchema());
+        }, BackgroundElement.getConfigSchema());
 
         // Register bound image element
-        this.registerElement('boundImage', (config) => {
-            const element = new BoundImageElement(config.id || 'boundImage', config);
+        this.registerElement('image', (config) => {
+            const element = new ImageElement(config.id || 'image', config);
             return element;
-        }, BoundImageElement.getConfigSchema());
+        }, ImageElement.getConfigSchema());
 
         // Register bound progress display element
-        this.registerElement('boundProgressDisplay', (config) => {
-            const element = new BoundProgressDisplayElement(config.id || 'boundProgressDisplay', config);
+        this.registerElement('progressDisplay', (config) => {
+            const element = new ProgressDisplayElement(config.id || 'progressDisplay', config);
             return element;
-        }, BoundProgressDisplayElement.getConfigSchema());
+        }, ProgressDisplayElement.getConfigSchema());
 
         // Register bound text overlay element
-        this.registerElement('boundTextOverlay', (config) => {
-            const element = new BoundTextOverlayElement(config.id || 'boundTextOverlay', config);
+        this.registerElement('textOverlay', (config) => {
+            const element = new TextOverlayElement(config.id || 'textOverlay', config);
             return element;
-        }, BoundTextOverlayElement.getConfigSchema());
+        }, TextOverlayElement.getConfigSchema());
 
         // Register bound time display element
-        this.registerElement('boundTimeDisplay', (config) => {
-            const element = new BoundTimeDisplayElement(config.id || 'boundTimeDisplay', config);
+        this.registerElement('timeDisplay', (config) => {
+            const element = new TimeDisplayElement(config.id || 'timeDisplay', config);
             return element;
-        }, BoundTimeDisplayElement.getConfigSchema());
+        }, TimeDisplayElement.getConfigSchema());
 
 
     }

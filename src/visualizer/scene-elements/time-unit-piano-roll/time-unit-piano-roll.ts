@@ -1,29 +1,29 @@
 // TimeUnitPianoRoll scene element with Property Binding System
-import { BoundSceneElement } from '../bound-base';
+import { SceneElement } from '../base';
 import { RenderObjectInterface, ConfigSchema } from '../../types.js';
 import { Line, Text } from '../../render-objects/index.js';
-import { BoundAnimationController } from './bound-animation-controller.js';
+import { AnimationController } from './animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';
 import { NoteBlock } from '../../note-block';
 import { globalMacroManager } from '../../macro-manager';
 
-export class BoundTimeUnitPianoRollElement extends BoundSceneElement {
+export class TimeUnitPianoRollElement extends SceneElement {
     public timingManager: LocalTimingManager;
-    public animationController: BoundAnimationController;
+    public animationController: AnimationController;
     private _currentMidiFile: File | null = null;
     private channelColors: string[] = [
         '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd',
         '#00d2d3', '#ff9f43', '#10ac84', '#ee5a24', '#0984e3', '#a29bfe', '#fd79a8', '#e17055'
     ];
 
-    constructor(id: string = 'boundTimeUnitPianoRoll', config: { [key: string]: any } = {}) {
-        super('boundTimeUnitPianoRoll', id, config);
+    constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
+        super('timeUnitPianoRoll', id, config);
         
         // Initialize timing manager with this element's ID
         this.timingManager = new LocalTimingManager(this.id as any);
         
-        // Initialize bound animation controller
-        this.animationController = new BoundAnimationController(this);
+        // Initialize animation controller
+        this.animationController = new AnimationController(this);
         
         // Set up specific MIDI file change handling
         this._setupMIDIFileListener();
