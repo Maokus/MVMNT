@@ -1,30 +1,32 @@
 import React from 'react';
 import ElementList from './ElementList';
 import { useSceneEditor } from '../../hooks/useSceneEditor';
+import { useSceneSelection } from '../../context/SceneSelectionContext';
 
 interface SceneEditorProps {
-    visualizer: any;
-    onElementSelect?: (elementId: string | null) => void;
-    onElementAdd?: (elementType: string, elementId: string) => void;
-    onElementDelete?: (elementId: string) => void;
-    onElementConfigChange?: (elementId: string, changes: { [key: string]: any }) => void;
-    onElementIdChange?: (oldId: string, newId: string) => void;
     refreshTrigger?: number; // Add refresh trigger
 }
 
-const SceneEditor: React.FC<SceneEditorProps> = (props) => {
+const SceneEditor: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
+    const { selectedElementId, selectElement, updateElementConfig, visualizer } = useSceneSelection();
+
+    const sceneEditorProps = {
+        visualizer,
+        onElementSelect: selectElement,
+        onElementConfigChange: updateElementConfig,
+        refreshTrigger
+    };
+
     const {
-        selectedElementId,
         elements,
         sceneBuilder,
         error,
-        handleElementSelect,
         handleToggleVisibility,
         handleMoveElement,
         handleDuplicateElement,
         handleDeleteElement,
         handleUpdateElementId
-    } = useSceneEditor(props);
+    } = useSceneEditor(sceneEditorProps);
 
     if (error) {
         return (
@@ -58,7 +60,7 @@ const SceneEditor: React.FC<SceneEditorProps> = (props) => {
                         <ElementList
                             elements={elements}
                             selectedElementId={selectedElementId}
-                            onElementSelect={handleElementSelect}
+                            onElementSelect={selectElement}
                             onToggleVisibility={handleToggleVisibility}
                             onMoveElement={handleMoveElement}
                             onDuplicateElement={handleDuplicateElement}
@@ -70,7 +72,7 @@ const SceneEditor: React.FC<SceneEditorProps> = (props) => {
                 {/* Clear selection when clicking empty space */}
                 <div
                     className="clear-selection-area"
-                    onClick={() => handleElementSelect(null)}
+                    onClick={() => selectElement(null)}
                     style={{
                         minHeight: '20px',
                         flex: 1,

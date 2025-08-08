@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import SceneEditor from './scene-element-panel/SceneEditor';
 import { PropertiesPanel } from './properties-panel';
 import { ElementDropdown } from './scene-element-panel';
-import { useSidePanels } from '../hooks/useSidePanels';
+import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelectionContext';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
@@ -16,9 +16,8 @@ interface SidePanelsProps {
     onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
 }
 
-const SidePanels: React.FC<SidePanelsProps> = ({
-    visualizer,
-    sceneRefreshTrigger,
+// Internal component that uses the context
+const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRefreshTrigger'>> = ({
     onExport,
     exportStatus,
     canExport,
@@ -31,19 +30,16 @@ const SidePanels: React.FC<SidePanelsProps> = ({
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Use the SidePanels hook to get state and actions (excluding export settings which are managed externally)
+    // Use the scene selection context
     const {
         selectedElementId,
         selectedElement,
         selectedElementSchema,
         refreshTrigger,
-        handleElementSelect,
-        handleElementConfigChange,
-        handleAddElement,
-        setSelectedElementId,
-        setSelectedElement,
-        setSelectedElementSchema
-    } = useSidePanels({ visualizer, sceneRefreshTrigger });
+        clearSelection,
+        updateElementConfig,
+        addElement
+    } = useSceneSelection();
 
     // Create a local function to handle debug setting updates
     const updateDebugSetting = (key: 'showAnchorPoints', value: any) => {
@@ -66,16 +62,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             if (sidePanelsRef.current && !sidePanelsRef.current.contains(event.target as Node)) {
                 if (selectedElementId) {
                     console.log('Clicked outside side panels, clearing selection');
-                    setSelectedElementId(null);
-                    setSelectedElement(null);
-                    setSelectedElementSchema(null);
-
-                    // Reset properties header
-                    const propertiesHeader = document.getElementById('propertiesHeader');
-                    if (propertiesHeader) {
-                        propertiesHeader.textContent = '⚙️ Properties';
-                        propertiesHeader.title = '';
-                    }
+                    clearSelection();
                 }
             }
         };
@@ -84,16 +71,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             // Clear selection on Escape key
             if (event.key === 'Escape' && selectedElementId) {
                 console.log('Escape key pressed, clearing selection');
-                setSelectedElementId(null);
-                setSelectedElement(null);
-                setSelectedElementSchema(null);
-
-                // Reset properties header
-                const propertiesHeader = document.getElementById('propertiesHeader');
-                if (propertiesHeader) {
-                    propertiesHeader.textContent = '⚙️ Properties';
-                    propertiesHeader.title = '';
-                }
+                clearSelection();
             }
         };
 
@@ -106,11 +84,11 @@ const SidePanels: React.FC<SidePanelsProps> = ({
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, showAddElementDropdown, setSelectedElement, setSelectedElementId, setSelectedElementSchema]); // Dependency on selectedElementId and showAddElementDropdown to re-create listener when selection changes
+    }, [selectedElementId, showAddElementDropdown, clearSelection]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {
-        handleAddElement(elementType);
+        addElement(elementType);
         setShowAddElementDropdown(false);
     };
 
@@ -143,14 +121,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                     </div>
                 </div>
                 <div className="scene-editor-container">
-                    {visualizer && (
-                        <SceneEditor
-                            visualizer={visualizer}
-                            onElementSelect={handleElementSelect}
-                            onElementConfigChange={handleElementConfigChange}
-                            refreshTrigger={refreshTrigger + (sceneRefreshTrigger || 0)}
-                        />
-                    )}
+                    <SceneEditor refreshTrigger={refreshTrigger} />
                 </div>
             </div>
 
@@ -174,8 +145,7 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                                     )
                                 )
                             } : undefined}
-                            onConfigChange={handleElementConfigChange}
-                            visualizer={visualizer}
+                            onConfigChange={updateElementConfig}
                             onExport={onExport}
                             exportStatus={exportStatus}
                             canExport={canExport}
@@ -205,6 +175,18 @@ const SidePanels: React.FC<SidePanelsProps> = ({
                 </div>
             </div>
         </div>
+    );
+};
+
+// Main component wrapper that provides the context
+const SidePanels: React.FC<SidePanelsProps> = (props) => {
+    return (
+        <SceneSelectionProvider
+            visualizer={props.visualizer}
+            sceneRefreshTrigger={props.sceneRefreshTrigger}
+        >
+            <SidePanelsInternal {...props} />
+        </SceneSelectionProvider>
     );
 };
 

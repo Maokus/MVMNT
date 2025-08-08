@@ -1,6 +1,7 @@
 import React from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
+import { useSceneSelection } from '../../context/SceneSelectionContext';
 
 interface PropertiesPanelProps {
     element?: any;
@@ -8,7 +9,6 @@ interface PropertiesPanelProps {
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
 
     // Additional props for global functionality
-    visualizer?: any;
     onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
     exportStatus: string;
     canExport: boolean;
@@ -20,13 +20,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     element,
     schema,
     onConfigChange,
-    visualizer,
     onExport,
     exportStatus,
     canExport,
     exportSettings,
     onExportSettingsChange
 }) => {
+    const { visualizer } = useSceneSelection();
+
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
     if (element && schema) {
         return (
