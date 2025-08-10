@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import SceneEditor from './scene-element-panel/SceneEditor';
+import SceneElementPanel from './scene-element-panel/SceneElementPanel';
 import { PropertiesPanel } from './properties-panel';
 import { ElementDropdown } from './scene-element-panel';
 import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelectionContext';
@@ -121,7 +121,7 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
                     </div>
                 </div>
                 <div className="scene-editor-container">
-                    <SceneEditor refreshTrigger={refreshTrigger} />
+                    <SceneElementPanel refreshTrigger={refreshTrigger} />
                 </div>
             </div>
 

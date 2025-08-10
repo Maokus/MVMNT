@@ -7,7 +7,7 @@ interface SceneEditorProps {
     refreshTrigger?: number; // Add refresh trigger
 }
 
-const SceneEditor: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
+const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
     const { selectedElementId, selectElement, updateElementConfig, visualizer } = useSceneSelection();
 
     const sceneEditorProps = {
@@ -84,4 +84,4 @@ const SceneEditor: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
     );
 };
 
-export default SceneEditor;
+export default SceneElementPanel;

@@ -1697,10 +1697,11 @@ input:disabled[title*="macro"]::placeholder {
     align-items: center;
     gap: 6px;
     flex: 1;
+    justify-content: flex-end; /* Right-align controls so inputs line up */
 }
 
 .ae-macro-assignment {
-    width: 80px;
+    width: 120px; /* fixed width for alignment */
     height: 20px;
     padding: 2px 4px;
     font-size: 10px;
@@ -1717,7 +1718,7 @@ input:disabled[title*="macro"]::placeholder {
 }
 
 .ae-property-input {
-    flex: 1;
+    flex: 0 0 120px; /* fixed width to align inputs */
     max-width: 120px;
 }
 

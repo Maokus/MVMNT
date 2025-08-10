@@ -104,18 +104,30 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setPropertyValues(values);
         setMacroAssignments(macroBindings);
 
-        // Initialize collapse state for new groups
-        const newCollapseState: { [groupId: string]: boolean } = {};
-        convertedSchema.groups.forEach(group => {
-            if (!(group.id in groupCollapseState)) {
-                newCollapseState[group.id] = group.collapsed;
-            } else {
-                newCollapseState[group.id] = groupCollapseState[group.id];
-            }
-        });
-        setGroupCollapseState(newCollapseState);
+        // Initialize/merge collapse state for groups without causing loops
+        setGroupCollapseState(prev => {
+            const next: { [groupId: string]: boolean } = {};
+            convertedSchema.groups.forEach(group => {
+                next[group.id] = Object.prototype.hasOwnProperty.call(prev, group.id)
+                    ? prev[group.id]
+                    : group.collapsed;
+            });
 
-    }, [element, schema, macroListenerKey, groupCollapseState]);
+            // Detect changes to avoid unnecessary state updates
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(next);
+            if (prevKeys.length !== nextKeys.length) {
+                return next;
+            }
+            for (const k of nextKeys) {
+                if (prev[k] !== next[k]) {
+                    return next;
+                }
+            }
+            return prev; // no change
+        });
+
+    }, [element, schema, macroListenerKey]);
 
     const handleValueChange = (key: string, value: any) => {
         setPropertyValues(prev => ({ ...prev, [key]: value }));
