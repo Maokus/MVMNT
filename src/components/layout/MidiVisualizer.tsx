@@ -17,6 +17,8 @@ const MidiVisualizer: React.FC = () => {
     const [imageSequenceGenerator, setImageSequenceGenerator] = useState<any>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState('00:00 / 00:00');
+    const [numericCurrentTime, setNumericCurrentTime] = useState(0);
+    const [totalDuration, setTotalDuration] = useState(0);
     const [sceneName, setSceneName] = useState(SceneNameGenerator.generate());
     const [exportStatus, setExportStatus] = useState('Load MIDI or create scene to enable export');
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
@@ -87,6 +89,8 @@ const MidiVisualizer: React.FC = () => {
                         `${currentMin.toString().padStart(2, '0')}:${currentSec.toString().padStart(2, '0')} / ` +
                         `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
                     );
+                    setNumericCurrentTime(currentTime);
+                    setTotalDuration(total);
                     lastCurrentTime = currentTime;
                     lastUIUpdate = now;
 
@@ -221,6 +225,14 @@ const MidiVisualizer: React.FC = () => {
         }
     };
 
+    const handleSeekAtPercent = (percent: number) => {
+        if (!visualizer || !totalDuration || totalDuration <= 0) return;
+        const target = percent * totalDuration;
+        if (typeof visualizer.seek === 'function') {
+            visualizer.seek(target);
+        }
+    };
+
     const handleExport = async (exportSettings?: { fps: number; resolution: number; fullDuration: boolean }) => {
         if (!visualizer || !imageSequenceGenerator) return;
 
@@ -270,6 +282,8 @@ const MidiVisualizer: React.FC = () => {
                     onStepBackward={handleStepBackward}
                     currentTime={currentTime}
                     resolution={exportSettings.resolution}
+                    progressPercent={totalDuration > 0 ? (numericCurrentTime / totalDuration) : 0}
+                    onSeekAtPercent={handleSeekAtPercent}
                 />
 
                 <SidePanels

@@ -398,17 +398,34 @@ export class MIDIParser {
       time: (event.time - earliestNoteTime) * secondsPerTick
     }));
 
-    // Calculate total duration based on the last note OFF event
+    // Calculate total duration based on the end of the final note
+    // Pair noteOn/noteOff to compute note end times precisely; fallback to 1s for unmatched notes
     let duration = 0;
     if (playableEvents.length > 0) {
-      const noteOffEvents = playableEvents.filter(event => event.type === 'noteOff');
-      if (noteOffEvents.length > 0) {
-        duration = Math.max(...noteOffEvents.map(e => e.time)) + 1; // Add 1 second buffer
-      } else {
-        const noteOnEvents = playableEvents.filter(event => event.type === 'noteOn');
-        if (noteOnEvents.length > 0) {
-          duration = Math.max(...noteOnEvents.map(e => e.time)) + 2; // Add 2 seconds for note duration
+      const noteOnMap = new Map<string, MIDIEvent>();
+      const noteEndTimes: number[] = [];
+
+      for (const ev of playableEvents) {
+        if (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0) {
+          const key = `${ev.note}_${ev.channel || 0}`;
+          noteOnMap.set(key, ev);
+        } else if (ev.type === 'noteOff' || (ev.type === 'noteOn' && (ev.velocity ?? 0) === 0)) {
+          const key = `${ev.note}_${ev.channel || 0}`;
+          const on = noteOnMap.get(key);
+          if (on) {
+            noteEndTimes.push(ev.time);
+            noteOnMap.delete(key);
+          }
         }
+      }
+
+      // Any remaining noteOns without an off: assume 1s duration
+      noteOnMap.forEach((on) => {
+        noteEndTimes.push(on.time + 1.0);
+      });
+
+      if (noteEndTimes.length > 0) {
+        duration = Math.max(...noteEndTimes);
       }
     }
 

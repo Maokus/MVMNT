@@ -9,6 +9,8 @@ interface PreviewPanelProps {
     onStepBackward: () => void;
     currentTime: string;
     resolution: number;
+    progressPercent?: number;
+    onSeekAtPercent?: (percent: number) => void;
 }
 
 const PreviewPanel: React.FC<PreviewPanelProps> = ({
@@ -19,8 +21,17 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({
     onStepForward,
     onStepBackward,
     currentTime,
-    resolution
+    resolution,
+    progressPercent = 0,
+    onSeekAtPercent
 }) => {
+    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!onSeekAtPercent) return;
+        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, x / rect.width));
+        onSeekAtPercent(percent);
+    };
     return (
         <div className="preview-panel">
             <div className="canvas-container">
@@ -45,8 +56,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({
                 <button className="btn btn-secondary" onClick={onStepForward}>⏩</button>
                 <button className="btn btn-secondary" onClick={onStop}>⏹️</button>
                 <span className="time-display">{currentTime}</span>
-                <div className="progress-bar-container">
-                    <div className="progress-bar-fill"></div>
+                <div className="progress-bar-container" onClick={handleProgressClick}>
+                    <div className="progress-bar-fill" style={{ width: `${Math.max(0, Math.min(100, progressPercent * 100))}%` }}></div>
                 </div>
             </div>
         </div>
