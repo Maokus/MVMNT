@@ -64,25 +64,17 @@ const MidiVisualizer: React.FC = () => {
         let animationId: number;
         let lastCurrentTime = -1;
         let lastExportStatus = '';
-        let needsRender = true; // Force initial render
+        let lastUIUpdate = 0;
 
         const animate = () => {
             if (visualizer) {
                 const currentTime = Math.max(0, visualizer.currentTime || 0);
-
-                // Only render if something has changed or if playing
                 const timeChanged = currentTime !== lastCurrentTime;
-                const isPlaying = visualizer.isPlaying;
-
-                if (needsRender || isPlaying || timeChanged) {
-                    if (visualizer.render) {
-                        visualizer.render();
-                    }
-                    needsRender = false;
-                }
 
                 // Update time display only when time changes
-                if (timeChanged) {
+                const now = performance.now();
+                const shouldUpdateUI = timeChanged && (now - lastUIUpdate > 80); // ~12.5Hz
+                if (shouldUpdateUI) {
                     // Only get total duration when time changes, not every frame
                     const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
 
@@ -96,6 +88,7 @@ const MidiVisualizer: React.FC = () => {
                         `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
                     );
                     lastCurrentTime = currentTime;
+                    lastUIUpdate = now;
 
                     // Update export status only when time changes (and we have fresh duration)
                     const hasValidScene = total > 0;
@@ -106,12 +99,7 @@ const MidiVisualizer: React.FC = () => {
                     }
                 }
 
-                // Only animate when playing
-                if (isPlaying) {
-                    if (visualizer.animate) {
-                        visualizer.animate();
-                    }
-                }
+                // Don't call visualizer.animate() here; the core manages its own RAF when playing.
             }
 
             animationId = requestAnimationFrame(animate);
@@ -121,7 +109,10 @@ const MidiVisualizer: React.FC = () => {
 
         // Listen for visualizer changes that require re-render
         const handleVisualizerUpdate = () => {
-            needsRender = true;
+            // Render once when explicitly invalidated (e.g., settings change, resize)
+            if (visualizer && typeof visualizer.render === 'function') {
+                visualizer.render();
+            }
         };
 
         // Add event listeners for changes that require re-render
@@ -135,6 +126,10 @@ const MidiVisualizer: React.FC = () => {
             }
             if (visualizer.canvas) {
                 visualizer.canvas.removeEventListener('visualizer-update', handleVisualizerUpdate);
+            }
+            // Ensure the core cleans up any listeners and RAFs on unmount
+            if (typeof visualizer.cleanup === 'function') {
+                visualizer.cleanup();
             }
         };
     }, [visualizer]);

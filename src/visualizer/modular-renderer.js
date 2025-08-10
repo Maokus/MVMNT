@@ -10,7 +10,9 @@ export class ModularRenderer {
      */
     render(ctx, renderObjects, config, currentTime) {
         // Clear canvas first (should be done by background RenderObject, but this is a fallback)
-        if (!renderObjects.length || !(renderObjects[0].fillColor === config.backgroundColor)) {
+        const first = renderObjects[0];
+        const hasExplicitBg = first && typeof first.fillColor !== 'undefined' && first.fillColor === config.backgroundColor;
+        if (!renderObjects.length || !hasExplicitBg) {
             this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
         }
 

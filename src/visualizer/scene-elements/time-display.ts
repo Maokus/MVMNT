@@ -93,8 +93,8 @@ export class TimeDisplayElement extends SceneElement {
         this.timingManager.setTicksPerQuarter(960);
 
         // Debug logging for timing calculations
-        const secondsPerBeat = this.timingManager.getSecondsPerBeat();
-        console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
+        // const secondsPerBeat = this.timingManager.getSecondsPerBeat();
+        // console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Get bar:beat:tick info
         const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);

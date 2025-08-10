@@ -1,6 +1,7 @@
 // AnimationController - handles animation states and processing of notes into render objects
 // Compatible with the property binding system used in TimeUnitPianoRollElement
 import { NoteAnimations } from './note-animations.js';
+import { debugLog } from '../../utils/debug-log.js';
 
 export class AnimationController {
     constructor(timeUnitPianoRoll) {
@@ -71,21 +72,21 @@ export class AnimationController {
     }
 
     _createAnimatedNoteRenderObjects(block, x, y, width, height, color, currentTime, animationType, animationSpeed, animationDuration, animationEnabled) {
-        console.log(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
+        debugLog(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
             x, y, width, height, color, currentTime, animationType, animationEnabled
         });
 
         if (!animationEnabled || animationType === 'none') {
             // No animation - create simple render object
             const staticObjects = this.noteAnimations.createStaticNote(block, x, y, width, height, color);
-            console.log(`[_createAnimatedNoteRenderObjects] Created ${staticObjects.length} static render objects`);
+            debugLog(`[_createAnimatedNoteRenderObjects] Created ${staticObjects.length} static render objects`);
             return staticObjects;
         }
 
         // Get animation state for this note
         const animationState = this._calculateAnimationState(block, currentTime, animationDuration);
 
-        console.log(`[_createAnimatedNoteRenderObjects] Animation state:`, animationState);
+        debugLog(`[_createAnimatedNoteRenderObjects] Animation state:`, animationState);
 
         if (!animationState) {
             console.log(`[_createAnimatedNoteRenderObjects] No animation state - note not visible`);
@@ -99,23 +100,23 @@ export class AnimationController {
                     block, x, y, width, height, color,
                     animationType, animationState.progress
                 );
-                console.log(`[_createAnimatedNoteRenderObjects] Created ${onsetObjects.length} onset animation objects`);
+                debugLog(`[_createAnimatedNoteRenderObjects] Created ${onsetObjects.length} onset animation objects`);
                 return onsetObjects;
             case 'sustained':
                 const sustainedObjects = this.noteAnimations.createSustainedNote(
                     block, x, y, width, height, color
                 );
-                console.log(`[_createAnimatedNoteRenderObjects] Created ${sustainedObjects.length} sustained note objects`);
+                debugLog(`[_createAnimatedNoteRenderObjects] Created ${sustainedObjects.length} sustained note objects`);
                 return sustainedObjects;
             case 'offset':
                 const offsetObjects = this.noteAnimations.createOffsetAnimation(
                     block, x, y, width, height, color,
                     animationType, animationState.progress
                 );
-                console.log(`[_createAnimatedNoteRenderObjects] Created ${offsetObjects.length} offset animation objects`);
+                debugLog(`[_createAnimatedNoteRenderObjects] Created ${offsetObjects.length} offset animation objects`);
                 return offsetObjects;
             default:
-                console.log(`[_createAnimatedNoteRenderObjects] Unknown animation state type: ${animationState.type}`);
+                debugLog(`[_createAnimatedNoteRenderObjects] Unknown animation state type: ${animationState.type}`);
                 return [];
         }
     }
@@ -125,7 +126,7 @@ export class AnimationController {
         const noteStartTime = block.originalStartTime || block.startTime;
         const noteEndTime = block.originalEndTime || block.endTime;
 
-        console.log(`[_calculateAnimationState] Note ${block.note}: startTime=${noteStartTime}, endTime=${noteEndTime}, currentTime=${currentTime}, duration=${animationDuration}`);
+        debugLog(`[_calculateAnimationState] Note ${block.note}: startTime=${noteStartTime}, endTime=${noteEndTime}, currentTime=${currentTime}, duration=${animationDuration}`);
 
         // Determine animation duration based on configuration
         const noteDuration = noteEndTime - noteStartTime;
@@ -142,7 +143,7 @@ export class AnimationController {
         const offsetAnimationStart = noteEndTime - animationDuration;
         const offsetAnimationEnd = noteEndTime;
 
-        console.log(`[_calculateAnimationState] Animation windows: onset(${onsetAnimationStart}-${onsetAnimationEnd}), sustained(${onsetAnimationEnd}-${offsetAnimationStart}), offset(${offsetAnimationStart}-${offsetAnimationEnd})`);
+        debugLog(`[_calculateAnimationState] Animation windows: onset(${onsetAnimationStart}-${onsetAnimationEnd}), sustained(${onsetAnimationEnd}-${offsetAnimationStart}), offset(${offsetAnimationStart}-${offsetAnimationEnd})`);
 
         // Check if we're within the onset animation window
         if (currentTime >= onsetAnimationStart && currentTime <= onsetAnimationEnd) {
@@ -152,7 +153,7 @@ export class AnimationController {
                 startTime: onsetAnimationStart,
                 endTime: onsetAnimationEnd
             };
-            console.log(`[_calculateAnimationState] Note ${block.note} in ONSET state:`, state);
+            debugLog(`[_calculateAnimationState] Note ${block.note} in ONSET state:`, state);
             return state;
         }
 
@@ -164,7 +165,7 @@ export class AnimationController {
                 startTime: offsetAnimationStart,
                 endTime: offsetAnimationEnd
             };
-            console.log(`[_calculateAnimationState] Note ${block.note} in OFFSET state:`, state);
+            debugLog(`[_calculateAnimationState] Note ${block.note} in OFFSET state:`, state);
             return state;
         }
 
@@ -176,12 +177,12 @@ export class AnimationController {
                 startTime: null,
                 endTime: null
             };
-            console.log(`[_calculateAnimationState] Note ${block.note} in SUSTAINED state:`, state);
+            debugLog(`[_calculateAnimationState] Note ${block.note} in SUSTAINED state:`, state);
             return state;
         }
 
         // Note not visible or no animation needed
-        console.log(`[_calculateAnimationState] Note ${block.note} NOT VISIBLE - currentTime ${currentTime} outside note duration`);
+        debugLog(`[_calculateAnimationState] Note ${block.note} NOT VISIBLE - currentTime ${currentTime} outside note duration`);
         return null;
     }
 

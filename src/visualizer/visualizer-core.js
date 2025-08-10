@@ -30,6 +30,8 @@ export class MIDIVisualizerCore {
             resolution: 1500,
             fullDuration: true
         };
+        // Initialize RAF pacing
+        this._rafMinIntervalMs = 1000 / this.exportSettings.fps;
 
         // Debug settings
         this.debugSettings = {
@@ -39,6 +41,8 @@ export class MIDIVisualizerCore {
         // Render invalidation system
         this._needsRender = true;
         this._lastRenderTime = -1;
+        this._lastRAFTime = 0;
+        this._rafMinIntervalMs = 0; // computed from exportSettings.fps when playing
 
         // Note rendering system - using modular approach with RenderObjects
         // Main rendering system - stateless renderer for all drawing operations
@@ -246,6 +250,9 @@ export class MIDIVisualizerCore {
      */
     updateExportSettings(settings) {
         this.exportSettings = { ...this.exportSettings, ...settings };
+        // Update RAF pacing based on fps
+        const fps = Math.max(1, this.exportSettings.fps || 30);
+        this._rafMinIntervalMs = 1000 / fps;
     }
 
     /**
@@ -295,6 +302,11 @@ export class MIDIVisualizerCore {
 
         try {
             const now = performance.now();
+            // Simple RAF pacing to reduce CPU usage; allow frames to drop if too slow
+            if (this._rafMinIntervalMs > 0 && (now - this._lastRAFTime) < this._rafMinIntervalMs * 0.75) {
+                this.animationId = requestAnimationFrame(() => this.animate());
+                return;
+            }
             const bufferTime = 0.5; // Same buffer as in play() method
 
             // Update current time based on elapsed time
@@ -316,6 +328,7 @@ export class MIDIVisualizerCore {
             this.render();
 
             // Schedule the next animation frame
+            this._lastRAFTime = now;
             this.animationId = requestAnimationFrame(() => this.animate());
         } catch (error) {
             console.error('Animation error:', error);
@@ -340,9 +353,17 @@ export class MIDIVisualizerCore {
     // Force a re-render on next frame
     invalidateRender() {
         this._needsRender = true;
-        // Dispatch event to notify React component
+        // Dispatch event to notify React component; avoid flooding by batching to next tick
         if (this.canvas) {
-            this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
+            if (!this._pendingVisUpdate) {
+                this._pendingVisUpdate = true;
+                Promise.resolve().then(() => {
+                    this._pendingVisUpdate = false;
+                    try {
+                        this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
+                    } catch { }
+                });
+            }
         }
     }
 
@@ -449,6 +470,7 @@ export class MIDIVisualizerCore {
             duration: this.duration,
             sceneDuration: sceneDuration, // Total scene length including all elements
             isPlaying: this.isPlaying, // Add playing state for debugging
+            backgroundColor: '#000000',
 
             // Debug settings
             showAnchorPoints: this.debugSettings.showAnchorPoints,

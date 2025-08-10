@@ -42,7 +42,6 @@ export class DebugElement extends SceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
         const points: Array<{ x: number, y: number }> = [];
         const objects: RenderObjectInterface[] = [];
-        console.log(config);
 
         for(let i=0; i<10; i++){
             for(let j=0; j<10; j++){

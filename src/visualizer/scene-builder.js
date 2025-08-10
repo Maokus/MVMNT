@@ -51,6 +51,10 @@ export class HybridSceneBuilder {
         if (element) {
             const index = this.elements.indexOf(element);
             if (index !== -1) {
+                // Dispose element resources before removal
+                if (typeof element.dispose === 'function') {
+                    try { element.dispose(); } catch { }
+                }
                 this.elements.splice(index, 1);
             }
             this.elementRegistry.delete(id);
@@ -99,6 +103,12 @@ export class HybridSceneBuilder {
      * Clear all scene elements
      */
     clearElements() {
+        // Dispose all elements to detach listeners and free resources
+        for (const el of this.elements) {
+            if (el && typeof el.dispose === 'function') {
+                try { el.dispose(); } catch { }
+            }
+        }
         this.elements = [];
         this.elementRegistry.clear();
         return this;

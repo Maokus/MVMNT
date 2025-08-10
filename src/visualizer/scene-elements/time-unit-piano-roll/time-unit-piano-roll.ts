@@ -5,12 +5,14 @@ import { Line, Text } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';
 import { NoteBlock } from '../../note-block';
+import { debugLog } from '../../utils/debug-log.js';
 import { globalMacroManager } from '../../macro-manager';
 
 export class TimeUnitPianoRollElement extends SceneElement {
     public timingManager: LocalTimingManager;
     public animationController: AnimationController;
     private _currentMidiFile: File | null = null;
+    private _midiMacroListener?: (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => void;
     private channelColors: string[] = [
         '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd',
         '#00d2d3', '#ff9f43', '#10ac84', '#ee5a24', '#0984e3', '#a29bfe', '#fd79a8', '#e17055'
@@ -159,17 +161,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const notesInTimeUnit = this.timingManager.getNotesInTimeUnit(targetTime);
         
         // Create render objects for the piano roll
-        console.log(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${notesInTimeUnit.length} notes`);
+        debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${notesInTimeUnit.length} notes`);
         if (showNotes && notesInTimeUnit.length > 0) {
             const noteBlocks = this._createNoteBlocks(notesInTimeUnit, targetTime);
-            console.log(`[_buildRenderObjects] Created ${noteBlocks.length} note blocks for rendering`);
+            debugLog(`[_buildRenderObjects] Created ${noteBlocks.length} note blocks for rendering`);
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { animationType, noteColor, noteHeight, minNote, maxNote, pianoWidth, rollWidth },
                 noteBlocks,
                 targetTime
             );
-            console.log(`[_buildRenderObjects] Created ${animatedRenderObjects.length} animated note blocks`);
-            console.log(animatedRenderObjects);
+            debugLog(`[_buildRenderObjects] Created ${animatedRenderObjects.length} animated note blocks`);
             renderObjects.push(...animatedRenderObjects);
         }
 
@@ -437,7 +438,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Set up listener specifically for MIDI file changes to immediately process file
      */
     private _setupMIDIFileListener(): void {
-        globalMacroManager.addListener((eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+        this._midiMacroListener = (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
             if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
                 // Check if this element is bound to the midiFile macro
                 if (this.isBoundToMacro('midiFile', 'midiFile')) {
@@ -457,7 +458,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     }
                 }
             }
-        });
+        };
+        globalMacroManager.addListener(this._midiMacroListener);
+    }
+
+    // Ensure listeners are detached when element is disposed
+    dispose(): void {
+        super.dispose();
+        if (this._midiMacroListener) {
+            globalMacroManager.removeListener(this._midiMacroListener);
+            this._midiMacroListener = undefined;
+        }
     }
 
     // Convenience methods for property access

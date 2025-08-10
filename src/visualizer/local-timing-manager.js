@@ -48,19 +48,18 @@ export class LocalTimingManager {
         }
 
         // Store original user-configured values to preserve them
-        const userBPM = this.bpm;
+        // const userBPM = this.bpm; // kept for potential future rescaling logic
 
         // Store original MIDI timing for rescaling notes if needed
-        let originalBPM = null;
-        let rescaleRatio = 1.0;
+        // let originalBPM = null;
 
         // Extract timing information from MIDI data only if user hasn't configured timing
         if (midiData.tempo) {
             this.setTempo(midiData.tempo);
         } else if (midiData.tempo) {
             // Calculate the original BPM from MIDI tempo for note rescaling
-            originalBPM = 60000000 / midiData.tempo; // Convert microseconds per quarter to BPM
-            rescaleRatio = userBPM / originalBPM;
+            // const originalBPM = 60000000 / midiData.tempo; // Convert microseconds per quarter to BPM
+            // rescaleRatio can be calculated on demand if needed
         }
 
         if (midiData.timeSignature) {
@@ -78,15 +77,16 @@ export class LocalTimingManager {
             this.duration = Math.max(...notesToUse.map(note => note.endTime || note.startTime));
         }
 
-        console.log(`LocalTimingManager (${this.elementId}) loaded MIDI data:`, {
-            tempo: this.tempo,
-            bpm: this.bpm,
-            duration: this.duration,
-            noteCount: this.notes.length,
-            rescaleRatio: rescaleRatio !== 1.0 ? rescaleRatio.toFixed(3) : null,
-            hasMacroValues: this._hasMacroValues,
-            resetMacroValues: resetMacroValues
-        });
+        // Debug logging gated to avoid console overhead in production
+        /* console.debug(`LocalTimingManager (${this.elementId}) loaded MIDI data:`, {
+                tempo: this.tempo,
+                bpm: this.bpm,
+                duration: this.duration,
+                noteCount: this.notes.length,
+                rescaleRatio: rescaleRatio !== 1.0 ? rescaleRatio.toFixed(3) : null,
+                hasMacroValues: this._hasMacroValues,
+                resetMacroValues: resetMacroValues
+        }); */
     }
 
     /**
@@ -101,15 +101,9 @@ export class LocalTimingManager {
         // Rescale existing notes if BPM changed and we have notes
         if (oldBPM !== this.bpm && this.notes.length > 0) {
             const rescaleRatio = oldBPM / this.bpm; // Inverse ratio for time scaling
-            console.log(`Rescaling notes due to BPM change: ${oldBPM} -> ${this.bpm} (ratio: ${rescaleRatio.toFixed(3)})`);
+            // console.debug(`Rescaling notes due to BPM change: ${oldBPM} -> ${this.bpm} (ratio: ${rescaleRatio.toFixed(3)})`);
 
-            // Log a few sample notes before rescaling
-            const sampleNotes = this.notes.slice(0, 3);
-            console.log('Sample notes before BPM rescaling:', sampleNotes.map(n => ({
-                note: n.note,
-                start: n.startTime?.toFixed(2),
-                end: n.endTime?.toFixed(2)
-            })));
+            // Optionally log samples in debug mode (removed to reduce overhead)
 
             this.notes = this.notes.map(note => ({
                 ...note,
@@ -118,13 +112,7 @@ export class LocalTimingManager {
                 duration: (note.duration || 0) * rescaleRatio
             }));
 
-            // Log the same notes after rescaling
-            const rescaledSampleNotes = this.notes.slice(0, 3);
-            console.log('Sample notes after BPM rescaling:', rescaledSampleNotes.map(n => ({
-                note: n.note,
-                start: n.startTime?.toFixed(2),
-                end: n.endTime?.toFixed(2)
-            })));
+            // Optionally log samples in debug mode (removed to reduce overhead)
 
             // Recalculate duration
             if (this.notes.length > 0) {
@@ -133,7 +121,7 @@ export class LocalTimingManager {
         }
 
         this._invalidateCache();
-        console.log(`LocalTimingManager (${this.elementId}) BPM set to:`, this.bpm);
+        // console.debug(`LocalTimingManager (${this.elementId}) BPM set to:`, this.bpm);
     }
 
     /**
@@ -144,7 +132,7 @@ export class LocalTimingManager {
         this.tempo = tempo;
         this.bpm = 60000000 / tempo;
         this._invalidateCache();
-        console.log(`LocalTimingManager (${this.elementId}) tempo set to:`, tempo, 'BPM:', this.bpm);
+        // console.debug(`LocalTimingManager (${this.elementId}) tempo set to:`, tempo, 'BPM:', this.bpm);
     }
 
     /**
@@ -154,7 +142,7 @@ export class LocalTimingManager {
         if (this.beatsPerBar === beatsPerBar) { return; }
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
         this._invalidateCache();
-        console.log(`LocalTimingManager (${this.elementId}) beats per bar set to:`, this.beatsPerBar);
+        // console.debug(`LocalTimingManager (${this.elementId}) beats per bar set to:`, this.beatsPerBar);
     }
 
     /**
@@ -170,7 +158,7 @@ export class LocalTimingManager {
         this.timeSignature = { ...this.timeSignature, ...timeSignature };
         this.beatsPerBar = this.timeSignature.numerator;
         this._invalidateCache();
-        console.log(`LocalTimingManager (${this.elementId}) time signature set to:`, this.timeSignature);
+        // console.debug(`LocalTimingManager (${this.elementId}) time signature set to:`, this.timeSignature);
     }
 
     /**
@@ -180,7 +168,7 @@ export class LocalTimingManager {
         if (this.ticksPerQuarter === ticksPerQuarter) { return; }
         this.ticksPerQuarter = ticksPerQuarter;
         this._invalidateCache();
-        console.log(`LocalTimingManager (${this.elementId}) ticks per quarter set to:`, ticksPerQuarter);
+        // console.debug(`LocalTimingManager (${this.elementId}) ticks per quarter set to:`, ticksPerQuarter);
     }
 
     /**

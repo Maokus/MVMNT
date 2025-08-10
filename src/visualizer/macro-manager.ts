@@ -148,6 +148,13 @@ export class MacroManager {
   }
 
   /**
+   * Remove all listeners (for teardown in tests or full app reset)
+   */
+  clearListeners(): void {
+    this.listeners.clear();
+  }
+
+  /**
    * Get all macros as an array (backward compatibility)
    */
   getAllMacros(): Macro[] {

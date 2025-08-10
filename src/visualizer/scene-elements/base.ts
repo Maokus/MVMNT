@@ -25,6 +25,8 @@ export class SceneElement implements SceneElementInterface {
     private _boundsCache: Map<number, { x: number, y: number, width: number, height: number }> = new Map();
     private _boundsDirty: boolean = true;
 
+    private _macroListenerRef?: (eventType: any, data: any) => void;
+
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
         this.id = id;
@@ -36,20 +38,20 @@ export class SceneElement implements SceneElementInterface {
         this._applyConfig(config);
         
         // Set up macro change listener to invalidate cache
-        this._setupMacroListener();
+    this._setupMacroListener();
     }
 
     /**
      * Set up listener for macro changes to invalidate cache
      */
     private _setupMacroListener(): void {
-        globalMacroManager.addListener((eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
-            console.log(`[MacroListener] Event: ${eventType}, data:`, data);
+        this._macroListenerRef = (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+            // Avoid noisy logging during playback; enable via debug if needed
             if (eventType === 'macroValueChanged') {
                 // Invalidate cache for properties bound to this macro
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
-                        console.log(`[MacroListener] Invalidating cache for property '${key}' bound to macro '${data.name}'`);
+                        // Invalidate caches for the affected property
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
                     }
@@ -58,7 +60,6 @@ export class SceneElement implements SceneElementInterface {
                 // Convert all macro bindings for this macro to constant bindings
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
-                        console.log(`[MacroListener] Converting macro binding for property '${key}' to constant binding due to macro '${data.name}' deletion`);
                         // Get the last known value before conversion
                         const currentValue = binding.getValue();
                         // Convert to constant binding
@@ -68,7 +69,18 @@ export class SceneElement implements SceneElementInterface {
                     }
                 });
             }
-        });
+        };
+        globalMacroManager.addListener(this._macroListenerRef);
+    }
+
+    /**
+     * Dispose element resources and detach listeners
+     */
+    dispose(): void {
+        if (this._macroListenerRef) {
+            globalMacroManager.removeListener(this._macroListenerRef);
+            this._macroListenerRef = undefined;
+        }
     }
 
     /**
