@@ -1,6 +1,6 @@
 import React from 'react';
 import ElementList from './ElementList';
-import { useSceneEditor } from '../../hooks/useSceneEditor';
+import { useSceneElementPanel } from '../../hooks/useSceneElementPanel';
 import { useSceneSelection } from '../../context/SceneSelectionContext';
 
 interface SceneEditorProps {
@@ -26,7 +26,7 @@ const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
         handleDuplicateElement,
         handleDeleteElement,
         handleUpdateElementId
-    } = useSceneEditor(sceneEditorProps);
+    } = useSceneElementPanel(sceneEditorProps);
 
     if (error) {
         return (

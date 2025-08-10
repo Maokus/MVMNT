@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-interface UseSceneEditorProps {
+interface UseSceneElementPanelProps {
     visualizer: any;
     onElementSelect?: (elementId: string | null) => void;
     onElementAdd?: (elementType: string, elementId: string) => void;
@@ -10,14 +10,14 @@ interface UseSceneEditorProps {
     refreshTrigger?: number;
 }
 
-interface SceneEditorState {
+interface SceneElementPanelState {
     selectedElementId: string | null;
     elements: any[];
     sceneBuilder: any;
     error: string | null;
 }
 
-interface SceneEditorActions {
+interface SceneElementPanelActions {
     handleElementSelect: (elementId: string | null) => void;
     handleToggleVisibility: (elementId: string) => void;
     handleMoveElement: (elementId: string, newIndex: number) => void;
@@ -27,7 +27,7 @@ interface SceneEditorActions {
     refreshElements: () => void;
 }
 
-export const useSceneEditor = ({
+export const useSceneElementPanel = ({
     visualizer,
     onElementSelect,
     onElementAdd,
@@ -35,7 +35,7 @@ export const useSceneEditor = ({
     onElementConfigChange,
     onElementIdChange,
     refreshTrigger
-}: UseSceneEditorProps): SceneEditorState & SceneEditorActions => {
+}: UseSceneElementPanelProps): SceneElementPanelState & SceneElementPanelActions => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [elements, setElements] = useState<any[]>([]);
     const [sceneBuilder, setSceneBuilder] = useState<any>(null);
@@ -58,16 +58,26 @@ export const useSceneEditor = ({
 
     // Initialize scene builder
     useEffect(() => {
+        // Wait until visualizer is ready; don't error on initial mount
+        if (!visualizer) {
+            setSceneBuilder(null);
+            return;
+        }
+
         try {
             setError(null);
 
-            if (!visualizer?.getSceneBuilder) {
-                throw new Error('Visualizer is not available or does not have getSceneBuilder method');
+            if (typeof visualizer.getSceneBuilder !== 'function') {
+                setError('Visualizer does not expose getSceneBuilder');
+                setSceneBuilder(null);
+                return;
             }
 
             const builder = visualizer.getSceneBuilder();
             if (!builder) {
-                throw new Error('Scene builder is not available');
+                // Keep loading state without flagging an error; may become available shortly
+                setSceneBuilder(null);
+                return;
             }
 
             setSceneBuilder(builder);
