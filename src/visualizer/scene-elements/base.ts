@@ -111,7 +111,14 @@ export class SceneElement implements SceneElementInterface {
             return undefined as T;
         }
 
-        const value = binding.getValue();
+        let value = binding.getValue();
+        // Normalize angle properties to radians for internal use
+        if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && value != null) {
+            // If bound to a macro, assume macro stores degrees and convert to radians here
+            if ((binding as any).type === 'macro' && typeof value === 'number') {
+                value = (value as unknown as number) * (Math.PI / 180) as any;
+            }
+        }
         
         // Cache the value
         this._cachedValues.set(key, value);
@@ -418,7 +425,15 @@ export class SceneElement implements SceneElementInterface {
 
         // Add all bound properties with their current values
         this.bindings.forEach((binding, key) => {
-            config[key] = binding.getValue();
+            let val: any = binding.getValue();
+            // Present angle-like properties in degrees for UI display when they are constants
+            if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && typeof val === 'number') {
+                if (binding.type === 'constant') {
+                    val = val * (180 / Math.PI);
+                }
+                // If macro-bound, assume macro value is already in degrees
+            }
+            config[key] = val;
         });
 
         return config;
@@ -455,7 +470,12 @@ export class SceneElement implements SceneElementInterface {
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {
                 // This is a raw value, create a constant binding
-                this.bindings.set(key, new ConstantBinding(value));
+                // For angle-like properties, interpret raw inputs as degrees from UI and convert to radians
+                if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && typeof value === 'number') {
+                    this.bindings.set(key, new ConstantBinding(value * (Math.PI / 180)));
+                } else {
+                    this.bindings.set(key, new ConstantBinding(value));
+                }
             }
             
             this._cacheValid.set(key, false);

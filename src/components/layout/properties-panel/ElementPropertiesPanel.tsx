@@ -162,6 +162,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
         // Trigger re-render
         setMacroListenerKey(prev => prev + 1);
+
+        // Force visualizer to re-render so elements can react to new bindings immediately
+        if (typeof window !== 'undefined') {
+            const vis: any = (window as any).debugVisualizer;
+            if (vis && typeof vis.invalidateRender === 'function') {
+                vis.invalidateRender();
+            }
+        }
     };
 
     const handleCollapseToggle = (groupId: string) => {

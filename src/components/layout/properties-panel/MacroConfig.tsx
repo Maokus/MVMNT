@@ -57,8 +57,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     }, []);
 
     useEffect(() => {
-        // Setup macro manager listener
-        const listener = () => {
+        // Setup macro manager listener for any macro changes (create/delete/update/import/clear)
+        const listener = (_eventType: any, _data: any) => {
             updateMacros();
         };
 

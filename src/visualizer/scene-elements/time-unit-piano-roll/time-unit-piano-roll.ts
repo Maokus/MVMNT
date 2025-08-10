@@ -275,6 +275,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
             // Trigger a re-render
             this._dispatchChangeEvent();
+            // Also trigger global visualizer re-render if available
+            if (typeof window !== 'undefined') {
+                const canvas: any = (window as any).debugVisualizer?.canvas;
+                const vis: any = (window as any).debugVisualizer;
+                if (vis && typeof vis.invalidateRender === 'function') {
+                    vis.invalidateRender();
+                } else if (canvas && canvas.dispatchEvent) {
+                    canvas.dispatchEvent(new CustomEvent('visualizer-update'));
+                }
+            }
 
         } catch (error) {
             console.error(`Failed to load MIDI file for bound element ${this.id}:`, error);
@@ -437,6 +447,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     if (newMidiFile !== this._currentMidiFile) {
                         this._handleMIDIFileConfig(newMidiFile);
                         this._currentMidiFile = newMidiFile;
+                        // Force immediate re-render so duration/UI updates without stepping
+                        if (typeof window !== 'undefined') {
+                            const vis: any = (window as any).debugVisualizer;
+                            if (vis && typeof vis.invalidateRender === 'function') {
+                                vis.invalidateRender();
+                            }
+                        }
                     }
                 }
             }

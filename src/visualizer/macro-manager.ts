@@ -213,8 +213,10 @@ export class MacroManager {
   }
 
   clearMacros(): void {
-    try{
+    try {
       this.macros.clear();
+      // Notify listeners so UI and bindings can react to macro clear
+      this._notifyListeners('macrosImported', { macroData: { macros: {}, exportedAt: Date.now() } });
     } catch (error) {
       console.error('Failed to clear macros:', error);
     }
