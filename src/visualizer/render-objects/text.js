@@ -113,8 +113,7 @@ export class Text extends RenderObject {
     }
 
     getBounds() {
-        // For more accurate bounds, we need better text measurement
-        // This is still an approximation but more accurate than before
+        // Use an offscreen canvas and measureText for accurate bounds
         const fontSize = this._extractFontSize(this.font);
 
         // Validate inputs first
@@ -123,56 +122,75 @@ export class Text extends RenderObject {
             return { x: 0, y: 0, width: 0, height: 0 };
         }
 
-        // Improved character width estimation based on font type
-        let charWidthRatio = 0.6; // Default for Arial/Helvetica
-        if (this.font.toLowerCase().includes('mono')) {
-            charWidthRatio = 0.6; // Monospace fonts
-        } else if (this.font.toLowerCase().includes('serif')) {
-            charWidthRatio = 0.55; // Serif fonts tend to be narrower
-        } else if (this.font.toLowerCase().includes('bold')) {
-            charWidthRatio = 0.65; // Bold fonts are wider
+        const ctx = Text._getMeasureContext();
+        if (!ctx) {
+            // Fallback to simple estimate if no context is available (very rare)
+            const fallbackWidth = this.text.length * fontSize * 0.6;
+            const fallbackHeight = fontSize * 1.3;
+            let fx = this.x;
+            let fy = this.y;
+            if (this.align === 'center') fx -= fallbackWidth / 2; else if (this.align === 'right') fx -= fallbackWidth;
+            switch (this.baseline) {
+                case 'middle': fy -= fallbackHeight / 2; break;
+                case 'bottom': fy -= fallbackHeight; break;
+                case 'alphabetic': fy -= fallbackHeight * 0.8; break;
+                default: break; // 'top'
+            }
+            return { x: fx, y: fy, width: fallbackWidth, height: fallbackHeight };
         }
 
-        const estimatedWidth = this.text.length * fontSize * charWidthRatio;
-        const estimatedHeight = fontSize * 1.3; // Include ascenders/descenders
+        // Measure with the correct font
+        const prevFont = ctx.font;
+        ctx.font = this.font;
+        const metrics = ctx.measureText(this.text);
+        ctx.font = prevFont;
 
-        // Adjust bounds based on text alignment
+        let width = metrics.width || 0;
+        // Use ascent/descent when available for precise height
+        const ascent = (metrics.actualBoundingBoxAscent ?? fontSize * 0.8);
+        const descent = (metrics.actualBoundingBoxDescent ?? fontSize * 0.2);
+        let height = ascent + descent;
+
+        // Handle maxWidth scaling behavior similar to fillText(x, y, maxWidth)
+        if (this.maxWidth != null && isFinite(this.maxWidth) && this.maxWidth > 0 && width > this.maxWidth) {
+            const scale = this.maxWidth / width;
+            width *= scale;
+            height *= scale; // Canvas scales glyphs when constrained by maxWidth
+        }
+
+        // Expand for stroke width if present
+        const strokePad = (this.strokeColor && this.strokeWidth > 0) ? this.strokeWidth : 0;
+        const paddedWidth = width + strokePad;
+        const paddedHeight = height + strokePad;
+
+        // Compute top-left based on alignment and baseline
         let boundsX = this.x;
+        if (this.align === 'center') boundsX -= paddedWidth / 2;
+        else if (this.align === 'right') boundsX -= paddedWidth;
+
         let boundsY = this.y;
-
-        switch (this.align) {
-            case 'center':
-                boundsX = this.x - estimatedWidth / 2;
-                break;
-            case 'right':
-                boundsX = this.x - estimatedWidth;
-                break;
-            default:
-                // 'left' is default - no adjustment needed
-                break;
-        }
-
         switch (this.baseline) {
             case 'middle':
-                boundsY = this.y - estimatedHeight / 2;
+                boundsY -= paddedHeight / 2;
                 break;
             case 'bottom':
-                boundsY = this.y - estimatedHeight;
+            case 'ideographic':
+                boundsY -= paddedHeight;
                 break;
             case 'alphabetic':
-                boundsY = this.y - estimatedHeight * 0.8; // Rough baseline adjustment
+            case 'baseline':
+                boundsY -= ascent + (strokePad ? strokePad / 2 : 0);
+                break;
+            case 'hanging':
+                // Hanging is above alphabetic; approximate as slightly above top
+                boundsY -= paddedHeight * 0.1;
                 break;
             default:
-                // 'top' is default - no adjustment needed
+                // 'top' -> no change
                 break;
         }
 
-        const result = {
-            x: boundsX,
-            y: boundsY,
-            width: estimatedWidth,
-            height: estimatedHeight
-        };
+        const result = { x: boundsX, y: boundsY, width: paddedWidth, height: paddedHeight };
 
         // Validate final result
         if (!isFinite(result.x) || !isFinite(result.y) || !isFinite(result.width) || !isFinite(result.height) ||
@@ -183,6 +201,7 @@ export class Text extends RenderObject {
                 position: { x: this.x, y: this.y },
                 align: this.align,
                 baseline: this.baseline,
+                measured: { width, ascent, descent, height },
                 result: result
             });
             return { x: 0, y: 0, width: 0, height: 0 };
@@ -233,5 +252,24 @@ export class Text extends RenderObject {
         const font = `${fontWeight} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
 
         return new Text(x, y, text, font, config.textSecondaryColor || '#CCCCCC', 'right', 'bottom');
+    }
+
+    // Internal shared offscreen measure context
+    static _getMeasureContext() {
+        if (typeof Text.__measureCtx !== 'undefined') return Text.__measureCtx;
+        let ctx = null;
+        try {
+            if (typeof OffscreenCanvas !== 'undefined') {
+                const c = new OffscreenCanvas(1, 1);
+                ctx = c.getContext('2d');
+            } else if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+                const c = document.createElement('canvas');
+                ctx = c.getContext('2d');
+            }
+        } catch (e) {
+            ctx = null;
+        }
+        Text.__measureCtx = ctx;
+        return ctx;
     }
 }

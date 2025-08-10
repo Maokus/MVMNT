@@ -21,6 +21,9 @@ export class SceneElement implements SceneElementInterface {
     // Cache for frequently accessed values
     private _cachedValues: Map<string, any> = new Map();
     private _cacheValid: Map<string, boolean> = new Map();
+    // Cache for computed scene element bounds (per target time bucket)
+    private _boundsCache: Map<number, { x: number, y: number, width: number, height: number }> = new Map();
+    private _boundsDirty: boolean = true;
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -48,6 +51,7 @@ export class SceneElement implements SceneElementInterface {
                     if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
                         console.log(`[MacroListener] Invalidating cache for property '${key}' bound to macro '${data.name}'`);
                         this._cacheValid.set(key, false);
+                        this._invalidateBoundsCache();
                     }
                 });
             } else if (eventType === 'macroDeleted') {
@@ -60,6 +64,7 @@ export class SceneElement implements SceneElementInterface {
                         // Convert to constant binding
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
+                        this._invalidateBoundsCache();
                     }
                 });
             }
@@ -123,6 +128,7 @@ export class SceneElement implements SceneElementInterface {
         // Cache the value
         this._cachedValues.set(key, value);
         this._cacheValid.set(key, true);
+    // Property read doesn't affect bounds cache
         
         return value;
     }
@@ -141,6 +147,7 @@ export class SceneElement implements SceneElementInterface {
         
         // Invalidate cache
         this._cacheValid.set(key, false);
+    this._invalidateBoundsCache();
     }
 
     /**
@@ -149,6 +156,7 @@ export class SceneElement implements SceneElementInterface {
     bindToMacro(propertyKey: string, macroId: string): void {
         this.bindings.set(propertyKey, new MacroBinding(macroId));
         this._cacheValid.set(propertyKey, false);
+    this._invalidateBoundsCache();
     }
 
     /**
@@ -161,6 +169,7 @@ export class SceneElement implements SceneElementInterface {
             const currentValue = binding.getValue();
             this.bindings.set(propertyKey, new ConstantBinding(currentValue));
             this._cacheValid.set(propertyKey, false);
+            this._invalidateBoundsCache();
         }
     }
 
@@ -177,6 +186,7 @@ export class SceneElement implements SceneElementInterface {
     setBinding(propertyKey: string, binding: PropertyBinding): void {
         this.bindings.set(propertyKey, binding);
         this._cacheValid.set(propertyKey, false);
+    this._invalidateBoundsCache();
     }
 
     /**
@@ -266,7 +276,7 @@ export class SceneElement implements SceneElementInterface {
         if (childRenderObjects.length === 0) return [];
 
         // Calculate the bounding box and anchor point for transformation
-        const bounds = this._calculateSceneElementBounds(childRenderObjects);
+    const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime);
         const anchorPixelX = bounds.x + bounds.width * this.anchorX;
         const anchorPixelY = bounds.y + bounds.height * this.anchorY;
 
@@ -346,6 +356,36 @@ export class SceneElement implements SceneElementInterface {
             width: maxX - minX,
             height: maxY - minY
         };
+    }
+
+    /**
+     * Retrieve scene element bounds from cache or compute and cache them.
+     * Uses a time bucket (ms) to avoid excessive keys; invalidated on any property/macro change.
+     */
+    private _getCachedSceneElementBounds(renderObjects: RenderObjectInterface[], targetTime: number): { x: number, y: number, width: number, height: number } {
+        const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
+        if (!this._boundsDirty && this._boundsCache.has(timeBucket)) {
+            const cached = this._boundsCache.get(timeBucket)!;
+            return { ...cached };
+        }
+
+        const computed = this._calculateSceneElementBounds(renderObjects);
+
+        // Update cache and mark clean
+        this._boundsCache.set(timeBucket, computed);
+        this._boundsDirty = false;
+
+        // Prune cache to a small size to prevent growth
+        const MAX_ENTRIES = 8;
+        if (this._boundsCache.size > MAX_ENTRIES) {
+            const keys = Array.from(this._boundsCache.keys()).sort((a, b) => a - b);
+            while (this._boundsCache.size > MAX_ENTRIES) {
+                const k = keys.shift();
+                if (typeof k !== 'undefined') this._boundsCache.delete(k);
+            }
+        }
+
+        return computed;
     }
 
     /**
@@ -479,6 +519,7 @@ export class SceneElement implements SceneElementInterface {
             }
             
             this._cacheValid.set(key, false);
+            this._invalidateBoundsCache();
         }
     }
 
@@ -488,6 +529,12 @@ export class SceneElement implements SceneElementInterface {
     updateConfig(newConfig: { [key: string]: any }): this {
         this._applyConfig(newConfig);
         return this;
+    }
+
+    /** Invalidate the scene element bounds cache */
+    private _invalidateBoundsCache(): void {
+        this._boundsDirty = true;
+        this._boundsCache.clear();
     }
 
     // Setter methods that work with the binding system

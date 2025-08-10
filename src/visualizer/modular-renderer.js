@@ -9,8 +9,6 @@ export class ModularRenderer {
      * @param {number} currentTime - Current time for animation calculations
      */
     render(ctx, renderObjects, config, currentTime) {
-        console.log("Render was called");
-        console.log("RenderObjects:", renderObjects);
         // Clear canvas first (should be done by background RenderObject, but this is a fallback)
         if (!renderObjects.length || !(renderObjects[0].fillColor === config.backgroundColor)) {
             this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
