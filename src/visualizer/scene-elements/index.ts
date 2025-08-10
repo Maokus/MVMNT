@@ -6,5 +6,6 @@ export { ProgressDisplayElement } from './progress-display';
 export { TextOverlayElement } from './text-overlay';
 export { TimeDisplayElement } from './time-display';
 export { TimeUnitPianoRollElement } from './time-unit-piano-roll/time-unit-piano-roll';
-export {DebugElement} from './debug';
+export { DebugElement } from './debug';
+export { ExampleGroupedElement } from './example-grouped';
 

@@ -20,6 +20,34 @@ export interface SceneConfig {
   sections: ConfigSection[];
 }
 
+// New property grouping system for After Effects-style UI
+export interface PropertyDefinition {
+  key: string;
+  type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'range';
+  label: string;
+  description?: string;
+  default?: any;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: { value: any; label: string; }[];
+  accept?: string;
+}
+
+export interface PropertyGroup {
+  id: string;
+  label: string;
+  collapsed: boolean;
+  properties: PropertyDefinition[];
+}
+
+export interface EnhancedConfigSchema {
+  name: string;
+  description: string;
+  category?: string;
+  groups: PropertyGroup[];
+}
+
 export interface UIState {
   activeTab: string;
   isLoading: boolean;

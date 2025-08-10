@@ -1,11 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import BooleanInputRow from './input-rows/BooleanInputRow';
-import NumberInputRow from './input-rows/NumberInputRow';
-import SelectInputRow from './input-rows/SelectInputRow';
-import ColorInputRow from './input-rows/ColorInputRow';
-import RangeInputRow from './input-rows/RangeInputRow';
-import FileInputRow from './input-rows/FileInputRow';
-import TextInputRow from './input-rows/TextInputRow';
+import PropertyGroupPanel from './PropertyGroupPanel';
+import { SchemaConverter } from './SchemaConverter';
+import { EnhancedConfigSchema } from '../../types';
 // @ts-ignore
 import { globalMacroManager } from '../../../visualizer/macro-manager';
 
@@ -15,12 +11,12 @@ interface ElementPropertiesPanelProps {
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
 }
 
-interface FormField {
-    key: string;
-    propSchema: any;
-    value: any;
-    isAssignedToMacro: boolean;
-    assignedMacro?: any;
+interface PropertyValues {
+    [key: string]: any;
+}
+
+interface MacroAssignments {
+    [key: string]: string;
 }
 
 const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
@@ -28,7 +24,10 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     schema,
     onConfigChange
 }) => {
-    const [formFields, setFormFields] = useState<FormField[]>([]);
+    const [enhancedSchema, setEnhancedSchema] = useState<EnhancedConfigSchema | null>(null);
+    const [propertyValues, setPropertyValues] = useState<PropertyValues>({});
+    const [macroAssignments, setMacroAssignments] = useState<MacroAssignments>({});
+    const [groupCollapseState, setGroupCollapseState] = useState<{ [groupId: string]: boolean }>({});
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
     // Handle macro changes
@@ -67,54 +66,59 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         };
     }, [handleMacroChange]);
 
-    // Update form fields when element or schema changes
+    // Convert schema and extract property values
     useEffect(() => {
-        const fields: FormField[] = [];
+        if (!schema) return;
 
-        for (const [key, propSchema] of Object.entries(schema.properties)) {
-            // Check for macro binding in the new property binding system
-            let assignedMacro = null;
-            let isAssignedToMacro = false;
+        // Convert legacy schema to grouped format
+        const convertedSchema = SchemaConverter.convertToGroupedSchema(schema);
+        setEnhancedSchema(convertedSchema);
 
-            if (element && typeof element.getBinding === 'function') {
-                // New property binding system
-                const binding = element.getBinding(key);
-                if (binding && binding.type === 'macro') {
-                    const macroId = binding.getMacroId ? binding.getMacroId() : null;
-                    if (macroId) {
-                        const macro = globalMacroManager.getMacro(macroId);
-                        if (macro) {
-                            assignedMacro = {
-                                macroName: macroId,
-                                propertyPath: key,
-                                value: macro.value,
-                                type: macro.type
-                            };
-                            isAssignedToMacro = true;
+        // Extract current property values
+        const values: PropertyValues = {};
+        const macroBindings: MacroAssignments = {};
+
+        // Get all properties from all groups
+        convertedSchema.groups.forEach(group => {
+            group.properties.forEach(property => {
+                // Get property value
+                const value = element.config?.[property.key] !== undefined
+                    ? element.config[property.key]
+                    : (element[property.key] !== undefined ? element[property.key] : property.default);
+
+                values[property.key] = value;
+
+                // Check for macro binding
+                if (element && typeof element.getBinding === 'function') {
+                    const binding = element.getBinding(property.key);
+                    if (binding && binding.type === 'macro') {
+                        const macroId = binding.getMacroId ? binding.getMacroId() : null;
+                        if (macroId) {
+                            macroBindings[property.key] = macroId;
                         }
                     }
                 }
-            } else {
-                console.warn(`[ElementPropertiesPanel] Element ${element?.id} does not support the new property binding system`);
-            }
-
-            // Use element.config[key] first, then fall back to element[key] for direct properties
-            const value = element.config?.[key] !== undefined ? element.config[key] :
-                (element[key] !== undefined ? element[key] : (propSchema as any).default);
-
-            fields.push({
-                key,
-                propSchema,
-                value,
-                isAssignedToMacro,
-                assignedMacro
             });
-        }
+        });
 
-        setFormFields(fields);
-    }, [element, schema, macroListenerKey]);
+        setPropertyValues(values);
+        setMacroAssignments(macroBindings);
 
-    const handleFieldChange = (key: string, value: any) => {
+        // Initialize collapse state for new groups
+        const newCollapseState: { [groupId: string]: boolean } = {};
+        convertedSchema.groups.forEach(group => {
+            if (!(group.id in groupCollapseState)) {
+                newCollapseState[group.id] = group.collapsed;
+            } else {
+                newCollapseState[group.id] = groupCollapseState[group.id];
+            }
+        });
+        setGroupCollapseState(newCollapseState);
+
+    }, [element, schema, macroListenerKey, groupCollapseState]);
+
+    const handleValueChange = (key: string, value: any) => {
+        setPropertyValues(prev => ({ ...prev, [key]: value }));
         if (onConfigChange) {
             onConfigChange(element.id, { [key]: value });
         }
@@ -129,17 +133,18 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             if (macroName) {
                 // Bind to the selected macro
                 element.bindToMacro(propertyKey, macroName);
+                setMacroAssignments(prev => ({ ...prev, [propertyKey]: macroName }));
                 console.log(`Bound property '${propertyKey}' to macro '${macroName}' using property binding system`);
             } else {
                 // Unbind from macro (convert to constant binding)
                 element.unbindFromMacro(propertyKey);
+                setMacroAssignments(prev => {
+                    const newAssignments = { ...prev };
+                    delete newAssignments[propertyKey];
+                    return newAssignments;
+                });
                 console.log(`Unbound property '${propertyKey}' from macro using property binding system`);
             }
-
-            // For bound elements, we don't need to trigger onConfigChange because:
-            // 1. The binding is handled internally by the element
-            // 2. Calling onConfigChange would trigger updateConfig which overwrites the binding
-            // 3. The UI will be updated through the macro listener system
         } else {
             console.warn(`[handleMacroAssignment] Element ${elementId} does not support the new property binding system`);
         }
@@ -148,145 +153,45 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setMacroListenerKey(prev => prev + 1);
     };
 
-    const canAssignMacro = (propertyType: string) => {
-        return ['number', 'string', 'boolean', 'color', 'select', 'file'].includes(propertyType);
+    const handleCollapseToggle = (groupId: string) => {
+        setGroupCollapseState(prev => ({
+            ...prev,
+            [groupId]: !prev[groupId]
+        }));
     };
 
-    const getMacroOptions = (propertyType: string, propertySchema: any) => {
-        if (propertyType === 'file') {
-            // For file inputs, filter by accept type
-            const accept = propertySchema?.accept;
-            let targetFileType = 'file'; // default generic file type
+    if (!enhancedSchema) {
+        return <div className="element-properties-panel">Loading...</div>;
+    }
 
-            if (accept) {
-                if (accept.includes('.mid') || accept.includes('.midi')) {
-                    targetFileType = 'file-midi';
-                } else if (accept.includes('image')) {
-                    targetFileType = 'file-image';
-                }
-            }
-
-            return globalMacroManager.getAllMacros()
-                .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
-        }
-
-        return globalMacroManager.getAllMacros()
-            .filter((macro: any) => macro.type === propertyType);
-    };
-
-    const renderInput = (field: FormField) => {
-        const { key, propSchema, value, isAssignedToMacro, assignedMacro } = field;
-        const commonProps = {
-            id: `config-${key}`,
-            value,
-            schema: propSchema,
-            disabled: isAssignedToMacro,
-            title: isAssignedToMacro ? `Controlled by macro: ${assignedMacro?.macroName}` : undefined,
-            onChange: (newValue: any) => handleFieldChange(key, newValue)
-        };
-
-        // If assigned to macro, get the macro value
-        if (isAssignedToMacro && assignedMacro) {
-            const macro = globalMacroManager.getMacro(assignedMacro.macroName);
-            if (macro) {
-                commonProps.value = macro.value;
-            }
-        }
-
-        switch (propSchema.type) {
-            case 'boolean':
-                return <BooleanInputRow {...commonProps} />;
-            case 'number':
-                return <NumberInputRow {...commonProps} />;
-            case 'select':
-                return <SelectInputRow {...commonProps} />;
-            case 'color':
-                return <ColorInputRow {...commonProps} />;
-            case 'range':
-                return <RangeInputRow {...commonProps} />;
-            case 'file':
-                return <FileInputRow {...commonProps} />;
-            case 'string':
-            default:
-                return <TextInputRow {...commonProps} />;
-        }
-    };
-
-    const renderMacroDropdown = (field: FormField) => {
-        if (!canAssignMacro(field.propSchema.type)) return null;
-
-        const macros = getMacroOptions(field.propSchema.type, field.propSchema);
-        const currentAssignment = field.assignedMacro;
-
-        return (
-            <select
-                className="macro-assignment-select"
-                title="Assign to macro"
-                value={currentAssignment?.macroName || ''}
-                onChange={(e) => handleMacroAssignment(field.key, e.target.value)}
-            >
-                <option value="">No macro</option>
-                {macros.map((macro: any) => (
-                    <option key={macro.name} value={macro.name}>
-                        {macro.name} ({macro.type})
-                    </option>
-                ))}
-            </select>
-        );
+    // Update the enhanced schema with current collapse states
+    const updatedSchema: EnhancedConfigSchema = {
+        ...enhancedSchema,
+        groups: enhancedSchema.groups.map(group => ({
+            ...group,
+            collapsed: groupCollapseState[group.id] ?? group.collapsed
+        }))
     };
 
     return (
-        <div className="element-properties-panel">
-            <div className="element-properties-header">
-                <h3>{schema.name}</h3>
-                <p className="description">{schema.description}</p>
+        <div className="element-properties-panel ae-style">
+            <div className="ae-element-header">
+                <h3 className="ae-element-title">{enhancedSchema.name}</h3>
             </div>
 
-            <form className="element-properties-form" onSubmit={(e) => e.preventDefault()}>
-                {formFields.map((field) => {
-                    const { key, propSchema } = field;
-                    const hasDescription = !!propSchema.description;
-                    const isCheckbox = propSchema.type === 'boolean';
-
-                    return (
-                        <div
-                            key={key}
-                            className={`form-field ${hasDescription ? 'has-description' : ''} ${isCheckbox ? 'checkbox-field' : ''}`}
-                        >
-                            {hasDescription ? (
-                                <>
-                                    <div className="field-row">
-                                        <label htmlFor={`config-${key}`}>
-                                            {propSchema.label || key}
-                                        </label>
-                                        {renderMacroDropdown(field)}
-                                        {renderInput(field)}
-                                    </div>
-                                    <small className="field-description">
-                                        {propSchema.description}
-                                    </small>
-                                </>
-                            ) : isCheckbox ? (
-                                <div className="field-row">
-                                    <label htmlFor={`config-${key}`}>
-                                        {propSchema.label || key}
-                                    </label>
-                                    {renderMacroDropdown(field)}
-                                    {renderInput(field)}
-                                </div>
-                            ) : (
-                                <div className="field-row">
-                                    <label htmlFor={`config-${key}`}>
-                                        {propSchema.label || key}
-                                    </label>
-                                    {renderMacroDropdown(field)}
-                                    {renderInput(field)}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </form>
+            <div className="ae-properties-container">
+                {updatedSchema.groups.map((group) => (
+                    <PropertyGroupPanel
+                        key={group.id}
+                        group={group}
+                        values={propertyValues}
+                        macroAssignments={macroAssignments}
+                        onValueChange={handleValueChange}
+                        onMacroAssignment={handleMacroAssignment}
+                        onCollapseToggle={handleCollapseToggle}
+                    />
+                ))}
+            </div>
         </div>
     );
 };

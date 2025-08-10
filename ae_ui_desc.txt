@@ -1,0 +1,107 @@
+🎨 UI Description: Adobe After Effects Properties Panel (Compact & Readable)
+General Layout
+
+    Vertical stack layout with collapsible property groups (e.g. Transform, Effects).
+
+    Minimal padding between groups and rows to conserve space.
+
+    Each group is represented as a collapsible/expandable section, often with a small triangle or chevron icon to the left to toggle visibility.
+
+    Flat, semi-dark background with clear contrast between text and background.
+
+Typography
+
+    Sans-serif font, compact and readable (similar to Adobe Clean or Roboto).
+
+    Font size: ~11–12px.
+
+    Left-aligned labels, with consistent indentation.
+
+    Bold for group headers; regular weight for individual properties.
+
+Property Rows
+
+Each row typically contains:
+
+    Label (e.g., "Position", "Opacity").
+
+    Numerical input fields (X/Y coordinates, percentages, etc.).
+
+    Linked fields often appear side-by-side (e.g., X and Y).
+
+    A reset icon or stopwatch icon for keyframing (used to toggle animation on/off).
+
+Spacing
+
+    Minimal vertical spacing (~4–6px) between rows.
+
+    Very tight horizontal alignment between label and field.
+
+    Padding within input fields is small; fields are compact but clickable.
+
+    Indentation is used to show hierarchy (e.g. "Transform" group → "Position").
+
+Controls and Interactions
+
+    Toggle buttons, small sliders, checkboxes, or dropdowns depending on property type.
+
+    Input fields are clickable and editable, often supporting click+drag value scrubbing.
+
+    Animation icon (stopwatch) is a key interaction affordance.
+
+    Hover effects: Slight highlight or border to show interactivity.
+
+    Right-click context menus on many items for advanced options.
+
+Color Scheme
+
+    Dark UI theme:
+
+        Background: #2C2C2C to #383838.
+
+        Text: Light gray to white (#E0E0E0).
+
+        Input fields: Slightly lighter background with subtle border or no border.
+
+        Active elements (sliders, icons): Blue or light highlight.
+
+Icons
+
+    Simple, monochrome, flat SVG-style icons.
+
+    Icons include:
+
+        Stopwatch (for animation toggle).
+
+        Reset (revert value).
+
+        Toggle visibility or collapse.
+
+    Icons are 14–16px max, with subtle hover states.
+
+Responsiveness
+
+    Properties panel scales vertically with the window.
+
+    Auto-adjusts to available width; wraps or ellipsizes long text labels.
+
+    Mouse scroll to navigate vertically, optionally collapsible sections to declutter.
+
+Group Structure Example
+
+▼ Transform
+   ▸ Anchor Point     [ X: 960.0 ] [ Y: 540.0 ]
+   ▸ Position         [ X: 960.0 ] [ Y: 540.0 ]
+   ▸ Scale            [ 100.0% ]
+   ▸ Rotation         [ 0.0° ]
+   ▸ Opacity          [ 100% ]
+
+Interaction Hints
+
+    Clicking label or value selects field.
+
+    Double-click allows full text selection.
+
+    Dragging on value fields increments/decrements numerically.
+
+    Shift/Ctrl modifiers allow precise or accelerated input.

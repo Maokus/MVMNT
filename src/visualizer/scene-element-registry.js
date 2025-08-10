@@ -6,7 +6,8 @@ import {
     ProgressDisplayElement,
     TextOverlayElement,
     TimeDisplayElement,
-    DebugElement
+    DebugElement,
+    ExampleGroupedElement
 } from './scene-elements/index';
 
 export class SceneElementRegistry {
@@ -120,6 +121,12 @@ export class SceneElementRegistry {
             const element = new DebugElement(config.id || 'debug', config);
             return element;
         }, DebugElement.getConfigSchema());
+
+        // Register example grouped element for demo
+        this.registerElement('exampleGrouped', (config) => {
+            const element = new ExampleGroupedElement(config.id || 'exampleGrouped', config);
+            return element;
+        }, ExampleGroupedElement.getConfigSchema());
 
 
     }

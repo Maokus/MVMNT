@@ -20,7 +20,7 @@ export class TextOverlayElement extends SceneElement {
                     type: 'string',
                     label: 'Text',
                     default: 'Sample Text',
-                    description: 'The text to display'
+                    description: 'The text content to display'
                 },
                 fontFamily: {
                     type: 'select',
@@ -36,11 +36,11 @@ export class TextOverlayElement extends SceneElement {
                         { value: 'Impact', label: 'Impact' },
                         { value: 'Courier New', label: 'Courier New' }
                     ],
-                    description: 'Font family for the text'
+                    description: 'Choose the font family for text rendering'
                 },
                 fontWeight: {
                     type: 'select',
-                    label: 'Font Weight',
+                    label: 'Weight',
                     default: 'bold',
                     options: [
                         { value: 'normal', label: 'Normal' },
@@ -51,11 +51,11 @@ export class TextOverlayElement extends SceneElement {
                         { value: '700', label: 'Bold' },
                         { value: '900', label: 'Black' }
                     ],
-                    description: 'Font weight for the text'
+                    description: 'Set the font weight (thickness) of the text'
                 },
                 fontSize: {
                     type: 'number',
-                    label: 'Font Size',
+                    label: 'Size',
                     default: 36,
                     min: 8,
                     max: 120,
@@ -64,9 +64,9 @@ export class TextOverlayElement extends SceneElement {
                 },
                 color: {
                     type: 'color',
-                    label: 'Text Color',
+                    label: 'Color',
                     default: '#ffffff',
-                    description: 'Color of the text'
+                    description: 'Text color'
                 }
             }
         };
