@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
-import { SchemaConverter } from './SchemaConverter';
 import { EnhancedConfigSchema } from '../../types';
 // @ts-ignore
 import { globalMacroManager } from '../../../visualizer/macro-manager';
@@ -66,20 +65,20 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         };
     }, [handleMacroChange]);
 
-    // Convert schema and extract property values
+    // Use grouped schema directly and extract property values
     useEffect(() => {
         if (!schema) return;
 
-        // Convert legacy schema to grouped format
-        const convertedSchema = SchemaConverter.convertToGroupedSchema(schema);
-        setEnhancedSchema(convertedSchema);
+        // Assume schema is already in grouped format
+        const groupedSchema = schema as EnhancedConfigSchema;
+        setEnhancedSchema(groupedSchema);
 
         // Extract current property values
         const values: PropertyValues = {};
         const macroBindings: MacroAssignments = {};
 
         // Get all properties from all groups
-        convertedSchema.groups.forEach(group => {
+        groupedSchema.groups.forEach(group => {
             group.properties.forEach(property => {
                 // Get property value
                 const value = element.config?.[property.key] !== undefined
@@ -107,7 +106,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         // Initialize/merge collapse state for groups without causing loops
         setGroupCollapseState(prev => {
             const next: { [groupId: string]: boolean } = {};
-            convertedSchema.groups.forEach(group => {
+            groupedSchema.groups.forEach(group => {
                 next[group.id] = Object.prototype.hasOwnProperty.call(prev, group.id)
                     ? prev[group.id]
                     : group.collapsed;

@@ -364,7 +364,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     return (
         <div className="macro-config">
             <div className="macro-header">
-                <h4>🎛️ Global Macros</h4>
+                <h4>🎛️ Macros</h4>
                 <button
                     className="btn btn-add macro-add-btn"
                     onClick={() => setShowCreateDialog(true)}

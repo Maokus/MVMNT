@@ -1,5 +1,5 @@
 // Enhanced Base SceneElement class with Property Binding System
-import { RenderObjectInterface, ConfigSchema, SceneElementInterface } from '../types.js';
+import { RenderObjectInterface, EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
 import { EmptyRenderObject } from '../render-objects/empty.js';
 import { 
     PropertyBinding, 
@@ -70,11 +70,13 @@ export class SceneElement implements SceneElementInterface {
      * Initialize default bindings from the element's config schema
      */
     private _initializeDefaultBindings(): void {
-        const schema = (this.constructor as any).getConfigSchema();
-        if (schema && schema.properties) {
-            for (const [key, propSchema] of Object.entries(schema.properties as any)) {
-                if (key !== 'id' && key !== 'type' && (propSchema as any).default !== undefined) {
-                    this.bindings.set(key, new ConstantBinding((propSchema as any).default));
+        const schema: EnhancedConfigSchema = (this.constructor as any).getConfigSchema();
+        if (schema && schema.groups) {
+            for (const group of schema.groups) {
+                for (const prop of group.properties as PropertyDefinition[]) {
+                    if (prop && prop.key && prop.default !== undefined && prop.key !== 'id' && prop.key !== 'type') {
+                        this.bindings.set(prop.key, new ConstantBinding(prop.default));
+                    }
                 }
             }
         }
@@ -369,121 +371,39 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Get the configuration schema for this element type
      */
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
         return {
             name: 'Bound Base Element',
             description: 'Base scene element with property bindings',
             category: 'general',
-            properties: {
-                id: {
-                    type: 'string',
-                    label: 'Element ID',
-                    default: ''
+            groups: [
+                {
+                    id: 'visibility',
+                    label: 'Visibility & Layer',
+                    collapsed: false,
+                    properties: [
+                        { key: 'visible', type: 'boolean', label: 'Visible', default: true },
+                        { key: 'zIndex', type: 'number', label: 'Layer (Z-Index)', default: 0, min: 0, max: 100, step: 1 },
+                        { key: 'elementOpacity', type: 'number', label: 'Opacity', default: 1, min: 0, max: 1, step: 0.01, description: 'Element transparency (0 = transparent, 1 = opaque)' }
+                    ]
                 },
-                visible: {
-                    type: 'boolean',
-                    label: 'Visible',
-                    default: true
-                },
-                zIndex: {
-                    type: 'number',
-                    label: 'Layer (Z-Index)',
-                    default: 0,
-                    min: 0,
-                    max: 100,
-                    step: 1
-                },
-                offsetX: {
-                    type: 'number',
-                    label: 'Offset X',
-                    default: 0,
-                    min: -10000,
-                    max: 10000,
-                    step: 1,
-                    description: 'Element horizontal position offset'
-                },
-                offsetY: {
-                    type: 'number',
-                    label: 'Offset Y',
-                    default: 0,
-                    min: -10000,
-                    max: 10000,
-                    step: 1,
-                    description: 'Element vertical position offset'
-                },
-                elementScaleX: {
-                    type: 'number',
-                    label: 'Element Scale X',
-                    default: 1,
-                    min: 0.01,
-                    max: 5,
-                    step: 0.01,
-                    description: 'Element horizontal scaling factor'
-                },
-                elementScaleY: {
-                    type: 'number',
-                    label: 'Element Scale Y',
-                    default: 1,
-                    min: 0.01,
-                    max: 5,
-                    step: 0.01,
-                    description: 'Element vertical scaling factor'
-                },
-                elementRotation: {
-                    type: 'number',
-                    label: 'Element Rotation (degrees)',
-                    default: 0,
-                    min: -360,
-                    max: 360,
-                    step: 1,
-                    description: 'Element rotation angle in degrees'
-                },
-                anchorX: {
-                    type: 'number',
-                    label: 'Anchor X',
-                    default: 0.5,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Horizontal anchor point for transforms'
-                },
-                anchorY: {
-                    type: 'number',
-                    label: 'Anchor Y',
-                    default: 0.5,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Vertical anchor point for transforms'
-                },
-                elementSkewX: {
-                    type: 'number',
-                    label: 'Element Skew X (degrees)',
-                    default: 0,
-                    min: -45,
-                    max: 45,
-                    step: 1,
-                    description: 'Element horizontal skew angle in degrees'
-                },
-                elementSkewY: {
-                    type: 'number',
-                    label: 'Element Skew Y (degrees)',
-                    default: 0,
-                    min: -45,
-                    max: 45,
-                    step: 1,
-                    description: 'Element vertical skew angle in degrees'
-                },
-                elementOpacity: {
-                    type: 'number',
-                    label: 'Element Opacity',
-                    default: 1,
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                    description: 'Element transparency (0 = transparent, 1 = opaque)'
+                {
+                    id: 'transform',
+                    label: 'Transform',
+                    collapsed: false,
+                    properties: [
+                        { key: 'offsetX', type: 'number', label: 'Offset X', default: 0, min: -10000, max: 10000, step: 1, description: 'Element horizontal position offset' },
+                        { key: 'offsetY', type: 'number', label: 'Offset Y', default: 0, min: -10000, max: 10000, step: 1, description: 'Element vertical position offset' },
+                        { key: 'anchorX', type: 'number', label: 'Anchor X', default: 0.5, min: 0, max: 1, step: 0.01, description: 'Horizontal anchor point for transforms' },
+                        { key: 'anchorY', type: 'number', label: 'Anchor Y', default: 0.5, min: 0, max: 1, step: 0.01, description: 'Vertical anchor point for transforms' },
+                        { key: 'elementScaleX', type: 'number', label: 'Scale X', default: 1, min: 0.01, max: 5, step: 0.01, description: 'Element horizontal scaling factor' },
+                        { key: 'elementScaleY', type: 'number', label: 'Scale Y', default: 1, min: 0.01, max: 5, step: 0.01, description: 'Element vertical scaling factor' },
+                        { key: 'elementRotation', type: 'number', label: 'Rotation (deg)', default: 0, min: -360, max: 360, step: 1, description: 'Element rotation angle in degrees' },
+                        { key: 'elementSkewX', type: 'number', label: 'Skew X (deg)', default: 0, min: -45, max: 45, step: 1, description: 'Element horizontal skew angle in degrees' },
+                        { key: 'elementSkewY', type: 'number', label: 'Skew Y (deg)', default: 0, min: -45, max: 45, step: 1, description: 'Element vertical skew angle in degrees' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

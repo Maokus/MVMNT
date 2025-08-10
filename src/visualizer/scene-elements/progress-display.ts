@@ -1,7 +1,7 @@
 // Progress display element for showing playback progress with property bindings
 import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects/index.js';
-import { ConfigSchema, RenderObjectInterface } from '../types';
+import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
 
 export class ProgressDisplayElement extends SceneElement {
 
@@ -9,35 +9,25 @@ export class ProgressDisplayElement extends SceneElement {
         super('progressDisplay', id, config);
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Progress Display',
             description: 'Playback progress bar and statistics',
             category: 'info',
-            properties: {
-                ...super.getConfigSchema().properties,
-                showBar: {
-                    type: 'boolean',
-                    label: 'Show Progress Bar',
-                    default: true,
-                    description: 'Display the progress bar'
-                },
-                showStats: {
-                    type: 'boolean',
-                    label: 'Show Statistics',
-                    default: true,
-                    description: 'Display time and note count statistics'
-                },
-                height: {
-                    type: 'number',
-                    label: 'Height',
-                    default: 20,
-                    min: 10,
-                    max: 50,
-                    step: 5,
-                    description: 'Height of the progress bar in pixels'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'display',
+                    label: 'Display',
+                    collapsed: false,
+                    properties: [
+                        { key: 'showBar', type: 'boolean', label: 'Show Progress Bar', default: true, description: 'Display the progress bar' },
+                        { key: 'showStats', type: 'boolean', label: 'Show Statistics', default: true, description: 'Display time and note count statistics' },
+                        { key: 'height', type: 'number', label: 'Height', default: 20, min: 10, max: 50, step: 5, description: 'Height of the progress bar in pixels' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

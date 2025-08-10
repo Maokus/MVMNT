@@ -1,7 +1,7 @@
 // Background element for rendering the main background with property bindings
 import { SceneElement } from './base';
 import { Rectangle } from '../render-objects/index.js';
-import { ConfigSchema, RenderObjectInterface } from '../types.js';
+import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 export class BackgroundElement extends SceneElement {
 
@@ -25,20 +25,29 @@ export class BackgroundElement extends SceneElement {
         }
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Background',
             description: 'Solid background color for the visualization',
             category: 'layout',
-            properties: {
-                ...super.getConfigSchema().properties,
-                backgroundColor: {
-                    type: 'color',
-                    label: 'Background Color',
-                    default: '#1a1a1a',
-                    description: 'Background color for the visualization'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'appearance',
+                    label: 'Appearance',
+                    collapsed: false,
+                    properties: [
+                        {
+                            key: 'backgroundColor',
+                            type: 'color',
+                            label: 'Background Color',
+                            default: '#1a1a1a',
+                            description: 'Background color for the visualization'
+                        }
+                    ]
                 }
-            }
+            ]
         };
     }
 

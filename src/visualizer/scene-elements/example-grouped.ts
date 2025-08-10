@@ -1,7 +1,7 @@
 // Example scene element to demonstrate the new property grouping system
 import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects/index.js';
-import { ConfigSchema, RenderObjectInterface } from '../types.js';
+import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 export class ExampleGroupedElement extends SceneElement {
 
@@ -28,74 +28,44 @@ export class ExampleGroupedElement extends SceneElement {
         }
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Demo Element',
             description: 'Example element showcasing property grouping',
             category: 'demo',
-            properties: {
-                ...super.getConfigSchema().properties,
-                
-                // Content properties
-                title: {
-                    type: 'string',
-                    label: 'Title',
-                    default: 'Hello World',
-                    description: 'Main title text to display'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'content',
+                    label: 'Content',
+                    collapsed: false,
+                    properties: [
+                        { key: 'title', type: 'string', label: 'Title', default: 'Hello World', description: 'Main title text to display' },
+                        { key: 'subtitle', type: 'string', label: 'Subtitle', default: 'Demo Text', description: 'Secondary text below the title' }
+                    ]
                 },
-                subtitle: {
-                    type: 'string',
-                    label: 'Subtitle',
-                    default: 'Demo Text',
-                    description: 'Secondary text below the title'
+                {
+                    id: 'appearance',
+                    label: 'Appearance',
+                    collapsed: false,
+                    properties: [
+                        { key: 'backgroundColor', type: 'color', label: 'Background', default: '#333333', description: 'Background color of the element' },
+                        { key: 'textColor', type: 'color', label: 'Text Color', default: '#ffffff', description: 'Color of the text content' },
+                        { key: 'borderWidth', type: 'number', label: 'Border Width', default: 2, min: 0, max: 10, step: 1, description: 'Width of the border in pixels' },
+                        { key: 'borderColor', type: 'color', label: 'Border Color', default: '#0e639c', description: 'Color of the border' },
+                        { key: 'showBorder', type: 'boolean', label: 'Show Border', default: true, description: 'Whether to display the border' }
+                    ]
                 },
-                
-                // Appearance properties
-                backgroundColor: {
-                    type: 'color',
-                    label: 'Background',
-                    default: '#333333',
-                    description: 'Background color of the element'
-                },
-                textColor: {
-                    type: 'color',
-                    label: 'Text Color',
-                    default: '#ffffff',
-                    description: 'Color of the text content'
-                },
-                borderWidth: {
-                    type: 'number',
-                    label: 'Border Width',
-                    default: 2,
-                    min: 0,
-                    max: 10,
-                    step: 1,
-                    description: 'Width of the border in pixels'
-                },
-                borderColor: {
-                    type: 'color',
-                    label: 'Border Color',
-                    default: '#0e639c',
-                    description: 'Color of the border'
-                },
-                showBorder: {
-                    type: 'boolean',
-                    label: 'Show Border',
-                    default: true,
-                    description: 'Whether to display the border'
-                },
-                
-                // Behavior properties
-                animationSpeed: {
-                    type: 'range',
-                    label: 'Animation Speed',
-                    default: 1,
-                    min: 0.1,
-                    max: 3,
-                    step: 0.1,
-                    description: 'Speed multiplier for animations'
+                {
+                    id: 'behavior',
+                    label: 'Behavior',
+                    collapsed: true,
+                    properties: [
+                        { key: 'animationSpeed', type: 'range', label: 'Animation Speed', default: 1, min: 0.1, max: 3, step: 0.1, description: 'Speed multiplier for animations' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

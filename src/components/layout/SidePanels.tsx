@@ -137,14 +137,7 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
                         <PropertiesPanel
                             key={selectedElementId || 'global'}
                             element={selectedElement}
-                            schema={selectedElementSchema ? {
-                                ...selectedElementSchema,
-                                properties: Object.fromEntries(
-                                    Object.entries(selectedElementSchema.properties || {}).filter(
-                                        ([key]) => key !== 'id' && key !== 'visible'
-                                    )
-                                )
-                            } : undefined}
+                            schema={selectedElementSchema || undefined}
                             onConfigChange={updateElementConfig}
                             onExport={onExport}
                             exportStatus={exportStatus}

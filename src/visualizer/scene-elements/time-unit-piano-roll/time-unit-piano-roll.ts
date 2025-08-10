@@ -1,6 +1,6 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
-import { RenderObjectInterface, ConfigSchema } from '../../types.js';
+import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
 import { Line, Text } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
 import { LocalTimingManager } from '../../local-timing-manager.js';
@@ -29,192 +29,96 @@ export class TimeUnitPianoRollElement extends SceneElement {
         this._setupMIDIFileListener();
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Time Unit Piano Roll',
             description: 'Piano Roll visualization split into time units',
             category: 'complete',
-            properties: {
-                ...super.getConfigSchema().properties,
-
-                // Local timing properties with binding support
-                bpm: {
-                    type: 'number',
-                    label: 'BPM (Tempo)',
-                    default: 120,
-                    min: 20,
-                    max: 300,
-                    step: 0.1,
-                    description: 'Beats per minute for this element'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'timing',
+                    label: 'Timing',
+                    collapsed: false,
+                    properties: [
+                        { key: 'bpm', type: 'number', label: 'BPM (Tempo)', default: 120, min: 20, max: 300, step: 0.1, description: 'Beats per minute for this element' },
+                        { key: 'beatsPerBar', type: 'number', label: 'Beats per Bar', default: 4, min: 1, max: 16, step: 1, description: 'Number of beats in each bar for this element' }
+                    ]
                 },
-                beatsPerBar: {
-                    type: 'number',
-                    label: 'Beats per Bar',
-                    default: 4,
-                    min: 1,
-                    max: 16,
-                    step: 1,
-                    description: 'Number of beats in each bar for this element'
+                {
+                    id: 'content',
+                    label: 'Content',
+                    collapsed: false,
+                    properties: [
+                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null, description: 'Upload a MIDI file specifically for this piano roll element' }
+                    ]
                 },
-
-                // MIDI file input for this element with binding support
-                midiFile: {
-                    type: 'file',
-                    label: 'MIDI File',
-                    accept: '.mid,.midi',
-                    default: null,
-                    description: 'Upload a MIDI file specifically for this piano roll element'
+                {
+                    id: 'timeUnit',
+                    label: 'Time Unit',
+                    collapsed: false,
+                    properties: [
+                        { key: 'timeUnitBars', type: 'number', label: 'Time Unit (Bars)', default: 1, min: 1, max: 8, step: 1, description: 'Number of bars shown in each time unit' }
+                    ]
                 },
-
-                // Time unit properties
-                timeUnitBars: {
-                    type: 'number',
-                    label: 'Time Unit (Bars)',
-                    default: 1,
-                    min: 1,
-                    max: 8,
-                    step: 1,
-                    description: 'Number of bars shown in each time unit'
+                {
+                    id: 'layout',
+                    label: 'Layout',
+                    collapsed: false,
+                    properties: [
+                        { key: 'pianoWidth', type: 'number', label: 'Piano Width', default: 120, min: 80, max: 300, step: 10, description: 'Width of the piano keys section in pixels' },
+                        { key: 'rollWidth', type: 'number', label: 'Roll Width', default: 800, min: 200, max: 2000, step: 50, description: 'Width of the roll section in pixels (auto-calculated if empty)' }
+                    ]
                 },
-
-                // Layout properties
-                pianoWidth: {
-                    type: 'number',
-                    label: 'Piano Width',
-                    default: 120,
-                    min: 80,
-                    max: 300,
-                    step: 10,
-                    description: 'Width of the piano keys section in pixels'
+                {
+                    id: 'display',
+                    label: 'Display',
+                    collapsed: false,
+                    properties: [
+                        { key: 'showNoteGrid', type: 'boolean', label: 'Show Note Grid', default: true, description: 'Show horizontal grid lines for notes' },
+                        { key: 'showNoteLabels', type: 'boolean', label: 'Show Note Labels', default: true, description: 'Show note names (C, D, E, etc.)' },
+                        { key: 'showNotes', type: 'boolean', label: 'Show Notes', default: true, description: 'Show MIDI note blocks' },
+                        { key: 'minNote', type: 'number', label: 'Minimum Note', default: 30, min: 0, max: 127, step: 1, description: 'Lowest MIDI note to display (21 = A0)' },
+                        { key: 'maxNote', type: 'number', label: 'Maximum Note', default: 72, min: 0, max: 127, step: 1, description: 'Highest MIDI note to display (108 = C8)' },
+                        { key: 'showBeatGrid', type: 'boolean', label: 'Show Beat Grid', default: true, description: 'Show vertical beat grid lines' },
+                        { key: 'showBeatLabels', type: 'boolean', label: 'Show Beat Labels', default: true, description: 'Show beat and bar labels' }
+                    ]
                 },
-                rollWidth: {
-                    type: 'number',
-                    label: 'Roll Width',
-                    default: 800,
-                    min: 200,
-                    max: 2000,
-                    step: 50,
-                    description: 'Width of the roll section in pixels (auto-calculated if empty)'
+                {
+                    id: 'appearance',
+                    label: 'Appearance',
+                    collapsed: false,
+                    properties: [
+                        { key: 'noteColor', type: 'color', label: 'Note Color', default: '#ff6b6b', description: 'Default color for MIDI notes' },
+                        { key: 'noteHeight', type: 'number', label: 'Note Height', default: 20, min: 4, max: 20, step: 1, description: 'Height of MIDI note blocks in pixels' }
+                    ]
                 },
-
-                // Piano roll properties
-                showNoteGrid: {
-                    type: 'boolean',
-                    label: 'Show Note Grid',
-                    default: true,
-                    description: 'Show horizontal grid lines for notes'
+                {
+                    id: 'animation',
+                    label: 'Animation',
+                    collapsed: true,
+                    properties: [
+                        { key: 'animationType', type: 'select', label: 'Animation Type', default: 'none', options: [
+                            { value: 'fade', label: 'Fade In/Out' },
+                            { value: 'slide', label: 'Slide' },
+                            { value: 'scale', label: 'Scale' },
+                            { value: 'none', label: 'No Animation' }
+                        ], description: 'Type of animation for note appearance' },
+                        { key: 'animationSpeed', type: 'number', label: 'Animation Speed', default: 1.0, min: 0.1, max: 5.0, step: 0.1, description: 'Speed multiplier for animations' },
+                        { key: 'animationDuration', type: 'number', label: 'Animation Duration', default: 0.5, min: 0.1, max: 2.0, step: 0.1, description: 'Duration of note animations in seconds' }
+                    ]
                 },
-                showNoteLabels: {
-                    type: 'boolean',
-                    label: 'Show Note Labels',
-                    default: true,
-                    description: 'Show note names (C, D, E, etc.)'
-                },
-                showNotes: {
-                    type: 'boolean',
-                    label: 'Show Notes',
-                    default: true,
-                    description: 'Show MIDI note blocks'
-                },
-                minNote: {
-                    type: 'number',
-                    label: 'Minimum Note',
-                    default: 30, // Changed from 21 to 60 (middle C) for debugging
-                    min: 0,
-                    max: 127,
-                    step: 1,
-                    description: 'Lowest MIDI note to display (21 = A0)'
-                },
-                maxNote: {
-                    type: 'number',
-                    label: 'Maximum Note',
-                    default: 72, // Changed from 108 to 72 (C5) for debugging  
-                    min: 0,
-                    max: 127,
-                    step: 1,
-                    description: 'Highest MIDI note to display (108 = C8)'
-                },
-
-                // Beat display properties
-                showBeatGrid: {
-                    type: 'boolean',
-                    label: 'Show Beat Grid',
-                    default: true,
-                    description: 'Show vertical beat grid lines'
-                },
-                showBeatLabels: {
-                    type: 'boolean',
-                    label: 'Show Beat Labels',
-                    default: true,
-                    description: 'Show beat and bar labels'
-                },
-
-                // Note appearance
-                noteColor: {
-                    type: 'color',
-                    label: 'Note Color',
-                    default: '#ff6b6b',
-                    description: 'Default color for MIDI notes'
-                },
-                noteHeight: {
-                    type: 'number',
-                    label: 'Note Height',
-                    default: 20, // Changed from 8 to 20 for debugging
-                    min: 4,
-                    max: 20,
-                    step: 1,
-                    description: 'Height of MIDI note blocks in pixels'
-                },
-
-                // Animation properties
-                animationType: {
-                    type: 'select',
-                    label: 'Animation Type',
-                    default: 'none', // Changed from 'fade' to 'none' for debugging
-                    options: [
-                        { value: 'fade', label: 'Fade In/Out' },
-                        { value: 'slide', label: 'Slide' },
-                        { value: 'scale', label: 'Scale' },
-                        { value: 'none', label: 'No Animation' }
-                    ],
-                    description: 'Type of animation for note appearance'
-                },
-                animationSpeed: {
-                    type: 'number',
-                    label: 'Animation Speed',
-                    default: 1.0,
-                    min: 0.1,
-                    max: 5.0,
-                    step: 0.1,
-                    description: 'Speed multiplier for animations'
-                },
-                animationDuration: {
-                    type: 'number',
-                    label: 'Animation Duration',
-                    default: 0.5,
-                    min: 0.1,
-                    max: 2.0,
-                    step: 0.1,
-                    description: 'Duration of note animations in seconds'
-                },
-
-                // Playhead properties
-                playheadLineWidth: {
-                    type: 'number',
-                    label: 'Playhead Line Width',
-                    default: 2,
-                    min: 1,
-                    max: 10,
-                    step: 1,
-                    description: 'Width of the playhead line in pixels'
-                },
-                showPlayhead: {
-                    type: 'boolean',
-                    label: 'Show Playhead',
-                    default: true,
-                    description: 'Show the playhead line'
+                {
+                    id: 'playhead',
+                    label: 'Playhead',
+                    collapsed: true,
+                    properties: [
+                        { key: 'playheadLineWidth', type: 'number', label: 'Playhead Line Width', default: 2, min: 1, max: 10, step: 1, description: 'Width of the playhead line in pixels' },
+                        { key: 'showPlayhead', type: 'boolean', label: 'Show Playhead', default: true, description: 'Show the playhead line' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

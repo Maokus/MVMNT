@@ -1,5 +1,5 @@
 import { SceneElement } from './base';
-import { ConfigSchema, RenderObjectInterface } from '../types';
+import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
 import { Rectangle, Text } from '../render-objects';
 
 // Minimal DebugElement for testing/inheritance demonstration
@@ -15,20 +15,23 @@ export class DebugElement extends SceneElement {
         }
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Debug',
             description: 'Debugging information display',
             category: 'misc',
-            properties: {
-                ...super.getConfigSchema().properties,
-                showDots: {
-                    type: 'boolean',
-                    label: 'showdots',
-                    default: true,
-                    description: 'show dots'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'debug',
+                    label: 'Debug',
+                    collapsed: false,
+                    properties: [
+                        { key: 'showDots', type: 'boolean', label: 'Show Dots', default: true, description: 'show dots' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

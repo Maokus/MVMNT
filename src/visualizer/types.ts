@@ -218,6 +218,37 @@ export interface ConfigSchema {
   properties: { [key: string]: ConfigSchemaProperty };
 }
 
+// ==========================================
+// New Grouped Schema Types (for AE-style UI)
+// ==========================================
+
+export interface PropertyDefinition {
+  key: string;
+  type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image';
+  label: string;
+  default?: any;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: Array<{ value: any; label: string }>;
+  accept?: string; // For file inputs
+  description?: string;
+}
+
+export interface PropertyGroup {
+  id: string;
+  label: string;
+  collapsed: boolean;
+  properties: PropertyDefinition[];
+}
+
+export interface EnhancedConfigSchema {
+  name: string;
+  description: string;
+  category?: string;
+  groups: PropertyGroup[];
+}
+
 export interface SceneElementInterface {
   type: string;
   id: string | null;

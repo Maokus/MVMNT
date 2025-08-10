@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
 import { LocalTimingManager } from '../local-timing-manager.js';
-import { ConfigSchema, RenderObjectInterface } from '../types.js';
+import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 interface BarBeatTick {
     bar: number;
@@ -27,78 +27,47 @@ export class TimeDisplayElement extends SceneElement {
         this.timingManager = new LocalTimingManager(null);
     }
 
-    static getConfigSchema(): ConfigSchema {
+    static getConfigSchema(): EnhancedConfigSchema {
+        const base = super.getConfigSchema();
         return {
             name: 'Time Display',
             description: 'Current time and beat position display',
             category: 'info',
-            properties: {
-                ...super.getConfigSchema().properties,
-
-                // Local timing properties
-                bpm: {
-                    type: 'number',
-                    label: 'BPM (Tempo)',
-                    default: 120,
-                    min: 20,
-                    max: 300,
-                    step: 0.1,
-                    description: 'Beats per minute for this time display'
+            groups: [
+                ...base.groups,
+                {
+                    id: 'timing',
+                    label: 'Timing',
+                    collapsed: false,
+                    properties: [
+                        { key: 'bpm', type: 'number', label: 'BPM (Tempo)', default: 120, min: 20, max: 300, step: 0.1, description: 'Beats per minute for this time display' },
+                        { key: 'beatsPerBar', type: 'number', label: 'Beats per Bar', default: 4, min: 1, max: 16, step: 1, description: 'Number of beats in each bar for this display' }
+                    ]
                 },
-                beatsPerBar: {
-                    type: 'number',
-                    label: 'Beats per Bar',
-                    default: 4,
-                    min: 1,
-                    max: 16,
-                    step: 1,
-                    description: 'Number of beats in each bar for this display'
-                },
-
-                showProgress: {
-                    type: 'boolean',
-                    label: 'Show Progress Bars',
-                    default: true,
-                    description: 'Display tick and beat progress bars'
-                },
-                fontFamily: {
-                    type: 'select',
-                    label: 'Font Family',
-                    default: 'Arial',
-                    options: [
-                        { value: 'Arial', label: 'Arial' },
-                        { value: 'Helvetica', label: 'Helvetica' },
-                        { value: 'Times New Roman', label: 'Times New Roman' },
-                        { value: 'Georgia', label: 'Georgia' }
-                    ],
-                    description: 'Font family for the time display'
-                },
-                fontWeight: {
-                    type: 'select',
-                    label: 'Font Weight',
-                    default: '400',
-                    options: [
-                        { value: '300', label: 'Light' },
-                        { value: '400', label: 'Normal' },
-                        { value: '500', label: 'Medium' },
-                        { value: '600', label: 'Semi-bold' },
-                        { value: '700', label: 'Bold' }
-                    ],
-                    description: 'Font weight for the time display'
-                },
-                textColor: {
-                    type: 'color',
-                    label: 'Primary Text Color',
-                    default: '#FFFFFF',
-                    description: 'Color for the main time and beat numbers'
-                },
-                textSecondaryColor: {
-                    type: 'color',
-                    label: 'Secondary Text Color',
-                    default: 'rgba(255, 255, 255, 0.9)',
-                    description: 'Color for labels and secondary text'
+                {
+                    id: 'display',
+                    label: 'Display',
+                    collapsed: false,
+                    properties: [
+                        { key: 'showProgress', type: 'boolean', label: 'Show Progress Bars', default: true, description: 'Display tick and beat progress bars' },
+                        { key: 'fontFamily', type: 'select', label: 'Font Family', default: 'Arial', options: [
+                            { value: 'Arial', label: 'Arial' },
+                            { value: 'Helvetica', label: 'Helvetica' },
+                            { value: 'Times New Roman', label: 'Times New Roman' },
+                            { value: 'Georgia', label: 'Georgia' }
+                        ], description: 'Font family for the time display' },
+                        { key: 'fontWeight', type: 'select', label: 'Font Weight', default: '400', options: [
+                            { value: '300', label: 'Light' },
+                            { value: '400', label: 'Normal' },
+                            { value: '500', label: 'Medium' },
+                            { value: '600', label: 'Semi-bold' },
+                            { value: '700', label: 'Bold' }
+                        ], description: 'Font weight for the time display' },
+                        { key: 'textColor', type: 'color', label: 'Primary Text Color', default: '#FFFFFF', description: 'Color for the main time and beat numbers' },
+                        { key: 'textSecondaryColor', type: 'color', label: 'Secondary Text Color', default: 'rgba(255, 255, 255, 0.9)', description: 'Color for labels and secondary text' }
+                    ]
                 }
-            }
+            ]
         };
     }
 

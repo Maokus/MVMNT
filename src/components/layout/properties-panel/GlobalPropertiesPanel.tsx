@@ -39,10 +39,6 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
 
     return (
         <div className="global-properties-panel">
-            <div className="global-properties-header">
-                <h3>Global Properties</h3>
-                <p className="description">Configure global settings, macros, and export options</p>
-            </div>
 
             <div className="global-properties-content">
                 <div className="settings-grid">
