@@ -113,10 +113,26 @@ const MidiVisualizer: React.FC = () => {
 
         // Listen for visualizer changes that require re-render
         const handleVisualizerUpdate = () => {
-            // Render once when explicitly invalidated (e.g., settings change, resize)
-            if (visualizer && typeof visualizer.render === 'function') {
+            if (!visualizer) return;
+            // Render once when explicitly invalidated (e.g., settings change, resize, MIDI load)
+            if (typeof visualizer.render === 'function') {
                 visualizer.render();
             }
+            // Immediately refresh duration and time display when visualizer signals an update
+            const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
+            const nowTime = Math.max(0, visualizer.currentTime || 0);
+
+            const currentMin = Math.floor(nowTime / 60);
+            const currentSec = Math.floor(nowTime % 60);
+            const totalMin = Math.floor(total / 60);
+            const totalSec = Math.floor(total % 60);
+
+            setCurrentTime(
+                `${currentMin.toString().padStart(2, '0')}:${currentSec.toString().padStart(2, '0')} / ` +
+                `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`
+            );
+            setNumericCurrentTime(nowTime);
+            setTotalDuration(total);
         };
 
         // Add event listeners for changes that require re-render
