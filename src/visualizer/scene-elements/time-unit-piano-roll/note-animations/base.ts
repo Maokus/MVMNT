@@ -1,9 +1,9 @@
-import { Easing } from '../../../easing.js';
 import { Rectangle } from '../../../render-objects/index.js';
 import type { RenderObjectInterface } from '../../../types.js';
 import type { NoteBlock } from '../note-block';
 
-export type AnimationPhase = 'preOnset' | 'onset' | 'sustained' | 'offset' | 'static';
+// ADSR phase names
+export type AnimationPhase = 'attack' | 'decay' | 'sustain' | 'release' | 'static';
 
 export interface AnimationContext {
   block: NoteBlock;
@@ -17,20 +17,13 @@ export interface AnimationContext {
 }
 
 export abstract class BaseNoteAnimation {
-  protected easing = {
-    linear: (t: number) => t,
-    easeIn: Easing.easeIn,
-    easeOut: Easing.easeOut,
-    easeInOut: Easing.easeInOut,
-    easeInOutQuad: Easing.easeInOutQuad,
-  };
 
   // Entry point for any concrete animation
   abstract render(ctx: AnimationContext): RenderObjectInterface[];
 
   // Utilities
   protected rect(x: number, y: number, width: number, height: number, color: string, alpha?: number): RenderObjectInterface {
-    const note = new Rectangle(x, y, Math.max(1, width), Math.max(1, height), color) as any;
+    const note = new Rectangle(x, y, Math.max(0, width), Math.max(0, height), color) as any;
     note.globalAlpha = alpha ?? 0.8;
     return note as unknown as RenderObjectInterface;
   }

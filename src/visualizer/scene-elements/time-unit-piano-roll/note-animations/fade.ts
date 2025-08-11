@@ -1,4 +1,5 @@
 import type { RenderObjectInterface } from '../../../types.js';
+import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 
 export class FadeAnimation extends BaseNoteAnimation {
@@ -6,18 +7,18 @@ export class FadeAnimation extends BaseNoteAnimation {
     const { x, y, width, height, color, progress, phase } = ctx;
     let alpha = 0.8;
     switch (phase) {
-      case 'preOnset':
+      case 'attack':
         // Subtle preview before the note starts
         alpha = 0.8 * Math.max(0, Math.min(1, progress));
         break;
-      case 'onset':
-        alpha = 0.8 + 0.2*(1-progress);
+      case 'decay':
+        alpha = 0.8 + 0.2 * (1 - progress);
         break;
-      case 'sustained':
+      case 'sustain':
         alpha = 0.8;
         break;
-      case 'offset':
-        alpha = 0.8 * (1 - this.easing.easeIn(Math.max(0, Math.min(1, progress))));
+      case 'release':
+        alpha = 0.8 * (1 - easingsFunctions.easeInQuad(Math.max(0, Math.min(1, progress))));
         break;
       case 'static':
       default:

@@ -1,4 +1,5 @@
 import type { RenderObjectInterface } from '../../../types.js';
+import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 
 export class SlideAnimation extends BaseNoteAnimation {
@@ -9,18 +10,18 @@ export class SlideAnimation extends BaseNoteAnimation {
     let alpha = 0.8;
     let dx = 0;
     switch (phase) {
-      case 'preOnset':
-        dx = width * (1 - this.easing.easeOut(p));
+      case 'attack':
+        dx = width * (1 - easingsFunctions.easeOutExpo(p));
         alpha = 0.4 + 0.4 * p;
         return [this.rect(x - dx, y, width, height, color, alpha)];
-      case 'onset':
-        dx = width * (1 - this.easing.easeInOutQuad(p));
+      case 'decay':
+        dx = width * (1 - easingsFunctions.easeInOutQuad(p));
         alpha = 0.4 + 0.4 * p;
         return [this.rect(x - dx, y, width, height, color, alpha)];
-      case 'sustained':
+      case 'sustain':
         return [this.rect(x, y, width, height, color, 0.8)];
-      case 'offset':
-        dx = width * this.easing.easeIn(p);
+      case 'release':
+        dx = width * easingsFunctions.easeInExpo(p);
         alpha = 0.8 * (1 - p);
         return [this.rect(x + dx, y, width, height, color, alpha)];
       default:

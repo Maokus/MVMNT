@@ -11,10 +11,10 @@ export { MacroManager, globalMacroManager } from './macro-manager';
 // ==========================================
 // Property Binding System Exports
 // ==========================================
-export { 
-    PropertyBinding, 
-    ConstantBinding, 
-    MacroBinding, 
+export {
+    PropertyBinding,
+    ConstantBinding,
+    MacroBinding,
     PropertyBindingUtils
 } from './property-bindings';
 export type { PropertyBindingData } from './property-bindings';
@@ -27,7 +27,6 @@ export { HybridSceneBuilder } from './scene-builder';
 // ==========================================
 export { MIDIVisualizerCore as MIDIVisualizer } from './visualizer-core.js';
 export { ModularRenderer } from './modular-renderer.js';
-export { Easing } from './easing.js';
 
 // Scene management exports
 export { SceneElementRegistry, sceneElementRegistry } from './scene-element-registry.js';

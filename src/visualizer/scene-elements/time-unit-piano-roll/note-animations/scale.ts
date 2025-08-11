@@ -1,4 +1,5 @@
 import type { RenderObjectInterface } from '../../../types.js';
+import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 
 export class ScaleAnimation extends BaseNoteAnimation {
@@ -8,21 +9,21 @@ export class ScaleAnimation extends BaseNoteAnimation {
 
     let sx = 1, sy = 1, alpha = 0.8, ox = 0, oy = 0;
     switch (phase) {
-      case 'preOnset':
+      case 'attack':
         // Slightly smaller preview scaling up to 90%
-        sx = sy = 0.7 + 0.2 * this.easing.easeOut(p);
+        sx = sy = 0.7 + 0.2 * easingsFunctions.easeOutExpo(p);
         alpha = 0.5 + 0.3 * p;
         break;
-      case 'onset':
-        sx = sy = this.easing.easeInOutQuad(p);
+      case 'decay':
+        sx = sy = easingsFunctions.easeInOutQuad(p);
         alpha = 0.8;
         break;
-      case 'sustained':
+      case 'sustain':
         sx = sy = 1;
         alpha = 0.8;
         break;
-      case 'offset':
-        sx = sy = 1 - this.easing.easeIn(p);
+      case 'release':
+        sx = sy = 1 - easingsFunctions.easeInExpo(p);
         alpha = 0.6 + 0.2 * (1 - p);
         break;
       default:
