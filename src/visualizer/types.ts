@@ -30,6 +30,8 @@ export interface MIDIData {
   ticksPerQuarter: number;
   timeSignature: MIDITimeSignature;
   trimmedTicks: number;
+  // Optional tempo map with absolute times in seconds and tempo (microseconds per quarter)
+  tempoMap?: Array<{ time: number; tempo: number }>;
   fileName?: string; // Optional file name for save/load functionality
 }
 

@@ -178,9 +178,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
             renderObjects.push(...this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight));
         }
 
-        // Add beat grid
+        // Add beat grid (tempo-aware)
         if (showBeatGrid) {
-            renderObjects.push(...this._createBeatGridLines(timeUnitBars, beatsPerBar, pianoWidth, rollWidth || 800, (maxNote - minNote + 1) * noteHeight));
+            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
+            renderObjects.push(...this._createBeatGridLines(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800, (maxNote - minNote + 1) * noteHeight));
         }
 
         // Add note labels
@@ -188,9 +189,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
             renderObjects.push(...this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight));
         }
 
-        // Add beat labels
+        // Add beat labels (tempo-aware)
         if (showBeatLabels) {
-            renderObjects.push(...this._createBeatLabels(timeUnitBars, beatsPerBar, pianoWidth, rollWidth || 800));
+            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
+            renderObjects.push(...this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800));
         }
 
         // Add playhead
@@ -267,15 +269,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create vertical grid lines for beats
      */
-    private _createBeatGridLines(timeUnitBars: number, beatsPerBar: number, pianoWidth: number, rollWidth: number, totalHeight: number): RenderObjectInterface[] {
+    private _createBeatGridLines(windowStart: number, windowEnd: number, beatsPerBar: number, pianoWidth: number, rollWidth: number, totalHeight: number): RenderObjectInterface[] {
         const lines: RenderObjectInterface[] = [];
-        const totalBeats = timeUnitBars * beatsPerBar;
-        const beatWidth = rollWidth / totalBeats;
-
-        for (let beat = 0; beat <= totalBeats; beat++) {
-            const x = pianoWidth + (beat * beatWidth);
-            const strokeColor = beat % beatsPerBar === 0 ? '#666666' : '#444444';
-            const strokeWidth = beat % beatsPerBar === 0 ? 2 : 1;
+        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
+        const duration = Math.max(1e-9, windowEnd - windowStart);
+        for (const b of beats) {
+            const rel = (b.time - windowStart) / duration;
+            const x = pianoWidth + rel * rollWidth;
+            const strokeColor = b.isBarStart ? '#666666' : '#444444';
+            const strokeWidth = b.isBarStart ? 2 : 1;
             const line = new Line(x, 0, x, totalHeight, strokeColor, strokeWidth);
             lines.push(line);
         }
@@ -304,19 +306,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create beat and bar labels
      */
-    private _createBeatLabels(timeUnitBars: number, beatsPerBar: number, pianoWidth: number, rollWidth: number): RenderObjectInterface[] {
+    private _createBeatLabels(windowStart: number, windowEnd: number, beatsPerBar: number, pianoWidth: number, rollWidth: number): RenderObjectInterface[] {
         const labels: RenderObjectInterface[] = [];
-        const totalBeats = timeUnitBars * beatsPerBar;
-        const beatWidth = rollWidth / totalBeats;
-
-        for (let beat = 0; beat <= totalBeats; beat++) {
-            if (beat % beatsPerBar === 0) {
-                const bar = Math.floor(beat / beatsPerBar) + 1;
-                const x = pianoWidth + (beat * beatWidth);
-                
-                const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', '#ffffff', 'left', 'bottom');
-                labels.push(label);
-            }
+        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
+        const duration = Math.max(1e-9, windowEnd - windowStart);
+        for (const b of beats) {
+            if (!b.isBarStart) continue;
+            const rel = (b.time - windowStart) / duration;
+            const x = pianoWidth + rel * rollWidth;
+            const bar = b.barNumber;
+            const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', '#ffffff', 'left', 'bottom');
+            labels.push(label);
         }
 
         return labels;
@@ -332,9 +332,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const playheadColor = config.playheadColor || '#ff6b6b';
         
         // Calculate playhead position
-        const timeUnitInSeconds = this.getTimeUnit();
-        const windowStart = Math.floor(targetTime / timeUnitInSeconds) * timeUnitInSeconds;
-        const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
+    const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, this.getTimeUnitBars());
+    const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
+    const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
         const playheadX = pianoWidth + playheadPosition;
 
         // Create playhead line using Line.createPlayhead if available, otherwise use regular Line
@@ -435,6 +435,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     getTimeUnit(): number {
+        // Provide a tempo-aware duration of a bar group using default reference time
         return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
 

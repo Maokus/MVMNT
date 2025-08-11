@@ -65,6 +65,15 @@ export class MidiManager {
         if (midiData.tempo) this.timingManager.setTempo(midiData.tempo);
         if (midiData.timeSignature) this.timingManager.setTimeSignature(midiData.timeSignature);
         if (midiData.ticksPerQuarter) this.timingManager.setTicksPerQuarter(midiData.ticksPerQuarter);
+        // Tempo map support (seconds-based entries)
+        if ((midiData as any).tempoMap && Array.isArray((midiData as any).tempoMap)) {
+            try {
+                this.timingManager.setTempoMap((midiData as any).tempoMap, 'seconds');
+            } catch (e) {
+                // Fallback gracefully if map invalid
+                console.warn('Invalid tempo map in MIDI data, ignoring.', e);
+            }
+        }
 
         const notesToUse = this.notes.length > 0 ? this.notes : notes;
         if (notesToUse.length > 0) {
@@ -84,14 +93,14 @@ export class MidiManager {
     }
 
     getNotesInTimeUnit(currentTime: number, timeUnitBars = 1) {
-        const timeUnitDuration = this.timingManager.getTimeUnitDuration(timeUnitBars);
-        const windowStart = Math.floor(currentTime / timeUnitDuration) * timeUnitDuration;
-        const windowEnd = windowStart + timeUnitDuration;
+    // Respect tempo map: compute window aligned to bars around currentTime
+    const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(currentTime, timeUnitBars);
         return this.getNotesInTimeWindow(windowStart, windowEnd);
     }
 
     createNoteBlocks(notes: any[], _targetTime: number): NoteBlock[] {
-        return notes.map(n => new NoteBlock(n.note, n.velocity, n.startTime, n.endTime, n.channel || 0));
+        // NoteBlock(note, channel, startTime, endTime, velocity)
+        return notes.map(n => new NoteBlock(n.note, n.channel || 0, n.startTime, n.endTime, n.velocity));
     }
 
     getNoteName(midiNote: number): string {

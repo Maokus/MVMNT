@@ -2,6 +2,7 @@
 import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
 import { TimingManager } from '../timing-manager.js';
+import { MidiManager } from '../midi-manager';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 interface BarBeatTick {
@@ -19,11 +20,12 @@ interface MinSecMs {
 
 export class TimeDisplayElement extends SceneElement {
     public timingManager: TimingManager;
+    public midiManager?: MidiManager;
 
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
 
-    // Use timing manager by default for independent timing control
+    // Use timing manager by default for independent timing control; if a MIDI-aware timing is needed in future, this can be swapped
     this.timingManager = new TimingManager(null);
     }
 
@@ -87,17 +89,17 @@ export class TimeDisplayElement extends SceneElement {
         const bpm = this.getProperty('bpm') as number;
         const beatsPerBar = this.getProperty('beatsPerBar') as number;
         
-        // Force update the timing manager on every frame to ensure property bindings take precedence
+    // Force update the timing manager on every frame to ensure property bindings take precedence
         this.timingManager.setBPM(bpm);
         this.timingManager.setBeatsPerBar(beatsPerBar);
-        this.timingManager.setTicksPerQuarter(960);
+    // Don't force a specific PPQ; respect MIDI data when available
 
         // Debug logging for timing calculations
         // const secondsPerBeat = this.timingManager.getSecondsPerBeat();
         // console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Get bar:beat:tick info
-        const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
+    const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
 
         // Get minutes:seconds:milliseconds info
         const totalMs = targetTime * 1000;

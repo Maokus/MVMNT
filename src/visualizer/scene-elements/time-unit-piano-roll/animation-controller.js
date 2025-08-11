@@ -23,9 +23,10 @@ export class AnimationController {
         const totalNotes = maxNote - minNote + 1;
 
         // Calculate time window using the element's time unit settings
-        const timeUnitInSeconds = this.timeUnitPianoRoll.getTimeUnit();
-        const windowStart = Math.floor(targetTime / timeUnitInSeconds) * timeUnitInSeconds;
-        const windowEnd = windowStart + timeUnitInSeconds;
+        const win = this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(targetTime, this.timeUnitPianoRoll.getTimeUnitBars());
+        const windowStart = win.start;
+        const windowEnd = win.end;
+        const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
         const renderObjects = [];
 
         if (!noteBlocks || noteBlocks.length === 0) {

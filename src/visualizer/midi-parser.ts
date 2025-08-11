@@ -29,6 +29,8 @@ export class MIDIParser {
   public timeSignature: MIDITimeSignature;
   public beatsPerBar: number;
   public bpm: number;
+  // Tempo map as collected during parse (absolute time in ticks until conversion stage)
+  private tempoEvents: Array<{ tick: number; tempo: number }>; // microseconds per quarter at given tick
 
   // Cached values to avoid recomputation
   private _secondsPerBeat?: number;
@@ -49,6 +51,7 @@ export class MIDIParser {
     };
     this.beatsPerBar = this.timeSignature.numerator || 4;
     this._invalidateCache();
+  this.tempoEvents = [];
   }
 
   async parseMIDIFile(file: File): Promise<MIDIData> {
@@ -61,14 +64,16 @@ export class MIDIParser {
 
     this.tracks = [];
 
-    // Reset tempo and time signature to defaults
-    this.setTempo(500000); // Default 120 BPM
+  // Reset tempo and time signature to defaults
+  this.setTempo(500000); // Default 120 BPM
     this.setTimeSignature({
       numerator: 4,
       denominator: 4,
       clocksPerClick: 24,
       thirtysecondNotesPerBeat: 8
     });
+  // Reset tempo events and seed with starting tempo at tick 0
+  this.tempoEvents = [{ tick: 0, tempo: this.tempo }];
 
     // Parse all tracks
     for (let i = 0; i < headerChunk.numTracks; i++) {
@@ -279,6 +284,8 @@ export class MIDIParser {
             dataView.getUint8(dataOffset + 2);
           this.setTempo(tempo);
           console.log(`Found tempo meta event: ${tempo} (${Math.round(60000000 / tempo)} BPM)`);
+          // Record tempo event at current absolute tick
+          this.tempoEvents.push({ tick: absoluteTime, tempo });
         }
         break;
 
@@ -372,14 +379,14 @@ export class MIDIParser {
       allEvents.push(...track.events);
     }
 
-    // Additional debug logging for Ableton files
+  // Additional debug logging for Ableton files
     console.log(`MIDI Conversion Details:`);
     console.log(`- Final Tempo: ${this.tempo} μs per quarter (${Math.round(60000000 / this.tempo)} BPM)`);
     console.log(`- Time Signature: ${this.timeSignature.numerator}/${this.timeSignature.denominator}`);
     console.log(`- Total Events: ${allEvents.length}`);
     console.log(`- Event Types: ${Array.from(new Set(allEvents.map(e => e.type))).join(', ')}`);
 
-    // Sort by time
+  // Sort by time
     allEvents.sort((a, b) => a.time - b.time);
 
     // Filter for playable events (note on/off)
@@ -391,13 +398,62 @@ export class MIDIParser {
       earliestNoteTime = Math.min(...noteEvents.map(e => e.time));
     }
 
-  // Convert MIDI ticks to seconds using local timing
-  const secondsPerTick = this.getSecondsPerTick();
+  // Build tempo segments based on tempo events for accurate tick->seconds conversion
+  const tempoEventsSorted = [...this.tempoEvents].sort((a, b) => a.tick - b.tick);
+  // Deduplicate by tick, keeping last occurrence
+  const dedup: Array<{ tick: number; tempo: number }> = [];
+  for (const ev of tempoEventsSorted) {
+    if (dedup.length > 0 && dedup[dedup.length - 1].tick === ev.tick) {
+      dedup[dedup.length - 1] = ev;
+    } else {
+      dedup.push(ev);
+    }
+  }
+  type TempoSeg = { startTick: number; tempo: number; secondsPerTick: number; cumulativeSeconds: number };
+  const segments: TempoSeg[] = [];
+  let cumulativeSeconds = 0;
+  for (let i = 0; i < dedup.length; i++) {
+    const tempo = dedup[i].tempo;
+    const startTick = dedup[i].tick;
+    const secondsPerTick = (tempo / 1_000_000) / this.ticksPerQuarter;
+    // Set cumulativeSeconds for this segment based on previous segment duration
+    if (segments.length > 0) {
+      const prev = segments[segments.length - 1];
+      const tickDelta = Math.max(0, startTick - prev.startTick);
+      cumulativeSeconds = prev.cumulativeSeconds + tickDelta * prev.secondsPerTick;
+    } else {
+      cumulativeSeconds = 0;
+    }
+    segments.push({ startTick, tempo, secondsPerTick, cumulativeSeconds });
+  }
+  // Helper to map ticks to seconds using segments
+  const ticksToSeconds = (tick: number): number => {
+    if (segments.length === 0) {
+      // Fallback to current tempo
+      const spt = this.getSecondsPerTick();
+      return tick * spt;
+    }
+    // Binary search for segment with startTick <= tick
+    let lo = 0, hi = segments.length - 1, idx = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (segments[mid].startTick <= tick) {
+        idx = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    const seg = segments[idx];
+    const deltaTicks = tick - seg.startTick;
+    return seg.cumulativeSeconds + deltaTicks * seg.secondsPerTick;
+  };
 
-    // Adjust all events by subtracting the earliest note time (trim empty space)
+    // Convert ticks to seconds using tempo map and trim by earliest note time
+    const earliestSeconds = ticksToSeconds(earliestNoteTime);
     const playableEvents: MIDIEvent[] = noteEvents.map(event => ({
       ...event,
-      time: (event.time - earliestNoteTime) * secondsPerTick
+      time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds)
     }));
 
     // Calculate total duration based on the end of the final note
@@ -431,12 +487,24 @@ export class MIDIParser {
       }
     }
 
+    // Build tempo map (in seconds) from collected tempoEvents
+    let tempoMapSec: Array<{ time: number; tempo: number }> | undefined = undefined;
+    if (segments.length > 0) {
+      tempoMapSec = segments.map((seg, i) => ({
+        time: Math.max(0, seg.cumulativeSeconds - earliestSeconds),
+        tempo: seg.tempo
+      }));
+      // Ensure the first map entry is at 0
+      if (tempoMapSec.length > 0) tempoMapSec[0].time = 0;
+    }
+
     console.log('MIDIParser returning timing configuration:', {
       bpm: this.bpm,
       tempo: this.tempo,
       timeSignature: this.timeSignature,
       beatsPerBar: this.beatsPerBar,
-      ticksPerQuarter: this.ticksPerQuarter
+      ticksPerQuarter: this.ticksPerQuarter,
+      tempoMapEntries: tempoMapSec?.length || 0
     });
 
     return {
@@ -444,7 +512,10 @@ export class MIDIParser {
       duration,
       tempo: this.tempo,
       ticksPerQuarter: this.ticksPerQuarter,
-  timeSignature: this.timeSignature,
+      timeSignature: this.timeSignature,
+      // include tempo map in seconds for downstream managers
+      // Note: types.ts doesn't include tempoMap yet; MidiManager will read it if present
+      ...(tempoMapSec ? { tempoMap: tempoMapSec } as any : {}),
       trimmedTicks: earliestNoteTime // Include info about how much was trimmed for debugging
     };
   }
