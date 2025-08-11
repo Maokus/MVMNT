@@ -170,9 +170,14 @@ export class MIDIVisualizerCore {
         // Load MIDI data into all TimeUnitPianoRoll elements
         const pianoRollElements = this.sceneBuilder.getElementsByType('timeUnitPianoRoll');
         for (const element of pianoRollElements) {
-            if (element.timingManager && element.timingManager.loadMIDIData) {
-                element.timingManager.loadMIDIData(midiData, notes, true); // Reset macro values on new load
-                console.log(`Loaded MIDI data into piano roll element '${element.id}'`);
+            // Prefer new MidiManager API if present
+            if (element.midiManager && element.midiManager.loadMIDIData) {
+                element.midiManager.loadMIDIData(midiData, notes, true);
+                console.log(`Loaded MIDI data into piano roll element '${element.id}' via MidiManager`);
+            } else if (element.timingManager && element.timingManager.loadMIDIData) {
+                // Backward compatibility
+                element.timingManager.loadMIDIData(midiData, notes, true);
+                console.log(`Loaded MIDI data into piano roll element '${element.id}' via timingManager (legacy)`);
             }
         }
 

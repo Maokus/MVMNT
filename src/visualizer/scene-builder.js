@@ -129,12 +129,16 @@ export class HybridSceneBuilder {
         let maxDuration = 0;
 
         for (const element of this.elements) {
-            // Check if element has a local timing manager with duration
+            // Prefer new midiManager duration if present
+            if (element.midiManager && typeof element.midiManager.getDuration === 'function') {
+                const duration = element.midiManager.getDuration();
+                if (duration > maxDuration) maxDuration = duration;
+                continue;
+            }
+            // Legacy timingManager with duration
             if (element.timingManager && typeof element.timingManager.getDuration === 'function') {
                 const duration = element.timingManager.getDuration();
-                if (duration > maxDuration) {
-                    maxDuration = duration;
-                }
+                if (duration > maxDuration) maxDuration = duration;
             }
         }
 

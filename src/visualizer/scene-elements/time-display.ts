@@ -1,7 +1,7 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
 import { Text, Rectangle } from '../render-objects/index.js';
-import { LocalTimingManager } from '../local-timing-manager.js';
+import { TimingManager } from '../timing-manager.js';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 interface BarBeatTick {
@@ -18,13 +18,13 @@ interface MinSecMs {
 }
 
 export class TimeDisplayElement extends SceneElement {
-    public timingManager: LocalTimingManager;
+    public timingManager: TimingManager;
 
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
 
-        // Use local timing manager by default for independent timing control
-        this.timingManager = new LocalTimingManager(null);
+    // Use timing manager by default for independent timing control
+    this.timingManager = new TimingManager(null);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {

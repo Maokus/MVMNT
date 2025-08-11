@@ -3,13 +3,12 @@ import { SceneElement } from '../base';
 import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
 import { Line, Text } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
-import { LocalTimingManager } from '../../local-timing-manager.js';
-import { NoteBlock } from '../../note-block';
+import { MidiManager } from '../../midi-manager';
 import { debugLog } from '../../utils/debug-log.js';
 import { globalMacroManager } from '../../macro-manager';
 
 export class TimeUnitPianoRollElement extends SceneElement {
-    public timingManager: LocalTimingManager;
+    public midiManager: MidiManager;
     public animationController: AnimationController;
     private _currentMidiFile: File | null = null;
     private _midiMacroListener?: (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => void;
@@ -21,8 +20,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
         
-        // Initialize timing manager with this element's ID
-        this.timingManager = new LocalTimingManager(this.id as any);
+    // Initialize MIDI manager (with its own TimingManager)
+    this.midiManager = new MidiManager(this.id);
         
         // Initialize animation controller
         this.animationController = new AnimationController(this);
@@ -153,17 +152,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this._currentMidiFile = midiFile;
         }
 
-        // Update timing manager with current values
-        this.timingManager.setBPM(bpm);
-        this.timingManager.setBeatsPerBar(beatsPerBar);
+    // Update timing via midiManager
+    this.midiManager.setBPM(bpm);
+    this.midiManager.setBeatsPerBar(beatsPerBar);
 
-        // Get notes for the current time window
-        const notesInTimeUnit = this.timingManager.getNotesInTimeUnit(targetTime);
+    // Get notes for the current time window
+    const notesInTimeUnit = this.midiManager.getNotesInTimeUnit(targetTime, timeUnitBars);
         
         // Create render objects for the piano roll
         debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${notesInTimeUnit.length} notes`);
         if (showNotes && notesInTimeUnit.length > 0) {
-            const noteBlocks = this._createNoteBlocks(notesInTimeUnit, targetTime);
+            const noteBlocks = this.midiManager.createNoteBlocks(notesInTimeUnit, targetTime);
             debugLog(`[_buildRenderObjects] Created ${noteBlocks.length} note blocks for rendering`);
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { animationType, noteColor, noteHeight, minNote, maxNote, pianoWidth, rollWidth },
@@ -220,58 +219,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
         try {
             console.log(`Loading MIDI file for bound element ${this.id}:`, file.name);
 
-            // Import MIDIParser dynamically to avoid circular imports
-            const { MIDIParser } = await import('../../midi-parser');
-            const parser = new MIDIParser();
-
-            // Parse the MIDI file
-            const midiData = await parser.parseMIDIFile(file);
-
-            // Create notes array from events
-            const notes: any[] = [];
-            const noteMap = new Map();
-
-            // Process events to create note objects
-            for (const event of midiData.events) {
-                const noteKey = `${event.note}_${event.channel}`;
-
-                if (event.type === 'noteOn') {
-                    noteMap.set(noteKey, {
-                        note: event.note,
-                        channel: event.channel,
-                        velocity: event.velocity,
-                        startTime: event.time
-                    });
-                } else if (event.type === 'noteOff') {
-                    const noteOn = noteMap.get(noteKey);
-                    if (noteOn) {
-                        notes.push({
-                            ...noteOn,
-                            endTime: event.time,
-                            duration: event.time - noteOn.startTime
-                        });
-                        noteMap.delete(noteKey);
-                    }
-                }
-            }
-
-            // Handle any notes that didn't get a noteOff event
-            noteMap.forEach((note) => {
-                notes.push({
-                    ...note,
-                    endTime: note.startTime + 1.0,
-                    duration: 1.0
-                });
-            });
-
-            // Load the data into our local timing manager
             const resetMacroValues = this._currentMidiFile !== file;
-            this.timingManager.loadMIDIData(midiData, notes, resetMacroValues);
+            await this.midiManager.loadMidiFile(file, resetMacroValues);
 
             console.log(`Successfully loaded MIDI file for bound element ${this.id}:`, {
-                duration: this.timingManager.getDuration(),
-                noteCount: notes.length,
-                bpm: this.timingManager.bpm
+                duration: this.midiManager.getDuration(),
+                noteCount: this.midiManager.getNotes().length,
+                bpm: this.midiManager.timingManager.bpm
             });
 
             // Trigger a re-render
@@ -292,18 +246,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         }
     }
 
-    /**
-     * Create note blocks for rendering
-     */
-    private _createNoteBlocks(notes: any[], targetTime: number): NoteBlock[] {
-        return notes.map(note => new NoteBlock(
-            note.note,
-            note.velocity,
-            note.startTime,
-            note.endTime,
-            note.channel || 0
-        ));
-    }
+    // Note block creation delegated to MidiManager
 
     /**
      * Create horizontal grid lines for notes
@@ -349,7 +292,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         for (let note = minNote; note <= maxNote; note++) {
             const y = totalHeight - ((note - minNote + 0.5) * noteHeight);
-            const noteName = this._getNoteName(note);
+            const noteName = this.midiManager.getNoteName(note);
             
             const label = new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle');
             labels.push(label);
@@ -413,15 +356,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return playheadObjects;
     }
 
-    /**
-     * Get the note name (C, C#, D, etc.) for a MIDI note number
-     */
-    private _getNoteName(midiNote: number): string {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteName = noteNames[midiNote % 12];
-        return `${noteName}${octave}`;
-    }
+    // Note name resolution handled by MidiManager
 
     /**
      * Dispatch a change event to trigger re-renders
@@ -500,7 +435,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     getTimeUnit(): number {
-        return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
+        return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
 
     getMidiFile(): File | null {
@@ -539,7 +474,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Load MIDI data directly (for programmatic use)
      */
     loadMIDIData(midiData: any, notes: any[]): this {
-        this.timingManager.loadMIDIData(midiData, notes);
+        this.midiManager.loadMIDIData(midiData, notes);
         this._dispatchChangeEvent();
         return this;
     }
