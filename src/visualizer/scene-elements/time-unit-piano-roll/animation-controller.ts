@@ -1,6 +1,6 @@
 // AnimationController - handles animation states and processing of notes into render objects
 // Compatible with the property binding system used in TimeUnitPianoRollElement
-import { NoteAnimations } from './note-animations';
+import { createAnimationInstance, type AnimationPhase } from './note-animations/index';
 import { debugLog } from '../../utils/debug-log.js';
 import type { RenderObjectInterface } from '../../types.js';
 import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
@@ -17,7 +17,7 @@ export interface BuildConfig {
 }
 
 export interface VisualState {
-  type: 'onset' | 'sustained' | 'offset';
+  type: AnimationPhase;
   progress: number;
   startTime: number | null;
   endTime: number | null;
@@ -25,11 +25,11 @@ export interface VisualState {
 
 export class AnimationController {
   private timeUnitPianoRoll: TimeUnitPianoRollElement;
-  private noteAnimations: NoteAnimations;
+  // Cache instance per type to avoid recreating per note
+  private _animationCache: Map<AnimationType, ReturnType<typeof createAnimationInstance>> = new Map();
 
   constructor(timeUnitPianoRoll: TimeUnitPianoRollElement) {
-    this.timeUnitPianoRoll = timeUnitPianoRoll;
-    this.noteAnimations = new NoteAnimations();
+  this.timeUnitPianoRoll = timeUnitPianoRoll;
   }
 
   buildNoteRenderObjects(
@@ -99,6 +99,14 @@ export class AnimationController {
 
         drawStart = Math.max(block.startTime, relWindowStart);
         drawEnd = Math.min(block.endTime, relWindowEnd);
+      } else if (visState.type === 'preOnset' && block.windowStart != null) {
+        // For preOnset of a note in the NEXT window, use the note's own window
+        relWindowStart = block.windowStart;
+        relWindowEnd = block.windowEnd ?? (block.windowStart + timeUnitInSeconds);
+        relWindowDuration = Math.max(1e-9, relWindowEnd - relWindowStart);
+
+        drawStart = Math.max(block.startTime, relWindowStart);
+        drawEnd = Math.min(block.endTime, relWindowEnd);
       }
 
       const startTimeInWindow = drawStart - relWindowStart;
@@ -107,7 +115,7 @@ export class AnimationController {
       const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / relWindowDuration) * rollWidth);
 
       // Create note render objects using animation system
-      const noteRenderObjects = this._createAnimatedNoteRenderObjects(
+  const noteRenderObjects = this._createAnimatedNoteRenderObjects(
         { block, x, y, width, height: noteHeight, color: finalNoteColor, currentTime: targetTime, visState },
         animationType,
         animationSpeed,
@@ -137,7 +145,7 @@ export class AnimationController {
     animationDuration: number,
     animationEnabled: boolean
   ): RenderObjectInterface[] {
-    const { block, x, y, width, height, color, currentTime, visState } = args;
+  const { block, x, y, width, height, color, currentTime, visState } = args;
     debugLog(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
       x,
       y,
@@ -150,10 +158,9 @@ export class AnimationController {
     });
 
     if (!animationEnabled || animationType === 'none') {
-      // No animation - create simple render object
-      const staticObjects = this.noteAnimations.createStaticNote(block, x, y, width, height, color);
-      debugLog(`[_createAnimatedNoteRenderObjects] Created ${staticObjects.length} static render objects`);
-      return staticObjects;
+      // No animation - draw sustained/static rectangle
+      const inst = this._getAnimationInstance('expand'); // use expand for neutral draw
+      return inst.render({ block, x, y, width, height, color, progress: 1, phase: 'sustained' });
     }
 
     // Use derived visual lifecycle state
@@ -161,45 +168,19 @@ export class AnimationController {
     debugLog(`[_createAnimatedNoteRenderObjects] Animation state:`, animationState);
     if (!animationState) return [];
 
-    // Create animated render objects based on state
-    switch (animationState.type) {
-      case 'onset': {
-        const onsetObjects = this.noteAnimations.createOnsetAnimation(
-          block,
-          x,
-          y,
-          width,
-          height,
-          color,
-          animationType,
-          animationState.progress
-        );
-        debugLog(`[_createAnimatedNoteRenderObjects] Created ${onsetObjects.length} onset animation objects`);
-        return onsetObjects;
-      }
-      case 'sustained': {
-        const sustainedObjects = this.noteAnimations.createSustainedNote(block, x, y, width, height, color);
-        debugLog(`[_createAnimatedNoteRenderObjects] Created ${sustainedObjects.length} sustained note objects`);
-        return sustainedObjects;
-      }
-      case 'offset': {
-        const offsetObjects = this.noteAnimations.createOffsetAnimation(
-          block,
-          x,
-          y,
-          width,
-          height,
-          color,
-          animationType,
-          animationState.progress
-        );
-        debugLog(`[_createAnimatedNoteRenderObjects] Created ${offsetObjects.length} offset animation objects`);
-        return offsetObjects;
-      }
-      default:
-        debugLog(`[_createAnimatedNoteRenderObjects] Unknown animation state type: ${(animationState as any).type}`);
-        return [];
+    const inst = this._getAnimationInstance(animationType);
+    const phase = animationState.type as AnimationPhase;
+    const p = Math.max(0, Math.min(1, animationState.progress));
+    return inst.render({ block, x, y, width, height, color, progress: p, phase });
+  }
+
+  private _getAnimationInstance(type: AnimationType) {
+    let inst = this._animationCache.get(type);
+    if (!inst) {
+      inst = createAnimationInstance(type);
+      this._animationCache.set(type, inst);
     }
+    return inst;
   }
 
   private _deriveVisualState(
@@ -207,7 +188,7 @@ export class AnimationController {
     currentTime: number,
     animationDuration: number
   ): VisualState | null {
-    // Stateless lifecycle based on time-unit window
+    // Robust lifecycle based on time-unit window, with preOnset and overlap guards
     const win = this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(
       currentTime,
       this.timeUnitPianoRoll.getTimeUnitBars()
@@ -216,18 +197,38 @@ export class AnimationController {
     const winEnd = block.windowEnd ?? win.end;
 
     const origStart = block.originalStartTime ?? block.startTime;
+    const origEnd = block.originalEndTime ?? block.endTime;
 
-    // Onset should begin at max(origStart, winStart) for segments crossing into this unit
+    const EPS = 1e-6;
+    const dur = Math.max(0.01, animationDuration);
+
+    // Pre-onset starts one duration before onsetStart
     const onsetStart = Math.max(origStart, winStart);
-    const onsetEnd = onsetStart + Math.max(0.01, animationDuration);
+    const preOnsetStart = onsetStart - dur;
+    const preOnsetEnd = onsetStart; // exclusive upper bound
+    const onsetEnd = onsetStart + dur;
 
-    // Visibility holds until winEnd regardless of origEnd
-    const visibleUntil = winEnd;
+    // Visible until the end of this window or the note end (whichever is earlier)
+    const visibleUntil = Math.min(winEnd, Math.max(onsetEnd, origEnd));
 
-    // Start offset AFTER the time unit ends; this plays into the next window
-    const offsetStart = visibleUntil;
-    const offsetEnd = offsetStart + Math.max(0.01, animationDuration);
+    // Offset plays after visibility ends, but we clamp so that offset never starts before onset ends
+    let offsetStart = Math.max(visibleUntil, onsetEnd);
+    let offsetEnd = offsetStart + dur;
 
+    // Guard against overlap when window is smaller than 2*dur
+    if (offsetStart - onsetEnd < EPS) {
+      offsetStart = onsetEnd + EPS;
+      offsetEnd = offsetStart + dur;
+    }
+
+    if (currentTime >= preOnsetStart && currentTime < preOnsetEnd) {
+      return {
+        type: 'preOnset',
+        progress: (currentTime - preOnsetStart) / (preOnsetEnd - preOnsetStart),
+        startTime: preOnsetStart,
+        endTime: preOnsetEnd,
+      };
+    }
     if (currentTime >= onsetStart && currentTime < onsetEnd) {
       return {
         type: 'onset',
