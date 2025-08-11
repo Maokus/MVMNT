@@ -1,5 +1,4 @@
-// MIDI Parser Module - TypeScript migration
-import { TimingManager } from './timing-manager';
+// MIDI Parser Module - TypeScript migration (Timing logic inlined; TimingManager removed)
 import { MIDIEvent, MIDIData, MIDITimeSignature } from './types';
 
 interface MIDIHeader {
@@ -24,21 +23,32 @@ interface ParsedEvent extends MIDIEvent {
 
 export class MIDIParser {
   private tracks: MIDITrack[] = [];
-  private timingManager: TimingManager;
-
-  // Legacy properties for backward compatibility (deprecated)
-  public ticksPerQuarter: number;
-  public tempo: number;
+  // Timing state (formerly handled by TimingManager)
+  public ticksPerQuarter: number; // MIDI PPQ
+  public tempo: number; // microseconds per quarter note
   public timeSignature: MIDITimeSignature;
+  public beatsPerBar: number;
+  public bpm: number;
+
+  // Cached values to avoid recomputation
+  private _secondsPerBeat?: number;
+  private _secondsPerBar?: number;
+  private _secondsPerTick?: number;
 
   constructor() {
     this.tracks = [];
-    this.timingManager = new TimingManager();
-
-    // Legacy properties for backward compatibility (deprecated)
-    this.ticksPerQuarter = this.timingManager.ticksPerQuarter;
-    this.tempo = this.timingManager.tempo;
-    this.timeSignature = this.timingManager.timeSignature;
+    // Defaults
+    this.ticksPerQuarter = 480;
+    this.tempo = 500000; // 120 BPM
+    this.bpm = 60000000 / this.tempo;
+    this.timeSignature = {
+      numerator: 4,
+      denominator: 4,
+      clocksPerClick: 24,
+      thirtysecondNotesPerBeat: 8
+    };
+    this.beatsPerBar = this.timeSignature.numerator || 4;
+    this._invalidateCache();
   }
 
   async parseMIDIFile(file: File): Promise<MIDIData> {
@@ -51,17 +61,14 @@ export class MIDIParser {
 
     this.tracks = [];
 
-    // Reset tempo and time signature to defaults in both local properties and TimingManager
-    this.timingManager.setTempo(500000); // Default 120 BPM
-    this.tempo = this.timingManager.tempo;
-
-    this.timingManager.setTimeSignature({
+    // Reset tempo and time signature to defaults
+    this.setTempo(500000); // Default 120 BPM
+    this.setTimeSignature({
       numerator: 4,
       denominator: 4,
       clocksPerClick: 24,
       thirtysecondNotesPerBeat: 8
     });
-    this.timeSignature = this.timingManager.timeSignature;
 
     // Parse all tracks
     for (let i = 0; i < headerChunk.numTracks; i++) {
@@ -104,13 +111,10 @@ export class MIDIParser {
 
     if (division & 0x8000) {
       // SMPTE time division
-      this.timingManager.setTicksPerQuarter(24); // Simplified
+      this.setTicksPerQuarter(24); // Simplified
     } else {
-      this.timingManager.setTicksPerQuarter(division);
+      this.setTicksPerQuarter(division);
     }
-
-    // Update legacy properties for backward compatibility
-    this.ticksPerQuarter = this.timingManager.ticksPerQuarter;
 
     return { format, numTracks, division };
   }
@@ -273,8 +277,7 @@ export class MIDIParser {
           const tempo = (dataView.getUint8(dataOffset) << 16) |
             (dataView.getUint8(dataOffset + 1) << 8) |
             dataView.getUint8(dataOffset + 2);
-          this.timingManager.setTempo(tempo);
-          this.tempo = tempo; // Update legacy property
+          this.setTempo(tempo);
           console.log(`Found tempo meta event: ${tempo} (${Math.round(60000000 / tempo)} BPM)`);
         }
         break;
@@ -288,8 +291,7 @@ export class MIDIParser {
             clocksPerClick: dataView.getUint8(dataOffset + 2),
             thirtysecondNotesPerBeat: dataView.getUint8(dataOffset + 3)
           };
-          this.timingManager.setTimeSignature(timeSignature);
-          this.timeSignature = timeSignature; // Update legacy property
+          this.setTimeSignature(timeSignature);
           console.log(`Found time signature meta event: ${timeSignature.numerator}/${timeSignature.denominator}`);
         }
         break;
@@ -389,8 +391,8 @@ export class MIDIParser {
       earliestNoteTime = Math.min(...noteEvents.map(e => e.time));
     }
 
-    // Convert MIDI ticks to seconds using TimingManager
-    const secondsPerTick = this.timingManager.getSecondsPerTick();
+  // Convert MIDI ticks to seconds using local timing
+  const secondsPerTick = this.getSecondsPerTick();
 
     // Adjust all events by subtracting the earliest note time (trim empty space)
     const playableEvents: MIDIEvent[] = noteEvents.map(event => ({
@@ -429,22 +431,12 @@ export class MIDIParser {
       }
     }
 
-    // Make sure our TimingManager has the latest values
-    this.timingManager.setTempo(this.tempo);
-    if (this.timeSignature) {
-      this.timingManager.setTimeSignature(this.timeSignature);
-    }
-    this.timingManager.setTicksPerQuarter(this.ticksPerQuarter);
-
-    // Create a clone of the timing manager for the return object
-    const timingManagerClone = this.timingManager.clone();
-
-    console.log('MIDIParser returning with timingManager:', {
-      bpm: timingManagerClone.bpm,
-      tempo: timingManagerClone.tempo,
-      timeSignature: timingManagerClone.timeSignature,
-      beatsPerBar: timingManagerClone.beatsPerBar,
-      ticksPerQuarter: timingManagerClone.ticksPerQuarter
+    console.log('MIDIParser returning timing configuration:', {
+      bpm: this.bpm,
+      tempo: this.tempo,
+      timeSignature: this.timeSignature,
+      beatsPerBar: this.beatsPerBar,
+      ticksPerQuarter: this.ticksPerQuarter
     });
 
     return {
@@ -452,8 +444,7 @@ export class MIDIParser {
       duration,
       tempo: this.tempo,
       ticksPerQuarter: this.ticksPerQuarter,
-      timeSignature: this.timeSignature,
-      timingManager: timingManagerClone as any,
+  timeSignature: this.timeSignature,
       trimmedTicks: earliestNoteTime // Include info about how much was trimmed for debugging
     };
   }
@@ -475,8 +466,7 @@ export class MIDIParser {
               if (!isNaN(bpm) && bpm > 0) {
                 console.log(`Found BPM in metadata: ${bpm}`);
                 const tempo = 60000000 / bpm; // Convert to microseconds per quarter note
-                this.timingManager.setTempo(tempo);
-                this.tempo = tempo; // Update legacy property
+                this.setTempo(tempo);
               }
             }
           }
@@ -489,6 +479,66 @@ export class MIDIParser {
         }
       }
     }
+  }
+
+  // ==========================
+  // Timing utilities (inlined)
+  // ==========================
+  private _invalidateCache(): void {
+    this._secondsPerBeat = undefined;
+    this._secondsPerBar = undefined;
+    this._secondsPerTick = undefined;
+  }
+
+  private setTempo(tempo: number): void {
+    if (tempo <= 0) throw new Error('Tempo must be positive');
+    if (this.tempo !== tempo) {
+      this.tempo = tempo;
+      this.bpm = 60000000 / tempo;
+      this._invalidateCache();
+    }
+  }
+
+  private setTimeSignature(timeSignature: MIDITimeSignature): void {
+    if (!timeSignature) return;
+    const changed = !this.timeSignature ||
+      JSON.stringify(this.timeSignature) !== JSON.stringify(timeSignature);
+    if (changed) {
+      this.timeSignature = { ...timeSignature };
+      if (timeSignature.numerator) {
+        this.beatsPerBar = timeSignature.numerator;
+      }
+      this._invalidateCache();
+    }
+  }
+
+  private setTicksPerQuarter(ticksPerQuarter: number): void {
+    if (ticksPerQuarter <= 0) throw new Error('Ticks per quarter must be positive');
+    if (this.ticksPerQuarter !== ticksPerQuarter) {
+      this.ticksPerQuarter = ticksPerQuarter;
+      this._invalidateCache();
+    }
+  }
+
+  private getSecondsPerBeat(): number {
+    if (this._secondsPerBeat === undefined) {
+      this._secondsPerBeat = 60 / this.bpm;
+    }
+    return this._secondsPerBeat;
+  }
+
+  private getSecondsPerBar(): number {
+    if (this._secondsPerBar === undefined) {
+      this._secondsPerBar = this.getSecondsPerBeat() * (this.beatsPerBar || 4);
+    }
+    return this._secondsPerBar;
+  }
+
+  private getSecondsPerTick(): number {
+    if (this._secondsPerTick === undefined) {
+      this._secondsPerTick = (this.tempo / 1_000_000) / this.ticksPerQuarter;
+    }
+    return this._secondsPerTick;
   }
 }
 

@@ -29,7 +29,6 @@ export interface MIDIData {
   tempo: number;
   ticksPerQuarter: number;
   timeSignature: MIDITimeSignature;
-  timingManager?: any; // Keep as any for now since TimingManager is still JS
   trimmedTicks: number;
   fileName?: string; // Optional file name for save/load functionality
 }
