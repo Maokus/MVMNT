@@ -375,6 +375,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
+                            key: 'playheadColor',
+                            type: 'color',
+                            label: 'Playhead Color',
+                            default: '#ff6b6b',
+                            description: 'Color of the playhead line',
+                        },
+                        {
                             key: 'playheadLineWidth',
                             type: 'number',
                             label: 'Playhead Line Width',
@@ -434,6 +441,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const noteHeight = this.getProperty<number>('noteHeight');
         const showPlayhead = this.getProperty<boolean>('showPlayhead');
         const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
+        const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
         const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
         const minBBoxPadding = this.getProperty<number>('minBBoxPadding');
 
@@ -518,12 +526,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (showPlayhead) {
             renderObjects.push(
                 ...this._createPlayhead(
-                    config,
                     targetTime,
                     pianoWidth,
                     rollWidth || 800,
                     (maxNote - minNote + 1) * noteHeight,
-                    playheadLineWidth
+                    playheadLineWidth,
+                    playheadColor
                 )
             );
         }
@@ -531,108 +539,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Optionally ensure minimum bounding box by adding two empty render objects at the cached TL/BR of the
         // full-display configuration (as if all Display toggles were true). This reduces jumping when grids/lines are toggled.
         if (ensureMinBBox) {
-            // Build a configuration signature based on all current bindings to detect any config change
-            const cfgEntries: Record<string, any> = {};
-            // bindings is protected in base, accessible here
-            (this as any).bindings?.forEach((binding: any, key: string) => {
-                try {
-                    const v = binding?.getValue?.();
-                    // Sanitize File objects
-                    if (typeof File !== 'undefined' && v instanceof File) {
-                        cfgEntries[key] = { __fileName: v.name || null };
-                    } else if (v && typeof v === 'object') {
-                        // Shallow clone primitives; avoid cycles
-                        cfgEntries[key] = JSON.parse(
-                            JSON.stringify(v, (_k, val) => (val instanceof File ? { __fileName: val.name } : val))
-                        );
-                    } else {
-                        cfgEntries[key] = v;
-                    }
-                } catch {
-                    // Fallback to string repr if something isn't JSON-serializable
-                    cfgEntries[key] = String(binding?.getValue?.());
-                }
+            const bbox = this._getOrComputeMinBBox(targetTime, {
+                timeUnitBars,
+                minNote,
+                maxNote,
+                pianoWidth,
+                rollWidth: rollWidth || 800,
+                noteHeight,
+                beatsPerBar,
             });
-            const cfgHash = JSON.stringify(cfgEntries);
-            if (this._ensureMinBBoxCacheConfigHash !== cfgHash) {
-                // Invalidate cache when config changes
-                this._ensureMinBBoxCache.clear();
-                this._ensureMinBBoxCacheConfigHash = cfgHash;
-            }
 
-            const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-            let cached = this._ensureMinBBoxCache.get(timeBucket);
-            if (!cached) {
-                // Recompute full-display bounds for this time bucket
-                const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                    targetTime,
-                    timeUnitBars
-                );
-                const totalHeight = (maxNote - minNote + 1) * noteHeight;
-
-                // Build a minimal superset of render objects that determine the extents when all display toggles are true
-                const fullObjs: RenderObjectInterface[] = [];
-                // Note grid lines (horizontal)
-                fullObjs.push(...this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight));
-                // Beat grid lines (vertical)
-                fullObjs.push(
-                    ...this._createBeatGridLines(
-                        windowStart,
-                        windowEnd,
-                        beatsPerBar,
-                        pianoWidth,
-                        rollWidth || 800,
-                        totalHeight
-                    )
-                );
-                // Note labels (left of piano)
-                fullObjs.push(...this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight));
-                // Beat labels (top)
-                fullObjs.push(
-                    ...this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800)
-                );
-
-                // Compute bounds (duplicated minimal logic from base)
-                let minX = Infinity,
-                    minY = Infinity,
-                    maxX = -Infinity,
-                    maxY = -Infinity;
-                let count = 0;
-                for (const obj of fullObjs) {
-                    if (obj && typeof (obj as any).getBounds === 'function') {
-                        const b = (obj as any).getBounds();
-                        if (
-                            b &&
-                            typeof b.x === 'number' &&
-                            typeof b.y === 'number' &&
-                            typeof b.width === 'number' &&
-                            typeof b.height === 'number' &&
-                            isFinite(b.x) &&
-                            isFinite(b.y) &&
-                            isFinite(b.width) &&
-                            isFinite(b.height)
-                        ) {
-                            minX = Math.min(minX, b.x);
-                            minY = Math.min(minY, b.y);
-                            maxX = Math.max(maxX, b.x + b.width);
-                            maxY = Math.max(maxY, b.y + b.height);
-                            count++;
-                        }
-                    }
-                }
-
-                if (count === 0) {
-                    cached = { tl: { x: 0, y: 0 }, br: { x: 0, y: 0 } };
-                } else {
-                    cached = { tl: { x: minX, y: minY }, br: { x: maxX, y: maxY } };
-                }
-                this._ensureMinBBoxCache.set(timeBucket, cached);
-            }
-
-            if (cached) {
-                const tl = new EmptyRenderObject(cached.tl.x - minBBoxPadding, cached.tl.y - minBBoxPadding, 1, 1, 0);
-                const br = new EmptyRenderObject(cached.br.x + minBBoxPadding, cached.br.y + minBBoxPadding, 1, 1, 0);
-                // Ensure they don't affect opacity/visibility; they render nothing
+            if (bbox) {
+                const tl = new EmptyRenderObject(bbox.tl.x - minBBoxPadding, bbox.tl.y - minBBoxPadding, 1, 1, 0);
+                const br = new EmptyRenderObject(bbox.br.x + minBBoxPadding, bbox.br.y + minBBoxPadding, 1, 1, 0);
                 tl.setOpacity(0);
                 br.setOpacity(0);
                 renderObjects.push(tl, br);
@@ -806,17 +725,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Create playhead line
      */
     private _createPlayhead(
-        config: any,
         targetTime: number,
         pianoWidth: number,
         rollWidth: number,
         totalHeight: number,
-        lineWidth: number
+        lineWidth: number,
+        playheadColor: string
     ): RenderObjectInterface[] {
         const playheadObjects: RenderObjectInterface[] = [];
-
-        // Get playhead color from config (defaults from visualizer core)
-        const playheadColor = config.playheadColor || '#ff6b6b';
 
         // Calculate playhead position
         const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
@@ -838,6 +754,118 @@ export class TimeUnitPianoRollElement extends SceneElement {
         }
 
         return playheadObjects;
+    }
+
+    /**
+     * Compute and cache the min bounding box for the "full display" configuration at a given time bucket.
+     * Extracted from _buildRenderObjects for readability.
+     */
+    private _getOrComputeMinBBox(
+        targetTime: number,
+        args: {
+            timeUnitBars: number;
+            minNote: number;
+            maxNote: number;
+            pianoWidth: number;
+            rollWidth: number;
+            noteHeight: number;
+            beatsPerBar: number;
+        }
+    ): { tl: { x: number; y: number }; br: { x: number; y: number } } | undefined {
+        // Invalidate cache if the configuration has changed
+        const cfgHash = this._computeConfigHashForBBox();
+        if (this._ensureMinBBoxCacheConfigHash !== cfgHash) {
+            this._ensureMinBBoxCache.clear();
+            this._ensureMinBBoxCacheConfigHash = cfgHash;
+        }
+
+        const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
+        let cached = this._ensureMinBBoxCache.get(timeBucket);
+        if (cached) return cached;
+
+        const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+            targetTime,
+            args.timeUnitBars
+        );
+        const totalHeight = (args.maxNote - args.minNote + 1) * args.noteHeight;
+
+        // Build objects that define extents when all display toggles are true
+        const fullObjs: RenderObjectInterface[] = [];
+        fullObjs.push(
+            ...this._createNoteGridLines(args.minNote, args.maxNote, args.pianoWidth, args.rollWidth, args.noteHeight)
+        );
+        fullObjs.push(
+            ...this._createBeatGridLines(
+                windowStart,
+                windowEnd,
+                args.beatsPerBar,
+                args.pianoWidth,
+                args.rollWidth,
+                totalHeight
+            )
+        );
+        fullObjs.push(...this._createNoteLabels(args.minNote, args.maxNote, args.pianoWidth, args.noteHeight));
+        fullObjs.push(
+            ...this._createBeatLabels(windowStart, windowEnd, args.beatsPerBar, args.pianoWidth, args.rollWidth)
+        );
+
+        // Compute bounds
+        let minX = Infinity,
+            minY = Infinity,
+            maxX = -Infinity,
+            maxY = -Infinity;
+        let count = 0;
+        for (const obj of fullObjs) {
+            if (obj && typeof (obj as any).getBounds === 'function') {
+                const b = (obj as any).getBounds();
+                if (
+                    b &&
+                    typeof b.x === 'number' &&
+                    typeof b.y === 'number' &&
+                    typeof b.width === 'number' &&
+                    typeof b.height === 'number' &&
+                    isFinite(b.x) &&
+                    isFinite(b.y) &&
+                    isFinite(b.width) &&
+                    isFinite(b.height)
+                ) {
+                    minX = Math.min(minX, b.x);
+                    minY = Math.min(minY, b.y);
+                    maxX = Math.max(maxX, b.x + b.width);
+                    maxY = Math.max(maxY, b.y + b.height);
+                    count++;
+                }
+            }
+        }
+
+        cached =
+            count === 0
+                ? { tl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
+                : { tl: { x: minX, y: minY }, br: { x: maxX, y: maxY } };
+        this._ensureMinBBoxCache.set(timeBucket, cached);
+        return cached;
+    }
+
+    // Build a configuration signature based on all current bindings to detect any config change
+    private _computeConfigHashForBBox(): string {
+        const cfgEntries: Record<string, any> = {};
+        (this as any).bindings?.forEach((binding: any, key: string) => {
+            try {
+                const v = binding?.getValue?.();
+                if (typeof File !== 'undefined' && v instanceof File) {
+                    cfgEntries[key] = { __fileName: v.name || null };
+                } else if (v && typeof v === 'object') {
+                    cfgEntries[key] = JSON.parse(
+                        JSON.stringify(v, (_k, val) => (val instanceof File ? { __fileName: val.name } : val))
+                    );
+                } else {
+                    cfgEntries[key] = v;
+                }
+            } catch {
+                cfgEntries[key] = String(binding?.getValue?.());
+            }
+        });
+        return JSON.stringify(cfgEntries);
     }
 
     // Note name resolution handled by MidiManager
