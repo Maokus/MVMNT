@@ -47,25 +47,33 @@ export class AnimationController {
             const channelColors = this.timeUnitPianoRoll.getChannelColors();
             const finalNoteColor = channelColors[block.channel % channelColors.length];
 
-            // Calculate timing
-            // Geometry clamped to CURRENT window, with special case:
-            // If we're in offset phase for a block whose window ended exactly at this window's start,
-            // draw a short stub into the new window so the offset is visible after the unit ends.
+            // Calculate timing and geometry
+            // Default: clamp to CURRENT window
             let drawStart = Math.max(block.startTime, windowStart);
             let drawEnd = Math.min(block.endTime, windowEnd);
 
-            // Special offset carry-over rendering
-            if (visState.type === 'offset' && block.windowEnd === windowStart) {
-                // Render a small stub whose width follows the remaining offset progress
-                const stubDuration = Math.max(0.01, this.timeUnitPianoRoll.getProperty('animationDuration') || 0.5);
-                drawStart = windowStart; // start at window left edge
-                drawEnd = Math.min(windowEnd, windowStart + stubDuration);
+            let relWindowStart = windowStart;
+            let relWindowEnd = windowEnd;
+            let relWindowDuration = timeUnitInSeconds;
+
+            // If we're in OFFSET phase immediately after a rollover, preserve the
+            // previous window's geometry so the note stays where it was instead of
+            // snapping to the left edge with a 1-beat stub.
+            const EPS = 1e-9;
+            if (visState.type === 'offset' && block.windowEnd != null && Math.abs(block.windowEnd - windowStart) < EPS) {
+                // Use the block's own window as the reference frame (the previous window)
+                relWindowStart = block.windowStart ?? windowStart;
+                relWindowEnd = block.windowEnd ?? windowEnd;
+                relWindowDuration = Math.max(1e-9, relWindowEnd - relWindowStart);
+
+                drawStart = Math.max(block.startTime, relWindowStart);
+                drawEnd = Math.min(block.endTime, relWindowEnd);
             }
 
-            const startTimeInWindow = drawStart - windowStart;
-            const endTimeInWindow = drawEnd - windowStart;
-            const x = pianoWidth + (startTimeInWindow / timeUnitInSeconds) * rollWidth;
-            const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / timeUnitInSeconds) * rollWidth);
+            const startTimeInWindow = drawStart - relWindowStart;
+            const endTimeInWindow = drawEnd - relWindowStart;
+            const x = pianoWidth + (startTimeInWindow / relWindowDuration) * rollWidth;
+            const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / relWindowDuration) * rollWidth);
 
 
             // Create note render objects using animation system

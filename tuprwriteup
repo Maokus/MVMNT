@@ -1,0 +1,60 @@
+# How the Time Unit Piano Roll works
+
+- Scene element and config
+  - TimeUnitPianoRollElement extends SceneElement and declares an EnhancedConfigSchema (timing, content, time-unit, layout, display, appearance, animation, playhead).
+Uses property bindings and macros (globalMacroManager) so UI controls and macros can drive properties like tempo, beats per bar, file upload, and animations.
+MIDI/timing backbone
+  - MidiManager (with its own TimingManager) holds MIDI data, provides note lists and name mapping, and converts beats↔seconds.
+TimingManager.getTimeUnitWindow(targetTime, timeUnitBars) determines the current time slice in seconds for rendering.
+The element updates the MidiManager with bound BPM and beatsPerBar every frame.
+- Segmentation and note lifecycle
+  - NoteBlock.buildWindowedSegments(notes, timingManager, targetTime, timeUnitBars):
+    - Builds three windows: previous, current, next (each of size timeUnitBars).
+    - Clips notes crossing window boundaries and creates NoteBlock segments annotated with windowStart/windowEnd and original start/end when clipped.
+  - The element collects these windowed segments and passes them to the animation layer.
+- Animation and geometry
+  - AnimationController.buildNoteRenderObjects(...):
+    - Derives visState per block with _deriveVisualState:
+      - onset: shortly after note’s start (within animationDuration) relative to the block’s window start.
+sustained: fully visible while inside the window between onset and offset.
+      - offset: shortly after the block’s window end (for a short fade/slide/scale out).
+    - Geometry is usually clamped to the current window, but during offset after a rollover, it now preserves the previous window’s coordinate frame (the bug fix) so notes don’t snap to the left or collapse to 1 beat.
+  - NoteAnimations produces the actual render objects (Rectangles) based on animation type: fade, slide, scale, expand, and static/sustained.
+- Rendering pipeline
+  - TimeUnitPianoRollElement._buildRenderObjects:
+    - Load/process MIDI file changes; update BPM/BeatsPerBar.
+    - Build note render objects via AnimationController.
+    - Adds layers: note grid, beat grid (tempo-aware), note labels, beat labels, and playhead line.
+- UI wiring
+  - Uses macros and event listeners to react to midiFile changes and trigger UI invalidation and rerenders.
+
+Potential weaknesses
+- Mixed TS/JS modules: The scene element is TS, while animations and some other pieces are JS, increasing type safety gaps and refactoring risk.
+- Inferred/private timing methods: NoteBlock.buildWindowedSegments uses underscored methods on the TimingManager; these may be internal and brittle.
+- Geometry frames mismatch: While offsets now keep previous geometry (good), the grid updates to the new window immediately. During offset, notes can appear slightly “out of sync” with the vertical grid for a brief period. This is a deliberate tradeoff to avoid snapping, but worth making configurable.
+- Performance: Creating segments for prev/current/next windows for all notes each frame could be heavy for dense MIDI. There’s no caching or memoization on segmentation or render-object generation.
+- Global/event coupling: Re-render triggers via window events and debugVisualizer globals are fragile and hard to test.
+- Visual timing sources: NoteAnimations uses performance.now() for a glow effect—mixing wall-clock with musical time can cause inconsistent visuals depending on render speed.
+
+Improvements
+- Type safety and modularization
+  - Convert the remaining JS files to TypeScript and formalize TimingManager’s public API.
+Define explicit interfaces for NoteBlock, AnimationState, and RenderObject inputs/outputs.
+- Window transition policy
+  - Make the offset-geometry policy configurable: “retain previous window geometry” vs “re-anchor to new window” for teams with different visual preferences.
+Optionally blend grid transitions or overlay the old grid briefly during offset to reduce cognitive dissonance.
+- Performance
+  - Cache segmentation per timeUnit window and invalidate only when BPM/BeatsPerBar/targetTime crosses a unit boundary.
+  - Pool/cull RenderObjects and reuse Rectangle instances when feasible to reduce allocations.
+  - Consider batched canvas rendering or a GPU layer (e.g., PixiJS) for very dense sequences.
+- Animation controls
+  - Add animation curves (ease presets) and per-state durations (onset/offset) independently configurable.
+  - Add a “hold” policy for notes that extend far past a window (limit to a max width or render as a tail).
+- Testing and diagnostics
+  - Unit tests for segmentation at boundaries (start exactly at boundary, end exactly at boundary, spanning multiples).
+  - Snapshot tests for geometry given known MIDI snippets and timing settings.
+  - Toggleable debug overlay: show windowStart/end, note x/width, and state (onset/sustained/offset).
+- UX polish
+  - Smarter min/max note derivation from actual MIDI to default the visible range.
+  - Remember per-channel color mapping with a legend, and optional velocity-to-alpha/height mapping.
+  - High-DPI scaling and pixel rounding for crisper lines.
