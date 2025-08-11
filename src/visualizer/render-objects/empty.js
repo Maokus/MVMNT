@@ -25,7 +25,7 @@ export class EmptyRenderObject extends RenderObject {
         this.anchorVisualizationData = {
             bounds,
             anchorX,
-            anchorY
+            anchorY,
         };
         return this;
     }
@@ -63,9 +63,12 @@ export class EmptyRenderObject extends RenderObject {
             // Apply skew transformation using transform matrix
             if (this.skewX !== 0 || this.skewY !== 0) {
                 const transform = [
-                    1, Math.tan(this.skewY), // skewY affects how Y coordinates map to X
-                    Math.tan(this.skewX), 1, // skewX affects how X coordinates map to Y
-                    0, 0
+                    1,
+                    Math.tan(this.skewY), // skewY affects how Y coordinates map to X
+                    Math.tan(this.skewX),
+                    1, // skewX affects how X coordinates map to Y
+                    0,
+                    0,
                 ];
                 ctx.transform(...transform);
             }
@@ -88,8 +91,12 @@ export class EmptyRenderObject extends RenderObject {
 
         // Render anchor visualization if enabled and we have the data
         if (config.showAnchorPoints && this.anchorVisualizationData) {
-            this.renderAnchorVisualization(ctx, this.anchorVisualizationData.bounds,
-                this.anchorVisualizationData.anchorX, this.anchorVisualizationData.anchorY);
+            this.renderAnchorVisualization(
+                ctx,
+                this.anchorVisualizationData.bounds,
+                this.anchorVisualizationData.anchorX,
+                this.anchorVisualizationData.anchorY
+            );
         }
 
         // Restore context state
@@ -197,8 +204,8 @@ export class EmptyRenderObject extends RenderObject {
             const scaledHeight = bounds.height * this.scaleY;
 
             // Apply position transform - taking into account anchor offset
-            const transformedX = ((bounds.x - this.anchorOffsetX) * this.scaleX) + this.x + this.anchorOffsetX;
-            const transformedY = ((bounds.y - this.anchorOffsetY) * this.scaleY) + this.y + this.anchorOffsetY;
+            const transformedX = (bounds.x - this.anchorOffsetX) * this.scaleX + this.x + this.anchorOffsetX;
+            const transformedY = (bounds.y - this.anchorOffsetY) * this.scaleY + this.y + this.anchorOffsetY;
 
             minX = Math.min(minX, transformedX);
             minY = Math.min(minY, transformedY);
@@ -210,7 +217,7 @@ export class EmptyRenderObject extends RenderObject {
             x: minX,
             y: minY,
             width: maxX - minX,
-            height: maxY - minY
+            height: maxY - minY,
         };
     }
 }

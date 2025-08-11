@@ -1,6 +1,5 @@
 // Modular Renderer - works with RenderObjects for clean separation of concerns
 export class ModularRenderer {
-
     /**
      * Main render method - renders an array of RenderObjects
      * @param {CanvasRenderingContext2D} ctx - Canvas context
@@ -11,7 +10,8 @@ export class ModularRenderer {
     render(ctx, renderObjects, config, currentTime) {
         // Clear canvas first (should be done by background RenderObject, but this is a fallback)
         const first = renderObjects[0];
-        const hasExplicitBg = first && typeof first.fillColor !== 'undefined' && first.fillColor === config.backgroundColor;
+        const hasExplicitBg =
+            first && typeof first.fillColor !== 'undefined' && first.fillColor === config.backgroundColor;
         if (!renderObjects.length || !hasExplicitBg) {
             this.clearCanvas(ctx, config.canvas.width, config.canvas.height, config.backgroundColor);
         }
@@ -62,7 +62,7 @@ export class ModularRenderer {
                 frameData = tempCanvas.toDataURL();
                 break;
             case 'blob':
-                frameData = new Promise(resolve => {
+                frameData = new Promise((resolve) => {
                     tempCanvas.toBlob(resolve);
                 });
                 break;
@@ -96,7 +96,7 @@ export class ModularRenderer {
             // Convert to data URL
             frames.push({
                 time: time,
-                dataURL: frameCanvas.toDataURL()
+                dataURL: frameCanvas.toDataURL(),
             });
         }
 

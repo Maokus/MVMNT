@@ -6,7 +6,7 @@ export function isDebugEnabled() {
             const stored = window.localStorage?.getItem?.('VIS_DEBUG');
             if (stored === '1' || stored === 'true') return true;
         }
-    } catch { }
+    } catch {}
     // Allow opting in via env at build time
     return process.env.REACT_APP_VERBOSE_LOGS === 'true';
 }

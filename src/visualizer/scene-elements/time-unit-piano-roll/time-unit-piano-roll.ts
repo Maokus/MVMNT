@@ -13,17 +13,26 @@ export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
     private _currentMidiFile: File | null = null;
-    private _midiMacroListener?: (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => void;
+    private _midiMacroListener?: (
+        eventType:
+            | 'macroValueChanged'
+            | 'macroCreated'
+            | 'macroDeleted'
+            | 'macroAssigned'
+            | 'macroUnassigned'
+            | 'macrosImported',
+        data: any
+    ) => void;
 
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
-        
-    // Initialize MIDI manager (with its own TimingManager)
-    this.midiManager = new MidiManager(this.id);
-        
+
+        // Initialize MIDI manager (with its own TimingManager)
+        this.midiManager = new MidiManager(this.id);
+
         // Initialize animation controller
         this.animationController = new AnimationController(this);
-        
+
         // Set up specific MIDI file change handling
         this._setupMIDIFileListener();
     }
@@ -41,93 +50,338 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     label: 'Note Colors (per MIDI channel)',
                     collapsed: true,
                     properties: [
-                        { key: 'channel0Color', type: 'color', label: 'Channel 1', default: '#ff6b6b', description: 'Color for MIDI channel 1' },
-                        { key: 'channel1Color', type: 'color', label: 'Channel 2', default: '#4ecdc4', description: 'Color for MIDI channel 2' },
-                        { key: 'channel2Color', type: 'color', label: 'Channel 3', default: '#45b7d1', description: 'Color for MIDI channel 3' },
-                        { key: 'channel3Color', type: 'color', label: 'Channel 4', default: '#96ceb4', description: 'Color for MIDI channel 4' },
-                        { key: 'channel4Color', type: 'color', label: 'Channel 5', default: '#feca57', description: 'Color for MIDI channel 5' },
-                        { key: 'channel5Color', type: 'color', label: 'Channel 6', default: '#ff9ff3', description: 'Color for MIDI channel 6' },
-                        { key: 'channel6Color', type: 'color', label: 'Channel 7', default: '#54a0ff', description: 'Color for MIDI channel 7' },
-                        { key: 'channel7Color', type: 'color', label: 'Channel 8', default: '#5f27cd', description: 'Color for MIDI channel 8' },
-                        { key: 'channel8Color', type: 'color', label: 'Channel 9', default: '#00d2d3', description: 'Color for MIDI channel 9' },
-                        { key: 'channel9Color', type: 'color', label: 'Channel 10', default: '#ff9f43', description: 'Color for MIDI channel 10' },
-                        { key: 'channel10Color', type: 'color', label: 'Channel 11', default: '#10ac84', description: 'Color for MIDI channel 11' },
-                        { key: 'channel11Color', type: 'color', label: 'Channel 12', default: '#ee5a24', description: 'Color for MIDI channel 12' },
-                        { key: 'channel12Color', type: 'color', label: 'Channel 13', default: '#0984e3', description: 'Color for MIDI channel 13' },
-                        { key: 'channel13Color', type: 'color', label: 'Channel 14', default: '#a29bfe', description: 'Color for MIDI channel 14' },
-                        { key: 'channel14Color', type: 'color', label: 'Channel 15', default: '#fd79a8', description: 'Color for MIDI channel 15' },
-                        { key: 'channel15Color', type: 'color', label: 'Channel 16', default: '#e17055', description: 'Color for MIDI channel 16' }
-                    ]
+                        {
+                            key: 'channel0Color',
+                            type: 'color',
+                            label: 'Channel 1',
+                            default: '#ff6b6b',
+                            description: 'Color for MIDI channel 1',
+                        },
+                        {
+                            key: 'channel1Color',
+                            type: 'color',
+                            label: 'Channel 2',
+                            default: '#4ecdc4',
+                            description: 'Color for MIDI channel 2',
+                        },
+                        {
+                            key: 'channel2Color',
+                            type: 'color',
+                            label: 'Channel 3',
+                            default: '#45b7d1',
+                            description: 'Color for MIDI channel 3',
+                        },
+                        {
+                            key: 'channel3Color',
+                            type: 'color',
+                            label: 'Channel 4',
+                            default: '#96ceb4',
+                            description: 'Color for MIDI channel 4',
+                        },
+                        {
+                            key: 'channel4Color',
+                            type: 'color',
+                            label: 'Channel 5',
+                            default: '#feca57',
+                            description: 'Color for MIDI channel 5',
+                        },
+                        {
+                            key: 'channel5Color',
+                            type: 'color',
+                            label: 'Channel 6',
+                            default: '#ff9ff3',
+                            description: 'Color for MIDI channel 6',
+                        },
+                        {
+                            key: 'channel6Color',
+                            type: 'color',
+                            label: 'Channel 7',
+                            default: '#54a0ff',
+                            description: 'Color for MIDI channel 7',
+                        },
+                        {
+                            key: 'channel7Color',
+                            type: 'color',
+                            label: 'Channel 8',
+                            default: '#5f27cd',
+                            description: 'Color for MIDI channel 8',
+                        },
+                        {
+                            key: 'channel8Color',
+                            type: 'color',
+                            label: 'Channel 9',
+                            default: '#00d2d3',
+                            description: 'Color for MIDI channel 9',
+                        },
+                        {
+                            key: 'channel9Color',
+                            type: 'color',
+                            label: 'Channel 10',
+                            default: '#ff9f43',
+                            description: 'Color for MIDI channel 10',
+                        },
+                        {
+                            key: 'channel10Color',
+                            type: 'color',
+                            label: 'Channel 11',
+                            default: '#10ac84',
+                            description: 'Color for MIDI channel 11',
+                        },
+                        {
+                            key: 'channel11Color',
+                            type: 'color',
+                            label: 'Channel 12',
+                            default: '#ee5a24',
+                            description: 'Color for MIDI channel 12',
+                        },
+                        {
+                            key: 'channel12Color',
+                            type: 'color',
+                            label: 'Channel 13',
+                            default: '#0984e3',
+                            description: 'Color for MIDI channel 13',
+                        },
+                        {
+                            key: 'channel13Color',
+                            type: 'color',
+                            label: 'Channel 14',
+                            default: '#a29bfe',
+                            description: 'Color for MIDI channel 14',
+                        },
+                        {
+                            key: 'channel14Color',
+                            type: 'color',
+                            label: 'Channel 15',
+                            default: '#fd79a8',
+                            description: 'Color for MIDI channel 15',
+                        },
+                        {
+                            key: 'channel15Color',
+                            type: 'color',
+                            label: 'Channel 16',
+                            default: '#e17055',
+                            description: 'Color for MIDI channel 16',
+                        },
+                    ],
                 },
                 {
                     id: 'timing',
                     label: 'Timing',
                     collapsed: true,
                     properties: [
-                        { key: 'bpm', type: 'number', label: 'BPM (Tempo)', default: 120, min: 20, max: 300, step: 0.1, description: 'Beats per minute for this element' },
-                        { key: 'beatsPerBar', type: 'number', label: 'Beats per Bar', default: 4, min: 1, max: 16, step: 1, description: 'Number of beats in each bar for this element' }
-                    ]
+                        {
+                            key: 'bpm',
+                            type: 'number',
+                            label: 'BPM (Tempo)',
+                            default: 120,
+                            min: 20,
+                            max: 300,
+                            step: 0.1,
+                            description: 'Beats per minute for this element',
+                        },
+                        {
+                            key: 'beatsPerBar',
+                            type: 'number',
+                            label: 'Beats per Bar',
+                            default: 4,
+                            min: 1,
+                            max: 16,
+                            step: 1,
+                            description: 'Number of beats in each bar for this element',
+                        },
+                    ],
                 },
                 {
                     id: 'content',
                     label: 'Content',
                     collapsed: false,
                     properties: [
-                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null, description: 'Upload a MIDI file specifically for this piano roll element' }
-                    ]
+                        {
+                            key: 'midiFile',
+                            type: 'file',
+                            label: 'MIDI File',
+                            accept: '.mid,.midi',
+                            default: null,
+                            description: 'Upload a MIDI file specifically for this piano roll element',
+                        },
+                    ],
                 },
                 {
                     id: 'layout',
                     label: 'Layout',
                     collapsed: false,
                     properties: [
-                        { key: 'pianoWidth', type: 'number', label: 'Piano Width', default: 120, min: 80, max: 300, step: 10, description: 'Width of the piano keys section in pixels' },
-                        { key: 'rollWidth', type: 'number', label: 'Roll Width', default: 800, min: 200, max: 2000, step: 50, description: 'Width of the roll section in pixels (auto-calculated if empty)' },
-                        { key: 'noteHeight', type: 'number', label: 'Note Height', default: 20, min: 4, max: 20, step: 1, description: 'Height of MIDI note blocks in pixels' },
-                        { key: 'timeUnitBars', type: 'number', label: 'Time Unit (Bars)', default: 1, min: 1, max: 8, step: 1, description: 'Number of bars shown in each time unit' },
-                        { key: 'minNote', type: 'number', label: 'Minimum Note', default: 30, min: 0, max: 127, step: 1, description: 'Lowest MIDI note to display (21 = A0)' },
-                        { key: 'maxNote', type: 'number', label: 'Maximum Note', default: 72, min: 0, max: 127, step: 1, description: 'Highest MIDI note to display (108 = C8)' },
-                    ]
+                        {
+                            key: 'pianoWidth',
+                            type: 'number',
+                            label: 'Piano Width',
+                            default: 120,
+                            min: 80,
+                            max: 300,
+                            step: 10,
+                            description: 'Width of the piano keys section in pixels',
+                        },
+                        {
+                            key: 'rollWidth',
+                            type: 'number',
+                            label: 'Roll Width',
+                            default: 800,
+                            min: 200,
+                            max: 2000,
+                            step: 50,
+                            description: 'Width of the roll section in pixels (auto-calculated if empty)',
+                        },
+                        {
+                            key: 'noteHeight',
+                            type: 'number',
+                            label: 'Note Height',
+                            default: 20,
+                            min: 4,
+                            max: 20,
+                            step: 1,
+                            description: 'Height of MIDI note blocks in pixels',
+                        },
+                        {
+                            key: 'timeUnitBars',
+                            type: 'number',
+                            label: 'Time Unit (Bars)',
+                            default: 1,
+                            min: 1,
+                            max: 8,
+                            step: 1,
+                            description: 'Number of bars shown in each time unit',
+                        },
+                        {
+                            key: 'minNote',
+                            type: 'number',
+                            label: 'Minimum Note',
+                            default: 30,
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            description: 'Lowest MIDI note to display (21 = A0)',
+                        },
+                        {
+                            key: 'maxNote',
+                            type: 'number',
+                            label: 'Maximum Note',
+                            default: 72,
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            description: 'Highest MIDI note to display (108 = C8)',
+                        },
+                    ],
                 },
                 {
                     id: 'display',
                     label: 'Display',
                     collapsed: false,
                     properties: [
-                        { key: 'showNoteGrid', type: 'boolean', label: 'Show Note Grid', default: true, description: 'Show horizontal grid lines for notes' },
-                        { key: 'showNoteLabels', type: 'boolean', label: 'Show Note Labels', default: true, description: 'Show note names (C, D, E, etc.)' },
-                        { key: 'showNotes', type: 'boolean', label: 'Show Notes', default: true, description: 'Show MIDI note blocks' },
-                        { key: 'showBeatGrid', type: 'boolean', label: 'Show Beat Grid', default: true, description: 'Show vertical beat grid lines' },
-                        { key: 'showBeatLabels', type: 'boolean', label: 'Show Beat Labels', default: true, description: 'Show beat and bar labels' }
-                    ]
+                        {
+                            key: 'showNoteGrid',
+                            type: 'boolean',
+                            label: 'Show Note Grid',
+                            default: true,
+                            description: 'Show horizontal grid lines for notes',
+                        },
+                        {
+                            key: 'showNoteLabels',
+                            type: 'boolean',
+                            label: 'Show Note Labels',
+                            default: true,
+                            description: 'Show note names (C, D, E, etc.)',
+                        },
+                        {
+                            key: 'showNotes',
+                            type: 'boolean',
+                            label: 'Show Notes',
+                            default: true,
+                            description: 'Show MIDI note blocks',
+                        },
+                        {
+                            key: 'showBeatGrid',
+                            type: 'boolean',
+                            label: 'Show Beat Grid',
+                            default: true,
+                            description: 'Show vertical beat grid lines',
+                        },
+                        {
+                            key: 'showBeatLabels',
+                            type: 'boolean',
+                            label: 'Show Beat Labels',
+                            default: true,
+                            description: 'Show beat and bar labels',
+                        },
+                    ],
                 },
                 {
                     id: 'animation',
                     label: 'Animation',
                     collapsed: false,
                     properties: [
-                        { key: 'animationType', type: 'select', label: 'Animation Type', default: 'expand', options: [
-                            { value: 'fade', label: 'Fade In/Out' },
-                            { value: 'slide', label: 'Slide' },
-                            { value: 'scale', label: 'Scale' },
-                            { value: 'expand', label: 'Expand' },
-                            { value: 'debug', label: 'Debug'},
-                            { value: 'none', label: 'No Animation' }
-                        ], description: 'Type of animation for note appearance' },
-                        { key: 'animationSpeed', type: 'number', label: 'Animation Speed', default: 1.0, min: 0.1, max: 5.0, step: 0.1, description: 'Speed multiplier for animations' },
-                        { key: 'animationDuration', type: 'number', label: 'Animation Duration', default: 0.5, min: 0.1, max: 2.0, step: 0.1, description: 'Duration of note animations in seconds' }
-                    ]
+                        {
+                            key: 'animationType',
+                            type: 'select',
+                            label: 'Animation Type',
+                            default: 'expand',
+                            options: [
+                                { value: 'fade', label: 'Fade In/Out' },
+                                { value: 'slide', label: 'Slide' },
+                                { value: 'scale', label: 'Scale' },
+                                { value: 'expand', label: 'Expand' },
+                                { value: 'debug', label: 'Debug' },
+                                { value: 'none', label: 'No Animation' },
+                            ],
+                            description: 'Type of animation for note appearance',
+                        },
+                        {
+                            key: 'animationSpeed',
+                            type: 'number',
+                            label: 'Animation Speed',
+                            default: 1.0,
+                            min: 0.1,
+                            max: 5.0,
+                            step: 0.1,
+                            description: 'Speed multiplier for animations',
+                        },
+                        {
+                            key: 'animationDuration',
+                            type: 'number',
+                            label: 'Animation Duration',
+                            default: 0.5,
+                            min: 0.1,
+                            max: 2.0,
+                            step: 0.1,
+                            description: 'Duration of note animations in seconds',
+                        },
+                    ],
                 },
                 {
                     id: 'playhead',
                     label: 'Playhead',
                     collapsed: true,
                     properties: [
-                        { key: 'playheadLineWidth', type: 'number', label: 'Playhead Line Width', default: 2, min: 1, max: 10, step: 1, description: 'Width of the playhead line in pixels' },
-                        { key: 'showPlayhead', type: 'boolean', label: 'Show Playhead', default: true, description: 'Show the playhead line' }
-                    ]
-                }
-            ]
+                        {
+                            key: 'playheadLineWidth',
+                            type: 'number',
+                            label: 'Playhead Line Width',
+                            default: 2,
+                            min: 1,
+                            max: 10,
+                            step: 1,
+                            description: 'Width of the playhead line in pixels',
+                        },
+                        {
+                            key: 'showPlayhead',
+                            type: 'boolean',
+                            label: 'Show Playhead',
+                            default: true,
+                            description: 'Show the playhead line',
+                        },
+                    ],
+                },
+            ],
         };
     }
 
@@ -169,9 +423,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
             targetTime,
             timeUnitBars
         );
-        
+
         // Create render objects for the piano roll
-        debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${windowedNoteBlocks.length} windowed note segments`);
+        debugLog(
+            `[_buildRenderObjects] ${
+                showNotes ? 'Rendering notes' : 'Skipping notes'
+            } for target time ${targetTime} with ${windowedNoteBlocks.length} windowed note segments`
+        );
         if (showNotes && windowedNoteBlocks.length > 0) {
             const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
@@ -185,13 +443,27 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add grid lines
         if (showNoteGrid) {
-            renderObjects.push(...this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight));
+            renderObjects.push(
+                ...this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight)
+            );
         }
 
         // Add beat grid (tempo-aware)
         if (showBeatGrid) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
-            renderObjects.push(...this._createBeatGridLines(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800, (maxNote - minNote + 1) * noteHeight));
+            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+                targetTime,
+                timeUnitBars
+            );
+            renderObjects.push(
+                ...this._createBeatGridLines(
+                    windowStart,
+                    windowEnd,
+                    beatsPerBar,
+                    pianoWidth,
+                    rollWidth || 800,
+                    (maxNote - minNote + 1) * noteHeight
+                )
+            );
         }
 
         // Add note labels
@@ -201,13 +473,27 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add beat labels (tempo-aware)
         if (showBeatLabels) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
-            renderObjects.push(...this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800));
+            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+                targetTime,
+                timeUnitBars
+            );
+            renderObjects.push(
+                ...this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800)
+            );
         }
 
         // Add playhead
         if (showPlayhead) {
-            renderObjects.push(...this._createPlayhead(config, targetTime, pianoWidth, rollWidth || 800, (maxNote - minNote + 1) * noteHeight, playheadLineWidth));
+            renderObjects.push(
+                ...this._createPlayhead(
+                    config,
+                    targetTime,
+                    pianoWidth,
+                    rollWidth || 800,
+                    (maxNote - minNote + 1) * noteHeight,
+                    playheadLineWidth
+                )
+            );
         }
 
         return renderObjects;
@@ -237,7 +523,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             console.log(`Successfully loaded MIDI file for bound element ${this.id}:`, {
                 duration: this.midiManager.getDuration(),
                 noteCount: this.midiManager.getNotes().length,
-                bpm: this.midiManager.timingManager.bpm
+                bpm: this.midiManager.timingManager.bpm,
             });
 
             // If minNote/maxNote are constant-bound, set them to actual min/max from the MIDI snippet
@@ -270,7 +556,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     canvas.dispatchEvent(new CustomEvent('visualizer-update'));
                 }
             }
-
         } catch (error) {
             console.error(`Failed to load MIDI file for bound element ${this.id}:`, error);
         }
@@ -281,12 +566,18 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create horizontal grid lines for notes
      */
-    private _createNoteGridLines(minNote: number, maxNote: number, pianoWidth: number, rollWidth: number, noteHeight: number): RenderObjectInterface[] {
+    private _createNoteGridLines(
+        minNote: number,
+        maxNote: number,
+        pianoWidth: number,
+        rollWidth: number,
+        noteHeight: number
+    ): RenderObjectInterface[] {
         const lines: RenderObjectInterface[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
-            const y = totalHeight - ((note - minNote + 1) * noteHeight);
+            const y = totalHeight - (note - minNote + 1) * noteHeight;
             const line = new Line(pianoWidth, y, pianoWidth + rollWidth, y, '#333333', 1);
             lines.push(line);
         }
@@ -297,7 +588,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create vertical grid lines for beats
      */
-    private _createBeatGridLines(windowStart: number, windowEnd: number, beatsPerBar: number, pianoWidth: number, rollWidth: number, totalHeight: number): RenderObjectInterface[] {
+    private _createBeatGridLines(
+        windowStart: number,
+        windowEnd: number,
+        beatsPerBar: number,
+        pianoWidth: number,
+        rollWidth: number,
+        totalHeight: number
+    ): RenderObjectInterface[] {
         const lines: RenderObjectInterface[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
@@ -316,14 +614,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create note name labels
      */
-    private _createNoteLabels(minNote: number, maxNote: number, pianoWidth: number, noteHeight: number): RenderObjectInterface[] {
+    private _createNoteLabels(
+        minNote: number,
+        maxNote: number,
+        pianoWidth: number,
+        noteHeight: number
+    ): RenderObjectInterface[] {
         const labels: RenderObjectInterface[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
-            const y = totalHeight - ((note - minNote + 0.5) * noteHeight);
+            const y = totalHeight - (note - minNote + 0.5) * noteHeight;
             const noteName = this.midiManager.getNoteName(note);
-            
+
             const label = new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle');
             labels.push(label);
         }
@@ -334,7 +637,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create beat and bar labels
      */
-    private _createBeatLabels(windowStart: number, windowEnd: number, beatsPerBar: number, pianoWidth: number, rollWidth: number): RenderObjectInterface[] {
+    private _createBeatLabels(
+        windowStart: number,
+        windowEnd: number,
+        beatsPerBar: number,
+        pianoWidth: number,
+        rollWidth: number
+    ): RenderObjectInterface[] {
         const labels: RenderObjectInterface[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
@@ -353,27 +662,31 @@ export class TimeUnitPianoRollElement extends SceneElement {
     /**
      * Create playhead line
      */
-    private _createPlayhead(config: any, targetTime: number, pianoWidth: number, rollWidth: number, totalHeight: number, lineWidth: number): RenderObjectInterface[] {
+    private _createPlayhead(
+        config: any,
+        targetTime: number,
+        pianoWidth: number,
+        rollWidth: number,
+        totalHeight: number,
+        lineWidth: number
+    ): RenderObjectInterface[] {
         const playheadObjects: RenderObjectInterface[] = [];
-        
+
         // Get playhead color from config (defaults from visualizer core)
         const playheadColor = config.playheadColor || '#ff6b6b';
-        
+
         // Calculate playhead position
-    const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(targetTime, this.getTimeUnitBars());
-    const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
-    const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
+        const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+            targetTime,
+            this.getTimeUnitBars()
+        );
+        const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
+        const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
         const playheadX = pianoWidth + playheadPosition;
 
         // Create playhead line using Line.createPlayhead if available, otherwise use regular Line
         if (Line.createPlayhead) {
-            const playhead = Line.createPlayhead(
-                playheadX,
-                0,
-                totalHeight,
-                playheadColor,
-                lineWidth
-            );
+            const playhead = Line.createPlayhead(playheadX, 0, totalHeight, playheadColor, lineWidth);
             playheadObjects.push(playhead);
         } else {
             // Fallback to regular line
@@ -391,9 +704,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
      */
     private _dispatchChangeEvent(): void {
         if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.dispatchEvent(new CustomEvent('sceneElementChanged', {
-                detail: { elementId: this.id }
-            }));
+            window.dispatchEvent(
+                new CustomEvent('sceneElementChanged', {
+                    detail: { elementId: this.id },
+                })
+            );
         }
     }
 
@@ -401,7 +716,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Set up listener specifically for MIDI file changes to immediately process file
      */
     private _setupMIDIFileListener(): void {
-        this._midiMacroListener = (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+        this._midiMacroListener = (
+            eventType:
+                | 'macroValueChanged'
+                | 'macroCreated'
+                | 'macroDeleted'
+                | 'macroAssigned'
+                | 'macroUnassigned'
+                | 'macrosImported',
+            data: any
+        ) => {
             if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
                 // Check if this element is bound to the midiFile macro
                 if (this.isBoundToMacro('midiFile', 'midiFile')) {

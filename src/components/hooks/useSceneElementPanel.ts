@@ -34,7 +34,7 @@ export const useSceneElementPanel = ({
     onElementDelete,
     onElementConfigChange,
     onElementIdChange,
-    refreshTrigger
+    refreshTrigger,
 }: UseSceneElementPanelProps): SceneElementPanelState & SceneElementPanelActions => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [elements, setElements] = useState<any[]>([]);
@@ -82,7 +82,6 @@ export const useSceneElementPanel = ({
 
             setSceneBuilder(builder);
             console.log('Scene builder initialized for React component:', builder);
-
         } catch (error) {
             console.error('Error initializing scene builder:', error);
             setError('Failed to initialize scene builder: ' + (error instanceof Error ? error.message : String(error)));
@@ -97,167 +96,185 @@ export const useSceneElementPanel = ({
     }, [refreshTrigger, sceneBuilder, refreshElements]);
 
     // Handle element selection
-    const handleElementSelect = useCallback((elementId: string | null) => {
-        setSelectedElementId(elementId);
-        onElementSelect?.(elementId);
-    }, [onElementSelect]);
+    const handleElementSelect = useCallback(
+        (elementId: string | null) => {
+            setSelectedElementId(elementId);
+            onElementSelect?.(elementId);
+        },
+        [onElementSelect]
+    );
 
     // Handle element visibility toggle
-    const handleToggleVisibility = useCallback((elementId: string) => {
-        if (!sceneBuilder) return;
+    const handleToggleVisibility = useCallback(
+        (elementId: string) => {
+            if (!sceneBuilder) return;
 
-        // Get current element config to determine current visibility
-        const currentConfig = sceneBuilder.getElementConfig?.(elementId);
-        if (currentConfig) {
-            const newVisibility = !currentConfig.visible;
-            
-            // Use the scene builder's updateElementConfig method if available
-            if (typeof sceneBuilder.updateElementConfig === 'function') {
-                const success = sceneBuilder.updateElementConfig(elementId, { visible: newVisibility });
-                
-                if (success) {
-                    refreshElements();
+            // Get current element config to determine current visibility
+            const currentConfig = sceneBuilder.getElementConfig?.(elementId);
+            if (currentConfig) {
+                const newVisibility = !currentConfig.visible;
 
-                    if (visualizer?.invalidateRender) {
-                        visualizer.invalidateRender();
+                // Use the scene builder's updateElementConfig method if available
+                if (typeof sceneBuilder.updateElementConfig === 'function') {
+                    const success = sceneBuilder.updateElementConfig(elementId, { visible: newVisibility });
+
+                    if (success) {
+                        refreshElements();
+
+                        if (visualizer?.invalidateRender) {
+                            visualizer.invalidateRender();
+                        }
+
+                        // Trigger element config change event with visibility update
+                        onElementConfigChange?.(elementId, { visible: newVisibility });
                     }
+                } else {
+                    // Fallback to direct element access for older scene builders
+                    const element = sceneBuilder.getElement(elementId);
+                    if (element) {
+                        element.visible = newVisibility;
+                        refreshElements();
 
-                    // Trigger element config change event with visibility update
-                    onElementConfigChange?.(elementId, { visible: newVisibility });
-                }
-            } else {
-                // Fallback to direct element access for older scene builders
-                const element = sceneBuilder.getElement(elementId);
-                if (element) {
-                    element.visible = newVisibility;
-                    refreshElements();
+                        if (visualizer?.invalidateRender) {
+                            visualizer.invalidateRender();
+                        }
 
-                    if (visualizer?.invalidateRender) {
-                        visualizer.invalidateRender();
+                        onElementConfigChange?.(elementId, { visible: newVisibility });
                     }
-
-                    onElementConfigChange?.(elementId, { visible: newVisibility });
                 }
             }
-        }
-    }, [sceneBuilder, refreshElements, visualizer, onElementConfigChange]);
+        },
+        [sceneBuilder, refreshElements, visualizer, onElementConfigChange]
+    );
 
     // Handle element move (reorder)
-    const handleMoveElement = useCallback((elementId: string, newIndex: number) => {
-        if (!sceneBuilder) return;
+    const handleMoveElement = useCallback(
+        (elementId: string, newIndex: number) => {
+            if (!sceneBuilder) return;
 
-        const element = sceneBuilder.getElement(elementId);
-        if (!element) return;
+            const element = sceneBuilder.getElement(elementId);
+            if (!element) return;
 
-        const currentIndex = elements.findIndex(el => el.id === elementId);
-        if (currentIndex === -1) return;
+            const currentIndex = elements.findIndex((el) => el.id === elementId);
+            if (currentIndex === -1) return;
 
-        // Remove element from current position
-        const updatedElements = [...elements];
-        const [movedElement] = updatedElements.splice(currentIndex, 1);
+            // Remove element from current position
+            const updatedElements = [...elements];
+            const [movedElement] = updatedElements.splice(currentIndex, 1);
 
-        // Insert at new position
-        const targetIndex = Math.max(0, Math.min(newIndex, updatedElements.length));
-        updatedElements.splice(targetIndex, 0, movedElement);
+            // Insert at new position
+            const targetIndex = Math.max(0, Math.min(newIndex, updatedElements.length));
+            updatedElements.splice(targetIndex, 0, movedElement);
 
-        // Update the scene builder's elements array
-        if (sceneBuilder.elements) {
-            sceneBuilder.elements.splice(0, sceneBuilder.elements.length, ...updatedElements);
-        }
+            // Update the scene builder's elements array
+            if (sceneBuilder.elements) {
+                sceneBuilder.elements.splice(0, sceneBuilder.elements.length, ...updatedElements);
+            }
 
-        // Refresh elements and trigger re-render
-        refreshElements();
+            // Refresh elements and trigger re-render
+            refreshElements();
 
-        if (visualizer?.invalidateRender) {
-            visualizer.invalidateRender();
-        }
-    }, [sceneBuilder, elements, refreshElements, visualizer]);
+            if (visualizer?.invalidateRender) {
+                visualizer.invalidateRender();
+            }
+        },
+        [sceneBuilder, elements, refreshElements, visualizer]
+    );
 
     // Handle element duplication
-    const handleDuplicateElement = useCallback((elementId: string) => {
-        if (!sceneBuilder) return;
+    const handleDuplicateElement = useCallback(
+        (elementId: string) => {
+            if (!sceneBuilder) return;
 
-        const element = sceneBuilder.getElement(elementId);
-        if (!element) return;
+            const element = sceneBuilder.getElement(elementId);
+            if (!element) return;
 
-        // Generate a unique ID for the duplicated element
-        const baseId = element.id.replace(/_copy_\d+$/, ''); // Remove any existing _copy_N suffix
-        let duplicateId = `${baseId}_copy`;
-        let counter = 1;
+            // Generate a unique ID for the duplicated element
+            const baseId = element.id.replace(/_copy_\d+$/, ''); // Remove any existing _copy_N suffix
+            let duplicateId = `${baseId}_copy`;
+            let counter = 1;
 
-        // Ensure the ID is unique
-        while (sceneBuilder.getElement(duplicateId)) {
-            duplicateId = `${baseId}_copy_${counter}`;
-            counter++;
-        }
-
-        // Create duplicate element
-        const success = sceneBuilder.duplicateElement(elementId, duplicateId);
-        if (success) {
-            refreshElements();
-
-            if (visualizer?.invalidateRender) {
-                visualizer.invalidateRender();
+            // Ensure the ID is unique
+            while (sceneBuilder.getElement(duplicateId)) {
+                duplicateId = `${baseId}_copy_${counter}`;
+                counter++;
             }
 
-            // Optionally select the duplicated element
-            handleElementSelect(duplicateId);
+            // Create duplicate element
+            const success = sceneBuilder.duplicateElement(elementId, duplicateId);
+            if (success) {
+                refreshElements();
 
-            onElementAdd?.(element.type, duplicateId);
-        }
-    }, [sceneBuilder, refreshElements, visualizer, handleElementSelect, onElementAdd]);
+                if (visualizer?.invalidateRender) {
+                    visualizer.invalidateRender();
+                }
+
+                // Optionally select the duplicated element
+                handleElementSelect(duplicateId);
+
+                onElementAdd?.(element.type, duplicateId);
+            }
+        },
+        [sceneBuilder, refreshElements, visualizer, handleElementSelect, onElementAdd]
+    );
 
     // Handle element deletion
-    const handleDeleteElement = useCallback((elementId: string) => {
-        if (!sceneBuilder) return;
+    const handleDeleteElement = useCallback(
+        (elementId: string) => {
+            if (!sceneBuilder) return;
 
-        if (window.confirm(`Delete element "${elementId}"?`)) {
-            sceneBuilder.removeElement(elementId);
+            if (window.confirm(`Delete element "${elementId}"?`)) {
+                sceneBuilder.removeElement(elementId);
 
-            if (selectedElementId === elementId) {
-                handleElementSelect(null);
+                if (selectedElementId === elementId) {
+                    handleElementSelect(null);
+                }
+
+                refreshElements();
+
+                if (visualizer?.invalidateRender) {
+                    visualizer.invalidateRender();
+                }
+
+                onElementDelete?.(elementId);
             }
-
-            refreshElements();
-
-            if (visualizer?.invalidateRender) {
-                visualizer.invalidateRender();
-            }
-
-            onElementDelete?.(elementId);
-        }
-    }, [sceneBuilder, selectedElementId, handleElementSelect, refreshElements, visualizer, onElementDelete]);
+        },
+        [sceneBuilder, selectedElementId, handleElementSelect, refreshElements, visualizer, onElementDelete]
+    );
 
     // Handle element ID update
-    const handleUpdateElementId = useCallback((oldId: string, newId: string): boolean => {
-        if (!sceneBuilder) return false;
+    const handleUpdateElementId = useCallback(
+        (oldId: string, newId: string): boolean => {
+            if (!sceneBuilder) return false;
 
-        // Check if new ID already exists
-        const existingElement = sceneBuilder.getElement(newId);
-        if (existingElement && existingElement.id !== oldId) {
-            alert(`Element with ID "${newId}" already exists. Please choose a different ID.`);
-            return false;
-        }
-
-        const success = sceneBuilder.updateElementId(oldId, newId);
-        if (success) {
-            if (selectedElementId === oldId) {
-                setSelectedElementId(newId);
+            // Check if new ID already exists
+            const existingElement = sceneBuilder.getElement(newId);
+            if (existingElement && existingElement.id !== oldId) {
+                alert(`Element with ID "${newId}" already exists. Please choose a different ID.`);
+                return false;
             }
 
-            refreshElements();
+            const success = sceneBuilder.updateElementId(oldId, newId);
+            if (success) {
+                if (selectedElementId === oldId) {
+                    setSelectedElementId(newId);
+                }
 
-            if (visualizer?.invalidateRender) {
-                visualizer.invalidateRender();
+                refreshElements();
+
+                if (visualizer?.invalidateRender) {
+                    visualizer.invalidateRender();
+                }
+
+                onElementIdChange?.(oldId, newId);
+                return true;
+            } else {
+                alert('Failed to update element ID. Please try again.');
+                return false;
             }
-
-            onElementIdChange?.(oldId, newId);
-            return true;
-        } else {
-            alert('Failed to update element ID. Please try again.');
-            return false;
-        }
-    }, [sceneBuilder, selectedElementId, refreshElements, visualizer, onElementIdChange]);
+        },
+        [sceneBuilder, selectedElementId, refreshElements, visualizer, onElementIdChange]
+    );
 
     return {
         selectedElementId,
@@ -270,6 +287,6 @@ export const useSceneElementPanel = ({
         handleDuplicateElement,
         handleDeleteElement,
         handleUpdateElementId,
-        refreshElements
+        refreshElements,
     };
 };

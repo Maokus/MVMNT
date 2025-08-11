@@ -1,28 +1,28 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { RenderObjectInterface, EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
 import { EmptyRenderObject } from '../render-objects/empty.js';
-import { 
-    PropertyBinding, 
-    ConstantBinding, 
-    MacroBinding, 
-    PropertyBindingUtils, 
+import {
+    PropertyBinding,
+    ConstantBinding,
+    MacroBinding,
+    PropertyBindingUtils,
     PropertyBindingData,
-    BindingType
+    BindingType,
 } from '../property-bindings';
 import { globalMacroManager } from '../macro-manager';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
-    
+
     // Property bindings - these replace direct property storage
     protected bindings: Map<string, PropertyBinding> = new Map();
-    
+
     // Cache for frequently accessed values
     private _cachedValues: Map<string, any> = new Map();
     private _cacheValid: Map<string, boolean> = new Map();
     // Cache for computed scene element bounds (per target time bucket)
-    private _boundsCache: Map<number, { x: number, y: number, width: number, height: number }> = new Map();
+    private _boundsCache: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
     private _boundsDirty: boolean = true;
 
     private _macroListenerRef?: (eventType: any, data: any) => void;
@@ -30,22 +30,31 @@ export class SceneElement implements SceneElementInterface {
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
         this.id = id;
-        
+
         // Initialize default bindings from schema
         this._initializeDefaultBindings();
-        
+
         // Apply configuration, converting values to bindings
         this._applyConfig(config);
-        
+
         // Set up macro change listener to invalidate cache
-    this._setupMacroListener();
+        this._setupMacroListener();
     }
 
     /**
      * Set up listener for macro changes to invalidate cache
      */
     private _setupMacroListener(): void {
-        this._macroListenerRef = (eventType: 'macroValueChanged' | 'macroCreated' | 'macroDeleted' | 'macroAssigned' | 'macroUnassigned' | 'macrosImported', data: any) => {
+        this._macroListenerRef = (
+            eventType:
+                | 'macroValueChanged'
+                | 'macroCreated'
+                | 'macroDeleted'
+                | 'macroAssigned'
+                | 'macroUnassigned'
+                | 'macrosImported',
+            data: any
+        ) => {
             // Avoid noisy logging during playback; enable via debug if needed
             if (eventType === 'macroValueChanged') {
                 // Invalidate cache for properties bound to this macro
@@ -97,7 +106,7 @@ export class SceneElement implements SceneElementInterface {
                 }
             }
         }
-        
+
         // Set default bindings for base properties
         this.bindings.set('visible', new ConstantBinding(true));
         this.bindings.set('zIndex', new ConstantBinding(0));
@@ -133,15 +142,15 @@ export class SceneElement implements SceneElementInterface {
         if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && value != null) {
             // If bound to a macro, assume macro stores degrees and convert to radians here
             if ((binding as any).type === 'macro' && typeof value === 'number') {
-                value = (value as unknown as number) * (Math.PI / 180) as any;
+                value = ((value as unknown as number) * (Math.PI / 180)) as any;
             }
         }
-        
+
         // Cache the value
         this._cachedValues.set(key, value);
         this._cacheValid.set(key, true);
-    // Property read doesn't affect bounds cache
-        
+        // Property read doesn't affect bounds cache
+
         return value;
     }
 
@@ -156,10 +165,10 @@ export class SceneElement implements SceneElementInterface {
         } else {
             binding.setValue(value);
         }
-        
+
         // Invalidate cache
         this._cacheValid.set(key, false);
-    this._invalidateBoundsCache();
+        this._invalidateBoundsCache();
     }
 
     /**
@@ -168,7 +177,7 @@ export class SceneElement implements SceneElementInterface {
     bindToMacro(propertyKey: string, macroId: string): void {
         this.bindings.set(propertyKey, new MacroBinding(macroId));
         this._cacheValid.set(propertyKey, false);
-    this._invalidateBoundsCache();
+        this._invalidateBoundsCache();
     }
 
     /**
@@ -198,7 +207,7 @@ export class SceneElement implements SceneElementInterface {
     setBinding(propertyKey: string, binding: PropertyBinding): void {
         this.bindings.set(propertyKey, binding);
         this._cacheValid.set(propertyKey, false);
-    this._invalidateBoundsCache();
+        this._invalidateBoundsCache();
     }
 
     /**
@@ -253,27 +262,65 @@ export class SceneElement implements SceneElementInterface {
     }
 
     // Property getters using the binding system
-    get visible(): boolean { return this.getProperty('visible'); }
-    get zIndex(): number { return this.getProperty('zIndex'); }
-    get offsetX(): number { return this.getProperty('offsetX'); }
-    get offsetY(): number { return this.getProperty('offsetY'); }
-    get elementScaleX(): number { return this.getProperty('elementScaleX'); }
-    get elementScaleY(): number { return this.getProperty('elementScaleY'); }
-    get elementRotation(): number { return this.getProperty('elementRotation'); }
-    get elementSkewX(): number { return this.getProperty('elementSkewX'); }
-    get elementSkewY(): number { return this.getProperty('elementSkewY'); }
-    get anchorX(): number { return this.getProperty('anchorX'); }
-    get anchorY(): number { return this.getProperty('anchorY'); }
-    get elementOpacity(): number { return this.getProperty('elementOpacity'); }
+    get visible(): boolean {
+        return this.getProperty('visible');
+    }
+    get zIndex(): number {
+        return this.getProperty('zIndex');
+    }
+    get offsetX(): number {
+        return this.getProperty('offsetX');
+    }
+    get offsetY(): number {
+        return this.getProperty('offsetY');
+    }
+    get elementScaleX(): number {
+        return this.getProperty('elementScaleX');
+    }
+    get elementScaleY(): number {
+        return this.getProperty('elementScaleY');
+    }
+    get elementRotation(): number {
+        return this.getProperty('elementRotation');
+    }
+    get elementSkewX(): number {
+        return this.getProperty('elementSkewX');
+    }
+    get elementSkewY(): number {
+        return this.getProperty('elementSkewY');
+    }
+    get anchorX(): number {
+        return this.getProperty('anchorX');
+    }
+    get anchorY(): number {
+        return this.getProperty('anchorY');
+    }
+    get elementOpacity(): number {
+        return this.getProperty('elementOpacity');
+    }
 
     // Backward compatibility properties
-    get globalScaleX(): number { return this.elementScaleX; }
-    get globalScaleY(): number { return this.elementScaleY; }
-    get globalRotation(): number { return this.elementRotation; }
-    get globalSkewX(): number { return this.elementSkewX; }
-    get globalSkewY(): number { return this.elementSkewY; }
-    get globalOpacity(): number { return this.elementOpacity; }
-    get config(): { [key: string]: any } { return this.getConfig(); }
+    get globalScaleX(): number {
+        return this.elementScaleX;
+    }
+    get globalScaleY(): number {
+        return this.elementScaleY;
+    }
+    get globalRotation(): number {
+        return this.elementRotation;
+    }
+    get globalSkewX(): number {
+        return this.elementSkewX;
+    }
+    get globalSkewY(): number {
+        return this.elementSkewY;
+    }
+    get globalOpacity(): number {
+        return this.elementOpacity;
+    }
+    get config(): { [key: string]: any } {
+        return this.getConfig();
+    }
 
     /**
      * Template method for building RenderObjects with automatic transform application
@@ -288,7 +335,7 @@ export class SceneElement implements SceneElementInterface {
         if (childRenderObjects.length === 0) return [];
 
         // Calculate the bounding box and anchor point for transformation
-    const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime);
+        const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime);
         const anchorPixelX = bounds.x + bounds.width * this.anchorX;
         const anchorPixelY = bounds.y + bounds.height * this.anchorY;
 
@@ -333,7 +380,12 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Calculate the bounding box of all child render objects
      */
-    private _calculateSceneElementBounds(renderObjects: RenderObjectInterface[]): { x: number, y: number, width: number, height: number } {
+    private _calculateSceneElementBounds(renderObjects: RenderObjectInterface[]): {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    } {
         if (renderObjects.length === 0) {
             return { x: 0, y: 0, width: 0, height: 0 };
         }
@@ -366,7 +418,7 @@ export class SceneElement implements SceneElementInterface {
             x: minX,
             y: minY,
             width: maxX - minX,
-            height: maxY - minY
+            height: maxY - minY,
         };
     }
 
@@ -374,7 +426,10 @@ export class SceneElement implements SceneElementInterface {
      * Retrieve scene element bounds from cache or compute and cache them.
      * Uses a time bucket (ms) to avoid excessive keys; invalidated on any property/macro change.
      */
-    private _getCachedSceneElementBounds(renderObjects: RenderObjectInterface[], targetTime: number): { x: number, y: number, width: number, height: number } {
+    private _getCachedSceneElementBounds(
+        renderObjects: RenderObjectInterface[],
+        targetTime: number
+    ): { x: number; y: number; width: number; height: number } {
         const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
         if (!this._boundsDirty && this._boundsCache.has(timeBucket)) {
             const cached = this._boundsCache.get(timeBucket)!;
@@ -407,23 +462,22 @@ export class SceneElement implements SceneElementInterface {
         if (!bounds || typeof bounds !== 'object') {
             return false;
         }
-        
+
         const { x, y, width, height } = bounds;
-        
-        if (typeof x !== 'number' || typeof y !== 'number' || 
-            typeof width !== 'number' || typeof height !== 'number') {
+
+        if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number') {
             return false;
         }
-        
+
         if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) {
             return false;
         }
-        
+
         if (width < 0 || height < 0) {
             console.warn(`Negative dimensions detected in bounds:`, bounds, obj?.constructor?.name);
             return false;
         }
-        
+
         return true;
     }
 
@@ -442,27 +496,125 @@ export class SceneElement implements SceneElementInterface {
                     collapsed: true,
                     properties: [
                         { key: 'visible', type: 'boolean', label: 'Visible', default: true },
-                        { key: 'zIndex', type: 'number', label: 'Layer (Z-Index)', default: 0, min: 0, max: 100, step: 1 },
-                        { key: 'elementOpacity', type: 'number', label: 'Opacity', default: 1, min: 0, max: 1, step: 0.01, description: 'Element transparency (0 = transparent, 1 = opaque)' }
-                    ]
+                        {
+                            key: 'zIndex',
+                            type: 'number',
+                            label: 'Layer (Z-Index)',
+                            default: 0,
+                            min: 0,
+                            max: 100,
+                            step: 1,
+                        },
+                        {
+                            key: 'elementOpacity',
+                            type: 'number',
+                            label: 'Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            description: 'Element transparency (0 = transparent, 1 = opaque)',
+                        },
+                    ],
                 },
                 {
                     id: 'transform',
                     label: 'Transform',
                     collapsed: true,
                     properties: [
-                        { key: 'offsetX', type: 'number', label: 'Offset X', default: 0, min: -10000, max: 10000, step: 1, description: 'Element horizontal position offset' },
-                        { key: 'offsetY', type: 'number', label: 'Offset Y', default: 0, min: -10000, max: 10000, step: 1, description: 'Element vertical position offset' },
-                        { key: 'anchorX', type: 'number', label: 'Anchor X', default: 0.5, min: 0, max: 1, step: 0.01, description: 'Horizontal anchor point for transforms' },
-                        { key: 'anchorY', type: 'number', label: 'Anchor Y', default: 0.5, min: 0, max: 1, step: 0.01, description: 'Vertical anchor point for transforms' },
-                        { key: 'elementScaleX', type: 'number', label: 'Scale X', default: 1, min: 0.01, max: 5, step: 0.01, description: 'Element horizontal scaling factor' },
-                        { key: 'elementScaleY', type: 'number', label: 'Scale Y', default: 1, min: 0.01, max: 5, step: 0.01, description: 'Element vertical scaling factor' },
-                        { key: 'elementRotation', type: 'number', label: 'Rotation (deg)', default: 0, min: -360, max: 360, step: 1, description: 'Element rotation angle in degrees' },
-                        { key: 'elementSkewX', type: 'number', label: 'Skew X (deg)', default: 0, min: -45, max: 45, step: 1, description: 'Element horizontal skew angle in degrees' },
-                        { key: 'elementSkewY', type: 'number', label: 'Skew Y (deg)', default: 0, min: -45, max: 45, step: 1, description: 'Element vertical skew angle in degrees' }
-                    ]
-                }
-            ]
+                        {
+                            key: 'offsetX',
+                            type: 'number',
+                            label: 'Offset X',
+                            default: 0,
+                            min: -10000,
+                            max: 10000,
+                            step: 1,
+                            description: 'Element horizontal position offset',
+                        },
+                        {
+                            key: 'offsetY',
+                            type: 'number',
+                            label: 'Offset Y',
+                            default: 0,
+                            min: -10000,
+                            max: 10000,
+                            step: 1,
+                            description: 'Element vertical position offset',
+                        },
+                        {
+                            key: 'anchorX',
+                            type: 'number',
+                            label: 'Anchor X',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            description: 'Horizontal anchor point for transforms',
+                        },
+                        {
+                            key: 'anchorY',
+                            type: 'number',
+                            label: 'Anchor Y',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            description: 'Vertical anchor point for transforms',
+                        },
+                        {
+                            key: 'elementScaleX',
+                            type: 'number',
+                            label: 'Scale X',
+                            default: 1,
+                            min: 0.01,
+                            max: 5,
+                            step: 0.01,
+                            description: 'Element horizontal scaling factor',
+                        },
+                        {
+                            key: 'elementScaleY',
+                            type: 'number',
+                            label: 'Scale Y',
+                            default: 1,
+                            min: 0.01,
+                            max: 5,
+                            step: 0.01,
+                            description: 'Element vertical scaling factor',
+                        },
+                        {
+                            key: 'elementRotation',
+                            type: 'number',
+                            label: 'Rotation (deg)',
+                            default: 0,
+                            min: -360,
+                            max: 360,
+                            step: 1,
+                            description: 'Element rotation angle in degrees',
+                        },
+                        {
+                            key: 'elementSkewX',
+                            type: 'number',
+                            label: 'Skew X (deg)',
+                            default: 0,
+                            min: -45,
+                            max: 45,
+                            step: 1,
+                            description: 'Element horizontal skew angle in degrees',
+                        },
+                        {
+                            key: 'elementSkewY',
+                            type: 'number',
+                            label: 'Skew Y (deg)',
+                            default: 0,
+                            min: -45,
+                            max: 45,
+                            step: 1,
+                            description: 'Element vertical skew angle in degrees',
+                        },
+                    ],
+                },
+            ],
         };
     }
 
@@ -472,14 +624,17 @@ export class SceneElement implements SceneElementInterface {
     getConfig(): { [key: string]: any } {
         const config: { [key: string]: any } = {
             id: this.id,
-            type: this.type
+            type: this.type,
         };
 
         // Add all bound properties with their current values
         this.bindings.forEach((binding, key) => {
             let val: any = binding.getValue();
             // Present angle-like properties in degrees for UI display when they are constants
-            if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && typeof val === 'number') {
+            if (
+                (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
+                typeof val === 'number'
+            ) {
                 if (binding.type === 'constant') {
                     val = val * (180 / Math.PI);
                 }
@@ -497,7 +652,7 @@ export class SceneElement implements SceneElementInterface {
     getSerializableConfig(): { [key: string]: any } {
         const config: { [key: string]: any } = {
             id: this.id,
-            type: this.type
+            type: this.type,
         };
 
         // Add all bindings in serialized form
@@ -517,19 +672,27 @@ export class SceneElement implements SceneElementInterface {
             if (key === 'id' || key === 'type') continue;
 
             // Check if this is binding data
-            if (value && typeof value === 'object' && value.type && (value.type === 'constant' || value.type === 'macro')) {
+            if (
+                value &&
+                typeof value === 'object' &&
+                value.type &&
+                (value.type === 'constant' || value.type === 'macro')
+            ) {
                 // This is serialized binding data
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {
                 // This is a raw value, create a constant binding
                 // For angle-like properties, interpret raw inputs as degrees from UI and convert to radians
-                if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && typeof value === 'number') {
+                if (
+                    (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
+                    typeof value === 'number'
+                ) {
                     this.bindings.set(key, new ConstantBinding(value * (Math.PI / 180)));
                 } else {
                     this.bindings.set(key, new ConstantBinding(value));
                 }
             }
-            
+
             this._cacheValid.set(key, false);
             this._invalidateBoundsCache();
         }

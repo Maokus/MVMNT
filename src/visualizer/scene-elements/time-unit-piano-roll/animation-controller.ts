@@ -1,12 +1,12 @@
 // AnimationController - handles animation states and processing of notes into render objects
 // Compatible with the property binding system used in TimeUnitPianoRollElement
-import { createAnimationInstance, type AnimationPhase } from "./note-animations/index";
-import { debugLog } from "../../utils/debug-log.js";
-import type { RenderObjectInterface } from "../../types.js";
-import type { TimeUnitPianoRollElement } from "./time-unit-piano-roll";
-import type { NoteBlock as TNoteBlock } from "./note-block";
+import { createAnimationInstance, type AnimationPhase } from './note-animations/index';
+import { debugLog } from '../../utils/debug-log.js';
+import type { RenderObjectInterface } from '../../types.js';
+import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
+import type { NoteBlock as TNoteBlock } from './note-block';
 
-export type AnimationType = "fade" | "slide" | "scale" | "expand" | "debug" | "none";
+export type AnimationType = 'fade' | 'slide' | 'scale' | 'expand' | 'debug' | 'none';
 
 export interface BuildConfig {
     noteHeight: number;
@@ -37,7 +37,7 @@ export class AnimationController {
         const animationType = this.timeUnitPianoRoll.getAnimationType() as AnimationType;
         const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
         const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
-        const animationEnabled = animationType !== "none";
+        const animationEnabled = animationType !== 'none';
 
         // Extract config values
         const { noteHeight, minNote, maxNote, pianoWidth, rollWidth } = config;
@@ -84,7 +84,7 @@ export class AnimationController {
             // If we're in RELEASE phase immediately after a rollover, preserve the previous window's geometry
             const EPS = 1e-9;
             if (
-                visState.type === "release" &&
+                visState.type === 'release' &&
                 block.windowEnd != null &&
                 Math.abs(block.windowEnd - windowStart) < EPS
             ) {
@@ -95,7 +95,7 @@ export class AnimationController {
 
                 drawStart = Math.max(block.startTime, relWindowStart);
                 drawEnd = Math.min(block.endTime, relWindowEnd);
-            } else if (visState.type === "attack" && block.windowStart != null) {
+            } else if (visState.type === 'attack' && block.windowStart != null) {
                 // For attack of a note in the NEXT window, use the note's own window
                 relWindowStart = block.windowStart;
                 relWindowEnd = block.windowEnd ?? block.windowStart + timeUnitInSeconds;
@@ -162,9 +162,9 @@ export class AnimationController {
             animationEnabled,
         });
 
-        if (!animationEnabled || animationType === "none") {
+        if (!animationEnabled || animationType === 'none') {
             // No animation - draw sustained/static rectangle
-            const inst = this._getAnimationInstance("expand"); // use expand for neutral draw
+            const inst = this._getAnimationInstance('expand'); // use expand for neutral draw
             return inst.render({
                 block,
                 x,
@@ -173,7 +173,7 @@ export class AnimationController {
                 height,
                 color,
                 progress: 1,
-                phase: "sustain",
+                phase: 'sustain',
             });
         }
 
@@ -239,7 +239,7 @@ export class AnimationController {
 
         if (currentTime >= attackStart && currentTime < attackEnd) {
             return {
-                type: "attack",
+                type: 'attack',
                 progress: (currentTime - attackStart) / (attackEnd - attackStart),
                 startTime: attackStart,
                 endTime: attackEnd,
@@ -247,7 +247,7 @@ export class AnimationController {
         }
         if (currentTime >= decayStart && currentTime < decayEnd) {
             return {
-                type: "decay",
+                type: 'decay',
                 progress: (currentTime - decayStart) / (decayEnd - decayStart),
                 startTime: decayStart,
                 endTime: decayEnd,
@@ -256,7 +256,7 @@ export class AnimationController {
         if (currentTime >= decayEnd && currentTime < releaseStart) {
             // sustain between end of decay and start of release
             return {
-                type: "sustain",
+                type: 'sustain',
                 progress: 1,
                 startTime: null,
                 endTime: null,
@@ -264,7 +264,7 @@ export class AnimationController {
         }
         if (currentTime >= releaseStart && currentTime < releaseEnd) {
             return {
-                type: "release",
+                type: 'release',
                 progress: (currentTime - releaseStart) / (releaseEnd - releaseStart),
                 startTime: releaseStart,
                 endTime: releaseEnd,
@@ -280,19 +280,19 @@ export class AnimationController {
         const animationType = this.timeUnitPianoRoll.getAnimationType() as AnimationType;
         const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
         const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
-        const animationEnabled = animationType !== "none";
+        const animationEnabled = animationType !== 'none';
 
         if (animationEnabled) {
             if (!animationDuration || animationDuration <= 0) {
-                issues.push("Invalid animation duration");
+                issues.push('Invalid animation duration');
             }
 
             if (animationDuration > this.timeUnitPianoRoll.getTimeUnit()) {
-                issues.push("Animation duration longer than time unit");
+                issues.push('Animation duration longer than time unit');
             }
 
             if (animationSpeed <= 0) {
-                issues.push("Invalid animation speed");
+                issues.push('Invalid animation speed');
             }
         }
 
@@ -301,22 +301,22 @@ export class AnimationController {
 
     // Public methods for controlling animations (no-ops in binding system)
     setAnimationType(_type: AnimationType): this {
-        console.warn("setAnimationType should be handled through property bindings in BoundAnimationController");
+        console.warn('setAnimationType should be handled through property bindings in BoundAnimationController');
         return this;
     }
 
     setAnimationSpeed(_speed: number): this {
-        console.warn("setAnimationSpeed should be handled through property bindings in BoundAnimationController");
+        console.warn('setAnimationSpeed should be handled through property bindings in BoundAnimationController');
         return this;
     }
 
     setAnimationDuration(_duration: number): this {
-        console.warn("setAnimationDuration should be handled through property bindings in BoundAnimationController");
+        console.warn('setAnimationDuration should be handled through property bindings in BoundAnimationController');
         return this;
     }
 
     setAnimationEnabled(_enabled: boolean): this {
-        console.warn("setAnimationEnabled should be handled through property bindings in BoundAnimationController");
+        console.warn('setAnimationEnabled should be handled through property bindings in BoundAnimationController');
         return this;
     }
 
@@ -324,7 +324,7 @@ export class AnimationController {
         const animationType = this.timeUnitPianoRoll.getAnimationType();
         const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
         const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
-        const animationEnabled = animationType !== "none";
+        const animationEnabled = animationType !== 'none';
 
         return {
             type: animationType,

@@ -9,7 +9,9 @@ export class Text extends RenderObject {
         const clampedY = Math.max(-maxPosition, Math.min(maxPosition, y));
 
         if (clampedX !== x || clampedY !== y) {
-            console.warn(`Text constructor: Extreme position values clamped - original: (${x}, ${y}), clamped: (${clampedX}, ${clampedY})`);
+            console.warn(
+                `Text constructor: Extreme position values clamped - original: (${x}, ${y}), clamped: (${clampedX}, ${clampedY})`
+            );
         }
 
         super(clampedX, clampedY);
@@ -118,7 +120,9 @@ export class Text extends RenderObject {
 
         // Validate inputs first
         if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(fontSize)) {
-            console.warn(`Text getBounds: Invalid values detected - x=${this.x}, y=${this.y}, fontSize=${fontSize}, font=${this.font}`);
+            console.warn(
+                `Text getBounds: Invalid values detected - x=${this.x}, y=${this.y}, fontSize=${fontSize}, font=${this.font}`
+            );
             return { x: 0, y: 0, width: 0, height: 0 };
         }
 
@@ -129,12 +133,20 @@ export class Text extends RenderObject {
             const fallbackHeight = fontSize * 1.3;
             let fx = this.x;
             let fy = this.y;
-            if (this.align === 'center') fx -= fallbackWidth / 2; else if (this.align === 'right') fx -= fallbackWidth;
+            if (this.align === 'center') fx -= fallbackWidth / 2;
+            else if (this.align === 'right') fx -= fallbackWidth;
             switch (this.baseline) {
-                case 'middle': fy -= fallbackHeight / 2; break;
-                case 'bottom': fy -= fallbackHeight; break;
-                case 'alphabetic': fy -= fallbackHeight * 0.8; break;
-                default: break; // 'top'
+                case 'middle':
+                    fy -= fallbackHeight / 2;
+                    break;
+                case 'bottom':
+                    fy -= fallbackHeight;
+                    break;
+                case 'alphabetic':
+                    fy -= fallbackHeight * 0.8;
+                    break;
+                default:
+                    break; // 'top'
             }
             return { x: fx, y: fy, width: fallbackWidth, height: fallbackHeight };
         }
@@ -147,8 +159,8 @@ export class Text extends RenderObject {
 
         let width = metrics.width || 0;
         // Use ascent/descent when available for precise height
-        const ascent = (metrics.actualBoundingBoxAscent ?? fontSize * 0.8);
-        const descent = (metrics.actualBoundingBoxDescent ?? fontSize * 0.2);
+        const ascent = metrics.actualBoundingBoxAscent ?? fontSize * 0.8;
+        const descent = metrics.actualBoundingBoxDescent ?? fontSize * 0.2;
         let height = ascent + descent;
 
         // Handle maxWidth scaling behavior similar to fillText(x, y, maxWidth)
@@ -159,7 +171,7 @@ export class Text extends RenderObject {
         }
 
         // Expand for stroke width if present
-        const strokePad = (this.strokeColor && this.strokeWidth > 0) ? this.strokeWidth : 0;
+        const strokePad = this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth : 0;
         const paddedWidth = width + strokePad;
         const paddedHeight = height + strokePad;
 
@@ -193,8 +205,14 @@ export class Text extends RenderObject {
         const result = { x: boundsX, y: boundsY, width: paddedWidth, height: paddedHeight };
 
         // Validate final result
-        if (!isFinite(result.x) || !isFinite(result.y) || !isFinite(result.width) || !isFinite(result.height) ||
-            result.width < 0 || result.height < 0) {
+        if (
+            !isFinite(result.x) ||
+            !isFinite(result.y) ||
+            !isFinite(result.width) ||
+            !isFinite(result.height) ||
+            result.width < 0 ||
+            result.height < 0
+        ) {
             console.warn(`Text getBounds: Invalid result detected`, {
                 text: this.text,
                 font: this.font,
@@ -202,7 +220,7 @@ export class Text extends RenderObject {
                 align: this.align,
                 baseline: this.baseline,
                 measured: { width, ascent, descent, height },
-                result: result
+                result: result,
             });
             return { x: 0, y: 0, width: 0, height: 0 };
         }

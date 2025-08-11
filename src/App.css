@@ -6,8 +6,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-        sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     background: #1e1e1e;
     color: #ffffff;
     height: 100vh;
@@ -557,7 +556,7 @@ body {
     background: #3c3c3c;
     padding: 4px 8px;
     border-radius: 3px;
-    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     font-size: 11px;
     color: #cccccc;
     border: 1px solid #464647;
@@ -611,7 +610,7 @@ body {
     box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
 }
 
-.setting-group input[type="checkbox"] {
+.setting-group input[type='checkbox'] {
     width: auto;
     margin-right: 8px;
     accent-color: #0e639c;
@@ -942,7 +941,7 @@ body {
     box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
 }
 
-.form-field input[type="checkbox"] {
+.form-field input[type='checkbox'] {
     width: auto;
     margin: 0;
     accent-color: #0e639c;
@@ -952,14 +951,14 @@ body {
     /* Remove the custom checkbox styling, use standard field-row layout */
 }
 
-.form-field input[type="color"] {
+.form-field input[type='color'] {
     width: 60px;
     height: 32px;
     padding: 2px;
     border-radius: 3px;
 }
 
-.form-field input[type="range"] {
+.form-field input[type='range'] {
     width: 120px;
 }
 
@@ -1013,7 +1012,7 @@ body {
     width: 120px;
 }
 
-.range-input-container input[type="range"] {
+.range-input-container input[type='range'] {
     flex: 1;
 }
 
@@ -1100,13 +1099,13 @@ body {
     box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
 }
 
-.config-property input[type="checkbox"] {
+.config-property input[type='checkbox'] {
     width: auto;
     margin-right: 8px;
     accent-color: #0e639c;
 }
 
-.config-property input[type="color"] {
+.config-property input[type='color'] {
     width: 60px;
     height: 32px;
     padding: 2px;
@@ -1296,12 +1295,12 @@ body {
     font-size: 12px;
 }
 
-.macro-control input[type="checkbox"] {
+.macro-control input[type='checkbox'] {
     flex: none;
     width: auto;
 }
 
-.macro-control input[type="color"] {
+.macro-control input[type='color'] {
     width: 30px;
     height: 20px;
     padding: 0;
@@ -1439,7 +1438,7 @@ body {
     background: #3e3e42;
 }
 
-.macro-options input[type="radio"] {
+.macro-options input[type='radio'] {
     margin-right: 8px;
 }
 
@@ -1493,15 +1492,15 @@ body {
 }
 
 /* Disabled inputs controlled by macros */
-input:disabled[title*="macro"],
-select:disabled[title*="macro"] {
+input:disabled[title*='macro'],
+select:disabled[title*='macro'] {
     background: #2a2a2a !important;
     color: #666666 !important;
     border-color: #666666 !important;
     cursor: not-allowed;
 }
 
-input:disabled[title*="macro"]::placeholder {
+input:disabled[title*='macro']::placeholder {
     color: #555555;
 }
 
@@ -1563,7 +1562,7 @@ input:disabled[title*="macro"]::placeholder {
     font-style: italic;
 }
 
-.file-input-container input[type="file"] {
+.file-input-container input[type='file'] {
     display: none;
 }
 
@@ -1571,8 +1570,7 @@ input:disabled[title*="macro"]::placeholder {
 .element-properties-panel.ae-style {
     background: #2c2c2c;
     color: #e0e0e0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-        sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     font-size: 11px;
     line-height: 1.2;
 }
@@ -1750,7 +1748,7 @@ input:disabled[title*="macro"]::placeholder {
 }
 
 /* Boolean input styling */
-.ae-style .ae-property-input input[type="checkbox"] {
+.ae-style .ae-property-input input[type='checkbox'] {
     width: 14px;
     height: 14px;
     accent-color: #0e639c;
@@ -1758,7 +1756,7 @@ input:disabled[title*="macro"]::placeholder {
 }
 
 /* Color input styling */
-.ae-style .ae-property-input input[type="color"] {
+.ae-style .ae-property-input input[type='color'] {
     width: 40px;
     height: 20px;
     padding: 1px;
@@ -1767,7 +1765,7 @@ input:disabled[title*="macro"]::placeholder {
 }
 
 /* Range input styling */
-.ae-style .ae-property-input input[type="range"] {
+.ae-style .ae-property-input input[type='range'] {
     width: 100%;
     height: 4px;
     background: #464647;
@@ -1777,7 +1775,7 @@ input:disabled[title*="macro"]::placeholder {
     cursor: pointer;
 }
 
-.ae-style .ae-property-input input[type="range"]::-webkit-slider-thumb {
+.ae-style .ae-property-input input[type='range']::-webkit-slider-thumb {
     appearance: none;
     width: 12px;
     height: 12px;
@@ -1786,7 +1784,7 @@ input:disabled[title*="macro"]::placeholder {
     cursor: pointer;
 }
 
-.ae-style .ae-property-input input[type="range"]::-moz-range-thumb {
+.ae-style .ae-property-input input[type='range']::-moz-range-thumb {
     width: 12px;
     height: 12px;
     background: #0e639c;
@@ -1836,7 +1834,7 @@ input:disabled[title*="macro"]::placeholder {
     width: 100%;
 }
 
-.ae-style .range-input-container input[type="range"] {
+.ae-style .range-input-container input[type='range'] {
     flex: 1;
 }
 

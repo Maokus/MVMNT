@@ -13,7 +13,9 @@ export class Rectangle extends RenderObject {
         const clampedHeight = Math.max(0, Math.min(maxSize, height));
 
         if (clampedX !== x || clampedY !== y || clampedWidth !== width || clampedHeight !== height) {
-            console.warn(`Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`);
+            console.warn(
+                `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
+            );
         }
 
         super(clampedX, clampedY);
@@ -150,7 +152,7 @@ export class Rectangle extends RenderObject {
             x: this.x,
             y: this.y,
             width: this.width,
-            height: this.height
+            height: this.height,
         };
     }
 }

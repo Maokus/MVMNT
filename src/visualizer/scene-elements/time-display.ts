@@ -25,8 +25,8 @@ export class TimeDisplayElement extends SceneElement {
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
 
-    // Use timing manager by default for independent timing control; if a MIDI-aware timing is needed in future, this can be swapped
-    this.timingManager = new TimingManager(null);
+        // Use timing manager by default for independent timing control; if a MIDI-aware timing is needed in future, this can be swapped
+        this.timingManager = new TimingManager(null);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -42,34 +42,84 @@ export class TimeDisplayElement extends SceneElement {
                     label: 'Timing',
                     collapsed: false,
                     properties: [
-                        { key: 'bpm', type: 'number', label: 'BPM (Tempo)', default: 120, min: 20, max: 300, step: 0.1, description: 'Beats per minute for this time display' },
-                        { key: 'beatsPerBar', type: 'number', label: 'Beats per Bar', default: 4, min: 1, max: 16, step: 1, description: 'Number of beats in each bar for this display' }
-                    ]
+                        {
+                            key: 'bpm',
+                            type: 'number',
+                            label: 'BPM (Tempo)',
+                            default: 120,
+                            min: 20,
+                            max: 300,
+                            step: 0.1,
+                            description: 'Beats per minute for this time display',
+                        },
+                        {
+                            key: 'beatsPerBar',
+                            type: 'number',
+                            label: 'Beats per Bar',
+                            default: 4,
+                            min: 1,
+                            max: 16,
+                            step: 1,
+                            description: 'Number of beats in each bar for this display',
+                        },
+                    ],
                 },
                 {
                     id: 'display',
                     label: 'Display',
                     collapsed: false,
                     properties: [
-                        { key: 'showProgress', type: 'boolean', label: 'Show Progress Bars', default: true, description: 'Display tick and beat progress bars' },
-                        { key: 'fontFamily', type: 'select', label: 'Font Family', default: 'Arial', options: [
-                            { value: 'Arial', label: 'Arial' },
-                            { value: 'Helvetica', label: 'Helvetica' },
-                            { value: 'Times New Roman', label: 'Times New Roman' },
-                            { value: 'Georgia', label: 'Georgia' }
-                        ], description: 'Font family for the time display' },
-                        { key: 'fontWeight', type: 'select', label: 'Font Weight', default: '400', options: [
-                            { value: '300', label: 'Light' },
-                            { value: '400', label: 'Normal' },
-                            { value: '500', label: 'Medium' },
-                            { value: '600', label: 'Semi-bold' },
-                            { value: '700', label: 'Bold' }
-                        ], description: 'Font weight for the time display' },
-                        { key: 'textColor', type: 'color', label: 'Primary Text Color', default: '#FFFFFF', description: 'Color for the main time and beat numbers' },
-                        { key: 'textSecondaryColor', type: 'color', label: 'Secondary Text Color', default: 'rgba(255, 255, 255, 0.9)', description: 'Color for labels and secondary text' }
-                    ]
-                }
-            ]
+                        {
+                            key: 'showProgress',
+                            type: 'boolean',
+                            label: 'Show Progress Bars',
+                            default: true,
+                            description: 'Display tick and beat progress bars',
+                        },
+                        {
+                            key: 'fontFamily',
+                            type: 'select',
+                            label: 'Font Family',
+                            default: 'Arial',
+                            options: [
+                                { value: 'Arial', label: 'Arial' },
+                                { value: 'Helvetica', label: 'Helvetica' },
+                                { value: 'Times New Roman', label: 'Times New Roman' },
+                                { value: 'Georgia', label: 'Georgia' },
+                            ],
+                            description: 'Font family for the time display',
+                        },
+                        {
+                            key: 'fontWeight',
+                            type: 'select',
+                            label: 'Font Weight',
+                            default: '400',
+                            options: [
+                                { value: '300', label: 'Light' },
+                                { value: '400', label: 'Normal' },
+                                { value: '500', label: 'Medium' },
+                                { value: '600', label: 'Semi-bold' },
+                                { value: '700', label: 'Bold' },
+                            ],
+                            description: 'Font weight for the time display',
+                        },
+                        {
+                            key: 'textColor',
+                            type: 'color',
+                            label: 'Primary Text Color',
+                            default: '#FFFFFF',
+                            description: 'Color for the main time and beat numbers',
+                        },
+                        {
+                            key: 'textSecondaryColor',
+                            type: 'color',
+                            label: 'Secondary Text Color',
+                            default: 'rgba(255, 255, 255, 0.9)',
+                            description: 'Color for labels and secondary text',
+                        },
+                    ],
+                },
+            ],
         };
     }
 
@@ -88,18 +138,18 @@ export class TimeDisplayElement extends SceneElement {
         // Update timing manager with bound properties
         const bpm = this.getProperty('bpm') as number;
         const beatsPerBar = this.getProperty('beatsPerBar') as number;
-        
-    // Force update the timing manager on every frame to ensure property bindings take precedence
+
+        // Force update the timing manager on every frame to ensure property bindings take precedence
         this.timingManager.setBPM(bpm);
         this.timingManager.setBeatsPerBar(beatsPerBar);
-    // Don't force a specific PPQ; respect MIDI data when available
+        // Don't force a specific PPQ; respect MIDI data when available
 
         // Debug logging for timing calculations
         // const secondsPerBeat = this.timingManager.getSecondsPerBeat();
         // console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
         // Get bar:beat:tick info
-    const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
+        const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
 
         // Get minutes:seconds:milliseconds info
         const totalMs = targetTime * 1000;
@@ -138,8 +188,24 @@ export class TimeDisplayElement extends SceneElement {
         const tickLabel = new Text(x + baseFontSize * 6, beatY, tickText, font, textColor, 'right', 'bottom');
 
         // Labels
-        const timeLabel = new Text(x + baseFontSize * 6, timeY - baseFontSize, "time", labelFont, textSecondaryColor, 'right', 'bottom');
-        const beatLabelText = new Text(x + baseFontSize * 6, beatY - baseFontSize, "beat", labelFont, textSecondaryColor, 'right', 'bottom');
+        const timeLabel = new Text(
+            x + baseFontSize * 6,
+            timeY - baseFontSize,
+            'time',
+            labelFont,
+            textSecondaryColor,
+            'right',
+            'bottom'
+        );
+        const beatLabelText = new Text(
+            x + baseFontSize * 6,
+            beatY - baseFontSize,
+            'beat',
+            labelFont,
+            textSecondaryColor,
+            'right',
+            'bottom'
+        );
 
         renderObjects.push(minLabel, secLabel, msLabel, barLabel, beatLabel, tickLabel, timeLabel, beatLabelText);
 
@@ -151,20 +217,40 @@ export class TimeDisplayElement extends SceneElement {
             const tickBarX = x + baseFontSize * 6 - tickBarWidth;
             const tickBarY = beatY + baseFontSize * 0.1;
 
-            const tickBarBg = new Rectangle(tickBarX, tickBarY, tickBarWidth, 4,
-                this.getColorWithOpacity(textSecondaryColor, 0.2));
-            const tickBar = new Rectangle(tickBarX, tickBarY, tickBarWidth * tickProgress, 4,
-                this.getColorWithOpacity(textSecondaryColor, 0.6));
+            const tickBarBg = new Rectangle(
+                tickBarX,
+                tickBarY,
+                tickBarWidth,
+                4,
+                this.getColorWithOpacity(textSecondaryColor, 0.2)
+            );
+            const tickBar = new Rectangle(
+                tickBarX,
+                tickBarY,
+                tickBarWidth * tickProgress,
+                4,
+                this.getColorWithOpacity(textSecondaryColor, 0.6)
+            );
 
             const beatProgress = Math.max(0, Math.min(1, (barBeatTick.beat - 1) / this.timingManager.beatsPerBar));
             const beatBarWidth = baseFontSize * 1;
             const beatBarX = x + baseFontSize * 3.8 - beatBarWidth;
             const beatBarY = beatY + baseFontSize * 0.1;
 
-            const beatBarBg = new Rectangle(beatBarX, beatBarY, beatBarWidth, 4,
-                this.getColorWithOpacity(textSecondaryColor, 0.2));
-            const beatBar = new Rectangle(beatBarX, beatBarY, beatBarWidth * beatProgress, 4,
-                this.getColorWithOpacity(textSecondaryColor, 0.6));
+            const beatBarBg = new Rectangle(
+                beatBarX,
+                beatBarY,
+                beatBarWidth,
+                4,
+                this.getColorWithOpacity(textSecondaryColor, 0.2)
+            );
+            const beatBar = new Rectangle(
+                beatBarX,
+                beatBarY,
+                beatBarWidth * beatProgress,
+                4,
+                this.getColorWithOpacity(textSecondaryColor, 0.6)
+            );
 
             renderObjects.push(tickBarBg, tickBar, beatBarBg, beatBar);
         }

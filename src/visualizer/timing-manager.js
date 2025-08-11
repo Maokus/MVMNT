@@ -13,7 +13,7 @@ export class TimingManager {
             numerator: 4,
             denominator: 4,
             clocksPerClick: 24,
-            thirtysecondNotesPerBeat: 8
+            thirtysecondNotesPerBeat: 8,
         };
         this.ticksPerQuarter = 480;
         this.tempo = 500000; // microseconds per quarter note
@@ -32,7 +32,9 @@ export class TimingManager {
      * Set BPM and update tempo
      */
     setBPM(bpm) {
-        if (this.bpm === bpm) { return; }
+        if (this.bpm === bpm) {
+            return;
+        }
         this.bpm = Math.max(20, Math.min(300, bpm));
         this.tempo = 60000000 / this.bpm; // Convert BPM to microseconds per quarter note
         // When using explicit BPM, clear any tempo map to use single-tempo mode
@@ -45,7 +47,9 @@ export class TimingManager {
      * Set tempo in microseconds per quarter note
      */
     setTempo(tempo) {
-        if (this.tempo === tempo) { return; }
+        if (this.tempo === tempo) {
+            return;
+        }
         this.tempo = tempo;
         this.bpm = 60000000 / tempo;
         // Single-tempo mode clears tempo map
@@ -68,27 +72,27 @@ export class TimingManager {
         }
 
         // Normalize into seconds-based segments
-        let normalized = map.map(e => ({ ...e }));
+        let normalized = map.map((e) => ({ ...e }));
         if (timeUnit === 'ticks') {
             // Convert ticks to seconds using current single-tempo setting as an initial approximation.
             // If callers provide ticks-based tempo map, they should also ensure ticksPerQuarter is set appropriately.
             const microsecondsPerTick = this.tempo / this.ticksPerQuarter;
-            normalized = map.map(e => ({
+            normalized = map.map((e) => ({
                 time: (e.time * microsecondsPerTick) / 1_000_000,
                 tempo: e.tempo ?? (e.bpm ? 60_000_000 / e.bpm : undefined),
-                bpm: e.bpm ?? (e.tempo ? 60_000_000 / e.tempo : undefined)
+                bpm: e.bpm ?? (e.tempo ? 60_000_000 / e.tempo : undefined),
             }));
         } else {
-            normalized = map.map(e => ({
+            normalized = map.map((e) => ({
                 time: e.time,
                 tempo: e.tempo ?? (e.bpm ? 60_000_000 / e.bpm : undefined),
-                bpm: e.bpm ?? (e.tempo ? 60_000_000 / e.tempo : undefined)
+                bpm: e.bpm ?? (e.tempo ? 60_000_000 / e.tempo : undefined),
             }));
         }
 
         // Filter invalid and sort by time
         normalized = normalized
-            .filter(e => typeof e.time === 'number' && e.time >= 0 && (e.tempo || e.bpm))
+            .filter((e) => typeof e.time === 'number' && e.time >= 0 && (e.tempo || e.bpm))
             .sort((a, b) => a.time - b.time);
 
         if (normalized.length === 0) {
@@ -103,14 +107,14 @@ export class TimingManager {
         let cumulativeBeats = 0;
         for (let i = 0; i < normalized.length; i++) {
             const entry = normalized[i];
-            const tempo = entry.tempo ?? (60_000_000 / entry.bpm);
+            const tempo = entry.tempo ?? 60_000_000 / entry.bpm;
             const secondsPerBeat = tempo / 1_000_000;
             const seg = {
                 time: entry.time,
                 tempo,
                 bpm: 60_000_000 / tempo,
                 secondsPerBeat,
-                cumulativeBeats // set start cumulative beats; will be updated for next segment after computing durations
+                cumulativeBeats, // set start cumulative beats; will be updated for next segment after computing durations
             };
             // Compute cumulativeBeats for next entry based on previous segment duration
             if (segments.length > 0) {
@@ -133,7 +137,9 @@ export class TimingManager {
      * Set beats per bar
      */
     setBeatsPerBar(beatsPerBar) {
-        if (this.beatsPerBar === beatsPerBar) { return; }
+        if (this.beatsPerBar === beatsPerBar) {
+            return;
+        }
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
         this._invalidateCache();
     }
@@ -142,10 +148,12 @@ export class TimingManager {
      * Set time signature
      */
     setTimeSignature(timeSignature) {
-        if (this.timeSignature.numerator === timeSignature.numerator &&
+        if (
+            this.timeSignature.numerator === timeSignature.numerator &&
             this.timeSignature.denominator === timeSignature.denominator &&
             this.timeSignature.clocksPerClick === timeSignature.clocksPerClick &&
-            this.timeSignature.thirtysecondNotesPerBeat === timeSignature.thirtysecondNotesPerBeat) {
+            this.timeSignature.thirtysecondNotesPerBeat === timeSignature.thirtysecondNotesPerBeat
+        ) {
             return; // No change
         }
         this.timeSignature = { ...this.timeSignature, ...timeSignature };
@@ -157,7 +165,9 @@ export class TimingManager {
      * Set ticks per quarter note
      */
     setTicksPerQuarter(ticksPerQuarter) {
-        if (this.ticksPerQuarter === ticksPerQuarter) { return; }
+        if (this.ticksPerQuarter === ticksPerQuarter) {
+            return;
+        }
         this.ticksPerQuarter = ticksPerQuarter;
         this._invalidateCache();
     }
@@ -227,7 +237,7 @@ export class TimingManager {
      * Convert bar:beat:tick to time in seconds
      */
     barBeatTickToTime(bar, beat, tick) {
-        const totalBeats = (bar - 1) * this.beatsPerBar + (beat - 1) + (tick / this.ticksPerQuarter);
+        const totalBeats = (bar - 1) * this.beatsPerBar + (beat - 1) + tick / this.ticksPerQuarter;
         if (this._tempoSegments && this._tempoSegments.length > 0) {
             return this._beatsToSeconds(totalBeats);
         }
@@ -325,7 +335,7 @@ export class TimingManager {
             timeSignature: { ...this.timeSignature },
             ticksPerQuarter: this.ticksPerQuarter,
             tempo: this.tempo,
-            tempoMap: this.tempoMap ? [...this.tempoMap] : null
+            tempoMap: this.tempoMap ? [...this.tempoMap] : null,
         };
     }
 
@@ -361,7 +371,7 @@ export class TimingManager {
             tempo: this.tempo,
             tempoMap: this.tempoMap,
             secondsPerBeat: this.getSecondsPerBeat(),
-            secondsPerBar: this.getSecondsPerBar()
+            secondsPerBar: this.getSecondsPerBar(),
         });
     }
 
@@ -376,11 +386,13 @@ export class TimingManager {
                 tempo: this.tempo,
                 bpm: this.bpm,
                 secondsPerBeat: this.tempo / 1_000_000,
-                cumulativeBeats: 0
+                cumulativeBeats: 0,
             };
         }
         // Binary search for last segment with time <= t
-        let lo = 0, hi = segs.length - 1, idx = 0;
+        let lo = 0,
+            hi = segs.length - 1,
+            idx = 0;
         while (lo <= hi) {
             const mid = (lo + hi) >> 1;
             if (segs[mid].time <= t) {
@@ -411,7 +423,9 @@ export class TimingManager {
             return beats * this.getSecondsPerBeat();
         }
         // Find segment where cumulativeBeats <= beats < next.cumulativeBeats
-        let lo = 0, hi = segs.length - 1, idx = 0;
+        let lo = 0,
+            hi = segs.length - 1,
+            idx = 0;
         while (lo <= hi) {
             const mid = (lo + hi) >> 1;
             if (segs[mid].cumulativeBeats <= beats) {

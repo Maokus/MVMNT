@@ -4,7 +4,6 @@ import { Text } from '../render-objects/index.js';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 
 export class TextOverlayElement extends SceneElement {
-
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
         super('textOverlay', id, config);
     }
@@ -22,38 +21,67 @@ export class TextOverlayElement extends SceneElement {
                     label: 'Content',
                     collapsed: false,
                     properties: [
-                        { key: 'text', type: 'string', label: 'Text', default: 'Sample Text', description: 'The text content to display' }
-                    ]
+                        {
+                            key: 'text',
+                            type: 'string',
+                            label: 'Text',
+                            default: 'Sample Text',
+                            description: 'The text content to display',
+                        },
+                    ],
                 },
                 {
                     id: 'appearance',
                     label: 'Appearance',
                     collapsed: false,
                     properties: [
-                        { key: 'fontFamily', type: 'select', label: 'Font Family', default: 'Arial', options: [
-                            { value: 'Arial', label: 'Arial' },
-                            { value: 'Helvetica', label: 'Helvetica' },
-                            { value: 'Times New Roman', label: 'Times New Roman' },
-                            { value: 'Georgia', label: 'Georgia' },
-                            { value: 'Verdana', label: 'Verdana' },
-                            { value: 'Trebuchet MS', label: 'Trebuchet MS' },
-                            { value: 'Impact', label: 'Impact' },
-                            { value: 'Courier New', label: 'Courier New' }
-                        ], description: 'Choose the font family for text rendering' },
-                        { key: 'fontWeight', type: 'select', label: 'Weight', default: 'bold', options: [
-                            { value: 'normal', label: 'Normal' },
-                            { value: 'bold', label: 'Bold' },
-                            { value: '100', label: 'Thin' },
-                            { value: '300', label: 'Light' },
-                            { value: '500', label: 'Medium' },
-                            { value: '700', label: 'Bold' },
-                            { value: '900', label: 'Black' }
-                        ], description: 'Set the font weight (thickness) of the text' },
-                        { key: 'fontSize', type: 'number', label: 'Size', default: 36, min: 8, max: 120, step: 1, description: 'Font size in pixels' },
-                        { key: 'color', type: 'color', label: 'Color', default: '#ffffff', description: 'Text color' }
-                    ]
-                }
-            ]
+                        {
+                            key: 'fontFamily',
+                            type: 'select',
+                            label: 'Font Family',
+                            default: 'Arial',
+                            options: [
+                                { value: 'Arial', label: 'Arial' },
+                                { value: 'Helvetica', label: 'Helvetica' },
+                                { value: 'Times New Roman', label: 'Times New Roman' },
+                                { value: 'Georgia', label: 'Georgia' },
+                                { value: 'Verdana', label: 'Verdana' },
+                                { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+                                { value: 'Impact', label: 'Impact' },
+                                { value: 'Courier New', label: 'Courier New' },
+                            ],
+                            description: 'Choose the font family for text rendering',
+                        },
+                        {
+                            key: 'fontWeight',
+                            type: 'select',
+                            label: 'Weight',
+                            default: 'bold',
+                            options: [
+                                { value: 'normal', label: 'Normal' },
+                                { value: 'bold', label: 'Bold' },
+                                { value: '100', label: 'Thin' },
+                                { value: '300', label: 'Light' },
+                                { value: '500', label: 'Medium' },
+                                { value: '700', label: 'Bold' },
+                                { value: '900', label: 'Black' },
+                            ],
+                            description: 'Set the font weight (thickness) of the text',
+                        },
+                        {
+                            key: 'fontSize',
+                            type: 'number',
+                            label: 'Size',
+                            default: 36,
+                            min: 8,
+                            max: 120,
+                            step: 1,
+                            description: 'Font size in pixels',
+                        },
+                        { key: 'color', type: 'color', label: 'Color', default: '#ffffff', description: 'Text color' },
+                    ],
+                },
+            ],
         };
     }
 
@@ -76,5 +104,4 @@ export class TextOverlayElement extends SceneElement {
 
         return renderObjects;
     }
-
 }

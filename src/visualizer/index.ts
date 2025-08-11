@@ -11,12 +11,7 @@ export { MacroManager, globalMacroManager } from './macro-manager';
 // ==========================================
 // Property Binding System Exports
 // ==========================================
-export {
-    PropertyBinding,
-    ConstantBinding,
-    MacroBinding,
-    PropertyBindingUtils
-} from './property-bindings';
+export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from './property-bindings';
 export type { PropertyBindingData } from './property-bindings';
 export { SceneElement } from './scene-elements/base';
 export { TimeUnitPianoRollElement } from './scene-elements/time-unit-piano-roll/time-unit-piano-roll';

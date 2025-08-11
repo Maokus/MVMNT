@@ -28,14 +28,14 @@ export class MIDIVisualizerCore {
         this.exportSettings = {
             fps: 30,
             resolution: 1500,
-            fullDuration: true
+            fullDuration: true,
         };
         // Initialize RAF pacing
         this._rafMinIntervalMs = 1000 / this.exportSettings.fps;
 
         // Debug settings
         this.debugSettings = {
-            showAnchorPoints: false
+            showAnchorPoints: false,
         };
 
         // Render invalidation system
@@ -56,7 +56,6 @@ export class MIDIVisualizerCore {
 
         // For debug: add to window for easy access in console
         window.vis = this;
-
     }
 
     updateSceneElementTimingManager() {
@@ -74,7 +73,7 @@ export class MIDIVisualizerCore {
             hasGlobalEvents,
             globalEventCount: this.events.length,
             hasElementEvents,
-            elementDuration: this.getCurrentDuration()
+            elementDuration: this.getCurrentDuration(),
         });
 
         if (!hasGlobalEvents && !hasElementEvents) {
@@ -86,7 +85,7 @@ export class MIDIVisualizerCore {
         // Add a small buffer time (0.5 seconds) before the actual MIDI content starts
         // This allows the first notes to have their onset animations
         const bufferTime = 0.5; // seconds
-        this.startTime = performance.now() - ((this.currentTime - bufferTime) * 1000);
+        this.startTime = performance.now() - (this.currentTime - bufferTime) * 1000;
         this.animate();
     }
 
@@ -127,7 +126,7 @@ export class MIDIVisualizerCore {
 
         // If playing, update start time to maintain correct playback position
         if (this.isPlaying) {
-            this.startTime = performance.now() - ((this.currentTime + 0.5) * 1000);
+            this.startTime = performance.now() - (this.currentTime + 0.5) * 1000;
         }
 
         // Note: Active notes updates are now handled by scene elements
@@ -151,7 +150,7 @@ export class MIDIVisualizerCore {
             eventCount: midiData.events?.length || 0,
             duration: midiData.duration,
             tempo: midiData.tempo,
-            fileName: midiData.fileName || 'Unknown'
+            fileName: midiData.fileName || 'Unknown',
         });
 
         // Store MIDI data globally for compatibility
@@ -206,7 +205,7 @@ export class MIDIVisualizerCore {
                 // Store note on event
                 const key = `${event.note}_${event.channel || 0}`;
                 noteOnEvents.set(key, event);
-            } else if ((event.type === 'noteOff') || (event.type === 'noteOn' && event.velocity === 0)) {
+            } else if (event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)) {
                 // Find matching note on event
                 const key = `${event.note}_${event.channel || 0}`;
                 const noteOnEvent = noteOnEvents.get(key);
@@ -219,7 +218,7 @@ export class MIDIVisualizerCore {
                         startTime: noteOnEvent.time,
                         endTime: event.time,
                         duration: event.time - noteOnEvent.time,
-                        channel: event.channel || 0
+                        channel: event.channel || 0,
                     };
                     notes.push(note);
                     noteOnEvents.delete(key);
@@ -235,7 +234,7 @@ export class MIDIVisualizerCore {
                 startTime: noteOnEvent.time,
                 endTime: noteOnEvent.time + 1.0, // Default 1 second duration
                 duration: 1.0,
-                channel: noteOnEvent.channel || 0
+                channel: noteOnEvent.channel || 0,
             };
             notes.push(note);
         }
@@ -308,7 +307,7 @@ export class MIDIVisualizerCore {
         try {
             const now = performance.now();
             // Simple RAF pacing to reduce CPU usage; allow frames to drop if too slow
-            if (this._rafMinIntervalMs > 0 && (now - this._lastRAFTime) < this._rafMinIntervalMs * 0.75) {
+            if (this._rafMinIntervalMs > 0 && now - this._lastRAFTime < this._rafMinIntervalMs * 0.75) {
                 this.animationId = requestAnimationFrame(() => this.animate());
                 return;
             }
@@ -366,7 +365,7 @@ export class MIDIVisualizerCore {
                     this._pendingVisUpdate = false;
                     try {
                         this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
-                    } catch { }
+                    } catch {}
                 });
             }
         }
@@ -464,7 +463,7 @@ export class MIDIVisualizerCore {
             textColor: '#ffffff',
             textTertiaryColor: '#cccccc',
             fontFamily: 'Arial',
-            fontWeight: '400'
+            fontWeight: '400',
         };
 
         // Calculate the current scene duration
@@ -481,7 +480,7 @@ export class MIDIVisualizerCore {
             showAnchorPoints: this.debugSettings.showAnchorPoints,
 
             // Theme colors and fonts
-            ...themeColors
+            ...themeColors,
         };
     }
 
@@ -700,7 +699,7 @@ export class MIDIVisualizerCore {
 
     /**
      * Set scene element z-index
-     * @param {string} elementId - Element ID  
+     * @param {string} elementId - Element ID
      * @param {number} zIndex - Z-index value
      */
     setSceneElementZIndex(elementId, zIndex) {

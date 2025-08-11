@@ -4,7 +4,6 @@ import { Rectangle, Text } from '../render-objects/index.js';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
 
 export class ProgressDisplayElement extends SceneElement {
-
     constructor(id: string = 'progressDisplay', config: { [key: string]: any } = {}) {
         super('progressDisplay', id, config);
     }
@@ -22,12 +21,33 @@ export class ProgressDisplayElement extends SceneElement {
                     label: 'Display',
                     collapsed: false,
                     properties: [
-                        { key: 'showBar', type: 'boolean', label: 'Show Progress Bar', default: true, description: 'Display the progress bar' },
-                        { key: 'showStats', type: 'boolean', label: 'Show Statistics', default: true, description: 'Display time and note count statistics' },
-                        { key: 'height', type: 'number', label: 'Height', default: 20, min: 10, max: 50, step: 5, description: 'Height of the progress bar in pixels' }
-                    ]
-                }
-            ]
+                        {
+                            key: 'showBar',
+                            type: 'boolean',
+                            label: 'Show Progress Bar',
+                            default: true,
+                            description: 'Display the progress bar',
+                        },
+                        {
+                            key: 'showStats',
+                            type: 'boolean',
+                            label: 'Show Statistics',
+                            default: true,
+                            description: 'Display time and note count statistics',
+                        },
+                        {
+                            key: 'height',
+                            type: 'number',
+                            label: 'Height',
+                            default: 20,
+                            min: 10,
+                            max: 50,
+                            step: 5,
+                            description: 'Height of the progress bar in pixels',
+                        },
+                    ],
+                },
+            ],
         };
     }
 
@@ -56,13 +76,7 @@ export class ProgressDisplayElement extends SceneElement {
 
         // Progress bar background
         if (showBar) {
-            const progressBg = new Rectangle(
-                margin,
-                barY,
-                barWidth,
-                barHeight,
-                'rgba(255, 255, 255, 0.1)'
-            );
+            const progressBg = new Rectangle(margin, barY, barWidth, barHeight, 'rgba(255, 255, 255, 0.1)');
             renderObjects.push(progressBg);
 
             // Progress bar fill
@@ -78,16 +92,28 @@ export class ProgressDisplayElement extends SceneElement {
             // Border (create as a thin rectangle outline)
             const borderWidth = 1;
             const borderColor = 'rgba(255, 255, 255, 0.3)';
-            
+
             // Top border
             const topBorder = new Rectangle(margin, barY, barWidth, borderWidth, borderColor);
-            // Bottom border  
-            const bottomBorder = new Rectangle(margin, barY + barHeight - borderWidth, barWidth, borderWidth, borderColor);
+            // Bottom border
+            const bottomBorder = new Rectangle(
+                margin,
+                barY + barHeight - borderWidth,
+                barWidth,
+                borderWidth,
+                borderColor
+            );
             // Left border
             const leftBorder = new Rectangle(margin, barY, borderWidth, barHeight, borderColor);
             // Right border
-            const rightBorder = new Rectangle(margin + barWidth - borderWidth, barY, borderWidth, barHeight, borderColor);
-            
+            const rightBorder = new Rectangle(
+                margin + barWidth - borderWidth,
+                barY,
+                borderWidth,
+                barHeight,
+                borderColor
+            );
+
             renderObjects.push(topBorder, bottomBorder, leftBorder, rightBorder);
         }
 

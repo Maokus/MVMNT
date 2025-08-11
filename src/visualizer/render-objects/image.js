@@ -49,9 +49,11 @@ export class Image extends RenderObject {
                     // Force a redraw if possible
                     if (this.onLoadCallback) this.onLoadCallback();
                     // Trigger automatic re-render when image loads
-                    document.dispatchEvent(new CustomEvent('imageLoaded', {
-                        detail: { imageSource: this.imageSource }
-                    }));
+                    document.dispatchEvent(
+                        new CustomEvent('imageLoaded', {
+                            detail: { imageSource: this.imageSource },
+                        })
+                    );
                 };
             } else {
                 // Image is already loaded, no need to trigger an event
@@ -74,10 +76,13 @@ export class Image extends RenderObject {
                 // Force a redraw if possible
                 if (this.onLoadCallback) this.onLoadCallback();
                 // Trigger automatic re-render when image loads
-                document.dispatchEvent(new CustomEvent('imageLoaded', {
-                    detail: { imageSource: this.imageSource }
-                }));
-            }; this.imageElement.onerror = (error) => {
+                document.dispatchEvent(
+                    new CustomEvent('imageLoaded', {
+                        detail: { imageSource: this.imageSource },
+                    })
+                );
+            };
+            this.imageElement.onerror = (error) => {
                 console.warn('Failed to load image:', error);
                 this.imageLoaded = false;
             };
@@ -101,7 +106,7 @@ export class Image extends RenderObject {
                 drawX: 0,
                 drawY: 0,
                 drawWidth: this.width,
-                drawHeight: this.height
+                drawHeight: this.height,
             };
         }
 
@@ -113,7 +118,7 @@ export class Image extends RenderObject {
                 drawX: 0,
                 drawY: 0,
                 drawWidth: this.width,
-                drawHeight: this.height
+                drawHeight: this.height,
             };
         }
 
@@ -150,7 +155,8 @@ export class Image extends RenderObject {
                 drawX = 0;
                 drawY = (this.height - drawHeight) / 2;
             }
-        } else { // 'none'
+        } else {
+            // 'none'
             drawWidth = Math.min(imgWidth, this.width);
             drawHeight = Math.min(imgHeight, this.height);
             drawX = (this.width - drawWidth) / 2;
@@ -162,17 +168,18 @@ export class Image extends RenderObject {
 
     _renderSelf(ctx, config, currentTime) {
         // Debug transformations - only log on first render or significant changes
-        if (!this._lastDebuggedState ||
+        if (
+            !this._lastDebuggedState ||
             this._lastDebuggedState.opacity !== this.opacity ||
             this._lastDebuggedState.rotation !== this.rotation ||
             this._lastDebuggedState.scaleX !== this.scaleX ||
-            this._lastDebuggedState.scaleY !== this.scaleY) {
-
+            this._lastDebuggedState.scaleY !== this.scaleY
+        ) {
             console.log('Rendering image with transformations:', {
                 opacity: this.opacity,
                 rotation: this.rotation,
                 scaleX: this.scaleX,
-                scaleY: this.scaleY
+                scaleY: this.scaleY,
             });
 
             // Update the last debugged state
@@ -180,7 +187,7 @@ export class Image extends RenderObject {
                 opacity: this.opacity,
                 rotation: this.rotation,
                 scaleX: this.scaleX,
-                scaleY: this.scaleY
+                scaleY: this.scaleY,
             };
         }
 
@@ -213,7 +220,11 @@ export class Image extends RenderObject {
 
         // Additional check to ensure the image is actually valid
         if (!this.imageElement.naturalWidth || !this.imageElement.naturalHeight) {
-            console.warn('Image has invalid dimensions:', this.imageElement.naturalWidth, this.imageElement.naturalHeight);
+            console.warn(
+                'Image has invalid dimensions:',
+                this.imageElement.naturalWidth,
+                this.imageElement.naturalHeight
+            );
             this._drawPlaceholder(ctx, 'Invalid image', 'rgba(255, 100, 100, 0.8)');
             return;
         }
@@ -239,7 +250,7 @@ export class Image extends RenderObject {
                     drawX,
                     drawY,
                     drawWidth,
-                    drawHeight
+                    drawHeight,
                 });
             }
 
@@ -343,7 +354,7 @@ export class Image extends RenderObject {
             x: this.x,
             y: this.y,
             width: this.width,
-            height: this.height
+            height: this.height,
         };
     }
 }

@@ -64,13 +64,13 @@ export class SceneElementRegistry {
      * @returns {Object[]} Array of type info objects
      */
     getElementTypeInfo() {
-        return this.getAvailableTypes().map(type => {
+        return this.getAvailableTypes().map((type) => {
             const schema = this.getSchema(type);
             return {
                 type,
                 name: schema?.name || type,
                 description: schema?.description || `${type} element`,
-                category: schema?.category || 'general'
+                category: schema?.category || 'general',
             };
         });
     }
@@ -79,48 +79,74 @@ export class SceneElementRegistry {
      * Register default scene element types
      */
     registerDefaultElements() {
-
         // Register the bound time unit piano roll
-        this.registerElement('timeUnitPianoRoll', (config) => {
-            const element = new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config);
-            return element;
-        }, TimeUnitPianoRollElement.getConfigSchema());
+        this.registerElement(
+            'timeUnitPianoRoll',
+            (config) => {
+                const element = new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config);
+                return element;
+            },
+            TimeUnitPianoRollElement.getConfigSchema()
+        );
 
         // Register bound background element
-        this.registerElement('background', (config) => {
-            const element = new BackgroundElement(config.id || 'background', config);
-            return element;
-        }, BackgroundElement.getConfigSchema());
+        this.registerElement(
+            'background',
+            (config) => {
+                const element = new BackgroundElement(config.id || 'background', config);
+                return element;
+            },
+            BackgroundElement.getConfigSchema()
+        );
 
         // Register bound image element
-        this.registerElement('image', (config) => {
-            const element = new ImageElement(config.id || 'image', config);
-            return element;
-        }, ImageElement.getConfigSchema());
+        this.registerElement(
+            'image',
+            (config) => {
+                const element = new ImageElement(config.id || 'image', config);
+                return element;
+            },
+            ImageElement.getConfigSchema()
+        );
 
         // Register bound progress display element
-        this.registerElement('progressDisplay', (config) => {
-            const element = new ProgressDisplayElement(config.id || 'progressDisplay', config);
-            return element;
-        }, ProgressDisplayElement.getConfigSchema());
+        this.registerElement(
+            'progressDisplay',
+            (config) => {
+                const element = new ProgressDisplayElement(config.id || 'progressDisplay', config);
+                return element;
+            },
+            ProgressDisplayElement.getConfigSchema()
+        );
 
         // Register bound text overlay element
-        this.registerElement('textOverlay', (config) => {
-            const element = new TextOverlayElement(config.id || 'textOverlay', config);
-            return element;
-        }, TextOverlayElement.getConfigSchema());
+        this.registerElement(
+            'textOverlay',
+            (config) => {
+                const element = new TextOverlayElement(config.id || 'textOverlay', config);
+                return element;
+            },
+            TextOverlayElement.getConfigSchema()
+        );
 
         // Register bound time display element
-        this.registerElement('timeDisplay', (config) => {
-            const element = new TimeDisplayElement(config.id || 'timeDisplay', config);
-            return element;
-        }, TimeDisplayElement.getConfigSchema());
+        this.registerElement(
+            'timeDisplay',
+            (config) => {
+                const element = new TimeDisplayElement(config.id || 'timeDisplay', config);
+                return element;
+            },
+            TimeDisplayElement.getConfigSchema()
+        );
 
-        this.registerElement('debug', (config) => {
-            const element = new DebugElement(config.id || 'debug', config);
-            return element;
-        }, DebugElement.getConfigSchema());
-
+        this.registerElement(
+            'debug',
+            (config) => {
+                const element = new DebugElement(config.id || 'debug', config);
+                return element;
+            },
+            DebugElement.getConfigSchema()
+        );
     }
 }
 

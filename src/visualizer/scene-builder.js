@@ -53,7 +53,9 @@ export class HybridSceneBuilder {
             if (index !== -1) {
                 // Dispose element resources before removal
                 if (typeof element.dispose === 'function') {
-                    try { element.dispose(); } catch { }
+                    try {
+                        element.dispose();
+                    } catch {}
                 }
                 this.elements.splice(index, 1);
             }
@@ -106,7 +108,9 @@ export class HybridSceneBuilder {
         // Dispose all elements to detach listeners and free resources
         for (const el of this.elements) {
             if (el && typeof el.dispose === 'function') {
-                try { el.dispose(); } catch { }
+                try {
+                    el.dispose();
+                } catch {}
             }
         }
         this.elements = [];
@@ -171,7 +175,7 @@ export class HybridSceneBuilder {
                         assignments.push({
                             elementId: element.id,
                             propertyPath: propertyPath,
-                            macroId: macroId
+                            macroId: macroId,
                         });
                     }
                 } else {
@@ -181,7 +185,7 @@ export class HybridSceneBuilder {
                         assignments.push({
                             elementId: element.id,
                             propertyPath: propertyPath,
-                            macroId: binding.getMacroId()
+                            macroId: binding.getMacroId(),
                         });
                     }
                 }
@@ -215,7 +219,7 @@ export class HybridSceneBuilder {
 
         // Sort elements by zIndex for proper layering
         const sortedElements = [...this.elements]
-            .filter(element => element.visible)
+            .filter((element) => element.visible)
             .sort((a, b) => a.zIndex - b.zIndex);
 
         // Build render objects from each element
@@ -245,7 +249,7 @@ export class HybridSceneBuilder {
 
         // Sort custom elements by zIndex
         const sortedElements = [...customElements]
-            .filter(element => element.visible)
+            .filter((element) => element.visible)
             .sort((a, b) => a.zIndex - b.zIndex);
 
         // Build render objects from each element
@@ -269,7 +273,7 @@ export class HybridSceneBuilder {
      * @returns {SceneElement[]}
      */
     getElementsByType(type) {
-        return this.elements.filter(element => element.type === type);
+        return this.elements.filter((element) => element.type === type);
     }
 
     /**
@@ -283,67 +287,81 @@ export class HybridSceneBuilder {
         this._createDefaultMacros();
 
         // Add elements in z-index order (background first, overlay last)
-        this.addElement(new BackgroundElement("background", {
-            zIndex: 0,
-            anchorX: 0,
-            anchorY: 0
-        }));
+        this.addElement(
+            new BackgroundElement('background', {
+                zIndex: 0,
+                anchorX: 0,
+                anchorY: 0,
+            })
+        );
 
         // Use the new consolidated TimeUnitPianoRoll element with local timing
-        this.addElement(new TimeUnitPianoRollElement('main', {
-            zIndex: 10,
-            timeUnitBars: 1,
-            offsetX: 750,
-            offsetY: 750,
-            anchorX: 0.5,
-            anchorY: 0.5,
-        }));
+        this.addElement(
+            new TimeUnitPianoRollElement('main', {
+                zIndex: 10,
+                timeUnitBars: 1,
+                offsetX: 750,
+                offsetY: 750,
+                anchorX: 0.5,
+                anchorY: 0.5,
+            })
+        );
 
         // Time display with local timing
-        this.addElement(new TimeDisplayElement('timeDisplay', {
-            zIndex: 40,
-            anchorX: 0,
-            anchorY: 1,
-            offsetX: 100,
-            offsetY: 1400,
-        }));
+        this.addElement(
+            new TimeDisplayElement('timeDisplay', {
+                zIndex: 40,
+                anchorX: 0,
+                anchorY: 1,
+                offsetX: 100,
+                offsetY: 1400,
+            })
+        );
 
-        this.addElement(new ProgressDisplayElement('progressDisplay', {
-            zIndex: 45,
-            anchorX: 0,
-            anchorY: 1,
-            offsetX: 10,
-            offsetY: 1500,
-        }));
+        this.addElement(
+            new ProgressDisplayElement('progressDisplay', {
+                zIndex: 45,
+                anchorX: 0,
+                anchorY: 1,
+                offsetX: 10,
+                offsetY: 1500,
+            })
+        );
 
         // Add two separate text elements - one for title, one for artist
-        this.addElement(new TextOverlayElement('titleText', {
-            zIndex: 50,
-            anchorX: 0,
-            anchorY: 0,
-            offsetX: 100,
-            offsetY: 100,
-            text: 'Song Title', // Default placeholder text
-            fontSize: 100,
-            fontWeight: 'bold',
-        }));
+        this.addElement(
+            new TextOverlayElement('titleText', {
+                zIndex: 50,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 100,
+                offsetY: 100,
+                text: 'Song Title', // Default placeholder text
+                fontSize: 100,
+                fontWeight: 'bold',
+            })
+        );
 
         // Position artist text 40px below the title text
-        this.addElement(new TextOverlayElement('artistText', {
-            zIndex: 51,
-            anchorX: 0,
-            anchorY: 0,
-            offsetX: 105,
-            offsetY: 210,
-            text: 'Artist Name', // Default placeholder text
-            fontSize: 40,
-            fontWeight: 'normal',
-        }));
+        this.addElement(
+            new TextOverlayElement('artistText', {
+                zIndex: 51,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 105,
+                offsetY: 210,
+                text: 'Artist Name', // Default placeholder text
+                fontSize: 40,
+                fontWeight: 'normal',
+            })
+        );
 
-        this.addElement(new DebugElement("debug", {
-            offsetX: 750,
-            offsetY: 750,
-        }))
+        this.addElement(
+            new DebugElement('debug', {
+                offsetX: 750,
+                offsetY: 750,
+            })
+        );
 
         // Assign macros to relevant element properties
         this._assignDefaultMacros();
@@ -407,7 +425,7 @@ export class HybridSceneBuilder {
                 id: element.id,
                 type: element.type,
                 visible: element.visible,
-                zIndex: element.zIndex
+                zIndex: element.zIndex,
             };
 
             if (schema && schema.properties) {
@@ -472,18 +490,18 @@ export class HybridSceneBuilder {
      */
     serializeScene() {
         // Serialize elements with binding information
-        const serializedElements = this.elements.map(element => {
+        const serializedElements = this.elements.map((element) => {
             // Check if this is a bound element
             if (element instanceof SceneElement) {
                 return {
                     ...element.getSerializableConfig(),
-                    index: this.elements.indexOf(element)
+                    index: this.elements.indexOf(element),
                 };
             } else {
                 // Fallback to regular serialization for legacy elements
                 return {
                     ...this.getElementConfig(element.id),
-                    index: this.elements.indexOf(element)
+                    index: this.elements.indexOf(element),
                 };
             }
         });
@@ -496,7 +514,7 @@ export class HybridSceneBuilder {
             elements: serializedElements,
             macros: macroData,
             serializedAt: new Date().toISOString(),
-            bindingSystemVersion: process.env.REACT_APP_BINDING_VERSION
+            bindingSystemVersion: process.env.REACT_APP_BINDING_VERSION,
         };
     }
 
@@ -575,9 +593,12 @@ export class HybridSceneBuilder {
                 }
             }
 
-            console.log(`Scene loaded successfully: ${sortedElements.length} elements, binding system: ${hasBindingSystem ? 'yes' : 'no'}`);
+            console.log(
+                `Scene loaded successfully: ${sortedElements.length} elements, binding system: ${
+                    hasBindingSystem ? 'yes' : 'no'
+                }`
+            );
             return true;
-
         } catch (error) {
             console.error('Error loading scene:', error);
             return false;
@@ -589,13 +610,13 @@ export class HybridSceneBuilder {
      */
     _mapLegacyTypeToNew(legacyType) {
         const typeMapping = {
-            'boundTimeUnitPianoRoll': 'timeUnitPianoRoll',
-            'boundTextOverlay': 'textOverlay',
-            'boundBackground': 'background',
-            'boundDebug': 'debug',
-            'boundImage': 'image',
-            'boundProgressDisplay': 'progressDisplay',
-            'boundTimeDisplay': 'timeDisplay'
+            boundTimeUnitPianoRoll: 'timeUnitPianoRoll',
+            boundTextOverlay: 'textOverlay',
+            boundBackground: 'background',
+            boundDebug: 'debug',
+            boundImage: 'image',
+            boundProgressDisplay: 'progressDisplay',
+            boundTimeDisplay: 'timeDisplay',
         };
 
         return typeMapping[legacyType] || legacyType;
@@ -644,7 +665,7 @@ export class HybridSceneBuilder {
                 // Store note on event
                 const key = `${event.note}_${event.channel || 0}`;
                 noteOnEvents.set(key, event);
-            } else if ((event.type === 'noteOff') || (event.type === 'noteOn' && event.velocity === 0)) {
+            } else if (event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)) {
                 // Find matching note on event
                 const key = `${event.note}_${event.channel || 0}`;
                 const noteOnEvent = noteOnEvents.get(key);
@@ -657,7 +678,7 @@ export class HybridSceneBuilder {
                         startTime: noteOnEvent.time,
                         endTime: event.time,
                         duration: event.time - noteOnEvent.time,
-                        channel: event.channel || 0
+                        channel: event.channel || 0,
                     };
                     notes.push(note);
                     noteOnEvents.delete(key);
@@ -673,7 +694,7 @@ export class HybridSceneBuilder {
                 startTime: noteOnEvent.time,
                 endTime: noteOnEvent.time + 1.0, // Default 1 second duration
                 duration: 1.0,
-                channel: noteOnEvent.channel || 0
+                channel: noteOnEvent.channel || 0,
             };
             notes.push(note);
         }
@@ -695,7 +716,7 @@ export class HybridSceneBuilder {
         // Create MIDI File macro
         globalMacroManager.createMacro('midiFile', 'file', null, {
             accept: '.mid,.midi',
-            description: 'MIDI file to use across all piano roll elements'
+            description: 'MIDI file to use across all piano roll elements',
         });
 
         // Create Tempo (BPM) macro
@@ -703,7 +724,7 @@ export class HybridSceneBuilder {
             min: 20,
             max: 300,
             step: 0.1,
-            description: 'Beats per minute for all timing elements'
+            description: 'Beats per minute for all timing elements',
         });
 
         // Create Beats per Bar macro
@@ -711,7 +732,7 @@ export class HybridSceneBuilder {
             min: 1,
             max: 16,
             step: 1,
-            description: 'Number of beats in each bar for all timing elements'
+            description: 'Number of beats in each bar for all timing elements',
         });
 
         console.log('Default macros created successfully');
@@ -731,7 +752,6 @@ export class HybridSceneBuilder {
         pianoRoll.bindToMacro('midiFile', 'midiFile');
         timeDisplay.bindToMacro('bpm', 'tempo');
         timeDisplay.bindToMacro('beatsPerBar', 'beatsPerBar');
-
     }
 
     /**
@@ -742,7 +762,7 @@ export class HybridSceneBuilder {
 
         // Find bound piano roll elements and bind them to MIDI macros
         const pianoRollElements = this.getElementsByType('boundTimeUnitPianoRoll');
-        pianoRollElements.forEach(element => {
+        pianoRollElements.forEach((element) => {
             if (element instanceof TimeUnitPianoRollElement) {
                 element.bindMidiFileToMacro('midiFile');
                 element.bindBPMToMacro('tempo');
@@ -765,37 +785,43 @@ export class HybridSceneBuilder {
 
         this.addElement(new BackgroundElement('background'));
 
-        this.addElement(new TimeUnitPianoRollElement('main', {
-            zIndex: 10,
-            timeUnitBars: 1,
-            offsetX: 750,
-            offsetY: 750,
-            anchorX: 0.5,
-            anchorY: 0.5,
-        }));
+        this.addElement(
+            new TimeUnitPianoRollElement('main', {
+                zIndex: 10,
+                timeUnitBars: 1,
+                offsetX: 750,
+                offsetY: 750,
+                anchorX: 0.5,
+                anchorY: 0.5,
+            })
+        );
 
-        this.addElement(new TextOverlayElement('titleText', {
-            zIndex: 50,
-            anchorX: 0,
-            anchorY: 0,
-            offsetX: 100,
-            offsetY: 100,
-            text: 'Text 1', // Default placeholder text
-            fontSize: 100,
-            fontWeight: 'bold',
-        }));
+        this.addElement(
+            new TextOverlayElement('titleText', {
+                zIndex: 50,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 100,
+                offsetY: 100,
+                text: 'Text 1', // Default placeholder text
+                fontSize: 100,
+                fontWeight: 'bold',
+            })
+        );
 
         // Position artist text 40px below the title text
-        this.addElement(new TextOverlayElement('artistText', {
-            zIndex: 51,
-            anchorX: 0,
-            anchorY: 0,
-            offsetX: 105,
-            offsetY: 210,
-            text: 'Text 2', // Default placeholder text
-            fontSize: 40,
-            fontWeight: 'normal',
-        }));
+        this.addElement(
+            new TextOverlayElement('artistText', {
+                zIndex: 51,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 105,
+                offsetY: 210,
+                text: 'Text 2', // Default placeholder text
+                fontSize: 40,
+                fontWeight: 'normal',
+            })
+        );
 
         // Auto-bind elements to macros
         this.autoBindElements();

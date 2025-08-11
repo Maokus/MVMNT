@@ -41,9 +41,12 @@ export class RenderObject {
         // Apply skew transformation using transform matrix
         if (this.skewX !== 0 || this.skewY !== 0) {
             const transform = [
-                1, Math.tan(this.skewY), // skewY affects how Y coordinates map to X
-                Math.tan(this.skewX), 1, // skewX affects how X coordinates map to Y
-                0, 0
+                1,
+                Math.tan(this.skewY), // skewY affects how Y coordinates map to X
+                Math.tan(this.skewX),
+                1, // skewX affects how X coordinates map to Y
+                0,
+                0,
             ];
             ctx.transform(...transform);
         }
@@ -173,7 +176,7 @@ export class RenderObject {
             x: this.x,
             y: this.y,
             width: 0,
-            height: 0
+            height: 0,
         };
     }
 }

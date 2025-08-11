@@ -15,13 +15,12 @@ interface MenuBarActions {
     createNewDefaultScene: () => void;
 }
 
-export const useMenuBar = ({ 
-    visualizer, 
-    sceneName, 
-    onSceneNameChange, 
-    onSceneRefresh 
+export const useMenuBar = ({
+    visualizer,
+    sceneName,
+    onSceneNameChange,
+    onSceneRefresh,
 }: UseMenuBarProps): MenuBarActions => {
-
     const saveScene = () => {
         if (visualizer) {
             try {
@@ -32,7 +31,7 @@ export const useMenuBar = ({
                     const sceneConfig = {
                         name: sceneName,
                         ...sceneData,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
                     };
 
                     // Save to localStorage for compatibility
@@ -112,7 +111,9 @@ export const useMenuBar = ({
                                 console.log(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON`);
                                 alert(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON!`);
                             } else {
-                                alert('Failed to load scene from JSON file. The file may be corrupted or incompatible.');
+                                alert(
+                                    'Failed to load scene from JSON file. The file may be corrupted or incompatible.'
+                                );
                             }
                         } else {
                             alert('Scene builder not available. Please try again.');
@@ -202,6 +203,6 @@ export const useMenuBar = ({
         saveScene,
         loadScene,
         clearScene,
-        createNewDefaultScene
+        createNewDefaultScene,
     };
 };

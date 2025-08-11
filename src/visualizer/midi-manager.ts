@@ -14,11 +14,19 @@ export class MidiManager {
         this.timingManager = new TimingManager(elementId as any);
     }
 
-    getDuration(): number { return this.duration; }
-    getNotes(): any[] { return this.notes; }
+    getDuration(): number {
+        return this.duration;
+    }
+    getNotes(): any[] {
+        return this.notes;
+    }
 
-    setBPM(bpm: number) { this.timingManager.setBPM(bpm); }
-    setBeatsPerBar(b: number) { this.timingManager.setBeatsPerBar(b); }
+    setBPM(bpm: number) {
+        this.timingManager.setBPM(bpm);
+    }
+    setBeatsPerBar(b: number) {
+        this.timingManager.setBeatsPerBar(b);
+    }
 
     async loadMidiFile(file: File, resetMacroValues = false): Promise<void> {
         // dynamic import to avoid circular deps
@@ -36,7 +44,7 @@ export class MidiManager {
                     channel: event.channel,
                     velocity: event.velocity,
                     startTime: event.time,
-                    startTick: event.tick
+                    startTick: event.tick,
                 });
             } else if (event.type === 'noteOff') {
                 const noteOn = noteMap.get(noteKey);
@@ -45,7 +53,7 @@ export class MidiManager {
                         ...noteOn,
                         endTime: event.time,
                         endTick: event.tick,
-                        duration: event.time - noteOn.startTime
+                        duration: event.time - noteOn.startTime,
                     });
                     noteMap.delete(noteKey);
                 }
@@ -80,7 +88,7 @@ export class MidiManager {
         // If we have ticks in events, compute beat positions once, so rendering can re-time with tempo map
         const notesToUse = this.notes.length > 0 ? this.notes : notes;
         if (notesToUse.length > 0 && (notesToUse[0].startTick !== undefined || notesToUse[0].endTick !== undefined)) {
-            const tpq = this.timingManager.ticksPerQuarter || (midiData.ticksPerQuarter || 480);
+            const tpq = this.timingManager.ticksPerQuarter || midiData.ticksPerQuarter || 480;
             for (const n of notesToUse) {
                 if (n.startTick !== undefined) n.startBeat = n.startTick / tpq;
                 if (n.endTick !== undefined) n.endBeat = n.endTick / tpq;
@@ -90,9 +98,8 @@ export class MidiManager {
             // Duration based on beats then converted to seconds so that tempo maps can be applied consistently
             let endSecondsCandidates: number[] = [];
             for (const n of notesToUse) {
-                const endSec = (n.endBeat !== undefined)
-                    ? this.timingManager.beatsToSeconds(n.endBeat)
-                    : (n.endTime || n.startTime);
+                const endSec =
+                    n.endBeat !== undefined ? this.timingManager.beatsToSeconds(n.endBeat) : n.endTime || n.startTime;
                 endSecondsCandidates.push(endSec);
             }
             this.duration = Math.max(...endSecondsCandidates);
@@ -103,7 +110,7 @@ export class MidiManager {
 
     getNotesInTimeWindow(startTime: number, endTime: number) {
         if (!this.notes) return [];
-        return this.notes.filter(note => {
+        return this.notes.filter((note) => {
             const noteStart = note.startTime;
             const noteEnd = note.endTime || noteStart;
             return noteStart < endTime && noteEnd > startTime;
@@ -111,27 +118,23 @@ export class MidiManager {
     }
 
     getNotesInTimeUnit(currentTime: number, timeUnitBars = 1) {
-    // Respect tempo map: compute window aligned to bars around currentTime
-    const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(currentTime, timeUnitBars);
+        // Respect tempo map: compute window aligned to bars around currentTime
+        const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(currentTime, timeUnitBars);
         return this.getNotesInTimeWindow(windowStart, windowEnd);
     }
 
     createNoteEvents(notes: any[]): NoteEvent[] {
         // Recalculate seconds from beats if available to stay beat-aligned under tempo changes
-        return notes.map(n => {
-            const startTime = (n.startBeat !== undefined)
-                ? this.timingManager.beatsToSeconds(n.startBeat)
-                : n.startTime;
-            const endTime = (n.endBeat !== undefined)
-                ? this.timingManager.beatsToSeconds(n.endBeat)
-                : n.endTime;
+        return notes.map((n) => {
+            const startTime = n.startBeat !== undefined ? this.timingManager.beatsToSeconds(n.startBeat) : n.startTime;
+            const endTime = n.endBeat !== undefined ? this.timingManager.beatsToSeconds(n.endBeat) : n.endTime;
             return new NoteEvent(n.note, n.channel || 0, startTime, endTime, n.velocity);
         });
     }
 
     private beatsPerBarSafe(): number {
         // helper to read beatsPerBar from TimingManager safely
-        return (this.timingManager && this.timingManager.beatsPerBar) ? this.timingManager.beatsPerBar : 4;
+        return this.timingManager && this.timingManager.beatsPerBar ? this.timingManager.beatsPerBar : 4;
     }
 
     getNoteName(midiNote: number): string {

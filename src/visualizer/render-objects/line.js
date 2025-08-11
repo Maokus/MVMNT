@@ -41,7 +41,7 @@ export class Line extends RenderObject {
     getEndPoint() {
         return {
             x: this.x + this.deltaX,
-            y: this.y + this.deltaY
+            y: this.y + this.deltaY,
         };
     }
 
@@ -54,7 +54,7 @@ export class Line extends RenderObject {
     getDelta() {
         return {
             x: this.deltaX,
-            y: this.deltaY
+            y: this.deltaY,
         };
     }
 
@@ -89,7 +89,7 @@ export class Line extends RenderObject {
             x: minX,
             y: minY,
             width: maxX - minX,
-            height: maxY - minY
+            height: maxY - minY,
         };
     }
 
