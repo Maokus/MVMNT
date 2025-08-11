@@ -34,12 +34,9 @@ export class AnimationController {
         }
 
         for (const block of noteBlocks) {
-            // Check if note should be shown in current time window
-            const shouldShow = block.shouldShow(targetTime, windowStart, windowEnd);
-
-            if (!shouldShow) {
-                continue;
-            }
+            // Derive visual lifecycle state statelessly
+            const visState = this._deriveVisualState(block, targetTime, animationDuration);
+            if (!visState) continue;
 
             const noteIndex = block.note - noteRange.min;
             if (noteIndex < 0 || noteIndex >= totalNotes) {
@@ -51,18 +48,18 @@ export class AnimationController {
             const finalNoteColor = channelColors[block.channel % channelColors.length];
 
             // Calculate timing
-            const noteStartTime = block.startTime;
-            const noteEndTime = block.endTime;
-            const startTimeInWindow = noteStartTime - windowStart;
-            const endTimeInWindow = noteEndTime - windowStart;
-
+            // Geometry is clamped to the CURRENT window to avoid overflow beyond beat grid
+            const drawStart = Math.max(block.startTime, windowStart);
+            const drawEnd = Math.min(block.endTime, windowEnd);
+            const startTimeInWindow = drawStart - windowStart;
+            const endTimeInWindow = drawEnd - windowStart;
             const x = pianoWidth + (startTimeInWindow / timeUnitInSeconds) * rollWidth;
             const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / timeUnitInSeconds) * rollWidth);
 
 
             // Create note render objects using animation system
             const noteRenderObjects = this._createAnimatedNoteRenderObjects(
-                block, x, y, width, noteHeight, finalNoteColor, targetTime,
+                { block, x, y, width, height: noteHeight, color: finalNoteColor, currentTime: targetTime, visState },
                 animationType, animationSpeed, animationDuration, animationEnabled
             );
 
@@ -72,7 +69,8 @@ export class AnimationController {
         return renderObjects;
     }
 
-    _createAnimatedNoteRenderObjects(block, x, y, width, height, color, currentTime, animationType, animationSpeed, animationDuration, animationEnabled) {
+    _createAnimatedNoteRenderObjects(args, animationType, animationSpeed, animationDuration, animationEnabled) {
+        const { block, x, y, width, height, color, currentTime, visState } = args;
         debugLog(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
             x, y, width, height, color, currentTime, animationType, animationEnabled
         });
@@ -84,15 +82,10 @@ export class AnimationController {
             return staticObjects;
         }
 
-        // Get animation state for this note
-        const animationState = this._calculateAnimationState(block, currentTime, animationDuration);
-
+        // Use derived visual lifecycle state
+        const animationState = visState;
         debugLog(`[_createAnimatedNoteRenderObjects] Animation state:`, animationState);
-
-        if (!animationState) {
-            console.log(`[_createAnimatedNoteRenderObjects] No animation state - note not visible`);
-            return []; // Note not visible
-        }
+        if (!animationState) return [];
 
         // Create animated render objects based on state
         switch (animationState.type) {
@@ -122,68 +115,33 @@ export class AnimationController {
         }
     }
 
-    _calculateAnimationState(block, currentTime, animationDuration) {
-        // Use original timing for animations if available (for split notes)
-        const noteStartTime = block.originalStartTime || block.startTime;
-        const noteEndTime = block.originalEndTime || block.endTime;
+    _deriveVisualState(block, currentTime, animationDuration) {
+        // Stateless lifecycle based on time-unit window
+        const winStart = block.windowStart ?? (this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(currentTime, this.timeUnitPianoRoll.getTimeUnitBars()).start);
+        const winEnd = block.windowEnd ?? (this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(currentTime, this.timeUnitPianoRoll.getTimeUnitBars()).end);
 
-        debugLog(`[_calculateAnimationState] Note ${block.note}: startTime=${noteStartTime}, endTime=${noteEndTime}, currentTime=${currentTime}, duration=${animationDuration}`);
+        const origStart = block.originalStartTime ?? block.startTime;
 
-        // Determine animation duration based on configuration
-        const noteDuration = noteEndTime - noteStartTime;
-        animationDuration = Math.min(animationDuration, noteDuration * 0.3); // Max 30% of note duration
+        // Onset should begin at max(origStart, winStart) for segments crossing into this unit
+        const onsetStart = Math.max(origStart, winStart);
+        const onsetEnd = onsetStart + Math.max(0.01, animationDuration);
 
-        // Ensure minimum animation duration to prevent division by zero
-        animationDuration = Math.max(animationDuration, 0.01);
+        // Visibility holds until winEnd regardless of origEnd
+        const visibleUntil = winEnd;
 
-        // Note onset animation (when note starts playing)
-        const onsetAnimationStart = noteStartTime;
-        const onsetAnimationEnd = noteStartTime + animationDuration;
+        // Offset starts at winEnd, even if the note ended earlier
+        const offsetStart = visibleUntil;
+        const offsetEnd = offsetStart + Math.max(0.01, animationDuration);
 
-        // Note offset animation (when note stops playing)
-        const offsetAnimationStart = noteEndTime - animationDuration;
-        const offsetAnimationEnd = noteEndTime;
-
-        debugLog(`[_calculateAnimationState] Animation windows: onset(${onsetAnimationStart}-${onsetAnimationEnd}), sustained(${onsetAnimationEnd}-${offsetAnimationStart}), offset(${offsetAnimationStart}-${offsetAnimationEnd})`);
-
-        // Check if we're within the onset animation window
-        if (currentTime >= onsetAnimationStart && currentTime <= onsetAnimationEnd) {
-            const state = {
-                type: 'onset',
-                progress: (currentTime - onsetAnimationStart) / animationDuration,
-                startTime: onsetAnimationStart,
-                endTime: onsetAnimationEnd
-            };
-            debugLog(`[_calculateAnimationState] Note ${block.note} in ONSET state:`, state);
-            return state;
+        if (currentTime >= onsetStart && currentTime < onsetEnd) {
+            return { type: 'onset', progress: (currentTime - onsetStart) / (onsetEnd - onsetStart), startTime: onsetStart, endTime: onsetEnd };
         }
-
-        // Check if we're within the offset animation window
-        if (currentTime >= offsetAnimationStart && currentTime <= offsetAnimationEnd) {
-            const state = {
-                type: 'offset',
-                progress: (currentTime - offsetAnimationStart) / animationDuration,
-                startTime: offsetAnimationStart,
-                endTime: offsetAnimationEnd
-            };
-            debugLog(`[_calculateAnimationState] Note ${block.note} in OFFSET state:`, state);
-            return state;
+        if (currentTime >= onsetEnd && currentTime < offsetStart) {
+            return { type: 'sustained', progress: 1, startTime: null, endTime: null };
         }
-
-        // If we're between onset and offset animations, show sustained note
-        if (currentTime > onsetAnimationEnd && currentTime < offsetAnimationStart) {
-            const state = {
-                type: 'sustained',
-                progress: 1,
-                startTime: null,
-                endTime: null
-            };
-            debugLog(`[_calculateAnimationState] Note ${block.note} in SUSTAINED state:`, state);
-            return state;
+        if (currentTime >= offsetStart && currentTime < offsetEnd) {
+            return { type: 'offset', progress: (currentTime - offsetStart) / (offsetEnd - offsetStart), startTime: offsetStart, endTime: offsetEnd };
         }
-
-        // Note not visible or no animation needed
-        debugLog(`[_calculateAnimationState] Note ${block.note} NOT VISIBLE - currentTime ${currentTime} outside note duration`);
         return null;
     }
 

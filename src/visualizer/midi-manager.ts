@@ -129,6 +129,71 @@ export class MidiManager {
         });
     }
 
+    /**
+     * Build clamped note segments for the previous, current, and next time-unit windows
+     * relative to the provided targetTime. Each returned NoteBlock will have windowStart/windowEnd
+     * set to the corresponding unit boundaries so the renderer can compute stateless lifecycle
+     * states (entering/visible/exiting) without maintaining internal flags.
+     */
+    getWindowedNoteBlocksForRender(targetTime: number, timeUnitBars = 1, animationDuration = 0.5): NoteBlock[] {
+        if (!this.notes || this.notes.length === 0) return [];
+
+    const current = this.timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
+        // Previous and next windows aligned to bars
+        const prevStart = this.timingManager._beatsToSeconds(
+            this.timingManager._secondsToBeats(current.start) - (timeUnitBars * this.beatsPerBarSafe())
+        );
+        const prev = { start: prevStart, end: current.start };
+        const nextEnd = this.timingManager._beatsToSeconds(
+            this.timingManager._secondsToBeats(current.end) + (timeUnitBars * this.beatsPerBarSafe())
+        );
+        const next = { start: current.end, end: nextEnd };
+
+        // We only need notes overlapping any of prev/current/next
+        const minTime = prev.start;
+        const maxTime = next.end;
+        const candidateNotes = this.getNotesInTimeWindow(minTime, maxTime);
+
+        const segments: NoteBlock[] = [];
+
+        const addClipped = (note: any, win: {start:number,end:number}) => {
+            const startTime = (note.startBeat !== undefined)
+                ? this.timingManager.beatsToSeconds(note.startBeat)
+                : note.startTime;
+            const endTime = (note.endBeat !== undefined)
+                ? this.timingManager.beatsToSeconds(note.endBeat)
+                : note.endTime;
+            // If the note overlaps the window, create a clamped segment
+            if (startTime < win.end && endTime > win.start) {
+                const segStart = Math.max(startTime, win.start);
+                const segEnd = Math.min(endTime, win.end);
+                const block = new NoteBlock(note.note, note.channel || 0, segStart, segEnd, note.velocity);
+                // Mark as segment if clamped or spans multiple windows
+                if (segStart !== startTime || segEnd !== endTime) {
+                    block.isSegment = true;
+                    block.originalStartTime = startTime;
+                    block.originalEndTime = endTime;
+                }
+                block.windowStart = win.start;
+                block.windowEnd = win.end;
+                segments.push(block);
+            }
+        };
+
+        for (const n of candidateNotes) {
+            addClipped(n, prev);
+            addClipped(n, current);
+            addClipped(n, next);
+        }
+
+        return segments;
+    }
+
+    private beatsPerBarSafe(): number {
+        // helper to read beatsPerBar from TimingManager safely
+        return (this.timingManager && this.timingManager.beatsPerBar) ? this.timingManager.beatsPerBar : 4;
+    }
+
     getNoteName(midiNote: number): string {
         const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
         const octave = Math.floor(midiNote / 12) - 1;

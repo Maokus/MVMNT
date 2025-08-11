@@ -152,18 +152,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this._currentMidiFile = midiFile;
         }
 
-    // Update timing via midiManager
-    this.midiManager.setBPM(bpm);
-    this.midiManager.setBeatsPerBar(beatsPerBar);
+        // Update timing via midiManager
+        this.midiManager.setBPM(bpm);
+        this.midiManager.setBeatsPerBar(beatsPerBar);
 
-    // Get notes for the current time window
-    const notesInTimeUnit = this.midiManager.getNotesInTimeUnit(targetTime, timeUnitBars);
+        // Build clamped segments across prev/current/next windows for lifecycle-based rendering
+        const windowedNoteBlocks = this.midiManager.getWindowedNoteBlocksForRender(targetTime, timeUnitBars);
         
         // Create render objects for the piano roll
-        debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${notesInTimeUnit.length} notes`);
-        if (showNotes && notesInTimeUnit.length > 0) {
-            const noteBlocks = this.midiManager.createNoteBlocks(notesInTimeUnit, targetTime);
-            debugLog(`[_buildRenderObjects] Created ${noteBlocks.length} note blocks for rendering`);
+        debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${windowedNoteBlocks.length} windowed note segments`);
+        if (showNotes && windowedNoteBlocks.length > 0) {
+            const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { animationType, noteColor, noteHeight, minNote, maxNote, pianoWidth, rollWidth },
                 noteBlocks,

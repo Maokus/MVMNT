@@ -14,6 +14,10 @@ export class NoteBlock {
   public originalStartTime: number | null = null;
   public originalEndTime: number | null = null;
 
+  // Time-unit window this segment belongs to (used for stateless visual lifecycle)
+  public windowStart: number | null = null;
+  public windowEnd: number | null = null;
+
   constructor(note: number, channel: number, startTime: number, endTime: number, velocity: number) {
     this.note = note;
     this.channel = channel;
@@ -88,12 +92,16 @@ export class NoteBlock {
           block.velocity
         );
 
-        // Mark as a segment if it's part of a longer note
+      // Mark as a segment if it's part of a longer note
         if (currentStartTime !== block.startTime || segmentEndTime !== block.endTime) {
           newBlock.isSegment = true;
           newBlock.originalStartTime = block.startTime;
           newBlock.originalEndTime = block.endTime;
         }
+
+        // Attach the time-unit window for stateless lifecycle decisions
+        newBlock.windowStart = currentWindowStart;
+        newBlock.windowEnd = currentWindowEnd;
 
         splitBlocks.push(newBlock);
       }
