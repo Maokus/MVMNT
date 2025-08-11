@@ -216,9 +216,7 @@ export class AnimationController {
         const winEnd = block.windowEnd ?? win.end;
 
         const origStart = block.originalStartTime ?? block.startTime;
-        const origEnd = block.originalEndTime ?? block.endTime;
 
-        const EPS = 1e-6;
         const dur = Math.max(0.01, animationDuration);
 
         // ADSR timings within the time-unit window
