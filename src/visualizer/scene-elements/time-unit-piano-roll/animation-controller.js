@@ -48,9 +48,20 @@ export class AnimationController {
             const finalNoteColor = channelColors[block.channel % channelColors.length];
 
             // Calculate timing
-            // Geometry is clamped to the CURRENT window to avoid overflow beyond beat grid
-            const drawStart = Math.max(block.startTime, windowStart);
-            const drawEnd = Math.min(block.endTime, windowEnd);
+            // Geometry clamped to CURRENT window, with special case:
+            // If we're in offset phase for a block whose window ended exactly at this window's start,
+            // draw a short stub into the new window so the offset is visible after the unit ends.
+            let drawStart = Math.max(block.startTime, windowStart);
+            let drawEnd = Math.min(block.endTime, windowEnd);
+
+            // Special offset carry-over rendering
+            if (visState.type === 'offset' && block.windowEnd === windowStart) {
+                // Render a small stub whose width follows the remaining offset progress
+                const stubDuration = Math.max(0.01, this.timeUnitPianoRoll.getProperty('animationDuration') || 0.5);
+                drawStart = windowStart; // start at window left edge
+                drawEnd = Math.min(windowEnd, windowStart + stubDuration);
+            }
+
             const startTimeInWindow = drawStart - windowStart;
             const endTimeInWindow = drawEnd - windowStart;
             const x = pianoWidth + (startTimeInWindow / timeUnitInSeconds) * rollWidth;
@@ -129,8 +140,8 @@ export class AnimationController {
         // Visibility holds until winEnd regardless of origEnd
         const visibleUntil = winEnd;
 
-        // Start offset before the window ends so it is visible within the current time unit
-        const offsetStart = Math.max(winStart, visibleUntil - Math.max(0.01, animationDuration));
+        // Start offset AFTER the time unit ends; this plays into the next window
+        const offsetStart = visibleUntil;
         const offsetEnd = offsetStart + Math.max(0.01, animationDuration);
 
         if (currentTime >= onsetStart && currentTime < onsetEnd) {
