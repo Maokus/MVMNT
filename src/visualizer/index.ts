@@ -4,7 +4,7 @@
 // Core MIDI Processing Exports
 // ==========================================
 export { MIDIParser, parseMIDI } from './midi-parser';
-export { NoteBlock } from './note-block';
+export { NoteEvent } from './note-event';
 export { ImageSequenceGenerator } from './image-sequence-generator';
 export { MacroManager, globalMacroManager } from './macro-manager';
 

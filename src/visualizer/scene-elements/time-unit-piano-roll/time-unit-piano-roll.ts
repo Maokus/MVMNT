@@ -3,6 +3,7 @@ import { SceneElement } from '../base';
 import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
 import { Line, Text } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller.js';
+import { NoteBlock } from './note-block';
 import { MidiManager } from '../../midi-manager';
 import { debugLog } from '../../utils/debug-log.js';
 import { globalMacroManager } from '../../macro-manager';
@@ -157,7 +158,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
         this.midiManager.setBeatsPerBar(beatsPerBar);
 
         // Build clamped segments across prev/current/next windows for lifecycle-based rendering
-        const windowedNoteBlocks = this.midiManager.getWindowedNoteBlocksForRender(targetTime, timeUnitBars);
+        const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
+            this.midiManager.getNotes(),
+            this.midiManager.timingManager,
+            targetTime,
+            timeUnitBars
+        );
         
         // Create render objects for the piano roll
         debugLog(`[_buildRenderObjects] ${showNotes ? 'Rendering notes' : 'Skipping notes'} for target time ${targetTime} with ${windowedNoteBlocks.length} windowed note segments`);

@@ -129,8 +129,8 @@ export class AnimationController {
         // Visibility holds until winEnd regardless of origEnd
         const visibleUntil = winEnd;
 
-        // Offset starts at winEnd, even if the note ended earlier
-        const offsetStart = visibleUntil;
+        // Start offset before the window ends so it is visible within the current time unit
+        const offsetStart = Math.max(winStart, visibleUntil - Math.max(0.01, animationDuration));
         const offsetEnd = offsetStart + Math.max(0.01, animationDuration);
 
         if (currentTime >= onsetStart && currentTime < onsetEnd) {
