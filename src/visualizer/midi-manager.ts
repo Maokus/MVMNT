@@ -35,7 +35,8 @@ export class MidiManager {
                     note: event.note,
                     channel: event.channel,
                     velocity: event.velocity,
-                    startTime: event.time
+                    startTime: event.time,
+                    startTick: event.tick
                 });
             } else if (event.type === 'noteOff') {
                 const noteOn = noteMap.get(noteKey);
@@ -43,6 +44,7 @@ export class MidiManager {
                     notes.push({
                         ...noteOn,
                         endTime: event.time,
+                        endTick: event.tick,
                         duration: event.time - noteOn.startTime
                     });
                     noteMap.delete(noteKey);
@@ -75,9 +77,25 @@ export class MidiManager {
             }
         }
 
+        // If we have ticks in events, compute beat positions once, so rendering can re-time with tempo map
         const notesToUse = this.notes.length > 0 ? this.notes : notes;
+        if (notesToUse.length > 0 && (notesToUse[0].startTick !== undefined || notesToUse[0].endTick !== undefined)) {
+            const tpq = this.timingManager.ticksPerQuarter || (midiData.ticksPerQuarter || 480);
+            for (const n of notesToUse) {
+                if (n.startTick !== undefined) n.startBeat = n.startTick / tpq;
+                if (n.endTick !== undefined) n.endBeat = n.endTick / tpq;
+            }
+        }
         if (notesToUse.length > 0) {
-            this.duration = Math.max(...notesToUse.map(n => n.endTime || n.startTime));
+            // Duration based on beats then converted to seconds so that tempo maps can be applied consistently
+            let endSecondsCandidates: number[] = [];
+            for (const n of notesToUse) {
+                const endSec = (n.endBeat !== undefined)
+                    ? this.timingManager.beatsToSeconds(n.endBeat)
+                    : (n.endTime || n.startTime);
+                endSecondsCandidates.push(endSec);
+            }
+            this.duration = Math.max(...endSecondsCandidates);
         } else {
             this.duration = 0;
         }
@@ -99,8 +117,16 @@ export class MidiManager {
     }
 
     createNoteBlocks(notes: any[], _targetTime: number): NoteBlock[] {
-        // NoteBlock(note, channel, startTime, endTime, velocity)
-        return notes.map(n => new NoteBlock(n.note, n.channel || 0, n.startTime, n.endTime, n.velocity));
+        // Recalculate seconds from beats if available to stay beat-aligned under tempo changes
+        return notes.map(n => {
+            const startTime = (n.startBeat !== undefined)
+                ? this.timingManager.beatsToSeconds(n.startBeat)
+                : n.startTime;
+            const endTime = (n.endBeat !== undefined)
+                ? this.timingManager.beatsToSeconds(n.endBeat)
+                : n.endTime;
+            return new NoteBlock(n.note, n.channel || 0, startTime, endTime, n.velocity);
+        });
     }
 
     getNoteName(midiNote: number): string {

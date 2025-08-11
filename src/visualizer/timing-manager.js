@@ -260,6 +260,16 @@ export class TimingManager {
         return (seconds * 1000000) / microsecondsPerTick;
     }
 
+    /** Public: convert beats to seconds using current tempo or tempo map */
+    beatsToSeconds(beats) {
+        return this._beatsToSeconds(beats);
+    }
+
+    /** Public: convert seconds to beats using current tempo or tempo map */
+    secondsToBeats(seconds) {
+        return this._secondsToBeats(seconds);
+    }
+
     /**
      * Compute the time window [start,end) aligned to bar boundaries that contains the given time.
      * @param {number} referenceTimeInSeconds

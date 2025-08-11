@@ -453,7 +453,8 @@ export class MIDIParser {
     const earliestSeconds = ticksToSeconds(earliestNoteTime);
     const playableEvents: MIDIEvent[] = noteEvents.map(event => ({
       ...event,
-      time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds)
+      time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds),
+      tick: event.time - earliestNoteTime
     }));
 
     // Calculate total duration based on the end of the final note

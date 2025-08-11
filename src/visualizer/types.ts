@@ -10,6 +10,7 @@ export interface MIDIEvent {
   note?: number;
   velocity?: number;
   time: number;
+  tick?: number; // original absolute tick (relative to trimmed start) when available
   duration?: number;
   data?: number[];
   metaType?: number;
