@@ -439,7 +439,7 @@ export class SceneElement implements SceneElementInterface {
                 {
                     id: 'visibility',
                     label: 'Visibility & Layer',
-                    collapsed: false,
+                    collapsed: true,
                     properties: [
                         { key: 'visible', type: 'boolean', label: 'Visible', default: true },
                         { key: 'zIndex', type: 'number', label: 'Layer (Z-Index)', default: 0, min: 0, max: 100, step: 1 },
@@ -449,7 +449,7 @@ export class SceneElement implements SceneElementInterface {
                 {
                     id: 'transform',
                     label: 'Transform',
-                    collapsed: false,
+                    collapsed: true,
                     properties: [
                         { key: 'offsetX', type: 'number', label: 'Offset X', default: 0, min: -10000, max: 10000, step: 1, description: 'Element horizontal position offset' },
                         { key: 'offsetY', type: 'number', label: 'Offset Y', default: 0, min: -10000, max: 10000, step: 1, description: 'Element vertical position offset' },
