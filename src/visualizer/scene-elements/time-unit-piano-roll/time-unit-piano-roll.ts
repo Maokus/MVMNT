@@ -106,10 +106,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     label: 'Animation',
                     collapsed: false,
                     properties: [
-                        { key: 'animationType', type: 'select', label: 'Animation Type', default: 'none', options: [
+                        { key: 'animationType', type: 'select', label: 'Animation Type', default: 'expand', options: [
                             { value: 'fade', label: 'Fade In/Out' },
                             { value: 'slide', label: 'Slide' },
                             { value: 'scale', label: 'Scale' },
+                            { value: 'expand', label: 'Expand' },
+                            { value: 'debug', label: 'Debug'},
                             { value: 'none', label: 'No Animation' }
                         ], description: 'Type of animation for note appearance' },
                         { key: 'animationSpeed', type: 'number', label: 'Animation Speed', default: 1.0, min: 0.1, max: 5.0, step: 0.1, description: 'Speed multiplier for animations' },

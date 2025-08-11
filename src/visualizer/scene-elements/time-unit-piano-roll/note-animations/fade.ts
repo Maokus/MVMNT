@@ -8,10 +8,10 @@ export class FadeAnimation extends BaseNoteAnimation {
     switch (phase) {
       case 'preOnset':
         // Subtle preview before the note starts
-        alpha = 0.4 * Math.max(0, Math.min(1, progress));
+        alpha = 0.8 * Math.max(0, Math.min(1, progress));
         break;
       case 'onset':
-        alpha = 0.8 * this.easing.easeInOutQuad(Math.max(0, Math.min(1, progress)));
+        alpha = 0.8 + 0.2*(1-progress);
         break;
       case 'sustained':
         alpha = 0.8;

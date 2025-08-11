@@ -15,6 +15,10 @@ export function createAnimationInstance(type: AnimationType): BaseNoteAnimation 
       const { ScaleAnimation } = require('./scale');
       return new ScaleAnimation();
     }
+    case 'debug': {
+      const {DebugAnimation} = require('./debug');
+      return new DebugAnimation();
+    }
     case 'expand':
     default: {
       const { ExpandAnimation } = require('./expand');

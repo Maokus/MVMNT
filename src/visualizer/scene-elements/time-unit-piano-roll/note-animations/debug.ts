@@ -1,24 +1,23 @@
+import { Text } from '../../../render-objects/text.js';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 
-export class ExpandAnimation extends BaseNoteAnimation {
+export class DebugAnimation extends BaseNoteAnimation {
   render(ctx: AnimationContext): RenderObjectInterface[] {
     const { x, y, width, height, color, progress, phase } = ctx;
-    const p = Math.max(0, Math.min(1, progress));
+    const info = `${(progress*100).toFixed(0)}% x:${x.toFixed(0)} y:${y.toFixed(0)} w:${width.toFixed(0)} h:${height.toFixed(0)}`;
 
     switch (phase) {
       case 'preOnset': {
-        return [];
+        return [new Text(x,y,`preOnset ${info}`)];
       }
       case 'onset': {
-        const w = Math.max(1, width * this.easing.easeInOutQuad(p));
-        return [this.rect(x, y, w, height, color, 0.8)];
+        return [new Text(x,y,`onset ${info}`)]
       }
       case 'sustained':
-        return [this.rect(x, y, width, height, color, 0.8)];
+        return [new Text(x,y,`sustained ${info}`)]
       case 'offset': {
-        const w = Math.max(1, width * (1 - this.easing.easeIn(p)));
-        return [this.rect(x+width-w, y, w, height, color, 0.8)];
+        return [new Text(x,y,`offset ${info}`)]
       }
       default:
         return [this.rect(x, y, width, height, color, 0.8)];
