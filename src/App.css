@@ -207,14 +207,16 @@ body {
 }
 
 #canvas {
-    width: 600px;
-    height: 600px;
+    /* Let intrinsic canvas width/height (attributes) dictate base size; scale down if needed */
+    width: 100%;
+    height: auto;
     max-width: calc(100% - 40px);
     max-height: calc(100% - 40px);
     border: 1px solid #3e3e42;
     border-radius: 4px;
     background: #000;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    image-rendering: pixelated;
 }
 
 .playback-controls {

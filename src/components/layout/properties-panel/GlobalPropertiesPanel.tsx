@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
 
 interface ExportSettings {
@@ -40,6 +40,15 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
     debugSettings,
     onDebugSettingsChange
 }) => {
+    const [localWidth, setLocalWidth] = useState(exportSettings.width);
+    const [localHeight, setLocalHeight] = useState(exportSettings.height);
+
+    // Sync local state when external exportSettings change (e.g., reset)
+    useEffect(() => {
+        setLocalWidth(exportSettings.width);
+        setLocalHeight(exportSettings.height);
+    }, [exportSettings.width, exportSettings.height]);
+
     // Create a local function to handle export setting updates
     const updateExportSetting = (key: keyof ExportSettings, value: any) => {
         const newSettings = {
@@ -52,7 +61,25 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
     // Handle Enter key on export settings inputs
     const handleExportInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
+            // Commit width/height if these inputs
+            const id = e.currentTarget.id;
+            if (id === 'widthInput') commitSize('width');
+            if (id === 'heightInput') commitSize('height');
             e.currentTarget.blur();
+        }
+    };
+
+    const commitSize = (dimension: 'width' | 'height') => {
+        if (dimension === 'width') {
+            let w = parseInt(String(localWidth));
+            if (!Number.isFinite(w) || w < 16) w = exportSettings.width; // revert invalid
+            if (w !== exportSettings.width) updateExportSetting('width', w);
+            setLocalWidth(w);
+        } else {
+            let h = parseInt(String(localHeight));
+            if (!Number.isFinite(h) || h < 16) h = exportSettings.height;
+            if (h !== exportSettings.height) updateExportSetting('height', h);
+            setLocalHeight(h);
         }
     };
 
@@ -79,8 +106,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
                                     id="widthInput"
                                     min={16}
                                     max={8192}
-                                    value={exportSettings.width}
-                                    onChange={(e) => updateExportSetting('width', parseInt(e.target.value) || 0)}
+                                    value={localWidth}
+                                    onChange={(e) => setLocalWidth(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                                    onBlur={() => commitSize('width')}
                                     onKeyDown={handleExportInputKeyDown}
                                 />
                             </div>
@@ -91,8 +119,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
                                     id="heightInput"
                                     min={16}
                                     max={8192}
-                                    value={exportSettings.height}
-                                    onChange={(e) => updateExportSetting('height', parseInt(e.target.value) || 0)}
+                                    value={localHeight}
+                                    onChange={(e) => setLocalHeight(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                                    onBlur={() => commitSize('height')}
                                     onKeyDown={handleExportInputKeyDown}
                                 />
                             </div>

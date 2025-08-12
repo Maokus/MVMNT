@@ -167,6 +167,10 @@ const MidiVisualizer: React.FC = () => {
                 if (visualizer.invalidateRender) {
                     visualizer.invalidateRender();
                 }
+                if (typeof visualizer.render === 'function') {
+                    // Render immediately so user sees content, not blank canvas
+                    visualizer.render();
+                }
             }
             if (visualizer.updateExportSettings) {
                 visualizer.updateExportSettings(exportSettings);
