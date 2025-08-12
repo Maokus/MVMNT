@@ -304,18 +304,32 @@ const PreviewPanel: React.FC = () => {
                                         if (Math.abs(det2) > 1e-6) {
                                             const a = (dWorld.x * basisH.y - dWorld.y * basisH.x) / det2;
                                             const b = (basisW.x * dWorld.y - basisW.y * dWorld.x) / det2;
-                                            newScaleX = Math.max(0.01, origScaleX * a);
-                                            newScaleY = Math.max(0.01, origScaleY * b);
+                                            // Some orientations (NE, SW) result in width/height axes swapped; correct for those cases
+                                            let aAdj = a;
+                                            let bAdj = b;
+                                            if (mode === 'scale-ne' || mode === 'scale-sw') {
+                                                // Swap axes to match intuitive horizontal/vertical mapping
+                                                const tmp = aAdj; aAdj = bAdj; bAdj = tmp;
+                                            }
+                                            // Ensure positive scaling factors (avoid flipping / negative leading to min clamp)
+                                            aAdj = Math.abs(aAdj);
+                                            bAdj = Math.abs(bAdj);
+                                            newScaleX = Math.max(0.01, origScaleX * aAdj);
+                                            newScaleY = Math.max(0.01, origScaleY * bAdj);
                                         }
                                     } else {
                                         // Edge scaling: project along single axis
                                         if (mode === 'scale-e' || mode === 'scale-w') {
                                             const len2 = wvx * wvx + wvy * wvy || 1;
-                                            const a = (dWorld.x * wvx + dWorld.y * wvy) / len2; // width factor change
+                                            let a = (dWorld.x * wvx + dWorld.y * wvy) / len2; // width factor change
+                                            if (mode === 'scale-w') a = -a; // invert for left edge so dragging left increases size
+                                            a = Math.abs(a); // keep positive
                                             newScaleX = Math.max(0.01, origScaleX * a);
                                         } else if (mode === 'scale-n' || mode === 'scale-s') {
                                             const len2 = hvx * hvx + hvy * hvy || 1;
-                                            const b = (dWorld.x * hvx + dWorld.y * hvy) / len2; // height factor change
+                                            let b = (dWorld.x * hvx + dWorld.y * hvy) / len2; // height factor change
+                                            if (mode === 'scale-n') b = -b; // invert for top edge
+                                            b = Math.abs(b);
                                             newScaleY = Math.max(0.01, origScaleY * b);
                                         }
                                     }
@@ -390,7 +404,7 @@ const PreviewPanel: React.FC = () => {
                                         y: baseBounds.y + baseBounds.height * anchorY,
                                     };
                                     const deltaLocal = { x: newAnchorLocal.x - oldAnchorLocal.x, y: newAnchorLocal.y - oldAnchorLocal.y };
-                                    const rotation = (meta.origRotation || 0) * Math.PI / 180;
+                                    const rotation = (meta.origRotation || 0); // already stored in radians
                                     const skewX = meta.origSkewX || 0;
                                     const skewY = meta.origSkewY || 0;
                                     const scaleX = meta.origScaleX || 1;
@@ -447,8 +461,10 @@ const PreviewPanel: React.FC = () => {
                                     const snappedDeg = Math.round(deg / 15) * 15;
                                     newRotationRad = snappedDeg * Math.PI / 180;
                                 }
-                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotationRad });
-                                updateElementConfig?.(elId, { elementRotation: newRotationRad });
+                                // Provide degrees to updateElementConfig (system converts degrees -> radians internally)
+                                const newRotationDeg = newRotationRad * 180 / Math.PI;
+                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotationDeg });
+                                updateElementConfig?.(elId, { elementRotation: newRotationDeg });
                             }
                             vis.setInteractionState({}); // trigger
                             return;
