@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
+import { useVisualizer } from '../../context/VisualizerContext';
 
 interface ExportSettings {
     fps: number;
@@ -30,16 +31,16 @@ interface GlobalPropertiesPanelProps {
     onDebugSettingsChange: (settings: DebugSettings) => void;
 }
 
-const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
-    visualizer,
-    onExport,
-    exportStatus,
-    canExport,
-    exportSettings,
-    onExportSettingsChange,
-    debugSettings,
-    onDebugSettingsChange
-}) => {
+const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
+    const ctx = useVisualizer();
+    const visualizer = props.visualizer || ctx.visualizer;
+    const onExport = props.onExport;
+    const exportStatus = props.exportStatus;
+    const canExport = props.canExport;
+    const exportSettings = props.exportSettings || ctx.exportSettings;
+    const onExportSettingsChange = props.onExportSettingsChange || ctx.setExportSettings;
+    const debugSettings = props.debugSettings || ctx.debugSettings;
+    const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
     const [localWidth, setLocalWidth] = useState(exportSettings.width);
     const [localHeight, setLocalHeight] = useState(exportSettings.height);
 

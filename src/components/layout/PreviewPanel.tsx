@@ -1,4 +1,5 @@
 import React from 'react';
+import { useVisualizer } from '../context/VisualizerContext';
 
 interface PreviewPanelProps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -14,19 +15,20 @@ interface PreviewPanelProps {
     onSeekAtPercent?: (percent: number) => void;
 }
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({
-    canvasRef,
-    isPlaying,
-    onPlayPause,
-    onStop,
-    onStepForward,
-    onStepBackward,
-    currentTime,
-    width,
-    height,
-    progressPercent = 0,
-    onSeekAtPercent
-}) => {
+const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
+    // Use context primarily; allow explicit props to override for backwards compatibility
+    const ctx = useVisualizer();
+    const canvasRef = props.canvasRef || ctx.canvasRef;
+    const isPlaying = props.isPlaying ?? ctx.isPlaying;
+    const onPlayPause = props.onPlayPause || ctx.playPause;
+    const onStop = props.onStop || ctx.stop;
+    const onStepForward = props.onStepForward || ctx.stepForward;
+    const onStepBackward = props.onStepBackward || ctx.stepBackward;
+    const currentTime = props.currentTime || ctx.currentTimeLabel;
+    const width = props.width ?? ctx.exportSettings.width;
+    const height = props.height ?? ctx.exportSettings.height;
+    const progressPercent = props.progressPercent ?? (ctx.totalDuration ? (ctx.numericCurrentTime / ctx.totalDuration) : 0);
+    const onSeekAtPercent = props.onSeekAtPercent || ctx.seekPercent;
     const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!onSeekAtPercent) return;
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();

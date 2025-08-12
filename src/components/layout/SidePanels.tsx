@@ -3,6 +3,7 @@ import SceneElementPanel from './scene-element-panel/SceneElementPanel';
 import { PropertiesPanel } from './properties-panel';
 import { ElementDropdown } from './scene-element-panel';
 import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelectionContext';
+import { useVisualizer } from '../context/VisualizerContext';
 
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
@@ -17,15 +18,15 @@ interface SidePanelsProps {
 }
 
 // Internal component that uses the context
-const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRefreshTrigger'>> = ({
-    onExport,
-    exportStatus,
-    canExport,
-    exportSettings,
-    onExportSettingsChange,
-    debugSettings,
-    onDebugSettingsChange
-}) => {
+const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRefreshTrigger'>> = (props) => {
+    const ctx = useVisualizer();
+    const onExport = props.onExport;
+    const exportStatus = props.exportStatus;
+    const canExport = props.canExport;
+    const exportSettings = props.exportSettings || ctx.exportSettings;
+    const onExportSettingsChange = props.onExportSettingsChange || ctx.setExportSettings;
+    const debugSettings = props.debugSettings || ctx.debugSettings;
+    const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
