@@ -259,6 +259,8 @@ export class MIDIVisualizerCore {
         // Update RAF pacing based on fps
         const fps = Math.max(1, this.exportSettings.fps || 30);
         this._rafMinIntervalMs = 1000 / fps;
+        // Trigger a re-render when export settings (including resolution) change
+        this.invalidateRender();
     }
 
     /**
