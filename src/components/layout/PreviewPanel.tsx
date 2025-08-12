@@ -205,10 +205,14 @@ const PreviewPanel: React.FC = () => {
                                     centerX = anchorPt.x;
                                     centerY = anchorPt.y;
                                 }
-                                const angleRad = Math.atan2(y - centerY, x - centerX); // radians
-                                const angleDeg = angleRad * (180 / Math.PI);
-                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: angleDeg }); // supply degrees (conversion done in element)
-                                updateElementConfig?.(elId, { elementRotation: angleDeg });
+                                // Calculate initial angle at drag start
+                                const startAngleRad = Math.atan2(meta.startY - centerY, meta.startX - centerX);
+                                const currentAngleRad = Math.atan2(y - centerY, x - centerX);
+                                const deltaRad = currentAngleRad - startAngleRad;
+                                const deltaDeg = deltaRad * (180 / Math.PI);
+                                const newRotation = (meta.origRotation || 0) + deltaDeg;
+                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotation });
+                                updateElementConfig?.(elId, { elementRotation: newRotation });
                             }
                             vis.setInteractionState({}); // trigger
                             return;
