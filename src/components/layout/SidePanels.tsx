@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import SceneElementPanel from './scene-element-panel/SceneElementPanel';
 import { PropertiesPanel } from './properties-panel';
 import { ElementDropdown } from './scene-element-panel';
-import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelectionContext';
+import { useSceneSelection } from '../context/SceneSelectionContext';
 import { useVisualizer } from '../context/VisualizerContext';
 
 interface SidePanelsProps {
@@ -134,13 +134,9 @@ const SidePanelsInternal: React.FC = () => {
     );
 };
 
-// Main component wrapper that provides the context
+// Main component (provider now lives higher in tree)
 const SidePanels: React.FC<SidePanelsProps> = ({ sceneRefreshTrigger }) => {
-    return (
-        <SceneSelectionProvider sceneRefreshTrigger={sceneRefreshTrigger}>
-            <SidePanelsInternal />
-        </SceneSelectionProvider>
-    );
+    return <SidePanelsInternal />;
 };
 
 export default SidePanels;

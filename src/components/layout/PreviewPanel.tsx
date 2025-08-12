@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVisualizer } from '../context/VisualizerContext';
+import { useSceneSelection } from '../context/SceneSelectionContext';
 
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
     const { canvasRef, isPlaying, playPause, stop, stepForward, stepBackward, currentTimeLabel, exportSettings, totalDuration, numericCurrentTime, seekPercent } = ctx;
+    const { selectElement, sceneBuilder, updateElementConfig } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     const progressPercent = totalDuration ? (numericCurrentTime / totalDuration) : 0;
@@ -65,6 +67,97 @@ const PreviewPanel: React.FC = () => {
                         height: `${displaySize.h}px`,
                         maxWidth: '100%',
                         maxHeight: '100%'
+                    }}
+                    onMouseDown={(e) => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return;
+                        const vis = (ctx as any).visualizer;
+                        if (!vis) return;
+                        const rect = canvas.getBoundingClientRect();
+                        const scaleX = canvas.width / rect.width;
+                        const scaleY = canvas.height / rect.height;
+                        const x = (e.clientX - rect.left) * scaleX;
+                        const y = (e.clientY - rect.top) * scaleY;
+                        const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
+                        // Top-most hit: iterate from end (highest z) since list sorted ascending
+                        let hit = null;
+                        for (let i = boundsList.length - 1; i >= 0; i--) {
+                            const b = boundsList[i];
+                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) {
+                                hit = b;
+                                break;
+                            }
+                        }
+                        if (hit) {
+                            selectElement(hit.id);
+                            vis.setInteractionState({ selectedElementId: hit.id, draggingElementId: hit.id });
+                            // Store drag start metadata
+                            (vis._dragMeta = {
+                                startX: x,
+                                startY: y,
+                                origOffsetX: hit.element?.offsetX || 0,
+                                origOffsetY: hit.element?.offsetY || 0,
+                            });
+                        } else {
+                            // Clear selection
+                            selectElement(null);
+                            vis.setInteractionState({ selectedElementId: null, hoverElementId: null, draggingElementId: null });
+                        }
+                    }}
+                    onMouseMove={(e) => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return;
+                        const vis = (ctx as any).visualizer;
+                        if (!vis) return;
+                        const rect = canvas.getBoundingClientRect();
+                        const scaleX = canvas.width / rect.width;
+                        const scaleY = canvas.height / rect.height;
+                        const x = (e.clientX - rect.left) * scaleX;
+                        const y = (e.clientY - rect.top) * scaleY;
+                        if (vis._interactionState?.draggingElementId && vis._dragMeta) {
+                            const elId = vis._interactionState.draggingElementId;
+                            const dx = x - vis._dragMeta.startX;
+                            const dy = y - vis._dragMeta.startY;
+                            const newX = vis._dragMeta.origOffsetX + dx;
+                            const newY = vis._dragMeta.origOffsetY + dy;
+                            if (sceneBuilder && elId) {
+                                // Update element config live
+                                sceneBuilder.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+                                updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+                                vis.setInteractionState({}); // trigger rerender
+                            }
+                            return;
+                        }
+                        // Hover detection (only when not dragging)
+                        const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
+                        let hoverId = null;
+                        for (let i = boundsList.length - 1; i >= 0; i--) {
+                            const b = boundsList[i];
+                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) {
+                                hoverId = b.id;
+                                break;
+                            }
+                        }
+                        if (hoverId !== vis._interactionState?.hoverElementId) {
+                            vis.setInteractionState({ hoverElementId: hoverId });
+                        }
+                    }}
+                    onMouseUp={(e) => {
+                        const vis = (ctx as any).visualizer;
+                        if (!vis) return;
+                        if (vis._interactionState?.draggingElementId) {
+                            vis.setInteractionState({ draggingElementId: null });
+                            vis._dragMeta = null;
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        const vis = (ctx as any).visualizer;
+                        if (!vis) return;
+                        if (vis._interactionState?.draggingElementId) {
+                            vis.setInteractionState({ draggingElementId: null });
+                            vis._dragMeta = null;
+                        }
+                        vis.setInteractionState({ hoverElementId: null });
                     }}
                 ></canvas>
             </div>

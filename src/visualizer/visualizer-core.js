@@ -55,6 +55,14 @@ export class MIDIVisualizerCore {
         // Initialize the default scene
         this.sceneBuilder.createDefaultMIDIScene();
 
+        // Interaction state (hover/select/drag) for editor tooling
+        this._interactionState = {
+            hoverElementId: null,
+            selectedElementId: null,
+            draggingElementId: null,
+        };
+        this._interactionBoundsCache = new Map(); // elementId -> bounds (last computed frame)
+
         // For debug: add to window for easy access in console
         window.vis = this;
     }
@@ -396,6 +404,13 @@ export class MIDIVisualizerCore {
         const config = this.getSceneConfig();
         const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
+        // Draw interaction overlays (selection / hover / drag)
+        try {
+            this._renderInteractionOverlays(targetTime, config);
+        } catch (e) {
+            // Non-fatal
+            // console.warn('Interaction overlay render failed', e);
+        }
     }
 
     /**
@@ -516,6 +531,78 @@ export class MIDIVisualizerCore {
     // Get scene builder for advanced scene customization
     getSceneBuilder() {
         return this.sceneBuilder;
+    }
+
+    /** Set interaction (hover / selection / dragging) state */
+    setInteractionState(partial) {
+        if (!this._interactionState) return;
+        let changed = false;
+        for (const k of Object.keys(partial || {})) {
+            if (this._interactionState[k] !== partial[k]) {
+                this._interactionState[k] = partial[k];
+                changed = true;
+            }
+        }
+        if (changed) this.invalidateRender();
+    }
+
+    /** Get bounds for all visible elements at a given time (used for hit detection) */
+    getElementBoundsAtTime(targetTime = this.currentTime) {
+        const config = this.getSceneConfig();
+        const elements = [...this.sceneBuilder.elements].filter((e) => e.visible);
+        // Sort by zIndex ascending (later ones on top visually)
+        elements.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+        const results = [];
+        for (const el of elements) {
+            try {
+                // Build render objects (will apply transforms) and get their aggregate bounds
+                const ros = el.buildRenderObjects(config, targetTime);
+                if (ros && ros.length) {
+                    const container = ros[0];
+                    if (container && typeof container.getBounds === 'function') {
+                        const b = container.getBounds();
+                        if (b && isFinite(b.x) && isFinite(b.y) && isFinite(b.width) && isFinite(b.height)) {
+                            results.push({ id: el.id, zIndex: el.zIndex || 0, bounds: { ...b }, element: el });
+                        }
+                    }
+                }
+            } catch {}
+        }
+        return results;
+    }
+
+    /** Internal: draw hover/selection bounding boxes */
+    _renderInteractionOverlays(targetTime, config) {
+        if (!this._interactionState) return;
+        const { hoverElementId, selectedElementId, draggingElementId } = this._interactionState;
+        if (!hoverElementId && !selectedElementId && !draggingElementId) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+
+        const needed = new Set([hoverElementId, selectedElementId, draggingElementId].filter(Boolean));
+        if (needed.size === 0) {
+            ctx.restore();
+            return;
+        }
+        // Compute bounds for needed elements (cache per current frame key)
+        const boundsList = this.getElementBoundsAtTime(targetTime);
+        const map = new Map(boundsList.map((r) => [r.id, r.bounds]));
+
+        const draw = (id, strokeStyle) => {
+            if (!id) return;
+            const b = map.get(id);
+            if (!b) return;
+            ctx.strokeStyle = strokeStyle;
+            ctx.strokeRect(b.x, b.y, b.width, b.height);
+        };
+        // Draw order: dragging on top, then hover, then selected under (so active drag color dominates)
+        if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF'); // cyan
+        if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
+            draw(hoverElementId, '#FFFF00'); // yellow
+        if (draggingElementId) draw(draggingElementId, '#FF00FF'); // magenta
+        ctx.restore();
     }
 
     // Get modular renderer for advanced rendering control

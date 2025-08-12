@@ -2,6 +2,7 @@ import React from 'react';
 import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
+import { SceneSelectionProvider } from '../context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';
 import { VisualizerProvider, useVisualizer } from '../context/VisualizerContext';
 import { SceneProvider } from '../context/SceneContext';
@@ -15,10 +16,12 @@ const MidiVisualizerInner: React.FC = () => {
     return (
         <div className="app-container">
             <MenuBar />
-            <div className="main-workspace">
-                <PreviewPanel />
-                <SidePanels sceneRefreshTrigger={sceneRefreshTrigger} />
-            </div>
+            <SceneSelectionProvider sceneRefreshTrigger={sceneRefreshTrigger}>
+                <div className="main-workspace">
+                    <PreviewPanel />
+                    <SidePanels sceneRefreshTrigger={sceneRefreshTrigger} />
+                </div>
+            </SceneSelectionProvider>
             {showProgressOverlay && (
                 <ExportProgressOverlay progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
             )}
