@@ -11,7 +11,7 @@ interface SidePanelsProps {
 
 // Internal component that uses the context
 const SidePanelsInternal: React.FC = () => {
-    const { exportSettings, debugSettings, exportSequence, exportStatus, visualizer, setExportSettings, setDebugSettings } = useVisualizer() as any;
+    const { exportSettings, debugSettings, exportSequence, exportStatus, visualizer, setExportSettings, setDebugSettings, canvasRef } = useVisualizer() as any;
     const canExport = !!(visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
@@ -38,10 +38,13 @@ const SidePanelsInternal: React.FC = () => {
                 setShowAddElementDropdown(false);
             }
 
-            // Clear selection if clicked outside the side panels
-            if (sidePanelsRef.current && !sidePanelsRef.current.contains(event.target as Node)) {
+            // Clear selection only if click is outside BOTH side panels and the canvas
+            const clickedInsideSidePanels = sidePanelsRef.current?.contains(event.target as Node);
+            const canvasEl: HTMLCanvasElement | null = canvasRef?.current || document.getElementById('canvas') as HTMLCanvasElement | null;
+            const clickedInsideCanvas = !!(canvasEl && canvasEl.contains(event.target as Node));
+            if (!clickedInsideSidePanels && !clickedInsideCanvas) {
                 if (selectedElementId) {
-                    console.log('Clicked outside side panels, clearing selection');
+                    console.log('Clicked outside side panels and canvas, clearing selection');
                     clearSelection();
                 }
             }
@@ -64,7 +67,7 @@ const SidePanelsInternal: React.FC = () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, showAddElementDropdown, clearSelection]);
+    }, [selectedElementId, showAddElementDropdown, clearSelection, canvasRef]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {
