@@ -22,6 +22,14 @@ export class ProgressDisplayElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
+                            key: 'timeOffset',
+                            type: 'number',
+                            label: 'Time Offset (s)',
+                            default: 0,
+                            step: 0.01,
+                            description: 'Offset applied to target time (can be negative) before computing progress',
+                        },
+                        {
                             key: 'showBar',
                             type: 'boolean',
                             label: 'Show Progress Bar',
@@ -56,6 +64,8 @@ export class ProgressDisplayElement extends SceneElement {
 
         const renderObjects: RenderObjectInterface[] = [];
         const { duration, sceneDuration, playedNoteEvents, totalNoteEvents } = config;
+        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
+        const effectiveTime = targetTime + timeOffset;
 
         // Get properties from bindings
         const showBar = this.getProperty('showBar') as boolean;
@@ -66,7 +76,7 @@ export class ProgressDisplayElement extends SceneElement {
         const totalDuration = sceneDuration || duration;
 
         // Calculate progress based on the total scene duration
-        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, targetTime / totalDuration)) : 0;
+        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, effectiveTime / totalDuration)) : 0;
 
         // Fixed width for progress bar (positioning handled by transform system)
         const barWidth = 400;
@@ -123,7 +133,7 @@ export class ProgressDisplayElement extends SceneElement {
             const font = `${config.fontWeight || 'normal'} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
 
             // Time progress
-            const currentTimeText = this._formatTime(targetTime);
+            const currentTimeText = this._formatTime(Math.max(0, effectiveTime));
             const durationText = this._formatTime(totalDuration);
             const timeText = `${currentTimeText} / ${durationText}`;
 

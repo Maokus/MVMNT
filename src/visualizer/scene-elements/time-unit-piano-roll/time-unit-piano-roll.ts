@@ -50,125 +50,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             category: 'complete',
             groups: [
                 ...base.groups,
-                {
-                    id: 'noteColors',
-                    label: 'Note Colors (per MIDI channel)',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'channel0Color',
-                            type: 'color',
-                            label: 'Channel 1',
-                            default: '#ff6b6b',
-                            description: 'Color for MIDI channel 1',
-                        },
-                        {
-                            key: 'channel1Color',
-                            type: 'color',
-                            label: 'Channel 2',
-                            default: '#4ecdc4',
-                            description: 'Color for MIDI channel 2',
-                        },
-                        {
-                            key: 'channel2Color',
-                            type: 'color',
-                            label: 'Channel 3',
-                            default: '#45b7d1',
-                            description: 'Color for MIDI channel 3',
-                        },
-                        {
-                            key: 'channel3Color',
-                            type: 'color',
-                            label: 'Channel 4',
-                            default: '#96ceb4',
-                            description: 'Color for MIDI channel 4',
-                        },
-                        {
-                            key: 'channel4Color',
-                            type: 'color',
-                            label: 'Channel 5',
-                            default: '#feca57',
-                            description: 'Color for MIDI channel 5',
-                        },
-                        {
-                            key: 'channel5Color',
-                            type: 'color',
-                            label: 'Channel 6',
-                            default: '#ff9ff3',
-                            description: 'Color for MIDI channel 6',
-                        },
-                        {
-                            key: 'channel6Color',
-                            type: 'color',
-                            label: 'Channel 7',
-                            default: '#54a0ff',
-                            description: 'Color for MIDI channel 7',
-                        },
-                        {
-                            key: 'channel7Color',
-                            type: 'color',
-                            label: 'Channel 8',
-                            default: '#5f27cd',
-                            description: 'Color for MIDI channel 8',
-                        },
-                        {
-                            key: 'channel8Color',
-                            type: 'color',
-                            label: 'Channel 9',
-                            default: '#00d2d3',
-                            description: 'Color for MIDI channel 9',
-                        },
-                        {
-                            key: 'channel9Color',
-                            type: 'color',
-                            label: 'Channel 10',
-                            default: '#ff9f43',
-                            description: 'Color for MIDI channel 10',
-                        },
-                        {
-                            key: 'channel10Color',
-                            type: 'color',
-                            label: 'Channel 11',
-                            default: '#10ac84',
-                            description: 'Color for MIDI channel 11',
-                        },
-                        {
-                            key: 'channel11Color',
-                            type: 'color',
-                            label: 'Channel 12',
-                            default: '#ee5a24',
-                            description: 'Color for MIDI channel 12',
-                        },
-                        {
-                            key: 'channel12Color',
-                            type: 'color',
-                            label: 'Channel 13',
-                            default: '#0984e3',
-                            description: 'Color for MIDI channel 13',
-                        },
-                        {
-                            key: 'channel13Color',
-                            type: 'color',
-                            label: 'Channel 14',
-                            default: '#a29bfe',
-                            description: 'Color for MIDI channel 14',
-                        },
-                        {
-                            key: 'channel14Color',
-                            type: 'color',
-                            label: 'Channel 15',
-                            default: '#fd79a8',
-                            description: 'Color for MIDI channel 15',
-                        },
-                        {
-                            key: 'channel15Color',
-                            type: 'color',
-                            label: 'Channel 16',
-                            default: '#e17055',
-                            description: 'Color for MIDI channel 16',
-                        },
-                    ],
-                },
+                // Timing (tempo + offset)
                 {
                     id: 'timing',
                     label: 'Timing',
@@ -194,12 +76,50 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             step: 1,
                             description: 'Number of beats in each bar for this element',
                         },
+                        {
+                            key: 'timeOffset',
+                            type: 'number',
+                            label: 'Time Offset (s)',
+                            default: 0,
+                            step: 0.01,
+                            description: 'Offset (seconds) added to target time for this element (can be negative)',
+                        },
                     ],
                 },
+                // Channel Colors separated so Notes group only has geometry / style
                 {
-                    id: 'content',
-                    label: 'Content',
-                    collapsed: false,
+                    id: 'noteColors',
+                    label: 'Note Colors (per MIDI channel)',
+                    collapsed: true,
+                    properties: Array.from({ length: 16 }).map((_, i) => ({
+                        key: `channel${i}Color`,
+                        type: 'color',
+                        label: `Channel ${i + 1}`,
+                        default: [
+                            '#ff6b6b',
+                            '#4ecdc4',
+                            '#45b7d1',
+                            '#96ceb4',
+                            '#feca57',
+                            '#ff9ff3',
+                            '#54a0ff',
+                            '#5f27cd',
+                            '#00d2d3',
+                            '#ff9f43',
+                            '#10ac84',
+                            '#ee5a24',
+                            '#0984e3',
+                            '#a29bfe',
+                            '#fd79a8',
+                            '#e17055',
+                        ][i],
+                        description: `Color for MIDI channel ${i + 1}`,
+                    })),
+                },
+                {
+                    id: 'midiFile',
+                    label: 'MIDI File',
+                    collapsed: true,
                     properties: [
                         {
                             key: 'midiFile',
@@ -211,10 +131,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         },
                     ],
                 },
+                // Dimensions & Range
                 {
-                    id: 'layout',
-                    label: 'Layout',
-                    collapsed: false,
+                    id: 'dimensions',
+                    label: 'Dimensions',
+                    collapsed: true,
                     properties: [
                         {
                             key: 'pianoWidth',
@@ -235,16 +156,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             max: 2000,
                             step: 50,
                             description: 'Width of the roll section in pixels (auto-calculated if empty)',
-                        },
-                        {
-                            key: 'noteHeight',
-                            type: 'number',
-                            label: 'Note Height',
-                            default: 20,
-                            min: 4,
-                            max: 20,
-                            step: 1,
-                            description: 'Height of MIDI note blocks in pixels',
                         },
                         {
                             key: 'timeUnitBars',
@@ -278,10 +189,100 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         },
                     ],
                 },
+                // Notes (geometry & style)
                 {
-                    id: 'display',
-                    label: 'Display',
-                    collapsed: false,
+                    id: 'notes',
+                    label: 'Notes',
+                    collapsed: true,
+                    properties: [
+                        {
+                            key: 'showNotes',
+                            type: 'boolean',
+                            label: 'Show Notes',
+                            default: true,
+                            description: 'Show MIDI note blocks',
+                        },
+                        {
+                            key: 'noteHeight',
+                            type: 'number',
+                            label: 'Note Height',
+                            default: 20,
+                            min: 4,
+                            max: 40,
+                            step: 1,
+                            description: 'Height of MIDI note blocks in pixels',
+                        },
+                        {
+                            key: 'noteOpacity',
+                            type: 'number',
+                            label: 'Note Opacity',
+                            default: 0.8,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Base opacity of notes',
+                        },
+                        {
+                            key: 'noteCornerRadius',
+                            type: 'number',
+                            label: 'Note Corner Radius',
+                            default: 2,
+                            min: 0,
+                            max: 20,
+                            step: 1,
+                            description: 'Rounded corner radius for notes',
+                        },
+                        {
+                            key: 'noteStrokeColor',
+                            type: 'color',
+                            label: 'Note Stroke Color',
+                            default: '#ffffff',
+                            description: 'Stroke color for notes (optional)',
+                        },
+                        {
+                            key: 'noteStrokeWidth',
+                            type: 'number',
+                            label: 'Note Stroke Width',
+                            default: 0,
+                            min: 0,
+                            max: 10,
+                            step: 1,
+                            description: 'Stroke width (0 disables stroke)',
+                        },
+                        {
+                            key: 'noteGlowColor',
+                            type: 'color',
+                            label: 'Note Glow Color',
+                            default: 'rgba(255,255,255,0.5)',
+                            description: 'Glow / shadow color (applied if blur > 0)',
+                        },
+                        {
+                            key: 'noteGlowBlur',
+                            type: 'number',
+                            label: 'Note Glow Blur',
+                            default: 0,
+                            min: 0,
+                            max: 50,
+                            step: 1,
+                            description: 'Blur radius for glow (0 disables)',
+                        },
+                        {
+                            key: 'noteGlowOpacity',
+                            type: 'number',
+                            label: 'Note Glow Opacity',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity multiplier for glow',
+                        },
+                    ],
+                },
+                // Note Grid (horizontal)
+                {
+                    id: 'noteGrid',
+                    label: 'Note Grid',
+                    collapsed: true,
                     properties: [
                         {
                             key: 'showNoteGrid',
@@ -291,19 +292,40 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             description: 'Show horizontal grid lines for notes',
                         },
                         {
-                            key: 'showNoteLabels',
-                            type: 'boolean',
-                            label: 'Show Note Labels',
-                            default: true,
-                            description: 'Show note names (C, D, E, etc.)',
+                            key: 'noteGridColor',
+                            type: 'color',
+                            label: 'Grid Line Color',
+                            default: '#333333',
+                            description: 'Color of note grid lines',
                         },
                         {
-                            key: 'showNotes',
-                            type: 'boolean',
-                            label: 'Show Notes',
-                            default: true,
-                            description: 'Show MIDI note blocks',
+                            key: 'noteGridLineWidth',
+                            type: 'number',
+                            label: 'Grid Line Width',
+                            default: 1,
+                            min: 0.5,
+                            max: 10,
+                            step: 0.5,
+                            description: 'Line width of note grid lines',
                         },
+                        {
+                            key: 'noteGridOpacity',
+                            type: 'number',
+                            label: 'Grid Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity of note grid lines',
+                        },
+                    ],
+                },
+                // Beat Grid (vertical)
+                {
+                    id: 'beatGrid',
+                    label: 'Beat Grid',
+                    collapsed: true,
+                    properties: [
                         {
                             key: 'showBeatGrid',
                             type: 'boolean',
@@ -312,6 +334,160 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             description: 'Show vertical beat grid lines',
                         },
                         {
+                            key: 'beatGridBarColor',
+                            type: 'color',
+                            label: 'Bar Line Color',
+                            default: '#666666',
+                            description: 'Color for bar start lines',
+                        },
+                        {
+                            key: 'beatGridBeatColor',
+                            type: 'color',
+                            label: 'Beat Line Color',
+                            default: '#444444',
+                            description: 'Color for regular beat lines',
+                        },
+                        {
+                            key: 'beatGridBarWidth',
+                            type: 'number',
+                            label: 'Bar Line Width',
+                            default: 2,
+                            min: 0.5,
+                            max: 10,
+                            step: 0.5,
+                            description: 'Line width for bar lines',
+                        },
+                        {
+                            key: 'beatGridBeatWidth',
+                            type: 'number',
+                            label: 'Beat Line Width',
+                            default: 1,
+                            min: 0.5,
+                            max: 10,
+                            step: 0.5,
+                            description: 'Line width for beat lines',
+                        },
+                        {
+                            key: 'beatGridOpacity',
+                            type: 'number',
+                            label: 'Grid Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity of beat grid lines',
+                        },
+                    ],
+                },
+                // Note Labels (piano keys)
+                {
+                    id: 'noteLabels',
+                    label: 'Note Labels',
+                    collapsed: true,
+                    properties: [
+                        {
+                            key: 'showNoteLabels',
+                            type: 'boolean',
+                            label: 'Show Note Labels',
+                            default: true,
+                            description: 'Show note names (C, D, E, etc.)',
+                        },
+                        {
+                            key: 'noteLabelFontFamily',
+                            type: 'string',
+                            label: 'Font Family',
+                            default: 'Arial',
+                            description: 'Font family for note labels',
+                        },
+                        {
+                            key: 'noteLabelFontSize',
+                            type: 'number',
+                            label: 'Font Size',
+                            default: 10,
+                            min: 6,
+                            max: 32,
+                            step: 1,
+                            description: 'Font size (px)',
+                        },
+                        {
+                            key: 'noteLabelFontColor',
+                            type: 'color',
+                            label: 'Font Color',
+                            default: '#ffffff',
+                            description: 'Color of note labels',
+                        },
+                        {
+                            key: 'noteLabelFontWeight',
+                            type: 'select',
+                            label: 'Font Weight',
+                            default: 'normal',
+                            options: [
+                                { value: 'normal', label: 'Normal' },
+                                { value: 'bold', label: 'Bold' },
+                                { value: '600', label: '600' },
+                                { value: '300', label: 'Light' },
+                            ],
+                            description: 'Weight of note label font',
+                        },
+                        {
+                            key: 'noteLabelInterval',
+                            type: 'number',
+                            label: 'Label Interval',
+                            default: 1,
+                            min: 1,
+                            max: 24,
+                            step: 1,
+                            description: 'Show every Nth note label',
+                        },
+                        {
+                            key: 'noteLabelStartNote',
+                            type: 'number',
+                            label: 'Label Start Note',
+                            default: 0,
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            description: 'Offset note index for interval (0 = first visible note)',
+                        },
+                        {
+                            key: 'noteLabelOffsetX',
+                            type: 'number',
+                            label: 'Offset X',
+                            default: -10,
+                            min: -200,
+                            max: 200,
+                            step: 1,
+                            description: 'Horizontal offset (pixels) from piano edge',
+                        },
+                        {
+                            key: 'noteLabelOffsetY',
+                            type: 'number',
+                            label: 'Offset Y',
+                            default: 0,
+                            min: -200,
+                            max: 200,
+                            step: 1,
+                            description: 'Vertical offset (pixels)',
+                        },
+                        {
+                            key: 'noteLabelOpacity',
+                            type: 'number',
+                            label: 'Label Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity of note labels',
+                        },
+                    ],
+                },
+                // Beat Labels (bars)
+                {
+                    id: 'beatLabels',
+                    label: 'Beat / Bar Labels',
+                    collapsed: true,
+                    properties: [
+                        {
                             key: 'showBeatLabels',
                             type: 'boolean',
                             label: 'Show Beat Labels',
@@ -319,18 +495,78 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             description: 'Show beat and bar labels',
                         },
                         {
-                            key: 'showPlayhead',
-                            type: 'boolean',
-                            label: 'Show Playhead',
-                            default: true,
-                            description: 'Show the playhead line',
+                            key: 'beatLabelFontFamily',
+                            type: 'string',
+                            label: 'Font Family',
+                            default: 'Arial',
+                            description: 'Font family for bar labels',
+                        },
+                        {
+                            key: 'beatLabelFontSize',
+                            type: 'number',
+                            label: 'Font Size',
+                            default: 12,
+                            min: 6,
+                            max: 48,
+                            step: 1,
+                            description: 'Font size (px)',
+                        },
+                        {
+                            key: 'beatLabelFontColor',
+                            type: 'color',
+                            label: 'Font Color',
+                            default: '#ffffff',
+                            description: 'Color of bar labels',
+                        },
+                        {
+                            key: 'beatLabelFontWeight',
+                            type: 'select',
+                            label: 'Font Weight',
+                            default: 'normal',
+                            options: [
+                                { value: 'normal', label: 'Normal' },
+                                { value: 'bold', label: 'Bold' },
+                                { value: '600', label: '600' },
+                                { value: '300', label: 'Light' },
+                            ],
+                            description: 'Weight of bar label font',
+                        },
+                        {
+                            key: 'beatLabelOffsetY',
+                            type: 'number',
+                            label: 'Offset Y',
+                            default: -5,
+                            min: -200,
+                            max: 200,
+                            step: 1,
+                            description: 'Vertical offset (pixels)',
+                        },
+                        {
+                            key: 'beatLabelOffsetX',
+                            type: 'number',
+                            label: 'Offset X',
+                            default: 5,
+                            min: -200,
+                            max: 200,
+                            step: 1,
+                            description: 'Horizontal offset (pixels) from beat line',
+                        },
+                        {
+                            key: 'beatLabelOpacity',
+                            type: 'number',
+                            label: 'Label Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity of beat labels',
                         },
                     ],
                 },
                 {
                     id: 'animation',
                     label: 'Animation',
-                    collapsed: false,
+                    collapsed: true,
                     properties: [
                         {
                             key: 'animationType',
@@ -375,6 +611,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
+                            key: 'showPlayhead',
+                            type: 'boolean',
+                            label: 'Show Playhead',
+                            default: true,
+                            description: 'Show the playhead line',
+                        },
+                        {
                             key: 'playheadColor',
                             type: 'color',
                             label: 'Playhead Color',
@@ -390,6 +633,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             max: 10,
                             step: 1,
                             description: 'Width of the playhead line in pixels',
+                        },
+                        {
+                            key: 'playheadOpacity',
+                            type: 'number',
+                            label: 'Playhead Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                            description: 'Opacity of playhead line',
                         },
                     ],
                 },
@@ -428,6 +681,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Get current property values through bindings
         const bpm = this.getProperty<number>('bpm');
         const beatsPerBar = this.getProperty<number>('beatsPerBar');
+        const timeOffset = this.getProperty<number>('timeOffset') || 0;
+        const effectiveTime = targetTime + timeOffset;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
         const pianoWidth = this.getProperty<number>('pianoWidth');
         const rollWidth = this.getProperty<number>('rollWidth');
@@ -442,8 +697,34 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const showPlayhead = this.getProperty<boolean>('showPlayhead');
         const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
         const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
+        const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
         const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
         const minBBoxPadding = this.getProperty<number>('minBBoxPadding');
+        // Style configs
+        const noteGridColor = this.getProperty<string>('noteGridColor') || '#333333';
+        const noteGridLineWidth = this.getProperty<number>('noteGridLineWidth') || 1;
+        const noteGridOpacity = this.getProperty<number>('noteGridOpacity') ?? 1;
+        const beatGridBarColor = this.getProperty<string>('beatGridBarColor') || '#666666';
+        const beatGridBeatColor = this.getProperty<string>('beatGridBeatColor') || '#444444';
+        const beatGridBarWidth = this.getProperty<number>('beatGridBarWidth') || 2;
+        const beatGridBeatWidth = this.getProperty<number>('beatGridBeatWidth') || 1;
+        const beatGridOpacity = this.getProperty<number>('beatGridOpacity') ?? 1;
+        const noteLabelFontFamily = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
+        const noteLabelFontSize = this.getProperty<number>('noteLabelFontSize') || 10;
+        const noteLabelFontColor = this.getProperty<string>('noteLabelFontColor') || '#ffffff';
+        const noteLabelFontWeight = this.getProperty<string>('noteLabelFontWeight') || 'normal';
+        const noteLabelInterval = this.getProperty<number>('noteLabelInterval') || 1;
+        const noteLabelStartNote = this.getProperty<number>('noteLabelStartNote') || 0;
+        const noteLabelOffsetX = this.getProperty<number>('noteLabelOffsetX') || -10;
+        const noteLabelOffsetY = this.getProperty<number>('noteLabelOffsetY') || 0;
+        const noteLabelOpacity = this.getProperty<number>('noteLabelOpacity') ?? 1;
+        const beatLabelFontFamily = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
+        const beatLabelFontSize = this.getProperty<number>('beatLabelFontSize') || 12;
+        const beatLabelFontColor = this.getProperty<string>('beatLabelFontColor') || '#ffffff';
+        const beatLabelFontWeight = this.getProperty<string>('beatLabelFontWeight') || 'normal';
+        const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
+        const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
+        const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
 
         // Handle MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');
@@ -460,7 +741,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
             this.midiManager.getNotes(),
             this.midiManager.timingManager,
-            targetTime,
+            effectiveTime,
             timeUnitBars
         );
 
@@ -475,71 +756,136 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { noteHeight, minNote, maxNote, pianoWidth, rollWidth },
                 noteBlocks,
-                targetTime
+                effectiveTime
             );
+            // Apply note style customizations
+            const noteOpacity = this.getProperty<number>('noteOpacity') ?? 0.8;
+            const noteCornerRadius = this.getProperty<number>('noteCornerRadius') || 0;
+            const noteStrokeColor = this.getProperty<string>('noteStrokeColor') || undefined;
+            const noteStrokeWidth = this.getProperty<number>('noteStrokeWidth') || 0;
+            const noteGlowColor = this.getProperty<string>('noteGlowColor') || 'rgba(255,255,255,0.5)';
+            const noteGlowBlur = this.getProperty<number>('noteGlowBlur') || 0;
+            const noteGlowOpacity = this.getProperty<number>('noteGlowOpacity') ?? 0.5;
+            (animatedRenderObjects as any[]).forEach((obj) => {
+                if (!obj) return;
+                if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0) {
+                    obj.setCornerRadius(noteCornerRadius);
+                }
+                if (noteStrokeWidth > 0 && typeof obj.setStroke === 'function') {
+                    obj.setStroke(noteStrokeColor, noteStrokeWidth);
+                }
+                if (typeof obj.setGlobalAlpha === 'function') {
+                    obj.setGlobalAlpha(noteOpacity);
+                } else if (typeof obj.setOpacity === 'function') {
+                    obj.setOpacity(noteOpacity);
+                }
+                if (noteGlowBlur > 0 && typeof obj.setShadow === 'function') {
+                    // If hex color convert to rgba with glow opacity
+                    let glowColorOut = noteGlowColor;
+                    if (noteGlowColor.startsWith('#') && noteGlowOpacity < 1) {
+                        const r = parseInt(noteGlowColor.substr(1, 2), 16);
+                        const g = parseInt(noteGlowColor.substr(3, 2), 16);
+                        const b = parseInt(noteGlowColor.substr(5, 2), 16);
+                        glowColorOut = `rgba(${r},${g},${b},${noteGlowOpacity})`;
+                    }
+                    obj.setShadow(glowColorOut, noteGlowBlur, 0, 0);
+                }
+            });
             debugLog(`[_buildRenderObjects] Created ${animatedRenderObjects.length} animated note blocks`);
             renderObjects.push(...animatedRenderObjects);
         }
 
         // Add grid lines
         if (showNoteGrid) {
-            renderObjects.push(
-                ...this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight)
-            );
+            const noteLines = this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight);
+            noteLines.forEach((l: any) => {
+                if (noteGridColor) l.setColor?.(noteGridColor);
+                if (noteGridLineWidth) l.setLineWidth?.(noteGridLineWidth);
+                l.setOpacity?.(noteGridOpacity);
+            });
+            renderObjects.push(...noteLines);
         }
 
         // Add beat grid (tempo-aware)
         if (showBeatGrid) {
             const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                targetTime,
+                effectiveTime,
                 timeUnitBars
             );
-            renderObjects.push(
-                ...this._createBeatGridLines(
-                    windowStart,
-                    windowEnd,
-                    beatsPerBar,
-                    pianoWidth,
-                    rollWidth || 800,
-                    (maxNote - minNote + 1) * noteHeight
-                )
+            const beatLines = this._createBeatGridLines(
+                windowStart,
+                windowEnd,
+                beatsPerBar,
+                pianoWidth,
+                rollWidth || 800,
+                (maxNote - minNote + 1) * noteHeight
             );
+            beatLines.forEach((l: any) => {
+                const isBar = (l.lineWidth || 1) > 1; // heuristic from default creation
+                const color = isBar ? beatGridBarColor : beatGridBeatColor;
+                const width = isBar ? beatGridBarWidth : beatGridBeatWidth;
+                l.setColor?.(color);
+                l.setLineWidth?.(width);
+                l.setOpacity?.(beatGridOpacity);
+            });
+            renderObjects.push(...beatLines);
         }
 
         // Add note labels
         if (showNoteLabels) {
-            renderObjects.push(...this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight));
+            const labels = this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight);
+            let visibleIndex = 0;
+            for (const lbl of labels as any[]) {
+                // interval logic based solely on visibleIndex
+                if ((visibleIndex - noteLabelStartNote) % noteLabelInterval !== 0) {
+                    lbl.setOpacity?.(0); // hide
+                } else {
+                    lbl.text && (lbl.font = `${noteLabelFontWeight} ${noteLabelFontSize}px ${noteLabelFontFamily}`);
+                    lbl.color = noteLabelFontColor;
+                    lbl.setOpacity?.(noteLabelOpacity);
+                    lbl.x = pianoWidth + noteLabelOffsetX; // adjust relative to piano edge
+                    lbl.y += noteLabelOffsetY;
+                }
+                visibleIndex++;
+            }
+            renderObjects.push(...labels);
         }
 
         // Add beat labels (tempo-aware)
         if (showBeatLabels) {
             const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                targetTime,
+                effectiveTime,
                 timeUnitBars
             );
-            renderObjects.push(
-                ...this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800)
-            );
+            const labels = this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800);
+            (labels as any[]).forEach((lbl) => {
+                lbl.font = `${beatLabelFontWeight} ${beatLabelFontSize}px ${beatLabelFontFamily}`;
+                lbl.color = beatLabelFontColor;
+                lbl.x += beatLabelOffsetX;
+                lbl.y += beatLabelOffsetY;
+                lbl.setOpacity?.(beatLabelOpacity);
+            });
+            renderObjects.push(...labels);
         }
 
         // Add playhead
         if (showPlayhead) {
-            renderObjects.push(
-                ...this._createPlayhead(
-                    targetTime,
-                    pianoWidth,
-                    rollWidth || 800,
-                    (maxNote - minNote + 1) * noteHeight,
-                    playheadLineWidth,
-                    playheadColor
-                )
+            const ph = this._createPlayhead(
+                effectiveTime,
+                pianoWidth,
+                rollWidth || 800,
+                (maxNote - minNote + 1) * noteHeight,
+                playheadLineWidth,
+                playheadColor
             );
+            (ph as any[]).forEach((l) => l.setOpacity?.(playheadOpacity));
+            renderObjects.push(...ph);
         }
 
         // Optionally ensure minimum bounding box by adding two empty render objects at the cached TL/BR of the
         // full-display configuration (as if all Display toggles were true). This reduces jumping when grids/lines are toggled.
         if (ensureMinBBox) {
-            const bbox = this._getOrComputeMinBBox(targetTime, {
+            const bbox = this._getOrComputeMinBBox(effectiveTime, {
                 timeUnitBars,
                 minNote,
                 maxNote,
