@@ -7,7 +7,7 @@ interface ProgressOverlayProps {
     downloadUrl?: string;
 }
 
-const ProgressOverlay: React.FC<ProgressOverlayProps> = ({
+const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     progress,
     text,
     onClose,
@@ -57,4 +57,4 @@ const ProgressOverlay: React.FC<ProgressOverlayProps> = ({
     );
 };
 
-export default ProgressOverlay;
+export default ExportProgressOverlay;

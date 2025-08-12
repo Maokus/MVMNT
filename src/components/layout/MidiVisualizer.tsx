@@ -2,7 +2,7 @@ import React from 'react';
 import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
-import ProgressOverlay from './ProgressOverlay';
+import ExportProgressOverlay from './ExportProgressOverlay';
 import { VisualizerProvider, useVisualizer } from '../context/VisualizerContext';
 import { SceneProvider } from '../context/SceneContext';
 import { MacroProvider } from '../context/MacroContext';
@@ -20,7 +20,7 @@ const MidiVisualizerInner: React.FC = () => {
                 <SidePanels sceneRefreshTrigger={sceneRefreshTrigger} />
             </div>
             {showProgressOverlay && (
-                <ProgressOverlay progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
+                <ExportProgressOverlay progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
             )}
         </div>
     );
