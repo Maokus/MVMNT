@@ -567,7 +567,22 @@ export class MIDIVisualizerCore {
                             const corners = container._worldCorners
                                 ? container._worldCorners.map((p) => ({ x: p.x, y: p.y }))
                                 : null;
-                            results.push({ id: el.id, zIndex: el.zIndex || 0, bounds: { ...b }, element: el, corners });
+                            const baseBounds = container.baseBounds
+                                ? {
+                                      x: container.baseBounds.x,
+                                      y: container.baseBounds.y,
+                                      width: container.baseBounds.width,
+                                      height: container.baseBounds.height,
+                                  }
+                                : null;
+                            results.push({
+                                id: el.id,
+                                zIndex: el.zIndex || 0,
+                                bounds: { ...b },
+                                element: el,
+                                corners,
+                                baseBounds,
+                            });
                         }
                     }
                 }
