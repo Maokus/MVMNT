@@ -27,7 +27,8 @@ export class MIDIVisualizerCore {
         // Export settings for frame stepping and export functionality
         this.exportSettings = {
             fps: 30,
-            resolution: 1500,
+            width: 1500,
+            height: 1500,
             fullDuration: true,
         };
         // Initialize RAF pacing
@@ -249,7 +250,8 @@ export class MIDIVisualizerCore {
      * Update export settings that affect frame stepping and export functionality
      * @param {Object} settings - Export settings object
      * @param {number} settings.fps - Frame rate for stepping and export
-     * @param {number} settings.resolution - Resolution for export
+     * @param {number} settings.width - Export width
+     * @param {number} settings.height - Export height
      * @param {boolean} settings.fullDuration - Whether to export full duration
      */
     updateExportSettings(settings) {

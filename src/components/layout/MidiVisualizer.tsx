@@ -28,8 +28,11 @@ const MidiVisualizer: React.FC = () => {
     // Export settings managed at the top level
     const [exportSettings, setExportSettings] = useState({
         fps: 30,
-        resolution: 1500,
-        fullDuration: true
+        width: 1500,
+        height: 1500,
+        fullDuration: true,
+        startTime: 0,
+        endTime: 0
     });
 
     // Debug settings managed at the top level
@@ -154,22 +157,17 @@ const MidiVisualizer: React.FC = () => {
         };
     }, [visualizer]);
 
-    // Handle export settings changes, especially resolution changes
+    // Handle export settings changes (size, fps)
     useEffect(() => {
         if (visualizer && canvasRef.current) {
-            // Update canvas resolution when export settings change
             const canvas = canvasRef.current;
-            if (canvas.width !== exportSettings.resolution || canvas.height !== exportSettings.resolution) {
-                console.log(`Updating canvas resolution to ${exportSettings.resolution}x${exportSettings.resolution}`);
-                visualizer.resize(exportSettings.resolution, exportSettings.resolution);
-
-                // Trigger a rerender to show the resolution change immediately
+            if (canvas.width !== exportSettings.width || canvas.height !== exportSettings.height) {
+                console.log(`Updating canvas size to ${exportSettings.width}x${exportSettings.height}`);
+                visualizer.resize(exportSettings.width, exportSettings.height);
                 if (visualizer.invalidateRender) {
                     visualizer.invalidateRender();
                 }
             }
-
-            // Update visualizer's export settings
             if (visualizer.updateExportSettings) {
                 visualizer.updateExportSettings(exportSettings);
             }
@@ -249,22 +247,43 @@ const MidiVisualizer: React.FC = () => {
         }
     };
 
-    const handleExport = async (exportSettings?: { fps: number; resolution: number; fullDuration: boolean }) => {
+    const handleExport = async (exportSettingsOverride?: any) => {
         if (!visualizer || !imageSequenceGenerator) return;
+        const settings = exportSettingsOverride || exportSettings;
 
-        // Use passed settings or defaults
-        const settings = exportSettings || { fps: 30, resolution: 1500, fullDuration: true };
+        // Validate partial range
+        if (!settings.fullDuration) {
+            if (settings.startTime == null || settings.endTime == null || settings.startTime >= settings.endTime) {
+                alert('Invalid start/end time for export');
+                return;
+            }
+        }
 
         setShowProgressOverlay(true);
         setProgressData({ progress: 0, text: 'Generating images...' });
 
         try {
+            // Determine frame range
+            let maxFrames: number | null = null;
+            let startFrame = 0;
+            if (!settings.fullDuration) {
+                const duration = visualizer.getCurrentDuration();
+                const clampedStart = Math.max(0, Math.min(settings.startTime, duration));
+                const clampedEnd = Math.max(clampedStart, Math.min(settings.endTime, duration));
+                const totalFrames = Math.ceil((clampedEnd - clampedStart) * settings.fps);
+                maxFrames = totalFrames;
+                startFrame = Math.floor(clampedStart * settings.fps);
+            }
+
             await imageSequenceGenerator.generateImageSequence({
                 fps: settings.fps,
-                width: settings.resolution,
-                height: settings.resolution,
+                width: settings.width,
+                height: settings.height,
                 sceneName: sceneName,
-                maxFrames: settings.fullDuration ? null : Math.ceil(visualizer.getCurrentDuration() * settings.fps * 0.5), // 50% if not full duration
+                maxFrames,
+                // Custom pass-through for range (extended generator will look for these non-standard props)
+                // @ts-ignore
+                _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Generating images...') => {
                     setProgressData({ progress, text });
                 },
@@ -297,7 +316,8 @@ const MidiVisualizer: React.FC = () => {
                     onStepForward={handleStepForward}
                     onStepBackward={handleStepBackward}
                     currentTime={currentTime}
-                    resolution={exportSettings.resolution}
+                    width={exportSettings.width}
+                    height={exportSettings.height}
                     progressPercent={totalDuration > 0 ? (numericCurrentTime / totalDuration) : 0}
                     onSeekAtPercent={handleSeekAtPercent}
                 />

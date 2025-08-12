@@ -8,7 +8,8 @@ interface PreviewPanelProps {
     onStepForward: () => void;
     onStepBackward: () => void;
     currentTime: string;
-    resolution: number;
+    width: number;
+    height: number;
     progressPercent?: number;
     onSeekAtPercent?: (percent: number) => void;
 }
@@ -21,7 +22,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({
     onStepForward,
     onStepBackward,
     currentTime,
-    resolution,
+    width,
+    height,
     progressPercent = 0,
     onSeekAtPercent
 }) => {
@@ -38,12 +40,12 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({
                 <canvas
                     id='canvas'
                     ref={canvasRef}
-                    width={resolution}
-                    height={resolution}
+                    width={width}
+                    height={height}
                     style={{
                         maxWidth: '100%',
                         maxHeight: '100%',
-                        aspectRatio: '1/1'
+                        aspectRatio: `${width}/${height}`
                     }}
                 ></canvas>
             </div>

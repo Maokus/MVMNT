@@ -9,11 +9,13 @@ interface PropertiesPanelProps {
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
 
     // Additional props for global functionality
-    onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    onExport: (exportSettings: any) => void; // simplified for now due to mixed JS/TS
     exportStatus: string;
     canExport: boolean;
-    exportSettings: { fps: number; resolution: number; fullDuration: boolean };
-    onExportSettingsChange: (settings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    exportSettings: any;
+    onExportSettingsChange: (settings: any) => void;
+    debugSettings: { showAnchorPoints: boolean };
+    onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -24,7 +26,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     exportStatus,
     canExport,
     exportSettings,
-    onExportSettingsChange
+    onExportSettingsChange,
+    debugSettings,
+    onDebugSettingsChange
 }) => {
     const { visualizer } = useSceneSelection();
 
@@ -47,6 +51,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             canExport={canExport}
             exportSettings={exportSettings}
             onExportSettingsChange={onExportSettingsChange}
+            debugSettings={debugSettings}
+            onDebugSettingsChange={onDebugSettingsChange}
         />
     );
 };

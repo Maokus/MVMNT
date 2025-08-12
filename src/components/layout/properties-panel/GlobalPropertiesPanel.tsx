@@ -1,16 +1,33 @@
 import React from 'react';
 import MacroConfig from './MacroConfig';
 
+interface ExportSettings {
+    fps: number;
+    width: number;
+    height: number;
+    fullDuration: boolean;
+    startTime?: number; // seconds (only used when !fullDuration)
+    endTime?: number;   // seconds (only used when !fullDuration)
+}
+
+interface DebugSettings {
+    showAnchorPoints: boolean;
+}
+
 interface GlobalPropertiesPanelProps {
     // Macro-related props
     visualizer?: any;
 
     // Export-related props
-    onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    onExport: (exportSettings: ExportSettings) => void;
     exportStatus: string;
     canExport: boolean;
-    exportSettings: { fps: number; resolution: number; fullDuration: boolean };
-    onExportSettingsChange: (settings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    exportSettings: ExportSettings;
+    onExportSettingsChange: (settings: ExportSettings) => void;
+
+    // Debug-related props (moved from SidePanels)
+    debugSettings: DebugSettings;
+    onDebugSettingsChange: (settings: DebugSettings) => void;
 }
 
 const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
@@ -19,10 +36,12 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
     exportStatus,
     canExport,
     exportSettings,
-    onExportSettingsChange
+    onExportSettingsChange,
+    debugSettings,
+    onDebugSettingsChange
 }) => {
     // Create a local function to handle export setting updates
-    const updateExportSetting = (key: 'fps' | 'resolution' | 'fullDuration', value: any) => {
+    const updateExportSetting = (key: keyof ExportSettings, value: any) => {
         const newSettings = {
             ...exportSettings,
             [key]: value
@@ -52,17 +71,32 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
 
                     <div className="setting-group">
                         <h4>Export Settings</h4>
-                        <label htmlFor="resolutionSelect">Resolution:</label>
-                        <select
-                            id="resolutionSelect"
-                            value={exportSettings.resolution}
-                            onChange={(e) => updateExportSetting('resolution', parseInt(e.target.value))}
-                        >
-                            <option value="1500">1500x1500px (Default)</option>
-                            <option value="1080">1080x1080px (Instagram)</option>
-                            <option value="720">720x720px (Smaller)</option>
-                            <option value="2160">2160x2160px (4K)</option>
-                        </select>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ flex: 1 }}>
+                                <label htmlFor="widthInput">Width (px):</label>
+                                <input
+                                    type="number"
+                                    id="widthInput"
+                                    min={16}
+                                    max={8192}
+                                    value={exportSettings.width}
+                                    onChange={(e) => updateExportSetting('width', parseInt(e.target.value) || 0)}
+                                    onKeyDown={handleExportInputKeyDown}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label htmlFor="heightInput">Height (px):</label>
+                                <input
+                                    type="number"
+                                    id="heightInput"
+                                    min={16}
+                                    max={8192}
+                                    value={exportSettings.height}
+                                    onChange={(e) => updateExportSetting('height', parseInt(e.target.value) || 0)}
+                                    onKeyDown={handleExportInputKeyDown}
+                                />
+                            </div>
+                        </div>
 
                         <label htmlFor="fpsInput">Frame Rate (FPS):</label>
                         <input
@@ -75,30 +109,78 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
                             onKeyDown={handleExportInputKeyDown}
                         />
 
-                        <label>
+                        <label style={{ display: 'block', marginTop: '8px' }}>
                             <input
                                 type="checkbox"
                                 id="fullDurationExport"
                                 checked={exportSettings.fullDuration}
                                 onChange={(e) => updateExportSetting('fullDuration', e.target.checked)}
-                            />
+                            />{' '}
                             Export full duration
                         </label>
 
+                        {!exportSettings.fullDuration && (
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="startTimeInput">Start (s):</label>
+                                    <input
+                                        type="number"
+                                        id="startTimeInput"
+                                        min={0}
+                                        step={0.01}
+                                        value={exportSettings.startTime ?? 0}
+                                        onChange={(e) => updateExportSetting('startTime', parseFloat(e.target.value) || 0)}
+                                        onKeyDown={handleExportInputKeyDown}
+                                    />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="endTimeInput">End (s):</label>
+                                    <input
+                                        type="number"
+                                        id="endTimeInput"
+                                        min={0}
+                                        step={0.01}
+                                        value={exportSettings.endTime ?? 0}
+                                        onChange={(e) => updateExportSetting('endTime', parseFloat(e.target.value) || 0)}
+                                        onKeyDown={handleExportInputKeyDown}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ marginTop: '16px' }}>
+                            <h4 style={{ marginBottom: '4px' }}>Debug Settings</h4>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    id="showAnchorPoints"
+                                    checked={debugSettings.showAnchorPoints}
+                                    onChange={(e) => onDebugSettingsChange({ ...debugSettings, showAnchorPoints: e.target.checked })}
+                                />{' '}
+                                Show Anchor Points
+                            </label>
+                        </div>
+
                         <div className="export-actions" style={{ marginTop: '16px' }}>
-                            <button
-                                className="btn-export"
-                                onClick={() => onExport(exportSettings)}
-                                disabled={!canExport}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 16px',
-                                    fontSize: '14px',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                📸 Export PNG Sequence
-                            </button>
+                            {(() => {
+                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
+                                return (
+                                    <button
+                                        className="btn-export"
+                                        onClick={() => onExport(exportSettings)}
+                                        disabled={!canExport || invalidRange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 16px',
+                                            fontSize: '14px',
+                                            fontWeight: 'bold'
+                                        }}
+                                        title={invalidRange ? 'Start time must be less than end time' : ''}
+                                    >
+                                        📸 Export PNG Sequence
+                                    </button>
+                                );
+                            })()}
                             <span style={{
                                 fontSize: '12px',
                                 color: '#666',
@@ -106,7 +188,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = ({
                                 display: 'block',
                                 textAlign: 'center'
                             }}>
-                                {exportStatus}
+                                {(!exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime)
+                                    ? 'Invalid time range'
+                                    : exportStatus}
                             </span>
                         </div>
                     </div>

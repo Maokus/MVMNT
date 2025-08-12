@@ -23,6 +23,8 @@ interface GenerateSequenceOptions {
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob) => void;
+    // Internal/advanced options (not exposed in UI yet)
+    _startFrame?: number; // used for partial exports
 }
 
 // Type for JSZip global
@@ -52,6 +54,7 @@ export class ImageSequenceGenerator {
             maxFrames = null, // null = unlimited (full duration)
             onProgress = () => {},
             onComplete = () => {},
+            _startFrame = 0,
         } = options;
 
         if (this.isGenerating) {
@@ -95,7 +98,7 @@ export class ImageSequenceGenerator {
 
             // Step 1: Render all frames to PNG images (80% of progress)
             console.log('Phase 1: Rendering frames to PNG images...');
-            await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress);
+            await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress, _startFrame);
 
             // Step 2: Create ZIP file with all images (20% of progress)
             console.log('Phase 2: Creating ZIP file...');
@@ -127,13 +130,14 @@ export class ImageSequenceGenerator {
         duration: number,
         fps: number,
         totalFrames: number,
-        onProgress: (progress: number, text?: string) => void
+        onProgress: (progress: number, text?: string) => void,
+        startFrame: number = 0
     ): Promise<void> {
         const frameInterval = 1 / fps;
 
         console.log('Rendering frames to PNG...');
         for (let frame = 0; frame < totalFrames; frame++) {
-            const currentTime = frame * frameInterval;
+            const currentTime = (frame + startFrame) * frameInterval;
 
             // Use the stateless rendering method from the visualizer
             this.visualizer.renderAtTime(currentTime);

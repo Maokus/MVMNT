@@ -7,11 +7,11 @@ import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelec
 interface SidePanelsProps {
     visualizer: any; // MIDIVisualizer type
     sceneRefreshTrigger?: number; // Trigger refresh when this changes
-    onExport: (exportSettings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    onExport: (exportSettings: any) => void;
     exportStatus: string;
     canExport: boolean;
-    exportSettings: { fps: number; resolution: number; fullDuration: boolean };
-    onExportSettingsChange: (settings: { fps: number; resolution: number; fullDuration: boolean }) => void;
+    exportSettings: any;
+    onExportSettingsChange: (settings: any) => void;
     debugSettings: { showAnchorPoints: boolean };
     onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
 }
@@ -41,14 +41,7 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
         addElement
     } = useSceneSelection();
 
-    // Create a local function to handle debug setting updates
-    const updateDebugSetting = (key: 'showAnchorPoints', value: any) => {
-        const newSettings = {
-            ...debugSettings,
-            [key]: value
-        };
-        onDebugSettingsChange(newSettings);
-    };
+    // Debug settings now handled in GlobalPropertiesPanel
 
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
@@ -144,27 +137,10 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
                             canExport={canExport}
                             exportSettings={exportSettings}
                             onExportSettingsChange={onExportSettingsChange}
+                            debugSettings={debugSettings}
+                            onDebugSettingsChange={onDebugSettingsChange}
                         />
                     </div>
-                    {/* Debug settings (shown when nothing is selected) */}
-                    {!selectedElementId && (
-                        <div className="debug-settings" id="debugSettings">
-                            <div className="settings-grid">
-                                <div className="setting-group">
-                                    <h4>Debug Settings</h4>
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            id="showAnchorPoints"
-                                            checked={debugSettings.showAnchorPoints}
-                                            onChange={(e) => updateDebugSetting('showAnchorPoints', e.target.checked)}
-                                        />
-                                        Show Anchor Points
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
