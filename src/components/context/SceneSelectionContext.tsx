@@ -124,6 +124,20 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         }
     }, [sceneBuilder, updatePropertiesHeader]);
 
+    // Sync selection state down into the visualizer interaction state (single source of truth = React)
+    useEffect(() => {
+        if (!visualizer || typeof visualizer.setInteractionState !== 'function') return;
+        // Only update if out of sync to avoid redundant invalidations
+        const current = visualizer._interactionState?.selectedElementId;
+        if (current !== selectedElementId) {
+            visualizer.setInteractionState({ selectedElementId: selectedElementId || null });
+        }
+        // When selection cleared, also clear dragging state if it references the previous element
+        if (!selectedElementId && visualizer._interactionState?.draggingElementId) {
+            visualizer.setInteractionState({ draggingElementId: null });
+        }
+    }, [visualizer, selectedElementId]);
+
     const clearSelection = useCallback(() => {
         selectElement(null);
     }, [selectElement]);

@@ -89,8 +89,10 @@ const PreviewPanel: React.FC = () => {
                             }
                         }
                         if (hit) {
+                            // Update global selection (will sync to visualizer via context effect)
                             selectElement(hit.id);
-                            vis.setInteractionState({ selectedElementId: hit.id, draggingElementId: hit.id });
+                            // Set dragging state only (selection handled by context)
+                            vis.setInteractionState({ draggingElementId: hit.id });
                             // Store drag start metadata
                             (vis._dragMeta = {
                                 startX: x,
@@ -101,7 +103,7 @@ const PreviewPanel: React.FC = () => {
                         } else {
                             // Clear selection
                             selectElement(null);
-                            vis.setInteractionState({ selectedElementId: null, hoverElementId: null, draggingElementId: null });
+                            vis.setInteractionState({ hoverElementId: null, draggingElementId: null });
                         }
                     }}
                     onMouseMove={(e) => {
@@ -138,9 +140,7 @@ const PreviewPanel: React.FC = () => {
                                 break;
                             }
                         }
-                        if (hoverId !== vis._interactionState?.hoverElementId) {
-                            vis.setInteractionState({ hoverElementId: hoverId });
-                        }
+                        if (hoverId !== vis._interactionState?.hoverElementId) vis.setInteractionState({ hoverElementId: hoverId });
                     }}
                     onMouseUp={(e) => {
                         const vis = (ctx as any).visualizer;
