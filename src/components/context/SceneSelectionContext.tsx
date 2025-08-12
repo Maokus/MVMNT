@@ -228,8 +228,8 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         }
         if (visualizer?.invalidateRender) visualizer.invalidateRender();
         refreshElements();
-        if (selectedElementId === elementId) selectElement(elementId);
-    }, [sceneBuilder, visualizer, refreshElements, selectedElementId, selectElement]);
+        selectElement(null);
+    }, [sceneBuilder, visualizer, refreshElements, selectElement,]);
 
     const duplicateElement = useCallback((elementId: string) => {
         if (!sceneBuilder) return;
