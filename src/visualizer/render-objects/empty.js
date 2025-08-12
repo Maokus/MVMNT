@@ -183,41 +183,82 @@ export class EmptyRenderObject extends RenderObject {
      * Calculate bounds based on children with proper transform application
      */
     getBounds() {
-        if (this.children.length === 0) {
-            return { x: this.x, y: this.y, width: 0, height: 0 };
+        // If metadata from SceneElement available use that to build an oriented bounds.
+        const metaBase = this.baseBounds; // injected in scene-elements/base.ts
+        if (!metaBase) {
+            // fallback to previous simplistic behaviour
+            if (this.children.length === 0) return { x: this.x, y: this.y, width: 0, height: 0 };
+            let minX = Infinity,
+                minY = Infinity,
+                maxX = -Infinity,
+                maxY = -Infinity;
+            for (const child of this.children) {
+                const b = child.getBounds();
+                minX = Math.min(minX, b.x);
+                minY = Math.min(minY, b.y);
+                maxX = Math.max(maxX, b.x + b.width);
+                maxY = Math.max(maxY, b.y + b.height);
+            }
+            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
         }
 
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
+        const b = metaBase; // {x,y,width,height} BEFORE element transform
+        const anchorFrac = this.anchorFraction || { x: 0.5, y: 0.5 };
+        const anchorX = b.x + b.width * anchorFrac.x;
+        const anchorY = b.y + b.height * anchorFrac.y;
 
-        for (const child of this.children) {
-            const bounds = child.getBounds();
+        // Build transform matrix matching render() order: translate(x,y) then translate(anchor) rotate scale skew translate(-anchor)
+        // We'll compose into a 2D matrix [a c e; b d f; 0 0 1]
+        const sin = Math.sin(this.rotation || 0);
+        const cos = Math.cos(this.rotation || 0);
+        const skewX = Math.tan(this.skewX || 0);
+        const skewY = Math.tan(this.skewY || 0);
+        const sx = this.scaleX || 1;
+        const sy = this.scaleY || 1;
 
-            // For a complete implementation, we'd need to transform all 4 corners
-            // and find the new bounding box. For now, we'll use a simpler approach
-            // that works for translation and uniform scaling.
+        // Start with identity then apply in order: T(x,y)*T(anchor)*R*Scale*Skew*T(-anchor)
+        const multiply = (m1, m2) => ({
+            a: m1.a * m2.a + m1.c * m2.b,
+            b: m1.b * m2.a + m1.d * m2.b,
+            c: m1.a * m2.c + m1.c * m2.d,
+            d: m1.b * m2.c + m1.d * m2.d,
+            e: m1.a * m2.e + m1.c * m2.f + m1.e,
+            f: m1.b * m2.e + m1.d * m2.f + m1.f,
+        });
+        const T = (tx, ty) => ({ a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
+        const R = (cs, sn) => ({ a: cs, b: sn, c: -sn, d: cs, e: 0, f: 0 });
+        const S = (sx, sy) => ({ a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
+        const K = (kx, ky) => ({ a: 1, b: ky, c: kx, d: 1, e: 0, f: 0 }); // skew
 
-            // Apply scale to dimensions
-            const scaledWidth = bounds.width * this.scaleX;
-            const scaledHeight = bounds.height * this.scaleY;
+        let M = T(this.x, this.y);
+        M = multiply(M, T(anchorX, anchorY));
+        M = multiply(M, R(cos, sin));
+        M = multiply(M, S(sx, sy));
+        M = multiply(M, K(skewX, skewY));
+        M = multiply(M, T(-anchorX, -anchorY));
 
-            // Apply position transform - taking into account anchor offset
-            const transformedX = (bounds.x - this.anchorOffsetX) * this.scaleX + this.x + this.anchorOffsetX;
-            const transformedY = (bounds.y - this.anchorOffsetY) * this.scaleY + this.y + this.anchorOffsetY;
-
-            minX = Math.min(minX, transformedX);
-            minY = Math.min(minY, transformedY);
-            maxX = Math.max(maxX, transformedX + scaledWidth);
-            maxY = Math.max(maxY, transformedY + scaledHeight);
+        // Corners of base box
+        const corners = [
+            [b.x, b.y],
+            [b.x + b.width, b.y],
+            [b.x + b.width, b.y + b.height],
+            [b.x, b.y + b.height],
+        ];
+        const txPt = (pt) => ({ x: M.a * pt[0] + M.c * pt[1] + M.e, y: M.b * pt[0] + M.d * pt[1] + M.f });
+        const worldCorners = corners.map(txPt);
+        let minX = Infinity,
+            minY = Infinity,
+            maxX = -Infinity,
+            maxY = -Infinity;
+        for (const p of worldCorners) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
         }
 
-        return {
-            x: minX,
-            y: minY,
-            width: maxX - minX,
-            height: maxY - minY,
-        };
+        // Store corners for downstream (hit tests, handle placement along oriented edges)
+        this._worldCorners = worldCorners; // [{x,y}...]
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     }
 }

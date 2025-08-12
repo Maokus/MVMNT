@@ -564,7 +564,10 @@ export class MIDIVisualizerCore {
                     if (container && typeof container.getBounds === 'function') {
                         const b = container.getBounds();
                         if (b && isFinite(b.x) && isFinite(b.y) && isFinite(b.width) && isFinite(b.height)) {
-                            results.push({ id: el.id, zIndex: el.zIndex || 0, bounds: { ...b }, element: el });
+                            const corners = container._worldCorners
+                                ? container._worldCorners.map((p) => ({ x: p.x, y: p.y }))
+                                : null;
+                            results.push({ id: el.id, zIndex: el.zIndex || 0, bounds: { ...b }, element: el, corners });
                         }
                     }
                 }
@@ -590,14 +593,21 @@ export class MIDIVisualizerCore {
         }
         // Compute bounds for needed elements (cache per current frame key)
         const boundsList = this.getElementBoundsAtTime(targetTime);
-        const map = new Map(boundsList.map((r) => [r.id, r.bounds]));
-
         const draw = (id, strokeStyle) => {
             if (!id) return;
-            const b = map.get(id);
-            if (!b) return;
+            const rec = boundsList.find((r) => r.id === id);
+            if (!rec) return;
             ctx.strokeStyle = strokeStyle;
-            ctx.strokeRect(b.x, b.y, b.width, b.height);
+            if (rec.corners && rec.corners.length === 4) {
+                ctx.beginPath();
+                ctx.moveTo(rec.corners[0].x, rec.corners[0].y);
+                for (let i = 1; i < rec.corners.length; i++) ctx.lineTo(rec.corners[i].x, rec.corners[i].y);
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                const b = rec.bounds;
+                ctx.strokeRect(b.x, b.y, b.width, b.height);
+            }
         };
         // Draw order: dragging on top, then hover, then selected under (so active drag color dominates)
         if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF'); // cyan
@@ -680,26 +690,66 @@ export class MIDIVisualizerCore {
         const size = Math.max(6, Math.min(18, Math.min(b.width, b.height) * 0.08));
         const anchorX = element ? element.anchorX : 0.5;
         const anchorY = element ? element.anchorY : 0.5;
-        const anchorPixelX = b.x + b.width * anchorX;
-        const anchorPixelY = b.y + b.height * anchorY;
+        let anchorPixelX = b.x + b.width * anchorX;
+        let anchorPixelY = b.y + b.height * anchorY;
+        const oriented = record.corners && record.corners.length === 4 ? record.corners : null;
+        // Helper to get midpoint
+        const mid = (p1, p2) => ({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
         const addHandle = (id, type, cx, cy, shape = 'rect', extra = {}) => {
             handles.push({ id, type, cx, cy, size, shape, r: size * 0.5, ...extra });
         };
-        // Corner scale handles
-        addHandle('scale-nw', 'scale-nw', b.x, b.y);
-        addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
-        addHandle('scale-se', 'scale-se', b.x + b.width, b.y + b.height);
-        addHandle('scale-sw', 'scale-sw', b.x, b.y + b.height);
-        // Edge scale handles
-        addHandle('scale-n', 'scale-n', b.x + b.width / 2, b.y);
-        addHandle('scale-e', 'scale-e', b.x + b.width, b.y + b.height / 2);
-        addHandle('scale-s', 'scale-s', b.x + b.width / 2, b.y + b.height);
-        addHandle('scale-w', 'scale-w', b.x, b.y + b.height / 2);
+        if (oriented) {
+            // Corner scale handles (assuming order TL, TR, BR, BL in worldCorners construction)
+            addHandle('scale-nw', 'scale-nw', oriented[0].x, oriented[0].y);
+            addHandle('scale-ne', 'scale-ne', oriented[1].x, oriented[1].y);
+            addHandle('scale-se', 'scale-se', oriented[2].x, oriented[2].y);
+            addHandle('scale-sw', 'scale-sw', oriented[3].x, oriented[3].y);
+            // Edge scale handles (midpoints)
+            const mTop = mid(oriented[0], oriented[1]);
+            const mRight = mid(oriented[1], oriented[2]);
+            const mBottom = mid(oriented[2], oriented[3]);
+            const mLeft = mid(oriented[3], oriented[0]);
+            addHandle('scale-n', 'scale-n', mTop.x, mTop.y);
+            addHandle('scale-e', 'scale-e', mRight.x, mRight.y);
+            addHandle('scale-s', 'scale-s', mBottom.x, mBottom.y);
+            addHandle('scale-w', 'scale-w', mLeft.x, mLeft.y);
+            // Anchor pixel (transform anchor transforms with same oriented matrix centre)
+            // Compute anchor by bilinear interpolation using oriented corners.
+            const interp = (a, b, t) => a + (b - a) * t;
+            const top = {
+                x: interp(oriented[0].x, oriented[1].x, anchorX),
+                y: interp(oriented[0].y, oriented[1].y, anchorX),
+            };
+            const bottom = {
+                x: interp(oriented[3].x, oriented[2].x, anchorX),
+                y: interp(oriented[3].y, oriented[2].y, anchorX),
+            };
+            const anchorPt = { x: interp(top.x, bottom.x, anchorY), y: interp(top.y, bottom.y, anchorY) };
+            anchorPixelX = anchorPt.x;
+            anchorPixelY = anchorPt.y;
+        } else {
+            // Legacy axis-aligned placement
+            addHandle('scale-nw', 'scale-nw', b.x, b.y);
+            addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
+            addHandle('scale-se', 'scale-se', b.x + b.width, b.y + b.height);
+            addHandle('scale-sw', 'scale-sw', b.x, b.y + b.height);
+            addHandle('scale-n', 'scale-n', b.x + b.width / 2, b.y);
+            addHandle('scale-e', 'scale-e', b.x + b.width, b.y + b.height / 2);
+            addHandle('scale-s', 'scale-s', b.x + b.width / 2, b.y + b.height);
+            addHandle('scale-w', 'scale-w', b.x, b.y + b.height / 2);
+        }
         // Anchor handle
         addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
         // Rotation handle (circle) above top-center
+        let rotBaseX = b.x + b.width / 2;
+        let rotBaseY = b.y; // top edge center
+        if (oriented) {
+            const topMid = { x: (oriented[0].x + oriented[1].x) / 2, y: (oriented[0].y + oriented[1].y) / 2 };
+            rotBaseX = topMid.x;
+            rotBaseY = topMid.y;
+        }
         const rotOffset = Math.min(60, Math.max(25, b.height * 0.15));
-        addHandle('rotate', 'rotate', b.x + b.width / 2, b.y - rotOffset, 'circle');
+        addHandle('rotate', 'rotate', rotBaseX, rotBaseY - rotOffset, 'circle');
         this._interactionHandlesCache.set(cacheKey, handles);
         // Prune cache
         if (this._interactionHandlesCache.size > 50) {

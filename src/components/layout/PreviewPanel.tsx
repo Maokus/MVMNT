@@ -113,9 +113,22 @@ const PreviewPanel: React.FC = () => {
                         // Otherwise do normal element hit test
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
                         let hit = null;
+                        const pointInPoly = (ptX: number, ptY: number, corners: { x: number; y: number }[]) => {
+                            // Ray casting algorithm
+                            let inside = false;
+                            for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+                                const xi = corners[i].x, yi = corners[i].y;
+                                const xj = corners[j].x, yj = corners[j].y;
+                                const intersect = ((yi > ptY) !== (yj > ptY)) && (ptX < (xj - xi) * (ptY - yi) / (yj - yi + 1e-9) + xi);
+                                if (intersect) inside = !inside;
+                            }
+                            return inside;
+                        };
                         for (let i = boundsList.length - 1; i >= 0; i--) {
-                            const b = boundsList[i];
-                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hit = b; break; }
+                            const b = boundsList[i] as any;
+                            if (b.corners && b.corners.length === 4) {
+                                if (pointInPoly(x, y, b.corners)) { hit = b; break; }
+                            } else if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hit = b; break; }
                         }
                         if (hit) {
                             selectElement(hit.id);
@@ -200,11 +213,18 @@ const PreviewPanel: React.FC = () => {
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
                         let hoverId = null;
                         for (let i = boundsList.length - 1; i >= 0; i--) {
-                            const b = boundsList[i];
-                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) {
-                                hoverId = b.id;
-                                break;
-                            }
+                            const b = boundsList[i] as any;
+                            if (b.corners && b.corners.length === 4) {
+                                let inside = false; // reuse same alg
+                                let corners = b.corners;
+                                for (let m = 0, n = corners.length - 1; m < corners.length; n = m++) {
+                                    const xi = corners[m].x, yi = corners[m].y;
+                                    const xj = corners[n].x, yj = corners[n].y;
+                                    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi);
+                                    if (intersect) inside = !inside;
+                                }
+                                if (inside) { hoverId = b.id; break; }
+                            } else if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hoverId = b.id; break; }
                         }
                         if (hoverId !== vis._interactionState?.hoverElementId) vis.setInteractionState({ hoverElementId: hoverId });
                     }}

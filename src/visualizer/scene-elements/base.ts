@@ -361,6 +361,20 @@ export class SceneElement implements SceneElementInterface {
             }
         }
 
+        // Store the untransformed aggregate bounds for later transform math (selection, handles)
+        // (Consumers can compute oriented bounding boxes using element transform parameters.)
+        (containerObject as any).baseBounds = { ...bounds };
+        (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
+        (containerObject as any).elementTransform = {
+            offsetX: this.offsetX,
+            offsetY: this.offsetY,
+            scaleX: this.elementScaleX,
+            scaleY: this.elementScaleY,
+            rotation: this.elementRotation,
+            skewX: this.elementSkewX,
+            skewY: this.elementSkewY,
+        };
+
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
             containerObject.setAnchorVisualizationData(bounds, this.anchorX, this.anchorY);
