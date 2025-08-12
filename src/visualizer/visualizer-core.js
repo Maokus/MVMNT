@@ -359,17 +359,32 @@ export class MIDIVisualizerCore {
     // Force a re-render on next frame
     invalidateRender() {
         this._needsRender = true;
-        // Dispatch event to notify React component; avoid flooding by batching to next tick
-        if (this.canvas) {
-            if (!this._pendingVisUpdate) {
-                this._pendingVisUpdate = true;
-                Promise.resolve().then(() => {
-                    this._pendingVisUpdate = false;
+
+        // If we're NOT playing, the normal animation loop won't call render().
+        // Schedule a one-off RAF to perform the render so actions like seek, frame step,
+        // element config edits, resolution changes, etc. update the canvas immediately.
+        if (!this.isPlaying) {
+            if (!this._pendingRenderRAF) {
+                this._pendingRenderRAF = requestAnimationFrame(() => {
+                    this._pendingRenderRAF = null;
                     try {
-                        this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
-                    } catch {}
+                        this.render();
+                    } catch (e) {
+                        console.warn('Deferred render failed', e);
+                    }
                 });
             }
+        }
+
+        // Dispatch event to notify React component; avoid flooding by batching to next microtask
+        if (this.canvas && !this._pendingVisUpdate) {
+            this._pendingVisUpdate = true;
+            Promise.resolve().then(() => {
+                this._pendingVisUpdate = false;
+                try {
+                    this.canvas.dispatchEvent(new CustomEvent('visualizer-update'));
+                } catch {}
+            });
         }
     }
 
@@ -686,6 +701,12 @@ export class MIDIVisualizerCore {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
             this.animationId = null;
+        }
+
+        // Cancel any deferred render RAF
+        if (this._pendingRenderRAF) {
+            cancelAnimationFrame(this._pendingRenderRAF);
+            this._pendingRenderRAF = null;
         }
     }
 

@@ -31,6 +31,7 @@ interface VisualizerContextValue {
     setExportSettings: React.Dispatch<React.SetStateAction<ExportSettings>>;
     debugSettings: DebugSettings;
     setDebugSettings: React.Dispatch<React.SetStateAction<DebugSettings>>;
+    forceRender: () => void;
     playPause: () => void;
     stop: () => void;
     stepForward: () => void;
@@ -164,6 +165,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const stepForward = useCallback(() => { visualizer?.stepForward?.(); }, [visualizer]);
     const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
+    const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
         if (!visualizer || !totalDuration || totalDuration <= 0) return;
         visualizer.seek?.(percent * totalDuration);
@@ -218,6 +220,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setExportSettings,
         debugSettings,
         setDebugSettings,
+        forceRender,
         playPause,
         stop,
         stepForward,
