@@ -106,6 +106,7 @@ const PreviewPanel: React.FC = () => {
                                     origAnchorX: rec?.element?.anchorX || 0.5,
                                     origAnchorY: rec?.element?.anchorY || 0.5,
                                     bounds: rec?.bounds,
+                                    corners: rec?.corners || null,
                                 });
                                 return;
                             }
@@ -184,8 +185,26 @@ const PreviewPanel: React.FC = () => {
                                 sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY });
                                 updateElementConfig?.(elId, { anchorX, anchorY });
                             } else if (meta.mode === 'rotate' && meta.bounds) {
-                                const centerX = meta.bounds.x + meta.bounds.width * meta.origAnchorX;
-                                const centerY = meta.bounds.y + meta.bounds.height * meta.origAnchorY;
+                                let centerX = meta.bounds.x + meta.bounds.width * meta.origAnchorX;
+                                let centerY = meta.bounds.y + meta.bounds.height * meta.origAnchorY;
+                                // If we have oriented corners, compute pivot via bilinear interpolation for correct anchor under rotation/skew
+                                if (meta.corners && meta.corners.length === 4) {
+                                    const interp = (a: number, b: number, t: number) => a + (b - a) * t;
+                                    const top = {
+                                        x: interp(meta.corners[0].x, meta.corners[1].x, meta.origAnchorX),
+                                        y: interp(meta.corners[0].y, meta.corners[1].y, meta.origAnchorX),
+                                    };
+                                    const bottom = {
+                                        x: interp(meta.corners[3].x, meta.corners[2].x, meta.origAnchorX),
+                                        y: interp(meta.corners[3].y, meta.corners[2].y, meta.origAnchorX),
+                                    };
+                                    const anchorPt = {
+                                        x: interp(top.x, bottom.x, meta.origAnchorY),
+                                        y: interp(top.y, bottom.y, meta.origAnchorY),
+                                    };
+                                    centerX = anchorPt.x;
+                                    centerY = anchorPt.y;
+                                }
                                 const angleRad = Math.atan2(y - centerY, x - centerX); // radians
                                 const angleDeg = angleRad * (180 / Math.PI);
                                 sceneBuilder?.updateElementConfig?.(elId, { elementRotation: angleDeg }); // supply degrees (conversion done in element)

@@ -679,8 +679,7 @@ export class MIDIVisualizerCore {
     /** Compute transform selection handles for an element at a given time */
     getSelectionHandlesAtTime(elementId, targetTime = this.currentTime) {
         if (!elementId) return [];
-        const cacheKey = `${elementId}:${Math.floor(targetTime * 1000)}`;
-        if (this._interactionHandlesCache.has(cacheKey)) return this._interactionHandlesCache.get(cacheKey);
+        // Always recompute (previous caching caused stale handle positions when transforms changed)
         const boundsList = this.getElementBoundsAtTime(targetTime);
         const record = boundsList.find((b) => b.id === elementId);
         if (!record) return [];
@@ -740,22 +739,33 @@ export class MIDIVisualizerCore {
         }
         // Anchor handle
         addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
-        // Rotation handle (circle) above top-center
-        let rotBaseX = b.x + b.width / 2;
-        let rotBaseY = b.y; // top edge center
+        // Rotation handle (circle) – project outward along the normal of the top edge so it follows rotation & skew properly
+        let rotHandleX, rotHandleY;
+        const rotOffset = Math.min(60, Math.max(25, b.height * 0.15));
         if (oriented) {
             const topMid = { x: (oriented[0].x + oriented[1].x) / 2, y: (oriented[0].y + oriented[1].y) / 2 };
-            rotBaseX = topMid.x;
-            rotBaseY = topMid.y;
+            const edgeVec = { x: oriented[1].x - oriented[0].x, y: oriented[1].y - oriented[0].y };
+            const len = Math.hypot(edgeVec.x, edgeVec.y) || 1;
+            let normal = { x: -edgeVec.y / len, y: edgeVec.x / len }; // 90° CCW normal
+            const center = {
+                x: (oriented[0].x + oriented[1].x + oriented[2].x + oriented[3].x) / 4,
+                y: (oriented[0].y + oriented[1].y + oriented[2].y + oriented[3].y) / 4,
+            };
+            const toCenter = { x: center.x - topMid.x, y: center.y - topMid.y };
+            // Flip normal if pointing inward
+            if (normal.x * toCenter.x + normal.y * toCenter.y > 0) {
+                normal.x *= -1;
+                normal.y *= -1;
+            }
+            rotHandleX = topMid.x + normal.x * rotOffset;
+            rotHandleY = topMid.y + normal.y * rotOffset;
+        } else {
+            const rotBaseX = b.x + b.width / 2;
+            const rotBaseY = b.y; // axis-aligned top
+            rotHandleX = rotBaseX;
+            rotHandleY = rotBaseY - rotOffset;
         }
-        const rotOffset = Math.min(60, Math.max(25, b.height * 0.15));
-        addHandle('rotate', 'rotate', rotBaseX, rotBaseY - rotOffset, 'circle');
-        this._interactionHandlesCache.set(cacheKey, handles);
-        // Prune cache
-        if (this._interactionHandlesCache.size > 50) {
-            const keys = Array.from(this._interactionHandlesCache.keys()).slice(0, 10);
-            for (const k of keys) this._interactionHandlesCache.delete(k);
-        }
+        addHandle('rotate', 'rotate', rotHandleX, rotHandleY, 'circle');
         return handles;
     }
 
