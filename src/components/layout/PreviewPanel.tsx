@@ -5,7 +5,7 @@ import { useSceneSelection } from '../context/SceneSelectionContext';
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
     const { canvasRef, isPlaying, playPause, stop, stepForward, stepBackward, currentTimeLabel, exportSettings, totalDuration, numericCurrentTime, seekPercent } = ctx;
-    const { selectElement, sceneBuilder, updateElementConfig } = useSceneSelection();
+    const { selectElement, sceneBuilder, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     const progressPercent = totalDuration ? (numericCurrentTime / totalDuration) : 0;
@@ -148,6 +148,8 @@ const PreviewPanel: React.FC = () => {
                         if (vis._interactionState?.draggingElementId) {
                             vis.setInteractionState({ draggingElementId: null });
                             vis._dragMeta = null;
+                            // Force a one-time refresh of the properties panel so offsetX/offsetY fields show final drag result
+                            incrementPropertyPanelRefresh();
                         }
                     }}
                     onMouseLeave={() => {
@@ -156,6 +158,7 @@ const PreviewPanel: React.FC = () => {
                         if (vis._interactionState?.draggingElementId) {
                             vis.setInteractionState({ draggingElementId: null });
                             vis._dragMeta = null;
+                            incrementPropertyPanelRefresh();
                         }
                         vis.setInteractionState({ hoverElementId: null });
                     }}

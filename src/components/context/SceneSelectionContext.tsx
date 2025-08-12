@@ -6,6 +6,7 @@ interface SceneSelectionState {
     selectedElement: any;
     selectedElementSchema: any;
     refreshTrigger: number;
+    propertyPanelRefresh: number; // increments to force property panel value refresh without full element identity change
     visualizer: any;
     elements: any[]; // Sorted list for display (highest z-index first)
     sceneBuilder: any;
@@ -18,6 +19,7 @@ interface SceneSelectionActions {
     updateElementConfig: (elementId: string, changes: { [key: string]: any }) => void;
     addElement: (elementType: string) => void;
     incrementRefreshTrigger: () => void;
+    incrementPropertyPanelRefresh: () => void;
     toggleElementVisibility: (elementId: string) => void;
     moveElement: (elementId: string, newIndex: number) => void;
     duplicateElement: (elementId: string) => void;
@@ -44,6 +46,7 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
 
     // New state moved from useSceneElementPanel
     const [elements, setElements] = useState<any[]>([]);
@@ -173,6 +176,10 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
 
     const incrementRefreshTrigger = useCallback(() => {
         setRefreshTrigger(prev => prev + 1);
+    }, []);
+
+    const incrementPropertyPanelRefresh = useCallback(() => {
+        setPropertyPanelRefresh(prev => prev + 1);
     }, []);
 
     // Actions migrated from hook
@@ -305,6 +312,7 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         selectedElement,
         selectedElementSchema,
         refreshTrigger: refreshTrigger + (sceneRefreshTrigger || 0),
+        propertyPanelRefresh,
         visualizer,
         elements,
         sceneBuilder,
@@ -314,6 +322,7 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         updateElementConfig,
         addElement,
         incrementRefreshTrigger,
+        incrementPropertyPanelRefresh,
         toggleElementVisibility,
         moveElement,
         duplicateElement,

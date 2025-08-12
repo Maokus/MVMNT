@@ -23,6 +23,7 @@ const SidePanelsInternal: React.FC = () => {
         selectedElement,
         selectedElementSchema,
         refreshTrigger,
+        propertyPanelRefresh,
         clearSelection,
         updateElementConfig,
         addElement
@@ -118,7 +119,7 @@ const SidePanelsInternal: React.FC = () => {
                     {/* Properties panel (shows global props when no element selected, element props when selected) */}
                     <div className="properties-config" id="propertiesConfig">
                         <PropertiesPanel
-                            key={selectedElementId || 'global'}
+                            key={(selectedElementId || 'global') + ':' + propertyPanelRefresh}
                             element={selectedElement}
                             schema={selectedElementSchema || undefined}
                             onConfigChange={updateElementConfig}
