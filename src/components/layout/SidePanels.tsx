@@ -6,27 +6,13 @@ import { SceneSelectionProvider, useSceneSelection } from '../context/SceneSelec
 import { useVisualizer } from '../context/VisualizerContext';
 
 interface SidePanelsProps {
-    visualizer: any; // MIDIVisualizer type
-    sceneRefreshTrigger?: number; // Trigger refresh when this changes
-    onExport: (exportSettings: any) => void;
-    exportStatus: string;
-    canExport: boolean;
-    exportSettings: any;
-    onExportSettingsChange: (settings: any) => void;
-    debugSettings: { showAnchorPoints: boolean };
-    onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
+    sceneRefreshTrigger?: number;
 }
 
 // Internal component that uses the context
-const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRefreshTrigger'>> = (props) => {
-    const ctx = useVisualizer();
-    const onExport = props.onExport;
-    const exportStatus = props.exportStatus;
-    const canExport = props.canExport;
-    const exportSettings = props.exportSettings || ctx.exportSettings;
-    const onExportSettingsChange = props.onExportSettingsChange || ctx.setExportSettings;
-    const debugSettings = props.debugSettings || ctx.debugSettings;
-    const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
+const SidePanelsInternal: React.FC = () => {
+    const { exportSettings, debugSettings, exportSequence, exportStatus, visualizer, setExportSettings, setDebugSettings } = useVisualizer() as any;
+    const canExport = !!(visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
@@ -133,13 +119,13 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
                             element={selectedElement}
                             schema={selectedElementSchema || undefined}
                             onConfigChange={updateElementConfig}
-                            onExport={onExport}
+                            onExport={exportSequence}
                             exportStatus={exportStatus}
                             canExport={canExport}
                             exportSettings={exportSettings}
-                            onExportSettingsChange={onExportSettingsChange}
+                            onExportSettingsChange={setExportSettings}
                             debugSettings={debugSettings}
-                            onDebugSettingsChange={onDebugSettingsChange}
+                            onDebugSettingsChange={setDebugSettings}
                         />
                     </div>
                 </div>
@@ -149,13 +135,10 @@ const SidePanelsInternal: React.FC<Omit<SidePanelsProps, 'visualizer' | 'sceneRe
 };
 
 // Main component wrapper that provides the context
-const SidePanels: React.FC<SidePanelsProps> = (props) => {
+const SidePanels: React.FC<SidePanelsProps> = ({ sceneRefreshTrigger }) => {
     return (
-        <SceneSelectionProvider
-            visualizer={props.visualizer}
-            sceneRefreshTrigger={props.sceneRefreshTrigger}
-        >
-            <SidePanelsInternal {...props} />
+        <SceneSelectionProvider sceneRefreshTrigger={sceneRefreshTrigger}>
+            <SidePanelsInternal />
         </SceneSelectionProvider>
     );
 };

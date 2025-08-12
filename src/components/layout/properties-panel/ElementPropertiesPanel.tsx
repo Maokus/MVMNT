@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import { EnhancedConfigSchema } from '../../types';
-// @ts-ignore
-import { globalMacroManager } from '../../../visualizer/macro-manager';
+import { useMacros } from '../../context/MacroContext';
 
 interface ElementPropertiesPanelProps {
     element: any; // Required - element must be selected
@@ -29,6 +28,9 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [groupCollapseState, setGroupCollapseState] = useState<{ [groupId: string]: boolean }>({});
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
+    // Macro context
+    const { assignListener } = useMacros();
+
     // Handle macro changes
     const handleMacroChange = useCallback((eventType: string, data: any) => {
         if (!element) return;
@@ -52,18 +54,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         }
     }, [element, onConfigChange]);
 
-    // Setup macro manager listener
+    // Setup macro manager listener via context
     useEffect(() => {
-        const listener = (eventType: string, data: any) => {
-            handleMacroChange(eventType, data);
-        };
-
-        globalMacroManager.addListener(listener);
-
-        return () => {
-            globalMacroManager.removeListener(listener);
-        };
-    }, [handleMacroChange]);
+        const unsubscribe = assignListener(handleMacroChange);
+        return () => unsubscribe();
+    }, [handleMacroChange, assignListener]);
 
     // Use grouped schema directly and extract property values
     useEffect(() => {

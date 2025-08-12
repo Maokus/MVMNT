@@ -8,7 +8,7 @@ import RangeInputRow from './input-rows/RangeInputRow';
 import FileInputRow from './input-rows/FileInputRow';
 import TextInputRow from './input-rows/TextInputRow';
 // @ts-ignore
-import { globalMacroManager } from '../../../visualizer/macro-manager';
+import { useMacros } from '../../context/MacroContext';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -27,6 +27,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onMacroAssignment,
     onCollapseToggle
 }) => {
+    const { manager } = useMacros();
     const canAssignMacro = (propertyType: string) => {
         return ['number', 'string', 'boolean', 'color', 'select', 'file'].includes(propertyType);
     };
@@ -45,11 +46,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 }
             }
 
-            return globalMacroManager.getAllMacros()
+            return manager.getAllMacros()
                 .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
         }
 
-        return globalMacroManager.getAllMacros()
+        return manager.getAllMacros()
             .filter((macro: any) => macro.type === propertyType);
     };
 
@@ -69,7 +70,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // If assigned to macro, get the macro value
         if (isAssignedToMacro && assignedMacro) {
-            const macro = globalMacroManager.getMacro(assignedMacro);
+            const macro = manager.getMacro(assignedMacro);
             if (macro) {
                 commonProps.value = macro.value;
             }

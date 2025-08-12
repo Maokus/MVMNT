@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { globalMacroManager } from '../../../visualizer/macro-manager';
+import { useMacros } from '../../context/MacroContext';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
@@ -27,7 +27,8 @@ interface MacroAssignment {
 }
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {
-    const [macros, setMacros] = useState<Macro[]>([]);
+    const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
+    const [macros, setMacros] = useState<Macro[]>(contextMacros as any);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [newMacro, setNewMacro] = useState({
@@ -43,18 +44,18 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     // Update macros when globalMacroManager changes
     const updateMacros = useCallback(() => {
-        const allMacros = globalMacroManager.getAllMacros();
+        const allMacros = contextMacros as any;
         setMacros(allMacros);
 
         // Initialize input values for number inputs
         const newInputValues: { [key: string]: string } = {};
-        allMacros.forEach(macro => {
+        allMacros.forEach((macro: any) => {
             if (macro.type === 'number') {
                 newInputValues[macro.name] = macro.value.toString();
             }
         });
         setInputValues(newInputValues);
-    }, []);
+    }, [contextMacros]);
 
     useEffect(() => {
         // Setup macro manager listener for any macro changes (create/delete/update/import/clear)
@@ -62,13 +63,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             updateMacros();
         };
 
-        globalMacroManager.addListener(listener);
-        updateMacros(); // Initial load
-
-        return () => {
-            globalMacroManager.removeListener(listener);
-        };
-    }, [updateMacros]);
+        const unsubscribe = assignListener(listener);
+        updateMacros();
+        return () => unsubscribe();
+    }, [updateMacros, assignListener]);
 
     const handleCreateMacro = () => {
         if (!newMacro.name.trim()) {
@@ -109,7 +107,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
         }
 
         // Create the macro
-        if (globalMacroManager.createMacro(newMacro.name, newMacro.type, value, options)) {
+        if (create(newMacro.name, newMacro.type, value, options)) {
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
@@ -128,7 +126,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleUpdateMacroValue = (name: string, value: any) => {
         console.log(`MacroConfig: Updating macro '${name}' to:`, value);
-        const success = globalMacroManager.updateMacroValue(name, value);
+        const success = updateValue(name, value);
         if (!success) {
             console.warn(`MacroConfig: Failed to update macro '${name}' with value:`, value);
         } else {
@@ -152,7 +150,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
         const numericValue = parseFloat(inputValue);
         if (!isNaN(numericValue)) {
             console.log(`MacroConfig: Parsed numeric value for '${macroName}':`, numericValue);
-            const success = globalMacroManager.updateMacroValue(macroName, numericValue);
+            const success = updateValue(macroName, numericValue);
             if (!success) {
                 console.warn(`MacroConfig: Failed to update macro '${macroName}' with numeric value:`, numericValue);
             } else {
@@ -168,7 +166,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleNumberInputBlur = (macroName: string) => {
         // On blur, ensure the input shows the actual macro value
-        const macro = globalMacroManager.getMacro(macroName);
+        const macro = get(macroName);
         if (macro) {
             setInputValues(prev => ({
                 ...prev,
@@ -182,7 +180,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
         try {
             // Store the actual File object for MIDI files
-            globalMacroManager.updateMacroValue(macroName, file);
+            updateValue(macroName, file);
             console.log(`File loaded for macro '${macroName}':`, file.name);
         } catch (error) {
             console.error('Error handling file input:', error);
@@ -192,7 +190,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleDeleteMacro = (name: string) => {
         if (window.confirm(`Are you sure you want to delete the macro "${name}"?`)) {
-            globalMacroManager.deleteMacro(name);
+            deleteMacro(name);
             setMacros(prev => prev.filter(m => m.name !== name));
         }
     };

@@ -1,40 +1,18 @@
 import React from 'react';
 import { useVisualizer } from '../context/VisualizerContext';
 
-interface PreviewPanelProps {
-    canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    isPlaying: boolean;
-    onPlayPause: () => void;
-    onStop: () => void;
-    onStepForward: () => void;
-    onStepBackward: () => void;
-    currentTime: string;
-    width: number;
-    height: number;
-    progressPercent?: number;
-    onSeekAtPercent?: (percent: number) => void;
-}
-
-const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
-    // Use context primarily; allow explicit props to override for backwards compatibility
+const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
-    const canvasRef = props.canvasRef || ctx.canvasRef;
-    const isPlaying = props.isPlaying ?? ctx.isPlaying;
-    const onPlayPause = props.onPlayPause || ctx.playPause;
-    const onStop = props.onStop || ctx.stop;
-    const onStepForward = props.onStepForward || ctx.stepForward;
-    const onStepBackward = props.onStepBackward || ctx.stepBackward;
-    const currentTime = props.currentTime || ctx.currentTimeLabel;
-    const width = props.width ?? ctx.exportSettings.width;
-    const height = props.height ?? ctx.exportSettings.height;
-    const progressPercent = props.progressPercent ?? (ctx.totalDuration ? (ctx.numericCurrentTime / ctx.totalDuration) : 0);
-    const onSeekAtPercent = props.onSeekAtPercent || ctx.seekPercent;
+    const { canvasRef, isPlaying, playPause, stop, stepForward, stepBackward, currentTimeLabel, exportSettings, totalDuration, numericCurrentTime, seekPercent } = ctx;
+    const width = exportSettings.width;
+    const height = exportSettings.height;
+    const progressPercent = totalDuration ? (numericCurrentTime / totalDuration) : 0;
     const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!onSeekAtPercent) return;
+        if (!seekPercent) return;
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
-        onSeekAtPercent(percent);
+        seekPercent(percent);
     };
     return (
         <div className="preview-panel">
@@ -53,13 +31,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = (props) => {
             </div>
 
             <div className="playback-controls">
-                <button className="btn btn-secondary" onClick={onStepBackward}>⏪</button>
-                <button className="btn btn-primary" onClick={onPlayPause}>
+                <button className="btn btn-secondary" onClick={stepBackward}>⏪</button>
+                <button className="btn btn-primary" onClick={playPause}>
                     {isPlaying ? '⏸️' : '▶️'}
                 </button>
-                <button className="btn btn-secondary" onClick={onStepForward}>⏩</button>
-                <button className="btn btn-secondary" onClick={onStop}>⏹️</button>
-                <span className="time-display">{currentTime}</span>
+                <button className="btn btn-secondary" onClick={stepForward}>⏩</button>
+                <button className="btn btn-secondary" onClick={stop}>⏹️</button>
+                <span className="time-display">{currentTimeLabel}</span>
                 <div className="progress-bar-container" onClick={handleProgressClick}>
                     <div className="progress-bar-fill" style={{ width: `${Math.max(0, Math.min(100, progressPercent * 100))}%` }}></div>
                 </div>

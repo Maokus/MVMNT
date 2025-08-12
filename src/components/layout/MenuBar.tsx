@@ -1,23 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useScene } from '../context/SceneContext';
 
-interface MenuBarActions {
-    saveScene: () => void;
-    loadScene: () => void;
-    clearScene: () => void;
-    createNewDefaultScene: () => void;
-}
-
-interface MenuBarProps {
-    sceneName: string;
-    onSceneNameChange: (name: string) => void;
-    menuBarActions: MenuBarActions;
-}
-
-const MenuBar: React.FC<MenuBarProps> = ({
-    sceneName,
-    onSceneNameChange,
-    menuBarActions
-}) => {
+const MenuBar: React.FC = () => {
+    const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
@@ -51,25 +36,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
         }
     };
 
-    const saveScene = () => {
-        menuBarActions.saveScene();
-        setShowSceneMenu(false);
-    };
-
-    const loadScene = () => {
-        menuBarActions.loadScene();
-        setShowSceneMenu(false);
-    };
-
-    const clearScene = () => {
-        menuBarActions.clearScene();
-        setShowSceneMenu(false);
-    };
-
-    const createNewDefaultScene = () => {
-        menuBarActions.createNewDefaultScene();
-        setShowSceneMenu(false);
-    };
+    const handleSave = () => { saveScene(); setShowSceneMenu(false); };
+    const handleLoad = () => { loadScene(); setShowSceneMenu(false); };
+    const handleClear = () => { clearScene(); setShowSceneMenu(false); };
+    const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
 
     return (
         <div className="menu-bar">
@@ -85,7 +55,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                                 type="text"
                                 className="scene-name-input"
                                 value={sceneName}
-                                onChange={(e) => onSceneNameChange(e.target.value)}
+                                onChange={(e) => setSceneName(e.target.value)}
                                 onBlur={() => setIsEditingName(false)}
                                 onKeyDown={handleSceneNameKeyDown}
                                 autoFocus
@@ -118,10 +88,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
                         </button>
                         {showSceneMenu && (
                             <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
-                                <div className="scene-menu-item" onClick={saveScene}>💾 Save Scene (Download JSON)</div>
-                                <div className="scene-menu-item" onClick={loadScene}>📂 Load Scene (Upload JSON)</div>
-                                <div className="scene-menu-item" onClick={clearScene}>🗑️ Clear Scene</div>
-                                <div className="scene-menu-item" onClick={createNewDefaultScene}>✨ New Default Scene</div>
+                                <div className="scene-menu-item" onClick={handleSave}>💾 Save Scene (Download JSON)</div>
+                                <div className="scene-menu-item" onClick={handleLoad}>📂 Load Scene (Upload JSON)</div>
+                                <div className="scene-menu-item" onClick={handleClear}>🗑️ Clear Scene</div>
+                                <div className="scene-menu-item" onClick={handleNew}>✨ New Default Scene</div>
                             </div>
                         )}
                     </div>

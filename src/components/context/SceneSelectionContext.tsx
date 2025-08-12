@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useVisualizer } from './VisualizerContext';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -22,15 +23,14 @@ const SceneSelectionContext = createContext<SceneSelectionContextType | undefine
 
 interface SceneSelectionProviderProps {
     children: React.ReactNode;
-    visualizer: any;
     sceneRefreshTrigger?: number;
 }
 
 export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
     children,
-    visualizer,
     sceneRefreshTrigger
 }) => {
+    const { visualizer } = useVisualizer() as any;
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);

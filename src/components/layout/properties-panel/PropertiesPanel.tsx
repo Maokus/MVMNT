@@ -7,9 +7,7 @@ interface PropertiesPanelProps {
     element?: any;
     schema?: any;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
-
-    // Additional props for global functionality
-    onExport: (exportSettings: any) => void; // simplified for now due to mixed JS/TS
+    onExport: (exportSettings: any) => void;
     exportStatus: string;
     canExport: boolean;
     exportSettings: any;
@@ -18,18 +16,8 @@ interface PropertiesPanelProps {
     onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
 }
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
-    element,
-    schema,
-    onConfigChange,
-    onExport,
-    exportStatus,
-    canExport,
-    exportSettings,
-    onExportSettingsChange,
-    debugSettings,
-    onDebugSettingsChange
-}) => {
+const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
+    const { element, schema, onConfigChange } = props;
     const { visualizer } = useSceneSelection();
 
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
@@ -46,13 +34,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     return (
         <GlobalPropertiesPanel
             visualizer={visualizer}
-            onExport={onExport}
-            exportStatus={exportStatus}
-            canExport={canExport}
-            exportSettings={exportSettings}
-            onExportSettingsChange={onExportSettingsChange}
-            debugSettings={debugSettings}
-            onDebugSettingsChange={onDebugSettingsChange}
+            onExport={props.onExport}
+            exportStatus={props.exportStatus}
+            canExport={props.canExport}
+            exportSettings={props.exportSettings}
+            onExportSettingsChange={props.onExportSettingsChange}
+            debugSettings={props.debugSettings}
+            onDebugSettingsChange={props.onDebugSettingsChange}
         />
     );
 };
