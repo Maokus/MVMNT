@@ -78,33 +78,50 @@ const PreviewPanel: React.FC = () => {
                         const scaleY = canvas.height / rect.height;
                         const x = (e.clientX - rect.left) * scaleX;
                         const y = (e.clientY - rect.top) * scaleY;
+                        // If an element is already selected, first test handle hits
+                        const selectedId = vis._interactionState?.selectedElementId || null;
+                        if (selectedId) {
+                            const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
+                            const handleHit = handles.find((h: any) => {
+                                if (h.shape === 'circle') {
+                                    const dx = x - h.cx; const dy = y - h.cy; return Math.sqrt(dx * dx + dy * dy) <= h.r + 2;
+                                }
+                                return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
+                            });
+                            if (handleHit) {
+                                vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId });
+                                const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
+                                const rec = boundsList.find((b: any) => b.id === selectedId);
+                                (vis._dragMeta = {
+                                    mode: handleHit.type,
+                                    startX: x,
+                                    startY: y,
+                                    origOffsetX: rec?.element?.offsetX || 0,
+                                    origOffsetY: rec?.element?.offsetY || 0,
+                                    origWidth: rec?.bounds?.width || 0,
+                                    origHeight: rec?.bounds?.height || 0,
+                                    origScaleX: rec?.element?.elementScaleX || rec?.element?.globalScaleX || 1,
+                                    origScaleY: rec?.element?.elementScaleY || rec?.element?.globalScaleY || 1,
+                                    origRotation: rec?.element?.elementRotation || 0,
+                                    origAnchorX: rec?.element?.anchorX || 0.5,
+                                    origAnchorY: rec?.element?.anchorY || 0.5,
+                                    bounds: rec?.bounds,
+                                });
+                                return;
+                            }
+                        }
+                        // Otherwise do normal element hit test
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-                        // Top-most hit: iterate from end (highest z) since list sorted ascending
                         let hit = null;
                         for (let i = boundsList.length - 1; i >= 0; i--) {
                             const b = boundsList[i];
-                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) {
-                                hit = b;
-                                break;
-                            }
+                            if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hit = b; break; }
                         }
                         if (hit) {
-                            // Update global selection (will sync to visualizer via context effect)
                             selectElement(hit.id);
-                            // Set dragging state only (selection handled by context)
-                            vis.setInteractionState({ draggingElementId: hit.id });
-                            // Store drag start metadata
-                            (vis._dragMeta = {
-                                startX: x,
-                                startY: y,
-                                origOffsetX: hit.element?.offsetX || 0,
-                                origOffsetY: hit.element?.offsetY || 0,
-                            });
-                        } else {
-                            // Clear selection
-                            selectElement(null);
-                            vis.setInteractionState({ hoverElementId: null, draggingElementId: null });
-                        }
+                            vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move' });
+                            (vis._dragMeta = { mode: 'move', startX: x, startY: y, origOffsetX: hit.element?.offsetX || 0, origOffsetY: hit.element?.offsetY || 0 });
+                        } else { selectElement(null); vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null }); }
                     }}
                     onMouseMove={(e) => {
                         const canvas = canvasRef.current;
@@ -117,18 +134,67 @@ const PreviewPanel: React.FC = () => {
                         const x = (e.clientX - rect.left) * scaleX;
                         const y = (e.clientY - rect.top) * scaleY;
                         if (vis._interactionState?.draggingElementId && vis._dragMeta) {
+                            const meta = vis._dragMeta;
                             const elId = vis._interactionState.draggingElementId;
-                            const dx = x - vis._dragMeta.startX;
-                            const dy = y - vis._dragMeta.startY;
-                            const newX = vis._dragMeta.origOffsetX + dx;
-                            const newY = vis._dragMeta.origOffsetY + dy;
-                            if (sceneBuilder && elId) {
-                                // Update element config live
-                                sceneBuilder.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+                            const dx = x - meta.startX;
+                            const dy = y - meta.startY;
+                            if (meta.mode === 'move') {
+                                const newX = meta.origOffsetX + dx; const newY = meta.origOffsetY + dy;
+                                sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
                                 updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
-                                vis.setInteractionState({}); // trigger rerender
+                            } else if (meta.mode?.startsWith('scale') && meta.bounds) {
+                                // Basic proportional scaling based on which handle
+                                const { origWidth, origHeight, origScaleX, origScaleY } = meta;
+                                let scaleXFactor = origScaleX;
+                                let scaleYFactor = origScaleY;
+                                if (origWidth > 0) {
+                                    if (meta.mode.includes('e')) scaleXFactor = origScaleX * (1 + dx / origWidth);
+                                    if (meta.mode.includes('w')) scaleXFactor = origScaleX * (1 - dx / origWidth);
+                                    if (meta.mode === 'scale-n' || meta.mode === 'scale-s') scaleXFactor = origScaleX; // no horizontal change
+                                }
+                                if (origHeight > 0) {
+                                    if (meta.mode.includes('s')) scaleYFactor = origScaleY * (1 + dy / origHeight);
+                                    if (meta.mode.includes('n')) scaleYFactor = origScaleY * (1 - dy / origHeight);
+                                    if (meta.mode === 'scale-e' || meta.mode === 'scale-w') scaleYFactor = origScaleY; // no vertical change
+                                }
+                                // Clamp minimal scale
+                                scaleXFactor = Math.max(0.01, scaleXFactor);
+                                scaleYFactor = Math.max(0.01, scaleYFactor);
+                                sceneBuilder?.updateElementConfig?.(elId, { elementScaleX: scaleXFactor, elementScaleY: scaleYFactor });
+                                updateElementConfig?.(elId, { elementScaleX: scaleXFactor, elementScaleY: scaleYFactor });
+                            } else if (meta.mode === 'anchor' && meta.bounds) {
+                                const { bounds } = meta;
+                                const relX = (x - bounds.x) / (bounds.width || 1);
+                                const relY = (y - bounds.y) / (bounds.height || 1);
+                                const anchorX = Math.max(0, Math.min(1, relX));
+                                const anchorY = Math.max(0, Math.min(1, relY));
+                                sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY });
+                                updateElementConfig?.(elId, { anchorX, anchorY });
+                            } else if (meta.mode === 'rotate' && meta.bounds) {
+                                const centerX = meta.bounds.x + meta.bounds.width * meta.origAnchorX;
+                                const centerY = meta.bounds.y + meta.bounds.height * meta.origAnchorY;
+                                const angleRad = Math.atan2(y - centerY, x - centerX); // radians
+                                const angleDeg = angleRad * (180 / Math.PI);
+                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: angleDeg }); // supply degrees (conversion done in element)
+                                updateElementConfig?.(elId, { elementRotation: angleDeg });
                             }
+                            vis.setInteractionState({}); // trigger
                             return;
+                        }
+                        // Hover update including handles when selected
+                        const selectedId = vis._interactionState?.selectedElementId || null;
+                        if (selectedId) {
+                            const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
+                            const handleHover = handles.find((h: any) => {
+                                if (h.shape === 'circle') { const dx2 = x - h.cx; const dy2 = y - h.cy; return Math.sqrt(dx2 * dx2 + dy2 * dy2) <= h.r + 2; }
+                                return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
+                            });
+                            if (handleHover) {
+                                if (vis._interactionState.activeHandle !== handleHover.id) vis.setInteractionState({ activeHandle: handleHover.id });
+                                return; // don't change element hover while over a handle
+                            } else if (vis._interactionState.activeHandle) {
+                                vis.setInteractionState({ activeHandle: null });
+                            }
                         }
                         // Hover detection (only when not dragging)
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
@@ -146,7 +212,7 @@ const PreviewPanel: React.FC = () => {
                         const vis = (ctx as any).visualizer;
                         if (!vis) return;
                         if (vis._interactionState?.draggingElementId) {
-                            vis.setInteractionState({ draggingElementId: null });
+                            vis.setInteractionState({ draggingElementId: null, activeHandle: null });
                             vis._dragMeta = null;
                             // Force a one-time refresh of the properties panel so offsetX/offsetY fields show final drag result
                             incrementPropertyPanelRefresh();
@@ -156,11 +222,11 @@ const PreviewPanel: React.FC = () => {
                         const vis = (ctx as any).visualizer;
                         if (!vis) return;
                         if (vis._interactionState?.draggingElementId) {
-                            vis.setInteractionState({ draggingElementId: null });
+                            vis.setInteractionState({ draggingElementId: null, activeHandle: null });
                             vis._dragMeta = null;
                             incrementPropertyPanelRefresh();
                         }
-                        vis.setInteractionState({ hoverElementId: null });
+                        vis.setInteractionState({ hoverElementId: null, activeHandle: null });
                     }}
                 ></canvas>
             </div>

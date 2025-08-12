@@ -60,8 +60,10 @@ export class MIDIVisualizerCore {
             hoverElementId: null,
             selectedElementId: null,
             draggingElementId: null,
+            activeHandle: null, // id of active transform handle (e.g., scale-nw, rotate, anchor)
         };
         this._interactionBoundsCache = new Map(); // elementId -> bounds (last computed frame)
+        this._interactionHandlesCache = new Map(); // elementId -> handles array (last frame)
 
         // For debug: add to window for easy access in console
         window.vis = this;
@@ -574,7 +576,7 @@ export class MIDIVisualizerCore {
     /** Internal: draw hover/selection bounding boxes */
     _renderInteractionOverlays(targetTime, config) {
         if (!this._interactionState) return;
-        const { hoverElementId, selectedElementId, draggingElementId } = this._interactionState;
+        const { hoverElementId, selectedElementId, draggingElementId, activeHandle } = this._interactionState;
         if (!hoverElementId && !selectedElementId && !draggingElementId) return;
         const ctx = this.ctx;
         ctx.save();
@@ -602,7 +604,109 @@ export class MIDIVisualizerCore {
         if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
             draw(hoverElementId, '#FFFF00'); // yellow
         if (draggingElementId) draw(draggingElementId, '#FF00FF'); // magenta
+
+        // Draw transform handles for selected element (not while playing to avoid clutter)
+        if (selectedElementId) {
+            try {
+                const handles = this.getSelectionHandlesAtTime(selectedElementId, targetTime);
+                if (handles && handles.length) {
+                    // Draw rotation line (if rotation handle present)
+                    const rotHandle = handles.find((h) => h.type === 'rotate');
+                    const anchorHandle = handles.find((h) => h.type === 'anchor');
+                    if (rotHandle && anchorHandle) {
+                        ctx.save();
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = '#FFA500';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(anchorHandle.cx, anchorHandle.cy - anchorHandle.size * 0.5);
+                        ctx.lineTo(rotHandle.cx, rotHandle.cy);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    for (const h of handles) {
+                        ctx.save();
+                        ctx.setLineDash([]);
+                        // Visual style by handle type
+                        let fill = '#222';
+                        let stroke = '#FFF';
+                        if (h.type.startsWith('scale')) {
+                            fill = '#00AAFF';
+                            stroke = '#FFFFFF';
+                        } else if (h.type === 'rotate') {
+                            fill = '#FFA500';
+                            stroke = '#FFFFFF';
+                        } else if (h.type === 'anchor') {
+                            fill = '#FFFF00';
+                            stroke = '#333333';
+                        }
+                        if (activeHandle === h.id) {
+                            stroke = '#FF00FF';
+                        }
+                        ctx.strokeStyle = stroke;
+                        ctx.fillStyle = fill;
+                        if (h.shape === 'circle') {
+                            ctx.beginPath();
+                            ctx.arc(h.cx, h.cy, h.r, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
+                        } else {
+                            ctx.beginPath();
+                            ctx.rect(h.cx - h.size * 0.5, h.cy - h.size * 0.5, h.size, h.size);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+                }
+            } catch (e) {
+                // non-fatal
+            }
+        }
         ctx.restore();
+    }
+
+    /** Compute transform selection handles for an element at a given time */
+    getSelectionHandlesAtTime(elementId, targetTime = this.currentTime) {
+        if (!elementId) return [];
+        const cacheKey = `${elementId}:${Math.floor(targetTime * 1000)}`;
+        if (this._interactionHandlesCache.has(cacheKey)) return this._interactionHandlesCache.get(cacheKey);
+        const boundsList = this.getElementBoundsAtTime(targetTime);
+        const record = boundsList.find((b) => b.id === elementId);
+        if (!record) return [];
+        const b = record.bounds;
+        const element = record.element;
+        const handles = [];
+        const size = Math.max(6, Math.min(18, Math.min(b.width, b.height) * 0.08));
+        const anchorX = element ? element.anchorX : 0.5;
+        const anchorY = element ? element.anchorY : 0.5;
+        const anchorPixelX = b.x + b.width * anchorX;
+        const anchorPixelY = b.y + b.height * anchorY;
+        const addHandle = (id, type, cx, cy, shape = 'rect', extra = {}) => {
+            handles.push({ id, type, cx, cy, size, shape, r: size * 0.5, ...extra });
+        };
+        // Corner scale handles
+        addHandle('scale-nw', 'scale-nw', b.x, b.y);
+        addHandle('scale-ne', 'scale-ne', b.x + b.width, b.y);
+        addHandle('scale-se', 'scale-se', b.x + b.width, b.y + b.height);
+        addHandle('scale-sw', 'scale-sw', b.x, b.y + b.height);
+        // Edge scale handles
+        addHandle('scale-n', 'scale-n', b.x + b.width / 2, b.y);
+        addHandle('scale-e', 'scale-e', b.x + b.width, b.y + b.height / 2);
+        addHandle('scale-s', 'scale-s', b.x + b.width / 2, b.y + b.height);
+        addHandle('scale-w', 'scale-w', b.x, b.y + b.height / 2);
+        // Anchor handle
+        addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
+        // Rotation handle (circle) above top-center
+        const rotOffset = Math.min(60, Math.max(25, b.height * 0.15));
+        addHandle('rotate', 'rotate', b.x + b.width / 2, b.y - rotOffset, 'circle');
+        this._interactionHandlesCache.set(cacheKey, handles);
+        // Prune cache
+        if (this._interactionHandlesCache.size > 50) {
+            const keys = Array.from(this._interactionHandlesCache.keys()).slice(0, 10);
+            for (const k of keys) this._interactionHandlesCache.delete(k);
+        }
+        return handles;
     }
 
     // Get modular renderer for advanced rendering control
