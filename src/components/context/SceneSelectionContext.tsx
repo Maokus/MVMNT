@@ -7,6 +7,9 @@ interface SceneSelectionState {
     selectedElementSchema: any;
     refreshTrigger: number;
     visualizer: any;
+    elements: any[]; // Sorted list for display (highest z-index first)
+    sceneBuilder: any;
+    error: string | null;
 }
 
 interface SceneSelectionActions {
@@ -15,6 +18,12 @@ interface SceneSelectionActions {
     updateElementConfig: (elementId: string, changes: { [key: string]: any }) => void;
     addElement: (elementType: string) => void;
     incrementRefreshTrigger: () => void;
+    toggleElementVisibility: (elementId: string) => void;
+    moveElement: (elementId: string, newIndex: number) => void;
+    duplicateElement: (elementId: string) => void;
+    deleteElement: (elementId: string) => void;
+    updateElementId: (oldId: string, newId: string) => boolean;
+    refreshElements: () => void;
 }
 
 interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionActions { }
@@ -36,6 +45,11 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // New state moved from useSceneElementPanel
+    const [elements, setElements] = useState<any[]>([]);
+    const [sceneBuilder, setSceneBuilder] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+
     const updatePropertiesHeader = useCallback((element: any) => {
         const propertiesHeader = document.getElementById('propertiesHeader');
         if (propertiesHeader) {
@@ -50,96 +64,227 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         }
     }, []);
 
+    // Refresh elements list with consistent sorting
+    const refreshElements = useCallback(() => {
+        if (!sceneBuilder) return;
+        try {
+            const elementsList = sceneBuilder.elements || [];
+            const sortedForDisplay = [...elementsList].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+            setElements(sortedForDisplay);
+            setError(null);
+        } catch (e: any) {
+            console.error('Error refreshing elements:', e);
+            setError('Failed to refresh elements: ' + (e instanceof Error ? e.message : String(e)));
+        }
+    }, [sceneBuilder]);
+
+    // Initialize scene builder (moved from hook)
+    useEffect(() => {
+        if (!visualizer) {
+            setSceneBuilder(null);
+            return;
+        }
+        try {
+            setError(null);
+            if (typeof visualizer.getSceneBuilder !== 'function') {
+                setError('Visualizer does not expose getSceneBuilder');
+                setSceneBuilder(null);
+                return;
+            }
+            const builder = visualizer.getSceneBuilder();
+            if (!builder) {
+                setSceneBuilder(null);
+                return;
+            }
+            setSceneBuilder(builder);
+            console.log('Scene builder initialized in SceneSelectionContext:', builder);
+        } catch (e: any) {
+            console.error('Error initializing scene builder:', e);
+            setError('Failed to initialize scene builder: ' + (e instanceof Error ? e.message : String(e)));
+        }
+    }, [visualizer]);
+
+    // Refresh when builder or triggers change
+    useEffect(() => {
+        if (sceneBuilder) refreshElements();
+    }, [sceneBuilder, refreshTrigger, refreshElements]);
+
     const selectElement = useCallback((elementId: string | null) => {
         setSelectedElementId(elementId);
-
-        if (elementId && visualizer) {
-            const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder) {
-                const element = sceneBuilder.getElement(elementId);
-                const schema = sceneBuilder.sceneElementRegistry.getSchema(element?.type);
-
-                setSelectedElement(element);
-                setSelectedElementSchema(schema);
-                updatePropertiesHeader(element);
-            }
+        if (elementId && sceneBuilder) {
+            const element = sceneBuilder.getElement(elementId);
+            const schema = sceneBuilder.sceneElementRegistry?.getSchema(element?.type);
+            setSelectedElement(element);
+            setSelectedElementSchema(schema);
+            updatePropertiesHeader(element);
         } else {
             setSelectedElement(null);
             setSelectedElementSchema(null);
             updatePropertiesHeader(null);
         }
-    }, [visualizer, updatePropertiesHeader]);
+    }, [sceneBuilder, updatePropertiesHeader]);
 
     const clearSelection = useCallback(() => {
         selectElement(null);
     }, [selectElement]);
 
     const updateElementConfig = useCallback((elementId: string, changes: { [key: string]: any }) => {
-        if (!elementId || !visualizer) return;
-
-        const sceneBuilder = visualizer.getSceneBuilder();
-        if (!sceneBuilder) return;
-
+        if (!elementId || !sceneBuilder) return;
         if (typeof sceneBuilder.updateElementConfig === 'function') {
             const success = sceneBuilder.updateElementConfig(elementId, changes);
             if (success) {
-                // Force a render
-                if (visualizer.invalidateRender) {
-                    visualizer.invalidateRender();
-                }
-                // Update selected element reference if this is the selected one so React re-renders panels
+                if (visualizer?.invalidateRender) visualizer.invalidateRender();
                 if (selectedElementId === elementId) {
                     const updated = sceneBuilder.getElement(elementId);
-                    if (updated) {
-                        setSelectedElement(updated);
-                    }
+                    if (updated) setSelectedElement(updated);
                 }
-                // Trigger refresh so lists (like elements panel) can reorder when zIndex changed
+                // If changes might affect ordering (zIndex/visibility), refresh
+                if ('zIndex' in changes || 'visible' in changes) refreshElements();
                 setRefreshTrigger(prev => prev + 1);
-            } else {
-                console.warn(`Failed to update config for element '${elementId}'`);
             }
-        } else {
-            console.warn(`[updateElementConfig] SceneBuilder does not support updateElementConfig method for element '${elementId}'`);
         }
-    }, [visualizer, selectedElementId]);
+    }, [sceneBuilder, visualizer, selectedElementId, refreshElements]);
 
     const addElement = useCallback((elementType: string) => {
-        if (!visualizer) return;
-
-        const sceneBuilder = visualizer.getSceneBuilder();
-        if (sceneBuilder) {
-            const uniqueId = `${elementType}_${Date.now()}`;
-            const success = sceneBuilder.addElement(elementType, uniqueId);
-
-            if (success) {
-                // Trigger re-render using invalidateRender to ensure the render happens
-                if (visualizer.invalidateRender) {
-                    visualizer.invalidateRender();
-                }
-
-                // Trigger refresh of SceneEditor elements list
-                setRefreshTrigger(prev => prev + 1);
-
-                // Select the newly added element
-                selectElement(uniqueId);
-            }
+        if (!sceneBuilder) return;
+        const uniqueId = `${elementType}_${Date.now()}`;
+        const success = sceneBuilder.addElement?.(elementType, uniqueId);
+        if (success) {
+            if (visualizer?.invalidateRender) visualizer.invalidateRender();
+            refreshElements();
+            setRefreshTrigger(prev => prev + 1);
+            selectElement(uniqueId);
         }
-    }, [visualizer, selectElement]);
+    }, [sceneBuilder, visualizer, refreshElements, selectElement]);
 
     const incrementRefreshTrigger = useCallback(() => {
         setRefreshTrigger(prev => prev + 1);
     }, []);
 
-    // Scene Builder integration
-    useEffect(() => {
-        if (visualizer) {
-            const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder) {
-                console.log('Scene builder integrated with React context');
+    // Actions migrated from hook
+    const toggleElementVisibility = useCallback((elementId: string) => {
+        if (!sceneBuilder) return;
+        const currentConfig = sceneBuilder.getElementConfig?.(elementId);
+        if (currentConfig) {
+            const newVisibility = !currentConfig.visible;
+            if (typeof sceneBuilder.updateElementConfig === 'function') {
+                const success = sceneBuilder.updateElementConfig(elementId, { visible: newVisibility });
+                if (success) {
+                    refreshElements();
+                    if (visualizer?.invalidateRender) visualizer.invalidateRender();
+                    if (selectedElementId === elementId) selectElement(elementId); // refresh panel
+                }
+            } else {
+                const element = sceneBuilder.getElement(elementId);
+                if (element) {
+                    element.visible = newVisibility;
+                    refreshElements();
+                    if (visualizer?.invalidateRender) visualizer.invalidateRender();
+                    if (selectedElementId === elementId) selectElement(elementId);
+                }
             }
         }
-    }, [visualizer]);
+    }, [sceneBuilder, visualizer, refreshElements, selectedElementId, selectElement]);
+
+    const moveElement = useCallback((elementId: string, newIndex: number) => {
+        if (!sceneBuilder) return;
+        const element = sceneBuilder.getElement(elementId);
+        if (!element) return;
+        const fullList: any[] = (sceneBuilder.elements || []).slice();
+        fullList.forEach(el => { if (el.zIndex === undefined || el.zIndex === null) el.zIndex = 0; });
+        const enriched = fullList.map((el, i) => ({ el, i }));
+        enriched.sort((a, b) => {
+            const dz = (b.el.zIndex || 0) - (a.el.zIndex || 0);
+            return dz !== 0 ? dz : a.i - b.i;
+        });
+        const displayList = enriched.map(e => e.el);
+        const currentIndex = displayList.findIndex(el => el.id === elementId);
+        if (currentIndex === -1) return;
+        const clampedNewIndex = Math.max(0, Math.min(newIndex, displayList.length - 1));
+        if (clampedNewIndex === currentIndex) return;
+        const movingUp = clampedNewIndex < currentIndex;
+        const targetNeighbor = displayList[clampedNewIndex];
+        if (!targetNeighbor) return;
+        const oldZ = element.zIndex || 0;
+        let desiredZ: number;
+        if (movingUp) desiredZ = (targetNeighbor.zIndex || 0) + 1; else desiredZ = (targetNeighbor.zIndex || 0) - 1;
+        if (desiredZ === oldZ) return;
+        const taken = new Map<number, any>();
+        for (const el of fullList) { if (el.id !== elementId) taken.set(el.zIndex || 0, el); }
+        const direction = movingUp ? 1 : -1;
+        let finalZ = desiredZ;
+        const chain: any[] = [];
+        while (taken.has(finalZ)) {
+            const blocking = taken.get(finalZ);
+            chain.push(blocking);
+            finalZ += direction;
+            if (chain.length > fullList.length + 5) break;
+        }
+        element.setZIndex(desiredZ);
+        let nextZ = desiredZ + direction;
+        for (const blocker of chain) {
+            if (blocker.zIndex !== nextZ) blocker.setZIndex(nextZ);
+            nextZ += direction;
+        }
+        if (visualizer?.invalidateRender) visualizer.invalidateRender();
+        refreshElements();
+        if (selectedElementId === elementId) selectElement(elementId);
+    }, [sceneBuilder, visualizer, refreshElements, selectedElementId, selectElement]);
+
+    const duplicateElement = useCallback((elementId: string) => {
+        if (!sceneBuilder) return;
+        const element = sceneBuilder.getElement(elementId);
+        if (!element) return;
+        const baseId = element.id.replace(/_copy_\d+$/, '');
+        let duplicateId = `${baseId}_copy`;
+        let counter = 1;
+        while (sceneBuilder.getElement(duplicateId)) {
+            duplicateId = `${baseId}_copy_${counter}`;
+            counter++;
+        }
+        const success = sceneBuilder.duplicateElement?.(elementId, duplicateId);
+        if (success) {
+            refreshElements();
+            if (visualizer?.invalidateRender) visualizer.invalidateRender();
+            selectElement(duplicateId);
+        }
+    }, [sceneBuilder, visualizer, refreshElements, selectElement]);
+
+    const deleteElement = useCallback((elementId: string) => {
+        if (!sceneBuilder) return;
+        if (window.confirm(`Delete element "${elementId}"?`)) {
+            sceneBuilder.removeElement?.(elementId);
+            if (selectedElementId === elementId) selectElement(null);
+            refreshElements();
+            if (visualizer?.invalidateRender) visualizer.invalidateRender();
+        }
+    }, [sceneBuilder, visualizer, refreshElements, selectedElementId, selectElement]);
+
+    const updateElementId = useCallback((oldId: string, newId: string): boolean => {
+        if (!sceneBuilder) return false;
+        const existingElement = sceneBuilder.getElement(newId);
+        if (existingElement && existingElement.id !== oldId) {
+            alert(`Element with ID "${newId}" already exists. Please choose a different ID.`);
+            return false;
+        }
+        const success = sceneBuilder.updateElementId?.(oldId, newId);
+        if (success) {
+            if (selectedElementId === oldId) setSelectedElementId(newId);
+            refreshElements();
+            if (visualizer?.invalidateRender) visualizer.invalidateRender();
+            return true;
+        } else {
+            alert('Failed to update element ID. Please try again.');
+            return false;
+        }
+    }, [sceneBuilder, refreshElements, visualizer, selectedElementId]);
+
+    // Scene Builder integration log (existing effect kept minimal)
+    useEffect(() => {
+        if (sceneBuilder) {
+            console.log('Scene builder integrated with React context');
+        }
+    }, [sceneBuilder]);
 
     const contextValue: SceneSelectionContextType = {
         selectedElementId,
@@ -147,11 +292,20 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         selectedElementSchema,
         refreshTrigger: refreshTrigger + (sceneRefreshTrigger || 0),
         visualizer,
+        elements,
+        sceneBuilder,
+        error,
         selectElement,
         clearSelection,
         updateElementConfig,
         addElement,
         incrementRefreshTrigger,
+        toggleElementVisibility,
+        moveElement,
+        duplicateElement,
+        deleteElement,
+        updateElementId,
+        refreshElements
     };
 
     return (

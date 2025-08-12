@@ -1,6 +1,5 @@
 import React from 'react';
 import ElementList from './ElementList';
-import { useSceneElementPanel } from '../../hooks/useSceneElementPanel';
 import { useSceneSelection } from '../../context/SceneSelectionContext';
 
 interface SceneEditorProps {
@@ -8,25 +7,24 @@ interface SceneEditorProps {
 }
 
 const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
-    const { selectedElementId, selectElement, updateElementConfig, visualizer } = useSceneSelection();
-
-    const sceneEditorProps = {
-        visualizer,
-        onElementSelect: selectElement,
-        onElementConfigChange: updateElementConfig,
-        refreshTrigger
-    };
-
     const {
+        selectedElementId,
+        selectElement,
         elements,
         sceneBuilder,
         error,
-        handleToggleVisibility,
-        handleMoveElement,
-        handleDuplicateElement,
-        handleDeleteElement,
-        handleUpdateElementId
-    } = useSceneElementPanel(sceneEditorProps);
+        toggleElementVisibility,
+        moveElement,
+        duplicateElement,
+        deleteElement,
+        updateElementId,
+        refreshElements
+    } = useSceneSelection();
+
+    // If external refreshTrigger prop changes, force refresh
+    React.useEffect(() => {
+        if (refreshTrigger !== undefined) refreshElements();
+    }, [refreshTrigger, refreshElements]);
 
     if (error) {
         return (
@@ -61,11 +59,11 @@ const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
                             elements={elements}
                             selectedElementId={selectedElementId}
                             onElementSelect={selectElement}
-                            onToggleVisibility={handleToggleVisibility}
-                            onMoveElement={handleMoveElement}
-                            onDuplicateElement={handleDuplicateElement}
-                            onDeleteElement={handleDeleteElement}
-                            onUpdateElementId={handleUpdateElementId}
+                            onToggleVisibility={toggleElementVisibility}
+                            onMoveElement={moveElement}
+                            onDuplicateElement={duplicateElement}
+                            onDeleteElement={deleteElement}
+                            onUpdateElementId={updateElementId}
                         />
                     )}
                 </div>
