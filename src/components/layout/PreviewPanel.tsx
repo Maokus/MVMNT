@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useVisualizer } from '../context/VisualizerContext';
 
 const PreviewPanel: React.FC = () => {
@@ -7,6 +7,43 @@ const PreviewPanel: React.FC = () => {
     const width = exportSettings.width;
     const height = exportSettings.height;
     const progressPercent = totalDuration ? (numericCurrentTime / totalDuration) : 0;
+    // Sizing state for display (CSS) size of canvas maintaining aspect ratio
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el || !width || !height) return;
+        const PADDING_X = 40; // canvas-container horizontal padding total (20px left + 20px right)
+        const PADDING_Y = 40; // vertical padding
+        const aspect = width / height;
+        const compute = () => {
+            const availW = Math.max(0, el.clientWidth - PADDING_X);
+            const availH = Math.max(0, el.clientHeight - PADDING_Y);
+            if (availW <= 0 || availH <= 0) return;
+            // Determine whether width or height is the constraining dimension
+            let drawW: number;
+            let drawH: number;
+            if (availW / availH > aspect) {
+                // container is proportionally wider than needed -> height constrained
+                drawH = availH;
+                drawW = Math.min(availW, drawH * aspect);
+            } else {
+                // width constrained
+                drawW = availW;
+                drawH = Math.min(availH, drawW / aspect);
+            }
+            // Avoid needless state updates (round to integer pixels for crispness)
+            const next = { w: Math.floor(drawW), h: Math.floor(drawH) };
+            setDisplaySize(prev => (prev.w === next.w && prev.h === next.h ? prev : next));
+        };
+        compute();
+        const ro = new ResizeObserver(() => compute());
+        ro.observe(el);
+        window.addEventListener('resize', compute);
+        return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
+    }, [width, height]);
+
     const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!seekPercent) return;
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -16,16 +53,18 @@ const PreviewPanel: React.FC = () => {
     };
     return (
         <div className="preview-panel">
-            <div className="canvas-container">
+            <div className="canvas-container" ref={containerRef}>
                 <canvas
                     id='canvas'
                     ref={canvasRef}
                     width={width}
                     height={height}
                     style={{
+                        // Maintain aspect ratio and fit: intrinsic buffer size (width/height attrs) sets resolution, below sets on-screen size
+                        width: `${displaySize.w}px`,
+                        height: `${displaySize.h}px`,
                         maxWidth: '100%',
-                        maxHeight: '100%',
-                        aspectRatio: `${width}/${height}`
+                        maxHeight: '100%'
                     }}
                 ></canvas>
             </div>
