@@ -5,9 +5,7 @@ import { BaseNoteAnimation, type AnimationContext } from './base';
 export class DebugAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
         const { x, y, width, height, color, progress, phase } = ctx;
-        const info = `${(progress * 100).toFixed(0)}% x:${x.toFixed(0)} y:${y.toFixed(0)} w:${width.toFixed(
-            0
-        )} h:${height.toFixed(0)}`;
+        const info = `${(progress * 100).toFixed(0)}%`;
 
         switch (phase) {
             case 'attack': {

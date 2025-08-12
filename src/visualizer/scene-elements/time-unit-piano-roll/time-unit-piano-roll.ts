@@ -584,24 +584,34 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             description: 'Type of animation for note appearance',
                         },
                         {
-                            key: 'animationSpeed',
+                            key: 'attackDuration',
                             type: 'number',
-                            label: 'Animation Speed',
-                            default: 1.0,
-                            min: 0.1,
-                            max: 5.0,
-                            step: 0.1,
-                            description: 'Speed multiplier for animations',
+                            label: 'Attack Duration',
+                            default: 0.3,
+                            min: 0,
+                            max: 10.0,
+                            step: 0.05,
+                            description: 'Time (s) before a note becomes visible (preview fade-in)',
                         },
                         {
-                            key: 'animationDuration',
+                            key: 'decayDuration',
                             type: 'number',
-                            label: 'Animation Duration',
-                            default: 0.5,
-                            min: 0.1,
-                            max: 2.0,
-                            step: 0.1,
-                            description: 'Duration of note animations in seconds',
+                            label: 'Decay Duration',
+                            default: 0.3,
+                            min: 0,
+                            max: 10.0,
+                            step: 0.05,
+                            description: 'Time (s) the note takes to reach full visibility',
+                        },
+                        {
+                            key: 'releaseDuration',
+                            type: 'number',
+                            label: 'Release Duration',
+                            default: 0.3,
+                            min: 0,
+                            max: 10.0,
+                            step: 0.05,
+                            description: 'Time (s) after the window ends before the note fully fades out',
                         },
                     ],
                 },
@@ -1299,12 +1309,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return this.getProperty<string>('animationType');
     }
 
-    getAnimationSpeed(): number {
-        return this.getProperty<number>('animationSpeed');
+    // ADSR phase durations
+    getAttackDuration(): number {
+        return Math.max(0, this.getProperty<number>('attackDuration') ?? 0.3);
     }
 
-    getAnimationDuration(): number {
-        return this.getProperty<number>('animationDuration') || 0.5;
+    getDecayDuration(): number {
+        return Math.max(0, this.getProperty<number>('decayDuration') ?? 0.3);
+    }
+
+    getReleaseDuration(): number {
+        return Math.max(0, this.getProperty<number>('releaseDuration') ?? 0.3);
     }
 
     getTimeUnitBars(): number {

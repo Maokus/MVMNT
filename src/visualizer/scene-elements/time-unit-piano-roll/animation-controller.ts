@@ -35,8 +35,9 @@ export class AnimationController {
     buildNoteRenderObjects(config: BuildConfig, noteBlocks: TNoteBlock[], targetTime: number): RenderObjectInterface[] {
         // Get animation settings from bound element
         const animationType = this.timeUnitPianoRoll.getAnimationType() as AnimationType;
-        const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
-        const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
+        const attack = this.timeUnitPianoRoll.getAttackDuration();
+        const decay = this.timeUnitPianoRoll.getDecayDuration();
+        const release = this.timeUnitPianoRoll.getReleaseDuration();
         const animationEnabled = animationType !== 'none';
 
         // Extract config values
@@ -60,7 +61,7 @@ export class AnimationController {
 
         for (const block of noteBlocks) {
             // Derive visual lifecycle state statelessly
-            const visState = this._deriveVisualState(block, targetTime, animationDuration);
+            const visState = this._deriveVisualState(block, targetTime, { attack, decay, release });
             if (!visState) continue;
 
             const noteIndex = block.note - noteRange.min;
@@ -123,8 +124,9 @@ export class AnimationController {
                     visState,
                 },
                 animationType,
-                animationSpeed,
-                animationDuration,
+                attack,
+                decay,
+                release,
                 animationEnabled
             );
 
@@ -146,8 +148,9 @@ export class AnimationController {
             visState: VisualState;
         },
         animationType: AnimationType,
-        animationSpeed: number,
-        animationDuration: number,
+        attack: number,
+        decay: number,
+        release: number,
         animationEnabled: boolean
     ): RenderObjectInterface[] {
         const { block, x, y, width, height, color, currentTime, visState } = args;
@@ -206,7 +209,11 @@ export class AnimationController {
         return inst;
     }
 
-    private _deriveVisualState(block: TNoteBlock, currentTime: number, animationDuration: number): VisualState | null {
+    private _deriveVisualState(
+        block: TNoteBlock,
+        currentTime: number,
+        phases: { attack: number; decay: number; release: number }
+    ): VisualState | null {
         // Robust lifecycle based on time-unit window, with ADSR phases and overlap guards
         const win = this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(
             currentTime,
@@ -214,26 +221,22 @@ export class AnimationController {
         );
         const winStart = block.windowStart ?? win.start;
         const winEnd = block.windowEnd ?? win.end;
+        const winLength = win.end - win.start;
+        const EPS = (1.0 * 10.0) ** -6.0;
 
         const origStart = block.originalStartTime ?? block.startTime;
 
-        const dur = Math.max(0.01, animationDuration);
+        const attackDur = Math.min(Math.max(0, phases.attack), winLength);
+        const decayDur = Math.min(Math.max(0, phases.decay), winLength);
+        const releaseDur = Math.min(Math.max(0, phases.release), winLength);
 
-        // ADSR timings within the time-unit window
         // Decay begins when note becomes visible in this window
         const decayStart = Math.max(origStart, winStart);
-        const attackStart = decayStart - dur; // attack is preview before note becomes visible
-        const attackEnd = decayStart; // exclusive
-        let decayEnd = decayStart + dur;
-
-        // Sustain: implicit between decayEnd and releaseStart
-
-        // Release should only start once the entire time unit is elapsed (per requirement)
-        // Additionally, in end-of-unit overlap cases, skip decay and jump straight to release
-        let releaseStart = winEnd; // strictly at window end
-        // But ensure we never start release before decay ends
-        decayEnd = Math.min(releaseStart, decayEnd);
-        const releaseEnd = releaseStart + dur;
+        const attackStart = decayStart - attackDur; // attack preview
+        const attackEnd = decayStart - EPS; // exclusive
+        const decayEnd = Math.min(decayStart + decayDur, winEnd);
+        const releaseStart = winEnd + EPS; // release always begins at end of window
+        const releaseEnd = releaseStart + releaseDur;
 
         if (currentTime >= attackStart && currentTime < attackEnd) {
             return {
@@ -276,22 +279,19 @@ export class AnimationController {
         const issues: string[] = [];
 
         const animationType = this.timeUnitPianoRoll.getAnimationType() as AnimationType;
-        const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
-        const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
-        const animationEnabled = animationType !== 'none';
-
-        if (animationEnabled) {
-            if (!animationDuration || animationDuration <= 0) {
-                issues.push('Invalid animation duration');
-            }
-
-            if (animationDuration > this.timeUnitPianoRoll.getTimeUnit()) {
-                issues.push('Animation duration longer than time unit');
-            }
-
-            if (animationSpeed <= 0) {
-                issues.push('Invalid animation speed');
-            }
+        const enabled = animationType !== 'none';
+        if (enabled) {
+            const attack = this.timeUnitPianoRoll.getAttackDuration();
+            const decay = this.timeUnitPianoRoll.getDecayDuration();
+            const release = this.timeUnitPianoRoll.getReleaseDuration();
+            const timeUnit = this.timeUnitPianoRoll.getTimeUnit();
+            const clampWarn = (name: string, val: number) => {
+                if (!isFinite(val) || val < 0) issues.push(`Invalid ${name} duration`);
+                if (val > timeUnit * 10) issues.push(`${name} duration very large (${val.toFixed(2)}s)`);
+            };
+            clampWarn('attack', attack);
+            clampWarn('decay', decay);
+            clampWarn('release', release);
         }
 
         return issues;
@@ -303,13 +303,11 @@ export class AnimationController {
         return this;
     }
 
+    // Deprecated setters retained for backward compatibility logging
     setAnimationSpeed(_speed: number): this {
-        console.warn('setAnimationSpeed should be handled through property bindings in BoundAnimationController');
         return this;
     }
-
     setAnimationDuration(_duration: number): this {
-        console.warn('setAnimationDuration should be handled through property bindings in BoundAnimationController');
         return this;
     }
 
@@ -320,15 +318,12 @@ export class AnimationController {
 
     getAnimationState() {
         const animationType = this.timeUnitPianoRoll.getAnimationType();
-        const animationSpeed = this.timeUnitPianoRoll.getAnimationSpeed();
-        const animationDuration = this.timeUnitPianoRoll.getAnimationDuration() || 0.5;
-        const animationEnabled = animationType !== 'none';
-
         return {
             type: animationType,
-            speed: animationSpeed,
-            duration: animationDuration,
-            enabled: animationEnabled,
+            attack: this.timeUnitPianoRoll.getAttackDuration(),
+            decay: this.timeUnitPianoRoll.getDecayDuration(),
+            release: this.timeUnitPianoRoll.getReleaseDuration(),
+            enabled: animationType !== 'none',
         };
     }
 }
