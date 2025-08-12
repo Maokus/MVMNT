@@ -78,23 +78,31 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         if (!elementId || !visualizer) return;
 
         const sceneBuilder = visualizer.getSceneBuilder();
-        if (sceneBuilder) {
-            if (typeof sceneBuilder.updateElementConfig === 'function') {
-                const success = sceneBuilder.updateElementConfig(elementId, changes);
+        if (!sceneBuilder) return;
 
-                if (success) {
-                    // Trigger re-render using invalidateRender to ensure the render happens
-                    if (visualizer.invalidateRender) {
-                        visualizer.invalidateRender();
-                    }
-                } else {
-                    console.warn(`Failed to update config for element '${elementId}'`);
+        if (typeof sceneBuilder.updateElementConfig === 'function') {
+            const success = sceneBuilder.updateElementConfig(elementId, changes);
+            if (success) {
+                // Force a render
+                if (visualizer.invalidateRender) {
+                    visualizer.invalidateRender();
                 }
+                // Update selected element reference if this is the selected one so React re-renders panels
+                if (selectedElementId === elementId) {
+                    const updated = sceneBuilder.getElement(elementId);
+                    if (updated) {
+                        setSelectedElement(updated);
+                    }
+                }
+                // Trigger refresh so lists (like elements panel) can reorder when zIndex changed
+                setRefreshTrigger(prev => prev + 1);
             } else {
-                console.warn(`[updateElementConfig] SceneBuilder does not support updateElementConfig method for element '${elementId}'`);
+                console.warn(`Failed to update config for element '${elementId}'`);
             }
+        } else {
+            console.warn(`[updateElementConfig] SceneBuilder does not support updateElementConfig method for element '${elementId}'`);
         }
-    }, [visualizer]);
+    }, [visualizer, selectedElementId]);
 
     const addElement = useCallback((elementType: string) => {
         if (!visualizer) return;

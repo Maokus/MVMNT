@@ -395,8 +395,6 @@ export class MIDIVisualizerCore {
         // Use the new modular rendering system
         const config = this.getSceneConfig();
         const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
-        console.log('[renderAtTime] Render objects:');
-        console.log(renderObjects);
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
     }
 

@@ -47,8 +47,9 @@ export const useSceneElementPanel = ({
 
         try {
             const elementsList = sceneBuilder.elements || [];
-            console.log('Refreshing elements:', elementsList.length, 'elements found');
-            setElements([...elementsList]);
+            // Sort for display: highest zIndex first (top-most visually at top of list)
+            const sortedForDisplay = [...elementsList].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+            setElements(sortedForDisplay);
             setError(null);
         } catch (error) {
             console.error('Error refreshing elements:', error);
@@ -151,34 +152,86 @@ export const useSceneElementPanel = ({
     const handleMoveElement = useCallback(
         (elementId: string, newIndex: number) => {
             if (!sceneBuilder) return;
-
             const element = sceneBuilder.getElement(elementId);
             if (!element) return;
 
-            const currentIndex = elements.findIndex((el) => el.id === elementId);
+            // Build a fresh sorted view independent of current state to be robust if input unsorted / duplicates
+            const fullList: any[] = (sceneBuilder.elements || []).slice();
+            // Normalize undefined zIndex to 0
+            fullList.forEach((el) => {
+                if (el.zIndex === undefined || el.zIndex === null) el.zIndex = 0;
+            });
+            // Sort DESC (top-most first) but keep stable order for equal zIndex using index tie-breaker
+            const enriched = fullList.map((el, i) => ({ el, i }));
+            enriched.sort((a, b) => {
+                const dz = (b.el.zIndex || 0) - (a.el.zIndex || 0);
+                return dz !== 0 ? dz : a.i - b.i; // stable
+            });
+            const displayList = enriched.map((e) => e.el);
+
+            const currentIndex = displayList.findIndex((el) => el.id === elementId);
             if (currentIndex === -1) return;
 
-            // Remove element from current position
-            const updatedElements = [...elements];
-            const [movedElement] = updatedElements.splice(currentIndex, 1);
+            const clampedNewIndex = Math.max(0, Math.min(newIndex, displayList.length - 1));
+            if (clampedNewIndex === currentIndex) return;
 
-            // Insert at new position
-            const targetIndex = Math.max(0, Math.min(newIndex, updatedElements.length));
-            updatedElements.splice(targetIndex, 0, movedElement);
+            const movingUp = clampedNewIndex < currentIndex; // Up arrow => appear earlier in list => higher z
 
-            // Update the scene builder's elements array
-            if (sceneBuilder.elements) {
-                sceneBuilder.elements.splice(0, sceneBuilder.elements.length, ...updatedElements);
+            // We want final ordering such that element occupies clampedNewIndex in the displayList produced by sorting DESC by z.
+            // Strategy: identify neighbor it must cross and set minimal z change that places it just above/below neighbor while resolving duplicates locally.
+            const targetNeighbor = displayList[clampedNewIndex];
+            if (!targetNeighbor) return;
+
+            const oldZ = element.zIndex || 0;
+            let desiredZ: number;
+            if (movingUp) {
+                // Need to be strictly above the neighbor's z
+                desiredZ = (targetNeighbor.zIndex || 0) + 1;
+            } else {
+                // Need to be strictly below the neighbor's z
+                desiredZ = (targetNeighbor.zIndex || 0) - 1;
             }
 
-            // Refresh elements and trigger re-render
-            refreshElements();
+            if (desiredZ === oldZ) {
+                // Already meets requirement (unlikely), nothing to do
+                return;
+            }
+
+            // Collision resolution minimal adjustments: We only shift a chain in the direction of movement until a gap found.
+            const taken = new Map<number, any>();
+            for (const el of fullList) {
+                if (el.id !== elementId) {
+                    taken.set(el.zIndex || 0, el);
+                }
+            }
+
+            const direction = movingUp ? 1 : -1;
+            let finalZ = desiredZ;
+            const chain: any[] = [];
+            while (taken.has(finalZ)) {
+                // Push the blocking element further in the same direction (record for later update)
+                const blocking = taken.get(finalZ);
+                chain.push(blocking);
+                finalZ += direction; // keep searching
+                // Safety guard against extreme loops
+                if (chain.length > fullList.length + 5) break;
+            }
+
+            // Apply z-index updates: set moving element to desiredZ (not finalZ) or we risk large jumps? Requirement: integer above/below neighbor then push chain.
+            // So we set element to desiredZ, then reassign each blocking element sequentially further by 1.
+            element.setZIndex(desiredZ);
+            let nextZ = desiredZ + direction;
+            for (const blocker of chain) {
+                if (blocker.zIndex !== nextZ) blocker.setZIndex(nextZ);
+                nextZ += direction;
+            }
 
             if (visualizer?.invalidateRender) {
                 visualizer.invalidateRender();
             }
+            refreshElements();
         },
-        [sceneBuilder, elements, refreshElements, visualizer]
+        [sceneBuilder, refreshElements, visualizer]
     );
 
     // Handle element duplication
