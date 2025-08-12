@@ -378,6 +378,8 @@ export class MIDIVisualizerCore {
         // Use the new modular rendering system
         const config = this.getSceneConfig();
         const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
+        console.log('[renderAtTime] Render objects:');
+        console.log(renderObjects);
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
     }
 
@@ -428,6 +430,16 @@ export class MIDIVisualizerCore {
 
         // Note: Piano setup is now handled by scene elements
         this.invalidateRender();
+        // Immediately render a frame so the preview updates without needing playback.
+        // If currentTime is before 0 (buffer period), clamp to 0 for a more informative static preview.
+        try {
+            if (!this.isPlaying) {
+                const previewTime = this.currentTime < 0 ? 0 : this.currentTime;
+                this.renderAtTime(previewTime);
+            }
+        } catch (e) {
+            console.warn('Resize immediate render failed', e);
+        }
     }
 
     getCurrentTime() {

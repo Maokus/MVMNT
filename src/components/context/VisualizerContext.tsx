@@ -133,9 +133,8 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     useEffect(() => {
         if (!visualizer || !canvasRef.current) return;
         if (canvasRef.current.width !== exportSettings.width || canvasRef.current.height !== exportSettings.height) {
+            // resize() now performs an immediate render for a static preview when not playing
             visualizer.resize(exportSettings.width, exportSettings.height);
-            visualizer.invalidateRender?.();
-            visualizer.render?.();
         }
         visualizer.updateExportSettings?.(exportSettings);
     }, [visualizer, exportSettings]);
