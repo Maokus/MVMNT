@@ -203,7 +203,17 @@ const PreviewPanel: React.FC = () => {
                         if (hit) {
                             selectElement(hit.id);
                             vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move' });
-                            (vis._dragMeta = { mode: 'move', startX: x, startY: y, origOffsetX: hit.element?.offsetX || 0, origOffsetY: hit.element?.offsetY || 0 });
+                            (vis._dragMeta = {
+                                mode: 'move',
+                                startX: x,
+                                startY: y,
+                                origOffsetX: hit.element?.offsetX || 0,
+                                origOffsetY: hit.element?.offsetY || 0,
+                                // store rotation/skew for shift-axis constraint
+                                origRotation: hit.element?.elementRotation || 0,
+                                origSkewX: hit.element?.elementSkewX || 0,
+                                origSkewY: hit.element?.elementSkewY || 0
+                            });
                         } else { selectElement(null); vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null }); }
                     }}
                     onMouseMove={(e) => {
@@ -222,7 +232,28 @@ const PreviewPanel: React.FC = () => {
                             const dx = x - meta.startX;
                             const dy = y - meta.startY;
                             if (meta.mode === 'move') {
-                                const newX = meta.origOffsetX + dx; const newY = meta.origOffsetY + dy;
+                                let moveDx = dx; let moveDy = dy;
+                                if (e.shiftKey) {
+                                    // Constrain to local X or Y axis (choose dominant projection)
+                                    const rotation = meta.origRotation || 0; // radians internally
+                                    const cos = Math.cos(rotation);
+                                    const sin = Math.sin(rotation);
+                                    // Local axes in world space
+                                    const axisX = { x: cos, y: sin };
+                                    const axisY = { x: -sin, y: cos };
+                                    const d = { x: moveDx, y: moveDy };
+                                    const projX = d.x * axisX.x + d.y * axisX.y;
+                                    const projY = d.x * axisY.x + d.y * axisY.y;
+                                    if (Math.abs(projX) > Math.abs(projY)) {
+                                        // keep only X component
+                                        moveDx = axisX.x * projX;
+                                        moveDy = axisX.y * projX;
+                                    } else {
+                                        moveDx = axisY.x * projY;
+                                        moveDy = axisY.y * projY;
+                                    }
+                                }
+                                const newX = meta.origOffsetX + moveDx; const newY = meta.origOffsetY + moveDy;
                                 sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
                                 updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
                             } else if (meta.mode?.startsWith('scale') && meta.bounds) {
@@ -289,9 +320,19 @@ const PreviewPanel: React.FC = () => {
                                         }
                                     }
                                 }
+                                // Uniform scaling with Shift (apply dominant axis scale factor to both)
+                                if (e.shiftKey) {
+                                    const ratioX = newScaleX / (origScaleX || 1);
+                                    const ratioY = newScaleY / (origScaleY || 1);
+                                    // Determine which axis user intended (larger deviation from 1)
+                                    let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
+                                    if (!isFinite(factor) || factor <= 0) factor = 1;
+                                    newScaleX = Math.max(0.01, (origScaleX || 1) * factor);
+                                    newScaleY = Math.max(0.01, (origScaleY || 1) * factor);
+                                }
                                 // Compute new offset to keep fixed point stationary
                                 // offset = fixedWorld - R*S*K*(fixedLocal - anchorLocal)
-                                const rotation = meta.origRotation || 0;
+                                const rotation = meta.origRotation || 0; // already radians
                                 const skewX = meta.origSkewX || 0;
                                 const skewY = meta.origSkewY || 0;
                                 const anchorLocal = {
@@ -319,13 +360,61 @@ const PreviewPanel: React.FC = () => {
                                 sceneBuilder?.updateElementConfig?.(elId, { elementScaleX: newScaleX, elementScaleY: newScaleY, offsetX: newOffsetX, offsetY: newOffsetY });
                                 updateElementConfig?.(elId, { elementScaleX: newScaleX, elementScaleY: newScaleY, offsetX: newOffsetX, offsetY: newOffsetY });
                             } else if (meta.mode === 'anchor' && meta.bounds) {
-                                const { bounds } = meta;
-                                const relX = (x - bounds.x) / (bounds.width || 1);
-                                const relY = (y - bounds.y) / (bounds.height || 1);
-                                const anchorX = Math.max(0, Math.min(1, relX));
-                                const anchorY = Math.max(0, Math.min(1, relY));
-                                sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY });
-                                updateElementConfig?.(elId, { anchorX, anchorY });
+                                const { bounds, baseBounds } = meta;
+                                const relXRaw = (x - bounds.x) / (bounds.width || 1);
+                                const relYRaw = (y - bounds.y) / (bounds.height || 1);
+                                let anchorX = Math.max(0, Math.min(1, relXRaw));
+                                let anchorY = Math.max(0, Math.min(1, relYRaw));
+                                if (e.shiftKey) {
+                                    // Snap to 9-point grid
+                                    const candidates = [0, 0.5, 1];
+                                    let bestAX = anchorX, bestAY = anchorY;
+                                    let bestD = Infinity;
+                                    for (const ax of candidates) {
+                                        for (const ay of candidates) {
+                                            const dxC = ax - anchorX; const dyC = ay - anchorY;
+                                            const d2 = dxC * dxC + dyC * dyC;
+                                            if (d2 < bestD) { bestD = d2; bestAX = ax; bestAY = ay; }
+                                        }
+                                    }
+                                    anchorX = bestAX; anchorY = bestAY;
+                                }
+                                // Adjust offset so visual position stays the same
+                                if (baseBounds) {
+                                    const oldAnchorLocal = {
+                                        x: baseBounds.x + baseBounds.width * meta.origAnchorX,
+                                        y: baseBounds.y + baseBounds.height * meta.origAnchorY,
+                                    };
+                                    const newAnchorLocal = {
+                                        x: baseBounds.x + baseBounds.width * anchorX,
+                                        y: baseBounds.y + baseBounds.height * anchorY,
+                                    };
+                                    const deltaLocal = { x: newAnchorLocal.x - oldAnchorLocal.x, y: newAnchorLocal.y - oldAnchorLocal.y };
+                                    const rotation = (meta.origRotation || 0) * Math.PI / 180;
+                                    const skewX = meta.origSkewX || 0;
+                                    const skewY = meta.origSkewY || 0;
+                                    const scaleX = meta.origScaleX || 1;
+                                    const scaleY = meta.origScaleY || 1;
+                                    const applyRSK = (vx: number, vy: number) => {
+                                        const kx = Math.tan(skewX);
+                                        const ky = Math.tan(skewY);
+                                        const kxVy = vx + kx * vy;
+                                        const kyVx = ky * vx + vy;
+                                        const sx = kxVy * scaleX;
+                                        const sy = kyVx * scaleY;
+                                        const cos = Math.cos(rotation);
+                                        const sin = Math.sin(rotation);
+                                        return { x: cos * sx - sin * sy, y: sin * sx + cos * sy };
+                                    };
+                                    const adjust = applyRSK(deltaLocal.x, deltaLocal.y); // RSK(new-old)
+                                    const newOffsetX = meta.origOffsetX + adjust.x;
+                                    const newOffsetY = meta.origOffsetY + adjust.y;
+                                    sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY, offsetX: newOffsetX, offsetY: newOffsetY });
+                                    updateElementConfig?.(elId, { anchorX, anchorY, offsetX: newOffsetX, offsetY: newOffsetY });
+                                } else {
+                                    sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY });
+                                    updateElementConfig?.(elId, { anchorX, anchorY });
+                                }
                             } else if (meta.mode === 'rotate' && meta.bounds) {
                                 let centerX = meta.bounds.x + meta.bounds.width * meta.origAnchorX;
                                 let centerY = meta.bounds.y + meta.bounds.height * meta.origAnchorY;
@@ -351,10 +440,15 @@ const PreviewPanel: React.FC = () => {
                                 const startAngleRad = Math.atan2(meta.startY - centerY, meta.startX - centerX);
                                 const currentAngleRad = Math.atan2(y - centerY, x - centerX);
                                 const deltaRad = currentAngleRad - startAngleRad;
-                                const deltaDeg = deltaRad * (180 / Math.PI);
-                                const newRotation = (meta.origRotation || 0) + deltaDeg;
-                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotation });
-                                updateElementConfig?.(elId, { elementRotation: newRotation });
+                                // meta.origRotation stored in radians, deltaRad already radians
+                                let newRotationRad = (meta.origRotation || 0) + deltaRad;
+                                if (e.shiftKey) {
+                                    const deg = newRotationRad * 180 / Math.PI;
+                                    const snappedDeg = Math.round(deg / 15) * 15;
+                                    newRotationRad = snappedDeg * Math.PI / 180;
+                                }
+                                sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotationRad });
+                                updateElementConfig?.(elId, { elementRotation: newRotationRad });
                             }
                             vis.setInteractionState({}); // trigger
                             return;
