@@ -16,6 +16,31 @@ export class HybridSceneBuilder {
         this.elements = [];
         this.elementRegistry = new Map();
         this.sceneElementRegistry = sceneElementRegistry;
+        // Central scene settings (formerly export settings). These are now
+        // owned by the scene builder so they serialize/deserialize with scenes.
+        this._defaultSceneSettings = {
+            fps: 30,
+            width: 1500,
+            height: 1500,
+        };
+        this.config = { ...this._defaultSceneSettings };
+    }
+
+    /** Get current scene settings */
+    getSceneSettings() {
+        return { ...this.config };
+    }
+
+    /** Update scene settings (partial). Returns new config */
+    updateSceneSettings(partial = {}) {
+        this.config = { ...this.config, ...partial };
+        return this.getSceneSettings();
+    }
+
+    /** Reset scene settings back to defaults */
+    resetSceneSettings() {
+        this.config = { ...this._defaultSceneSettings };
+        return this.getSceneSettings();
     }
 
     /**
@@ -115,6 +140,8 @@ export class HybridSceneBuilder {
         }
         this.elements = [];
         this.elementRegistry.clear();
+        // Requirement: clearing the scene resets scene settings to defaults
+        this.resetSceneSettings();
         return this;
     }
 
@@ -294,7 +321,9 @@ export class HybridSceneBuilder {
      * @returns {BoundHybridSceneBuilder} Returns this for chaining
      */
     createDefaultMIDIScene() {
-        this.clearElements();
+        this.clearElements(); // also resets scene settings
+        // Requirement: new default MIDI scene should start with default scene settings.
+        this.resetSceneSettings();
 
         // Create default macros for MIDI properties
         this._createDefaultMacros();
@@ -539,7 +568,8 @@ export class HybridSceneBuilder {
             macros: macroData,
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: bindingVersion,
-            // exportSettings can be appended by visualizer-core when exporting full scene
+            // Scene settings (formerly exportSettings) now live here
+            sceneSettings: { ...this.config },
         };
     }
 
@@ -555,6 +585,22 @@ export class HybridSceneBuilder {
         try {
             // Clear existing elements
             this.clearElements();
+
+            // Load scene settings early so size/fa aspects can be applied by caller
+            // Accept both new sceneSettings and legacy exportSettings for backward compatibility
+            const legacy = sceneData.exportSettings;
+            const modern = sceneData.sceneSettings;
+            if (modern || legacy) {
+                const src = modern || legacy;
+                const partial = {};
+                if (typeof src.fps === 'number') partial.fps = src.fps;
+                if (typeof src.width === 'number') partial.width = src.width;
+                if (typeof src.height === 'number') partial.height = src.height;
+                this.updateSceneSettings(partial);
+            } else {
+                // If none present, reset to defaults
+                this.resetSceneSettings();
+            }
 
             // Import macros first if they exist
             if (sceneData.macros) {

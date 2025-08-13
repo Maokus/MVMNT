@@ -101,7 +101,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                     </div>
 
                     <div className="setting-group">
-                        <h4>Export Settings</h4>
+                        <h4>Scene Settings</h4>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <div style={{ flex: 1 }}>
                                 <label htmlFor="widthInput">Width (px):</label>

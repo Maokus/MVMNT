@@ -140,7 +140,8 @@ export class VideoExporter {
             // Cast to any to satisfy TS in browser context
             const videoBlob = new Blob([data as any], { type: 'video/mp4' });
             onProgress(100, 'Video ready');
-            this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.mp4`);
+            // Use _video suffix instead of _export for clarity and consistent naming
+            this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`);
             onComplete(videoBlob);
         } catch (err) {
             console.error('Video export failed', err);

@@ -67,6 +67,16 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
+    const sceneNameRef = useRef<string>('scene');
+
+    // Listen for scene name changes broadcast by SceneContext
+    useEffect(() => {
+        const handler = (e: any) => {
+            if (e?.detail?.sceneName) sceneNameRef.current = e.detail.sceneName;
+        };
+        window.addEventListener('scene-name-changed', handler as EventListener);
+        return () => window.removeEventListener('scene-name-changed', handler as EventListener);
+    }, []);
 
     // Initialize visualizer
     useEffect(() => {
@@ -79,6 +89,13 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const vid = new VideoExporter(canvasRef.current, vis);
             setVideoExporter(vid);
             (window as any).debugVisualizer = vis;
+            // Sync initial fps/width/height from scene builder settings
+            try {
+                const s = vis.getSceneBuilder()?.getSceneSettings?.();
+                if (s) {
+                    setExportSettings((prev) => ({ ...prev, fps: s.fps ?? prev.fps, width: s.width ?? prev.width, height: s.height ?? prev.height }));
+                }
+            } catch { }
         }
     }, [visualizer]);
 
@@ -137,11 +154,17 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Apply export settings size changes
     useEffect(() => {
         if (!visualizer || !canvasRef.current) return;
-        if (canvasRef.current.width !== exportSettings.width || canvasRef.current.height !== exportSettings.height) {
-            // resize() now performs an immediate render for a static preview when not playing
-            visualizer.resize(exportSettings.width, exportSettings.height);
+        const sceneSettings = visualizer.getSceneBuilder?.().getSceneSettings?.() || {};
+        if (
+            sceneSettings.fps !== exportSettings.fps ||
+            sceneSettings.width !== exportSettings.width ||
+            sceneSettings.height !== exportSettings.height
+        ) {
+            visualizer.updateExportSettings?.(exportSettings);
+        } else if ('fullDuration' in exportSettings) {
+            // Still propagate export-only flags if necessary
+            visualizer.updateExportSettings?.({ fullDuration: exportSettings.fullDuration });
         }
-        visualizer.updateExportSettings?.(exportSettings);
     }, [visualizer, exportSettings]);
 
     // Listen for scene-imported event to sync export settings from loaded scene
@@ -218,7 +241,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 fps: settings.fps,
                 width: settings.width,
                 height: settings.height,
-                sceneName: 'scene',
+                sceneName: sceneNameRef.current,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Generating images...') => setProgressData({ progress, text }),
@@ -255,7 +278,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 fps: settings.fps,
                 width: settings.width,
                 height: settings.height,
-                sceneName: 'scene',
+                sceneName: sceneNameRef.current,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),

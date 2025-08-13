@@ -19,7 +19,12 @@ const SceneContext = createContext<SceneContextValue | undefined>(undefined);
 export const SceneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { visualizer } = useVisualizer();
     const [sceneName, setSceneName] = useState<string>(() => SceneNameGenerator.generate());
-    const refreshSceneUI = useCallback(() => { }, []);
+
+    // Dispatch window events to notify all components about scene changes
+    const refreshSceneUI = useCallback(() => {
+        // Dispatch scene-refresh event for SceneSelectionContext to pick up
+        window.dispatchEvent(new CustomEvent('scene-refresh'));
+    }, []);
 
     const menuBarActions = useMenuBar({
         visualizer,

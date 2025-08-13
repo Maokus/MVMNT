@@ -112,6 +112,8 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
         if (sceneBuilder) refreshElements();
     }, [sceneBuilder, refreshTrigger, refreshElements]);
 
+    // (Moved below selectElement definition to avoid temporal dead zone)
+
     const selectElement = useCallback((elementId: string | null) => {
         setSelectedElementId(elementId);
         if (elementId && sceneBuilder) {
@@ -126,6 +128,18 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
             updatePropertiesHeader(null);
         }
     }, [sceneBuilder, updatePropertiesHeader]);
+
+    // Listen for external scene-refresh events (e.g., load/save/clear/new scene actions)
+    useEffect(() => {
+        const handler = () => {
+            refreshElements();
+            if (selectedElementId && !sceneBuilder?.getElement(selectedElementId)) {
+                selectElement(null);
+            }
+        };
+        window.addEventListener('scene-refresh', handler);
+        return () => window.removeEventListener('scene-refresh', handler);
+    }, [refreshElements, selectedElementId, sceneBuilder, selectElement]);
 
     // Sync selection state down into the visualizer interaction state (single source of truth = React)
     useEffect(() => {
