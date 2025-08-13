@@ -2,6 +2,7 @@
 import { SceneElement } from './base';
 import { Text } from '../render-objects/index.js';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
+import { ensureFontLoaded } from '../../utils/font-loader';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
@@ -37,20 +38,10 @@ export class TextOverlayElement extends SceneElement {
                     properties: [
                         {
                             key: 'fontFamily',
-                            type: 'select',
+                            type: 'font',
                             label: 'Font Family',
-                            default: 'Arial',
-                            options: [
-                                { value: 'Arial', label: 'Arial' },
-                                { value: 'Helvetica', label: 'Helvetica' },
-                                { value: 'Times New Roman', label: 'Times New Roman' },
-                                { value: 'Georgia', label: 'Georgia' },
-                                { value: 'Verdana', label: 'Verdana' },
-                                { value: 'Trebuchet MS', label: 'Trebuchet MS' },
-                                { value: 'Impact', label: 'Impact' },
-                                { value: 'Courier New', label: 'Courier New' },
-                            ],
-                            description: 'Choose the font family for text rendering',
+                            default: 'Inter',
+                            description: 'Choose the font family (Google Fonts supported)',
                         },
                         {
                             key: 'fontWeight',
@@ -97,7 +88,8 @@ export class TextOverlayElement extends SceneElement {
         const fontSize = this.getProperty('fontSize') as number;
         const color = this.getProperty('color') as string;
 
-        // Create text render object at origin (positioning handled by transform system)
+        // Ensure font is loaded if it's a Google Font
+        if (fontFamily) ensureFontLoaded(fontFamily);
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
         const textElement = new Text(0, 0, text, font, color, 'center', 'middle');
         renderObjects.push(textElement);

@@ -7,6 +7,7 @@ import ColorInputRow from './input-rows/ColorInputRow';
 import RangeInputRow from './input-rows/RangeInputRow';
 import FileInputRow from './input-rows/FileInputRow';
 import TextInputRow from './input-rows/TextInputRow';
+import FontInputRow from './input-rows/FontInputRow';
 // @ts-ignore
 import { useMacros } from '../../context/MacroContext';
 
@@ -29,10 +30,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 }) => {
     const { manager } = useMacros();
     const canAssignMacro = (propertyType: string) => {
-        return ['number', 'string', 'boolean', 'color', 'select', 'file'].includes(propertyType);
+        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font'].includes(propertyType);
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
+        const mappedType = propertyType === 'font' ? 'string' : propertyType; // treat font as string for macros
         if (propertyType === 'file') {
             // For file inputs, filter by accept type
             const accept = propertySchema?.accept;
@@ -49,9 +51,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return manager.getAllMacros()
                 .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
         }
-
         return manager.getAllMacros()
-            .filter((macro: any) => macro.type === propertyType);
+            .filter((macro: any) => macro.type === mappedType);
     };
 
     const renderInput = (property: PropertyDefinition) => {
@@ -89,6 +90,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 return <RangeInputRow {...commonProps} />;
             case 'file':
                 return <FileInputRow {...commonProps} />;
+            case 'font':
+                return <FontInputRow {...commonProps} />;
             case 'string':
             default:
                 return <TextInputRow {...commonProps} />;

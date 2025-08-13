@@ -1,6 +1,7 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
 import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
+import { ensureFontLoaded } from '../../../utils/font-loader';
 import { Line, Text, EmptyRenderObject } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller';
 import { NoteBlock } from './note-block';
@@ -394,10 +395,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         },
                         {
                             key: 'noteLabelFontFamily',
-                            type: 'string',
+                            type: 'font',
                             label: 'Font Family',
-                            default: 'Arial',
-                            description: 'Font family for note labels',
+                            default: 'Inter',
+                            description: 'Font family for note labels (Google Fonts supported)',
                         },
                         {
                             key: 'noteLabelFontSize',
@@ -496,10 +497,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         },
                         {
                             key: 'beatLabelFontFamily',
-                            type: 'string',
+                            type: 'font',
                             label: 'Font Family',
-                            default: 'Arial',
-                            description: 'Font family for bar labels',
+                            default: 'Inter',
+                            description: 'Font family for bar labels (Google Fonts supported)',
                         },
                         {
                             key: 'beatLabelFontSize',
@@ -735,6 +736,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
         const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
         const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
+        // Dynamic font loading for Google Fonts
+        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily);
+        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily);
 
         // Handle MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');

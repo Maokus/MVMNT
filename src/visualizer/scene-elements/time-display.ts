@@ -4,6 +4,7 @@ import { Text, Rectangle } from '../render-objects/index.js';
 import { TimingManager } from '../timing-manager.js';
 import { MidiManager } from '../midi-manager';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
+import { ensureFontLoaded } from '../../utils/font-loader';
 
 interface BarBeatTick {
     bar: number;
@@ -78,16 +79,10 @@ export class TimeDisplayElement extends SceneElement {
                         },
                         {
                             key: 'fontFamily',
-                            type: 'select',
+                            type: 'font',
                             label: 'Font Family',
-                            default: 'Arial',
-                            options: [
-                                { value: 'Arial', label: 'Arial' },
-                                { value: 'Helvetica', label: 'Helvetica' },
-                                { value: 'Times New Roman', label: 'Times New Roman' },
-                                { value: 'Georgia', label: 'Georgia' },
-                            ],
-                            description: 'Font family for the time display',
+                            default: 'Inter',
+                            description: 'Font family (Google Fonts supported)',
                         },
                         {
                             key: 'fontWeight',
@@ -174,6 +169,7 @@ export class TimeDisplayElement extends SceneElement {
         const timeY = 0;
         const beatY = baseFontSize * 1.8;
 
+        if (fontFamily) ensureFontLoaded(fontFamily);
         const font = `${fontWeight} ${baseFontSize}px ${fontFamily}, sans-serif`;
         const labelFont = `${fontWeight} ${baseFontSize * 0.8}px ${fontFamily}, sans-serif`;
 

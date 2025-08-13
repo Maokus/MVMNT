@@ -23,7 +23,7 @@ export interface SceneConfig {
 // New property grouping system for After Effects-style UI
 export interface PropertyDefinition {
     key: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'range';
+    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'range' | 'font';
     label: string;
     description?: string;
     default?: any;
