@@ -24,15 +24,12 @@ export class MIDIVisualizerCore {
         this.animationId = null;
         this.currentTime = -0.5; // Start with buffer time so first notes can animate in
 
-        // Export settings for frame stepping and export functionality
+        // Scene settings (fps/width/height) have moved to sceneBuilder; keep only export flags here
         this.exportSettings = {
-            fps: 30,
-            width: 1500,
-            height: 1500,
             fullDuration: true,
         };
-        // Initialize RAF pacing
-        this._rafMinIntervalMs = 1000 / this.exportSettings.fps;
+        // Initialize RAF pacing using default fps (scene builder default is 30)
+        this._rafMinIntervalMs = 1000 / 30;
 
         // Debug settings
         this.debugSettings = {
@@ -43,7 +40,7 @@ export class MIDIVisualizerCore {
         this._needsRender = true;
         this._lastRenderTime = -1;
         this._lastRAFTime = 0;
-        this._rafMinIntervalMs = 0; // computed from exportSettings.fps when playing
+        this._rafMinIntervalMs = 0; // computed from scene settings fps when playing
 
         // Note rendering system - using modular approach with RenderObjects
         // Main rendering system - stateless renderer for all drawing operations
@@ -265,11 +262,25 @@ export class MIDIVisualizerCore {
      * @param {boolean} settings.fullDuration - Whether to export full duration
      */
     updateExportSettings(settings) {
-        this.exportSettings = { ...this.exportSettings, ...settings };
-        // Update RAF pacing based on fps
-        const fps = Math.max(1, this.exportSettings.fps || 30);
-        this._rafMinIntervalMs = 1000 / fps;
-        // Trigger a re-render when export settings (including resolution) change
+        // Delegate scene settings keys (fps,width,height) to sceneBuilder config
+        const sceneKeys = ['fps', 'width', 'height'];
+        const scenePartial = {};
+        for (const k of sceneKeys) if (k in settings) scenePartial[k] = settings[k];
+        if (Object.keys(scenePartial).length) {
+            const before = this.sceneBuilder.getSceneSettings();
+            const updated = this.sceneBuilder.updateSceneSettings(scenePartial);
+            const fps = Math.max(1, updated.fps || 30);
+            this._rafMinIntervalMs = 1000 / fps;
+            const widthChanged = 'width' in scenePartial && before.width !== updated.width;
+            const heightChanged = 'height' in scenePartial && before.height !== updated.height;
+            if ((widthChanged || heightChanged) && updated.width && updated.height) {
+                this.resize(updated.width, updated.height);
+            }
+        }
+        // Store remaining export-only flags locally
+        const remaining = { ...settings };
+        sceneKeys.forEach((k) => delete remaining[k]);
+        this.exportSettings = { ...this.exportSettings, ...remaining };
         this.invalidateRender();
     }
 
@@ -278,7 +289,7 @@ export class MIDIVisualizerCore {
      * @returns {Object} Current export settings
      */
     getExportSettings() {
-        return { ...this.exportSettings };
+        return { ...this.sceneBuilder.getSceneSettings(), ...this.exportSettings };
     }
 
     /**
@@ -300,7 +311,7 @@ export class MIDIVisualizerCore {
     }
 
     stepForward() {
-        const frameRate = this.exportSettings.fps; // Use configurable frame rate
+        const frameRate = this.sceneBuilder.getSceneSettings().fps; // Use configurable frame rate
         const stepSize = 1.0 / frameRate; // Frame time based on current fps setting
         const currentDuration = this.getCurrentDuration();
         const newTime = Math.min(this.currentTime + stepSize, currentDuration);
@@ -308,7 +319,7 @@ export class MIDIVisualizerCore {
     }
 
     stepBackward() {
-        const frameRate = this.exportSettings.fps; // Use configurable frame rate
+        const frameRate = this.sceneBuilder.getSceneSettings().fps; // Use configurable frame rate
         const stepSize = 1.0 / frameRate; // Frame time based on current fps setting
         const newTime = Math.max(this.currentTime - stepSize, -0.5);
         this.seek(newTime);
@@ -865,14 +876,7 @@ export class MIDIVisualizerCore {
      */
     exportSceneConfig() {
         // Base scene data from scene builder
-        const data = this.sceneBuilder.serializeScene();
-        // Attach export settings (fps & resolution) so they can be restored later
-        data.exportSettings = {
-            fps: this.exportSettings?.fps,
-            width: this.canvas?.width,
-            height: this.canvas?.height,
-        };
-        return data;
+        return this.sceneBuilder.serializeScene();
     }
 
     /**
@@ -883,33 +887,21 @@ export class MIDIVisualizerCore {
     importSceneConfig(sceneData) {
         // Apply resolution & fps BEFORE loading elements so size-dependent layouts initialize correctly
         try {
-            const es = sceneData?.exportSettings;
-            if (es) {
-                const { fps, width, height } = es;
-                if (typeof fps === 'number' && isFinite(fps) && fps > 0) {
-                    this.updateExportSettings({ fps });
-                }
-                if (
-                    typeof width === 'number' &&
-                    typeof height === 'number' &&
-                    isFinite(width) &&
-                    isFinite(height) &&
-                    width > 0 &&
-                    height > 0
-                ) {
-                    // Resize canvas & record new resolution in export settings
-                    this.resize(width, height);
-                    this.updateExportSettings({ width, height });
-                }
-                // Notify listeners (e.g., React context) that export settings changed via scene import
+            const legacy = sceneData?.exportSettings;
+            const modern = sceneData?.sceneSettings;
+            const src = modern || legacy;
+            if (src) {
+                this.updateExportSettings(src);
                 try {
                     this.canvas?.dispatchEvent(
-                        new CustomEvent('scene-imported', { detail: { exportSettings: { ...this.exportSettings } } })
+                        new CustomEvent('scene-imported', {
+                            detail: { exportSettings: { ...this.getExportSettings() } },
+                        })
                     );
                 } catch {}
             }
         } catch (e) {
-            console.warn('Failed applying exportSettings from scene data', e);
+            console.warn('Failed applying scene settings from scene data', e);
         }
         // Temporarily disable image load listener to prevent render thrashing during mass reload
         const originalImageLoadListener = this._handleImageLoaded;

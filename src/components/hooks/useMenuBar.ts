@@ -152,6 +152,15 @@ export const useMenuBar = ({
             if (sceneBuilder) {
                 sceneBuilder.clearElements();
                 globalMacroManager.clearMacros();
+                // Reset scene settings to defaults and notify contexts
+                if (sceneBuilder.resetSceneSettings) {
+                    const settings = sceneBuilder.resetSceneSettings();
+                    try {
+                        visualizer.canvas?.dispatchEvent(
+                            new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+                        );
+                    } catch {}
+                }
                 if (visualizer.invalidateRender) {
                     visualizer.invalidateRender();
                 }
@@ -187,6 +196,15 @@ export const useMenuBar = ({
                 if (sceneBuilder && sceneBuilder.createDefaultMIDIScene) {
                     sceneBuilder.clearElements();
                     sceneBuilder.createDefaultMIDIScene();
+                    // Reset scene settings defaults (already done by clearElements) and notify
+                    if (sceneBuilder.getSceneSettings) {
+                        const settings = sceneBuilder.getSceneSettings();
+                        try {
+                            visualizer.canvas?.dispatchEvent(
+                                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+                            );
+                        } catch {}
+                    }
                 }
             }
 
