@@ -34,6 +34,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
+        const mappedType = propertyType === 'font' ? 'string' : propertyType; // treat font as string for macros
         if (propertyType === 'file') {
             // For file inputs, filter by accept type
             const accept = propertySchema?.accept;
@@ -50,9 +51,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return manager.getAllMacros()
                 .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
         }
-
         return manager.getAllMacros()
-            .filter((macro: any) => macro.type === propertyType);
+            .filter((macro: any) => macro.type === mappedType);
     };
 
     const renderInput = (property: PropertyDefinition) => {
