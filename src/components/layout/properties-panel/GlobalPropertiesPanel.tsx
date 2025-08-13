@@ -21,6 +21,7 @@ interface GlobalPropertiesPanelProps {
 
     // Export-related props
     onExport: (exportSettings: ExportSettings) => void;
+    onExportVideo?: (exportSettings: ExportSettings) => void;
     exportStatus: string;
     canExport: boolean;
     exportSettings: ExportSettings;
@@ -35,6 +36,8 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const ctx = useVisualizer();
     const visualizer = props.visualizer || ctx.visualizer;
     const onExport = props.onExport;
+    // @ts-ignore optional video export function if provided via props or context (not typed yet)
+    const onExportVideo = props.onExportVideo || (ctx as any).exportVideo;
     const exportStatus = props.exportStatus;
     const canExport = props.canExport;
     const exportSettings = props.exportSettings || ctx.exportSettings;
@@ -191,7 +194,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             </label>
                         </div>
 
-                        <div className="export-actions" style={{ marginTop: '16px' }}>
+                        <div className="export-actions" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {(() => {
                                 const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
                                 return (
@@ -208,6 +211,25 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                         title={invalidRange ? 'Start time must be less than end time' : ''}
                                     >
                                         📸 Export PNG Sequence
+                                    </button>
+                                );
+                            })()}
+                            {(() => {
+                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
+                                return (
+                                    <button
+                                        className="btn-export"
+                                        onClick={() => onExportVideo && onExportVideo(exportSettings)}
+                                        disabled={!canExport || !onExportVideo || invalidRange}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 16px',
+                                            fontSize: '14px',
+                                            fontWeight: 'bold'
+                                        }}
+                                        title={!onExportVideo ? 'Video export not available' : (invalidRange ? 'Start time must be less than end time' : '')}
+                                    >
+                                        🎬 Export MP4 Video
                                     </button>
                                 );
                             })()}

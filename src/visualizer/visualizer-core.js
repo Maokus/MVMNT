@@ -864,7 +864,15 @@ export class MIDIVisualizerCore {
      * @returns {Object} Serializable scene data
      */
     exportSceneConfig() {
-        return this.sceneBuilder.serializeScene();
+        // Base scene data from scene builder
+        const data = this.sceneBuilder.serializeScene();
+        // Attach export settings (fps & resolution) so they can be restored later
+        data.exportSettings = {
+            fps: this.exportSettings?.fps,
+            width: this.canvas?.width,
+            height: this.canvas?.height,
+        };
+        return data;
     }
 
     /**
@@ -873,6 +881,36 @@ export class MIDIVisualizerCore {
      * @returns {boolean} True if scene was loaded successfully
      */
     importSceneConfig(sceneData) {
+        // Apply resolution & fps BEFORE loading elements so size-dependent layouts initialize correctly
+        try {
+            const es = sceneData?.exportSettings;
+            if (es) {
+                const { fps, width, height } = es;
+                if (typeof fps === 'number' && isFinite(fps) && fps > 0) {
+                    this.updateExportSettings({ fps });
+                }
+                if (
+                    typeof width === 'number' &&
+                    typeof height === 'number' &&
+                    isFinite(width) &&
+                    isFinite(height) &&
+                    width > 0 &&
+                    height > 0
+                ) {
+                    // Resize canvas & record new resolution in export settings
+                    this.resize(width, height);
+                    this.updateExportSettings({ width, height });
+                }
+                // Notify listeners (e.g., React context) that export settings changed via scene import
+                try {
+                    this.canvas?.dispatchEvent(
+                        new CustomEvent('scene-imported', { detail: { exportSettings: { ...this.exportSettings } } })
+                    );
+                } catch {}
+            }
+        } catch (e) {
+            console.warn('Failed applying exportSettings from scene data', e);
+        }
         // Temporarily disable image load listener to prevent render thrashing during mass reload
         const originalImageLoadListener = this._handleImageLoaded;
         const pendingImages = [];

@@ -1,27 +1,27 @@
 import type { AnimationType } from '../animation-controller';
 import { BaseNoteAnimation } from './base';
+import { FadeAnimation } from './fade';
+import { SlideAnimation } from './slide';
+import { DebugAnimation } from './debug';
+import { ScaleAnimation } from './scale';
+import { ExpandAnimation } from './expand';
 
 export function createAnimationInstance(type: AnimationType): BaseNoteAnimation {
     switch (type) {
         case 'fade': {
-            const { FadeAnimation } = require('./fade');
             return new FadeAnimation();
         }
         case 'slide': {
-            const { SlideAnimation } = require('./slide');
             return new SlideAnimation();
         }
         case 'scale': {
-            const { ScaleAnimation } = require('./scale');
             return new ScaleAnimation();
         }
         case 'debug': {
-            const { DebugAnimation } = require('./debug');
             return new DebugAnimation();
         }
         case 'expand':
         default: {
-            const { ExpandAnimation } = require('./expand');
             return new ExpandAnimation();
         }
     }
