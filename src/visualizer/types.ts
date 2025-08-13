@@ -226,7 +226,7 @@ export interface ConfigSchema {
 
 export interface PropertyDefinition {
     key: string;
-    type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image';
+    type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image' | 'font';
     label: string;
     default?: any;
     min?: number;
