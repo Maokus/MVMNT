@@ -91,20 +91,20 @@ export class VideoExporter {
             await this.ensureFFmpeg(onProgress);
             const ffmpeg = this.ffmpeg!;
 
-            // Phase 1: Render frames (0-70%)
-            await this.renderFrames(fps, limitedFrames, _startFrame, (p, txt) => onProgress(p * 70, txt));
+            // Phase 1: Render frames (0-40%)
+            await this.renderFrames(fps, limitedFrames, _startFrame, (p, txt) => onProgress(p * 40, txt));
 
-            // Phase 2: Write frames into ffmpeg FS (70-85%)
-            onProgress(70, 'Writing frames to virtual FS');
+            // Phase 2: Write frames into ffmpeg FS (40-50%)
+            onProgress(40, 'Writing frames to virtual FS');
             let i = 0;
             for (const frame of this.frames) {
                 const arrayBuffer = await frame.blob.arrayBuffer();
                 await ffmpeg.writeFile(`frame_${String(i).padStart(5, '0')}.png`, new Uint8Array(arrayBuffer));
                 i++;
-                if (i % 10 === 0) onProgress(70 + (i / this.frames.length) * 15, 'Writing frames...');
+                if (i % 10 === 0) onProgress(40 + (i / this.frames.length) * 10, 'Writing frames...');
             }
 
-            // Phase 3: Run ffmpeg to encode (85-99%)
+            // Phase 3: Run ffmpeg to encode (50-99%)
             const outputName = 'output.mp4';
             const inputPattern = 'frame_%05d.png';
             // Attach progress listener
@@ -112,7 +112,7 @@ export class VideoExporter {
             if (!(ffmpeg as any)._progressAttached) {
                 ffmpeg.on('progress', (e: any) => {
                     const prog = typeof e?.progress === 'number' ? e.progress : 0;
-                    const encProgress = 85 + prog * 14; // up to 99
+                    const encProgress = 50 + prog * 49; // up to 99
                     onProgress(encProgress, 'Encoding video...');
                 });
                 (ffmpeg as any)._progressAttached = true;
@@ -126,7 +126,7 @@ export class VideoExporter {
                 '-c:v',
                 'libx264',
                 '-preset',
-                'fast',
+                'ultrafast',
                 '-pix_fmt',
                 'yuv420p',
                 '-movflags',
