@@ -97,12 +97,33 @@ export function computeScaledTransform(
     }
 
     // Reconstruct new offset so that the fixed world point remains invariant under the new transform.
-    const relFixed = {
-        x: baseBounds.width / 2 - 2 * origAnchorX * baseBounds.width,
-        y: -(baseBounds.height / 2 - 2 * origAnchorY * baseBounds.height),
+    // --- Offset reconstruction ---
+    // We know: worldPoint = offset + RSK(localPoint - anchorLocal).
+    // For the chosen fixedWorldPoint we want it to remain invariant after re-scaling.
+    // Let F be fixed world point, A be anchor world point we seek, vLocal = (anchorLocal - fixedLocal) in *unscaled* local pixels.
+    // Then A = F + RSK_new(vLocal).
+    // We derive fixedLocal by projecting F onto the (widthVec, heightVec) basis defined by current geometry.
+    // widthVec maps local +X (pixels) and heightVec maps local +Y (pixels) after original RSK + translation.
+    // Solve (F - TL) = u*widthVec + v*heightVec, where u,v are normalized (0..1 for points inside the rect).
+    const TL = geom.corners.TL;
+    const dxF = fixedWorldPoint.x - TL.x;
+    const dyF = fixedWorldPoint.y - TL.y;
+    let uFixed = 0.5;
+    let vFixed = 0.5;
+    if (Math.abs(det) > 1e-6) {
+        uFixed = (dxF * hvy - dyF * hvx) / det; // coefficient along widthVec
+        vFixed = (wvx * dyF - wvy * dxF) / det; // coefficient along heightVec
+    }
+    // Local anchor (normalized)
+    const uAnchor = origAnchorX;
+    const vAnchor = origAnchorY;
+    // Local pixel delta from fixed point to anchor (pre-scale, pre-rotation/skew)
+    const vLocal = {
+        x: (uAnchor - uFixed) * baseBounds.width,
+        y: (vAnchor - vFixed) * baseBounds.height,
     };
-    const qFixed = applyRSK(relFixed.x, relFixed.y, origRotation, origSkewX, origSkewY, newScaleX, newScaleY);
-    const newOffsetX = fixedWorldPoint.x - qFixed.x;
-    const newOffsetY = fixedWorldPoint.y - qFixed.y;
+    const vWorldNew = applyRSK(vLocal.x, vLocal.y, origRotation, origSkewX, origSkewY, newScaleX, newScaleY);
+    const newOffsetX = fixedWorldPoint.x + vWorldNew.x;
+    const newOffsetY = fixedWorldPoint.y + vWorldNew.y;
     return { newScaleX, newScaleY, newOffsetX, newOffsetY };
 }
