@@ -196,16 +196,18 @@ export const useMenuBar = ({
                 if (sceneBuilder && sceneBuilder.createDefaultMIDIScene) {
                     sceneBuilder.clearElements();
                     sceneBuilder.createDefaultMIDIScene();
-                    // Reset scene settings defaults (already done by clearElements) and notify
-                    if (sceneBuilder.getSceneSettings) {
-                        const settings = sceneBuilder.getSceneSettings();
-                        try {
-                            visualizer.canvas?.dispatchEvent(
-                                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-                            );
-                        } catch {}
-                    }
                 }
+            }
+
+            // Reset scene settings to defaults and notify contexts about the reset
+            const sceneBuilder = visualizer.getSceneBuilder();
+            if (sceneBuilder && sceneBuilder.getSceneSettings) {
+                const settings = sceneBuilder.getSceneSettings();
+                try {
+                    visualizer.canvas?.dispatchEvent(
+                        new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+                    );
+                } catch {}
             }
 
             if (visualizer.invalidateRender) {

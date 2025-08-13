@@ -969,6 +969,15 @@ export class MIDIVisualizerCore {
      */
     resetToDefaultScene() {
         this.sceneBuilder.createDefaultMIDIScene(this.timingManager);
+
+        // Notify UI about scene settings reset by dispatching scene-imported event
+        const settings = this.sceneBuilder.getSceneSettings();
+        try {
+            this.canvas?.dispatchEvent(
+                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+            );
+        } catch {}
+
         this.invalidateRender();
     }
 
