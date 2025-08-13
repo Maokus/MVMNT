@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVisualizer } from '../context/VisualizerContext';
 import { useSceneSelection } from '../context/SceneSelectionContext';
-import { pointInPolygon, buildGeometry, localPointFor, computeScaledTransform, computeAnchorAdjustment, computeRotation } from '../../visualizer/math';
+import { computeScaledTransform, computeAnchorAdjustment, computeRotation, getCanvasWorldPoint, findHandleUnderPoint, computeScaleHandleReferencePoints, computeConstrainedMoveDelta, elementHitTest, elementHoverId } from '../../visualizer/math';
 
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
@@ -74,54 +74,17 @@ const PreviewPanel: React.FC = () => {
                         if (!canvas) return;
                         const vis = (ctx as any).visualizer;
                         if (!vis) return;
-                        const rect = canvas.getBoundingClientRect();
-                        const scaleX = canvas.width / rect.width;
-                        const scaleY = canvas.height / rect.height;
-                        const x = (e.clientX - rect.left) * scaleX;
-                        const y = (e.clientY - rect.top) * scaleY;
+                        const { x, y } = getCanvasWorldPoint(canvas, e.clientX, e.clientY);
                         // If an element is already selected, first test handle hits
                         const selectedId = vis._interactionState?.selectedElementId || null;
                         if (selectedId) {
                             const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
-                            // Prioritize anchor handle if overlapping with scale handles
-                            let handleHit = null as any;
-                            const hitTest = (h: any) => {
-                                if (h.shape === 'circle') { const dx = x - h.cx; const dy = y - h.cy; return Math.sqrt(dx * dx + dy * dy) <= h.r + 2; }
-                                return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
-                            };
-                            const anchorHandle = handles.find((h: any) => h.type === 'anchor');
-                            if (anchorHandle && hitTest(anchorHandle)) {
-                                handleHit = anchorHandle;
-                            } else {
-                                handleHit = handles.find((h: any) => hitTest(h));
-                            }
+                            const handleHit = findHandleUnderPoint(handles, x, y) as any;
                             if (handleHit) {
                                 vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId });
                                 const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
                                 const rec = boundsList.find((b: any) => b.id === selectedId);
-                                const geom = buildGeometry(rec) || {};
-                                const bb = rec?.baseBounds || null;
-                                const localFor = (tag: string) => localPointFor(tag, bb);
-                                const handleType: string = handleHit.type;
-                                let fixedWorldPoint: { x: number; y: number } | null = null;
-                                let fixedLocalPoint: { x: number; y: number } | null = null;
-                                let dragLocalPoint: { x: number; y: number } | null = null;
-                                if ((geom as any).corners) {
-                                    const c = (geom as any).corners;
-                                    const m = (geom as any).mids;
-                                    // Determine fixed & drag points based on handle
-                                    switch (handleType) {
-                                        case 'scale-nw': fixedWorldPoint = c.BR; fixedLocalPoint = localFor('BR'); dragLocalPoint = localFor('TL'); break;
-                                        case 'scale-ne': fixedWorldPoint = c.BL; fixedLocalPoint = localFor('BL'); dragLocalPoint = localFor('TR'); break;
-                                        case 'scale-se': fixedWorldPoint = c.TL; fixedLocalPoint = localFor('TL'); dragLocalPoint = localFor('BR'); break;
-                                        case 'scale-sw': fixedWorldPoint = c.TR; fixedLocalPoint = localFor('TR'); dragLocalPoint = localFor('BL'); break;
-                                        case 'scale-n': fixedWorldPoint = m.MBottom; fixedLocalPoint = localFor('MBottom'); dragLocalPoint = localFor('MTop'); break;
-                                        case 'scale-s': fixedWorldPoint = m.MTop; fixedLocalPoint = localFor('MTop'); dragLocalPoint = localFor('MBottom'); break;
-                                        case 'scale-e': fixedWorldPoint = m.MLeft; fixedLocalPoint = localFor('MLeft'); dragLocalPoint = localFor('MRight'); break;
-                                        case 'scale-w': fixedWorldPoint = m.MRight; fixedLocalPoint = localFor('MRight'); dragLocalPoint = localFor('MLeft'); break;
-                                        default: break;
-                                    }
-                                }
+                                const { geom, fixedWorldPoint, fixedLocalPoint, dragLocalPoint } = computeScaleHandleReferencePoints(handleHit.type, rec);
                                 const el = rec?.element
                                 const dragMeta: any = {
                                     mode: handleHit.type,
@@ -152,13 +115,7 @@ const PreviewPanel: React.FC = () => {
                         }
                         // Otherwise do normal element hit test
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-                        let hit = null;
-                        for (let i = boundsList.length - 1; i >= 0; i--) {
-                            const b = boundsList[i] as any;
-                            if (b.corners && b.corners.length === 4) {
-                                if (pointInPolygon(x, y, b.corners)) { hit = b; break; }
-                            } else if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hit = b; break; }
-                        }
+                        const hit = elementHitTest(boundsList, x, y);
                         if (hit) {
                             selectElement(hit.id);
                             vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move' });
@@ -180,39 +137,15 @@ const PreviewPanel: React.FC = () => {
                         if (!canvas) return;
                         const vis = (ctx as any).visualizer;
                         if (!vis) return;
-                        const rect = canvas.getBoundingClientRect();
-                        const scaleX = canvas.width / rect.width;
-                        const scaleY = canvas.height / rect.height;
-                        const x = (e.clientX - rect.left) * scaleX;
-                        const y = (e.clientY - rect.top) * scaleY;
+                        const { x, y } = getCanvasWorldPoint(canvas, e.clientX, e.clientY);
                         if (vis._interactionState?.draggingElementId && vis._dragMeta) {
                             const meta = vis._dragMeta;
                             const elId = vis._interactionState.draggingElementId;
                             const dx = x - meta.startX;
                             const dy = y - meta.startY;
                             if (meta.mode === 'move') {
-                                let moveDx = dx; let moveDy = dy;
-                                if (e.shiftKey) {
-                                    // Constrain to local X or Y axis (choose dominant projection)
-                                    const rotation = meta.origRotation || 0; // radians internally
-                                    const cos = Math.cos(rotation);
-                                    const sin = Math.sin(rotation);
-                                    // Local axes in world space
-                                    const axisX = { x: cos, y: sin };
-                                    const axisY = { x: -sin, y: cos };
-                                    const d = { x: moveDx, y: moveDy };
-                                    const projX = d.x * axisX.x + d.y * axisX.y;
-                                    const projY = d.x * axisY.x + d.y * axisY.y;
-                                    if (Math.abs(projX) > Math.abs(projY)) {
-                                        // keep only X component
-                                        moveDx = axisX.x * projX;
-                                        moveDy = axisX.y * projX;
-                                    } else {
-                                        moveDx = axisY.x * projY;
-                                        moveDy = axisY.y * projY;
-                                    }
-                                }
-                                const newX = meta.origOffsetX + moveDx; const newY = meta.origOffsetY + moveDy;
+                                const constrained = computeConstrainedMoveDelta(dx, dy, meta.origRotation || 0, e.shiftKey);
+                                const newX = meta.origOffsetX + constrained.dx; const newY = meta.origOffsetY + constrained.dy;
                                 sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
                                 updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
                             } else if (meta.mode?.startsWith('scale') && meta.bounds) {
@@ -270,17 +203,7 @@ const PreviewPanel: React.FC = () => {
                         const selectedId = vis._interactionState?.selectedElementId || null;
                         if (selectedId) {
                             const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
-                            const hitTest = (h: any) => {
-                                if (h.shape === 'circle') { const dx2 = x - h.cx; const dy2 = y - h.cy; return Math.sqrt(dx2 * dx2 + dy2 * dy2) <= h.r + 2; }
-                                return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
-                            };
-                            let handleHover: any = null;
-                            const anchorHandle = handles.find((h: any) => h.type === 'anchor');
-                            if (anchorHandle && hitTest(anchorHandle)) {
-                                handleHover = anchorHandle;
-                            } else {
-                                handleHover = handles.find((h: any) => hitTest(h));
-                            }
+                            const handleHover = findHandleUnderPoint(handles, x, y) as any;
                             if (handleHover) {
                                 if (vis._interactionState.activeHandle !== handleHover.id) vis.setInteractionState({ activeHandle: handleHover.id });
                                 return; // don't change element hover while over a handle
@@ -288,15 +211,8 @@ const PreviewPanel: React.FC = () => {
                                 vis.setInteractionState({ activeHandle: null });
                             }
                         }
-                        // Hover detection (only when not dragging)
                         const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-                        let hoverId = null;
-                        for (let i = boundsList.length - 1; i >= 0; i--) {
-                            const b = boundsList[i] as any;
-                            if (b.corners && b.corners.length === 4) {
-                                if (pointInPolygon(x, y, b.corners)) { hoverId = b.id; break; }
-                            } else if (x >= b.bounds.x && x <= b.bounds.x + b.bounds.width && y >= b.bounds.y && y <= b.bounds.y + b.bounds.height) { hoverId = b.id; break; }
-                        }
+                        const hoverId = elementHoverId(boundsList, x, y);
                         if (hoverId !== vis._interactionState?.hoverElementId) vis.setInteractionState({ hoverElementId: hoverId });
                     }}
                     onMouseUp={(e) => {

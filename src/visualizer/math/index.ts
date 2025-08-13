@@ -6,3 +6,4 @@ export * from './scale';
 export * from './anchor';
 export * from './rotation';
 export * from './transformHelpers';
+export * from './interaction';
