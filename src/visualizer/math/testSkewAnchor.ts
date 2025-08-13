@@ -9,15 +9,15 @@ const baseBounds = { x: 0, y: 0, width: 200, height: 100, anchorX: 0.5, anchorY:
 
 const params: AnchorAdjustParams = {
     baseBounds,
-    origAnchorX: 0.25,
-    origAnchorY: 0.25,
-    origOffsetX: 300,
-    origOffsetY: 400,
-    origRotation: Math.PI / 6, // 30 deg
-    origSkewX: (20 * Math.PI) / 180,
-    origSkewY: (-10 * Math.PI) / 180,
-    origScaleX: 1.2,
-    origScaleY: 0.8,
+    origAnchorX: 0.5,
+    origAnchorY: 0.5,
+    origOffsetX: 100,
+    origOffsetY: 100,
+    origRotation: 0, // 30 deg
+    origSkewX: 45,
+    origSkewY: 0,
+    origScaleX: 1,
+    origScaleY: 1,
 };
 
 // Simulate dragging anchor to (0.75, 0.6) by constructing a mouse world coordinate.

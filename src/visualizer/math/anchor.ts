@@ -55,8 +55,8 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
     const vx = kxVy - kx * vy;
 
     // Normalize into raw anchor fractions relative to baseBounds
-    let anchorX = (vx - baseBounds.x) / (baseBounds.width || 1);
-    let anchorY = (vy - baseBounds.y) / (baseBounds.height || 1);
+    let anchorX = vx / (baseBounds.width || 1) + origAnchorX;
+    let anchorY = vy / (baseBounds.height || 1) + origAnchorY;
 
     // Clamp
     anchorX = Math.max(0, Math.min(1, anchorX));
