@@ -40,13 +40,15 @@ export class VideoExporter {
     async ensureFFmpeg(onProgress?: (p: number, text?: string) => void) {
         if (this.loadPromise) return this.loadPromise;
         this.ffmpeg = new FFmpeg();
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+        const coreVersion = '0.12.6';
+        const baseURL = `https://unpkg.com/@ffmpeg/core@${coreVersion}/dist/esm`;
+        const loadParams = {
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        };
         this.loadPromise = (async () => {
             onProgress?.(0, 'Loading ffmpeg core...');
-            await this.ffmpeg!.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            });
+            await this.ffmpeg!.load(loadParams);
             onProgress?.(0, 'ffmpeg loaded');
         })();
         return this.loadPromise;
@@ -106,11 +108,15 @@ export class VideoExporter {
             const outputName = 'output.mp4';
             const inputPattern = 'frame_%05d.png';
             // Attach progress listener
-            ffmpeg.on('progress', (e: any) => {
-                const prog = typeof e?.progress === 'number' ? e.progress : 0;
-                const encProgress = 85 + prog * 14; // up to 99
-                onProgress(encProgress, 'Encoding video...');
-            });
+            // Attach progress listener only once per instance
+            if (!(ffmpeg as any)._progressAttached) {
+                ffmpeg.on('progress', (e: any) => {
+                    const prog = typeof e?.progress === 'number' ? e.progress : 0;
+                    const encProgress = 85 + prog * 14; // up to 99
+                    onProgress(encProgress, 'Encoding video...');
+                });
+                (ffmpeg as any)._progressAttached = true;
+            }
             // Run
             await ffmpeg.exec([
                 '-framerate',
