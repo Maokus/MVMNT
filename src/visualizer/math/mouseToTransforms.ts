@@ -3,6 +3,7 @@
 import { AnchorAdjustParams } from './types';
 import { applyRSK } from './transformHelpers';
 import { ScaleComputationParams, ScaleResult } from './types';
+import { clampSignedScale, clamp01, snapToGrid2D, sincos } from './mathUtils';
 
 /** Adjust offsets when the anchor (pivot) moves to keep visual position stable. */
 // Contract:
@@ -56,27 +57,13 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
     const vx = kxVy - kx * vy;
 
     // Normalize into raw anchor fractions relative to baseBounds
-    let anchorX = vx / (baseBounds.width || 1) + origAnchorX;
-    let anchorY = vy / (baseBounds.height || 1) + origAnchorY;
+    let anchorX = clamp01(vx / (baseBounds.width || 1) + origAnchorX);
+    let anchorY = clamp01(vy / (baseBounds.height || 1) + origAnchorY);
 
-    // Clamp
-    anchorX = Math.max(0, Math.min(1, anchorX));
-    anchorY = Math.max(0, Math.min(1, anchorY));
-
-    // Optional snapping identical to previous logic (9-point grid) when shift held.
     if (shiftKey) {
-        const candidates = [0, 0.5, 1];
-        let best = { ax: anchorX, ay: anchorY, d: Infinity };
-        for (const ax of candidates) {
-            for (const ay of candidates) {
-                const dx = ax - anchorX;
-                const dy = ay - anchorY;
-                const d2 = dx * dx + dy * dy;
-                if (d2 < best.d) best = { ax, ay, d: d2 };
-            }
-        }
-        anchorX = best.ax;
-        anchorY = best.ay;
+        const snapped = snapToGrid2D(anchorX, anchorY, [0, 0.5, 1]);
+        anchorX = snapped.x;
+        anchorY = snapped.y;
     }
 
     // We want the old anchor world position to remain constant while we change to (anchorX, anchorY).
@@ -164,14 +151,8 @@ export function computeScaledTransform(
     if (Math.abs(det) > 1e-6) {
         if (mode === 'scale-se' || mode === 'scale-ne' || mode === 'scale-sw' || mode === 'scale-nw') {
             // --- Corner scaling ---
-            // Previous implementation projected the drag delta onto the original (widthVec, heightVec) basis and
-            // treated the resulting coefficients as independent scale factors. Under skew this is not exact because
-            // the skew couples the X/Y edge directions: the vertical component of the width edge depends on scaleY
-            // (through skewY) while the horizontal component of the height edge depends on scaleX (through skewX).
-            // This caused the dragged handle to drift away from the cursor when skew was present: the solved scale
-            // factors produced a corner position different from the mouse position.
-            //
-            // We fix this by solving the exact linear system for the corner vector with skew coupling.
+            // When skew is nonzero, we need to account for the skew when computing the new scale.
+            // We account for this by solving the exact linear system for the corner vector with skew coupling.
             // For a vector (Δx, Δy) from the fixed corner to the dragged corner in *unscaled* local space, after
             // applying skew (x' = x + kx*y, y' = ky*x + y), then scale (sx, sy), then rotation θ, we obtain world delta:
             // X = cosθ * ( (Δx + kx*Δy) * sx ) - sinθ * ( (ky*Δx + Δy) * sy )
@@ -210,21 +191,14 @@ export function computeScaledTransform(
                 const ky = Math.tan(origSkewY);
                 const A = dx + kx * dy;
                 const B = ky * dx + dy;
-                const cos = Math.cos(origRotation);
-                const sin = Math.sin(origRotation);
-                const X = dWorld.x;
-                const Y = dWorld.y;
+                const { cos, sin } = sincos(origRotation);
+                const { x: X, y: Y } = dWorld;
                 if (Math.abs(A) > 1e-8 && Math.abs(B) > 1e-8) {
                     const sxExact = (cos * X + sin * Y) / A;
                     const syExact = (cos * Y - sin * X) / B;
                     if (isFinite(sxExact) && isFinite(syExact)) {
-                        const clampSigned = (v: number) => {
-                            const mag = Math.abs(v);
-                            if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
-                            return v;
-                        };
-                        newScaleX = clampSigned(sxExact);
-                        newScaleY = clampSigned(syExact);
+                        newScaleX = clampSignedScale(sxExact);
+                        newScaleY = clampSignedScale(syExact);
                         // Skip legacy projection path
                     } else {
                         // fallback to legacy method below if not finite
@@ -264,35 +238,20 @@ export function computeScaledTransform(
                         a = b;
                         b = tmp;
                     }
-                    const clampSigned = (v: number) => {
-                        const mag = Math.abs(v);
-                        if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
-                        return v;
-                    };
-                    newScaleX = clampSigned(origScaleX * a);
-                    newScaleY = clampSigned(origScaleY * b);
+                    newScaleX = clampSignedScale(origScaleX * a);
+                    newScaleY = clampSignedScale(origScaleY * b);
                 }
             }
         } else if (mode === 'scale-e' || mode === 'scale-w') {
             const len2 = wvx * wvx + wvy * wvy || 1;
             let a = (dWorld.x * wvx + dWorld.y * wvy) / len2;
             if (mode === 'scale-w') a = -a;
-            const clampSigned = (v: number) => {
-                const mag = Math.abs(v);
-                if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
-                return v;
-            };
-            newScaleX = clampSigned(origScaleX * a);
+            newScaleX = clampSignedScale(origScaleX * a);
         } else if (mode === 'scale-n' || mode === 'scale-s') {
             const len2 = hvx * hvx + hvy * hvy || 1;
             let b = (dWorld.x * hvx + dWorld.y * hvy) / len2;
             if (mode === 'scale-n') b = -b;
-            const clampSigned = (v: number) => {
-                const mag = Math.abs(v);
-                if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
-                return v;
-            };
-            newScaleY = clampSigned(origScaleY * b);
+            newScaleY = clampSignedScale(origScaleY * b);
         }
     }
 
@@ -302,13 +261,8 @@ export function computeScaledTransform(
         const ratioY = newScaleY / (origScaleY || 1);
         let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
         if (!isFinite(factor) || Math.abs(factor) <= 0) factor = 1;
-        const clampSigned = (v: number) => {
-            const mag = Math.abs(v);
-            if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
-            return v;
-        };
-        newScaleX = clampSigned((origScaleX || 1) * factor);
-        newScaleY = clampSigned((origScaleY || 1) * factor);
+        newScaleX = clampSignedScale((origScaleX || 1) * factor);
+        newScaleY = clampSignedScale((origScaleY || 1) * factor);
     }
 
     // Reconstruct new offset so that the fixed world point remains invariant under the new transform.
