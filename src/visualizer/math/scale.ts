@@ -35,41 +35,107 @@ export function computeScaledTransform(
 
     if (Math.abs(det) > 1e-6) {
         if (mode === 'scale-se' || mode === 'scale-ne' || mode === 'scale-sw' || mode === 'scale-nw') {
-            const cornersOrdered = [geom.corners.TL, geom.corners.TR, geom.corners.BR, geom.corners.BL];
-            const cornerNames = ['TL', 'TR', 'BR', 'BL'];
-            // Find fixed corner index by identity or distance fallback.
-            let idxFixed = cornerNames.findIndex((n) => (geom.corners as any)[n] === fixedWorldPoint); // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (idxFixed === -1) {
-                let bestI = 0;
-                let bestD = Infinity;
-                cornersOrdered.forEach((c, i) => {
-                    const dxF = c.x - fixedWorldPoint.x;
-                    const dyF = c.y - fixedWorldPoint.y;
-                    const dist = dxF * dxF + dyF * dyF;
-                    if (dist < bestD) {
-                        bestD = dist;
-                        bestI = i;
-                    }
-                });
-                idxFixed = bestI;
-            }
-            const rot = (arr: any[], k: number) => arr.slice(k).concat(arr.slice(0, k)); // eslint-disable-line @typescript-eslint/no-explicit-any
-            const rc = rot(cornersOrdered, idxFixed);
-            const basisW = { x: rc[1].x - rc[0].x, y: rc[1].y - rc[0].y };
-            const basisH = { x: rc[3].x - rc[0].x, y: rc[3].y - rc[0].y };
-            const det2 = basisW.x * basisH.y - basisW.y * basisH.x;
-            if (Math.abs(det2) > 1e-6) {
-                let a = (dWorld.x * basisH.y - dWorld.y * basisH.x) / det2;
-                let b = (basisW.x * dWorld.y - basisW.y * dWorld.x) / det2;
-                if (mode === 'scale-ne' || mode === 'scale-sw') {
-                    const tmp = a;
-                    a = b;
-                    b = tmp;
+            // --- Corner scaling ---
+            // Previous implementation projected the drag delta onto the original (widthVec, heightVec) basis and
+            // treated the resulting coefficients as independent scale factors. Under skew this is not exact because
+            // the skew couples the X/Y edge directions: the vertical component of the width edge depends on scaleY
+            // (through skewY) while the horizontal component of the height edge depends on scaleX (through skewX).
+            // This caused the dragged handle to drift away from the cursor when skew was present: the solved scale
+            // factors produced a corner position different from the mouse position.
+            //
+            // We fix this by solving the exact linear system for the corner vector with skew coupling.
+            // For a vector (Δx, Δy) from the fixed corner to the dragged corner in *unscaled* local space, after
+            // applying skew (x' = x + kx*y, y' = ky*x + y), then scale (sx, sy), then rotation θ, we obtain world delta:
+            // X = cosθ * ( (Δx + kx*Δy) * sx ) - sinθ * ( (ky*Δx + Δy) * sy )
+            // Y = sinθ * ( (Δx + kx*Δy) * sx ) + cosθ * ( (ky*Δx + Δy) * sy )
+            // Let A = (Δx + kx*Δy), B = (ky*Δx + Δy). Solving the 2x2 system gives:
+            //   sx = (cosθ*X + sinθ*Y) / A
+            //   sy = (cosθ*Y - sinθ*X) / B
+            // (Determinant simplifies to A*B.)
+            // We only use this exact solution when skew is non-zero; otherwise we retain the original projection
+            // method (slightly more numerically forgiving for axis-aligned/rotated rectangles).
+            if (origSkewX !== 0 || origSkewY !== 0) {
+                const width = baseBounds.width || 0;
+                const height = baseBounds.height || 0;
+                // Determine local delta from fixed to dragged corner based on handle mode (dragged corner indicated by mode)
+                let dx = 0;
+                let dy = 0;
+                switch (mode) {
+                    case 'scale-se': // fixed NW
+                        dx = width;
+                        dy = height;
+                        break;
+                    case 'scale-nw': // fixed SE
+                        dx = -width;
+                        dy = -height;
+                        break;
+                    case 'scale-ne': // fixed SW
+                        dx = width;
+                        dy = -height;
+                        break;
+                    case 'scale-sw': // fixed NE
+                        dx = -width;
+                        dy = height;
+                        break;
                 }
-                a = Math.abs(a);
-                b = Math.abs(b);
-                newScaleX = Math.max(0.01, origScaleX * a);
-                newScaleY = Math.max(0.01, origScaleY * b);
+                const kx = Math.tan(origSkewX);
+                const ky = Math.tan(origSkewY);
+                const A = dx + kx * dy;
+                const B = ky * dx + dy;
+                const cos = Math.cos(origRotation);
+                const sin = Math.sin(origRotation);
+                const X = dWorld.x;
+                const Y = dWorld.y;
+                if (Math.abs(A) > 1e-8 && Math.abs(B) > 1e-8) {
+                    const sxExact = (cos * X + sin * Y) / A;
+                    const syExact = (cos * Y - sin * X) / B;
+                    if (isFinite(sxExact) && isFinite(syExact)) {
+                        newScaleX = Math.max(0.01, Math.abs(sxExact));
+                        newScaleY = Math.max(0.01, Math.abs(syExact));
+                        // Skip legacy projection path
+                    } else {
+                        // fallback to legacy method below if not finite
+                    }
+                }
+            }
+            // Only run legacy projection method if corner scales were not recomputed above (i.e., skew==0 or fallback)
+            if (newScaleX === origScaleX && newScaleY === origScaleY) {
+                const cornersOrdered = [geom.corners.TL, geom.corners.TR, geom.corners.BR, geom.corners.BL];
+                const cornerNames = ['TL', 'TR', 'BR', 'BL'];
+                // Find fixed corner index by identity or distance fallback.
+                let idxFixed = cornerNames.findIndex((n) => (geom.corners as any)[n] === fixedWorldPoint); // eslint-disable-line @typescript-eslint/no-explicit-any
+                if (idxFixed === -1) {
+                    let bestI = 0;
+                    let bestD = Infinity;
+                    cornersOrdered.forEach((c, i) => {
+                        const dxF = c.x - fixedWorldPoint.x;
+                        const dyF = c.y - fixedWorldPoint.y;
+                        const dist = dxF * dxF + dyF * dyF;
+                        if (dist < bestD) {
+                            bestD = dist;
+                            bestI = i;
+                        }
+                    });
+                    idxFixed = bestI;
+                }
+                const rot = (arr: any[], k: number) => arr.slice(k).concat(arr.slice(0, k)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                const rc = rot(cornersOrdered, idxFixed);
+                const basisW = { x: rc[1].x - rc[0].x, y: rc[1].y - rc[0].y };
+                const basisH = { x: rc[3].x - rc[0].x, y: rc[3].y - rc[0].y };
+                const det2 = basisW.x * basisH.y - basisW.y * basisH.x;
+                if (Math.abs(det2) > 1e-6) {
+                    let a = (dWorld.x * basisH.y - dWorld.y * basisH.x) / det2;
+                    let b = (basisW.x * dWorld.y - basisW.y * dWorld.x) / det2;
+                    if (mode === 'scale-ne' || mode === 'scale-sw') {
+                        const tmp = a;
+                        a = b;
+                        b = tmp;
+                    }
+                    a = Math.abs(a);
+                    b = Math.abs(b);
+                    newScaleX = Math.max(0.01, origScaleX * a);
+                    newScaleY = Math.max(0.01, origScaleY * b);
+                }
             }
         } else if (mode === 'scale-e' || mode === 'scale-w') {
             const len2 = wvx * wvx + wvy * wvy || 1;
