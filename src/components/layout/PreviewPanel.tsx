@@ -83,12 +83,18 @@ const PreviewPanel: React.FC = () => {
                         const selectedId = vis._interactionState?.selectedElementId || null;
                         if (selectedId) {
                             const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
-                            const handleHit = handles.find((h: any) => {
-                                if (h.shape === 'circle') {
-                                    const dx = x - h.cx; const dy = y - h.cy; return Math.sqrt(dx * dx + dy * dy) <= h.r + 2;
-                                }
+                            // Prioritize anchor handle if overlapping with scale handles
+                            let handleHit = null as any;
+                            const hitTest = (h: any) => {
+                                if (h.shape === 'circle') { const dx = x - h.cx; const dy = y - h.cy; return Math.sqrt(dx * dx + dy * dy) <= h.r + 2; }
                                 return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
-                            });
+                            };
+                            const anchorHandle = handles.find((h: any) => h.type === 'anchor');
+                            if (anchorHandle && hitTest(anchorHandle)) {
+                                handleHit = anchorHandle;
+                            } else {
+                                handleHit = handles.find((h: any) => hitTest(h));
+                            }
                             if (handleHit) {
                                 vis.setInteractionState({ activeHandle: handleHit.id, draggingElementId: selectedId });
                                 const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
@@ -281,10 +287,17 @@ const PreviewPanel: React.FC = () => {
                         const selectedId = vis._interactionState?.selectedElementId || null;
                         if (selectedId) {
                             const handles = vis.getSelectionHandlesAtTime?.(selectedId, vis.getCurrentTime?.() ?? 0) || [];
-                            const handleHover = handles.find((h: any) => {
+                            const hitTest = (h: any) => {
                                 if (h.shape === 'circle') { const dx2 = x - h.cx; const dy2 = y - h.cy; return Math.sqrt(dx2 * dx2 + dy2 * dy2) <= h.r + 2; }
                                 return x >= h.cx - h.size * 0.5 && x <= h.cx + h.size * 0.5 && y >= h.cy - h.size * 0.5 && y <= h.cy + h.size * 0.5;
-                            });
+                            };
+                            let handleHover: any = null;
+                            const anchorHandle = handles.find((h: any) => h.type === 'anchor');
+                            if (anchorHandle && hitTest(anchorHandle)) {
+                                handleHover = anchorHandle;
+                            } else {
+                                handleHover = handles.find((h: any) => hitTest(h));
+                            }
                             if (handleHover) {
                                 if (vis._interactionState.activeHandle !== handleHover.id) vis.setInteractionState({ activeHandle: handleHover.id });
                                 return; // don't change element hover while over a handle

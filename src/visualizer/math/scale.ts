@@ -90,8 +90,13 @@ export function computeScaledTransform(
                     const sxExact = (cos * X + sin * Y) / A;
                     const syExact = (cos * Y - sin * X) / B;
                     if (isFinite(sxExact) && isFinite(syExact)) {
-                        newScaleX = Math.max(0.01, Math.abs(sxExact));
-                        newScaleY = Math.max(0.01, Math.abs(syExact));
+                        const clampSigned = (v: number) => {
+                            const mag = Math.abs(v);
+                            if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
+                            return v;
+                        };
+                        newScaleX = clampSigned(sxExact);
+                        newScaleY = clampSigned(syExact);
                         // Skip legacy projection path
                     } else {
                         // fallback to legacy method below if not finite
@@ -131,24 +136,35 @@ export function computeScaledTransform(
                         a = b;
                         b = tmp;
                     }
-                    a = Math.abs(a);
-                    b = Math.abs(b);
-                    newScaleX = Math.max(0.01, origScaleX * a);
-                    newScaleY = Math.max(0.01, origScaleY * b);
+                    const clampSigned = (v: number) => {
+                        const mag = Math.abs(v);
+                        if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
+                        return v;
+                    };
+                    newScaleX = clampSigned(origScaleX * a);
+                    newScaleY = clampSigned(origScaleY * b);
                 }
             }
         } else if (mode === 'scale-e' || mode === 'scale-w') {
             const len2 = wvx * wvx + wvy * wvy || 1;
             let a = (dWorld.x * wvx + dWorld.y * wvy) / len2;
             if (mode === 'scale-w') a = -a;
-            a = Math.abs(a);
-            newScaleX = Math.max(0.01, origScaleX * a);
+            const clampSigned = (v: number) => {
+                const mag = Math.abs(v);
+                if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
+                return v;
+            };
+            newScaleX = clampSigned(origScaleX * a);
         } else if (mode === 'scale-n' || mode === 'scale-s') {
             const len2 = hvx * hvx + hvy * hvy || 1;
             let b = (dWorld.x * hvx + dWorld.y * hvy) / len2;
             if (mode === 'scale-n') b = -b;
-            b = Math.abs(b);
-            newScaleY = Math.max(0.01, origScaleY * b);
+            const clampSigned = (v: number) => {
+                const mag = Math.abs(v);
+                if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
+                return v;
+            };
+            newScaleY = clampSigned(origScaleY * b);
         }
     }
 
@@ -157,9 +173,14 @@ export function computeScaledTransform(
         const ratioX = newScaleX / (origScaleX || 1);
         const ratioY = newScaleY / (origScaleY || 1);
         let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
-        if (!isFinite(factor) || factor <= 0) factor = 1;
-        newScaleX = Math.max(0.01, (origScaleX || 1) * factor);
-        newScaleY = Math.max(0.01, (origScaleY || 1) * factor);
+        if (!isFinite(factor) || Math.abs(factor) <= 0) factor = 1;
+        const clampSigned = (v: number) => {
+            const mag = Math.abs(v);
+            if (mag < 0.01) return v < 0 ? -0.01 : 0.01;
+            return v;
+        };
+        newScaleX = clampSigned((origScaleX || 1) * factor);
+        newScaleY = clampSigned((origScaleY || 1) * factor);
     }
 
     // Reconstruct new offset so that the fixed world point remains invariant under the new transform.
