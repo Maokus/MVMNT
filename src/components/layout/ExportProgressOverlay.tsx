@@ -5,13 +5,15 @@ interface ProgressOverlayProps {
     text: string;
     onClose: () => void;
     downloadUrl?: string;
+    filename?: string; // allow dynamic filename based on scene
 }
 
 const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     progress,
     text,
     onClose,
-    downloadUrl
+    downloadUrl,
+    filename = 'midi-visualization-sequence.zip'
 }) => {
     const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) {
@@ -39,7 +41,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         <a
                             href={downloadUrl}
                             className="download-btn"
-                            download="midi-visualization-sequence.zip"
+                            download={filename}
                         >
                             ⬇ Download PNG Sequence
                         </a>

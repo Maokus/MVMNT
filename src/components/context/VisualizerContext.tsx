@@ -67,6 +67,16 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
+    const sceneNameRef = useRef<string>('scene');
+
+    // Listen for scene name changes broadcast by SceneContext
+    useEffect(() => {
+        const handler = (e: any) => {
+            if (e?.detail?.sceneName) sceneNameRef.current = e.detail.sceneName;
+        };
+        window.addEventListener('scene-name-changed', handler as EventListener);
+        return () => window.removeEventListener('scene-name-changed', handler as EventListener);
+    }, []);
 
     // Initialize visualizer
     useEffect(() => {
@@ -231,7 +241,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 fps: settings.fps,
                 width: settings.width,
                 height: settings.height,
-                sceneName: 'scene',
+                sceneName: sceneNameRef.current,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Generating images...') => setProgressData({ progress, text }),
@@ -268,7 +278,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 fps: settings.fps,
                 width: settings.width,
                 height: settings.height,
-                sceneName: 'scene',
+                sceneName: sceneNameRef.current,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),
