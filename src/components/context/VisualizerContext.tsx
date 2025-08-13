@@ -144,6 +144,25 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         visualizer.updateExportSettings?.(exportSettings);
     }, [visualizer, exportSettings]);
 
+    // Listen for scene-imported event to sync export settings from loaded scene
+    useEffect(() => {
+        if (!visualizer || !visualizer.canvas) return;
+        const handler = (e: any) => {
+            const es = e?.detail?.exportSettings;
+            if (es) {
+                setExportSettings((prev) => ({
+                    ...prev,
+                    ...['fps', 'width', 'height'].reduce((acc: any, key) => {
+                        if (es[key] != null) acc[key] = es[key];
+                        return acc;
+                    }, {}),
+                }));
+            }
+        };
+        visualizer.canvas.addEventListener('scene-imported', handler as EventListener);
+        return () => visualizer.canvas?.removeEventListener('scene-imported', handler as EventListener);
+    }, [visualizer]);
+
     // Apply debug settings
     useEffect(() => {
         if (!visualizer) return;

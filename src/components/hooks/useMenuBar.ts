@@ -24,13 +24,16 @@ export const useMenuBar = ({
     const saveScene = () => {
         if (visualizer) {
             try {
-                const sceneBuilder = visualizer.getSceneBuilder();
+                const sceneBuilder = visualizer.getSceneBuilder?.();
                 if (sceneBuilder) {
-                    // Get scene configuration using the hybrid scene builder's serialize method
-                    const sceneData = sceneBuilder.serializeScene();
+                    // Prefer visualizer export so we capture exportSettings (fps, width, height)
+                    const baseData =
+                        typeof visualizer.exportSceneConfig === 'function'
+                            ? visualizer.exportSceneConfig()
+                            : sceneBuilder.serializeScene();
                     const sceneConfig = {
                         name: sceneName,
-                        ...sceneData,
+                        ...baseData,
                         timestamp: new Date().toISOString(),
                     };
 
@@ -88,10 +91,13 @@ export const useMenuBar = ({
                     }
 
                     if (visualizer) {
-                        const sceneBuilder = visualizer.getSceneBuilder();
+                        const sceneBuilder = visualizer.getSceneBuilder?.();
                         if (sceneBuilder) {
-                            // Use the scene builder's loadScene method
-                            const success = sceneBuilder.loadScene(sceneConfig);
+                            // Prefer visualizer import so exportSettings (fps/resolution) are applied early
+                            const success =
+                                typeof visualizer.importSceneConfig === 'function'
+                                    ? visualizer.importSceneConfig(sceneConfig)
+                                    : sceneBuilder.loadScene(sceneConfig);
 
                             if (success) {
                                 // Update scene name

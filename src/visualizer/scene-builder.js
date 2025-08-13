@@ -539,6 +539,7 @@ export class HybridSceneBuilder {
             macros: macroData,
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: bindingVersion,
+            // exportSettings can be appended by visualizer-core when exporting full scene
         };
     }
 
