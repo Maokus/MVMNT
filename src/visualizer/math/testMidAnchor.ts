@@ -53,7 +53,10 @@ function buildParams(overrides: Partial<ScaleComputationParams>): ScaleComputati
 console.log(`Original object is a square (100x100) with anchor ${globAnchorX}, ${globAnchorY}\n`);
 
 (() => {
-    const params = buildParams({ mode: 'scale-se', fixedWorldPoint: { x: 0, y: 0 } });
+    const params = buildParams({
+        mode: 'scale-se',
+        fixedWorldPoint: { x: 0, y: 0 },
+    });
     const res = computeScaledTransform(100, 100, params, false);
     // Offsets for centered anchor: offsetX = 50*scaleX, offsetY = -50*scaleY
     console.log(`Touched SE handle. New values:`);

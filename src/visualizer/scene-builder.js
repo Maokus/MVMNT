@@ -276,6 +276,19 @@ export class HybridSceneBuilder {
         return this.elements.filter((element) => element.type === type);
     }
 
+    createDebugScene() {
+        this.clearElements();
+        this.addElement(
+            new BackgroundElement('background', {
+                zIndex: 0,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 0,
+                offsetY: 0,
+            })
+        );
+    }
+
     /**
      * Create a default MIDI visualizer scene with common elements
      * @returns {BoundHybridSceneBuilder} Returns this for chaining

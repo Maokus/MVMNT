@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVisualizer } from '../context/VisualizerContext';
 import { useSceneSelection } from '../context/SceneSelectionContext';
-import { pointInPolygon, buildGeometry, localPointFor, computeScaledTransform, computeAnchorAdjustment, computeRotation } from '../../visualizer/math/interactionMath';
+import { pointInPolygon, buildGeometry, localPointFor, computeScaledTransform, computeAnchorAdjustment, computeRotation } from '../../visualizer/math';
 
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
@@ -120,17 +120,17 @@ const PreviewPanel: React.FC = () => {
                                     mode: handleHit.type,
                                     startX: x,
                                     startY: y,
-                                    origOffsetX: rec?.element?.offsetX || 0,
-                                    origOffsetY: rec?.element?.offsetY || 0,
+                                    origOffsetX: rec?.element?.getProperty("offsetX") || 0,
+                                    origOffsetY: rec?.element?.getProperty("offsetY") || 0,
                                     origWidth: rec?.bounds?.width || 0,
                                     origHeight: rec?.bounds?.height || 0,
-                                    origScaleX: rec?.element?.elementScaleX || rec?.element?.globalScaleX || 1,
-                                    origScaleY: rec?.element?.elementScaleY || rec?.element?.globalScaleY || 1,
-                                    origRotation: rec?.element?.elementRotation || 0,
-                                    origSkewX: rec?.element?.elementSkewX || 0,
-                                    origSkewY: rec?.element?.elementSkewY || 0,
-                                    origAnchorX: rec?.element?.anchorX || 0.5,
-                                    origAnchorY: rec?.element?.anchorY || 0.5,
+                                    origScaleX: rec?.element?.getProperty("elementScaleX") || rec?.element?.getProperty("globalScaleX") || 1,
+                                    origScaleY: rec?.element?.getProperty("elementScaleY") || rec?.element?.getProperty("globalScaleY") || 1,
+                                    origRotation: rec?.element?.getProperty("elementRotation") || 0,
+                                    origSkewX: rec?.element?.getProperty("elementSkewX") || 0,
+                                    origSkewY: rec?.element?.getProperty("elementSkewY") || 0,
+                                    origAnchorX: rec?.element?.getProperty("anchorX") || 0.5,
+                                    origAnchorY: rec?.element?.getProperty("anchorY") || 0.5,
                                     bounds: rec?.bounds,
                                     corners: rec?.corners || null,
                                     baseBounds: rec?.baseBounds || null,
