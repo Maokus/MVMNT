@@ -116,21 +116,22 @@ const PreviewPanel: React.FC = () => {
                                         default: break;
                                     }
                                 }
-                                (vis._dragMeta = {
+                                const el = rec?.element
+                                const dragMeta: any = {
                                     mode: handleHit.type,
                                     startX: x,
                                     startY: y,
-                                    origOffsetX: rec?.element?.getProperty("offsetX") || 0,
-                                    origOffsetY: rec?.element?.getProperty("offsetY") || 0,
-                                    origWidth: rec?.bounds?.width || 0,
-                                    origHeight: rec?.bounds?.height || 0,
-                                    origScaleX: rec?.element?.getProperty("elementScaleX") || rec?.element?.getProperty("globalScaleX") || 1,
-                                    origScaleY: rec?.element?.getProperty("elementScaleY") || rec?.element?.getProperty("globalScaleY") || 1,
-                                    origRotation: rec?.element?.getProperty("elementRotation") || 0,
-                                    origSkewX: rec?.element?.getProperty("elementSkewX") || 0,
-                                    origSkewY: rec?.element?.getProperty("elementSkewY") || 0,
-                                    origAnchorX: rec?.element?.getProperty("anchorX") || 0.5,
-                                    origAnchorY: rec?.element?.getProperty("anchorY") || 0.5,
+                                    origOffsetX: el?.getProperty("offsetX") ?? 0,
+                                    origOffsetY: el?.getProperty("offsetY") ?? 0,
+                                    origWidth: rec?.bounds?.width ?? 0,
+                                    origHeight: rec?.bounds?.height ?? 0,
+                                    origScaleX: el?.getProperty("elementScaleX") ?? el?.getProperty("globalScaleX") ?? 1,
+                                    origScaleY: el?.getProperty("elementScaleY") ?? el?.getProperty("globalScaleY") ?? 1,
+                                    origRotation: el?.getProperty("elementRotation") ?? 0,
+                                    origSkewX: el?.getProperty("elementSkewX") ?? 0,
+                                    origSkewY: el?.getProperty("elementSkewY") ?? 0,
+                                    origAnchorX: el?.getProperty("anchorX") ?? 0.5,
+                                    origAnchorY: el?.getProperty("anchorY") ?? 0.5,
                                     bounds: rec?.bounds,
                                     corners: rec?.corners || null,
                                     baseBounds: rec?.baseBounds || null,
@@ -138,7 +139,8 @@ const PreviewPanel: React.FC = () => {
                                     fixedWorldPoint,
                                     fixedLocalPoint,
                                     dragLocalPoint,
-                                });
+                                };
+                                (vis._dragMeta = dragMeta);
                                 return;
                             }
                         }
