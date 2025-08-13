@@ -44,7 +44,7 @@ const MenuBar: React.FC = () => {
     return (
         <div className="menu-bar">
             <div className="menu-section quick-actions">
-                <h3>Midivis v{process.env.REACT_APP_VERSION}</h3>
+                <h3>Midivis v{((import.meta as any).env?.VITE_VERSION)}</h3>
             </div>
 
             <div className="menu-section scene-name-section">

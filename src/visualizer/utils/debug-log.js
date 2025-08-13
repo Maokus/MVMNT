@@ -8,7 +8,14 @@ export function isDebugEnabled() {
         }
     } catch {}
     // Allow opting in via env at build time
-    return process.env.REACT_APP_VERBOSE_LOGS === 'true';
+    try {
+        // Vite style (ESM). Wrap in try in case of older environments.
+        // @ts-ignore
+        const e = import.meta.env;
+        if (e && (e.VITE_VERBOSE_LOGS === 'true' || e.REACT_APP_VERBOSE_LOGS === 'true')) return true;
+    } catch {}
+    if (typeof process !== 'undefined' && process.env?.REACT_APP_VERBOSE_LOGS === 'true') return true;
+    return false;
 }
 
 export function debugLog(...args) {

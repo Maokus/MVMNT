@@ -522,12 +522,23 @@ export class HybridSceneBuilder {
         // Get macro data from the global macro manager
         const macroData = globalMacroManager.exportMacros();
 
+        let version;
+        try {
+            version = import.meta.env.VITE_VERSION || import.meta.env.REACT_APP_VERSION;
+        } catch {}
+        if (!version && typeof process !== 'undefined') version = process.env.REACT_APP_VERSION;
+        let bindingVersion;
+        try {
+            bindingVersion = import.meta.env.VITE_BINDING_VERSION || import.meta.env.REACT_APP_BINDING_VERSION;
+        } catch {}
+        if (!bindingVersion && typeof process !== 'undefined') bindingVersion = process.env.REACT_APP_BINDING_VERSION;
+
         return {
-            version: process.env.REACT_APP_VERSION,
+            version,
             elements: serializedElements,
             macros: macroData,
             serializedAt: new Date().toISOString(),
-            bindingSystemVersion: process.env.REACT_APP_BINDING_VERSION,
+            bindingSystemVersion: bindingVersion,
         };
     }
 
