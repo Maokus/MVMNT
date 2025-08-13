@@ -36,7 +36,8 @@ export const pointInPolygon = (ptX: number, ptY: number, corners: Point[]): bool
             yi = corners[i].y;
         const xj = corners[j].x,
             yj = corners[j].y;
-        const intersect = yi > ptY !== yj > ptY && ptX < ((xj - xi) * (ptY - yi)) / (yj - yi + 1e-9) + xi;
+        //prettier-ignore
+        const intersect = ((yi > ptY) !== (yj > ptY)) && (ptX < (((xj - xi) * (ptY - yi)) / ((yj - yi) + 1e-9) + xi));
         if (intersect) inside = !inside;
     }
     return inside;
@@ -64,11 +65,7 @@ export function buildGeometry(rec: any): GeometryInfo | null {
 export function localPointFor(tag: string, bb: Bounds | null): Point {
     // maps handle tags to local coordinates
     if (!bb) return { x: 0, y: 0 };
-    let { x, y, width: w, height: h, anchorX: ax, anchorY: ay } = bb;
-    x -= ax * w;
-    y -= ay * h;
-    x += w / 2;
-    y += h / 2;
+    let { x, y, width: w, height: h } = bb;
     switch (tag) {
         case 'TL':
             return { x, y };
@@ -127,14 +124,13 @@ export function computeScaledTransform(
         origScaleY,
         baseBounds,
         fixedWorldPoint,
-        fixedLocalPoint,
         origRotation,
         origSkewX,
         origSkewY,
         origAnchorX,
         origAnchorY,
     } = p;
-    if (!geom || !fixedWorldPoint || !fixedLocalPoint || !baseBounds) return null;
+    if (!geom || !fixedWorldPoint || !baseBounds) return null;
     const widthVec = geom.widthVec;
     const heightVec = geom.heightVec;
     const wvx = widthVec.x;
@@ -209,10 +205,6 @@ export function computeScaledTransform(
         newScaleX = Math.max(0.01, (origScaleX || 1) * factor);
         newScaleY = Math.max(0.01, (origScaleY || 1) * factor);
     }
-    const anchorLocal = {
-        x: baseBounds.x + baseBounds.width * origAnchorX,
-        y: baseBounds.y + baseBounds.height * origAnchorY,
-    };
     const applyRSK = (vx: number, vy: number) => {
         const kx = Math.tan(origSkewX);
         const ky = Math.tan(origSkewY);
@@ -224,7 +216,10 @@ export function computeScaledTransform(
         const sin = Math.sin(origRotation);
         return { x: cos * sx - sin * sy, y: sin * sx + cos * sy };
     };
-    const relFixed = { x: fixedLocalPoint.x - anchorLocal.x, y: fixedLocalPoint.y - anchorLocal.y };
+    const relFixed = {
+        x: baseBounds.width / 2 - 2 * origAnchorX * baseBounds.width,
+        y: -(baseBounds.height / 2 - 2 * origAnchorY * baseBounds.height),
+    };
     const qFixed = applyRSK(relFixed.x, relFixed.y);
     const newOffsetX = fixedWorldPoint.x - qFixed.x;
     const newOffsetY = fixedWorldPoint.y - qFixed.y;
