@@ -1,4 +1,4 @@
-import { computeAnchorAdjustment } from './anchor';
+import { computeAnchorAdjustment } from '.';
 import { applyRSK } from './transformHelpers';
 import { AnchorAdjustParams } from './types';
 

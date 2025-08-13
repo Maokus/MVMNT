@@ -1,5 +1,5 @@
-import { computeScaledTransform } from './scale';
-import { ScaleComputationParams } from './types';
+import { computeScaledTransform } from '.';
+import { ScaleComputationParams } from '.';
 
 // Simple diagnostic test to verify scaling with skew keeps dragged corner under cursor.
 // Logs computed vs expected world corner delta.

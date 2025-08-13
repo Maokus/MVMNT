@@ -2,8 +2,6 @@
 
 export * from './types';
 export * from './geometry';
-export * from './scale';
-export * from './anchor';
-export * from './rotation';
+export * from './mouseToTransforms';
 export * from './transformHelpers';
 export * from './interaction';

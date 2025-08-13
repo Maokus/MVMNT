@@ -1,5 +1,5 @@
-import { computeScaledTransform } from './scale';
-import { ScaleComputationParams } from './types';
+import { computeScaledTransform } from '.';
+import { ScaleComputationParams } from '.';
 
 const globAnchorX = 0;
 const globAnchorY = 0;

@@ -1,5 +1,5 @@
-import { computeScaledTransform } from './scale';
-import { ScaleComputationParams } from './types';
+import { computeScaledTransform } from '.';
+import { ScaleComputationParams } from '.';
 
 // Simple ad-hoc console test (not part of jest) to verify negative scaling sign preservation.
 const baseBounds = { x: 0, y: 0, width: 100, height: 80, anchorX: 0.5, anchorY: 0.5 } as any;
