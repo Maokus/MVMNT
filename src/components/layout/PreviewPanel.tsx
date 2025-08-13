@@ -95,7 +95,9 @@ const PreviewPanel: React.FC = () => {
                                 const rec = boundsList.find((b: any) => b.id === selectedId);
                                 const geom = buildGeometry(rec) || {};
                                 const bb = rec?.baseBounds || null;
-                                const localFor = (tag: string) => localPointFor(tag, bb);
+                                const anchorX = rec?.element?.getProperty("anchorX") ?? 0.5;
+                                const anchorY = rec?.element?.getProperty("anchorY") ?? 0.5;
+                                const localFor = (tag: string) => localPointFor(tag, { ...bb, anchorX, anchorY });
                                 const handleType: string = handleHit.type;
                                 let fixedWorldPoint: { x: number; y: number } | null = null;
                                 let fixedLocalPoint: { x: number; y: number } | null = null;

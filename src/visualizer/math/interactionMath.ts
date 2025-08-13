@@ -10,6 +10,8 @@ export interface Bounds {
     y: number;
     width: number;
     height: number;
+    anchorX: number;
+    anchorY: number;
 }
 export interface CornerRecord {
     corners: Point[];
@@ -62,7 +64,11 @@ export function buildGeometry(rec: any): GeometryInfo | null {
 export function localPointFor(tag: string, bb: Bounds | null): Point {
     // maps handle tags to local coordinates
     if (!bb) return { x: 0, y: 0 };
-    const { x, y, width: w, height: h } = bb;
+    let { x, y, width: w, height: h, anchorX: ax, anchorY: ay } = bb;
+    x -= ax * w;
+    y -= ay * h;
+    x += w / 2;
+    y += h / 2;
     switch (tag) {
         case 'TL':
             return { x, y };
