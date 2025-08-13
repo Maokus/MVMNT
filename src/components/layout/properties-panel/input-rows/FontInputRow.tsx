@@ -151,7 +151,7 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                             onChange={(e) => setQuery(e.target.value)}
                             style={{ width: '100%' }}
                         />
-                        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {/*<div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {AVAILABLE_WEIGHTS.map(w => (
                                 <button
                                     key={w}
@@ -190,7 +190,8 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                                 title="Preload selected variants for current font"
                             >Load</button>
                         </div>
-                        {recent.length > 0 && (
+                        */}
+                        {/*recent.length > 0 && (
                             <div style={{ marginTop: 6 }}>
                                 <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 2 }}>Recent:</div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -211,12 +212,12 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                                     ))}
                                 </div>
                             </div>
-                        )}
+                        )*/}
                         {fetchError && (
                             <div style={{ marginTop: 6, color: '#e88', fontSize: 10 }}>API: {fetchError}</div>
                         )}
                     </div>
-                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                    <div style={{ maxHeight: 100, overflowY: 'auto' }}>
                         {filtered.map(f => (
                             <div
                                 key={f}
@@ -225,7 +226,7 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                                     padding: '4px 8px',
                                     cursor: 'pointer',
                                     fontFamily: `'${f}', sans-serif`,
-                                    background: f === currentValue ? '#333' : 'transparent'
+                                    background: f === currentValue ? '#333' : 'transparent',
                                 }}
                             >
                                 {f}
