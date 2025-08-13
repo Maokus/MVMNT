@@ -65,4 +65,5 @@ export interface AnchorAdjustParams {
     origScaleX: number;
     origScaleY: number;
     baseBounds: Bounds | null;
+    geom?: GeometryInfo | null; // geometry (world) to derive anchor from mouse position under rotation/skew
 }

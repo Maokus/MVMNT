@@ -239,41 +239,27 @@ const PreviewPanel: React.FC = () => {
                                 const { bounds, baseBounds } = meta;
                                 const relXRaw = (x - bounds.x) / (bounds.width || 1);
                                 const relYRaw = (y - bounds.y) / (bounds.height || 1);
-                                let anchorX = Math.max(0, Math.min(1, relXRaw));
-                                let anchorY = Math.max(0, Math.min(1, relYRaw));
-                                if (e.shiftKey) {
-                                    // Snap to 9-point grid
-                                    const candidates = [0, 0.5, 1];
-                                    let bestAX = anchorX, bestAY = anchorY;
-                                    let bestD = Infinity;
-                                    for (const ax of candidates) {
-                                        for (const ay of candidates) {
-                                            const dxC = ax - anchorX; const dyC = ay - anchorY;
-                                            const d2 = dxC * dxC + dyC * dyC;
-                                            if (d2 < bestD) { bestD = d2; bestAX = ax; bestAY = ay; }
-                                        }
-                                    }
-                                    anchorX = bestAX; anchorY = bestAY;
-                                }
-                                // Adjust offset so visual position stays the same
+                                // computeAnchorAdjustment now performs clamping + optional snapping + offset compensation (incl skew)
                                 if (baseBounds) {
-                                    const { newOffsetX, newOffsetY } = computeAnchorAdjustment(anchorX, anchorY, {
-                                        baseBounds,
-                                        origAnchorX: meta.origAnchorX,
-                                        origAnchorY: meta.origAnchorY,
-                                        origOffsetX: meta.origOffsetX,
-                                        origOffsetY: meta.origOffsetY,
-                                        origRotation: meta.origRotation,
-                                        origSkewX: meta.origSkewX,
-                                        origSkewY: meta.origSkewY,
-                                        origScaleX: meta.origScaleX,
-                                        origScaleY: meta.origScaleY,
-                                    });
-                                    sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY, offsetX: newOffsetX, offsetY: newOffsetY });
-                                    updateElementConfig?.(elId, { anchorX, anchorY, offsetX: newOffsetX, offsetY: newOffsetY });
-                                } else {
-                                    sceneBuilder?.updateElementConfig?.(elId, { anchorX, anchorY });
-                                    updateElementConfig?.(elId, { anchorX, anchorY });
+                                    const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
+                                        relXRaw,
+                                        relYRaw,
+                                        {
+                                            baseBounds,
+                                            origAnchorX: meta.origAnchorX,
+                                            origAnchorY: meta.origAnchorY,
+                                            origOffsetX: meta.origOffsetX,
+                                            origOffsetY: meta.origOffsetY,
+                                            origRotation: meta.origRotation,
+                                            origSkewX: meta.origSkewX,
+                                            origSkewY: meta.origSkewY,
+                                            origScaleX: meta.origScaleX,
+                                            origScaleY: meta.origScaleY,
+                                        },
+                                        e.shiftKey
+                                    );
+                                    sceneBuilder?.updateElementConfig?.(elId, { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY });
+                                    updateElementConfig?.(elId, { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY });
                                 }
                             } else if (meta.mode === 'rotate' && meta.bounds) {
                                 const newRotationDeg = computeRotation(x, y, meta, e.shiftKey);
