@@ -1,4 +1,5 @@
 import { computeAnchorAdjustment } from './anchor';
+import { applyRSK } from './transformHelpers';
 import { AnchorAdjustParams } from './types';
 
 // Simple console test to verify anchor remains under same world position after adjustment when skew present.
@@ -19,6 +20,23 @@ const params: AnchorAdjustParams = {
     origScaleY: 0.8,
 };
 
-// Simulate dragging anchor to (0.75, 0.6)
-const res = computeAnchorAdjustment(0.75, 0.6, params, false);
+// Simulate dragging anchor to (0.75, 0.6) by constructing a mouse world coordinate.
+const targetLocal = {
+    x: baseBounds.x + baseBounds.width * 0.75,
+    y: baseBounds.y + baseBounds.height * 0.6,
+};
+// Convert local delta from (0,0) to local point through RSK then add offset (simplistic for test)
+const localDelta = { x: targetLocal.x, y: targetLocal.y }; // assuming base origin at (0,0)
+const worldDelta = applyRSK(
+    localDelta.x,
+    localDelta.y,
+    params.origRotation,
+    params.origSkewX,
+    params.origSkewY,
+    params.origScaleX,
+    params.origScaleY
+);
+const mouseX = params.origOffsetX + worldDelta.x;
+const mouseY = params.origOffsetY + worldDelta.y;
+const res = computeAnchorAdjustment(mouseX, mouseY, params, false);
 console.log('Result anchor adjust (skew):', res);

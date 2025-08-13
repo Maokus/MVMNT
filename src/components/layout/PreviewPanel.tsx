@@ -236,14 +236,11 @@ const PreviewPanel: React.FC = () => {
                                     updateElementConfig?.(elId, { elementScaleX: r.newScaleX, elementScaleY: r.newScaleY, offsetX: r.newOffsetX, offsetY: r.newOffsetY });
                                 }
                             } else if (meta.mode === 'anchor' && meta.bounds) {
-                                const { bounds, baseBounds } = meta;
-                                const relXRaw = (x - bounds.x) / (bounds.width || 1);
-                                const relYRaw = (y - bounds.y) / (bounds.height || 1);
-                                // computeAnchorAdjustment now performs clamping + optional snapping + offset compensation (incl skew)
+                                const { baseBounds } = meta;
                                 if (baseBounds) {
                                     const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
-                                        relXRaw,
-                                        relYRaw,
+                                        x,
+                                        y,
                                         {
                                             baseBounds,
                                             origAnchorX: meta.origAnchorX,

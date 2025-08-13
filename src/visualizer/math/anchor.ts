@@ -8,12 +8,7 @@ import { applyRSK } from './transformHelpers';
 // Inputs: target anchor (normalized) the user is dragging to, original transform components & base bounds.
 // Output: new anchor (possibly snapped if shiftKey) + offset that keeps the anchor's world position fixed
 // and preserves existing behaviour when skew is zero. Under skew we must use full RSK mapping.
-export function computeAnchorAdjustment(
-    rawAnchorX: number,
-    rawAnchorY: number,
-    p: AnchorAdjustParams,
-    shiftKey: boolean
-) {
+export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: AnchorAdjustParams, shiftKey: boolean) {
     const {
         baseBounds,
         origAnchorX,
@@ -28,20 +23,46 @@ export function computeAnchorAdjustment(
     } = p;
     if (!baseBounds) {
         return {
-            newAnchorX: rawAnchorX,
-            newAnchorY: rawAnchorY,
+            newAnchorX: origAnchorX,
+            newAnchorY: origAnchorY,
             newOffsetX: origOffsetX,
             newOffsetY: origOffsetY,
         };
     }
 
-    // Optional snapping identical to PreviewPanel logic (9-point grid) when shift held.
-    // If geometry provided with oriented corners, interpret rawAnchorX/rawAnchorY as provisional normalized fractions.
-    // (Preview panel passes raw fractions already; future extensions could pass mouse world coords and derive fractions.)
-    let anchorX = rawAnchorX;
-    let anchorY = rawAnchorY;
+    // --- Derive local (untransformed) coordinates under full RSK from mouse world coords ---
+    // Inverse of: world = offset + R * S * K (local)
+    const cos = Math.cos(origRotation);
+    const sin = Math.sin(origRotation);
+    const kx = Math.tan(origSkewX);
+    const ky = Math.tan(origSkewY);
+
+    // Translate to rotation/scale/skew space (remove offset)
+    const wx = mouseX - origOffsetX;
+    const wy = mouseY - origOffsetY;
+    // Inverse rotation
+    const sx = cos * wx + sin * wy; // (R^-1) * w  -> (scale+skew space)
+    const sy = -sin * wx + cos * wy;
+    // Inverse scale
+    const kxVy = sx / (origScaleX || 1); // avoid div 0
+    const kyVx = sy / (origScaleY || 1);
+    // Solve for vx, vy from:
+    // kxVy = vx + kx * vy
+    // kyVx = ky * vx + vy
+    let denom = 1 - ky * kx;
+    if (Math.abs(denom) < 1e-8) denom = denom >= 0 ? 1e-8 : -1e-8; // guard near singular
+    const vy = (kyVx - ky * kxVy) / denom;
+    const vx = kxVy - kx * vy;
+
+    // Normalize into raw anchor fractions relative to baseBounds
+    let anchorX = (vx - baseBounds.x) / (baseBounds.width || 1);
+    let anchorY = (vy - baseBounds.y) / (baseBounds.height || 1);
+
+    // Clamp
     anchorX = Math.max(0, Math.min(1, anchorX));
     anchorY = Math.max(0, Math.min(1, anchorY));
+
+    // Optional snapping identical to previous logic (9-point grid) when shift held.
     if (shiftKey) {
         const candidates = [0, 0.5, 1];
         let best = { ax: anchorX, ay: anchorY, d: Infinity };
