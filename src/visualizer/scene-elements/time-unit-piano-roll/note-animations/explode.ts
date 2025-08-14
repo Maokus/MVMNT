@@ -55,7 +55,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     );
                     renderObj.fillColor = color;
                     renderObj.opacity = 1 - progress;
-                    //renderObj.rotation = this.lerp(0, objs[i].endRot, progress);
+                    renderObj.rotation = this.lerp(0, objs[i].endRot, progress);
                     renderObjs.push(renderObj);
                 }
                 return renderObjs;

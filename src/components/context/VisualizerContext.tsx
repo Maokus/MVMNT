@@ -48,7 +48,10 @@ interface VisualizerContextValue {
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
 
-export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Converted to named function declaration to ensure React Fast Refresh correctly
+// identifies this module as a refresh boundary (some heuristics can fail on
+// certain arrow function exports in edge cases with swc + TS + React 19).
+export function VisualizerProvider({ children }: { children: React.ReactNode }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [visualizer, setVisualizer] = useState<any | null>(null);
     const [imageSequenceGenerator, setImageSequenceGenerator] = useState<any | null>(null);
@@ -341,7 +344,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     return <VisualizerContext.Provider value={value}>{children}</VisualizerContext.Provider>;
-};
+}
 
 export const useVisualizer = () => {
     const ctx = useContext(VisualizerContext);

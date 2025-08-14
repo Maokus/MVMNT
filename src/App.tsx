@@ -4,7 +4,7 @@ import MidiVisualizer from './components/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
 import { AnimationTestPage } from './components/animation-test';
 
-function App() {
+export function App() {
   return (
     <div className="App">
       <Routes>

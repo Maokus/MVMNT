@@ -307,15 +307,6 @@ const AnimationTestPage: React.FC = () => {
                     <div style={{ fontSize: 12, marginTop: 4, color: '#ccc' }}>Phase: {notePhase} progress {noteProgress.toFixed(2)}</div>
                     <EasingCurve easingName={phase.easing} progress={rawProgress} />
                 </div>
-                <div style={{ flex: 1 }}>
-                    <h2>Utilities</h2>
-                    <ul style={{ fontSize: 12, lineHeight: 1.4 }}>
-                        <li>Scrub with slider to inspect easing / ADSR at any time.</li>
-                        <li>Select a note animation from the registry.</li>
-                        <li>Loop or single run.</li>
-                        <li>Use as a sandbox to tune ADSR envelope impacting note animation rendering.</li>
-                    </ul>
-                </div>
             </div>
         </div>
     );

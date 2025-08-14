@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => ({
             'Cross-Origin-Opener-Policy': 'same-origin',
         },
     },
+    // React SWC plugin already enables Fast Refresh by default; ensure our component
+    // modules use named function declarations for providers for consistent boundaries.
     plugins: [react()],
     build: {
         outDir: 'build',
