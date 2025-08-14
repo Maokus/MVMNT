@@ -4,6 +4,8 @@ import { ModularRenderer } from '../../visualizer/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import type { RenderObjectInterface } from '../../visualizer/types';
+import { NoteBlock } from '../../visualizer/scene-elements/time-unit-piano-roll/note-block';
+import './animationTest.css';
 
 interface PhaseConfig {
     name: string;
@@ -13,10 +15,10 @@ interface PhaseConfig {
 
 // Repurpose the existing phase UI to represent an ADSR envelope for note animations
 const defaultPhases: PhaseConfig[] = [
-    { name: 'Attack', duration: 400, easing: 'easeOutCubic' },
-    { name: 'Decay', duration: 600, easing: 'easeInOutQuad' },
-    { name: 'Sustain', duration: 800, easing: 'linear' }, // visualized as static full value
-    { name: 'Release', duration: 500, easing: 'easeInCubic' }
+    { name: 'Attack', duration: 1000, easing: 'linear' },
+    { name: 'Decay', duration: 1000, easing: 'linear' },
+    { name: 'Sustain', duration: 1000, easing: 'linear' }, // visualized as static full value
+    { name: 'Release', duration: 1000, easing: 'linear' }
 ];
 
 const EASING_NAMES = Object.keys(easings);
@@ -29,6 +31,16 @@ const AnimationTestPage: React.FC = () => {
     const [localNow, setLocalNow] = useState(0);
     const [scrubTime, setScrubTime] = useState<number | null>(null);
     const [animationType, setAnimationType] = useState<string>('expand');
+    // User adjustable note block + visual params
+    const [blockNote, setBlockNote] = useState(60);
+    const [blockVelocity, setBlockVelocity] = useState(90);
+    const [blockChannel, setBlockChannel] = useState(0);
+    const [blockDuration, setBlockDuration] = useState(1); // seconds (synthetic)
+    const [blockWidth, setBlockWidth] = useState(180);
+    const [blockHeight, setBlockHeight] = useState(40);
+    const [blockColor, setBlockColor] = useState('#4af');
+    const [canvasWidth, setCanvasWidth] = useState(360);
+    const [canvasHeight, setCanvasHeight] = useState(140);
 
     // Modular Renderer setup for note animation preview
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -85,13 +97,6 @@ const AnimationTestPage: React.FC = () => {
     const easingFn = easings[phase.easing] || ((x: number) => x);
     const eased = easingFn(rawProgress);
 
-    const addPhase = () => {
-        // Prevent arbitrary phases beyond ADSR semantics – keep at 4
-        if (phases.length >= 4) return;
-        const order = ['Attack', 'Decay', 'Sustain', 'Release'];
-        const nextName = order[phases.length] || `Phase ${phases.length + 1}`;
-        setPhases(p => [...p, { name: nextName, duration: 500, easing: 'linear' }]);
-    };
     const updatePhase = (i: number, patch: Partial<PhaseConfig>) => setPhases(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
     const removePhase = (i: number) => setPhases(ps => ps.filter((_, idx) => idx !== i));
 
@@ -163,21 +168,31 @@ const AnimationTestPage: React.FC = () => {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        const width = canvas.width;
-        const height = canvas.height;
+        canvas.width = canvasWidth; // ensure backing store matches
+        canvas.height = canvasHeight;
+        const width = canvasWidth;
+        const height = canvasHeight;
         ctx.clearRect(0, 0, width, height);
         const inst = animationInstanceRef.current;
         if (!inst) return;
 
         // Build a synthetic AnimationContext for a single note block
-        const baseX = 60;
-        const baseY = height / 2 - 20;
-        const blockWidth = 180;
-        const blockHeight = 40;
-        const color = '#4af';
+        const baseX = Math.max(0, (width - blockWidth) / 2);
+        const baseY = Math.max(0, (height - blockHeight) / 2);
+        const color = blockColor;
         const ro: RenderObjectInterface[] = inst.render({
-            // @ts-expect-error minimal stub for block
-            block: { note: 60, startTime: 0, endTime: 1, channel: 0 },
+            // @ts-expect-error minimal stub for block (only fields used by animations)
+            block: {
+                note: blockNote,
+                velocity: blockVelocity,
+                startTime: 0,
+                endTime: blockDuration,
+                duration: blockDuration,
+                channel: blockChannel,
+                // deterministic ids like real NoteBlock for seeded randomness
+                baseNoteId: baseNoteIdRef.current,
+                noteId: baseNoteIdRef.current,
+            },
             x: baseX,
             y: baseY,
             width: blockWidth,
@@ -193,35 +208,41 @@ const AnimationTestPage: React.FC = () => {
             backgroundColor: '#000',
             canvas: { width, height },
         }, ms / 1000);
-    }, [noteProgress, notePhase, animationType, effectiveTime]);
+    }, [noteProgress, notePhase, animationType, effectiveTime, blockNote, blockVelocity, blockChannel, blockDuration, blockWidth, blockHeight, blockColor, canvasWidth, canvasHeight]);
+
+    // Stable baseNoteId (and noteId) to mimic real NoteBlock identity so seeded RNG remains deterministic
+    const baseNoteIdRef = useRef<string>('');
+    const noteIdentityDeps = [blockNote, blockChannel, blockDuration, blockVelocity];
+    useEffect(() => {
+        baseNoteIdRef.current = NoteBlock.fastHashToHex(blockNote, blockChannel, 0, blockDuration, blockVelocity);
+    }, noteIdentityDeps); // recompute when identity-affecting fields change
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', padding: 16, gap: 16, fontFamily: 'sans-serif' }}>
+        <div className="animation-test-page" style={{ display: 'flex', flexDirection: 'column', padding: 16, gap: 16 }}>
             <h1>Animation Test</h1>
             <div style={{ display: 'flex', gap: 24 }}>
                 <div style={{ flex: 1 }}>
                     <h2>Phases</h2>
                     {phases.map((p, i) => (
-                        <div key={i} style={{ border: '1px solid #555', padding: 8, marginBottom: 8, background: i === currentPhaseIndex ? '#223' : '#111', color: '#eee' }}>
+                        <div key={i} className={"phase-card" + (i === currentPhaseIndex ? ' active' : '')}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <input style={{ flex: 1 }} value={p.name} onChange={e => updatePhase(i, { name: e.target.value })} />
-                                <button onClick={() => removePhase(i)} disabled={phases.length === 1}>x</button>
+                                <input className="text-input" style={{ flex: 1 }} value={p.name} onChange={e => updatePhase(i, { name: e.target.value })} />
+                                <button className="btn small" onClick={() => removePhase(i)} disabled={phases.length === 1}>x</button>
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                                <label style={{ fontSize: 12 }}>Duration <input type="number" value={p.duration} onChange={e => updatePhase(i, { duration: Math.max(1, parseInt(e.target.value) || 0) })} style={{ width: 80 }} /></label>
-                                <label style={{ fontSize: 12 }}>Easing
-                                    <select value={p.easing} onChange={e => updatePhase(i, { easing: e.target.value })}>
+                                <label className="field-label">Duration <input className="number-input" type="number" value={p.duration} onChange={e => updatePhase(i, { duration: Math.max(1, parseInt(e.target.value) || 0) })} style={{ width: 80 }} /></label>
+                                <label className="field-label">Easing
+                                    <select className="select-input" value={p.easing} onChange={e => updatePhase(i, { easing: e.target.value })}>
                                         {EASING_NAMES.map(n => <option key={n}>{n}</option>)}
                                     </select>
                                 </label>
                             </div>
                         </div>
                     ))}
-                    <button onClick={addPhase} disabled={phases.length >= 4}>Add Phase</button>
                     <div style={{ marginTop: 12 }}>
-                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label className="field-label" style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                             Note Animation Type
-                            <select value={animationType} onChange={e => setAnimationType(e.target.value)}>
+                            <select className="select-input" value={animationType} onChange={e => setAnimationType(e.target.value)}>
                                 {getAnimationSelectOptions().map(opt => (
                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                                 ))}
@@ -232,10 +253,10 @@ const AnimationTestPage: React.FC = () => {
                 <div style={{ flex: 2 }}>
                     <h2>Timeline</h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button onClick={() => { if (!playing) { setStartTime(performance.now() - effectiveTime); } setPlaying(p => !p); }}>{playing ? 'Pause' : 'Play'}</button>
-                        <button onClick={() => { setStartTime(performance.now()); setLocalNow(0); setPlaying(true); }}>Restart</button>
-                        <button onClick={() => stepPhase(-1)} title="Previous phase">◀︎ Phase</button>
-                        <button onClick={() => stepPhase(1)} title="Next phase">Phase ▶︎</button>
+                        <button className="btn" onClick={() => { if (!playing) { setStartTime(performance.now() - effectiveTime); } setPlaying(p => !p); }}>{playing ? 'Pause' : 'Play'}</button>
+                        <button className="btn" onClick={() => { setStartTime(performance.now()); setLocalNow(0); setPlaying(true); }}>Restart</button>
+                        <button className="btn" onClick={() => stepPhase(-1)} title="Previous phase">◀︎ Phase</button>
+                        <button className="btn" onClick={() => stepPhase(1)} title="Next phase">Phase ▶︎</button>
                         <label style={{ fontSize: 12 }}><input type="checkbox" checked={loop} onChange={e => setLoop(e.target.checked)} /> Loop</label>
                         <div style={{ fontSize: 12 }}>t = {Math.round(effectiveTime)} ms / {total} ms</div>
                         <div style={{ fontSize: 12 }}>Phase: {phase.name} ({currentPhaseIndex + 1}/{phases.length})</div>
@@ -253,7 +274,36 @@ const AnimationTestPage: React.FC = () => {
                         <div style={{ position: 'absolute', top: 0, bottom: 0, width: 2, background: '#fff', left: `${(effectiveTime / total) * 100}%` }} />
                     </div>
                     <h2>Note Animation Preview (Modular Renderer)</h2>
-                    <canvas ref={canvasRef} width={360} height={140} style={{ width: 360, height: 140, border: '1px solid #555', background: '#000' }} />
+                    <div className="grid-inputs">
+                        <label className="field-label">Canvas W
+                            <input className="number-input" type="number" value={canvasWidth} onChange={e => setCanvasWidth(Math.max(50, parseInt(e.target.value) || 0))} />
+                        </label>
+                        <label className="field-label">Canvas H
+                            <input className="number-input" type="number" value={canvasHeight} onChange={e => setCanvasHeight(Math.max(50, parseInt(e.target.value) || 0))} />
+                        </label>
+                        <label className="field-label">Block W
+                            <input className="number-input" type="number" value={blockWidth} onChange={e => setBlockWidth(Math.max(1, parseInt(e.target.value) || 0))} />
+                        </label>
+                        <label className="field-label">Block H
+                            <input className="number-input" type="number" value={blockHeight} onChange={e => setBlockHeight(Math.max(1, parseInt(e.target.value) || 0))} />
+                        </label>
+                        <label className="field-label">Color
+                            <input className="color-input" type="color" value={blockColor} onChange={e => setBlockColor(e.target.value)} />
+                        </label>
+                        <label className="field-label">Note
+                            <input className="number-input" type="number" value={blockNote} onChange={e => setBlockNote(Math.max(0, Math.min(127, parseInt(e.target.value) || 0)))} />
+                        </label>
+                        <label className="field-label">Velocity
+                            <input className="number-input" type="number" value={blockVelocity} onChange={e => setBlockVelocity(Math.max(0, Math.min(127, parseInt(e.target.value) || 0)))} />
+                        </label>
+                        <label className="field-label">Channel
+                            <input className="number-input" type="number" value={blockChannel} onChange={e => setBlockChannel(Math.max(0, Math.min(15, parseInt(e.target.value) || 0)))} />
+                        </label>
+                        <label className="field-label">Duration (s)
+                            <input className="number-input" type="number" step="0.1" value={blockDuration} onChange={e => setBlockDuration(Math.max(0.01, parseFloat(e.target.value) || 0))} />
+                        </label>
+                    </div>
+                    <canvas ref={canvasRef} width={canvasWidth} height={canvasHeight} style={{ width: canvasWidth, height: canvasHeight, border: '1px solid #555', background: '#000' }} />
                     <div style={{ fontSize: 12, marginTop: 4, color: '#ccc' }}>Phase: {notePhase} progress {noteProgress.toFixed(2)}</div>
                     <EasingCurve easingName={phase.easing} progress={rawProgress} />
                 </div>
