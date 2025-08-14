@@ -1,6 +1,7 @@
 import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
 
 export class SlideAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -29,3 +30,5 @@ export class SlideAnimation extends BaseNoteAnimation {
         }
     }
 }
+
+registerAnimation({ name: 'slide', label: 'Slide', class: SlideAnimation });

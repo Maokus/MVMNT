@@ -1,6 +1,7 @@
 import { Text } from '../../../render-objects/text.js';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
+import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';
 
 export class ExplodeAnimation extends BaseNoteAnimation {
@@ -34,3 +35,5 @@ export class ExplodeAnimation extends BaseNoteAnimation {
         }
     }
 }
+
+registerAnimation({ name: 'explode', label: 'Explode', class: ExplodeAnimation });

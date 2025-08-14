@@ -1,6 +1,7 @@
 import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
 
 export class FadeAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -28,3 +29,5 @@ export class FadeAnimation extends BaseNoteAnimation {
         return [this.rect(x, y, width, height, color, alpha)];
     }
 }
+
+registerAnimation({ name: 'fade', label: 'Fade In/Out', class: FadeAnimation });

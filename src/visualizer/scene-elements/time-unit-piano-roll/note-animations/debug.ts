@@ -1,6 +1,7 @@
 import { Text } from '../../../render-objects/text.js';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
 
 export class DebugAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -24,3 +25,5 @@ export class DebugAnimation extends BaseNoteAnimation {
         }
     }
 }
+
+registerAnimation({ name: 'debug', label: 'Debug', class: DebugAnimation });

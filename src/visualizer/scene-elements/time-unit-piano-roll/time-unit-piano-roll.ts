@@ -4,6 +4,7 @@ import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
 import { ensureFontLoaded } from '../../../utils/font-loader';
 import { Line, Text, EmptyRenderObject } from '../../render-objects/index.js';
 import { AnimationController } from './animation-controller';
+import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';
 import { MidiManager } from '../../midi-manager';
 import { debugLog } from '../../utils/debug-log.js';
@@ -574,15 +575,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             type: 'select',
                             label: 'Animation Type',
                             default: 'expand',
-                            options: [
-                                { value: 'fade', label: 'Fade In/Out' },
-                                { value: 'slide', label: 'Slide' },
-                                { value: 'scale', label: 'Scale' },
-                                { value: 'expand', label: 'Expand' },
-                                { value: 'debug', label: 'Debug' },
-                                { value: 'explode', label: 'Explode' },
-                                { value: 'none', label: 'No Animation' },
-                            ],
+                            options: [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }],
                             description: 'Type of animation for note appearance',
                         },
                         {

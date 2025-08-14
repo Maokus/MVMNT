@@ -1,5 +1,6 @@
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
 import easingsFunctions from '../../../utils/easings';
 
 export class ExpandAnimation extends BaseNoteAnimation {
@@ -27,3 +28,5 @@ export class ExpandAnimation extends BaseNoteAnimation {
         }
     }
 }
+
+registerAnimation({ name: 'expand', label: 'Expand', class: ExpandAnimation });

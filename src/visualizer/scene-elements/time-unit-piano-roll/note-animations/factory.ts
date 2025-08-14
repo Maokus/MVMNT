@@ -5,7 +5,7 @@ import { SlideAnimation } from './slide';
 import { DebugAnimation } from './debug';
 import { ScaleAnimation } from './scale';
 import { ExpandAnimation } from './expand';
-import { ExplodeAnimation } from './randvar';
+import { ExplodeAnimation } from './explode';
 
 export function createAnimationInstance(type: AnimationType): BaseNoteAnimation {
     switch (type) {

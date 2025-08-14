@@ -1,6 +1,7 @@
 import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
 
 export class ScaleAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -44,3 +45,5 @@ export class ScaleAnimation extends BaseNoteAnimation {
         return [this.rect(x + ox, y + oy, w, h, color, alpha)];
     }
 }
+
+registerAnimation({ name: 'scale', label: 'Scale', class: ScaleAnimation });

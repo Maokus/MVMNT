@@ -6,7 +6,7 @@ import type { RenderObjectInterface } from '../../types.js';
 import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
 import type { NoteBlock as TNoteBlock } from './note-block';
 
-export type AnimationType = 'fade' | 'slide' | 'scale' | 'expand' | 'explode' | 'debug' | 'none';
+export type AnimationType = string; // Open registry id ('none' handled specially)
 
 export interface BuildConfig {
     noteHeight: number;
