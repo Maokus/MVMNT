@@ -424,13 +424,12 @@ export class MIDIVisualizerCore {
     // Stateless render method - can render any frame without maintaining state
     renderAtTime(targetTime) {
         // Clamp element time so elements never see negative timeline (pre-padding shows blank frames)
-        const elementTime = Math.max(0, targetTime);
         const config = this.getSceneConfig();
-        const renderObjects = this.sceneBuilder.buildScene(config, elementTime);
-        this.modularRenderer.render(this.ctx, renderObjects, config, elementTime);
+        const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
+        this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
         // Draw interaction overlays (selection / hover / drag)
         try {
-            this._renderInteractionOverlays(elementTime, config);
+            this._renderInteractionOverlays(targetTime, config);
         } catch (e) {
             // Non-fatal
             // console.warn('Interaction overlay render failed', e);
