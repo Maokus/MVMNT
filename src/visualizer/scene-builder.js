@@ -400,14 +400,6 @@ export class HybridSceneBuilder {
                 fontWeight: 'normal',
             })
         );
-
-        this.addElement(
-            new DebugElement('debug', {
-                offsetX: 750,
-                offsetY: 750,
-            })
-        );
-
         // Assign macros to relevant element properties
         this._assignDefaultMacros();
 
