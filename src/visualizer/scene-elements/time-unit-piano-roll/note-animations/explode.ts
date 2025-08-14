@@ -36,7 +36,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
             // Create individual objects for the explosion effect
             objs.push({
                 endX: rng() * 100 + x,
-                endY: rng() * 50 + y - 25,
+                endY: rng() * height * 2 + y - height,
                 endRot: rng() * 9,
                 shape: Math.floor(rng() * 3),
             });
@@ -46,10 +46,21 @@ export class ExplodeAnimation extends BaseNoteAnimation {
 
         switch (phase) {
             case 'attack': {
-                return [];
+                let hh = height / 2;
+                let arrow = new Poly([
+                    [x, y + hh - this.lerp(0, hh, progress)],
+                    [x, y + hh + this.lerp(0, hh, progress)],
+                    [x - 40 * easingsFunctions.easeInQuart(progress), y + height / 2],
+                ]);
+                arrow.opacity = this.lerp(0, 1, progress);
+                arrow.strokeColor = color;
+                arrow.lineJoin = 'bevel';
+                return [arrow];
             }
             case 'decay': {
                 let renderObjs: RenderObject[] = [];
+
+                let burst = new EmptyRenderObject();
                 for (let i = 0; i < objs.length; i++) {
                     let renderObj;
                     if (objs[i].shape == 0) {
@@ -57,9 +68,9 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                         renderObj.fillColor = color;
                     } else if (objs[i].shape == 1) {
                         renderObj = new Poly([
-                            [-10, -10],
-                            [10, -10],
-                            [0, 10],
+                            [0, 0],
+                            [20, 0],
+                            [10, 15],
                         ]);
                         renderObj.strokeColor = color;
                         renderObj.strokeWidth = 5;
@@ -76,17 +87,26 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     parent.y = this.lerp(y, objs[i].endY, easingsFunctions.easeOutExpo(progress));
                     parent.opacity = 1 - progress;
                     parent.rotation = this.lerp(0, objs[i].endRot, easingsFunctions.easeOutQuad(progress));
-                    renderObjs.push(parent);
+                    burst.addChild(parent);
                 }
 
-                //renderObjs.push(new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2));
+                burst.y += height / 2;
+                renderObjs.push(burst);
+                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                skeleton.opacity = 0.8;
+
+                renderObjs.push(skeleton);
 
                 return renderObjs;
             }
             case 'sustain':
-                return [];
+                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                skeleton.opacity = 0.8;
+                return [skeleton];
             case 'release': {
-                return [];
+                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                skeleton.opacity = this.lerp(0.8, 0, progress);
+                return [skeleton];
             }
             default:
                 return [this.rect(x, y, width, height, color, 0.8)];

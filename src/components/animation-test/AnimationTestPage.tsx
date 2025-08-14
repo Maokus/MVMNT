@@ -219,7 +219,6 @@ const AnimationTestPage: React.FC = () => {
 
     return (
         <div className="animation-test-page" style={{ display: 'flex', flexDirection: 'column', padding: 16, gap: 16 }}>
-            <h1>Animation Test</h1>
             <div style={{ display: 'flex', gap: 24 }}>
                 <div style={{ flex: 1 }}>
                     <h2>Phases</h2>
