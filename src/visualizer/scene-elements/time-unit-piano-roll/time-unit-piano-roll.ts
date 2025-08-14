@@ -580,6 +580,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 { value: 'scale', label: 'Scale' },
                                 { value: 'expand', label: 'Expand' },
                                 { value: 'debug', label: 'Debug' },
+                                { value: 'randvar', label: 'Random Variable' },
                                 { value: 'none', label: 'No Animation' },
                             ],
                             description: 'Type of animation for note appearance',
