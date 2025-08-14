@@ -22,6 +22,9 @@ export class HybridSceneBuilder {
             fps: 30,
             width: 1500,
             height: 1500,
+            // Amount of extra time before 0s and after max element duration (seconds)
+            prePadding: 0,
+            postPadding: 0,
         };
         this.config = { ...this._defaultSceneSettings };
     }
@@ -397,14 +400,6 @@ export class HybridSceneBuilder {
                 fontWeight: 'normal',
             })
         );
-
-        this.addElement(
-            new DebugElement('debug', {
-                offsetX: 750,
-                offsetY: 750,
-            })
-        );
-
         // Assign macros to relevant element properties
         this._assignDefaultMacros();
 
@@ -596,6 +591,8 @@ export class HybridSceneBuilder {
                 if (typeof src.fps === 'number') partial.fps = src.fps;
                 if (typeof src.width === 'number') partial.width = src.width;
                 if (typeof src.height === 'number') partial.height = src.height;
+                if (typeof src.prePadding === 'number') partial.prePadding = src.prePadding;
+                if (typeof src.postPadding === 'number') partial.postPadding = src.postPadding;
                 this.updateSceneSettings(partial);
             } else {
                 // If none present, reset to defaults

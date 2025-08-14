@@ -26,7 +26,8 @@ const SidePanelsInternal: React.FC = () => {
         propertyPanelRefresh,
         clearSelection,
         updateElementConfig,
-        addElement
+        addElement,
+        deleteElement
     } = useSceneSelection();
 
     // Debug settings now handled in GlobalPropertiesPanel
@@ -52,10 +53,18 @@ const SidePanelsInternal: React.FC = () => {
         };
 
         const handleKeyPress = (event: KeyboardEvent) => {
+            // Avoid interfering with typing inside inputs/textareas
+            const target = event.target as HTMLElement | null;
+            const isEditable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
             // Clear selection on Escape key
             if (event.key === 'Escape' && selectedElementId) {
                 console.log('Escape key pressed, clearing selection');
                 clearSelection();
+                return;
+            }
+            // Delete selected element on Delete key
+            if (!isEditable && selectedElementId && (event.key === 'Delete' || event.key === 'Backspace')) {
+                deleteElement(selectedElementId);
             }
         };
 
@@ -68,7 +77,7 @@ const SidePanelsInternal: React.FC = () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, showAddElementDropdown, clearSelection, canvasRef]);
+    }, [selectedElementId, showAddElementDropdown, clearSelection, deleteElement, canvasRef]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {

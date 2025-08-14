@@ -10,7 +10,10 @@ const PreviewPanel: React.FC = () => {
     const { selectElement, sceneBuilder, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
-    const progressPercent = totalDuration ? (numericCurrentTime / totalDuration) : 0;
+    // totalDuration already includes pre+base+post. We want 0% at -prePadding.
+    const prePadding = exportSettings.prePadding || 0;
+    const adjustedCurrent = numericCurrentTime + prePadding; // shift so -prePadding -> 0
+    const progressPercent = totalDuration ? (adjustedCurrent / totalDuration) : 0;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
@@ -53,6 +56,7 @@ const PreviewPanel: React.FC = () => {
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
+        // Adapt seekPercent: it expects percent of totalDuration (which includes padding). We pass through.
         seekPercent(percent);
     };
 

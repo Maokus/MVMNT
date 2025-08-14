@@ -9,6 +9,8 @@ interface ExportSettings {
     fullDuration: boolean;
     startTime?: number; // seconds (only used when !fullDuration)
     endTime?: number;   // seconds (only used when !fullDuration)
+    prePadding?: number;
+    postPadding?: number;
 }
 
 interface DebugSettings {
@@ -141,6 +143,33 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
                             onKeyDown={handleExportInputKeyDown}
                         />
+
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                            <div style={{ flex: 1 }}>
+                                <label htmlFor="prePaddingInput">Pre Padding (s):</label>
+                                <input
+                                    type="number"
+                                    id="prePaddingInput"
+                                    min={0}
+                                    step={0.1}
+                                    value={exportSettings.prePadding ?? 0}
+                                    onChange={(e) => updateExportSetting('prePadding', parseFloat(e.target.value) || 0)}
+                                    onKeyDown={handleExportInputKeyDown}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label htmlFor="postPaddingInput">Post Padding (s):</label>
+                                <input
+                                    type="number"
+                                    id="postPaddingInput"
+                                    min={0}
+                                    step={0.1}
+                                    value={exportSettings.postPadding ?? 0}
+                                    onChange={(e) => updateExportSetting('postPadding', parseFloat(e.target.value) || 0)}
+                                    onKeyDown={handleExportInputKeyDown}
+                                />
+                            </div>
+                        </div>
 
                         <label style={{ display: 'block', marginTop: '8px' }}>
                             <input

@@ -12,6 +12,8 @@ export interface ExportSettings {
     fullDuration: boolean;
     startTime: number;
     endTime: number;
+    prePadding?: number;
+    postPadding?: number;
 }
 
 export interface DebugSettings {
@@ -62,7 +64,9 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         height: 1500,
         fullDuration: true,
         startTime: 0,
-        endTime: 0
+        endTime: 0,
+        prePadding: 0,
+        postPadding: 0,
     });
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
@@ -93,7 +97,14 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
                 if (s) {
-                    setExportSettings((prev) => ({ ...prev, fps: s.fps ?? prev.fps, width: s.width ?? prev.width, height: s.height ?? prev.height }));
+                    setExportSettings((prev) => ({
+                        ...prev,
+                        fps: s.fps ?? prev.fps,
+                        width: s.width ?? prev.width,
+                        height: s.height ?? prev.height,
+                        prePadding: s.prePadding ?? prev.prePadding ?? 0,
+                        postPadding: s.postPadding ?? prev.postPadding ?? 0,
+                    }));
                 }
             } catch { }
         }
@@ -107,17 +118,20 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         let lastExportStatus = '';
         let lastUIUpdate = 0;
         const loop = () => {
-            const current = Math.max(0, visualizer.currentTime || 0);
+            const current = visualizer.currentTime || 0; // allow negative (prePadding)
             const timeChanged = current !== lastCurrentTime;
             const now = performance.now();
             const shouldUpdateUI = timeChanged && (now - lastUIUpdate > 80);
             if (shouldUpdateUI) {
                 const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-                const curMin = Math.floor(current / 60);
-                const curSec = Math.floor(current % 60);
-                const totMin = Math.floor(total / 60);
-                const totSec = Math.floor(total % 60);
-                setCurrentTimeLabel(`${curMin.toString().padStart(2, '0')}:${curSec.toString().padStart(2, '0')} / ${totMin.toString().padStart(2, '0')}:${totSec.toString().padStart(2, '0')}`);
+                const format = (s: number) => {
+                    const sign = s < 0 ? '-' : '';
+                    const abs = Math.abs(s);
+                    const m = Math.floor(abs / 60);
+                    const sec = Math.floor(abs % 60);
+                    return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                };
+                setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
                 setNumericCurrentTime(current);
                 setTotalDuration(total);
                 lastCurrentTime = current;
@@ -134,12 +148,15 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         loop();
         const handleVisUpdate = () => {
             const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-            const current = Math.max(0, visualizer.currentTime || 0);
-            const curMin = Math.floor(current / 60);
-            const curSec = Math.floor(current % 60);
-            const totMin = Math.floor(total / 60);
-            const totSec = Math.floor(total % 60);
-            setCurrentTimeLabel(`${curMin.toString().padStart(2, '0')}:${curSec.toString().padStart(2, '0')} / ${totMin.toString().padStart(2, '0')}:${totSec.toString().padStart(2, '0')}`);
+            const current = visualizer.currentTime || 0;
+            const format = (s: number) => {
+                const sign = s < 0 ? '-' : '';
+                const abs = Math.abs(s);
+                const m = Math.floor(abs / 60);
+                const sec = Math.floor(abs % 60);
+                return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+            };
+            setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
             setNumericCurrentTime(current);
             setTotalDuration(total);
         };
@@ -158,7 +175,9 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (
             sceneSettings.fps !== exportSettings.fps ||
             sceneSettings.width !== exportSettings.width ||
-            sceneSettings.height !== exportSettings.height
+            sceneSettings.height !== exportSettings.height ||
+            sceneSettings.prePadding !== exportSettings.prePadding ||
+            sceneSettings.postPadding !== exportSettings.postPadding
         ) {
             visualizer.updateExportSettings?.(exportSettings);
         } else if ('fullDuration' in exportSettings) {
@@ -175,7 +194,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (es) {
                 setExportSettings((prev) => ({
                     ...prev,
-                    ...['fps', 'width', 'height'].reduce((acc: any, key) => {
+                    ...['fps', 'width', 'height', 'prePadding', 'postPadding'].reduce((acc: any, key) => {
                         if (es[key] != null) acc[key] = es[key];
                         return acc;
                     }, {}),
@@ -214,8 +233,11 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
         if (!visualizer || !totalDuration || totalDuration <= 0) return;
-        visualizer.seek?.(percent * totalDuration);
-    }, [visualizer, totalDuration]);
+        const { prePadding = 0 } = exportSettings;
+        // totalDuration = pre + base + post, so map 0 -> -prePadding
+        const target = -prePadding + percent * totalDuration;
+        visualizer.seek?.(target);
+    }, [visualizer, totalDuration, exportSettings]);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;
