@@ -12,6 +12,8 @@ export interface ExportSettings {
     fullDuration: boolean;
     startTime: number;
     endTime: number;
+    prePadding?: number;
+    postPadding?: number;
 }
 
 export interface DebugSettings {
@@ -62,7 +64,9 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         height: 1500,
         fullDuration: true,
         startTime: 0,
-        endTime: 0
+        endTime: 0,
+        prePadding: 0,
+        postPadding: 0,
     });
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
@@ -93,7 +97,14 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
                 if (s) {
-                    setExportSettings((prev) => ({ ...prev, fps: s.fps ?? prev.fps, width: s.width ?? prev.width, height: s.height ?? prev.height }));
+                    setExportSettings((prev) => ({
+                        ...prev,
+                        fps: s.fps ?? prev.fps,
+                        width: s.width ?? prev.width,
+                        height: s.height ?? prev.height,
+                        prePadding: s.prePadding ?? prev.prePadding ?? 0,
+                        postPadding: s.postPadding ?? prev.postPadding ?? 0,
+                    }));
                 }
             } catch { }
         }
@@ -158,7 +169,9 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (
             sceneSettings.fps !== exportSettings.fps ||
             sceneSettings.width !== exportSettings.width ||
-            sceneSettings.height !== exportSettings.height
+            sceneSettings.height !== exportSettings.height ||
+            sceneSettings.prePadding !== exportSettings.prePadding ||
+            sceneSettings.postPadding !== exportSettings.postPadding
         ) {
             visualizer.updateExportSettings?.(exportSettings);
         } else if ('fullDuration' in exportSettings) {
@@ -175,7 +188,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (es) {
                 setExportSettings((prev) => ({
                     ...prev,
-                    ...['fps', 'width', 'height'].reduce((acc: any, key) => {
+                    ...['fps', 'width', 'height', 'prePadding', 'postPadding'].reduce((acc: any, key) => {
                         if (es[key] != null) acc[key] = es[key];
                         return acc;
                     }, {}),

@@ -134,10 +134,15 @@ export class ImageSequenceGenerator {
         startFrame: number = 0
     ): Promise<void> {
         const frameInterval = 1 / fps;
+        let prePadding = 0;
+        try {
+            prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+        } catch {}
+        const baseStartTime = -prePadding; // first frame time (can be negative)
 
         console.log('Rendering frames to PNG...');
         for (let frame = 0; frame < totalFrames; frame++) {
-            const currentTime = (frame + startFrame) * frameInterval;
+            const currentTime = baseStartTime + (frame + startFrame) * frameInterval;
 
             // Use the stateless rendering method from the visualizer
             this.visualizer.renderAtTime(currentTime);

@@ -115,8 +115,13 @@ export class MIDIVisualizerCore {
             this.animationId = null;
         }
 
-        // Reset time position
-        this.currentTime = -0.5; // Start at buffer time so first notes can animate in
+        // Reset time position (include prePadding so playback restarts before 0 if configured)
+        try {
+            const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
+            this.currentTime = -prePadding - 0.5; // include buffer
+        } catch {
+            this.currentTime = -0.5;
+        }
         this.startTime = 0; // Reset start time to prevent miscalculations
 
         // Note: noteManager functionality is now handled by scene elements
@@ -128,7 +133,10 @@ export class MIDIVisualizerCore {
     seek(time) {
         const bufferTime = 0.5; // Same buffer as in other methods
         const currentDuration = this.getCurrentDuration();
-        this.currentTime = Math.max(-bufferTime, Math.min(time, currentDuration + bufferTime));
+        const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
+        const minTime = -prePadding - bufferTime; // allow seeking into pre-padding region
+        const maxTime = currentDuration + bufferTime; // includes post padding already
+        this.currentTime = Math.max(minTime, Math.min(time, maxTime));
 
         // Note: Note manager functionality is now handled by scene elements
 
@@ -142,11 +150,11 @@ export class MIDIVisualizerCore {
     }
 
     getCurrentDuration() {
-        // Get maximum duration from all elements with timing managers
+        // Base duration from elements or MIDI
         const maxDuration = this.sceneBuilder.getMaxDuration();
-
-        // If we have elements with their own durations, use that, otherwise fallback to loaded MIDI duration
-        return maxDuration > 0 ? maxDuration : this.duration;
+        const base = maxDuration > 0 ? maxDuration : this.duration;
+        const { prePadding = 0, postPadding = 0 } = this.sceneBuilder.getSceneSettings();
+        return prePadding + base + postPadding;
     }
 
     /**
@@ -262,8 +270,8 @@ export class MIDIVisualizerCore {
      * @param {boolean} settings.fullDuration - Whether to export full duration
      */
     updateExportSettings(settings) {
-        // Delegate scene settings keys (fps,width,height) to sceneBuilder config
-        const sceneKeys = ['fps', 'width', 'height'];
+        // Delegate scene settings keys (fps,width,height,prePadding,postPadding) to sceneBuilder config
+        const sceneKeys = ['fps', 'width', 'height', 'prePadding', 'postPadding'];
         const scenePartial = {};
         for (const k of sceneKeys) if (k in settings) scenePartial[k] = settings[k];
         if (Object.keys(scenePartial).length) {
@@ -321,7 +329,9 @@ export class MIDIVisualizerCore {
     stepBackward() {
         const frameRate = this.sceneBuilder.getSceneSettings().fps; // Use configurable frame rate
         const stepSize = 1.0 / frameRate; // Frame time based on current fps setting
-        const newTime = Math.max(this.currentTime - stepSize, -0.5);
+        const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
+        const minTime = -prePadding; // allow stepping within pre-padding region
+        const newTime = Math.max(this.currentTime - stepSize, minTime);
         this.seek(newTime);
     }
 
@@ -413,13 +423,14 @@ export class MIDIVisualizerCore {
 
     // Stateless render method - can render any frame without maintaining state
     renderAtTime(targetTime) {
-        // Use the new modular rendering system
+        // Clamp element time so elements never see negative timeline (pre-padding shows blank frames)
+        const elementTime = Math.max(0, targetTime);
         const config = this.getSceneConfig();
-        const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
-        this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
+        const renderObjects = this.sceneBuilder.buildScene(config, elementTime);
+        this.modularRenderer.render(this.ctx, renderObjects, config, elementTime);
         // Draw interaction overlays (selection / hover / drag)
         try {
-            this._renderInteractionOverlays(targetTime, config);
+            this._renderInteractionOverlays(elementTime, config);
         } catch (e) {
             // Non-fatal
             // console.warn('Interaction overlay render failed', e);

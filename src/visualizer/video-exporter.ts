@@ -164,8 +164,13 @@ export class VideoExporter {
         progress: (p: number, t?: string) => void
     ) {
         const frameInterval = 1 / fps;
+        let prePadding = 0;
+        try {
+            prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+        } catch {}
+        const baseStartTime = -prePadding;
         for (let i = 0; i < totalFrames; i++) {
-            const currentTime = (i + startFrame) * frameInterval;
+            const currentTime = baseStartTime + (i + startFrame) * frameInterval;
             this.visualizer.renderAtTime(currentTime);
             const blob = await this.canvasToPngBlob();
             this.frames.push({ frameNumber: i, blob });
