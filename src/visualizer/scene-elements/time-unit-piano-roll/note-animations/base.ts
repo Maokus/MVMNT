@@ -14,6 +14,7 @@ export interface AnimationContext {
     color: string;
     progress: number; // 0..1 within the phase
     phase: AnimationPhase;
+    currentTime: number; // absolute current playback time (seconds)
 }
 
 export abstract class BaseNoteAnimation {

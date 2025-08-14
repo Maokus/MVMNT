@@ -177,6 +177,7 @@ export class AnimationController {
                 color,
                 progress: 1,
                 phase: 'sustain',
+                currentTime,
             });
         }
 
@@ -197,6 +198,7 @@ export class AnimationController {
             color,
             progress: p,
             phase,
+            currentTime,
         });
     }
 
