@@ -1,5 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import easings from '../../visualizer/utils/easings';
+import { ModularRenderer } from '../../visualizer/modular-renderer';
+import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
+import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
+import type { RenderObjectInterface } from '../../visualizer/types';
 
 interface PhaseConfig {
     name: string;
@@ -7,10 +11,12 @@ interface PhaseConfig {
     easing: string;
 }
 
+// Repurpose the existing phase UI to represent an ADSR envelope for note animations
 const defaultPhases: PhaseConfig[] = [
-    { name: 'Intro', duration: 500, easing: 'easeOutCubic' },
-    { name: 'Middle', duration: 1000, easing: 'linear' },
-    { name: 'Outro', duration: 500, easing: 'easeInCubic' }
+    { name: 'Attack', duration: 400, easing: 'easeOutCubic' },
+    { name: 'Decay', duration: 600, easing: 'easeInOutQuad' },
+    { name: 'Sustain', duration: 800, easing: 'linear' }, // visualized as static full value
+    { name: 'Release', duration: 500, easing: 'easeInCubic' }
 ];
 
 const EASING_NAMES = Object.keys(easings);
@@ -22,6 +28,21 @@ const AnimationTestPage: React.FC = () => {
     const [startTime, setStartTime] = useState<number | null>(null);
     const [localNow, setLocalNow] = useState(0);
     const [scrubTime, setScrubTime] = useState<number | null>(null);
+    const [animationType, setAnimationType] = useState<string>('expand');
+
+    // Modular Renderer setup for note animation preview
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const rendererRef = useRef(new ModularRenderer());
+    const animationInstanceRef = useRef<ReturnType<typeof createAnimationInstance> | null>(null);
+
+    // (Re)create animation instance when type changes
+    useEffect(() => {
+        try {
+            animationInstanceRef.current = createAnimationInstance(animationType);
+        } catch (e) {
+            animationInstanceRef.current = null;
+        }
+    }, [animationType]);
 
     // total duration
     const total = useMemo(() => phases.reduce((a, p) => a + p.duration, 0), [phases]);
@@ -65,7 +86,11 @@ const AnimationTestPage: React.FC = () => {
     const eased = easingFn(rawProgress);
 
     const addPhase = () => {
-        setPhases(p => [...p, { name: `Phase ${p.length + 1}`, duration: 500, easing: 'linear' }]);
+        // Prevent arbitrary phases beyond ADSR semantics – keep at 4
+        if (phases.length >= 4) return;
+        const order = ['Attack', 'Decay', 'Sustain', 'Release'];
+        const nextName = order[phases.length] || `Phase ${phases.length + 1}`;
+        setPhases(p => [...p, { name: nextName, duration: 500, easing: 'linear' }]);
     };
     const updatePhase = (i: number, patch: Partial<PhaseConfig>) => setPhases(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
     const removePhase = (i: number) => setPhases(ps => ps.filter((_, idx) => idx !== i));
@@ -100,6 +125,76 @@ const AnimationTestPage: React.FC = () => {
         }
     };
 
+    // Derive ADSR timing for animation preview (seconds)
+    const attackMs = phases.find(p => p.name.toLowerCase() === 'attack')?.duration ?? 0;
+    const decayMs = phases.find(p => p.name.toLowerCase() === 'decay')?.duration ?? 0;
+    const sustainMs = phases.find(p => p.name.toLowerCase() === 'sustain')?.duration ?? 0;
+    const releaseMs = phases.find(p => p.name.toLowerCase() === 'release')?.duration ?? 0;
+
+    const attackEnd = attackMs;
+    const decayEnd = attackEnd + decayMs;
+    const sustainEnd = decayEnd + sustainMs; // sustain occupies explicit duration in this sandbox
+    const releaseEnd = sustainEnd + releaseMs;
+
+    // Map effectiveTime (ms) to animation phase + normalized progress
+    const ms = effectiveTime;
+    let notePhase: AnimationPhase = 'static';
+    let noteProgress = 0;
+    if (ms < attackEnd && attackMs > 0) {
+        notePhase = 'attack';
+        noteProgress = attackMs ? ms / attackMs : 1;
+    } else if (ms < decayEnd && decayMs > 0) {
+        notePhase = 'decay';
+        noteProgress = decayMs ? (ms - attackEnd) / decayMs : 1;
+    } else if (ms < sustainEnd && sustainMs > 0) {
+        notePhase = 'sustain';
+        noteProgress = 1; // sustain treated as full
+    } else if (ms < releaseEnd && releaseMs > 0) {
+        notePhase = 'release';
+        noteProgress = releaseMs ? (ms - sustainEnd) / releaseMs : 1;
+    } else if (ms >= releaseEnd) {
+        notePhase = 'release';
+        noteProgress = 1;
+    }
+
+    // Render animated note preview via modular renderer
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
+        const inst = animationInstanceRef.current;
+        if (!inst) return;
+
+        // Build a synthetic AnimationContext for a single note block
+        const baseX = 60;
+        const baseY = height / 2 - 20;
+        const blockWidth = 180;
+        const blockHeight = 40;
+        const color = '#4af';
+        const ro: RenderObjectInterface[] = inst.render({
+            // @ts-expect-error minimal stub for block
+            block: { note: 60, startTime: 0, endTime: 1, channel: 0 },
+            x: baseX,
+            y: baseY,
+            width: blockWidth,
+            height: blockHeight,
+            color,
+            progress: noteProgress,
+            phase: notePhase,
+            currentTime: ms / 1000,
+        });
+
+        const modularRenderer = rendererRef.current;
+        modularRenderer.render(ctx as any, ro as any, {
+            backgroundColor: '#000',
+            canvas: { width, height },
+        }, ms / 1000);
+    }, [noteProgress, notePhase, animationType, effectiveTime]);
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', padding: 16, gap: 16, fontFamily: 'sans-serif' }}>
             <h1>Animation Test</h1>
@@ -122,7 +217,17 @@ const AnimationTestPage: React.FC = () => {
                             </div>
                         </div>
                     ))}
-                    <button onClick={addPhase}>Add Phase</button>
+                    <button onClick={addPhase} disabled={phases.length >= 4}>Add Phase</button>
+                    <div style={{ marginTop: 12 }}>
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            Note Animation Type
+                            <select value={animationType} onChange={e => setAnimationType(e.target.value)}>
+                                {getAnimationSelectOptions().map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
                 <div style={{ flex: 2 }}>
                     <h2>Timeline</h2>
@@ -147,20 +252,18 @@ const AnimationTestPage: React.FC = () => {
                         }, []).map(o => o.el)}
                         <div style={{ position: 'absolute', top: 0, bottom: 0, width: 2, background: '#fff', left: `${(effectiveTime / total) * 100}%` }} />
                     </div>
-                    <h2 style={{ marginTop: 24 }}>Preview</h2>
-                    <div style={{ width: 300, height: 200, border: '1px solid #555', position: 'relative', background: '#000', overflow: 'hidden' }}>
-                        {/* Example preview: a box scaling & moving through phases */}
-                        <BoxPreview phases={phases} time={effectiveTime} total={total} />
-                    </div>
+                    <h2>Note Animation Preview (Modular Renderer)</h2>
+                    <canvas ref={canvasRef} width={360} height={140} style={{ width: 360, height: 140, border: '1px solid #555', background: '#000' }} />
+                    <div style={{ fontSize: 12, marginTop: 4, color: '#ccc' }}>Phase: {notePhase} progress {noteProgress.toFixed(2)}</div>
                     <EasingCurve easingName={phase.easing} progress={rawProgress} />
                 </div>
                 <div style={{ flex: 1 }}>
                     <h2>Utilities</h2>
                     <ul style={{ fontSize: 12, lineHeight: 1.4 }}>
-                        <li>Scrub with slider to inspect easing curve at any time.</li>
-                        <li>Add/remove phases and change easings live.</li>
+                        <li>Scrub with slider to inspect easing / ADSR at any time.</li>
+                        <li>Select a note animation from the registry.</li>
                         <li>Loop or single run.</li>
-                        <li>Use as a sandbox to prototype animation phase parameters.</li>
+                        <li>Use as a sandbox to tune ADSR envelope impacting note animation rendering.</li>
                     </ul>
                 </div>
             </div>
