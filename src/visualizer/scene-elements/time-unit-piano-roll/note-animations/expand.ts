@@ -4,7 +4,7 @@ import easingsFunctions from '../../../utils/easings';
 
 export class ExpandAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
-        const { x, y, width, height, color, progress, phase } = ctx;
+        const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
         const p = Math.max(0, Math.min(1, progress));
 
         switch (phase) {

@@ -4,7 +4,7 @@ import { BaseNoteAnimation, type AnimationContext } from './base';
 
 export class DebugAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
-        const { x, y, width, height, color, progress, phase } = ctx;
+        const { x, y, width, height, color, progress, phase, block } = ctx;
         const info = `${(progress * 100).toFixed(0)}%`;
 
         switch (phase) {

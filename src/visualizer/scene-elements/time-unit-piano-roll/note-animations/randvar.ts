@@ -1,30 +1,33 @@
 import { Text } from '../../../render-objects/text.js';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
+import seedrandom from 'seedrandom';
 
-export class RandVarAnimation extends BaseNoteAnimation {
-    randvar: number;
-
+export class ExplodeAnimation extends BaseNoteAnimation {
     constructor() {
         super();
-        this.randvar = Math.random();
     }
 
     render(ctx: AnimationContext): RenderObjectInterface[] {
-        const { x, y, width, height, color, progress, phase } = ctx;
-        const info = `${(progress * 100).toFixed(0)}%`;
+        const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
+
+        const rng = seedrandom(block.baseNoteId);
+        let randPerNote = rng();
+        let timeSinceStart = currentTime - block.startTime;
+
+        const info = `${timeSinceStart}`;
 
         switch (phase) {
             case 'attack': {
                 return [];
             }
             case 'decay': {
-                return [new Text(x, y, `${this.randvar}`)];
+                return [new Text(x, y, `${info}`)];
             }
             case 'sustain':
-                return [new Text(x, y, `${this.randvar}`)];
+                return [new Text(x, y, `${info}`)];
             case 'release': {
-                return [new Text(x, y, `release`)];
+                return [];
             }
             default:
                 return [this.rect(x, y, width, height, color, 0.8)];
