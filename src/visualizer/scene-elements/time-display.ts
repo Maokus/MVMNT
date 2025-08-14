@@ -1,6 +1,6 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
-import { Text, Rectangle } from '../render-objects/index.js';
+import { Text, Rectangle } from '../render-objects';
 import { TimingManager } from '../timing-manager.js';
 import { MidiManager } from '../midi-manager';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';

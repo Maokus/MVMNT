@@ -1,8 +1,8 @@
-import { RenderObject } from '../../../render-objects/base.js';
-import { EmptyRenderObject } from '../../../render-objects/empty.js';
-import { Poly } from '../../../render-objects/poly.js';
-import { Rectangle } from '../../../render-objects/rectangle.js';
-import { Text } from '../../../render-objects/text.js';
+import { RenderObject } from '../../../render-objects/base';
+import { EmptyRenderObject } from '../../../render-objects/empty';
+import { Poly } from '../../../render-objects/poly';
+import { Rectangle } from '../../../render-objects/rectangle';
+import { Text } from '../../../render-objects/text';
 import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';

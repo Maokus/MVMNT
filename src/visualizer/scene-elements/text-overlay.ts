@@ -1,6 +1,6 @@
 // Text overlay element for displaying a single line of text with property bindings
 import { SceneElement } from './base';
-import { Text } from '../render-objects/index.js';
+import { Text } from '../render-objects';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
 import { ensureFontLoaded } from '../../utils/font-loader';
 

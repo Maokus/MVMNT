@@ -1,6 +1,6 @@
 // Progress display element for showing playback progress with property bindings
 import { SceneElement } from './base';
-import { Rectangle, Text } from '../render-objects/index.js';
+import { Rectangle, Text } from '../render-objects';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
 
 export class ProgressDisplayElement extends SceneElement {

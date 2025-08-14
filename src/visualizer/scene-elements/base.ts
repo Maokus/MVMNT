@@ -1,6 +1,6 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { RenderObjectInterface, EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
-import { EmptyRenderObject } from '../render-objects/empty.js';
+import { EmptyRenderObject } from '../render-objects/empty';
 import {
     PropertyBinding,
     ConstantBinding,
@@ -357,7 +357,8 @@ export class SceneElement implements SceneElementInterface {
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
             if (childObj) {
-                containerObject.addChild(childObj);
+                // Cast to any to accommodate migrated TS RenderObject classes vs legacy interface
+                (containerObject as any).addChild(childObj as any);
             }
         }
 

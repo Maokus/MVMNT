@@ -157,6 +157,10 @@ export interface TimeUnitConfig {
 // Scene Element Types
 // ==========================================
 
+// Render object structural interface kept intentionally permissive so that
+// concrete TypeScript classes (Rectangle, Text, etc.) remain assignable
+// without forcing strict generic coupling across the codebase.
+// (Previously stricter typing caused incompatibilities after TS migration.)
 export interface RenderObjectInterface {
     x: number;
     y: number;
@@ -167,8 +171,7 @@ export interface RenderObjectInterface {
     opacity: number;
     visible: boolean;
     rotation: number;
-    children: RenderObjectInterface[];
-
+    children: any[]; // using any[] to avoid variance issues with concrete subclasses
     render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
     setPosition(x: number, y: number): any;
     setScale(scaleX: number, scaleY?: number): any;
@@ -176,9 +179,9 @@ export interface RenderObjectInterface {
     setRotation(rotation: number): any;
     setOpacity(opacity: number): any;
     setVisible(visible: boolean): any;
-    addChild(child: RenderObjectInterface): any;
-    removeChild(child: RenderObjectInterface): any;
-    getChildren(): RenderObjectInterface[];
+    addChild(child: any): any;
+    removeChild(child: any): any;
+    getChildren(): any[];
     clearChildren(): any;
     getBounds(): { x: number; y: number; width: number; height: number };
 }

@@ -1,4 +1,4 @@
-import { Text } from '../../../render-objects/text.js';
+import { Text } from '../../../render-objects/text';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';

@@ -2,7 +2,7 @@
 import { SceneElement } from '../base';
 import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
 import { ensureFontLoaded } from '../../../utils/font-loader';
-import { Line, Text, EmptyRenderObject } from '../../render-objects/index.js';
+import { Line, Text, EmptyRenderObject } from '../../render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';

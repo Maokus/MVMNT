@@ -1,4 +1,4 @@
-import { Rectangle } from '../../../render-objects/index.js';
+import { Rectangle } from '../../../render-objects';
 import type { RenderObjectInterface } from '../../../types.js';
 import type { NoteBlock } from '../note-block';
 
