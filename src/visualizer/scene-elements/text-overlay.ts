@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { Text } from '../render-objects';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
-import { ensureFontLoaded } from '../../utils/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
@@ -43,22 +43,7 @@ export class TextOverlayElement extends SceneElement {
                             default: 'Inter',
                             description: 'Choose the font family (Google Fonts supported)',
                         },
-                        {
-                            key: 'fontWeight',
-                            type: 'select',
-                            label: 'Weight',
-                            default: 'bold',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '100', label: 'Thin' },
-                                { value: '300', label: 'Light' },
-                                { value: '500', label: 'Medium' },
-                                { value: '700', label: 'Bold' },
-                                { value: '900', label: 'Black' },
-                            ],
-                            description: 'Set the font weight (thickness) of the text',
-                        },
+                        // weight now embedded in font selection value as family|weight
                         {
                             key: 'fontSize',
                             type: 'number',
@@ -83,8 +68,11 @@ export class TextOverlayElement extends SceneElement {
 
         // Get properties from bindings
         const text = this.getProperty('text') as string;
-        const fontFamily = this.getProperty('fontFamily') as string;
-        const fontWeight = this.getProperty('fontWeight') as string;
+        const fontSelection = this.getProperty('fontFamily') as string; // may be family or family|weight
+        const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
+        // Backward compatibility: if no embedded weight, look for legacy fontWeight property
+        const legacyWeight = (this as any).getProperty?.('fontWeight');
+        const fontWeight = (weightPart || legacyWeight || '400').toString();
         const fontSize = this.getProperty('fontSize') as number;
         const color = this.getProperty('color') as string;
 

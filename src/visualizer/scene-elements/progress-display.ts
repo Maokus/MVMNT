@@ -2,6 +2,7 @@
 import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
+import { parseFontSelection } from '../../utils/font-loader';
 
 export class ProgressDisplayElement extends SceneElement {
     // Helper to convert hex color to rgba string
@@ -231,7 +232,14 @@ export class ProgressDisplayElement extends SceneElement {
         // Statistics text
         if (showStats) {
             const fontSize = 12;
-            const font = `${config.fontWeight || 'normal'} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
+            let fontFamily = config.fontFamily || 'Arial';
+            let fontWeight = '400';
+            if (fontFamily && fontFamily.includes('|')) {
+                const parsed = parseFontSelection(fontFamily);
+                fontFamily = parsed.family || fontFamily;
+                fontWeight = parsed.weight || fontWeight;
+            }
+            const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             const statsTextColorRaw = config.statsTextColor || '#cccccc';
             const statsTextOpacity = typeof config.statsTextOpacity === 'number' ? config.statsTextOpacity : 1;
 

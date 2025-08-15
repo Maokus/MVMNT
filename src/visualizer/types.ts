@@ -322,8 +322,7 @@ export interface TextOverlayElementConfig extends BaseSceneElementConfig {
     x?: number;
     y?: number;
     text?: string;
-    fontFamily?: string;
-    fontWeight?: string;
+    fontFamily?: string; // may include weight as family|weight
     fontSize?: number;
     color?: string;
 }

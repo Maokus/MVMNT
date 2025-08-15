@@ -1,7 +1,7 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
 import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
-import { ensureFontLoaded } from '../../../utils/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '../../../utils/font-loader';
 import { Line, Text, EmptyRenderObject } from '../../render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from './note-animations';
@@ -418,19 +418,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             default: '#ffffff',
                             description: 'Color of note labels',
                         },
-                        {
-                            key: 'noteLabelFontWeight',
-                            type: 'select',
-                            label: 'Font Weight',
-                            default: 'normal',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '600', label: '600' },
-                                { value: '300', label: 'Light' },
-                            ],
-                            description: 'Weight of note label font',
-                        },
+                        // weight encoded in font family selection value now (family|weight)
                         {
                             key: 'noteLabelInterval',
                             type: 'number',
@@ -520,19 +508,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             default: '#ffffff',
                             description: 'Color of bar labels',
                         },
-                        {
-                            key: 'beatLabelFontWeight',
-                            type: 'select',
-                            label: 'Font Weight',
-                            default: 'normal',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '600', label: '600' },
-                                { value: '300', label: 'Light' },
-                            ],
-                            description: 'Weight of bar label font',
-                        },
+                        // weight encoded in font family selection value now (family|weight)
                         {
                             key: 'beatLabelOffsetY',
                             type: 'number',
@@ -714,19 +690,25 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatGridBarWidth = this.getProperty<number>('beatGridBarWidth') || 2;
         const beatGridBeatWidth = this.getProperty<number>('beatGridBeatWidth') || 1;
         const beatGridOpacity = this.getProperty<number>('beatGridOpacity') ?? 1;
-        const noteLabelFontFamily = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
+        const noteLabelFontSelection = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
+        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
+            parseFontSelection(noteLabelFontSelection);
         const noteLabelFontSize = this.getProperty<number>('noteLabelFontSize') || 10;
         const noteLabelFontColor = this.getProperty<string>('noteLabelFontColor') || '#ffffff';
-        const noteLabelFontWeight = this.getProperty<string>('noteLabelFontWeight') || 'normal';
+        const legacyNoteWeight = (this as any).getProperty?.('noteLabelFontWeight');
+        const noteLabelFontWeight = (noteLabelFontWeightPart || legacyNoteWeight || '400').toString();
         const noteLabelInterval = this.getProperty<number>('noteLabelInterval') || 1;
         const noteLabelStartNote = this.getProperty<number>('noteLabelStartNote') || 0;
         const noteLabelOffsetX = this.getProperty<number>('noteLabelOffsetX') || -10;
         const noteLabelOffsetY = this.getProperty<number>('noteLabelOffsetY') || 0;
         const noteLabelOpacity = this.getProperty<number>('noteLabelOpacity') ?? 1;
-        const beatLabelFontFamily = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
+        const beatLabelFontSelection = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
+        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
+            parseFontSelection(beatLabelFontSelection);
         const beatLabelFontSize = this.getProperty<number>('beatLabelFontSize') || 12;
         const beatLabelFontColor = this.getProperty<string>('beatLabelFontColor') || '#ffffff';
-        const beatLabelFontWeight = this.getProperty<string>('beatLabelFontWeight') || 'normal';
+        const legacyBeatWeight = (this as any).getProperty?.('beatLabelFontWeight');
+        const beatLabelFontWeight = (beatLabelFontWeightPart || legacyBeatWeight || '400').toString();
         const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
         const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
         const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
