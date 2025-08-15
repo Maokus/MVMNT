@@ -36,3 +36,8 @@ export * from './render-objects';
 // Types Export
 // ==========================================
 export * from './types';
+
+// ==========================================
+// Animation Utilities Export
+// ==========================================
+export { FloatCurve, AnimMath } from './utils/animations';

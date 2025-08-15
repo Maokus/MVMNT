@@ -92,7 +92,15 @@ export class ExplodeAnimation extends BaseNoteAnimation {
 
                 burst.y += height / 2;
                 renderObjs.push(burst);
-                let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
+                let skeleton = new Rectangle(
+                    x,
+                    y,
+                    this.lerp(0, width, easingsFunctions.easeOutExpo(progress)),
+                    height,
+                    'rgba(0,0,0,0)',
+                    color,
+                    2
+                );
                 skeleton.opacity = 0.8;
 
                 renderObjs.push(skeleton);
