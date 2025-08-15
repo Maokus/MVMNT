@@ -70,9 +70,7 @@ export class TextOverlayElement extends SceneElement {
         const text = this.getProperty('text') as string;
         const fontSelection = this.getProperty('fontFamily') as string; // may be family or family|weight
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
-        // Backward compatibility: if no embedded weight, look for legacy fontWeight property
-        const legacyWeight = (this as any).getProperty?.('fontWeight');
-        const fontWeight = (weightPart || legacyWeight || '400').toString();
+        const fontWeight = (weightPart || '400').toString();
         const fontSize = this.getProperty('fontSize') as number;
         const color = this.getProperty('color') as string;
 

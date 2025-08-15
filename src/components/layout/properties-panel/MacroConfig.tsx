@@ -24,7 +24,6 @@ interface Macro {
 interface MacroAssignment {
     elementId: string;
     propertyPath: string;
-    macroId?: string; // Optional for backward compatibility
 }
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {

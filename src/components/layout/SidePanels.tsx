@@ -90,7 +90,7 @@ const SidePanelsInternal: React.FC = () => {
             {/* Layer Panel */}
             <div className="layer-panel">
                 <div className="panel-header">
-                    <h3>📚 Layers</h3>
+                    <h3>📚 Elements</h3>
                     <div style={{ position: 'relative' }} ref={addElementDropdownRef}>
                         <button
                             className="btn primary"

@@ -102,11 +102,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const macros = getMacroOptions(property.type, property);
         const currentAssignment = macroAssignments[property.key];
-        // Backward compatibility: if a font property is assigned to a non-font (legacy string) macro, include it
-        if (currentAssignment && !macros.some((m: any) => m.name === currentAssignment)) {
-            const legacy = manager.getMacro(currentAssignment);
-            if (legacy) macros.push(legacy);
-        }
 
         return (
             <select

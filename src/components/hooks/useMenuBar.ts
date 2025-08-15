@@ -170,7 +170,7 @@ export const useMenuBar = ({
                     onSceneRefresh();
                 }
 
-                console.log('Scene cleared - all layers removed');
+                console.log('Scene cleared - all elements removed');
             } else {
                 console.log('Clear scene functionality: scene builder not available');
             }
