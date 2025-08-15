@@ -1,12 +1,11 @@
-import { Rectangle } from '../../../render-objects';
-import type { RenderObjectInterface } from '../../../types.js';
+import { Rectangle, RenderObject } from '../../../render-objects';
 import * as af from '../../../utils/animations.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 
 export class SlideAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase } = ctx;
         const p = Math.max(0, Math.min(1, progress));
         let alpha = 0.8;

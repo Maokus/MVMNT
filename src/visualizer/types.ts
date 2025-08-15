@@ -1,5 +1,7 @@
 // Merged types for MIDI processing, timing management, and visualizer rendering
 
+import { RenderObject } from './render-objects';
+
 // ==========================================
 // MIDI Processing and Core Types
 // ==========================================
@@ -157,35 +159,6 @@ export interface TimeUnitConfig {
 // Scene Element Types
 // ==========================================
 
-// Render object structural interface kept intentionally permissive so that
-// concrete TypeScript classes (Rectangle, Text, etc.) remain assignable
-// without forcing strict generic coupling across the codebase.
-// (Previously stricter typing caused incompatibilities after TS migration.)
-export interface RenderObjectInterface {
-    x: number;
-    y: number;
-    scaleX: number;
-    scaleY: number;
-    skewX: number;
-    skewY: number;
-    opacity: number;
-    visible: boolean;
-    rotation: number;
-    children: any[]; // using any[] to avoid variance issues with concrete subclasses
-    render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
-    setPosition(x: number, y: number): any;
-    setScale(scaleX: number, scaleY?: number): any;
-    setSkew(skewX: number, skewY: number): any;
-    setRotation(rotation: number): any;
-    setOpacity(opacity: number): any;
-    setVisible(visible: boolean): any;
-    addChild(child: any): any;
-    removeChild(child: any): any;
-    getChildren(): any[];
-    clearChildren(): any;
-    getBounds(): { x: number; y: number; width: number; height: number };
-}
-
 export interface BaseSceneElementConfig {
     id?: string;
     visible?: boolean;
@@ -282,7 +255,7 @@ export interface SceneElementInterface {
 
     config: { [key: string]: any };
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[];
+    buildRenderObjects(config: any, targetTime: number): RenderObject[];
     updateConfig(newConfig: { [key: string]: any }): void;
     getConfig(): { [key: string]: any };
     setVisible(visible: boolean): this;

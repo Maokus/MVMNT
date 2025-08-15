@@ -1,15 +1,14 @@
 import { Text } from '../../../render-objects/text';
-import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import * as af from '../../../utils/animations'; //Anim functions
 import easingsFunctions from '../../../utils/easings';
-import { Rectangle } from '../../../render-objects';
+import { Rectangle, RenderObject } from '../../../render-objects';
 
 const ef = easingsFunctions;
 
 export class PressAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase, block } = ctx;
 
         let rect = new Rectangle(x, y, width, height, color);

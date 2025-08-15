@@ -3,8 +3,8 @@ import easings from '../../visualizer/utils/easings';
 import { ModularRenderer } from '../../visualizer/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
-import type { RenderObjectInterface } from '../../visualizer/types';
 import { NoteBlock } from '../../visualizer/scene-elements/time-unit-piano-roll/note-block';
+import { RenderObject } from '../../visualizer';
 import './animationTest.css';
 
 interface PhaseConfig {
@@ -180,7 +180,7 @@ const AnimationTestPage: React.FC = () => {
         const baseX = Math.max(0, (width - blockWidth) / 2);
         const baseY = Math.max(0, (height - blockHeight) / 2);
         const color = blockColor;
-        const ro: RenderObjectInterface[] = inst.render({
+        const ro: RenderObject[] = inst.render({
             // @ts-expect-error minimal stub for block (only fields used by animations)
             block: {
                 note: blockNote,

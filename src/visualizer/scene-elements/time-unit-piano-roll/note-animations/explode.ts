@@ -3,7 +3,6 @@ import { EmptyRenderObject } from '../../../render-objects/empty';
 import { Poly } from '../../../render-objects/poly';
 import { Rectangle } from '../../../render-objects/rectangle';
 import { Text } from '../../../render-objects/text';
-import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
@@ -19,7 +18,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
         return { x: x1 + (x2 - x1) * fac, y: y1 + (y2 - y1) * fac };
     }
 
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
 
         const rng = seedrandom(block.baseNoteId);

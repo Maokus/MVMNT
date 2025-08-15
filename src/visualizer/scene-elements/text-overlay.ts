@@ -1,7 +1,7 @@
 // Text overlay element for displaying a single line of text with property bindings
 import { SceneElement } from './base';
-import { Text } from '../render-objects';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
+import { RenderObject, Text } from '../render-objects';
+import { EnhancedConfigSchema } from '../types.js';
 import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
 export class TextOverlayElement extends SceneElement {
@@ -61,10 +61,10 @@ export class TextOverlayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
         const text = this.getProperty('text') as string;

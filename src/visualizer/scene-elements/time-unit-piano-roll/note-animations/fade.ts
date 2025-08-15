@@ -1,14 +1,14 @@
 import { Rectangle } from '../../../render-objects/rectangle.js';
-import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import * as af from '../../../utils/animations';
+import { RenderObject } from '../../../render-objects/base.js';
 
 const ef = easingsFunctions;
 
 export class FadeAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase } = ctx;
         let rect = new Rectangle(x, y, width, height, color);
         switch (phase) {

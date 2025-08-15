@@ -1,7 +1,7 @@
 // Image scene element for displaying images with transformations and property bindings
 import { SceneElement } from './base';
-import { Image } from '../render-objects';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
+import { Image, RenderObject } from '../render-objects';
+import { EnhancedConfigSchema } from '../types.js';
 
 export class ImageElement extends SceneElement {
     private _currentImageSource: string | null = null;
@@ -109,7 +109,7 @@ export class ImageElement extends SceneElement {
         }
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
         // Get image source and handle File objects

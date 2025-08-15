@@ -1,9 +1,9 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
-import { Text, Rectangle } from '../render-objects';
+import { Text, Rectangle, RenderObject } from '../render-objects';
 import { TimingManager } from '../timing-manager.js';
 import { MidiManager } from '../midi-manager';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
+import { EnhancedConfigSchema } from '../types.js';
 import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
 interface BarBeatTick {
@@ -105,10 +105,10 @@ export class TimeDisplayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
         const showProgress = this.getProperty('showProgress') as boolean;

@@ -1,7 +1,7 @@
 // Progress display element for showing playback progress with property bindings
 import { SceneElement } from './base';
-import { Rectangle, Text } from '../render-objects';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
+import { Rectangle, RenderObject, Text } from '../render-objects';
+import { EnhancedConfigSchema } from '../types';
 import { parseFontSelection, ensureFontLoaded } from '../../utils/font-loader';
 
 export class ProgressDisplayElement extends SceneElement {
@@ -156,10 +156,10 @@ export class ProgressDisplayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
         const { duration, sceneDuration } = config;
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const effectiveTime = targetTime + timeOffset;

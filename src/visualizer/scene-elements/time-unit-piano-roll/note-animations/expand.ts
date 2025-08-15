@@ -1,11 +1,10 @@
-import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import easingsFunctions from '../../../utils/easings';
-import { Rectangle } from '../../../render-objects';
+import { Rectangle, RenderObject } from '../../../render-objects';
 
 export class ExpandAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
         const p = Math.max(0, Math.min(1, progress));
 

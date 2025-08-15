@@ -1,14 +1,14 @@
-import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import * as af from '../../../utils/animations';
 import { Rectangle } from '../../../render-objects/rectangle.js';
+import { RenderObject } from '../../../render-objects';
 
 const ef = easingsFunctions;
 
 export class ScaleAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase } = ctx;
         const p = Math.max(0, Math.min(1, progress));
 

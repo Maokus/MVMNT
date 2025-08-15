@@ -1,8 +1,8 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
-import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
+import { EnhancedConfigSchema } from '../../types.js';
 import { ensureFontLoaded, parseFontSelection } from '../../../utils/font-loader';
-import { Line, Text, EmptyRenderObject } from '../../render-objects';
+import { Line, Text, EmptyRenderObject, RenderObject } from '../../render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';
@@ -656,8 +656,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
-        const renderObjects: RenderObjectInterface[] = [];
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const renderObjects: RenderObject[] = [];
 
         // Get current property values through bindings
         const bpm = this.getProperty<number>('bpm');
@@ -972,8 +972,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         pianoWidth: number,
         rollWidth: number,
         noteHeight: number
-    ): RenderObjectInterface[] {
-        const lines: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const lines: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
@@ -995,8 +995,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         pianoWidth: number,
         rollWidth: number,
         totalHeight: number
-    ): RenderObjectInterface[] {
-        const lines: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const lines: RenderObject[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
@@ -1019,8 +1019,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         maxNote: number,
         pianoWidth: number,
         noteHeight: number
-    ): RenderObjectInterface[] {
-        const labels: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const labels: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
@@ -1043,8 +1043,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         beatsPerBar: number,
         pianoWidth: number,
         rollWidth: number
-    ): RenderObjectInterface[] {
-        const labels: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const labels: RenderObject[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
@@ -1069,8 +1069,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         totalHeight: number,
         lineWidth: number,
         playheadColor: string
-    ): RenderObjectInterface[] {
-        const playheadObjects: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const playheadObjects: RenderObject[] = [];
 
         // Calculate playhead position
         const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
@@ -1128,7 +1128,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const totalHeight = (args.maxNote - args.minNote + 1) * args.noteHeight;
 
         // Build objects that define extents when all display toggles are true
-        const fullObjs: RenderObjectInterface[] = [];
+        const fullObjs: RenderObject[] = [];
         fullObjs.push(
             ...this._createNoteGridLines(args.minNote, args.maxNote, args.pianoWidth, args.rollWidth, args.noteHeight)
         );
