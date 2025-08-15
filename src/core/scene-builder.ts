@@ -7,11 +7,11 @@ import {
     ProgressDisplayElement,
     TimeUnitPianoRollElement,
     DebugElement,
-} from './scene-elements';
-import { SceneElement } from './scene-elements/base';
-import { globalMacroManager } from './macro-manager';
-import { sceneElementRegistry } from './scene-element-registry';
-import { getAnimationSelectOptions } from './scene-elements/time-unit-piano-roll/note-animations';
+    SceneElement,
+} from 'visualizer/scene-elements';
+import { globalMacroManager } from 'visualizer/macro-manager';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { getAnimationSelectOptions } from 'visualizer/scene-elements/time-unit-piano-roll/note-animations';
 
 export interface SceneSettings {
     fps: number;

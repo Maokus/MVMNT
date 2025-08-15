@@ -1,8 +1,4 @@
-import { RenderObject } from '../../../render-objects/base';
-import { EmptyRenderObject } from '../../../render-objects/empty';
-import { Poly } from '../../../render-objects/poly';
-import { Rectangle } from '../../../render-objects/rectangle';
-import { Text } from '../../../render-objects/text';
+import { RenderObject, EmptyRenderObject, Poly, Rectangle, Text } from '@core/render/render-objects';
 import easingsFunctions from '@animation/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';

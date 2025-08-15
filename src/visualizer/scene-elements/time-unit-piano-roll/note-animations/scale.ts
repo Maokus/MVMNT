@@ -2,8 +2,7 @@ import easingsFunctions from '@animation/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import * as af from '@animation/animations';
-import { Rectangle } from '../../../render-objects/rectangle.js';
-import { RenderObject } from '../../../render-objects';
+import { Rectangle, RenderObject } from '@core/render/render-objects';
 
 const ef = easingsFunctions;
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { sceneElementRegistry } from '../../../visualizer/scene-element-registry.js';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
 interface ElementListItemProps {
     element: any;

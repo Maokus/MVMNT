@@ -1,4 +1,4 @@
-import { Text, Rectangle, RenderObject } from '../../../render-objects';
+import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import * as af from '@animation/animations';

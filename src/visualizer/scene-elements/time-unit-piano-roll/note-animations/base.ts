@@ -1,4 +1,4 @@
-import { Rectangle, RenderObject } from '../../../render-objects';
+import { Rectangle, RenderObject } from '@core/render/render-objects';
 import type { NoteBlock } from '../note-block';
 
 // ADSR phase names
