@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { Rectangle, Text } from '../render-objects';
 import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
-import { parseFontSelection } from '../../utils/font-loader';
+import { parseFontSelection, ensureFontLoaded } from '../../utils/font-loader';
 
 export class ProgressDisplayElement extends SceneElement {
     // Helper to convert hex color to rgba string
@@ -249,6 +249,8 @@ export class ProgressDisplayElement extends SceneElement {
                 fontFamily = parsed.family || fontFamily;
                 fontWeight = parsed.weight || fontWeight;
             }
+            // Ensure chosen weight is available (especially for thin weights like 100)
+            if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
             const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             const statsTextColorRaw = config.statsTextColor || '#cccccc';
             const statsTextOpacity = typeof config.statsTextOpacity === 'number' ? config.statsTextOpacity : 1;

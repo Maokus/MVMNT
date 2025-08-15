@@ -159,7 +159,7 @@ export class TimeDisplayElement extends SceneElement {
         const timeY = 0;
         const beatY = baseFontSize * 1.8;
 
-        if (fontFamily) ensureFontLoaded(fontFamily);
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${baseFontSize}px ${fontFamily}, sans-serif`;
         const labelFont = `${fontWeight} ${baseFontSize * 0.8}px ${fontFamily}, sans-serif`;
 

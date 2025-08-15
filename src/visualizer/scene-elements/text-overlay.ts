@@ -77,7 +77,7 @@ export class TextOverlayElement extends SceneElement {
         const color = this.getProperty('color') as string;
 
         // Ensure font is loaded if it's a Google Font
-        if (fontFamily) ensureFontLoaded(fontFamily);
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
         const textElement = new Text(0, 0, text, font, color, 'center', 'middle');
         renderObjects.push(textElement);

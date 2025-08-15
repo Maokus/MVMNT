@@ -715,8 +715,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
         const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
         // Dynamic font loading for Google Fonts
-        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily);
-        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily);
+        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
+        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
         // Handle MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');

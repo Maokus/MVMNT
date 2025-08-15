@@ -85,8 +85,25 @@ export async function loadGoogleFontAsync(family: string, options: LoadFontOptio
     }
 }
 
-export function ensureFontLoaded(family: string): Promise<void> {
-    return loadGoogleFontAsync(family, { weights: [400, 500, 600, 700], italics: false, display: 'swap' });
+// Normalizes a weight string (e.g. 'normal','bold',' 100 ') to a numeric weight the API expects
+function normalizeWeight(weight?: string | number): number | undefined {
+    if (weight == null) return undefined;
+    if (typeof weight === 'number') return weight;
+    const trimmed = weight.trim().toLowerCase();
+    if (trimmed === 'normal') return 400;
+    if (trimmed === 'bold') return 700;
+    const num = parseInt(trimmed, 10);
+    return isNaN(num) ? undefined : num;
+}
+
+/**
+ * Ensure a font family (and optionally a specific weight) is loaded.
+ * If a weight is provided we only request that weight (plus already loaded ones) instead of the default bundle.
+ */
+export function ensureFontLoaded(family: string, weight?: string | number): Promise<void> {
+    const normalized = normalizeWeight(weight);
+    const weights = normalized ? [normalized] : [400, 500, 600, 700];
+    return loadGoogleFontAsync(family, { weights, italics: false, display: 'swap' });
 }
 
 export function isFontLoaded(family: string): boolean {
@@ -97,6 +114,6 @@ export function isFontLoaded(family: string): boolean {
 export function parseFontSelection(value?: string): { family: string; weight?: string } {
     if (!value) return { family: '' };
     const pipeIndex = value.indexOf('|');
-    if (pipeIndex === -1) return { family: value };
-    return { family: value.slice(0, pipeIndex), weight: value.slice(pipeIndex + 1) };
+    if (pipeIndex === -1) return { family: value.trim() };
+    return { family: value.slice(0, pipeIndex).trim(), weight: value.slice(pipeIndex + 1).trim() };
 }
