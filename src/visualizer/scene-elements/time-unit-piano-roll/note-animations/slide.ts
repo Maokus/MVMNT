@@ -1,6 +1,6 @@
 import { Rectangle, RenderObject } from '../../../render-objects';
 import * as af from '../../../utils/animations.js';
-import easingsFunctions from '../../../utils/easings';
+import easingsFunctions from '@animation/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 

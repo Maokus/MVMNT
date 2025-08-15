@@ -3,7 +3,7 @@ import { EmptyRenderObject } from '../../../render-objects/empty';
 import { Poly } from '../../../render-objects/poly';
 import { Rectangle } from '../../../render-objects/rectangle';
 import { Text } from '../../../render-objects/text';
-import easingsFunctions from '../../../utils/easings.js';
+import easingsFunctions from '@animation/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';

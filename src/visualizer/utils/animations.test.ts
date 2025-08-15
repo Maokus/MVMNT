@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { clamp, lerp, invLerp, remap, FloatCurve, type EasingFn } from './animations';
-import easings from './easings';
+import easings from '@animation/easings';
 
 // Helper almost-equal
 const closeTo = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps;

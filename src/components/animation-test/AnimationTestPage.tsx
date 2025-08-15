@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import easings from '../../visualizer/utils/easings';
+import easings from '@animation/easings';
 import { ModularRenderer } from '../../visualizer/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
