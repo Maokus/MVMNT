@@ -214,6 +214,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         visualizer.updateDebugSettings?.(debugSettings);
     }, [visualizer, debugSettings]);
 
+    // Re-render canvas when fonts finish loading so text bounds recalc
+    useEffect(() => {
+        if (!visualizer) return;
+        const handler = () => visualizer.invalidateRender?.();
+        window.addEventListener('font-loaded', handler as EventListener);
+        return () => window.removeEventListener('font-loaded', handler as EventListener);
+    }, [visualizer]);
+
     const playPause = useCallback(() => {
         if (!visualizer) return;
         if (visualizer.isPlaying) {

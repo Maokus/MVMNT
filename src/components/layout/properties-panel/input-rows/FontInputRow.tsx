@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { GOOGLE_FONTS } from '../../../../utils/google-fonts-list';
-import { ensureFontLoaded, loadGoogleFont, parseFontSelection } from '../../../../utils/font-loader';
+import { ensureFontLoaded, loadGoogleFontAsync, parseFontSelection } from '../../../../utils/font-loader';
+import { useVisualizer } from '../../../context/VisualizerContext';
 
 interface FontInputRowProps {
     id: string;
@@ -15,7 +16,8 @@ interface RemoteFontMeta { family: string; category?: string; variants?: string[
 
 const LOCAL_STORAGE_KEY = 'recentFonts_v1';
 
-const AVAILABLE_WEIGHTS = ['100', '200', '300', '400', '500', '600', '700', '800', '900', 'normal', 'bold'];
+// Fallback list when we don't have variant metadata
+const FALLBACK_WEIGHTS = ['100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
 const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, title, onChange }) => {
     const [familyOpen, setFamilyOpen] = useState(false);
@@ -30,11 +32,37 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
     const { family: currentFamilyRaw, weight: currentWeightRaw } = parseFontSelection(value || schema.default || 'Arial');
     const currentFamily = currentFamilyRaw || 'Arial';
     const currentWeight = currentWeightRaw || '400';
+    const { visualizer } = useVisualizer();
+    const [loading, setLoading] = useState(false);
+    const [availableWeights, setAvailableWeights] = useState<string[]>(FALLBACK_WEIGHTS);
+
+    // Derive available weights when remote font metadata is present
+    useEffect(() => {
+        if (!remoteFonts) return;
+        const meta = remoteFonts.find(f => f.family === currentFamily);
+        if (meta?.variants?.length) {
+            // Google variants come like 'regular','500','700','italic','500italic'
+            const weightSet = new Set<string>();
+            meta.variants.forEach(v => {
+                const m = v.match(/(\d+)|regular/);
+                if (m) {
+                    weightSet.add(m[0] === 'regular' ? '400' : m[0]);
+                }
+            });
+            if (weightSet.size) setAvailableWeights(Array.from(weightSet).sort());
+        } else {
+            setAvailableWeights(FALLBACK_WEIGHTS);
+        }
+    }, [remoteFonts, currentFamily]);
 
     useEffect(() => {
-        // Only ensure base family (not all weights) is loaded
-        ensureFontLoaded(currentFamily);
-    }, [currentFamily]);
+        // Ensure base family (common weights) is loaded and rerender when done
+        setLoading(true);
+        ensureFontLoaded(currentFamily).finally(() => {
+            setLoading(false);
+            visualizer?.invalidateRender?.();
+        });
+    }, [currentFamily, visualizer]);
 
     // Load recent from localStorage
     useEffect(() => {
@@ -100,15 +128,18 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
     }, []);
 
     const handleFamilySelect = (family: string) => {
-        // Do not load variants yet; lazy load when weight chosen
         onChange(`${family}|${currentWeight}`);
         saveRecent(family);
         setFamilyOpen(false);
     };
 
     const handleWeightSelect = (weight: string) => {
-        // Load only that selected weight now
-        loadGoogleFont(currentFamily, { weights: [parseInt(weight) || 400], italics: false, display: 'swap' });
+        setLoading(true);
+        loadGoogleFontAsync(currentFamily, { weights: [parseInt(weight) || 400], italics: false, display: 'swap' })
+            .finally(() => {
+                setLoading(false);
+                visualizer?.invalidateRender?.();
+            });
         onChange(`${currentFamily}|${weight}`);
         setWeightOpen(false);
     };
@@ -129,10 +160,12 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                         fontFamily: `'${currentFamily}', sans-serif`,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        position: 'relative'
                     }}
                 >
                     {currentFamily}
+                    {loading && <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', fontSize: 10, opacity: 0.7 }}>⏳</span>}
                     <span style={{ float: 'right', opacity: 0.6 }}>▼</span>
                 </button>
                 {familyOpen && !disabled && (
@@ -191,6 +224,7 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                     title="Select font weight"
                 >
                     {currentWeight}
+                    {loading && <span style={{ float: 'right', opacity: 0.6, marginRight: 4 }}>⏳</span>}
                     <span style={{ float: 'right', opacity: 0.6 }}>▼</span>
                 </button>
                 {weightOpen && !disabled && (
@@ -205,7 +239,7 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                         maxHeight: 200,
                         overflowY: 'auto'
                     }}>
-                        {AVAILABLE_WEIGHTS.map(w => (
+                        {availableWeights.map(w => (
                             <div key={w}
                                 onClick={() => handleWeightSelect(w)}
                                 style={{
@@ -214,6 +248,9 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                                     background: w === currentWeight ? '#333' : 'transparent'
                                 }}>{w}</div>
                         ))}
+                        {availableWeights.length === 0 && (
+                            <div style={{ padding: '4px 6px', opacity: 0.6 }}>No weights</div>
+                        )}
                     </div>
                 )}
             </div>
