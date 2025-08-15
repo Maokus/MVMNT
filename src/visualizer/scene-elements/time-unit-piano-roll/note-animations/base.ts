@@ -1,5 +1,4 @@
-import { Rectangle } from '../../../render-objects/index.js';
-import type { RenderObjectInterface } from '../../../types.js';
+import { Rectangle, RenderObject } from '../../../render-objects';
 import type { NoteBlock } from '../note-block';
 
 // ADSR phase names
@@ -14,24 +13,18 @@ export interface AnimationContext {
     color: string;
     progress: number; // 0..1 within the phase
     phase: AnimationPhase;
+    currentTime: number; // absolute current playback time (seconds)
 }
 
 export abstract class BaseNoteAnimation {
     // Entry point for any concrete animation
-    abstract render(ctx: AnimationContext): RenderObjectInterface[];
+    abstract render(ctx: AnimationContext): RenderObject[];
 
     // Utilities
-    protected rect(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        color: string,
-        alpha?: number
-    ): RenderObjectInterface {
+    protected rect(x: number, y: number, width: number, height: number, color: string, alpha?: number): RenderObject {
         const note = new Rectangle(x, y, Math.max(0, width), Math.max(0, height), color) as any;
         note.globalAlpha = alpha ?? 0.8;
-        return note as unknown as RenderObjectInterface;
+        return note as unknown as RenderObject;
     }
 
     protected brighten(color: string, factor = 1.3): string {

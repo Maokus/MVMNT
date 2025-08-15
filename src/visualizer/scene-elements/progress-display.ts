@@ -1,7 +1,8 @@
 // Progress display element for showing playback progress with property bindings
 import { SceneElement } from './base';
-import { Rectangle, Text } from '../render-objects/index.js';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
+import { Rectangle, RenderObject, Text } from '../render-objects';
+import { EnhancedConfigSchema } from '../types';
+import { parseFontSelection, ensureFontLoaded } from '../../utils/font-loader';
 
 export class ProgressDisplayElement extends SceneElement {
     // Helper to convert hex color to rgba string
@@ -59,6 +60,16 @@ export class ProgressDisplayElement extends SceneElement {
                             label: 'Show Statistics',
                             default: true,
                             description: 'Display time and note count statistics',
+                        },
+                        {
+                            key: 'barWidth',
+                            type: 'number',
+                            label: 'Bar Width',
+                            default: 400,
+                            min: 100,
+                            max: 800,
+                            step: 5,
+                            description: 'Width of the progress bar in pixels',
                         },
                         {
                             key: 'height',
@@ -145,10 +156,10 @@ export class ProgressDisplayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
         const { duration, sceneDuration } = config;
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const effectiveTime = targetTime + timeOffset;
@@ -165,7 +176,6 @@ export class ProgressDisplayElement extends SceneElement {
         const progress = totalDuration > 0 ? Math.max(0, Math.min(1, effectiveTime / totalDuration)) : 0;
 
         // Fixed width for progress bar (positioning handled by transform system)
-        const barWidth = 400;
         const margin = 0;
         const barY = 0;
         const textY = barHeight + 5;
@@ -179,6 +189,7 @@ export class ProgressDisplayElement extends SceneElement {
             const barBgOpacity = this.getProperty<number>('barBgOpacity');
             const borderColorRaw = this.getProperty<string>('borderColor') || '#ffffff';
             const borderOpacity = this.getProperty<number>('borderOpacity');
+            const barWidth = this.getProperty<number>('barWidth') || 400;
 
             // Progress bar background
             const progressBg = new Rectangle(
@@ -231,7 +242,16 @@ export class ProgressDisplayElement extends SceneElement {
         // Statistics text
         if (showStats) {
             const fontSize = 12;
-            const font = `${config.fontWeight || 'normal'} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
+            let fontFamily = config.fontFamily || 'Arial';
+            let fontWeight = '400';
+            if (fontFamily && fontFamily.includes('|')) {
+                const parsed = parseFontSelection(fontFamily);
+                fontFamily = parsed.family || fontFamily;
+                fontWeight = parsed.weight || fontWeight;
+            }
+            // Ensure chosen weight is available (especially for thin weights like 100)
+            if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
+            const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
             const statsTextColorRaw = config.statsTextColor || '#cccccc';
             const statsTextOpacity = typeof config.statsTextOpacity === 'number' ? config.statsTextOpacity : 1;
 

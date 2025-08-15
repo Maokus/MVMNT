@@ -1,6 +1,6 @@
-// Lightweight dynamic Google Font loader
+// Lightweight dynamic Google Font loader with per-weight tracking
 // Inspired by font-picker-react but simplified for this project
-const loadedFamilies: Set<string> = new Set();
+const loadedFamilies: Map<string, Set<number>> = new Map();
 
 function familyToURLParam(family: string): string {
     return family.trim().replace(/\s+/g, '+');
@@ -12,41 +12,108 @@ export interface LoadFontOptions {
     display?: 'auto' | 'swap' | 'block' | 'fallback' | 'optional';
 }
 
-export function loadGoogleFont(family: string, options: LoadFontOptions = {}): void {
-    if (!family || loadedFamilies.has(family)) return;
+/**
+ * Injects (or updates) a Google Fonts stylesheet link for the given family/weights.
+ * Returns a list of the cumulative loaded weights after this call (synchronous part only).
+ */
+export function loadGoogleFont(family: string, options: LoadFontOptions = {}): number[] {
+    if (!family) return [];
     const weights = options.weights?.length ? options.weights : [400, 700];
     const italics = options.italics ? true : false;
     const display = options.display || 'swap';
+    const existing = loadedFamilies.get(family) || new Set<number>();
+    // Determine which weights are new
+    const newWeights = weights.filter((w) => !existing.has(w));
+    if (newWeights.length === 0) return Array.from(existing);
 
+    newWeights.forEach((w) => existing.add(w));
+    loadedFamilies.set(family, existing);
+
+    const allWeights = Array.from(existing).sort((a, b) => a - b);
     let variantParam = '';
     if (italics) {
         const combos: string[] = [];
-        weights.forEach((w) => {
+        allWeights.forEach((w) => {
             combos.push(`0,${w}`);
             combos.push(`1,${w}`);
         });
         variantParam = `ital,wght@${combos.join(';')}`;
     } else {
-        variantParam = `wght@${weights.join(';')}`;
+        variantParam = `wght@${allWeights.join(';')}`;
     }
-
-    const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(
-        familyToURLParam(family)
+    const href = `https://fonts.googleapis.com/css2?family=${familyToURLParam(
+        family
     )}:${variantParam}&display=${display}`;
-
     if (typeof document !== 'undefined') {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
+        const id = `gf-${familyToURLParam(family)}`;
+        // Re-use a single link element per family so we don't spam <head>
+        let link = document.getElementById(id) as HTMLLinkElement | null;
+        if (!link) {
+            link = document.createElement('link');
+            link.id = id;
+            link.rel = 'stylesheet';
+            document.head.appendChild(link);
+        }
         link.href = href;
-        document.head.appendChild(link);
-        loadedFamilies.add(family);
+    }
+    return allWeights;
+}
+
+/**
+ * Loads a font family (and optional weights) and resolves once the browser reports the fonts are available.
+ * Gracefully resolves after a timeout even if the Font Loading API isn't supported.
+ */
+export async function loadGoogleFontAsync(family: string, options: LoadFontOptions = {}): Promise<void> {
+    const weights = loadGoogleFont(family, options); // inject / update link first
+    if (typeof document === 'undefined' || !(document as any).fonts || !family) return; // SSR or unsupported
+    const fontFaceSet: FontFaceSet = (document as any).fonts;
+    // Use a reasonable sample size for load (using 32px to ensure glyph metrics stable)
+    const promises = weights.map((w) => {
+        try {
+            return fontFaceSet.load(`${w} 32px '${family}'`).catch(() => Promise.resolve());
+        } catch {
+            return Promise.resolve();
+        }
+    });
+    const timeout = new Promise<void>((resolve) => setTimeout(() => resolve(), 3500));
+    await Promise.race([Promise.all(promises).then(() => undefined), timeout]);
+    // Dispatch a custom event so UI / canvas can react
+    try {
+        window.dispatchEvent(new CustomEvent('font-loaded', { detail: { family, weights } }));
+    } catch {
+        /* no-op */
     }
 }
 
-export function ensureFontLoaded(family: string) {
-    loadGoogleFont(family, { weights: [400, 500, 600, 700], italics: false, display: 'swap' });
+// Normalizes a weight string (e.g. 'normal','bold',' 100 ') to a numeric weight the API expects
+function normalizeWeight(weight?: string | number): number | undefined {
+    if (weight == null) return undefined;
+    if (typeof weight === 'number') return weight;
+    const trimmed = weight.trim().toLowerCase();
+    if (trimmed === 'normal') return 400;
+    if (trimmed === 'bold') return 700;
+    const num = parseInt(trimmed, 10);
+    return isNaN(num) ? undefined : num;
+}
+
+/**
+ * Ensure a font family (and optionally a specific weight) is loaded.
+ * If a weight is provided we only request that weight (plus already loaded ones) instead of the default bundle.
+ */
+export function ensureFontLoaded(family: string, weight?: string | number): Promise<void> {
+    const normalized = normalizeWeight(weight);
+    const weights = normalized ? [normalized] : [400, 500, 600, 700];
+    return loadGoogleFontAsync(family, { weights, italics: false, display: 'swap' });
 }
 
 export function isFontLoaded(family: string): boolean {
     return loadedFamilies.has(family);
+}
+
+// Parse a serialized font selection string of the form "Family" or "Family|700"
+export function parseFontSelection(value?: string): { family: string; weight?: string } {
+    if (!value) return { family: '' };
+    const pipeIndex = value.indexOf('|');
+    if (pipeIndex === -1) return { family: value.trim() };
+    return { family: value.slice(0, pipeIndex).trim(), weight: value.slice(pipeIndex + 1).trim() };
 }

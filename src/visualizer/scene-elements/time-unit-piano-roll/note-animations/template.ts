@@ -1,11 +1,16 @@
-import { Rectangle, RenderObject } from '../../../render-objects';
-import { Text } from '../../../render-objects/text';
+import { Text, Rectangle, RenderObject } from '../../../render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
+import * as af from '../../../utils/animations';
+import easingsFunctions from '../../../utils/easings';
+import seedrandom from 'seedrandom';
 
-export class DebugAnimation extends BaseNoteAnimation {
+const ef = easingsFunctions;
+
+export class TemplateAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase, block } = ctx;
+        const rng = seedrandom(block.baseNoteId);
         const info = `${(progress * 100).toFixed(0)}%`;
 
         switch (phase) {
@@ -21,9 +26,9 @@ export class DebugAnimation extends BaseNoteAnimation {
                 return [new Text(x, y, `release ${info}`)];
             }
             default:
-                return [new Rectangle(x, y, width, height, color)];
+                return [];
         }
     }
 }
 
-registerAnimation({ name: 'debug', label: 'Debug', class: DebugAnimation });
+// registerAnimation({ name: 'template', label: 'Template', class: TemplateAnimation });

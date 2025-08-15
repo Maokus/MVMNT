@@ -34,12 +34,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
-        const mappedType = propertyType === 'font' ? 'string' : propertyType; // treat font as string for macros
         if (propertyType === 'file') {
             // For file inputs, filter by accept type
             const accept = propertySchema?.accept;
-            let targetFileType = 'file'; // default generic file type
-
+            let targetFileType = 'file';
             if (accept) {
                 if (accept.includes('.mid') || accept.includes('.midi')) {
                     targetFileType = 'file-midi';
@@ -47,12 +45,13 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     targetFileType = 'file-image';
                 }
             }
-
-            return manager.getAllMacros()
-                .filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
+            return manager.getAllMacros().filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
         }
-        return manager.getAllMacros()
-            .filter((macro: any) => macro.type === mappedType);
+        if (propertyType === 'font') {
+            // Only allow macros explicitly of type 'font'
+            return manager.getAllMacros().filter((macro: any) => macro.type === 'font');
+        }
+        return manager.getAllMacros().filter((macro: any) => macro.type === propertyType);
     };
 
     const renderInput = (property: PropertyDefinition) => {
@@ -103,6 +102,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const macros = getMacroOptions(property.type, property);
         const currentAssignment = macroAssignments[property.key];
+        // Backward compatibility: if a font property is assigned to a non-font (legacy string) macro, include it
+        if (currentAssignment && !macros.some((m: any) => m.name === currentAssignment)) {
+            const legacy = manager.getMacro(currentAssignment);
+            if (legacy) macros.push(legacy);
+        }
 
         return (
             <select

@@ -1,9 +1,10 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
-import { RenderObjectInterface, EnhancedConfigSchema } from '../../types.js';
-import { ensureFontLoaded } from '../../../utils/font-loader';
-import { Line, Text, EmptyRenderObject } from '../../render-objects/index.js';
+import { EnhancedConfigSchema } from '../../types.js';
+import { ensureFontLoaded, parseFontSelection } from '../../../utils/font-loader';
+import { Line, Text, EmptyRenderObject, RenderObject } from '../../render-objects';
 import { AnimationController } from './animation-controller';
+import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';
 import { MidiManager } from '../../midi-manager';
 import { debugLog } from '../../utils/debug-log.js';
@@ -417,19 +418,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             default: '#ffffff',
                             description: 'Color of note labels',
                         },
-                        {
-                            key: 'noteLabelFontWeight',
-                            type: 'select',
-                            label: 'Font Weight',
-                            default: 'normal',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '600', label: '600' },
-                                { value: '300', label: 'Light' },
-                            ],
-                            description: 'Weight of note label font',
-                        },
+                        // weight encoded in font family selection value now (family|weight)
                         {
                             key: 'noteLabelInterval',
                             type: 'number',
@@ -519,19 +508,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             default: '#ffffff',
                             description: 'Color of bar labels',
                         },
-                        {
-                            key: 'beatLabelFontWeight',
-                            type: 'select',
-                            label: 'Font Weight',
-                            default: 'normal',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '600', label: '600' },
-                                { value: '300', label: 'Light' },
-                            ],
-                            description: 'Weight of bar label font',
-                        },
+                        // weight encoded in font family selection value now (family|weight)
                         {
                             key: 'beatLabelOffsetY',
                             type: 'number',
@@ -574,14 +551,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             type: 'select',
                             label: 'Animation Type',
                             default: 'expand',
-                            options: [
-                                { value: 'fade', label: 'Fade In/Out' },
-                                { value: 'slide', label: 'Slide' },
-                                { value: 'scale', label: 'Scale' },
-                                { value: 'expand', label: 'Expand' },
-                                { value: 'debug', label: 'Debug' },
-                                { value: 'none', label: 'No Animation' },
-                            ],
+                            options: [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }],
                             description: 'Type of animation for note appearance',
                         },
                         {
@@ -686,8 +656,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
-        const renderObjects: RenderObjectInterface[] = [];
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const renderObjects: RenderObject[] = [];
 
         // Get current property values through bindings
         const bpm = this.getProperty<number>('bpm');
@@ -720,25 +690,33 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatGridBarWidth = this.getProperty<number>('beatGridBarWidth') || 2;
         const beatGridBeatWidth = this.getProperty<number>('beatGridBeatWidth') || 1;
         const beatGridOpacity = this.getProperty<number>('beatGridOpacity') ?? 1;
-        const noteLabelFontFamily = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
+        const noteLabelFontSelection = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
+        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
+            parseFontSelection(noteLabelFontSelection);
         const noteLabelFontSize = this.getProperty<number>('noteLabelFontSize') || 10;
         const noteLabelFontColor = this.getProperty<string>('noteLabelFontColor') || '#ffffff';
-        const noteLabelFontWeight = this.getProperty<string>('noteLabelFontWeight') || 'normal';
+        // Legacy support: silently read old weight property if present to avoid warning spam
+        const legacyNoteWeight = (this as any).bindings?.get('noteLabelFontWeight')?.getValue?.();
+        const noteLabelFontWeight = (noteLabelFontWeightPart || legacyNoteWeight || '400').toString();
         const noteLabelInterval = this.getProperty<number>('noteLabelInterval') || 1;
         const noteLabelStartNote = this.getProperty<number>('noteLabelStartNote') || 0;
         const noteLabelOffsetX = this.getProperty<number>('noteLabelOffsetX') || -10;
         const noteLabelOffsetY = this.getProperty<number>('noteLabelOffsetY') || 0;
         const noteLabelOpacity = this.getProperty<number>('noteLabelOpacity') ?? 1;
-        const beatLabelFontFamily = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
+        const beatLabelFontSelection = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
+        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
+            parseFontSelection(beatLabelFontSelection);
         const beatLabelFontSize = this.getProperty<number>('beatLabelFontSize') || 12;
         const beatLabelFontColor = this.getProperty<string>('beatLabelFontColor') || '#ffffff';
-        const beatLabelFontWeight = this.getProperty<string>('beatLabelFontWeight') || 'normal';
+        // Legacy support: silently read old beat label weight property if present
+        const legacyBeatWeight = (this as any).bindings?.get('beatLabelFontWeight')?.getValue?.();
+        const beatLabelFontWeight = (beatLabelFontWeightPart || legacyBeatWeight || '400').toString();
         const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
         const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
         const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
         // Dynamic font loading for Google Fonts
-        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily);
-        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily);
+        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
+        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
         // Handle MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');
@@ -994,8 +972,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         pianoWidth: number,
         rollWidth: number,
         noteHeight: number
-    ): RenderObjectInterface[] {
-        const lines: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const lines: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
@@ -1017,8 +995,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         pianoWidth: number,
         rollWidth: number,
         totalHeight: number
-    ): RenderObjectInterface[] {
-        const lines: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const lines: RenderObject[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
@@ -1041,8 +1019,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         maxNote: number,
         pianoWidth: number,
         noteHeight: number
-    ): RenderObjectInterface[] {
-        const labels: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const labels: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
 
         for (let note = minNote; note <= maxNote; note++) {
@@ -1065,8 +1043,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         beatsPerBar: number,
         pianoWidth: number,
         rollWidth: number
-    ): RenderObjectInterface[] {
-        const labels: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const labels: RenderObject[] = [];
         const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
@@ -1091,8 +1069,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         totalHeight: number,
         lineWidth: number,
         playheadColor: string
-    ): RenderObjectInterface[] {
-        const playheadObjects: RenderObjectInterface[] = [];
+    ): RenderObject[] {
+        const playheadObjects: RenderObject[] = [];
 
         // Calculate playhead position
         const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
@@ -1150,7 +1128,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const totalHeight = (args.maxNote - args.minNote + 1) * args.noteHeight;
 
         // Build objects that define extents when all display toggles are true
-        const fullObjs: RenderObjectInterface[] = [];
+        const fullObjs: RenderObject[] = [];
         fullObjs.push(
             ...this._createNoteGridLines(args.minNote, args.maxNote, args.pianoWidth, args.rollWidth, args.noteHeight)
         );

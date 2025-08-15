@@ -2,11 +2,11 @@
 // Compatible with the property binding system used in TimeUnitPianoRollElement
 import { createAnimationInstance, type AnimationPhase } from './note-animations/index';
 import { debugLog } from '../../utils/debug-log.js';
-import type { RenderObjectInterface } from '../../types.js';
 import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
 import type { NoteBlock as TNoteBlock } from './note-block';
+import { RenderObject } from '../../render-objects';
 
-export type AnimationType = 'fade' | 'slide' | 'scale' | 'expand' | 'debug' | 'none';
+export type AnimationType = string; // Open registry id ('none' handled specially)
 
 export interface BuildConfig {
     noteHeight: number;
@@ -32,7 +32,7 @@ export class AnimationController {
         this.timeUnitPianoRoll = timeUnitPianoRoll;
     }
 
-    buildNoteRenderObjects(config: BuildConfig, noteBlocks: TNoteBlock[], targetTime: number): RenderObjectInterface[] {
+    buildNoteRenderObjects(config: BuildConfig, noteBlocks: TNoteBlock[], targetTime: number): RenderObject[] {
         // Get animation settings from bound element
         const animationType = this.timeUnitPianoRoll.getAnimationType() as AnimationType;
         const attack = this.timeUnitPianoRoll.getAttackDuration();
@@ -53,7 +53,7 @@ export class AnimationController {
         const windowStart = win.start;
         const windowEnd = win.end;
         const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
 
         if (!noteBlocks || noteBlocks.length === 0) {
             return renderObjects;
@@ -152,7 +152,7 @@ export class AnimationController {
         decay: number,
         release: number,
         animationEnabled: boolean
-    ): RenderObjectInterface[] {
+    ): RenderObject[] {
         const { block, x, y, width, height, color, currentTime, visState } = args;
         debugLog(`[_createAnimatedNoteRenderObjects] Creating render objects for note ${block.note}:`, {
             x,
@@ -177,6 +177,7 @@ export class AnimationController {
                 color,
                 progress: 1,
                 phase: 'sustain',
+                currentTime,
             });
         }
 
@@ -197,6 +198,7 @@ export class AnimationController {
             color,
             progress: p,
             phase,
+            currentTime,
         });
     }
 

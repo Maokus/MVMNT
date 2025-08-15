@@ -1,46 +1,48 @@
-import type { RenderObjectInterface } from '../../../types.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
+import * as af from '../../../utils/animations';
+import { Rectangle } from '../../../render-objects/rectangle.js';
+import { RenderObject } from '../../../render-objects';
+
+const ef = easingsFunctions;
 
 export class ScaleAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase } = ctx;
         const p = Math.max(0, Math.min(1, progress));
 
-        let sx = 1,
-            sy = 1,
-            alpha = 0.8,
-            ox = 0,
-            oy = 0;
+        let rect = new Rectangle(x, y, width, height, color);
         switch (phase) {
             case 'attack':
                 // Slightly smaller preview scaling up to 90%
-                sx = sy = 0.7 + 0.2 * easingsFunctions.easeOutExpo(p);
-                alpha = 0.5 + 0.3 * p;
+                rect.scaleX = rect.scaleY = af.lerp(0, 1, ef.easeOutQuad(progress));
+                rect.opacity = af.lerp(0, 0.9, progress);
                 break;
             case 'decay':
-                sx = sy = easingsFunctions.easeInOutQuad(p);
-                alpha = 0.8;
+                rect.shadowBlur = af.lerp(100, 0, ef.easeInOutQuad(progress));
+                rect.shadowColor = color;
                 break;
             case 'sustain':
-                sx = sy = 1;
-                alpha = 0.8;
                 break;
             case 'release':
-                sx = sy = 1 - easingsFunctions.easeInExpo(p);
-                alpha = 0.6 + 0.2 * (1 - p);
+                rect.scaleX = rect.scaleY = af.lerp(1, 0, ef.easeInExpo(p));
+                rect.opacity = af.lerp(0.8, 0, p);
                 break;
             default:
-                sx = sy = 1;
-                alpha = 0.8;
+                rect.scaleX = rect.scaleY = 1;
+                rect.opacity = 0.8;
                 break;
         }
 
-        const w = Math.max(1, width * sx);
-        const h = Math.max(1, height * sy);
-        ox = (width - w) / 2;
-        oy = (height - h) / 2;
-
-        return [this.rect(x + ox, y + oy, w, h, color, alpha)];
+        const w = Math.max(1, width * rect.scaleX);
+        const h = Math.max(1, height * rect.scaleY);
+        const ox = (width - w) / 2;
+        const oy = (height - h) / 2;
+        let rect2 = new Rectangle(x + ox, y + oy, w, h, color);
+        rect2.opacity = rect.opacity;
+        return [rect2];
     }
 }
+
+registerAnimation({ name: 'scale', label: 'Scale', class: ScaleAnimation });

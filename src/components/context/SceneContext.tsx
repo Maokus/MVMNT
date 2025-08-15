@@ -16,7 +16,7 @@ interface SceneContextValue {
 
 const SceneContext = createContext<SceneContextValue | undefined>(undefined);
 
-export const SceneProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { visualizer } = useVisualizer();
     const [sceneName, setSceneName] = useState<string>(() => SceneNameGenerator.generate());
 
@@ -43,7 +43,7 @@ export const SceneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         refreshSceneUI
     };
     return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;
-};
+}
 
 export const useScene = () => {
     const ctx = useContext(SceneContext);

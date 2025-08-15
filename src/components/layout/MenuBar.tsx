@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useScene } from '../context/SceneContext';
 
 const MenuBar: React.FC = () => {
@@ -96,6 +97,9 @@ const MenuBar: React.FC = () => {
                         )}
                     </div>
                 </div>
+            </div>
+            <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <img width="50" src='./Logo_Transparent.png' />
             </div>
         </div>
     );

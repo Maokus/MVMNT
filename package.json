@@ -4,10 +4,12 @@
     "description": "A React-based MIDI visualization application for creating social media videos from MIDI files",
     "private": true,
     "dependencies": {
-        "react": "^19.1.1",
-        "react-dom": "^19.1.1",
         "@ffmpeg/ffmpeg": "^0.12.15",
         "@ffmpeg/util": "^0.12.2",
+        "react": "^19.1.1",
+        "react-dom": "^19.1.1",
+        "react-router-dom": "^6.30.1",
+        "seedrandom": "^3.0.5",
         "web-vitals": "^2.1.0"
     },
     "devDependencies": {
@@ -18,6 +20,7 @@
         "@types/node": "^20.0.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
+        "@types/seedrandom": "^3.0.8",
         "@vitejs/plugin-react-swc": "^3.5.0",
         "jsdom": "^24.0.0",
         "typescript": "^5.5.0",

@@ -10,6 +10,8 @@ import {
 import { SceneElement } from './scene-elements/base.ts';
 import { globalMacroManager } from './macro-manager.ts';
 import { sceneElementRegistry } from './scene-element-registry.js';
+// Animation select options (for default animation macro)
+import { getAnimationSelectOptions } from './scene-elements/time-unit-piano-roll/note-animations/index.ts';
 
 export class HybridSceneBuilder {
     constructor() {
@@ -349,6 +351,11 @@ export class HybridSceneBuilder {
                 offsetY: 750,
                 anchorX: 0.5,
                 anchorY: 0.5,
+                showNoteGrid: false,
+                showBeatGrid: false,
+                showNoteLabels: false,
+                showBeatLabels: false,
+                minBBoxPadding: 200,
             })
         );
 
@@ -360,6 +367,8 @@ export class HybridSceneBuilder {
                 anchorY: 1,
                 offsetX: 100,
                 offsetY: 1400,
+                elementScaleX: 2.5,
+                elementScaleY: 2.5,
             })
         );
 
@@ -369,7 +378,8 @@ export class HybridSceneBuilder {
                 anchorX: 0,
                 anchorY: 1,
                 offsetX: 10,
-                offsetY: 1500,
+                offsetY: 1490,
+                barWidth: 1480,
             })
         );
 
@@ -383,7 +393,7 @@ export class HybridSceneBuilder {
                 offsetY: 100,
                 text: 'Song Title', // Default placeholder text
                 fontSize: 100,
-                fontWeight: 'bold',
+                fontFamily: 'Inter',
             })
         );
 
@@ -398,6 +408,7 @@ export class HybridSceneBuilder {
                 text: 'Artist Name', // Default placeholder text
                 fontSize: 40,
                 fontWeight: 'normal',
+                fontFamily: 'Inter | 100',
             })
         );
         // Assign macros to relevant element properties
@@ -803,6 +814,22 @@ export class HybridSceneBuilder {
             description: 'Number of beats in each bar for all timing elements',
         });
 
+        // Create Note Animation macro (dropdown of available animations)
+        try {
+            const animationOptions = [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }];
+            // Prefer 'expand' as default if it exists, else first available, else 'none'
+            const defaultAnim =
+                animationOptions.find((o) => o.value === 'expand')?.value ||
+                (animationOptions[0] && animationOptions[0].value) ||
+                'none';
+            globalMacroManager.createMacro('noteAnimation', 'select', defaultAnim, {
+                selectOptions: animationOptions,
+                description: 'Note animation style for piano roll elements',
+            });
+        } catch (e) {
+            console.warn('Failed to initialize noteAnimation macro', e);
+        }
+
         console.log('Default macros created successfully');
     }
 
@@ -818,6 +845,12 @@ export class HybridSceneBuilder {
         pianoRoll.bindToMacro('bpm', 'tempo');
         pianoRoll.bindToMacro('beatsPerBar', 'beatsPerBar');
         pianoRoll.bindToMacro('midiFile', 'midiFile');
+        // Bind animation type to the new dropdown macro (if property exists)
+        try {
+            pianoRoll.bindToMacro('animationType', 'noteAnimation');
+        } catch (e) {
+            console.warn('Failed to bind animationType to noteAnimation macro', e);
+        }
         timeDisplay.bindToMacro('bpm', 'tempo');
         timeDisplay.bindToMacro('beatsPerBar', 'beatsPerBar');
     }

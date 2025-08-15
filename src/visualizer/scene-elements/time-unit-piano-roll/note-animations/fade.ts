@@ -1,30 +1,34 @@
-import type { RenderObjectInterface } from '../../../types.js';
+import { Rectangle } from '../../../render-objects/rectangle.js';
 import easingsFunctions from '../../../utils/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
+import * as af from '../../../utils/animations';
+import { RenderObject } from '../../../render-objects/base.js';
+
+const ef = easingsFunctions;
 
 export class FadeAnimation extends BaseNoteAnimation {
-    render(ctx: AnimationContext): RenderObjectInterface[] {
+    render(ctx: AnimationContext): RenderObject[] {
         const { x, y, width, height, color, progress, phase } = ctx;
-        let alpha = 0.8;
+        let rect = new Rectangle(x, y, width, height, color);
         switch (phase) {
             case 'attack':
                 // Subtle preview before the note starts
-                alpha = 0.8 * Math.max(0, Math.min(1, progress));
+                rect.opacity = af.lerp(0, 1, progress);
                 break;
             case 'decay':
-                alpha = 0.8 + 0.2 * (1 - progress);
                 break;
             case 'sustain':
-                alpha = 0.8;
                 break;
             case 'release':
-                alpha = 0.8 * (1 - easingsFunctions.easeInQuad(Math.max(0, Math.min(1, progress))));
+                rect.opacity = af.lerp(1, 0, progress);
                 break;
             case 'static':
             default:
-                alpha = 0.8;
                 break;
         }
-        return [this.rect(x, y, width, height, color, alpha)];
+        return [rect];
     }
 }
+
+registerAnimation({ name: 'fade', label: 'Fade In/Out', class: FadeAnimation });

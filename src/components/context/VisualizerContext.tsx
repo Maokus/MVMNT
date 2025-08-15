@@ -48,7 +48,10 @@ interface VisualizerContextValue {
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
 
-export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Converted to named function declaration to ensure React Fast Refresh correctly
+// identifies this module as a refresh boundary (some heuristics can fail on
+// certain arrow function exports in edge cases with swc + TS + React 19).
+export function VisualizerProvider({ children }: { children: React.ReactNode }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [visualizer, setVisualizer] = useState<any | null>(null);
     const [imageSequenceGenerator, setImageSequenceGenerator] = useState<any | null>(null);
@@ -211,6 +214,14 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         visualizer.updateDebugSettings?.(debugSettings);
     }, [visualizer, debugSettings]);
 
+    // Re-render canvas when fonts finish loading so text bounds recalc
+    useEffect(() => {
+        if (!visualizer) return;
+        const handler = () => visualizer.invalidateRender?.();
+        window.addEventListener('font-loaded', handler as EventListener);
+        return () => window.removeEventListener('font-loaded', handler as EventListener);
+    }, [visualizer]);
+
     const playPause = useCallback(() => {
         if (!visualizer) return;
         if (visualizer.isPlaying) {
@@ -341,7 +352,7 @@ export const VisualizerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     return <VisualizerContext.Provider value={value}>{children}</VisualizerContext.Provider>;
-};
+}
 
 export const useVisualizer = () => {
     const ctx = useContext(VisualizerContext);

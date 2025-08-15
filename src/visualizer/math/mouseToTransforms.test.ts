@@ -1,3 +1,4 @@
+import { describe, test, expect } from 'vitest';
 import { computeScaledTransform, computeAnchorAdjustment, computeRotation } from './mouseToTransforms';
 import { applyRSK } from './transformHelpers';
 import { ScaleComputationParams, AnchorAdjustParams } from './types';

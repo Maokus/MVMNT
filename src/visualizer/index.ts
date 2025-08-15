@@ -30,9 +30,14 @@ export { SceneElementRegistry, sceneElementRegistry } from './scene-element-regi
 export * from './scene-elements/index.js';
 
 // Render objects
-export * from './render-objects/index.js';
+export * from './render-objects';
 
 // ==========================================
 // Types Export
 // ==========================================
 export * from './types';
+
+// ==========================================
+// Animation Utilities Export
+// ==========================================
+export { FloatCurve, AnimMath } from './utils/animations';

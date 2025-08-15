@@ -1,10 +1,10 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
-import { Text, Rectangle } from '../render-objects/index.js';
+import { Text, Rectangle, RenderObject } from '../render-objects';
 import { TimingManager } from '../timing-manager.js';
 import { MidiManager } from '../midi-manager';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
-import { ensureFontLoaded } from '../../utils/font-loader';
+import { EnhancedConfigSchema } from '../types.js';
+import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
 interface BarBeatTick {
     bar: number;
@@ -84,20 +84,7 @@ export class TimeDisplayElement extends SceneElement {
                             default: 'Inter',
                             description: 'Font family (Google Fonts supported)',
                         },
-                        {
-                            key: 'fontWeight',
-                            type: 'select',
-                            label: 'Font Weight',
-                            default: '400',
-                            options: [
-                                { value: '300', label: 'Light' },
-                                { value: '400', label: 'Normal' },
-                                { value: '500', label: 'Medium' },
-                                { value: '600', label: 'Semi-bold' },
-                                { value: '700', label: 'Bold' },
-                            ],
-                            description: 'Font weight for the time display',
-                        },
+                        // weight now selected via combined font input (family|weight)
                         {
                             key: 'textColor',
                             type: 'color',
@@ -118,15 +105,18 @@ export class TimeDisplayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
         const showProgress = this.getProperty('showProgress') as boolean;
-        const fontFamily = this.getProperty('fontFamily') as string;
-        const fontWeight = this.getProperty('fontWeight') as string;
+        const fontSelection = this.getProperty('fontFamily') as string;
+        const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
+        // Legacy support: if old standalone fontWeight binding exists, read it directly (silently) without triggering warning
+        const legacyWeight = (this as any).bindings?.get('fontWeight')?.getValue?.();
+        const fontWeight = (weightPart || legacyWeight || '400').toString();
         const textColor = this.getProperty('textColor') as string;
         const textSecondaryColor = this.getProperty('textSecondaryColor') as string;
 
@@ -169,7 +159,7 @@ export class TimeDisplayElement extends SceneElement {
         const timeY = 0;
         const beatY = baseFontSize * 1.8;
 
-        if (fontFamily) ensureFontLoaded(fontFamily);
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${baseFontSize}px ${fontFamily}, sans-serif`;
         const labelFont = `${fontWeight} ${baseFontSize * 0.8}px ${fontFamily}, sans-serif`;
 

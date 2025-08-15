@@ -1,6 +1,6 @@
 import { SceneElement } from './base';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types';
-import { Rectangle, Text } from '../render-objects';
+import { EnhancedConfigSchema } from '../types';
+import { Rectangle, RenderObject, Text } from '../render-objects';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {
@@ -46,9 +46,9 @@ export class DebugElement extends SceneElement {
      * Renders an array of points as rectangles with coordinate labels
      * config.points: Array<{ x: number, y: number }>
      */
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const points: Array<{ x: number; y: number }> = [];
-        const objects: RenderObjectInterface[] = [];
+        const objects: RenderObject[] = [];
 
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {

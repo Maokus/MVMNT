@@ -1,6 +1,6 @@
 // Enhanced Base SceneElement class with Property Binding System
-import { RenderObjectInterface, EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
-import { EmptyRenderObject } from '../render-objects/empty.js';
+import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
+import { EmptyRenderObject } from '../render-objects/empty';
 import {
     PropertyBinding,
     ConstantBinding,
@@ -10,6 +10,7 @@ import {
     BindingType,
 } from '../property-bindings';
 import { globalMacroManager } from '../macro-manager';
+import { RenderObject } from '../render-objects/base.js';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
@@ -326,7 +327,7 @@ export class SceneElement implements SceneElementInterface {
      * Template method for building RenderObjects with automatic transform application
      * Child classes should override _buildRenderObjects instead
      */
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.visible) return [];
 
         // Call the child class implementation to build the base render objects
@@ -357,7 +358,8 @@ export class SceneElement implements SceneElementInterface {
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
             if (childObj) {
-                containerObject.addChild(childObj);
+                // Cast to any to accommodate migrated TS RenderObject classes vs legacy interface
+                (containerObject as any).addChild(childObj as any);
             }
         }
 
@@ -386,7 +388,7 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Abstract method for child classes to implement their specific rendering logic
      */
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         // Default implementation returns empty array
         return [];
     }
@@ -394,7 +396,7 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Calculate the bounding box of all child render objects
      */
-    private _calculateSceneElementBounds(renderObjects: RenderObjectInterface[]): {
+    private _calculateSceneElementBounds(renderObjects: RenderObject[]): {
         x: number;
         y: number;
         width: number;
@@ -441,7 +443,7 @@ export class SceneElement implements SceneElementInterface {
      * Uses a time bucket (ms) to avoid excessive keys; invalidated on any property/macro change.
      */
     private _getCachedSceneElementBounds(
-        renderObjects: RenderObjectInterface[],
+        renderObjects: RenderObject[],
         targetTime: number
     ): { x: number; y: number; width: number; height: number } {
         const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);

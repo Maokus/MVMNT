@@ -1,5 +1,7 @@
 // Merged types for MIDI processing, timing management, and visualizer rendering
 
+import { RenderObject } from './render-objects';
+
 // ==========================================
 // MIDI Processing and Core Types
 // ==========================================
@@ -157,32 +159,6 @@ export interface TimeUnitConfig {
 // Scene Element Types
 // ==========================================
 
-export interface RenderObjectInterface {
-    x: number;
-    y: number;
-    scaleX: number;
-    scaleY: number;
-    skewX: number;
-    skewY: number;
-    opacity: number;
-    visible: boolean;
-    rotation: number;
-    children: RenderObjectInterface[];
-
-    render(ctx: CanvasRenderingContext2D, config: any, currentTime: number): void;
-    setPosition(x: number, y: number): any;
-    setScale(scaleX: number, scaleY?: number): any;
-    setSkew(skewX: number, skewY: number): any;
-    setRotation(rotation: number): any;
-    setOpacity(opacity: number): any;
-    setVisible(visible: boolean): any;
-    addChild(child: RenderObjectInterface): any;
-    removeChild(child: RenderObjectInterface): any;
-    getChildren(): RenderObjectInterface[];
-    clearChildren(): any;
-    getBounds(): { x: number; y: number; width: number; height: number };
-}
-
 export interface BaseSceneElementConfig {
     id?: string;
     visible?: boolean;
@@ -279,7 +255,7 @@ export interface SceneElementInterface {
 
     config: { [key: string]: any };
 
-    buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[];
+    buildRenderObjects(config: any, targetTime: number): RenderObject[];
     updateConfig(newConfig: { [key: string]: any }): void;
     getConfig(): { [key: string]: any };
     setVisible(visible: boolean): this;
@@ -319,8 +295,7 @@ export interface TextOverlayElementConfig extends BaseSceneElementConfig {
     x?: number;
     y?: number;
     text?: string;
-    fontFamily?: string;
-    fontWeight?: string;
+    fontFamily?: string; // may include weight as family|weight
     fontSize?: number;
     color?: string;
 }

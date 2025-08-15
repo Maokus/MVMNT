@@ -1,8 +1,8 @@
 // Text overlay element for displaying a single line of text with property bindings
 import { SceneElement } from './base';
-import { Text } from '../render-objects/index.js';
-import { EnhancedConfigSchema, RenderObjectInterface } from '../types.js';
-import { ensureFontLoaded } from '../../utils/font-loader';
+import { RenderObject, Text } from '../render-objects';
+import { EnhancedConfigSchema } from '../types.js';
+import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
@@ -43,22 +43,7 @@ export class TextOverlayElement extends SceneElement {
                             default: 'Inter',
                             description: 'Choose the font family (Google Fonts supported)',
                         },
-                        {
-                            key: 'fontWeight',
-                            type: 'select',
-                            label: 'Weight',
-                            default: 'bold',
-                            options: [
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'bold', label: 'Bold' },
-                                { value: '100', label: 'Thin' },
-                                { value: '300', label: 'Light' },
-                                { value: '500', label: 'Medium' },
-                                { value: '700', label: 'Bold' },
-                                { value: '900', label: 'Black' },
-                            ],
-                            description: 'Set the font weight (thickness) of the text',
-                        },
+                        // weight now embedded in font selection value as family|weight
                         {
                             key: 'fontSize',
                             type: 'number',
@@ -76,20 +61,23 @@ export class TextOverlayElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObjectInterface[] {
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        const renderObjects: RenderObjectInterface[] = [];
+        const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
         const text = this.getProperty('text') as string;
-        const fontFamily = this.getProperty('fontFamily') as string;
-        const fontWeight = this.getProperty('fontWeight') as string;
+        const fontSelection = this.getProperty('fontFamily') as string; // may be family or family|weight
+        const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
+        // Backward compatibility: if no embedded weight, look for legacy fontWeight property
+        const legacyWeight = (this as any).getProperty?.('fontWeight');
+        const fontWeight = (weightPart || legacyWeight || '400').toString();
         const fontSize = this.getProperty('fontSize') as number;
         const color = this.getProperty('color') as string;
 
         // Ensure font is loaded if it's a Google Font
-        if (fontFamily) ensureFontLoaded(fontFamily);
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
         const textElement = new Text(0, 0, text, font, color, 'center', 'middle');
         renderObjects.push(textElement);

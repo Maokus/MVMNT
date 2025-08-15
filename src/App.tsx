@@ -1,11 +1,16 @@
 import React from 'react';
 import './App.css';
 import MidiVisualizer from './components/layout/MidiVisualizer';
+import { Routes, Route } from 'react-router-dom';
+import { AnimationTestPage } from './components/animation-test';
 
-function App() {
+export function App() {
   return (
     <div className="App">
-      <MidiVisualizer />
+      <Routes>
+        <Route path="/" element={<MidiVisualizer />} />
+        <Route path="/animation-test" element={<AnimationTestPage />} />
+      </Routes>
     </div>
   );
 }

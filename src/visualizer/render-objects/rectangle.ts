@@ -1,66 +1,66 @@
-// Rectangle RenderObject for drawing simple rectangles
-import { RenderObject } from './base.js';
+import { RenderObject, RenderConfig, Bounds } from './base';
 
 export class Rectangle extends RenderObject {
-    constructor(x, y, width, height, fillColor = '#FFFFFF', strokeColor = null, strokeWidth = 1) {
-        // Validate and clamp extreme values
-        const maxPosition = 1000000;
-        const maxSize = 1000000;
+    width: number;
+    height: number;
+    fillColor: string | null;
+    strokeColor: string | null;
+    strokeWidth: number;
+    cornerRadius: number;
+    shadowColor: string | null;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
+    globalAlpha: number;
 
+    constructor(
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        fillColor: string | null = '#FFFFFF',
+        strokeColor: string | null = null,
+        strokeWidth = 1
+    ) {
+        const maxPosition = 1_000_000;
+        const maxSize = 1_000_000;
         const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
         const clampedY = Math.max(-maxPosition, Math.min(maxPosition, y));
         const clampedWidth = Math.max(0, Math.min(maxSize, width));
         const clampedHeight = Math.max(0, Math.min(maxSize, height));
-
         if (clampedX !== x || clampedY !== y || clampedWidth !== width || clampedHeight !== height) {
             console.warn(
                 `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
             );
         }
-
         super(clampedX, clampedY);
         this.width = clampedWidth;
         this.height = clampedHeight;
         this.fillColor = fillColor;
         this.strokeColor = strokeColor;
         this.strokeWidth = strokeWidth;
-        this.cornerRadius = 0; // For rounded rectangles
-
-        // Shadow properties for glow effects
+        this.cornerRadius = 0;
         this.shadowColor = null;
         this.shadowBlur = 0;
         this.shadowOffsetX = 0;
         this.shadowOffsetY = 0;
-
-        // Additional alpha control (separate from base opacity)
         this.globalAlpha = 1;
     }
 
-    _renderSelf(ctx, config, currentTime) {
-        // Apply global alpha
+    protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _currentTime: number): void {
         const originalAlpha = ctx.globalAlpha;
         ctx.globalAlpha = originalAlpha * this.opacity;
-
-        // Apply shadow if present
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = this.shadowColor;
             ctx.shadowBlur = this.shadowBlur;
             ctx.shadowOffsetX = this.shadowOffsetX;
             ctx.shadowOffsetY = this.shadowOffsetY;
         }
+        if (this.globalAlpha !== 1) ctx.globalAlpha *= this.globalAlpha;
 
-        // Apply additional alpha
-        if (this.globalAlpha !== 1) {
-            ctx.globalAlpha *= this.globalAlpha;
-        }
+        if (this.cornerRadius > 0) this.#drawRoundedRect(ctx);
+        else this.#drawRect(ctx);
 
-        if (this.cornerRadius > 0) {
-            this._drawRoundedRect(ctx);
-        } else {
-            this._drawRect(ctx);
-        }
-
-        // Reset shadow after drawing
         if (this.shadowColor && this.shadowBlur > 0) {
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
@@ -69,14 +69,11 @@ export class Rectangle extends RenderObject {
         }
     }
 
-    _drawRect(ctx) {
-        // Fill
+    #drawRect(ctx: CanvasRenderingContext2D): void {
         if (this.fillColor) {
             ctx.fillStyle = this.fillColor;
             ctx.fillRect(0, 0, this.width, this.height);
         }
-
-        // Stroke
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
@@ -84,7 +81,7 @@ export class Rectangle extends RenderObject {
         }
     }
 
-    _drawRoundedRect(ctx) {
+    #drawRoundedRect(ctx: CanvasRenderingContext2D): void {
         const radius = this.cornerRadius;
         ctx.beginPath();
         ctx.moveTo(radius, 0);
@@ -97,14 +94,10 @@ export class Rectangle extends RenderObject {
         ctx.lineTo(0, radius);
         ctx.quadraticCurveTo(0, 0, radius, 0);
         ctx.closePath();
-
-        // Fill
         if (this.fillColor) {
             ctx.fillStyle = this.fillColor;
             ctx.fill();
         }
-
-        // Stroke
         if (this.strokeColor && this.strokeWidth > 0) {
             ctx.strokeStyle = this.strokeColor;
             ctx.lineWidth = this.strokeWidth;
@@ -112,47 +105,37 @@ export class Rectangle extends RenderObject {
         }
     }
 
-    setSize(width, height) {
+    setSize(width: number, height: number): this {
         this.width = width;
         this.height = height;
         return this;
     }
-
-    setFillColor(color) {
+    setFillColor(color: string | null): this {
         this.fillColor = color;
         return this;
     }
-
-    setStroke(color, width = 1) {
+    setStroke(color: string | null, width = 1): this {
         this.strokeColor = color;
         this.strokeWidth = width;
         return this;
     }
-
-    setCornerRadius(radius) {
+    setCornerRadius(radius: number): this {
         this.cornerRadius = radius;
         return this;
     }
-
-    setShadow(color, blur = 10, offsetX = 0, offsetY = 0) {
+    setShadow(color: string | null, blur = 10, offsetX = 0, offsetY = 0): this {
         this.shadowColor = color;
         this.shadowBlur = blur;
         this.shadowOffsetX = offsetX;
         this.shadowOffsetY = offsetY;
         return this;
     }
-
-    setGlobalAlpha(alpha) {
+    setGlobalAlpha(alpha: number): this {
         this.globalAlpha = Math.max(0, Math.min(1, alpha));
         return this;
     }
 
-    getBounds() {
-        return {
-            x: this.x,
-            y: this.y,
-            width: this.width,
-            height: this.height,
-        };
+    getBounds(): Bounds {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }

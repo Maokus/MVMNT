@@ -37,10 +37,7 @@ interface SceneSelectionProviderProps {
     sceneRefreshTrigger?: number;
 }
 
-export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
-    children,
-    sceneRefreshTrigger
-}) => {
+export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneSelectionProviderProps) {
     const { visualizer } = useVisualizer() as any;
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
@@ -350,7 +347,7 @@ export const SceneSelectionProvider: React.FC<SceneSelectionProviderProps> = ({
             {children}
         </SceneSelectionContext.Provider>
     );
-};
+}
 
 export const useSceneSelection = () => {
     const context = useContext(SceneSelectionContext);
