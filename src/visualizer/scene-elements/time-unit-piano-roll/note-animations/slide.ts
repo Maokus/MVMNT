@@ -1,3 +1,4 @@
+import { Rectangle } from '../../../render-objects';
 import type { RenderObjectInterface } from '../../../types.js';
 import * as af from '../../../utils/animations.js';
 import easingsFunctions from '../../../utils/easings';
@@ -8,24 +9,26 @@ export class SlideAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
         const { x, y, width, height, color, progress, phase } = ctx;
         const p = Math.max(0, Math.min(1, progress));
-
         let alpha = 0.8;
         let dx = 0;
+        let rectangle = new Rectangle(x, y, width, height, color);
         switch (phase) {
             case 'attack':
                 dx = width * (1 - easingsFunctions.easeOutExpo(p));
-                alpha = af.lerp(0, 1, progress);
-                return [this.rect(x - dx, y, width, height, color, alpha)];
+                rectangle.x = x - dx;
+                rectangle.opacity = af.lerp(0, 1, progress);
+                return [rectangle];
             case 'decay':
-                return [this.rect(x, y, width, height, color, 1)];
+                return [rectangle];
             case 'sustain':
-                return [this.rect(x, y, width, height, color, 1)];
+                return [rectangle];
             case 'release':
                 dx = width * easingsFunctions.easeInExpo(p);
-                alpha = 0.8 * (1 - p);
-                return [this.rect(x + dx, y, width, height, color, alpha)];
+                rectangle.x = x + dx;
+                rectangle.opacity = af.lerp(1, 0, progress);
+                return [rectangle];
             default:
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [rectangle];
         }
     }
 }

@@ -8,7 +8,7 @@ import easingsFunctions from '../../../utils/easings.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';
-import * as anims from '../../../utils/animations';
+import * as af from '../../../utils/animations';
 
 export class ExplodeAnimation extends BaseNoteAnimation {
     constructor() {
@@ -17,10 +17,6 @@ export class ExplodeAnimation extends BaseNoteAnimation {
 
     lerp2d(x1: number, y1: number, x2: number, y2: number, fac: number): { x: number; y: number } {
         return { x: x1 + (x2 - x1) * fac, y: y1 + (y2 - y1) * fac };
-    }
-
-    lerp(x1: number, x2: number, fac: number): number {
-        return x1 + (x2 - x1) * fac;
     }
 
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -49,11 +45,11 @@ export class ExplodeAnimation extends BaseNoteAnimation {
             case 'attack': {
                 let hh = height / 2;
                 let arrow = new Poly([
-                    [x, y + hh - this.lerp(0, hh, progress)],
-                    [x, y + hh + this.lerp(0, hh, progress)],
+                    [x, y + hh - af.lerp(0, hh, progress)],
+                    [x, y + hh + af.lerp(0, hh, progress)],
                     [x - 40 * easingsFunctions.easeInQuart(progress), y + height / 2],
                 ]);
-                arrow.opacity = this.lerp(0, 1, progress);
+                arrow.opacity = af.lerp(0, 1, progress);
                 arrow.strokeColor = color;
                 arrow.lineJoin = 'bevel';
                 return [arrow];
@@ -84,10 +80,10 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     renderObj.y = -objBounds.height / 2;
                     let parent = new EmptyRenderObject();
                     parent.addChild(renderObj);
-                    parent.x = this.lerp(x, objs[i].endX, easingsFunctions.easeOutExpo(progress));
-                    parent.y = this.lerp(y, objs[i].endY, easingsFunctions.easeOutExpo(progress));
+                    parent.x = af.lerp(x, objs[i].endX, easingsFunctions.easeOutExpo(progress));
+                    parent.y = af.lerp(y, objs[i].endY, easingsFunctions.easeOutExpo(progress));
                     parent.opacity = 1 - progress;
-                    parent.rotation = this.lerp(0, objs[i].endRot, easingsFunctions.easeOutQuad(progress));
+                    parent.rotation = af.lerp(0, objs[i].endRot, easingsFunctions.easeOutQuad(progress));
                     burst.addChild(parent);
                 }
 
@@ -96,7 +92,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 let skeleton = new Rectangle(
                     x,
                     y,
-                    this.lerp(0, width, easingsFunctions.easeOutExpo(progress)),
+                    af.lerp(0, width, easingsFunctions.easeOutExpo(progress)),
                     height,
                     'rgba(0,0,0,0)',
                     color,
@@ -114,11 +110,11 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 return [skeleton];
             case 'release': {
                 let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
-                skeleton.opacity = this.lerp(0.8, 0, progress);
+                skeleton.opacity = af.lerp(0.8, 0, progress);
                 return [skeleton];
             }
             default:
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [new Rectangle(x, y, width, height, color)];
         }
     }
 }

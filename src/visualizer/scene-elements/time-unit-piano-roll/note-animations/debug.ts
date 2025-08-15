@@ -1,3 +1,4 @@
+import { Rectangle } from '../../../render-objects';
 import { Text } from '../../../render-objects/text';
 import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
@@ -21,7 +22,7 @@ export class DebugAnimation extends BaseNoteAnimation {
                 return [new Text(x, y, `release ${info}`)];
             }
             default:
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [new Rectangle(x, y, width, height, color)];
         }
     }
 }

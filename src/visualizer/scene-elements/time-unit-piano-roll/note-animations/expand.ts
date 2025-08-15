@@ -2,6 +2,7 @@ import type { RenderObjectInterface } from '../../../types.js';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 import easingsFunctions from '../../../utils/easings';
+import { Rectangle } from '../../../render-objects';
 
 export class ExpandAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObjectInterface[] {
@@ -14,17 +15,17 @@ export class ExpandAnimation extends BaseNoteAnimation {
             }
             case 'decay': {
                 const w = Math.max(1, width * easingsFunctions.easeOutQuint(p));
-                return [this.rect(x, y, w, height, color, 0.8)];
+                return [new Rectangle(x, y, w, height, color)];
             }
             case 'sustain': {
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [new Rectangle(x, y, width, height, color)];
             }
             case 'release': {
                 const w = Math.max(1, width * (1 - easingsFunctions.easeOutExpo(p)));
-                return [this.rect(x + width - w, y, w, height, color, 0.8)];
+                return [new Rectangle(x + width - w, y, w, height, color)];
             }
             default:
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [new Rectangle(x, y, width, height, color)];
         }
     }
 }

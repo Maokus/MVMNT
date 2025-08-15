@@ -39,8 +39,9 @@ export class ScaleAnimation extends BaseNoteAnimation {
         const h = Math.max(1, height * rect.scaleY);
         const ox = (width - w) / 2;
         const oy = (height - h) / 2;
-
-        return [this.rect(x + ox, y + oy, w, h, color, rect.opacity)];
+        let rect2 = new Rectangle(x + ox, y + oy, w, h, color);
+        rect2.opacity = rect.opacity;
+        return [rect2];
     }
 }
 

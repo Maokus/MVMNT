@@ -27,7 +27,7 @@ export class TemplateAnimation extends BaseNoteAnimation {
                 return [new Text(x, y, `release ${info}`)];
             }
             default:
-                return [this.rect(x, y, width, height, color, 0.8)];
+                return [];
         }
     }
 }
