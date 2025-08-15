@@ -22,7 +22,8 @@
     "types": [
       "vitest",
       "node"
-    ]
+    ],
+    "baseUrl": "./src"
   },
   "include": [
     "src"

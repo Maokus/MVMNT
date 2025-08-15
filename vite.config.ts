@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
+import path from 'path';
 
 export default defineConfig(({ mode }) => ({
     optimizeDeps: {
@@ -20,6 +21,9 @@ export default defineConfig(({ mode }) => ({
     },
     define: {
         'process.env': {}, // lightweight shim
+    },
+    alias: {
+        '@': path.resolve(__dirname, 'src'), // optional shortcut
     },
     test: {
         environment: 'jsdom',
