@@ -1,7 +1,7 @@
 import { Text, Rectangle, RenderObject } from '../../../render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '../../../utils/animations';
+import * as af from '@animation/animations';
 import easingsFunctions from '@animation/easings';
 import seedrandom from 'seedrandom';
 

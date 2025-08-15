@@ -40,4 +40,4 @@ export * from './types';
 // ==========================================
 // Animation Utilities Export
 // ==========================================
-export { FloatCurve, AnimMath } from './utils/animations';
+export { FloatCurve, AnimMath } from '@animation/animations';

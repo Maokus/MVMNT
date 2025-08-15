@@ -7,7 +7,7 @@ import easingsFunctions from '@animation/easings';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';
-import * as af from '../../../utils/animations';
+import * as af from '@animation/animations';
 
 export class ExplodeAnimation extends BaseNoteAnimation {
     constructor() {
