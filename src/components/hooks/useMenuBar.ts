@@ -1,5 +1,5 @@
 import { globalMacroManager } from '../../visualizer/macro-manager';
-import { SceneNameGenerator } from '../../visualizer/scene-name-generator';
+import { SceneNameGenerator } from '@core/scene-name-generator';
 
 interface UseMenuBarProps {
     visualizer: any;

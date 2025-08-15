@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig(({ mode }) => ({
     optimizeDeps: {
@@ -14,7 +15,7 @@ export default defineConfig(({ mode }) => ({
     },
     // React SWC plugin already enables Fast Refresh by default; ensure our component
     // modules use named function declarations for providers for consistent boundaries.
-    plugins: [react()],
+    plugins: [react(), tsconfigPaths()],
     build: {
         outDir: 'build',
         sourcemap: true,

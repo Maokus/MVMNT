@@ -3,6 +3,7 @@
     "version": "0.10.0",
     "description": "A React-based MIDI visualization application for creating social media videos from MIDI files",
     "private": true,
+    "type": "module",
     "dependencies": {
         "@ffmpeg/ffmpeg": "^0.12.15",
         "@ffmpeg/util": "^0.12.2",
@@ -25,6 +26,7 @@
         "jsdom": "^24.0.0",
         "typescript": "^5.5.0",
         "vite": "^5.4.0",
+        "vite-tsconfig-paths": "^5.1.4",
         "vitest": "^1.6.0"
     },
     "scripts": {
