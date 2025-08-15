@@ -9,7 +9,7 @@ import FileInputRow from './input-rows/FileInputRow';
 import TextInputRow from './input-rows/TextInputRow';
 import FontInputRow from './input-rows/FontInputRow';
 // @ts-ignore
-import { useMacros } from '../../context/MacroContext';
+import { useMacros } from '@context/MacroContext';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;

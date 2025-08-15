@@ -1,7 +1,7 @@
 import React from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
-import { useSceneSelection } from '../../context/SceneSelectionContext';
+import { useSceneSelection } from '@context/SceneSelectionContext';
 
 interface PropertiesPanelProps {
     element?: any;

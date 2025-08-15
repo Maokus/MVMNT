@@ -1,6 +1,6 @@
 import React from 'react';
 import ElementList from './ElementList';
-import { useSceneSelection } from '../../context/SceneSelectionContext';
+import { useSceneSelection } from '@context/SceneSelectionContext';
 
 interface SceneEditorProps {
     refreshTrigger?: number; // Add refresh trigger

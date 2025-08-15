@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useVisualizer } from '../context/VisualizerContext';
-import { useSceneSelection } from '../context/SceneSelectionContext';
+import { useVisualizer } from '@context/VisualizerContext';
+import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
 import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLeave } from './canvasInteractionUtils';
 

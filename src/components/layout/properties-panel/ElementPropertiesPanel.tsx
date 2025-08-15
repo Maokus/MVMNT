@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import { EnhancedConfigSchema } from '../../types';
-import { useMacros } from '../../context/MacroContext';
+import { useMacros } from '@context/MacroContext';
 
 interface ElementPropertiesPanelProps {
     element: any; // Required - element must be selected

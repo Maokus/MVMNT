@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useMacros } from '../../context/MacroContext';
+import { useMacros } from '@context/MacroContext';
 import FontInputRow from './input-rows/FontInputRow';
 
 interface MacroConfigProps {

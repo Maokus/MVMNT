@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useScene } from '../context/SceneContext';
+import { useScene } from '@context/SceneContext';
 
 const MenuBar: React.FC = () => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();

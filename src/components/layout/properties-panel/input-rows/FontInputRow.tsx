@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { GOOGLE_FONTS } from '../../../../utils/google-fonts-list';
-import { ensureFontLoaded, loadGoogleFontAsync, parseFontSelection } from '../../../../utils/font-loader';
-import { useVisualizer } from '../../../context/VisualizerContext';
+import { GOOGLE_FONTS } from '@utils/google-fonts-list';
+import { ensureFontLoaded, loadGoogleFontAsync, parseFontSelection } from '@utils/font-loader';
+import { useVisualizer } from '@context/VisualizerContext';
 
 interface FontInputRowProps {
     id: string;

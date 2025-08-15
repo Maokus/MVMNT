@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
-import { useVisualizer } from '../../context/VisualizerContext';
+import { useVisualizer } from '@context/VisualizerContext';
 
 interface ExportSettings {
     fps: number;

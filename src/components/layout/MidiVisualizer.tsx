@@ -2,11 +2,11 @@ import React from 'react';
 import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
-import { SceneSelectionProvider } from '../context/SceneSelectionContext';
+import { SceneSelectionProvider } from '@context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';
-import { VisualizerProvider, useVisualizer } from '../context/VisualizerContext';
-import { SceneProvider } from '../context/SceneContext';
-import { MacroProvider } from '../context/MacroContext';
+import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
+import { SceneProvider } from '@context/SceneContext';
+import { MacroProvider } from '@context/MacroContext';
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {

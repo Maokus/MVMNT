@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import SceneElementPanel from './scene-element-panel/SceneElementPanel';
 import { PropertiesPanel } from './properties-panel';
 import { ElementDropdown } from './scene-element-panel';
-import { useSceneSelection } from '../context/SceneSelectionContext';
-import { useVisualizer } from '../context/VisualizerContext';
+import { useSceneSelection } from '@context/SceneSelectionContext';
+import { useVisualizer } from '@context/VisualizerContext';
 
 interface SidePanelsProps {
     sceneRefreshTrigger?: number;

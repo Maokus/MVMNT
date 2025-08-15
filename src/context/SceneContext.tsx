@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useVisualizer } from './VisualizerContext';
-import { useMenuBar } from '../hooks/useMenuBar';
+import { useMenuBar } from '@hooks/useMenuBar';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 
 interface SceneContextValue {
