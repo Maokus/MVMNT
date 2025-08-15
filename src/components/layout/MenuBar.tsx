@@ -45,7 +45,7 @@ const MenuBar: React.FC = () => {
     return (
         <div className="menu-bar">
             <div className="menu-section quick-actions">
-                <h3>Midivis v{((import.meta as any).env?.VITE_VERSION)}</h3>
+                <h3>MVMNT v{((import.meta as any).env?.VITE_VERSION)}</h3>
             </div>
 
             <div className="menu-section scene-name-section">
@@ -99,7 +99,9 @@ const MenuBar: React.FC = () => {
                 </div>
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <img width="50" src='./Logo_Transparent.png' />
+                <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
+                    <img width="50" src='/Logo_Transparent.png' style={{ cursor: 'pointer' }} />
+                </Link>
             </div>
         </div>
     );

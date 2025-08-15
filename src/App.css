@@ -13,6 +13,19 @@ body {
     overflow: hidden;
 }
 
+a {
+    color: white;
+}
+
+a: visited {
+    color: white;
+}
+
+section p {
+    margin-left: 18px;
+    padding-bottom: 12px;
+}
+
 /* Main App Container */
 .app-container {
     display: flex;
@@ -1206,6 +1219,78 @@ body {
     #canvas {
         width: 250px;
         height: 250px;
+    }
+}
+
+/* ================================
+   ABOUT PAGE STYLES
+   ================================ */
+.about-page-root {
+    overflow: hidden;
+}
+
+.about-container {
+    flex: 1;
+    background: #252526;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 32px 40px 60px;
+}
+
+.about-content {
+    max-width: 900px;
+    margin: 0 auto;
+    line-height: 1.5;
+    font-size: 14px;
+    color: #cccccc;
+}
+
+.about-content h1 {
+    font-size: 28px;
+    margin-bottom: 16px;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.about-content h2 {
+    font-size: 18px;
+    margin: 32px 0 12px;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.about-content .lead {
+    font-size: 15px;
+    color: #dddddd;
+    margin-bottom: 24px;
+}
+
+.feature-list,
+.getting-started-list {
+    margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.getting-started-list li {
+    margin-left: 4px;
+}
+
+.about-actions {
+    margin-top: 48px;
+}
+
+@media (max-width: 768px) {
+    .about-container {
+        padding: 24px 20px 40px;
+    }
+    .about-content h1 {
+        font-size: 24px;
+    }
+    .about-content h2 {
+        font-size: 16px;
     }
 }
 
