@@ -5,7 +5,7 @@
 // ==========================================
 export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
 export { NoteEvent } from '@core/midi/note-event';
-export { ImageSequenceGenerator } from '../visualizer/image-sequence-generator';
+export { ImageSequenceGenerator } from '@export/image-sequence-generator';
 export { MacroManager, globalMacroManager } from '../bindings/macro-manager';
 
 // ==========================================

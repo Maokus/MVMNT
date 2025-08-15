@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 // @ts-ignore
-import { MIDIVisualizerCore } from '../../core/visualizer-core.js';
+import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
-import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
-import { VideoExporter } from '../../visualizer/video-exporter';
+import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
+import { VideoExporter } from '@export/video-exporter.js';
 
 export interface ExportSettings {
     fps: number;
