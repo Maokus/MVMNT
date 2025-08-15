@@ -1,1 +1,1 @@
-export { default as AnimationTestPage } from './AnimationTestPage';
+export { default as AnimationTestPage } from '../../pages/AnimationTestPage';

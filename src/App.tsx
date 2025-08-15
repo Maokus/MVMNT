@@ -3,7 +3,7 @@ import './App.css';
 import MidiVisualizer from './components/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
 import { AnimationTestPage } from './components/animation-test';
-import AboutPage from './components/about/AboutPage';
+import AboutPage from '@pages/AboutPage';
 
 export function App() {
   return (
