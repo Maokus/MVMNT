@@ -1,7 +1,7 @@
 // Aggregated exports for math interaction utilities.
 
-export * from './types';
-export * from './geometry';
-export * from './mouseToTransforms';
-export * from './transformHelpers';
-export * from './interaction';
+export * from '@math/transforms/types';
+export * from '@math/geometry';
+export * from '@math/transforms/mouseToTransforms';
+export * from '@math/transforms/transformHelpers';
+export * from '@math/interaction';

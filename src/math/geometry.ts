@@ -1,7 +1,7 @@
 // Geometry utilities (point-in-polygon tests, geometry construction, local handle mapping).
 // Logic intentionally preserved verbatim from the previous monolithic interactionMath.ts.
 
-import { Bounds, GeometryInfo, Point } from './types';
+import { Bounds, GeometryInfo, Point } from '@math/transforms/types';
 
 /** Ray-casting point in polygon test. */
 export const pointInPolygon = (ptX: number, ptY: number, corners: Point[]): boolean => {
