@@ -62,6 +62,16 @@ export class ProgressDisplayElement extends SceneElement {
                             description: 'Display time and note count statistics',
                         },
                         {
+                            key: 'barWidth',
+                            type: 'number',
+                            label: 'Bar Width',
+                            default: 400,
+                            min: 100,
+                            max: 800,
+                            step: 5,
+                            description: 'Width of the progress bar in pixels',
+                        },
+                        {
                             key: 'height',
                             type: 'number',
                             label: 'Height',
@@ -166,7 +176,6 @@ export class ProgressDisplayElement extends SceneElement {
         const progress = totalDuration > 0 ? Math.max(0, Math.min(1, effectiveTime / totalDuration)) : 0;
 
         // Fixed width for progress bar (positioning handled by transform system)
-        const barWidth = 400;
         const margin = 0;
         const barY = 0;
         const textY = barHeight + 5;
@@ -180,6 +189,7 @@ export class ProgressDisplayElement extends SceneElement {
             const barBgOpacity = this.getProperty<number>('barBgOpacity');
             const borderColorRaw = this.getProperty<string>('borderColor') || '#ffffff';
             const borderOpacity = this.getProperty<number>('borderOpacity');
+            const barWidth = this.getProperty<number>('barWidth') || 400;
 
             // Progress bar background
             const progressBg = new Rectangle(

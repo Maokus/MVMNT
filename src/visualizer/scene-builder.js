@@ -349,6 +349,11 @@ export class HybridSceneBuilder {
                 offsetY: 750,
                 anchorX: 0.5,
                 anchorY: 0.5,
+                showNoteGrid: false,
+                showBeatGrid: false,
+                showNoteLabels: false,
+                showBeatLabels: false,
+                minBBoxPadding: 200,
             })
         );
 
@@ -360,6 +365,8 @@ export class HybridSceneBuilder {
                 anchorY: 1,
                 offsetX: 100,
                 offsetY: 1400,
+                elementScaleX: 2.5,
+                elementScaleY: 2.5,
             })
         );
 
@@ -369,7 +376,8 @@ export class HybridSceneBuilder {
                 anchorX: 0,
                 anchorY: 1,
                 offsetX: 10,
-                offsetY: 1500,
+                offsetY: 1490,
+                barWidth: 1480,
             })
         );
 
@@ -383,7 +391,7 @@ export class HybridSceneBuilder {
                 offsetY: 100,
                 text: 'Song Title', // Default placeholder text
                 fontSize: 100,
-                fontWeight: 'bold',
+                fontFamily: 'Inter',
             })
         );
 
@@ -398,6 +406,7 @@ export class HybridSceneBuilder {
                 text: 'Artist Name', // Default placeholder text
                 fontSize: 40,
                 fontWeight: 'normal',
+                fontFamily: 'Inter | 100',
             })
         );
         // Assign macros to relevant element properties
