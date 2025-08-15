@@ -8,7 +8,7 @@ interface MacroConfigProps {
 
 interface Macro {
     name: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image';
+    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font';
     value: any;
     options: {
         min?: number;
@@ -33,7 +33,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
         value: '',
         min: '',
         max: '',
@@ -111,7 +111,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file',
+                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
                 value: '',
                 min: '',
                 max: '',
@@ -207,9 +207,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleMacroTypeChange = (type: string) => {
         setNewMacro(prev => {
-            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' };
-
-            // Set appropriate default value
+            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' };
             switch (type) {
                 case 'number':
                     updated.value = '0';
@@ -223,10 +221,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                 case 'file':
                     updated.value = '';
                     break;
+                case 'font':
+                    updated.value = 'Arial|400';
+                    break;
                 default:
                     updated.value = '';
             }
-
             return updated;
         });
     };
@@ -408,6 +408,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                                 <option value="color">Color</option>
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
+                                <option value="font">Font</option>
                             </select>
                         </div>
                         <div className="form-group">
@@ -468,6 +469,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                                     value={newMacro.accept}
                                     onChange={(e) => setNewMacro(prev => ({ ...prev, accept: e.target.value }))}
                                 />
+                            </div>
+                        )}
+                        {newMacro.type === 'font' && (
+                            <div className="form-group" id="fontInfo">
+                                <small>Enter default as Family|Weight (e.g. Arial|400). Weight optional.</small>
                             </div>
                         )}
                         <div className="dialog-actions">

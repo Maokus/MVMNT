@@ -3,7 +3,16 @@
  * Provides a "plug and play" system for reusable templates and centralized control
  */
 
-export type MacroType = 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image';
+export type MacroType =
+    | 'number'
+    | 'string'
+    | 'boolean'
+    | 'color'
+    | 'select'
+    | 'file'
+    | 'file-midi'
+    | 'file-image'
+    | 'font'; // font macros store font selection strings e.g. "Family|Weight"
 
 interface MacroOptions {
     min?: number;
@@ -256,6 +265,18 @@ export class MacroManager {
 
             case 'color':
                 return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
+
+            case 'font':
+                // Accept empty, or string like Family or Family|Weight (weight numeric)
+                if (typeof value !== 'string') return false;
+                if (!value) return true;
+                // Basic pattern: Family (allow spaces) optionally |digits
+                const parts = value.split('|');
+                if (parts.length === 1) return true;
+                if (parts.length === 2) {
+                    return /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]);
+                }
+                return false;
 
             case 'select':
                 if (!options.selectOptions) return true;
