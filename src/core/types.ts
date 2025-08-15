@@ -1,6 +1,6 @@
 // Merged types for MIDI processing, timing management, and visualizer rendering
 
-import { RenderObject } from '../visualizer/render-objects';
+import { RenderObject } from '@core/render/render-objects';
 
 // ==========================================
 // MIDI Processing and Core Types

@@ -1,8 +1,8 @@
 /* Phase 1 TS migration - minimal typing + cleanup of import extensions */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ModularRenderer } from './modular-renderer';
-import { sceneElementRegistry } from './scene-element-registry';
-import { globalMacroManager } from './macro-manager';
+import { ModularRenderer } from './render/modular-renderer';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { globalMacroManager } from '../visualizer/macro-manager';
 import { HybridSceneBuilder } from './scene-builder';
 
 export class MIDIVisualizerCore {

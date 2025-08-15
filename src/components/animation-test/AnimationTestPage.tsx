@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import easings from '@animation/easings';
-import { ModularRenderer } from '../../visualizer/modular-renderer';
+import { ModularRenderer } from '../../core/render/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
 import { NoteBlock } from '../../visualizer/scene-elements/time-unit-piano-roll/note-block';
-import { RenderObject } from '../../visualizer';
+import { RenderObject } from '@core/index';
 import './animationTest.css';
 
 interface PhaseConfig {

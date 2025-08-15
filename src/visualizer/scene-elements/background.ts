@@ -1,6 +1,6 @@
 // Background element for rendering the main background with property bindings
 import { SceneElement } from './base';
-import { Rectangle, RenderObject } from '../render-objects';
+import { Rectangle, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 
 export class BackgroundElement extends SceneElement {

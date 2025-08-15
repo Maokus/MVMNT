@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 // @ts-ignore
-import { MIDIVisualizerCore } from '../../visualizer/visualizer-core.js';
+import { MIDIVisualizerCore } from '../../core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '../../visualizer/image-sequence-generator';
 import { VideoExporter } from '../../visualizer/video-exporter';

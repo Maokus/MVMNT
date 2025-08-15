@@ -1,6 +1,6 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
-import { EmptyRenderObject } from '../render-objects/empty';
+import { EmptyRenderObject, RenderObject } from '@core/render/render-objects';
 import {
     PropertyBinding,
     ConstantBinding,
@@ -10,7 +10,6 @@ import {
     BindingType,
 } from '../property-bindings';
 import { globalMacroManager } from '../macro-manager';
-import { RenderObject } from '../render-objects/base.js';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
