@@ -18,7 +18,7 @@
 //  cachedGeometry: { x: number; y: number; w: number; h: number } // last frame layout (for tweening)
 //  lifecycleTimestamps: { attackStart; decayStart; releaseStart; ... } // precomputed ADSR boundaries
 // Only introduce when needed to avoid bloat.
-import { NoteEvent } from '../../note-event';
+import { NoteEvent } from '@core/midi/note-event';
 
 export class NoteBlock extends NoteEvent {
     // For split/clamped segments (continuations between time units)

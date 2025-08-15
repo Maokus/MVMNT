@@ -3,8 +3,8 @@
 // ==========================================
 // Core MIDI Processing Exports
 // ==========================================
-export { MIDIParser, parseMIDI } from '../visualizer/midi-parser';
-export { NoteEvent } from '../visualizer/note-event';
+export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
+export { NoteEvent } from '@core/midi/note-event';
 export { ImageSequenceGenerator } from '../visualizer/image-sequence-generator';
 export { MacroManager, globalMacroManager } from '../visualizer/macro-manager';
 

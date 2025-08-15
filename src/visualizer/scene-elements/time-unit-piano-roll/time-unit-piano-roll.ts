@@ -6,7 +6,7 @@ import { Line, Text, EmptyRenderObject, RenderObject } from '@core/render/render
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';
-import { MidiManager } from '../../midi-manager';
+import { MidiManager } from '@core/midi/midi-manager';
 import { debugLog } from '@utils/debug-log';
 import { globalMacroManager } from '../../macro-manager';
 import { ConstantBinding } from '../../property-bindings';

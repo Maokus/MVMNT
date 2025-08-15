@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing-manager';
-import { MidiManager } from '../midi-manager';
+import { MidiManager } from '../../core/midi/midi-manager';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '../../utils/font-loader';
 
