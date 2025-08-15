@@ -35,7 +35,7 @@ export * from './render-objects';
 // ==========================================
 // Types Export
 // ==========================================
-export * from './types';
+export * from '@core/types';
 
 // ==========================================
 // Animation Utilities Export

@@ -1,5 +1,5 @@
 // Enhanced Base SceneElement class with Property Binding System
-import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '../types.js';
+import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
 import { EmptyRenderObject } from '../render-objects/empty';
 import {
     PropertyBinding,

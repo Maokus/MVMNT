@@ -1,6 +1,6 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '../base';
-import { EnhancedConfigSchema } from '../../types.js';
+import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '../../../utils/font-loader';
 import { Line, Text, EmptyRenderObject, RenderObject } from '../../render-objects';
 import { AnimationController } from './animation-controller';

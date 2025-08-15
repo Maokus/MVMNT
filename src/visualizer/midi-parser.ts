@@ -1,5 +1,5 @@
 // MIDI Parser Module - TypeScript migration (Timing logic inlined; TimingManager removed)
-import { MIDIEvent, MIDIData, MIDITimeSignature } from './types';
+import { MIDIEvent, MIDIData, MIDITimeSignature } from '@core/types';
 
 interface MIDIHeader {
     format: number;
@@ -312,7 +312,8 @@ export class MIDIParser {
             case 0x04: // Instrument Name
             case 0x05: // Lyric
             case 0x06: // Marker
-            case 0x07: { // Cue Point
+            case 0x07: {
+                // Cue Point
                 // Extract text from these events
                 let text = '';
                 for (let i = 0; i < length; i++) {

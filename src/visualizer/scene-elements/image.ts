@@ -1,7 +1,7 @@
 // Image scene element for displaying images with transformations and property bindings
 import { SceneElement } from './base';
 import { Image, RenderObject } from '../render-objects';
-import { EnhancedConfigSchema } from '../types.js';
+import { EnhancedConfigSchema } from '@core/types.js';
 
 export class ImageElement extends SceneElement {
     private _currentImageSource: string | null = null;

@@ -1,5 +1,5 @@
 import { SceneElement } from './base';
-import { EnhancedConfigSchema } from '../types';
+import { EnhancedConfigSchema } from '@core/types';
 import { Rectangle, RenderObject, Text } from '../render-objects';
 
 // Minimal DebugElement for testing/inheritance demonstration
