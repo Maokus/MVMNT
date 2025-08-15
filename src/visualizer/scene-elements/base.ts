@@ -300,29 +300,6 @@ export class SceneElement implements SceneElementInterface {
         return this.getProperty('elementOpacity');
     }
 
-    // Backward compatibility properties
-    get globalScaleX(): number {
-        return this.elementScaleX;
-    }
-    get globalScaleY(): number {
-        return this.elementScaleY;
-    }
-    get globalRotation(): number {
-        return this.elementRotation;
-    }
-    get globalSkewX(): number {
-        return this.elementSkewX;
-    }
-    get globalSkewY(): number {
-        return this.elementSkewY;
-    }
-    get globalOpacity(): number {
-        return this.elementOpacity;
-    }
-    get config(): { [key: string]: any } {
-        return this.getConfig();
-    }
-
     /**
      * Template method for building RenderObjects with automatic transform application
      * Child classes should override _buildRenderObjects instead
@@ -819,42 +796,5 @@ export class SceneElement implements SceneElementInterface {
     setElementOpacity(opacity: number): this {
         this.setProperty('elementOpacity', Math.max(0, Math.min(1, opacity)));
         return this;
-    }
-
-    // Backward compatibility methods
-    setGlobalScaleX(scaleX: number): this {
-        return this.setElementScaleX(scaleX);
-    }
-
-    setGlobalScaleY(scaleY: number): this {
-        return this.setElementScaleY(scaleY);
-    }
-
-    setGlobalScale(scaleX: number, scaleY: number = scaleX): this {
-        return this.setElementScale(scaleX, scaleY);
-    }
-
-    setGlobalRotation(rotation: number): this {
-        return this.setElementRotation(rotation);
-    }
-
-    setGlobalRotationRadians(rotation: number): this {
-        return this.setElementRotationRadians(rotation);
-    }
-
-    setGlobalSkewX(skewX: number): this {
-        return this.setElementSkewX(skewX);
-    }
-
-    setGlobalSkewY(skewY: number): this {
-        return this.setElementSkewY(skewY);
-    }
-
-    setGlobalSkew(skewX: number, skewY: number): this {
-        return this.setElementSkew(skewX, skewY);
-    }
-
-    setGlobalOpacity(opacity: number): this {
-        return this.setElementOpacity(opacity);
     }
 }

@@ -298,34 +298,4 @@ export class AnimationController {
 
         return issues;
     }
-
-    // Public methods for controlling animations (no-ops in binding system)
-    setAnimationType(_type: AnimationType): this {
-        console.warn('setAnimationType should be handled through property bindings in BoundAnimationController');
-        return this;
-    }
-
-    // Deprecated setters retained for backward compatibility logging
-    setAnimationSpeed(_speed: number): this {
-        return this;
-    }
-    setAnimationDuration(_duration: number): this {
-        return this;
-    }
-
-    setAnimationEnabled(_enabled: boolean): this {
-        console.warn('setAnimationEnabled should be handled through property bindings in BoundAnimationController');
-        return this;
-    }
-
-    getAnimationState() {
-        const animationType = this.timeUnitPianoRoll.getAnimationType();
-        return {
-            type: animationType,
-            attack: this.timeUnitPianoRoll.getAttackDuration(),
-            decay: this.timeUnitPianoRoll.getDecayDuration(),
-            release: this.timeUnitPianoRoll.getReleaseDuration(),
-            enabled: animationType !== 'none',
-        };
-    }
 }

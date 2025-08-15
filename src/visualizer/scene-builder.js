@@ -593,11 +593,8 @@ export class HybridSceneBuilder {
             this.clearElements();
 
             // Load scene settings early so size/fa aspects can be applied by caller
-            // Accept both new sceneSettings and legacy exportSettings for backward compatibility
-            const legacy = sceneData.exportSettings;
-            const modern = sceneData.sceneSettings;
-            if (modern || legacy) {
-                const src = modern || legacy;
+            const src = sceneData.sceneSettings;
+            if (src) {
                 const partial = {};
                 if (typeof src.fps === 'number') partial.fps = src.fps;
                 if (typeof src.width === 'number') partial.width = src.width;
@@ -606,7 +603,7 @@ export class HybridSceneBuilder {
                 if (typeof src.postPadding === 'number') partial.postPadding = src.postPadding;
                 this.updateSceneSettings(partial);
             } else {
-                // If none present, reset to defaults
+                // If no scene settings present, reset to defaults
                 this.resetSceneSettings();
             }
 
@@ -659,11 +656,6 @@ export class HybridSceneBuilder {
                 }
             }
 
-            // Handle legacy MIDI data if present (for backward compatibility)
-            if (sceneData.midiData && !hasBindingSystem) {
-                this._handleLegacyMIDIData(sceneData.midiData, sceneData.midiFileName);
-            }
-
             // Migrate legacy macro assignments to property bindings if this is an older scene
             if (!hasBindingSystem) {
                 console.log('Migrating legacy macro assignments to property bindings...');
@@ -699,30 +691,6 @@ export class HybridSceneBuilder {
         };
 
         return typeMapping[legacyType] || legacyType;
-    }
-
-    /**
-     * Handle legacy MIDI data for backward compatibility
-     */
-    _handleLegacyMIDIData(midiData, midiFileName) {
-        console.log('Handling legacy MIDI data...');
-
-        // Find bound piano roll elements and load the MIDI data into them
-        const pianoRollElements = this.getElementsByType('boundTimeUnitPianoRoll');
-        for (const element of pianoRollElements) {
-            if (element instanceof TimeUnitPianoRollElement) {
-                // Convert MIDI events to notes format
-                const notes = this._convertMidiEventsToNotes(midiData.events);
-                element.loadMIDIData(midiData, notes);
-                console.log(`Loaded legacy MIDI data into bound piano roll element '${element.id}'`);
-            }
-        }
-
-        // Update the MIDI file macro if it exists
-        if (midiFileName) {
-            const mockFile = new File([], midiFileName, { type: 'audio/midi' });
-            globalMacroManager.updateMacroValue('midiFile', mockFile);
-        }
     }
 
     /**

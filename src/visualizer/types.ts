@@ -245,19 +245,8 @@ export interface SceneElementInterface {
     // Element visibility properties
     elementOpacity: number;
 
-    // Backward compatibility properties
-    globalScaleX: number;
-    globalScaleY: number;
-    globalRotation: number;
-    globalSkewX: number;
-    globalSkewY: number;
-    globalOpacity: number;
-
-    config: { [key: string]: any };
-
     buildRenderObjects(config: any, targetTime: number): RenderObject[];
     updateConfig(newConfig: { [key: string]: any }): void;
-    getConfig(): { [key: string]: any };
     setVisible(visible: boolean): this;
     setZIndex(zIndex: number): this;
 
@@ -274,16 +263,6 @@ export interface SceneElementInterface {
     setElementSkewY(skewY: number): this;
     setElementSkew(skewX: number, skewY: number): this;
     setElementOpacity(opacity: number): this;
-    // Backward compatibility methods
-    setGlobalScaleX(scaleX: number): this;
-    setGlobalScaleY(scaleY: number): this;
-    setGlobalScale(scaleX: number, scaleY?: number): this;
-    setGlobalRotation(rotation: number): this;
-    setGlobalRotationRadians(rotation: number): this;
-    setGlobalSkewX(skewX: number): this;
-    setGlobalSkewY(skewY: number): this;
-    setGlobalSkew(skewX: number, skewY: number): this;
-    setGlobalOpacity(opacity: number): this;
 }
 
 export interface BackgroundElementConfig extends BaseSceneElementConfig {
