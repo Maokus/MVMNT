@@ -30,8 +30,8 @@ export function loadGoogleFont(family: string, options: LoadFontOptions = {}): v
         variantParam = `wght@${weights.join(';')}`;
     }
 
-    const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(
-        familyToURLParam(family)
+    const href = `https://fonts.googleapis.com/css2?family=${familyToURLParam(
+        family
     )}:${variantParam}&display=${display}`;
 
     if (typeof document !== 'undefined') {
