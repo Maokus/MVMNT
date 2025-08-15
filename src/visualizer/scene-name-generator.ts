@@ -1,6 +1,6 @@
 // Random scene name generator
 export class SceneNameGenerator {
-    static adjectives = [
+    static adjectives: string[] = [
         'looseleft',
         'elsewise',
         'licotic',
@@ -46,7 +46,7 @@ export class SceneNameGenerator {
         'merrifluous',
     ];
 
-    static nouns = [
+    static nouns: string[] = [
         'chrysalism',
         'trumspringa',
         'kairosclerosis',
@@ -280,23 +280,16 @@ export class SceneNameGenerator {
         'tiris',
     ];
 
-    /**
-     * Generate a random scene name using adjective + noun pattern
-     * @returns {string} A randomly generated scene name
-     */
-    static generate() {
+    /** Generate a random scene name using adjective + noun */
+    static generate(): string {
         const adjective = this.adjectives[Math.floor(Math.random() * this.adjectives.length)];
         const noun = this.nouns[Math.floor(Math.random() * this.nouns.length)];
         return `${adjective}_${noun}`;
     }
 
-    /**
-     * Generate multiple scene name options
-     * @param {number} count - Number of names to generate
-     * @returns {string[]} Array of generated names
-     */
-    static generateMultiple(count = 5) {
-        const names = new Set();
+    /** Generate multiple scene name options */
+    static generateMultiple(count = 5): string[] {
+        const names = new Set<string>();
         while (names.size < count) {
             names.add(this.generate());
         }

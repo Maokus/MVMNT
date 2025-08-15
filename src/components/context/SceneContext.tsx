@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '../hooks/useMenuBar';
-// @ts-ignore
-import { SceneNameGenerator } from '../../visualizer/scene-name-generator.js';
+import { SceneNameGenerator } from '../../visualizer/scene-name-generator';
 
 interface SceneContextValue {
     sceneName: string;
