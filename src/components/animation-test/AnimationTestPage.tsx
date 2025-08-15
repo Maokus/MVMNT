@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import easings from '@animation/easings';
 import { ModularRenderer } from '../../core/render/modular-renderer';
-import { createAnimationInstance, getAnimationSelectOptions } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
-import type { AnimationPhase } from '../../visualizer/scene-elements/time-unit-piano-roll/note-animations';
-import { NoteBlock } from '../../visualizer/scene-elements/time-unit-piano-roll/note-block';
+import { createAnimationInstance, getAnimationSelectOptions } from '@animation/note-animations';
+import type { AnimationPhase } from '@animation/note-animations';
+import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 import { RenderObject } from '@core/index';
 import './animationTest.css';
 

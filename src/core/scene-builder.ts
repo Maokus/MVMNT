@@ -8,10 +8,10 @@ import {
     TimeUnitPianoRollElement,
     DebugElement,
     SceneElement,
-} from 'visualizer/scene-elements';
+} from '@core/scene/elements';
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import { getAnimationSelectOptions } from 'visualizer/scene-elements/time-unit-piano-roll/note-animations';
+import { getAnimationSelectOptions } from '@animation/note-animations';
 
 export interface SceneSettings {
     fps: number;

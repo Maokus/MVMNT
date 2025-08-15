@@ -13,8 +13,6 @@ export { MacroManager, globalMacroManager } from '../bindings/macro-manager';
 // ==========================================
 export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
 export type { PropertyBindingData } from '@bindings/property-bindings';
-export { SceneElement } from '../visualizer/scene-elements/base';
-export { TimeUnitPianoRollElement } from '../visualizer/scene-elements/time-unit-piano-roll/time-unit-piano-roll';
 export { HybridSceneBuilder } from '@core/scene-builder';
 
 // ==========================================
@@ -27,7 +25,7 @@ export { ModularRenderer } from './render/modular-renderer.js';
 export { SceneElementRegistry, sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
 // Scene elements
-export * from '../visualizer/scene-elements/index.js';
+export * from '@core/scene/elements';
 
 // Render objects
 export * from '@core/render/render-objects';

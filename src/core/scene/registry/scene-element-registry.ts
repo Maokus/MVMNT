@@ -8,7 +8,7 @@ import {
     TextOverlayElement,
     TimeDisplayElement,
     DebugElement,
-} from 'visualizer/scene-elements';
+} from '@core/scene/elements';
 
 export interface SceneElementFactorySchema {
     name?: string;

@@ -1,4 +1,4 @@
-import type { AnimationType } from '../animation-controller';
+import type { AnimationType } from '@core/scene/elements/time-unit-piano-roll/animation-controller';
 import { BaseNoteAnimation } from './base';
 import { FadeAnimation } from './fade';
 import { SlideAnimation } from './slide';
