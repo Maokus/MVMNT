@@ -99,7 +99,7 @@ const MenuBar: React.FC = () => {
                 </div>
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <Link to="/animation-test" style={{ color: '#fff', textDecoration: 'none', fontSize: 12 }}>Animation Test</Link>
+                <img width="50" src='./Logo_Transparent.png' />
             </div>
         </div>
     );
