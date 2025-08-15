@@ -695,7 +695,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             parseFontSelection(noteLabelFontSelection);
         const noteLabelFontSize = this.getProperty<number>('noteLabelFontSize') || 10;
         const noteLabelFontColor = this.getProperty<string>('noteLabelFontColor') || '#ffffff';
-        const legacyNoteWeight = (this as any).getProperty?.('noteLabelFontWeight');
+        // Legacy support: silently read old weight property if present to avoid warning spam
+        const legacyNoteWeight = (this as any).bindings?.get('noteLabelFontWeight')?.getValue?.();
         const noteLabelFontWeight = (noteLabelFontWeightPart || legacyNoteWeight || '400').toString();
         const noteLabelInterval = this.getProperty<number>('noteLabelInterval') || 1;
         const noteLabelStartNote = this.getProperty<number>('noteLabelStartNote') || 0;
@@ -707,7 +708,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             parseFontSelection(beatLabelFontSelection);
         const beatLabelFontSize = this.getProperty<number>('beatLabelFontSize') || 12;
         const beatLabelFontColor = this.getProperty<string>('beatLabelFontColor') || '#ffffff';
-        const legacyBeatWeight = (this as any).getProperty?.('beatLabelFontWeight');
+        // Legacy support: silently read old beat label weight property if present
+        const legacyBeatWeight = (this as any).bindings?.get('beatLabelFontWeight')?.getValue?.();
         const beatLabelFontWeight = (beatLabelFontWeightPart || legacyBeatWeight || '400').toString();
         const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
         const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;

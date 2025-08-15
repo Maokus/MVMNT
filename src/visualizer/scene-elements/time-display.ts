@@ -114,7 +114,8 @@ export class TimeDisplayElement extends SceneElement {
         const showProgress = this.getProperty('showProgress') as boolean;
         const fontSelection = this.getProperty('fontFamily') as string;
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
-        const legacyWeight = (this as any).getProperty?.('fontWeight');
+        // Legacy support: if old standalone fontWeight binding exists, read it directly (silently) without triggering warning
+        const legacyWeight = (this as any).bindings?.get('fontWeight')?.getValue?.();
         const fontWeight = (weightPart || legacyWeight || '400').toString();
         const textColor = this.getProperty('textColor') as string;
         const textSecondaryColor = this.getProperty('textSecondaryColor') as string;
