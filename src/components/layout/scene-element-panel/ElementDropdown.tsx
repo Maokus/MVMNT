@@ -1,5 +1,5 @@
 import React from 'react';
-import { sceneElementRegistry } from '../../../visualizer/scene-element-registry.js';
+import { sceneElementRegistry } from '../../../visualizer/scene-element-registry';
 
 interface ElementDropdownProps {
     onAddElement: (elementType: string) => void;
