@@ -171,11 +171,6 @@ export class HybridSceneBuilder {
                 if (duration > maxDuration) maxDuration = duration;
                 continue;
             }
-            // Legacy timingManager with duration
-            if (element.timingManager && typeof element.timingManager.getDuration === 'function') {
-                const duration = element.timingManager.getDuration();
-                if (duration > maxDuration) maxDuration = duration;
-            }
         }
 
         return maxDuration;
@@ -546,11 +541,7 @@ export class HybridSceneBuilder {
                     index: this.elements.indexOf(element),
                 };
             } else {
-                // Fallback to regular serialization for legacy elements
-                return {
-                    ...this.getElementConfig(element.id),
-                    index: this.elements.indexOf(element),
-                };
+                throw new Error('[serializeScene] Element is not of type SceneElement');
             }
         });
 
@@ -622,6 +613,10 @@ export class HybridSceneBuilder {
             // Check if this is a new format with binding system
             const hasBindingSystem = sceneData.bindingSystemVersion !== undefined;
 
+            if (!hasBindingSystem) {
+                console.warn(`[loadScene] Binding system version not detected'`);
+            }
+
             // Sort elements by index to maintain order
             const sortedElements = sceneData.elements.sort((a, b) => (a.index || 0) - (b.index || 0));
 
@@ -633,14 +628,7 @@ export class HybridSceneBuilder {
 
                 let element;
 
-                if (hasBindingSystem) {
-                    // New format: create element from registry and let it handle binding deserialization
-                    element = this.addElementFromRegistry(elementConfig.type, elementConfig);
-                } else {
-                    console.warn(`[loadScene] Legacy format detected for element '${elementConfig.id}'`);
-                    // For legacy format, try to load the element normally
-                    element = this.addElementFromRegistry(elementConfig.type, elementConfig);
-                }
+                element = this.addElementFromRegistry(elementConfig.type, elementConfig);
 
                 if (element) {
                     // Set visibility and z-index if specified
@@ -656,14 +644,6 @@ export class HybridSceneBuilder {
                 }
             }
 
-            // Migrate legacy macro assignments to property bindings if this is an older scene
-            if (!hasBindingSystem) {
-                console.log('Migrating legacy macro assignments to property bindings...');
-                if (globalMacroManager.migrateAssignmentsToBindings) {
-                    globalMacroManager.migrateAssignmentsToBindings(this);
-                }
-            }
-
             console.log(
                 `Scene loaded successfully: ${sortedElements.length} elements, binding system: ${
                     hasBindingSystem ? 'yes' : 'no'
@@ -674,23 +654,6 @@ export class HybridSceneBuilder {
             console.error('Error loading scene:', error);
             return false;
         }
-    }
-
-    /**
-     * Map legacy element types to new types
-     */
-    _mapLegacyTypeToNew(legacyType) {
-        const typeMapping = {
-            boundTimeUnitPianoRoll: 'timeUnitPianoRoll',
-            boundTextOverlay: 'textOverlay',
-            boundBackground: 'background',
-            boundDebug: 'debug',
-            boundImage: 'image',
-            boundProgressDisplay: 'progressDisplay',
-            boundTimeDisplay: 'timeDisplay',
-        };
-
-        return typeMapping[legacyType] || legacyType;
     }
 
     /**

@@ -793,9 +793,7 @@ export class MIDIVisualizerCore {
     importSceneConfig(sceneData) {
         // Apply resolution & fps BEFORE loading elements so size-dependent layouts initialize correctly
         try {
-            const legacy = sceneData?.exportSettings;
-            const modern = sceneData?.sceneSettings;
-            const src = modern || legacy;
+            const src = sceneData?.sceneSettings;
             if (src) {
                 this.updateExportSettings(src);
                 try {

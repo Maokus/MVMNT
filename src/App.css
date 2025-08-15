@@ -1061,69 +1061,6 @@ section p {
     width: 120px;
 }
 
-/* Config section styles - legacy style, consider consolidating with form-field */
-.config-section {
-    margin-bottom: 16px;
-}
-
-.config-section h4 {
-    margin-bottom: 8px;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 600;
-    border-bottom: 1px solid #3e3e42;
-    padding-bottom: 4px;
-}
-
-.config-property {
-    margin-bottom: 12px;
-}
-
-.config-property label {
-    display: block;
-    margin-bottom: 4px;
-    font-weight: 500;
-    font-size: 12px;
-    color: #ffffff;
-}
-
-.config-property .property-description {
-    font-size: 11px;
-    color: #cccccc;
-    margin-bottom: 4px;
-}
-
-.config-property input,
-.config-property select {
-    width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #464647;
-    border-radius: 3px;
-    font-size: 12px;
-    background: #3c3c3c;
-    color: #ffffff;
-}
-
-.config-property input:focus,
-.config-property select:focus {
-    outline: none;
-    border-color: #0e639c;
-    box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
-}
-
-.config-property input[type='checkbox'] {
-    width: auto;
-    margin-right: 8px;
-    accent-color: #0e639c;
-}
-
-.config-property input[type='color'] {
-    width: 60px;
-    height: 32px;
-    padding: 2px;
-    border-radius: 3px;
-}
-
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
     width: 8px;
