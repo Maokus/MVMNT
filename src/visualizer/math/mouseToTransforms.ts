@@ -3,7 +3,7 @@
 import { AnchorAdjustParams } from './types';
 import { applyRSK } from './transformHelpers';
 import { ScaleComputationParams, ScaleResult } from './types';
-import { clampSignedScale, clamp01, snapToGrid2D, sincos } from './mathUtils';
+import { clampSignedScale, clamp01, snapToGrid2D, sincos } from '@math/numeric';
 
 /** Adjust offsets when the anchor (pivot) moves to keep visual position stable. */
 // Contract:

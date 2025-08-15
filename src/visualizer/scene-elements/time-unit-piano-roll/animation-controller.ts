@@ -1,7 +1,7 @@
 // AnimationController - handles animation states and processing of notes into render objects
 // Compatible with the property binding system used in TimeUnitPianoRollElement
 import { createAnimationInstance, type AnimationPhase } from './note-animations/index';
-import { debugLog } from '../../utils/debug-log';
+import { debugLog } from '@utils/debug-log';
 import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
 import type { NoteBlock as TNoteBlock } from './note-block';
 import { RenderObject } from '../../render-objects';
