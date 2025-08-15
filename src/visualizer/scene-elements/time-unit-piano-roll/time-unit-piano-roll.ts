@@ -8,8 +8,8 @@ import { getAnimationSelectOptions } from './note-animations';
 import { NoteBlock } from './note-block';
 import { MidiManager } from '@core/midi/midi-manager';
 import { debugLog } from '@utils/debug-log';
-import { globalMacroManager } from '../../macro-manager';
-import { ConstantBinding } from '../../property-bindings';
+import { globalMacroManager } from '@bindings/macro-manager';
+import { ConstantBinding } from '@bindings/property-bindings';
 
 export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;

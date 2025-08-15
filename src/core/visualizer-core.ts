@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
-import { globalMacroManager } from '../visualizer/macro-manager';
 import { HybridSceneBuilder } from './scene-builder';
 
 export class MIDIVisualizerCore {

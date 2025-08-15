@@ -8,8 +8,8 @@ import {
     PropertyBindingUtils,
     PropertyBindingData,
     BindingType,
-} from '../property-bindings';
-import { globalMacroManager } from '../macro-manager';
+} from '@bindings/property-bindings';
+import { globalMacroManager } from '@bindings/macro-manager';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;

@@ -6,13 +6,13 @@
 export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
 export { NoteEvent } from '@core/midi/note-event';
 export { ImageSequenceGenerator } from '../visualizer/image-sequence-generator';
-export { MacroManager, globalMacroManager } from '../visualizer/macro-manager';
+export { MacroManager, globalMacroManager } from '../bindings/macro-manager';
 
 // ==========================================
 // Property Binding System Exports
 // ==========================================
-export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '../visualizer/property-bindings';
-export type { PropertyBindingData } from '../visualizer/property-bindings';
+export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
+export type { PropertyBindingData } from '@bindings/property-bindings';
 export { SceneElement } from '../visualizer/scene-elements/base';
 export { TimeUnitPianoRollElement } from '../visualizer/scene-elements/time-unit-piano-roll/time-unit-piano-roll';
 export { HybridSceneBuilder } from '@core/scene-builder';

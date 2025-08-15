@@ -1,4 +1,4 @@
-import { globalMacroManager } from '../../visualizer/macro-manager';
+import { globalMacroManager } from '@bindings/macro-manager';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 
 interface UseMenuBarProps {

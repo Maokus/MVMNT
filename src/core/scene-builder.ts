@@ -9,7 +9,7 @@ import {
     DebugElement,
     SceneElement,
 } from 'visualizer/scene-elements';
-import { globalMacroManager } from 'visualizer/macro-manager';
+import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { getAnimationSelectOptions } from 'visualizer/scene-elements/time-unit-piano-roll/note-animations';
 

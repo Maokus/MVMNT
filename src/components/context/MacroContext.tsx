@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 // @ts-ignore
-import { globalMacroManager, MacroType } from '../../visualizer/macro-manager';
+import { globalMacroManager, MacroType } from '@bindings/macro-manager';
 
 interface MacroContextValue {
     manager: any;
