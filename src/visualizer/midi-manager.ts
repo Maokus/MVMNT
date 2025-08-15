@@ -1,4 +1,4 @@
-import { TimingManager } from './timing-manager';
+import { TimingManager } from '@core/timing-manager';
 import { NoteEvent } from './note-event';
 
 export class MidiManager {
