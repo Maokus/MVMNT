@@ -416,7 +416,9 @@ export class MIDIVisualizerCore {
         const b = record.bounds;
         const element = record.element;
         const handles: any[] = [];
-        const size = Math.max(6, Math.min(18, Math.min(b.width, b.height) * 0.08));
+        // Standardized handle sizing (previously varied with element size causing inconsistency)
+        // Slightly larger than prior default upper bound for better UX.
+        const size = 16; // px – uniform for all scale & anchor handles
         const anchorX = element ? element.anchorX : 0.5;
         const anchorY = element ? element.anchorY : 0.5;
         let anchorPixelX = b.x + b.width * anchorX;
@@ -464,7 +466,8 @@ export class MIDIVisualizerCore {
         addHandle('anchor', 'anchor', anchorPixelX, anchorPixelY, 'rect');
         let rotHandleX: number;
         let rotHandleY: number;
-        const rotOffset = Math.min(60, Math.max(25, b.height * 0.15));
+        // Fixed rotation handle distance for consistency (was dependent on element height)
+        const rotOffset = 40; // px
         if (oriented) {
             const topMid = { x: (oriented[0].x + oriented[1].x) / 2, y: (oriented[0].y + oriented[1].y) / 2 };
             const edgeVec = { x: oriented[1].x - oriented[0].x, y: oriented[1].y - oriented[0].y };
@@ -487,7 +490,17 @@ export class MIDIVisualizerCore {
             rotHandleX = rotBaseX;
             rotHandleY = rotBaseY - rotOffset;
         }
-        addHandle('rotate', 'rotate', rotHandleX, rotHandleY, 'circle');
+        // Rotation handle slightly larger circular target for easier grabbing
+        const rotateSize = 24; // diameter basis (rect 'size' kept for consistency, r overrides hit test circle)
+        handles.push({
+            id: 'rotate',
+            type: 'rotate',
+            cx: rotHandleX,
+            cy: rotHandleY,
+            size: rotateSize,
+            shape: 'circle',
+            r: rotateSize * 0.5,
+        });
         return handles;
     }
     getModularRenderer() {
