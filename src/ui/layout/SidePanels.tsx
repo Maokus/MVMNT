@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import SceneElementPanel from '../../components/layout/scene-element-panel/SceneElementPanel';
-import { PropertiesPanel } from '../../components/layout/properties-panel';
+import { PropertiesPanel } from '@ui/panels/properties';
 import { ElementDropdown } from '../../components/layout/scene-element-panel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
