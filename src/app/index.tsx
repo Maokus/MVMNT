@@ -8,9 +8,12 @@ import reportWebVitals from './reportWebVitals';
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+// Vite exposes the configured base as import.meta.env.BASE_URL (always ends with a slash)
+const basename = (import.meta as any).env.BASE_URL?.replace(/\/$/, '') || '';
+
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <App />
     </BrowserRouter>
   </React.StrictMode>
