@@ -1,19 +1,19 @@
-# MIDI Social Post Visualizer
+# MVMNT
 
-A React-based MIDI visualization application for creating social media videos from MIDI files.
+MVMNT (pronounced Movement) is a React-based MIDI visualization application for creating social media videos from MIDI files.
 
 ### Installation
 
 ```
-git clone <link>
-cd <name>
+git clone https://github.com/Maokus/MVMNT.git
+cd MVMNT
 npm i
 npm run start
 ```
 
 ### Custom sceneElements
 
-Elements are the things you see and can move around. They are located in `src/visualizer/scene-elements`. They inherit from `SceneElement` in `base.ts`.
+Elements are the things you see and can move around. They are located in `src/core/scene/elements`. They inherit from `SceneElement` in `base.ts`.
 
 For an example of a simple sceneElement, lets look at the text element.
 
@@ -50,8 +50,7 @@ In `_buildRenderObjects`, the controls defined in `getConfigSchema` are accessed
 
 ### Custom TUPR animations
 
-The /animation-test is a page made to help design animations for the time unit piano roll. These animations can be found in `src/visualizer/scene-elements/time-unit-piano-roll/note-animations` (sorry for the nesting lol)
-
+The /animation-test is a page made to help design animations for the time unit piano roll. These animations can be found in `src/animation/note-animations`
 To make a new animation:
 
 1. Create a new filename
@@ -66,3 +65,5 @@ This should add the animation such that it will be selectable from `/animation-t
 `vis.sceneBuilder.getElementsByType("timeUnitPianoRoll")[0].midiManager.timingManager.setTempoMap([{time:0, bpm:100}, {time:3, bpm:200}])` run in the console in the default scene adds a tempo map to the time unit piano roll.
 
 `localStorage.setItem("VIS_DEBUG",1)` enables debug logging.
+
+`localStorage.removeItem("mvmnt_onboarded_v1")` re-enables onboarding modal
