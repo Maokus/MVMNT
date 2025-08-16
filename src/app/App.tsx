@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import MidiVisualizer from 'components/layout/MidiVisualizer';
+import MidiVisualizer from '@ui/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
 import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';

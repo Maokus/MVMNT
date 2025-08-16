@@ -1,7 +1,7 @@
 import React from 'react';
-import MenuBar from '../../ui/layout/MenuBar';
-import PreviewPanel from '../../ui/layout/PreviewPanel';
-import SidePanels from '../../ui/layout/SidePanels';
+import MenuBar from './MenuBar';
+import PreviewPanel from './PreviewPanel';
+import SidePanels from './SidePanels';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';
 import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
