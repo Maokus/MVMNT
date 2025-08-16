@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import easings from '@animation/easings';
-import { ModularRenderer } from '../core/render/modular-renderer';
+import { ModularRenderer } from '@core/render/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '@animation/note-animations';
 import type { AnimationPhase } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';

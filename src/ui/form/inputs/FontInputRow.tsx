@@ -161,7 +161,12 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        position: 'relative'
+                        position: 'relative',
+                        background: "#383838",
+                        color: "#e0e0e0",
+                        padding: "4px",
+                        border: "none",
+                        fontSize: "1em"
                     }}
                 >
                     {currentFamily}
@@ -220,7 +225,15 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
                     type="button"
                     disabled={disabled}
                     onClick={() => setWeightOpen(o => !o)}
-                    style={{ width: '100%', textAlign: 'left' }}
+                    style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: "#383838",
+                        color: "#e0e0e0",
+                        padding: "4px",
+                        border: "none",
+                        fontSize: "1em"
+                    }}
                     title="Select font weight"
                 >
                     {currentWeight}
