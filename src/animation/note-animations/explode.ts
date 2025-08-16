@@ -1,9 +1,9 @@
 import { RenderObject, EmptyRenderObject, Poly, Rectangle, Text } from '@core/render/render-objects';
-import easingsFunctions from '@animation/easings';
+import easingFunctions from '@animation/easing.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';
-import * as af from '@animation/animations';
+import * as af from '@animation/anim-math.js';
 
 export class ExplodeAnimation extends BaseNoteAnimation {
     constructor() {
@@ -42,7 +42,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 let arrow = new Poly([
                     [x, y + hh - af.lerp(0, hh, progress)],
                     [x, y + hh + af.lerp(0, hh, progress)],
-                    [x - 40 * easingsFunctions.easeInQuart(progress), y + height / 2],
+                    [x - 40 * easingFunctions.easeInQuart(progress), y + height / 2],
                 ]);
                 arrow.opacity = af.lerp(0, 1, progress);
                 arrow.strokeColor = color;
@@ -75,10 +75,10 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     renderObj.y = -objBounds.height / 2;
                     let parent = new EmptyRenderObject();
                     parent.addChild(renderObj);
-                    parent.x = af.lerp(x, objs[i].endX, easingsFunctions.easeOutExpo(progress));
-                    parent.y = af.lerp(y, objs[i].endY, easingsFunctions.easeOutExpo(progress));
+                    parent.x = af.lerp(x, objs[i].endX, easingFunctions.easeOutExpo(progress));
+                    parent.y = af.lerp(y, objs[i].endY, easingFunctions.easeOutExpo(progress));
                     parent.opacity = 1 - progress;
-                    parent.rotation = af.lerp(0, objs[i].endRot, easingsFunctions.easeOutQuad(progress));
+                    parent.rotation = af.lerp(0, objs[i].endRot, easingFunctions.easeOutQuad(progress));
                     burst.addChild(parent);
                 }
 
@@ -87,7 +87,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 let skeleton = new Rectangle(
                     x,
                     y,
-                    af.lerp(0, width, easingsFunctions.easeOutExpo(progress)),
+                    af.lerp(0, width, easingFunctions.easeOutExpo(progress)),
                     height,
                     'rgba(0,0,0,0)',
                     color,

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import easings from '@animation/easings';
+import easings from '@animation/easing';
 import { ModularRenderer } from '@core/render/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '@animation/note-animations';
 import type { AnimationPhase } from '@animation/note-animations';

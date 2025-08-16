@@ -1,10 +1,10 @@
-import easingsFunctions from '@animation/easings';
+import easingFunctions from '@animation/easing';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '@animation/animations';
+import * as af from '@animation/anim-math';
 import { Rectangle, RenderObject } from '@core/render/render-objects';
 
-const ef = easingsFunctions;
+const ef = easingFunctions;
 
 export class ScaleAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {

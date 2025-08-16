@@ -1,6 +1,6 @@
 import { Rectangle, RenderObject } from '@core/render/render-objects';
-import * as af from '@animation/animations.js';
-import easingsFunctions from '@animation/easings';
+import * as af from '@animation/anim-math.js';
+import easingFunctions from '@animation/easing';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
 
@@ -13,7 +13,7 @@ export class SlideAnimation extends BaseNoteAnimation {
         let rectangle = new Rectangle(x, y, width, height, color);
         switch (phase) {
             case 'attack':
-                dx = width * (1 - easingsFunctions.easeOutExpo(p));
+                dx = width * (1 - easingFunctions.easeOutExpo(p));
                 rectangle.x = x - dx;
                 rectangle.opacity = af.lerp(0, 1, progress);
                 return [rectangle];
@@ -22,7 +22,7 @@ export class SlideAnimation extends BaseNoteAnimation {
             case 'sustain':
                 return [rectangle];
             case 'release':
-                dx = width * easingsFunctions.easeInExpo(p);
+                dx = width * easingFunctions.easeInExpo(p);
                 rectangle.x = x + dx;
                 rectangle.opacity = af.lerp(1, 0, progress);
                 return [rectangle];

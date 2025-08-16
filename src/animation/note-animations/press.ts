@@ -1,10 +1,10 @@
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '@animation/animations'; //Anim functions
-import easingsFunctions from '@animation/easings';
+import * as af from '@animation/anim-math'; //Anim functions
+import easingFunctions from '@animation/easing';
 
-const ef = easingsFunctions;
+const ef = easingFunctions;
 
 export class PressAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {

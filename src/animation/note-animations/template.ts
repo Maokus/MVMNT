@@ -1,11 +1,11 @@
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '@animation/animations';
-import easingsFunctions from '@animation/easings';
+import * as af from '@animation/anim-math';
+import easingFunctions from '@animation/easing';
 import seedrandom from 'seedrandom';
 
-const ef = easingsFunctions;
+const ef = easingFunctions;
 
 export class TemplateAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {

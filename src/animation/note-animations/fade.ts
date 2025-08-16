@@ -1,10 +1,10 @@
 import { Rectangle, RenderObject } from '@core/render/render-objects';
-import easingsFunctions from '@animation/easings';
+import easingFunctions from '@animation/easing';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '@animation/animations.js';
+import * as af from '@animation/anim-math.js';
 
-const ef = easingsFunctions;
+const ef = easingFunctions;
 
 export class FadeAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {

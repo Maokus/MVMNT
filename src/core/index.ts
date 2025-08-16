@@ -38,4 +38,4 @@ export * from '@core/types';
 // ==========================================
 // Animation Utilities Export
 // ==========================================
-export { FloatCurve, AnimMath } from '@animation/animations';
+export { FloatCurve, AnimMath } from '@animation/anim-math.js';
