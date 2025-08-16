@@ -1,12 +1,6 @@
 import React from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import BooleanInputRow from '@ui/form/inputs/BooleanInputRow';
-import NumberInputRow from '@ui/form/inputs/NumberInputRow';
-import SelectInputRow from '@ui/form/inputs/SelectInputRow';
-import ColorInputRow from '@ui/form/inputs/ColorInputRow';
-import RangeInputRow from '@ui/form/inputs/RangeInputRow';
-import FileInputRow from '@ui/form/inputs/FileInputRow';
-import TextInputRow from '@ui/form/inputs/TextInputRow';
+import FormInput from '@ui/form/inputs/FormInput';
 import FontInputRow from '@ui/form/inputs/FontInputRow';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
@@ -76,25 +70,22 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         }
 
-        switch (property.type) {
-            case 'boolean':
-                return <BooleanInputRow {...commonProps} />;
-            case 'number':
-                return <NumberInputRow {...commonProps} />;
-            case 'select':
-                return <SelectInputRow {...commonProps} />;
-            case 'color':
-                return <ColorInputRow {...commonProps} />;
-            case 'range':
-                return <RangeInputRow {...commonProps} />;
-            case 'file':
-                return <FileInputRow {...commonProps} />;
-            case 'font':
-                return <FontInputRow {...commonProps} />;
-            case 'string':
-            default:
-                return <TextInputRow {...commonProps} />;
-        }
+        // Keep font input as a specialized component (it's large and featureful)
+        if (property.type === 'font') return <FontInputRow {...commonProps} />;
+
+        // For other types, use the consolidated FormInput and map property.type to input type
+        const inputType = property.type === 'string' ? 'text' : property.type;
+        return (
+            <FormInput
+                id={commonProps.id}
+                type={inputType}
+                value={commonProps.value}
+                schema={commonProps.schema}
+                disabled={commonProps.disabled}
+                title={commonProps.title}
+                onChange={commonProps.onChange}
+            />
+        );
     };
 
     const renderMacroDropdown = (property: PropertyDefinition) => {

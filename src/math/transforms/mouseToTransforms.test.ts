@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { computeScaledTransform, computeAnchorAdjustment, computeRotation } from './mouseToTransforms';
-import { applyRSK } from './transformHelpers';
+import { applyRSK } from '@math/numeric';
 import { ScaleComputationParams, AnchorAdjustParams } from './types';
 
 function buildGeom(width: number, height: number) {
