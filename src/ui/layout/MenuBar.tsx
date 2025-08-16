@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
+import logo from '@assets/Logo_Transparent.png'
 
 const MenuBar: React.FC = () => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
@@ -100,7 +101,7 @@ const MenuBar: React.FC = () => {
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
-                    <img width="50" src='/Logo_Transparent.png' style={{ cursor: 'pointer' }} />
+                    <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                 </Link>
             </div>
         </div>

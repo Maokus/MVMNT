@@ -68,28 +68,54 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         const groupedSchema = schema as EnhancedConfigSchema;
         setEnhancedSchema(groupedSchema);
 
-        // Extract current property values
+        // Extract current property values using the binding system rather than legacy element.config
         const values: PropertyValues = {};
         const macroBindings: MacroAssignments = {};
 
-        // Get all properties from all groups
+        // If the element exposes getConfig (SceneElement does) we can pull a snapshot once.
+        // This already normalizes angle properties back to degrees for UI use.
+        let currentConfig: any = undefined;
+        if (element && typeof element.getConfig === 'function') {
+            try {
+                currentConfig = element.getConfig();
+            } catch (e) {
+                console.warn('[ElementPropertiesPanel] getConfig() failed, falling back to direct bindings', e);
+            }
+        }
+
         groupedSchema.groups.forEach(group => {
             group.properties.forEach(property => {
-                // Get property value
-                const value = element.config?.[property.key] !== undefined
-                    ? element.config[property.key]
-                    : (element[property.key] !== undefined ? element[property.key] : property.default);
+                let value: any;
+                if (currentConfig && currentConfig[property.key] !== undefined) {
+                    value = currentConfig[property.key];
+                } else if (element && typeof element.getBinding === 'function') {
+                    // Fallback: read directly from binding
+                    const binding = element.getBinding(property.key);
+                    if (binding) {
+                        value = binding.getValue();
+                        // Angle-like properties (rotation/skew) are stored internally in radians when constant
+                        if (
+                            (property.key === 'elementRotation' || property.key === 'elementSkewX' || property.key === 'elementSkewY') &&
+                            typeof value === 'number' && binding.type === 'constant'
+                        ) {
+                            value = value * (180 / Math.PI);
+                        }
+                    }
+                } else if (element && element[property.key] !== undefined) {
+                    // Legacy direct property (not expected for new binding system but kept for safety)
+                    value = element[property.key];
+                } else {
+                    value = property.default;
+                }
 
                 values[property.key] = value;
 
-                // Check for macro binding
+                // Determine macro bindings
                 if (element && typeof element.getBinding === 'function') {
                     const binding = element.getBinding(property.key);
                     if (binding && binding.type === 'macro') {
                         const macroId = binding.getMacroId ? binding.getMacroId() : null;
-                        if (macroId) {
-                            macroBindings[property.key] = macroId;
-                        }
+                        if (macroId) macroBindings[property.key] = macroId;
                     }
                 }
             });

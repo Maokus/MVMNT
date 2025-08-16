@@ -47,14 +47,19 @@ export class MIDIVisualizerCore {
     updateSceneElementTimingManager() {
         this.sceneBuilder.createDefaultMIDIScene();
     }
-    play() {
+    play(): boolean {
         const hasGlobalEvents = this.events.length > 0;
         const hasElementEvents = this.getCurrentDuration() > 0;
-        if (!hasGlobalEvents && !hasElementEvents) return;
+        if (!hasGlobalEvents && !hasElementEvents) {
+            // Ensure any stale playing flag is cleared
+            this.isPlaying = false;
+            return false;
+        }
         this.isPlaying = true;
         const bufferTime = 0.5;
         this.startTime = performance.now() - (this.currentTime - bufferTime) * 1000;
         this.animate();
+        return true;
     }
     pause() {
         this.isPlaying = false;
