@@ -1,13 +1,13 @@
 import React from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import BooleanInputRow from 'components/layout/properties-panel/input-rows/BooleanInputRow';
-import NumberInputRow from 'components/layout/properties-panel/input-rows/NumberInputRow';
-import SelectInputRow from 'components/layout/properties-panel/input-rows/SelectInputRow';
-import ColorInputRow from 'components/layout/properties-panel/input-rows/ColorInputRow';
-import RangeInputRow from 'components/layout/properties-panel/input-rows/RangeInputRow';
-import FileInputRow from 'components/layout/properties-panel/input-rows/FileInputRow';
-import TextInputRow from 'components/layout/properties-panel/input-rows/TextInputRow';
-import FontInputRow from 'components/layout/properties-panel/input-rows/FontInputRow';
+import BooleanInputRow from '@ui/form/inputs/BooleanInputRow';
+import NumberInputRow from '@ui/form/inputs/NumberInputRow';
+import SelectInputRow from '@ui/form/inputs/SelectInputRow';
+import ColorInputRow from '@ui/form/inputs/ColorInputRow';
+import RangeInputRow from '@ui/form/inputs/RangeInputRow';
+import FileInputRow from '@ui/form/inputs/FileInputRow';
+import TextInputRow from '@ui/form/inputs/TextInputRow';
+import FontInputRow from '@ui/form/inputs/FontInputRow';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMacros } from '@context/MacroContext';
-import FontInputRow from 'components/layout/properties-panel/input-rows/FontInputRow';
+import FontInputRow from '@ui/form/inputs/FontInputRow';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
