@@ -1,8 +1,8 @@
 import React from 'react';
 import './App.css';
-import MidiVisualizer from './components/layout/MidiVisualizer';
+import MidiVisualizer from 'components/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
-import { AnimationTestPage } from './components/animation-test';
+import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';
 
 export function App() {
