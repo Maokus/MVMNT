@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types';
-import { parseFontSelection, ensureFontLoaded } from '@utils/font-loader';
+import { parseFontSelection, ensureFontLoaded } from '@shared/services/fonts/font-loader';
 
 export class ProgressDisplayElement extends SceneElement {
     // Helper to convert hex color to rgba string
