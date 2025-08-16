@@ -140,7 +140,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 lastCurrentTime = current;
                 lastUIUpdate = now;
                 const hasValidScene = total > 0;
-                const newExportStatus = hasValidScene ? 'Ready to export' : 'Load MIDI or create scene to enable export';
+                const newExportStatus = hasValidScene ? 'Ready to export' : 'Load MIDI to enable export';
                 if (newExportStatus !== lastExportStatus) {
                     setExportStatus(newExportStatus);
                     lastExportStatus = newExportStatus;
@@ -228,10 +228,26 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             visualizer.pause();
             setIsPlaying(false);
         } else {
-            visualizer.play();
-            setIsPlaying(true);
+            const started = visualizer.play();
+            setIsPlaying(started && !!visualizer.isPlaying);
         }
     }, [visualizer]);
+
+    // Global spacebar shortcut for play/pause (ignores when typing in inputs/contentEditable)
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.code === 'Space' || e.key === ' ') {
+                const target = e.target as HTMLElement | null;
+                const tag = target?.tagName;
+                if (target?.isContentEditable) return; // allow editing
+                if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return; // allow form controls
+                e.preventDefault();
+                playPause();
+            }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [playPause]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
