@@ -1,7 +1,7 @@
 // Anchor adjustment logic extracted from interactionMath.ts
 
 import { AnchorAdjustParams } from './types';
-import { applyRSK } from './transformHelpers';
+import { applyRSK } from '@math/numeric';
 import { ScaleComputationParams, ScaleResult } from './types';
 import { clampSignedScale, clamp01, snapToGrid2D, sincos } from '@math/numeric';
 

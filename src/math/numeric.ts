@@ -38,3 +38,26 @@ export function snapToGrid2D(x: number, y: number, candidates: number[]) {
 export function sincos(theta: number) {
     return { sin: Math.sin(theta), cos: Math.cos(theta) };
 }
+
+export function applyRSK(
+    vx: number,
+    vy: number,
+    rotation: number,
+    skewX: number,
+    skewY: number,
+    scaleX: number,
+    scaleY: number
+) {
+    const kx = Math.tan(skewX);
+    const ky = Math.tan(skewY);
+    // Skew application replicates the original formula order exactly:
+    const kxVy = vx + kx * vy; // (x + tan(skewX) * y)
+    const kyVx = ky * vx + vy; // (tan(skewY) * x + y)
+    // Scale
+    const sx = kxVy * scaleX;
+    const sy = kyVx * scaleY;
+    // Rotate
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return { x: cos * sx - sin * sy, y: sin * sx + cos * sy };
+}
