@@ -206,7 +206,7 @@ export class HybridSceneBuilder {
             })
         );
         this.addElement(
-            new TextOverlayElement('titleText', {
+            new TextOverlayElement('textElement1', {
                 zIndex: 50,
                 anchorX: 0,
                 anchorY: 0,
@@ -218,7 +218,7 @@ export class HybridSceneBuilder {
             })
         );
         this.addElement(
-            new TextOverlayElement('artistText', {
+            new TextOverlayElement('textElement2', {
                 zIndex: 51,
                 anchorX: 0,
                 anchorY: 0,
