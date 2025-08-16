@@ -19,7 +19,7 @@ const LOCAL_STORAGE_KEY = 'recentFonts_v1';
 // Fallback list when we don't have variant metadata
 const FALLBACK_WEIGHTS = ['100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
-const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, title, onChange }) => {
+const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, title, onChange }) => {
     const [familyOpen, setFamilyOpen] = useState(false);
     const [weightOpen, setWeightOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -271,4 +271,4 @@ const FontInputRow: React.FC<FontInputRowProps> = ({ id, value, schema, disabled
     );
 };
 
-export default FontInputRow;
+export default FontInput;

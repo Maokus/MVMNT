@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMacros } from '@context/MacroContext';
-import FontInputRow from '@ui/form/inputs/FontInputRow';
+import FontInput from '@ui/form/inputs/FontInput';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
@@ -314,7 +314,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
             case 'font':
                 return (
-                    <FontInputRow
+                    <FontInput
                         id={`macro-font-${macro.name}`}
                         value={macro.value || 'Arial|400'}
                         schema={{ default: 'Arial|400' }}
@@ -439,7 +439,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                         {newMacro.type === 'font' && (
                             <div className="form-group">
                                 <label>Default Font:</label>
-                                <FontInputRow
+                                <FontInput
                                     id="newMacroFont"
                                     value={newMacro.value || 'Arial|400'}
                                     schema={{ default: 'Arial|400' }}

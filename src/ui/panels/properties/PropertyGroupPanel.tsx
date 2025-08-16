@@ -1,7 +1,7 @@
 import React from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
 import FormInput from '@ui/form/inputs/FormInput';
-import FontInputRow from '@ui/form/inputs/FontInputRow';
+import FontInput from '@ui/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 
@@ -70,10 +70,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         }
 
-        // Keep font input as a specialized component (it's large and featureful)
-        if (property.type === 'font') return <FontInputRow {...commonProps} />;
-
-        // For other types, use the consolidated FormInput and map property.type to input type
+        // Use the consolidated FormInput for all types (it delegates to specialized components internally)
         const inputType = property.type === 'string' ? 'text' : property.type;
         return (
             <FormInput
