@@ -1,0 +1,172 @@
+import React, { useEffect, useRef, useState } from 'react';
+import FileInput from './FileInput';
+import FontInput from './FontInput';
+
+interface FormInputProps {
+    id: string;
+    type: string;
+    value: any;
+    schema: any;
+    disabled?: boolean;
+    title?: string;
+    onChange: (value: any) => void;
+}
+
+const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled = false, title, onChange }) => {
+    // Local state helpers for text/number inputs to avoid wiping while typing
+    const [localValue, setLocalValue] = useState<string>('');
+
+    useEffect(() => {
+        if (type === 'number') {
+            const displayValue = typeof value === 'number' && !isNaN(value) ? value.toString() :
+                (typeof schema?.default === 'number' ? schema.default.toString() : '0');
+            setLocalValue(displayValue);
+        } else if (type === 'string' || type === 'text') {
+            const displayValue = typeof value === 'string' ? value : (typeof schema?.default === 'string' ? schema.default : '');
+            setLocalValue(displayValue);
+        }
+    }, [value, schema?.default, type]);
+
+    if (type === 'boolean') {
+        return (
+            <input
+                type="checkbox"
+                id={id}
+                checked={Boolean(value)}
+                disabled={disabled}
+                title={title}
+                onChange={(e) => onChange(e.target.checked)}
+            />
+        );
+    }
+
+    if (type === 'color') {
+        return (
+            <input
+                type="color"
+                id={id}
+                value={value || schema?.default || '#000000'}
+                disabled={disabled}
+                title={title}
+                onChange={(e) => onChange(e.target.value)}
+            />
+        );
+    }
+
+    if (type === 'select') {
+        return (
+            <select
+                id={id}
+                value={value}
+                disabled={disabled}
+                title={title}
+                onChange={(e) => onChange(e.target.value)}
+            >
+                {schema?.options?.map((option: any) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label || option.value}
+                    </option>
+                ))}
+            </select>
+        );
+    }
+
+    if (type === 'range') {
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const numValue = parseFloat(e.target.value);
+            if (!isNaN(numValue)) onChange(numValue);
+        };
+
+        return (
+            <div className="range-input-container">
+                <input
+                    type="range"
+                    id={id}
+                    value={value ?? schema?.default ?? 0}
+                    min={schema?.min}
+                    max={schema?.max}
+                    step={schema?.step}
+                    disabled={disabled}
+                    title={title}
+                    onChange={handleChange}
+                />
+            </div>
+        );
+    }
+
+    if (type === 'number') {
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const inputValue = e.target.value;
+            setLocalValue(inputValue);
+
+            if (inputValue === '' || inputValue === '-') return;
+
+            const numValue = parseFloat(inputValue);
+            if (!isNaN(numValue)) onChange(numValue);
+        };
+
+        const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+        };
+
+        return (
+            <input
+                type="number"
+                id={id}
+                value={localValue}
+                min={schema?.min}
+                max={schema?.max}
+                step={schema?.step}
+                disabled={disabled}
+                title={title}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+            />
+        );
+    }
+
+    if (type === 'file') {
+        return (
+            <FileInput
+                id={id}
+                value={value}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
+        );
+    }
+
+    if (type === 'font') {
+        // Delegate to the specialized font input component kept in a separate file
+        return (
+            <FontInput id={id} value={value} schema={schema} disabled={disabled} title={title} onChange={onChange} />
+        );
+    }
+
+    // default: text/string
+    const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        setLocalValue(newValue);
+        onChange(newValue);
+    };
+
+    const handleTextKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+    };
+
+    return (
+        <input
+            type="text"
+            id={id}
+            value={localValue}
+            disabled={disabled}
+            title={title}
+            onChange={handleTextChange}
+            onKeyDown={handleTextKeyDown}
+        />
+    );
+};
+
+export default FormInput;
