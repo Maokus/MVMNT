@@ -6,7 +6,7 @@
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
+    "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -22,7 +22,49 @@
     "types": [
       "vitest",
       "node"
-    ]
+    ],
+    "baseUrl": "./src",
+    "paths": {
+      "@app/*": [
+        "app/*"
+      ],
+      "@core/*": [
+        "core/*"
+      ],
+      "@animation/*": [
+        "animation/*"
+      ],
+      "@bindings/*": [
+        "bindings/*"
+      ],
+      "@export/*": [
+        "export/*"
+      ],
+      "@math/*": [
+        "math/*"
+      ],
+      "@ui/*": [
+        "ui/*"
+      ],
+      "@context/*": [
+        "context/*"
+      ],
+      "@hooks/*": [
+        "hooks/*"
+      ],
+      "@shared/*": [
+        "shared/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ],
+      "@pages/*": [
+        "pages/*"
+      ],
+      "@assets/*": [
+        "assets/*"
+      ]
+    }
   },
   "include": [
     "src"
