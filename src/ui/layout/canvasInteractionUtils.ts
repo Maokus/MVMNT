@@ -3,16 +3,14 @@
 // all required dependencies are passed in explicitly.
 
 import {
-    computeScaledTransform,
-    computeAnchorAdjustment,
-    computeRotation,
-    getCanvasWorldPoint,
-    findHandleUnderPoint,
-    computeScaleHandleReferencePoints,
     computeConstrainedMoveDelta,
+    computeScaleHandleReferencePoints,
     elementHitTest,
     elementHoverId,
-} from '../../visualizer/math';
+    findHandleUnderPoint,
+    getCanvasWorldPoint,
+} from '@math/interaction';
+import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@math/transforms/mouseToTransforms';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
