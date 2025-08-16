@@ -18,19 +18,6 @@ const AboutPage: React.FC = () => {
                     </p>
 
                     <section>
-                        <h2>Motivation</h2>
-                        <p>Two months ago, I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945">really beautiful MIDI visualizer</a> by kashiwade on twitter. I asked them how they made it, and this was the response: </p>
-                        <img src='./assets/pain.png' width={400} style={{ margin: "auto", display: "block" }}></img>
-                        <p style={{ textAlign: "center" }}><i>Figure 1: Why would you say this</i></p>
-                        <p>The moment I saw that response I knew I had to make a decision. </p>
-                        <ol style={{ marginLeft: "48px", paddingBottom: "12px" }}>
-                            <li>Accept that Kashiwade doesn't want to share how they made the visualizer</li>
-                            <li>Spend two spite-fuelled months of my life making a piece of freeware so I can make it myself</li>
-                        </ol>
-                        <p>The rest, as they say, is history.</p>
-                    </section>
-
-                    <section>
                         <h2>Getting Started</h2>
                         <ol className="getting-started-list">
                             <li><strong>Load a MIDI File</strong>: In the macros, click the "Load MIDI" button and select your file.</li>
@@ -40,6 +27,7 @@ const AboutPage: React.FC = () => {
                             <li><strong>Export</strong>: Trigger export to generate image frames or a compiled video; watch progress in the overlay.</li>
                         </ol>
                     </section>
+
 
                     <section>
                         <h2>Tips</h2>
@@ -58,6 +46,19 @@ const AboutPage: React.FC = () => {
                             If you have any questions or need assistance, feel free to reach out!
                         </p>
 
+                    </section>
+
+                    <section>
+                        <h2>Motivation</h2>
+                        <p>Two months ago, I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945">really beautiful MIDI visualizer</a> by kashiwade on twitter. I asked them how they made it, and this was the response: </p>
+                        <img src='./assets/pain.png' width={400} style={{ margin: "auto", display: "block" }}></img>
+                        <p style={{ textAlign: "center" }}><i>Figure 1: Why would you say this</i></p>
+                        <p>The moment I saw that response I knew I had to make a decision. </p>
+                        <ol style={{ marginLeft: "48px", paddingBottom: "12px" }}>
+                            <li>Accept that Kashiwade doesn't want to share how they made the visualizer</li>
+                            <li>Spend two spite-fuelled months of my life making a piece of freeware so I can make it myself</li>
+                        </ol>
+                        <p>The rest, as they say, is history.</p>
                     </section>
 
                     <section>

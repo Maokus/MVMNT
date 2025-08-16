@@ -700,6 +700,66 @@ section p {
     color: #cccccc;
 }
 
+/* Onboarding Overlay */
+.onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(30, 30, 30, 0.95), rgba(0, 0, 0, 0.95));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000; /* below export overlay so exports take priority */
+    animation: fadeIn 0.4s ease;
+}
+
+.onboarding-modal {
+    background: #2d2d30;
+    border: 1px solid #3e3e42;
+    border-radius: 10px;
+    padding: 32px 36px;
+    max-width: 640px;
+    width: 92vw;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+}
+
+.onboarding-modal h2 {
+    margin: 0 0 16px;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.onboarding-list {
+    list-style: disc;
+    padding-left: 20px;
+    margin: 12px 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.onboarding-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.onboarding-footer-hint {
+    font-size: 11px;
+    opacity: 0.6;
+    margin-top: 18px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 .download-btn {
     display: inline-block;
     padding: 8px 16px;
