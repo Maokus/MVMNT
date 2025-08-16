@@ -2,6 +2,10 @@
 
 MVMNT (pronounced Movement) is a React-based MIDI visualization application for creating social media videos from MIDI files.
 
+### License
+
+MVMNT is released under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this software and make it available to users, you must also provide those users access to the complete corresponding source code of your modified version under the same license. See the `LICENSE` file for details.
+
 ### Installation
 
 ```
