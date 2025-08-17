@@ -28,7 +28,7 @@ const MidiVisualizerInner: React.FC = () => {
 
     return (
         <div className="app-container">
-            <MenuBar />
+            <MenuBar onHelp={() => setShowOnboarding(true)} />
             <SceneSelectionProvider sceneRefreshTrigger={sceneRefreshTrigger}>
                 <div className="main-workspace">
                     <PreviewPanel />

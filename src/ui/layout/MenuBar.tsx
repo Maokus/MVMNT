@@ -3,7 +3,11 @@ import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
 
-const MenuBar: React.FC = () => {
+interface MenuBarProps {
+    onHelp?: () => void;
+}
+
+const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
@@ -45,8 +49,25 @@ const MenuBar: React.FC = () => {
 
     return (
         <div className="menu-bar">
-            <div className="menu-section quick-actions">
-                <h3>MVMNT v{((import.meta as any).env?.VITE_VERSION)}</h3>
+            <div className="menu-section quick-actions" style={{ gap: 12 }}>
+                <h3 style={{ marginRight: 0 }}>MVMNT v{((import.meta as any).env?.VITE_VERSION)}</h3>
+                <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
+                    <button
+                        type="button"
+                        onClick={() => onHelp?.()}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#cccccc',
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: 4
+                        }}
+                        title="Show onboarding / help"
+                    >help</button>
+                    <Link to="/about" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>about</Link>
+                    <Link to="/changelog" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>changelog</Link>
+                </nav>
             </div>
 
             <div className="menu-section scene-name-section">

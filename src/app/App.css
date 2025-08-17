@@ -60,6 +60,19 @@ section p {
     font-weight: 500;
 }
 
+/* Utility nav inside menu bar */
+.menu-bar nav a:hover,
+.menu-bar nav button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff !important;
+}
+
+.menu-bar nav a,
+.menu-bar nav button {
+    transition: background-color 0.15s ease, color 0.15s ease;
+    font-size: 12px;
+}
+
 /* Scene Name Section */
 .scene-name-section {
     flex: 1;
