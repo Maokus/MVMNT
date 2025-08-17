@@ -339,8 +339,19 @@ export class HybridSceneBuilder {
                 }
                 const el = this.addElementFromRegistry(ec.type, ec);
                 if (el) {
-                    if (ec.visible !== undefined) (el as any).setVisible(ec.visible);
-                    if (ec.zIndex !== undefined) (el as any).setZIndex(ec.zIndex);
+                    if (ec.visible !== undefined && typeof ec.visible === 'boolean') (el as any).setVisible(ec.visible);
+                    // Only apply zIndex directly if it's a primitive number (not a serialized binding object)
+                    if (ec.zIndex !== undefined) {
+                        const zRaw = ec.zIndex;
+                        if (typeof zRaw === 'number' && isFinite(zRaw)) {
+                            (el as any).setZIndex(zRaw);
+                        } else if (zRaw && typeof zRaw === 'object' && zRaw.type) {
+                            // Already handled via constructor _applyConfig; do nothing.
+                        } else {
+                            // Fallback: coerce to 0
+                            (el as any).setZIndex(0);
+                        }
+                    }
                 }
             }
             console.log(`Scene loaded: ${sorted.length} elements, binding system: ${hasBindingSystem ? 'yes' : 'no'}`);

@@ -673,15 +673,28 @@ export class SceneElement implements SceneElementInterface {
                 // This is serialized binding data
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {
-                // This is a raw value, create a constant binding
-                // For angle-like properties, interpret raw inputs as degrees from UI and convert to radians
-                if (
-                    (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
-                    typeof value === 'number'
-                ) {
-                    this.bindings.set(key, new ConstantBinding(value * (Math.PI / 180)));
+                // Raw value OR already-instantiated binding
+                if (value instanceof PropertyBinding) {
+                    this.bindings.set(key, value);
                 } else {
-                    this.bindings.set(key, new ConstantBinding(value));
+                    // Unwrap any accidental nested constant binding object shapes
+                    const unwrap = (v: any, depth = 0): any => {
+                        if (depth > 10) return v; // safety guard
+                        if (v && typeof v === 'object' && v.type === 'constant' && 'value' in v) {
+                            return unwrap(v.value, depth + 1);
+                        }
+                        return v;
+                    };
+                    const raw = unwrap(value);
+                    // For angle-like properties, interpret raw inputs as degrees from UI and convert to radians
+                    if (
+                        (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
+                        typeof raw === 'number'
+                    ) {
+                        this.bindings.set(key, new ConstantBinding(raw * (Math.PI / 180)));
+                    } else {
+                        this.bindings.set(key, new ConstantBinding(raw));
+                    }
                 }
             }
 

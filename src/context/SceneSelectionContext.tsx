@@ -223,7 +223,15 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
         const element = sceneBuilder.getElement(elementId);
         if (!element) return;
         const fullList: any[] = (sceneBuilder.elements || []).slice();
-        fullList.forEach(el => { if (el.zIndex === undefined || el.zIndex === null) el.zIndex = 0; });
+        // Normalize zIndex values defensively
+        fullList.forEach(el => {
+            let z = el.zIndex;
+            if (z && typeof z === 'object' && 'type' in z && (z as any).type === 'constant' && 'value' in z) {
+                z = (z as any).value; // unwrap accidental binding object presence
+            }
+            if (typeof z !== 'number' || !isFinite(z)) z = 0;
+            el.zIndex = z;
+        });
         const enriched = fullList.map((el, i) => ({ el, i }));
         enriched.sort((a, b) => {
             const dz = (b.el.zIndex || 0) - (a.el.zIndex || 0);
@@ -252,6 +260,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
             finalZ += direction;
             if (chain.length > fullList.length + 5) break;
         }
+        // Guard: if desiredZ already occupied by an element with same id (shouldn't happen) skip
         element.setZIndex(desiredZ);
         let nextZ = desiredZ + direction;
         for (const blocker of chain) {

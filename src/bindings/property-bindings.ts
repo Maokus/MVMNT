@@ -47,7 +47,16 @@ export abstract class PropertyBinding<T = any> {
     static fromSerialized(data: PropertyBindingData): PropertyBinding {
         switch (data.type) {
             case 'constant':
-                return new ConstantBinding(data.value);
+                // Unwrap any accidentally nested serialized constant bindings
+                const unwrapConstant = (val: any, depth = 0): any => {
+                    // Prevent pathological nesting
+                    if (depth > 10) return val;
+                    if (val && typeof val === 'object' && val.type === 'constant' && 'value' in val) {
+                        return unwrapConstant(val.value, depth + 1);
+                    }
+                    return val;
+                };
+                return new ConstantBinding(unwrapConstant(data.value));
             case 'macro':
                 if (!data.macroId) {
                     throw new Error('Macro binding requires macroId');
