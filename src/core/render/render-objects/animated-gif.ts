@@ -1,15 +1,11 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-// @ts-ignore - gifuct-js lacks bundled types
-import { decompressFrames, parseGIF } from 'gifuct-js';
+import { imageLoader, LoadedGIFFrame, LoadedGIF } from '@core/resources/image-loader';
 
-interface GIFFrame {
-    image: ImageData;
-    delay: number; // milliseconds
-}
+interface GIFFrame extends LoadedGIFFrame {}
 
 /**
  * AnimatedGif render object
- * - Decodes GIF frames once (lazy) using gifuct-js
+ * - Decodes GIF frames once (lazy) using centralized imageLoader
  * - Renders current frame based on elapsed time * playbackSpeed
  */
 export class AnimatedGif extends RenderObject {
@@ -26,6 +22,7 @@ export class AnimatedGif extends RenderObject {
     private _decodeError: any = null;
     private _lastFrameIndex = -1;
     private _imageBitmapCache: (ImageBitmap | null)[] = [];
+    private _offscreenCanvas: HTMLCanvasElement | null = null; // reuse to avoid allocations
 
     constructor(
         x: number,
@@ -78,23 +75,13 @@ export class AnimatedGif extends RenderObject {
     #startDecode() {
         if (this._decodeStarted || !this.source) return;
         this._decodeStarted = true;
-        fetch(this.source)
-            .then((r) => r.arrayBuffer())
-            .then((buf) => {
-                const gif: any = parseGIF(buf);
-                const frames: any[] = decompressFrames(gif, true) as any[];
-                const mapped: GIFFrame[] = frames.map((f: any) => ({
-                    image: f.patch as ImageData,
-                    delay: typeof f.delay === 'number' && f.delay > 0 ? f.delay : 10,
-                }));
-                this._frames = mapped;
-                this._totalDurationMs = mapped.reduce((acc: number, fr: GIFFrame) => acc + fr.delay, 0);
-                this._imageBitmapCache = new Array(mapped.length).fill(null);
-                try {
-                    document?.dispatchEvent?.(
-                        new CustomEvent('imageLoaded', { detail: { imageSource: this.source, type: 'gif' } })
-                    );
-                } catch {}
+        imageLoader
+            .loadGIF(this.source)
+            .then((gif: LoadedGIF) => {
+                if (!this.source) return; // source may have changed
+                this._frames = gif.frames;
+                this._totalDurationMs = gif.totalDurationMs;
+                this._imageBitmapCache = new Array(gif.frames.length).fill(null);
             })
             .catch((e) => {
                 this._decodeError = e;
@@ -200,10 +187,11 @@ export class AnimatedGif extends RenderObject {
                 this.#ensureBitmap(frameIndex);
                 this._lastFrameIndex = frameIndex;
             }
-            // Draw via intermediate canvas
-            const off = document.createElement('canvas');
-            off.width = imgWidth;
-            off.height = imgHeight;
+            // Draw via reusable offscreen canvas
+            if (!this._offscreenCanvas) this._offscreenCanvas = document.createElement('canvas');
+            const off = this._offscreenCanvas;
+            if (off.width !== imgWidth) off.width = imgWidth;
+            if (off.height !== imgHeight) off.height = imgHeight;
             const offCtx = off.getContext('2d');
             if (offCtx) offCtx.putImageData(frame.image, 0, 0);
             ctx.drawImage(off, drawX, drawY, drawWidth, drawHeight);

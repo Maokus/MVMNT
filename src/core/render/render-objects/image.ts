@@ -1,6 +1,8 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
+import { imageLoader } from '@core/resources/image-loader';
 
-type ImageSource = string | HTMLImageElement | null | undefined;
+// Extend accepted sources to include File
+type ImageSource = string | File | HTMLImageElement | null | undefined;
 
 export class Image extends RenderObject {
     width: number;
@@ -24,52 +26,38 @@ export class Image extends RenderObject {
         this.imageLoaded = false;
         this.preserveAspectRatio = true;
         this.fitMode = 'contain';
-        console.log('Image created with opacity:', opacity);
-        this.#loadImage();
+        if (imageSource) this.#beginLoad(imageSource); // initial async load
     }
 
-    #loadImage(): void {
-        if (!this.imageSource) {
-            this.imageElement = null;
-            this.imageLoaded = false;
-            return;
-        }
-        this._currentLoadingSource = this.imageSource;
-        if (this.imageSource instanceof HTMLImageElement) {
-            this.imageElement = this.imageSource;
-            this.imageLoaded = this.imageElement.complete;
+    #beginLoad(src: ImageSource) {
+        if (!src) return;
+        this._currentLoadingSource = src;
+        if (src instanceof HTMLImageElement) {
+            this.imageElement = src;
+            this.imageLoaded = !!(src.complete && src.naturalWidth > 0);
             if (!this.imageLoaded) {
-                this.imageElement.onload = () => {
-                    if (this._currentLoadingSource !== this.imageSource) return;
+                src.onload = () => {
+                    if (this._currentLoadingSource !== src) return;
                     this.imageLoaded = true;
                     this.onLoadCallback?.();
-                    document?.dispatchEvent?.(
-                        new CustomEvent('imageLoaded', { detail: { imageSource: this.imageSource } })
-                    );
                 };
             }
-        } else if (typeof this.imageSource === 'string') {
-            this.imageElement = document.createElement('img');
-            this.imageElement.crossOrigin = 'anonymous';
-            this.imageElement.onload = () => {
-                if (this._currentLoadingSource !== this.imageSource) return;
-                if (typeof this.imageSource === 'string') {
-                    console.log('Image loaded successfully:', this.imageSource.substring(0, 50) + '...');
-                } else {
-                    console.log('Image loaded successfully');
-                }
+            return;
+        }
+        imageLoader
+            .loadImage(src as string | File)
+            .then((img) => {
+                if (this._currentLoadingSource !== src) return; // outdated
+                this.imageElement = img;
                 this.imageLoaded = true;
                 this.onLoadCallback?.();
-                document?.dispatchEvent?.(
-                    new CustomEvent('imageLoaded', { detail: { imageSource: this.imageSource } })
-                );
-            };
-            this.imageElement.onerror = (error) => {
-                console.warn('Failed to load image:', error);
+            })
+            .catch((e) => {
+                if (this._currentLoadingSource !== src) return;
+                console.warn('Image load failed', e);
+                this.imageElement = null;
                 this.imageLoaded = false;
-            };
-            this.imageElement.src = this.imageSource;
-        }
+            });
     }
 
     #calculateDrawParams(): { drawX: number; drawY: number; drawWidth: number; drawHeight: number } {
@@ -124,12 +112,6 @@ export class Image extends RenderObject {
             this._lastDebuggedState.scaleX !== this.scaleX ||
             this._lastDebuggedState.scaleY !== this.scaleY
         ) {
-            console.log('Rendering image with transformations:', {
-                opacity: this.opacity,
-                rotation: this.rotation,
-                scaleX: this.scaleX,
-                scaleY: this.scaleY,
-            });
             this._lastDebuggedState = {
                 opacity: this.opacity,
                 rotation: this.rotation,
@@ -138,29 +120,22 @@ export class Image extends RenderObject {
             };
         }
         this.onLoadCallback = () => {
-            if (ctx?.canvas) console.log('Image loaded, triggering redraw');
+            // Global invalidation handled by visualizer via imageLoaded event; no local action needed.
         };
         if (!this.imageElement) {
-            console.warn('No image element created');
             this.#drawPlaceholder(ctx, 'No image', 'red');
             return;
         }
         if (!this.imageLoaded) {
             if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
-                console.log('Image was already loaded but not detected');
                 this.imageLoaded = true;
-            } else {
-                console.log('Image not loaded yet, showing placeholder');
+            }
+            if (!this.imageLoaded) {
                 this.#drawPlaceholder(ctx, 'Loading...', 'rgba(150,150,150,0.8)');
                 return;
             }
         }
         if (!this.imageElement.naturalWidth || !this.imageElement.naturalHeight) {
-            console.warn(
-                'Image has invalid dimensions:',
-                this.imageElement.naturalWidth,
-                this.imageElement.naturalHeight
-            );
             this.#drawPlaceholder(ctx, 'Invalid image', 'rgba(255,100,100,0.8)');
             return;
         }
@@ -172,24 +147,9 @@ export class Image extends RenderObject {
             ctx.clip();
         }
         try {
-            if (!this._hasBeenDrawnSuccessfully)
-                console.log('Drawing image with params:', {
-                    imageWidth: this.imageElement.width,
-                    imageHeight: this.imageElement.height,
-                    naturalWidth: this.imageElement.naturalWidth,
-                    naturalHeight: this.imageElement.naturalHeight,
-                    drawX,
-                    drawY,
-                    drawWidth,
-                    drawHeight,
-                });
             ctx.drawImage(this.imageElement, drawX, drawY, drawWidth, drawHeight);
-            if (!this._hasBeenDrawnSuccessfully) {
-                console.log('Image drawn successfully');
-                this._hasBeenDrawnSuccessfully = true;
-            }
+            this._hasBeenDrawnSuccessfully = true;
         } catch (error) {
-            console.warn('Error drawing image:', error);
             ctx.fillStyle = 'rgba(255,100,100,0.3)';
             ctx.fillRect(0, 0, this.width, this.height);
             ctx.strokeStyle = 'rgba(255,100,100,0.6)';
@@ -204,13 +164,11 @@ export class Image extends RenderObject {
     }
 
     setImageSource(source: ImageSource): this {
-        if (source === this.imageSource && this.imageLoaded && this.imageElement) {
-            console.log('Image source unchanged, skipping reload');
-            return this;
-        }
+        if (source === this.imageSource && this.imageLoaded && this.imageElement) return this;
         this.imageSource = source;
         this.imageLoaded = false;
-        this.#loadImage();
+        this.imageElement = null;
+        if (source) this.#beginLoad(source);
         return this;
     }
     setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
