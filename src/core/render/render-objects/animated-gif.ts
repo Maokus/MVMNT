@@ -1,57 +1,52 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-import { imageLoader, LoadedGIFFrame, LoadedGIF } from '@core/resources/image-loader';
 
-interface GIFFrame extends LoadedGIFFrame {}
+export interface GIFFrameDataProvider {
+    getFrame(currentTime: number): {
+        image: ImageBitmap | HTMLCanvasElement | ImageData | null;
+        width: number;
+        height: number;
+    };
+    isReady(): boolean;
+    getStatus(): 'idle' | 'loading' | 'ready' | 'error';
+}
 
-/**
- * AnimatedGif render object
- * - Decodes GIF frames once (lazy) using centralized imageLoader
- * - Renders current frame based on elapsed time * playbackSpeed
- */
+/** Lightweight AnimatedGif that draws frames supplied by a provider (scene element). */
 export class AnimatedGif extends RenderObject {
     width: number;
     height: number;
-    source: string | null; // data URL or URL
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
     preserveAspectRatio: boolean;
-    playbackSpeed: number; // multiplier (1 = normal)
-
-    private _frames: GIFFrame[] | null = null;
-    private _totalDurationMs = 0;
-    private _decodeStarted = false;
-    private _decodeError: any = null;
-    private _lastFrameIndex = -1;
-    private _imageBitmapCache: (ImageBitmap | null)[] = [];
-    private _offscreenCanvas: HTMLCanvasElement | null = null; // reuse to avoid allocations
+    playbackSpeed: number; // maintained for layout adjustments / future scaling
+    private _provider: GIFFrameDataProvider | null;
+    private _status: 'idle' | 'loading' | 'ready' | 'error';
 
     constructor(
         x: number,
         y: number,
         width: number,
         height: number,
-        source: string | null,
+        provider: GIFFrameDataProvider | null,
         playbackSpeed: number,
-        opacity = 1
+        opacity = 1,
+        options: {
+            fitMode?: 'contain' | 'cover' | 'fill' | 'none';
+            preserveAspectRatio?: boolean;
+            status?: string;
+        } = {}
     ) {
         super(x, y, 1, 1, opacity);
         this.width = width;
         this.height = height;
-        this.source = source;
-        this.fitMode = 'contain';
-        this.preserveAspectRatio = true;
+        this._provider = provider;
         this.playbackSpeed = playbackSpeed || 1;
+        this.fitMode = options.fitMode ?? 'contain';
+        this.preserveAspectRatio = options.preserveAspectRatio ?? true;
+        this._status = (options.status as any) || 'idle';
     }
 
-    setSource(src: string | null) {
-        if (src !== this.source) {
-            this.source = src;
-            this._frames = null;
-            this._totalDurationMs = 0;
-            this._decodeStarted = false;
-            this._decodeError = null;
-            this._lastFrameIndex = -1;
-            this._imageBitmapCache = [];
-        }
+    setProvider(provider: GIFFrameDataProvider | null, status: 'idle' | 'loading' | 'ready' | 'error' = 'idle') {
+        this._provider = provider;
+        this._status = status;
         return this;
     }
     setPlaybackSpeed(speed: number) {
@@ -71,48 +66,9 @@ export class AnimatedGif extends RenderObject {
         this.height = height;
         return this;
     }
-
-    #startDecode() {
-        if (this._decodeStarted || !this.source) return;
-        this._decodeStarted = true;
-        imageLoader
-            .loadGIF(this.source)
-            .then((gif: LoadedGIF) => {
-                if (!this.source) return; // source may have changed
-                this._frames = gif.frames;
-                this._totalDurationMs = gif.totalDurationMs;
-                this._imageBitmapCache = new Array(gif.frames.length).fill(null);
-            })
-            .catch((e) => {
-                this._decodeError = e;
-                console.warn('GIF decode failed', e);
-            });
-    }
-
-    #getCurrentFrameIndex(currentTimeSeconds: number): number {
-        if (!this._frames || this._frames.length === 0 || this._totalDurationMs <= 0) return -1;
-        const scaledMs = (currentTimeSeconds * 1000 * this.playbackSpeed) % this._totalDurationMs;
-        let acc = 0;
-        for (let i = 0; i < this._frames.length; i++) {
-            acc += this._frames[i].delay;
-            if (scaledMs < acc) return i;
-        }
-        return this._frames.length - 1;
-    }
-
-    async #ensureBitmap(frameIndex: number) {
-        if (!this._frames) return null;
-        if (!('createImageBitmap' in window)) return null; // Fallback draws via putImageData
-        if (this._imageBitmapCache[frameIndex]) return this._imageBitmapCache[frameIndex];
-        try {
-            const frame = this._frames[frameIndex];
-            const bmp = await createImageBitmap(frame.image);
-            this._imageBitmapCache[frameIndex] = bmp;
-            return bmp;
-        } catch (e) {
-            console.warn('createImageBitmap failed', e);
-            return null;
-        }
+    setStatus(status: 'idle' | 'loading' | 'ready' | 'error') {
+        this._status = status;
+        return this;
     }
 
     #calculateDrawParams(imgWidth: number, imgHeight: number) {
@@ -155,46 +111,40 @@ export class AnimatedGif extends RenderObject {
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, currentTime: number): void {
-        if (!this.source) {
-            this.#drawPlaceholder(ctx, 'No GIF');
+        const provider = this._provider;
+        if (!provider) {
+            this.#drawPlaceholder(ctx, this._status === 'loading' ? 'Loading' : 'No GIF');
             return;
         }
-        if (!this._frames) this.#startDecode();
-        if (this._decodeError) {
-            this.#drawPlaceholder(ctx, 'GIF error');
+        if (!provider.isReady()) {
+            this.#drawPlaceholder(ctx, this._status === 'error' ? 'GIF error' : 'Decoding');
             return;
         }
-        if (!this._frames) {
-            this.#drawPlaceholder(ctx, 'Decoding');
+        const frameData = provider.getFrame(currentTime * this.playbackSpeed);
+        if (!frameData || !frameData.image) {
+            this.#drawPlaceholder(ctx, 'Empty');
             return;
         }
-        const frameIndex = this.#getCurrentFrameIndex(currentTime);
-        if (frameIndex < 0) {
-            this.#drawPlaceholder(ctx, 'Empty GIF');
-            return;
-        }
-        const frame = this._frames[frameIndex];
-        const imgWidth = frame.image.width;
-        const imgHeight = frame.image.height;
+        const { image, width: imgWidth, height: imgHeight } = frameData;
         const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgWidth, imgHeight);
-        // Try bitmap for performance, else putImageData scaled via offscreen canvas
-        const bmp = this._imageBitmapCache[frameIndex];
-        if (bmp) {
-            ctx.drawImage(bmp, drawX, drawY, drawWidth, drawHeight);
-        } else {
-            // Kick off async creation (fire and forget)
-            if (this._lastFrameIndex !== frameIndex) {
-                this.#ensureBitmap(frameIndex);
-                this._lastFrameIndex = frameIndex;
+        try {
+            if (
+                image instanceof ImageBitmap ||
+                image instanceof HTMLImageElement ||
+                image instanceof HTMLCanvasElement
+            ) {
+                ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+            } else {
+                // ImageData path
+                const off = document.createElement('canvas');
+                off.width = imgWidth;
+                off.height = imgHeight;
+                const offCtx = off.getContext('2d');
+                if (offCtx) offCtx.putImageData(image, 0, 0);
+                ctx.drawImage(off, drawX, drawY, drawWidth, drawHeight);
             }
-            // Draw via reusable offscreen canvas
-            if (!this._offscreenCanvas) this._offscreenCanvas = document.createElement('canvas');
-            const off = this._offscreenCanvas;
-            if (off.width !== imgWidth) off.width = imgWidth;
-            if (off.height !== imgHeight) off.height = imgHeight;
-            const offCtx = off.getContext('2d');
-            if (offCtx) offCtx.putImageData(frame.image, 0, 0);
-            ctx.drawImage(off, drawX, drawY, drawWidth, drawHeight);
+        } catch (e) {
+            this.#drawPlaceholder(ctx, 'Draw err');
         }
     }
 
@@ -211,7 +161,7 @@ export class AnimatedGif extends RenderObject {
     }
 
     isReady(): boolean {
-        return !!this._frames;
+        return !!this._provider && this._provider.isReady();
     }
 
     getBounds(): Bounds {

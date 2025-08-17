@@ -2,10 +2,26 @@
 import { SceneElement } from './base';
 import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
+import { imageLoader, LoadedGIF } from '@core/resources/image-loader';
+
+interface GIFFrameDataProviderImpl {
+    getFrame(currentTime: number): {
+        image: ImageBitmap | HTMLCanvasElement | ImageData | null;
+        width: number;
+        height: number;
+    };
+    isReady(): boolean;
+    getStatus(): 'idle' | 'loading' | 'ready' | 'error';
+}
 
 export class ImageElement extends SceneElement {
-    private _currentImageSource: string | null = null;
+    private _currentImageSource: string | File | null = null;
     private _cachedRenderObject: RenderObject | null = null;
+    private _imgElement: HTMLImageElement | null = null;
+    private _gifData: LoadedGIF | null = null;
+    private _gifBitmaps: (ImageBitmap | null)[] = [];
+    private _gifDecoding = false;
+    private _status: 'idle' | 'loading' | 'ready' | 'error' | 'empty' = 'idle';
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
@@ -95,96 +111,155 @@ export class ImageElement extends SceneElement {
         };
     }
 
-    /**
-     * Handle image source - convert File objects to data URLs
-     */
-    private _handleImageSource(source: any): void {
-        // If it's a File object (from macro), convert to data URL
-        if (source instanceof File) {
-            console.log('Converting File object to data URL for bound image element:', source.name);
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if (e.target?.result) {
-                    this._currentImageSource = e.target.result as string;
-                    console.log('Successfully converted File to data URL');
-                }
-            };
-            reader.onerror = (error) => {
-                console.error('Error converting File to data URL:', error);
-                this._currentImageSource = null;
-            };
-            reader.readAsDataURL(source);
-        } else {
-            // It's already a string URL or data URL
-            this._currentImageSource = source;
+    private _isGifSource(src: string | File | null): boolean {
+        if (!src) return false;
+        if (typeof src === 'string') return /\.gif($|\?)/i.test(src) || src.startsWith('data:image/gif');
+        return /\.gif$/i.test(src.name);
+    }
+
+    private async _loadStaticImage(src: string | File) {
+        this._status = 'loading';
+        try {
+            const img = await imageLoader.loadImage(src);
+            this._imgElement = img;
+            this._gifData = null;
+            this._gifBitmaps = [];
+            this._status = 'ready';
+            document?.dispatchEvent?.(
+                new CustomEvent('imageLoaded', { detail: { imageSource: typeof src === 'string' ? src : img.src } })
+            );
+        } catch (e) {
+            console.warn('Image load failed', e);
+            this._imgElement = null;
+            this._status = 'error';
         }
+    }
+
+    private async _loadGif(src: string | File) {
+        if (this._gifDecoding) return;
+        this._gifDecoding = true;
+        this._status = 'loading';
+        try {
+            const data = await imageLoader.loadGIF(src);
+            this._gifData = data;
+            this._imgElement = null;
+            this._gifBitmaps = new Array(data.frames.length).fill(null);
+            this._status = 'ready';
+            document?.dispatchEvent?.(
+                new CustomEvent('imageLoaded', {
+                    detail: { imageSource: typeof src === 'string' ? src : 'gif', type: 'gif' },
+                })
+            );
+        } catch (e) {
+            console.warn('GIF load failed', e);
+            this._gifData = null;
+            this._status = 'error';
+        } finally {
+            this._gifDecoding = false;
+        }
+    }
+
+    private _ensureBitmap(frameIndex: number) {
+        if (!this._gifData) return null;
+        if (!('createImageBitmap' in window)) return null;
+        if (this._gifBitmaps[frameIndex]) return this._gifBitmaps[frameIndex];
+        const frame = this._gifData.frames[frameIndex];
+        createImageBitmap(frame.image)
+            .then((bmp) => {
+                this._gifBitmaps[frameIndex] = bmp;
+            })
+            .catch(() => {});
+        return null;
+    }
+
+    private _getGifFrameProvider(): GIFFrameDataProviderImpl | null {
+        if (!this._gifData) return null;
+        const data = this._gifData;
+        return {
+            getStatus: () => (this._status === 'ready' ? 'ready' : this._status === 'error' ? 'error' : 'loading'),
+            isReady: () => !!data && data.frames.length > 0,
+            getFrame: (timeSeconds: number) => {
+                if (!data || data.frames.length === 0) return { image: null, width: 0, height: 0 };
+                const total = data.totalDurationMs;
+                const tMs = (timeSeconds * 1000) % total;
+                let acc = 0;
+                let idx = 0;
+                for (let i = 0; i < data.frames.length; i++) {
+                    acc += data.frames[i].delay;
+                    if (tMs < acc) {
+                        idx = i;
+                        break;
+                    }
+                }
+                const frame = data.frames[idx];
+                let img: ImageBitmap | HTMLCanvasElement | ImageData = frame.image;
+                const bmp = this._gifBitmaps[idx];
+                if (bmp) img = bmp;
+                else this._ensureBitmap(idx);
+                return { image: img, width: frame.image.width, height: frame.image.height };
+            },
+        };
+    }
+
+    private _maybeStartLoad(newSrc: any) {
+        this._imgElement = null;
+        this._gifData = null;
+        this._gifBitmaps = [];
+        if (!newSrc) {
+            this._status = 'empty';
+            return;
+        }
+        if (this._isGifSource(newSrc)) this._loadGif(newSrc);
+        else this._loadStaticImage(newSrc);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         if (!this.getProperty('visible')) return [];
 
-        // Get image source and handle File objects
-        const imageSource = this.getProperty('imageSource');
-        if (imageSource !== this._currentImageSource) {
-            this._handleImageSource(imageSource);
+        const rawSource = this.getProperty('imageSource');
+        if (rawSource !== this._currentImageSource) {
+            this._currentImageSource = (rawSource as string | File | null) ?? null;
+            this._maybeStartLoad(this._currentImageSource);
         }
 
-        if (!this._currentImageSource) return [];
-
-        // Get all properties from bindings
         const width = this.getProperty('width') as number;
         const height = this.getProperty('height') as number;
         const fitMode = this.getProperty('fitMode') as 'contain' | 'cover' | 'fill' | 'none';
         const preserveAspectRatio = this.getProperty('preserveAspectRatio') as boolean;
-
         const playbackSpeed = (this.getProperty('playbackSpeed') as number) || 1;
-        const isGif =
-            typeof this._currentImageSource === 'string' &&
-            (this._currentImageSource.toLowerCase().includes('.gif') ||
-                this._currentImageSource.startsWith('data:image/gif'));
+        const isGif = this._isGifSource(this._currentImageSource);
 
-        // Recreate cached object only if source type changes or source string changes
-        if (
-            !this._cachedRenderObject ||
-            (isGif && !(this._cachedRenderObject instanceof AnimatedGif)) ||
-            (!isGif && !(this._cachedRenderObject instanceof Image)) ||
-            (isGif && (this._cachedRenderObject as any).source !== this._currentImageSource) ||
-            (!isGif && (this._cachedRenderObject as any).imageSource !== this._currentImageSource)
-        ) {
+        if (!this._cachedRenderObject || isGif !== this._cachedRenderObject instanceof AnimatedGif) {
             if (isGif) {
-                this._cachedRenderObject = new AnimatedGif(
-                    0,
-                    0,
-                    width,
-                    height,
-                    this._currentImageSource,
-                    playbackSpeed,
-                    1
-                );
+                const provider = this._getGifFrameProvider();
+                this._cachedRenderObject = new AnimatedGif(0, 0, width, height, provider, playbackSpeed, 1, {
+                    fitMode,
+                    preserveAspectRatio,
+                    status: this._status,
+                });
             } else {
-                this._cachedRenderObject = new Image(
-                    0,
-                    0,
-                    width,
-                    height,
-                    this._currentImageSource,
-                    1 // element opacity handled by transform system
-                );
+                this._cachedRenderObject = new Image(0, 0, width, height, this._imgElement, 1, {
+                    fitMode,
+                    preserveAspectRatio,
+                    status: this._status,
+                });
             }
         }
 
-        // Update dynamic properties
         if (isGif && this._cachedRenderObject instanceof AnimatedGif) {
+            const provider = this._getGifFrameProvider();
             this._cachedRenderObject
                 .setDimensions(width, height)
                 .setPlaybackSpeed(playbackSpeed)
                 .setFitMode(fitMode)
-                .setPreserveAspectRatio(preserveAspectRatio);
+                .setPreserveAspectRatio(preserveAspectRatio)
+                .setProvider(provider, this._status === 'empty' ? 'idle' : this._status);
         } else if (this._cachedRenderObject instanceof Image) {
             this._cachedRenderObject
                 .setDimensions(width, height)
                 .setFitMode(fitMode)
-                .setPreserveAspectRatio(preserveAspectRatio);
+                .setPreserveAspectRatio(preserveAspectRatio)
+                .setImageElement(this._imgElement, this._status === 'ready' ? 'ready' : this._status);
         }
 
         return [this._cachedRenderObject];
