@@ -8,6 +8,9 @@ export class Image extends RenderObject {
     imageElement: HTMLImageElement | null;
     preserveAspectRatio: boolean;
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
+    // Track intrinsic dimensions of the loaded image so bounds can reflect actual drawn content
+    private _intrinsicWidth: number | null = null;
+    private _intrinsicHeight: number | null = null;
     private _lastDebuggedState?: { opacity: number; rotation: number; scaleX: number; scaleY: number };
     private _hasBeenDrawnSuccessfully?: boolean;
     private _status: 'idle' | 'loading' | 'ready' | 'error' | 'empty';
@@ -37,6 +40,17 @@ export class Image extends RenderObject {
     setImageElement(img: HTMLImageElement | null, status: 'loading' | 'ready' | 'error' | 'empty' | 'idle' = 'ready') {
         this.imageElement = img;
         this._status = img ? 'ready' : status;
+        if (img) {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            if (w && h) {
+                this._intrinsicWidth = w;
+                this._intrinsicHeight = h;
+            }
+        } else {
+            this._intrinsicWidth = null;
+            this._intrinsicHeight = null;
+        }
         this._hasBeenDrawnSuccessfully = false; // force debug info once
         return this;
     }
@@ -161,6 +175,15 @@ export class Image extends RenderObject {
         return !!this.imageElement;
     }
     getBounds(): Bounds {
+        // For cover / fill we keep the container bounds (cover may draw outside but is clipped; fill stretches)
+        if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
+            return { x: this.x, y: this.y, width: this.width, height: this.height };
+        }
+        // If we have intrinsic dimensions and are in contain/none, compute the actual drawn rect
+        if (this.imageElement && this._intrinsicWidth && this._intrinsicHeight) {
+            const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams();
+            return { x: this.x + drawX, y: this.y + drawY, width: drawWidth, height: drawHeight };
+        }
         return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }

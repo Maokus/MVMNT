@@ -19,6 +19,8 @@ export class AnimatedGif extends RenderObject {
     playbackSpeed: number; // maintained for layout adjustments / future scaling
     private _provider: GIFFrameDataProvider | null;
     private _status: 'idle' | 'loading' | 'ready' | 'error';
+    // Cache last frame draw parameters for bounds
+    private _lastFrameBounds: { drawX: number; drawY: number; drawWidth: number; drawHeight: number } | null = null;
 
     constructor(
         x: number,
@@ -127,6 +129,7 @@ export class AnimatedGif extends RenderObject {
         }
         const { image, width: imgWidth, height: imgHeight } = frameData;
         const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams(imgWidth, imgHeight);
+        this._lastFrameBounds = { drawX, drawY, drawWidth, drawHeight };
         try {
             if (
                 image instanceof ImageBitmap ||
@@ -166,6 +169,13 @@ export class AnimatedGif extends RenderObject {
     }
 
     getBounds(): Bounds {
+        if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
+            return { x: this.x, y: this.y, width: this.width, height: this.height };
+        }
+        if (this._lastFrameBounds) {
+            const { drawX, drawY, drawWidth, drawHeight } = this._lastFrameBounds;
+            return { x: this.x + drawX, y: this.y + drawY, width: drawWidth, height: drawHeight };
+        }
         return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }
