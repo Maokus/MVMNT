@@ -144,6 +144,7 @@ export class AnimatedGif extends RenderObject {
                 ctx.drawImage(off, drawX, drawY, drawWidth, drawHeight);
             }
         } catch (e) {
+            console.log(e);
             this.#drawPlaceholder(ctx, 'Draw err');
         }
     }

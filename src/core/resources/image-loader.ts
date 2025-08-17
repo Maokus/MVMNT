@@ -82,15 +82,82 @@ export class ImageLoader {
             try {
                 const buffer = await this.resolveToArrayBuffer(src);
                 const gif: any = parseGIF(buffer);
-                const frames: any[] = decompressFrames(gif, true) as any[];
-                const mapped: LoadedGIFFrame[] = frames.map((f: any) => ({
-                    image: f.patch as ImageData,
-                    delay: typeof f.delay === 'number' && f.delay > 0 ? f.delay : 10,
-                }));
-                const width = mapped[0]?.image?.width || 0;
-                const height = mapped[0]?.image?.height || 0;
-                const totalDurationMs = mapped.reduce((acc, fr) => acc + fr.delay, 0) || 1;
-                const payload: LoadedGIF = { frames: mapped, width, height, totalDurationMs };
+                const rawFrames: any[] = decompressFrames(gif, true) as any[];
+
+                // Global canvas dimensions from logical screen descriptor (lsd)
+                const width: number = gif?.lsd?.width || 0;
+                const height: number = gif?.lsd?.height || 0;
+
+                // Compose full frames from patches. We implement a minimal compositor that
+                // accumulates patches; this ignores disposal methods other than clearing
+                // to background for type 2. This is sufficient for many gifs and fixes the
+                // previous runtime error where raw patch arrays were incorrectly cast.
+                const frameCount = rawFrames.length;
+                const empty = new Uint8ClampedArray(width * height * 4); // transparent
+                let previous = empty;
+                const composed: LoadedGIFFrame[] = new Array(frameCount);
+
+                for (let i = 0; i < frameCount; i++) {
+                    const rf: any = rawFrames[i];
+                    const { patch, dims, delay, disposalType } = rf; // dims: {top,left,width,height}
+                    // Start from previous frame's pixel data
+                    let base = new Uint8ClampedArray(previous); // copy
+
+                    // Apply disposal of previous frame if needed (basic support)
+                    // NOTE: Proper disposal should look at the previous frame's disposalType
+                    // and modify BEFORE drawing the current patch. Since we copied previous
+                    // already, we clear region if THAT previous frame wanted to restore bg.
+                    // This simplistic approach is acceptable for many gifs; refine if needed.
+                    if (i > 0) {
+                        const prevRaw: any = rawFrames[i - 1];
+                        if (prevRaw.disposalType === 2) {
+                            // restore to background
+                            const pd = prevRaw.dims;
+                            for (let y = 0; y < pd.height; y++) {
+                                const destRow = (pd.top + y) * width + pd.left;
+                                let di = destRow * 4;
+                                for (let x = 0; x < pd.width; x++) {
+                                    base[di + 0] = 0;
+                                    base[di + 1] = 0;
+                                    base[di + 2] = 0;
+                                    base[di + 3] = 0; // transparent
+                                    di += 4;
+                                }
+                            }
+                        }
+                    }
+
+                    // Blit current patch into base
+                    if (patch && dims) {
+                        const pw = dims.width;
+                        const ph = dims.height;
+                        for (let y = 0; y < ph; y++) {
+                            const srcRow = y * pw;
+                            const destRow = (dims.top + y) * width + dims.left;
+                            let si = srcRow * 4;
+                            let di = destRow * 4;
+                            for (let x = 0; x < pw; x++) {
+                                // Copy RGBA
+                                base[di + 0] = patch[si + 0];
+                                base[di + 1] = patch[si + 1];
+                                base[di + 2] = patch[si + 2];
+                                base[di + 3] = patch[si + 3];
+                                si += 4;
+                                di += 4;
+                            }
+                        }
+                    }
+
+                    const imageData = new ImageData(base, width, height);
+                    composed[i] = {
+                        image: imageData,
+                        delay: typeof delay === 'number' && delay > 0 ? delay : 10,
+                    };
+                    previous = base; // reuse for next frame
+                }
+
+                const totalDurationMs = composed.reduce((acc, fr) => acc + fr.delay, 0) || 1;
+                const payload: LoadedGIF = { frames: composed, width, height, totalDurationMs };
                 this.gifCache.set(key, payload);
                 this.pendingGIFs.delete(key);
                 try {
