@@ -1,6 +1,9 @@
 import React from 'react';
 import '@app/App.css';
 import { Link } from 'react-router-dom';
+import kofi from '@assets/kofi.png';
+import pain from '@assets/pain.png'
+import senile from '@assets/senile.png'
 
 /**
  * About / Getting Started page.
@@ -51,7 +54,7 @@ const AboutPage: React.FC = () => {
                     <section>
                         <h2>Motivation</h2>
                         <p>Two months ago, I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945">really beautiful MIDI visualizer</a> by kashiwade on twitter. I asked them how they made it, and this was the response: </p>
-                        <img src='./assets/pain.png' width={400} style={{ margin: "auto", display: "block" }}></img>
+                        <img src={pain} width={400} style={{ margin: "auto", display: "block" }}></img>
                         <p style={{ textAlign: "center" }}><i>Figure 1: Why would you say this</i></p>
                         <p>The moment I saw that response I knew I had to make a decision. </p>
                         <ol style={{ marginLeft: "48px", paddingBottom: "12px" }}>
@@ -59,6 +62,13 @@ const AboutPage: React.FC = () => {
                             <li>Spend two spite-fuelled months of my life making a piece of freeware so I can make it myself</li>
                         </ol>
                         <p>The rest, as they say, is history.</p>
+
+                        <p>-</p>
+
+                        <p>Edit: It has since come to my attention that Kashiwade DID respond to some other people and I just didnt see it</p>
+                        <img src={senile} width={300} style={{ margin: "auto", display: "block" }}></img>
+                        <p style={{ textAlign: "center" }}><i>Figure 2: I might be going senile</i></p>
+                        <p>Don't do drugs, kids</p>
                     </section>
 
                     <section>
@@ -115,6 +125,27 @@ const AboutPage: React.FC = () => {
                             </svg>
                             GitHub Repo
                         </a>
+
+                        <a
+                            href='https://ko-fi.com/maokus'
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary"
+                            style={{
+                                margin: '4px 0',
+                                backgroundColor: '#24292f', // GitHub dark
+                                color: 'white',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontWeight: 600
+                            }}
+                            aria-label="Buy me a coffee (donate)"
+                        >
+                            <img src={kofi} alt="Coffee Icon" style={{ width: '22px', height: '18px' }} />
+                            Buy me a coffee
+                        </a>
+
                     </div>
                 </div>
             </main>

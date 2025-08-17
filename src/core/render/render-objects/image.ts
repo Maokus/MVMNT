@@ -1,82 +1,82 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
 
-type ImageSource = string | HTMLImageElement | null | undefined;
-
+// Render object now expects an already-loaded image element (provided by scene element)
+// and stays deterministic (no async / no loader coupling).
 export class Image extends RenderObject {
     width: number;
     height: number;
-    imageSource: ImageSource;
     imageElement: HTMLImageElement | null;
-    imageLoaded: boolean;
     preserveAspectRatio: boolean;
     fitMode: 'contain' | 'cover' | 'fill' | 'none';
-    private _currentLoadingSource?: ImageSource;
+    // Track intrinsic dimensions of the loaded image so bounds can reflect actual drawn content
+    private _intrinsicWidth: number | null = null;
+    private _intrinsicHeight: number | null = null;
     private _lastDebuggedState?: { opacity: number; rotation: number; scaleX: number; scaleY: number };
     private _hasBeenDrawnSuccessfully?: boolean;
-    private onLoadCallback?: () => void;
+    private _status: 'idle' | 'loading' | 'ready' | 'error' | 'empty';
 
-    constructor(x: number, y: number, width: number, height: number, imageSource: ImageSource, opacity = 1) {
+    constructor(
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        imageElement: HTMLImageElement | null,
+        opacity = 1,
+        options: {
+            fitMode?: 'contain' | 'cover' | 'fill' | 'none';
+            preserveAspectRatio?: boolean;
+            status?: string;
+        } = {}
+    ) {
         super(x, y, 1, 1, opacity);
         this.width = width;
         this.height = height;
-        this.imageSource = imageSource;
-        this.imageElement = null;
-        this.imageLoaded = false;
-        this.preserveAspectRatio = true;
-        this.fitMode = 'contain';
-        console.log('Image created with opacity:', opacity);
-        this.#loadImage();
+        this.imageElement = imageElement;
+        this.preserveAspectRatio = options.preserveAspectRatio ?? true;
+        this.fitMode = options.fitMode ?? 'contain';
+        this._status = (options.status as any) || (imageElement ? 'ready' : 'idle');
     }
 
-    #loadImage(): void {
-        if (!this.imageSource) {
-            this.imageElement = null;
-            this.imageLoaded = false;
-            return;
-        }
-        this._currentLoadingSource = this.imageSource;
-        if (this.imageSource instanceof HTMLImageElement) {
-            this.imageElement = this.imageSource;
-            this.imageLoaded = this.imageElement.complete;
-            if (!this.imageLoaded) {
-                this.imageElement.onload = () => {
-                    if (this._currentLoadingSource !== this.imageSource) return;
-                    this.imageLoaded = true;
-                    this.onLoadCallback?.();
-                    document?.dispatchEvent?.(
-                        new CustomEvent('imageLoaded', { detail: { imageSource: this.imageSource } })
-                    );
-                };
+    setImageElement(img: HTMLImageElement | null, status: 'loading' | 'ready' | 'error' | 'empty' | 'idle' = 'ready') {
+        this.imageElement = img;
+        this._status = img ? 'ready' : status;
+        if (img) {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            if (w && h) {
+                this._intrinsicWidth = w;
+                this._intrinsicHeight = h;
             }
-        } else if (typeof this.imageSource === 'string') {
-            this.imageElement = document.createElement('img');
-            this.imageElement.crossOrigin = 'anonymous';
-            this.imageElement.onload = () => {
-                if (this._currentLoadingSource !== this.imageSource) return;
-                if (typeof this.imageSource === 'string') {
-                    console.log('Image loaded successfully:', this.imageSource.substring(0, 50) + '...');
-                } else {
-                    console.log('Image loaded successfully');
-                }
-                this.imageLoaded = true;
-                this.onLoadCallback?.();
-                document?.dispatchEvent?.(
-                    new CustomEvent('imageLoaded', { detail: { imageSource: this.imageSource } })
-                );
-            };
-            this.imageElement.onerror = (error) => {
-                console.warn('Failed to load image:', error);
-                this.imageLoaded = false;
-            };
-            this.imageElement.src = this.imageSource;
+        } else {
+            this._intrinsicWidth = null;
+            this._intrinsicHeight = null;
         }
+        this._hasBeenDrawnSuccessfully = false; // force debug info once
+        return this;
+    }
+    setStatus(status: 'loading' | 'ready' | 'error' | 'empty' | 'idle') {
+        if (this._status !== status) this._status = status;
+        return this;
+    }
+    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
+        this.fitMode = mode;
+        return this;
+    }
+    setPreserveAspectRatio(preserve: boolean): this {
+        this.preserveAspectRatio = preserve;
+        return this;
+    }
+    setDimensions(width: number, height: number): this {
+        this.width = width;
+        this.height = height;
+        return this;
     }
 
     #calculateDrawParams(): { drawX: number; drawY: number; drawWidth: number; drawHeight: number } {
-        if (!this.imageElement || !this.imageLoaded)
-            return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
+        if (!this.imageElement) return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
         const imgWidth = this.imageElement.naturalWidth || this.imageElement.width;
         const imgHeight = this.imageElement.naturalHeight || this.imageElement.height;
+        if (!imgWidth || !imgHeight) return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
         if (!this.preserveAspectRatio || this.fitMode === 'fill')
             return { drawX: 0, drawY: 0, drawWidth: this.width, drawHeight: this.height };
         const containerAspect = this.width / this.height;
@@ -124,12 +124,6 @@ export class Image extends RenderObject {
             this._lastDebuggedState.scaleX !== this.scaleX ||
             this._lastDebuggedState.scaleY !== this.scaleY
         ) {
-            console.log('Rendering image with transformations:', {
-                opacity: this.opacity,
-                rotation: this.rotation,
-                scaleX: this.scaleX,
-                scaleY: this.scaleY,
-            });
             this._lastDebuggedState = {
                 opacity: this.opacity,
                 rotation: this.rotation,
@@ -137,31 +131,16 @@ export class Image extends RenderObject {
                 scaleY: this.scaleY,
             };
         }
-        this.onLoadCallback = () => {
-            if (ctx?.canvas) console.log('Image loaded, triggering redraw');
-        };
         if (!this.imageElement) {
-            console.warn('No image element created');
-            this.#drawPlaceholder(ctx, 'No image', 'red');
-            return;
-        }
-        if (!this.imageLoaded) {
-            if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
-                console.log('Image was already loaded but not detected');
-                this.imageLoaded = true;
-            } else {
-                console.log('Image not loaded yet, showing placeholder');
-                this.#drawPlaceholder(ctx, 'Loading...', 'rgba(150,150,150,0.8)');
-                return;
-            }
-        }
-        if (!this.imageElement.naturalWidth || !this.imageElement.naturalHeight) {
-            console.warn(
-                'Image has invalid dimensions:',
-                this.imageElement.naturalWidth,
-                this.imageElement.naturalHeight
-            );
-            this.#drawPlaceholder(ctx, 'Invalid image', 'rgba(255,100,100,0.8)');
+            const msg =
+                this._status === 'loading'
+                    ? 'Loading...'
+                    : this._status === 'error'
+                    ? 'Error'
+                    : this._status === 'empty'
+                    ? 'No image'
+                    : 'Image';
+            this.#drawPlaceholder(ctx, msg, this._status === 'error' ? 'red' : 'rgba(150,150,150,0.8)');
             return;
         }
         const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams();
@@ -172,60 +151,15 @@ export class Image extends RenderObject {
             ctx.clip();
         }
         try {
-            if (!this._hasBeenDrawnSuccessfully)
-                console.log('Drawing image with params:', {
-                    imageWidth: this.imageElement.width,
-                    imageHeight: this.imageElement.height,
-                    naturalWidth: this.imageElement.naturalWidth,
-                    naturalHeight: this.imageElement.naturalHeight,
-                    drawX,
-                    drawY,
-                    drawWidth,
-                    drawHeight,
-                });
             ctx.drawImage(this.imageElement, drawX, drawY, drawWidth, drawHeight);
-            if (!this._hasBeenDrawnSuccessfully) {
-                console.log('Image drawn successfully');
-                this._hasBeenDrawnSuccessfully = true;
-            }
+            this._hasBeenDrawnSuccessfully = true;
         } catch (error) {
-            console.warn('Error drawing image:', error);
-            ctx.fillStyle = 'rgba(255,100,100,0.3)';
-            ctx.fillRect(0, 0, this.width, this.height);
-            ctx.strokeStyle = 'rgba(255,100,100,0.6)';
-            ctx.strokeRect(0, 0, this.width, this.height);
-            ctx.fillStyle = 'rgba(255,100,100,0.8)';
-            ctx.font = '14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Error drawing image', this.width / 2, this.height / 2);
+            this._status = 'error';
+            this.#drawPlaceholder(ctx, 'Error', 'rgba(255,100,100,0.8)');
         }
         if (this.fitMode === 'cover') ctx.restore();
     }
 
-    setImageSource(source: ImageSource): this {
-        if (source === this.imageSource && this.imageLoaded && this.imageElement) {
-            console.log('Image source unchanged, skipping reload');
-            return this;
-        }
-        this.imageSource = source;
-        this.imageLoaded = false;
-        this.#loadImage();
-        return this;
-    }
-    setFitMode(mode: 'contain' | 'cover' | 'fill' | 'none'): this {
-        this.fitMode = mode;
-        return this;
-    }
-    setPreserveAspectRatio(preserve: boolean): this {
-        this.preserveAspectRatio = preserve;
-        return this;
-    }
-    setDimensions(width: number, height: number): this {
-        this.width = width;
-        this.height = height;
-        return this;
-    }
     #drawPlaceholder(ctx: CanvasRenderingContext2D, message: string, textColor: string): void {
         ctx.fillStyle = 'rgba(200,200,200,0.3)';
         ctx.fillRect(0, 0, this.width, this.height);
@@ -238,9 +172,18 @@ export class Image extends RenderObject {
         ctx.fillText(message, this.width / 2, this.height / 2);
     }
     isReady(): boolean {
-        return !!(this.imageElement && this.imageLoaded);
+        return !!this.imageElement;
     }
     getBounds(): Bounds {
+        // For cover / fill we keep the container bounds (cover may draw outside but is clipped; fill stretches)
+        if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
+            return { x: this.x, y: this.y, width: this.width, height: this.height };
+        }
+        // If we have intrinsic dimensions and are in contain/none, compute the actual drawn rect
+        if (this.imageElement && this._intrinsicWidth && this._intrinsicHeight) {
+            const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams();
+            return { x: this.x + drawX, y: this.y + drawY, width: drawWidth, height: drawHeight };
+        }
         return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }
