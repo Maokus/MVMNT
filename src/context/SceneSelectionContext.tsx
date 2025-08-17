@@ -223,18 +223,17 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
         const element = sceneBuilder.getElement(elementId);
         if (!element) return;
         const fullList: any[] = (sceneBuilder.elements || []).slice();
-        // Normalize zIndex values defensively
-        fullList.forEach(el => {
-            let z = el.zIndex;
+        // Build enriched list with normalized zIndex WITHOUT mutating underlying getter-only properties
+        const enriched = fullList.map((el, i) => {
+            let z = el.zIndex; // use getter
             if (z && typeof z === 'object' && 'type' in z && (z as any).type === 'constant' && 'value' in z) {
-                z = (z as any).value; // unwrap accidental binding object presence
+                z = (z as any).value;
             }
             if (typeof z !== 'number' || !isFinite(z)) z = 0;
-            el.zIndex = z;
+            return { el, i, normZ: z };
         });
-        const enriched = fullList.map((el, i) => ({ el, i }));
         enriched.sort((a, b) => {
-            const dz = (b.el.zIndex || 0) - (a.el.zIndex || 0);
+            const dz = (b.normZ || 0) - (a.normZ || 0);
             return dz !== 0 ? dz : a.i - b.i;
         });
         const displayList = enriched.map(e => e.el);
@@ -250,7 +249,11 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
         if (movingUp) desiredZ = (targetNeighbor.zIndex || 0) + 1; else desiredZ = (targetNeighbor.zIndex || 0) - 1;
         if (desiredZ === oldZ) return;
         const taken = new Map<number, any>();
-        for (const el of fullList) { if (el.id !== elementId) taken.set(el.zIndex || 0, el); }
+        for (const el of fullList) {
+            let z = el.zIndex;
+            if (typeof z !== 'number' || !isFinite(z)) z = 0;
+            if (el.id !== elementId) taken.set(z || 0, el);
+        }
         const direction = movingUp ? 1 : -1;
         let finalZ = desiredZ;
         const chain: any[] = [];
