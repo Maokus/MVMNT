@@ -1,5 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
-// @ts-expect-error - gifuct-js lacks bundled types
+// @ts-ignore - gifuct-js lacks bundled types
 import { decompressFrames, parseGIF } from 'gifuct-js';
 
 interface GIFFrame {
@@ -90,6 +90,11 @@ export class AnimatedGif extends RenderObject {
                 this._frames = mapped;
                 this._totalDurationMs = mapped.reduce((acc: number, fr: GIFFrame) => acc + fr.delay, 0);
                 this._imageBitmapCache = new Array(mapped.length).fill(null);
+                try {
+                    document?.dispatchEvent?.(
+                        new CustomEvent('imageLoaded', { detail: { imageSource: this.source, type: 'gif' } })
+                    );
+                } catch {}
             })
             .catch((e) => {
                 this._decodeError = e;

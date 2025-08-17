@@ -5,6 +5,7 @@ import { EnhancedConfigSchema } from '@core/types.js';
 
 export class ImageElement extends SceneElement {
     private _currentImageSource: string | null = null;
+    private _cachedRenderObject: RenderObject | null = null;
 
     constructor(id: string = 'image', config: { [key: string]: any } = {}) {
         super('image', id, config);
@@ -139,29 +140,53 @@ export class ImageElement extends SceneElement {
         const playbackSpeed = (this.getProperty('playbackSpeed') as number) || 1;
         const isGif =
             typeof this._currentImageSource === 'string' &&
-            (this._currentImageSource.toLowerCase().endsWith('.gif') ||
+            (this._currentImageSource.toLowerCase().includes('.gif') ||
                 this._currentImageSource.startsWith('data:image/gif'));
 
-        if (isGif) {
-            const gif = new AnimatedGif(0, 0, width, height, this._currentImageSource, playbackSpeed, 1);
-            gif.setFitMode(fitMode);
-            gif.setPreserveAspectRatio(preserveAspectRatio);
-            return [gif];
-        } else {
-            // Static image
-            const image = new Image(
-                0,
-                0,
-                width,
-                height,
-                this._currentImageSource,
-                1 // Full opacity at render object level, element opacity is handled by transform system
-            );
-
-            // Apply fit mode and aspect ratio settings
-            image.setFitMode(fitMode);
-            image.setPreserveAspectRatio(preserveAspectRatio);
-            return [image];
+        // Recreate cached object only if source type changes or source string changes
+        if (
+            !this._cachedRenderObject ||
+            (isGif && !(this._cachedRenderObject instanceof AnimatedGif)) ||
+            (!isGif && !(this._cachedRenderObject instanceof Image)) ||
+            (isGif && (this._cachedRenderObject as any).source !== this._currentImageSource) ||
+            (!isGif && (this._cachedRenderObject as any).imageSource !== this._currentImageSource)
+        ) {
+            if (isGif) {
+                this._cachedRenderObject = new AnimatedGif(
+                    0,
+                    0,
+                    width,
+                    height,
+                    this._currentImageSource,
+                    playbackSpeed,
+                    1
+                );
+            } else {
+                this._cachedRenderObject = new Image(
+                    0,
+                    0,
+                    width,
+                    height,
+                    this._currentImageSource,
+                    1 // element opacity handled by transform system
+                );
+            }
         }
+
+        // Update dynamic properties
+        if (isGif && this._cachedRenderObject instanceof AnimatedGif) {
+            this._cachedRenderObject
+                .setDimensions(width, height)
+                .setPlaybackSpeed(playbackSpeed)
+                .setFitMode(fitMode)
+                .setPreserveAspectRatio(preserveAspectRatio);
+        } else if (this._cachedRenderObject instanceof Image) {
+            this._cachedRenderObject
+                .setDimensions(width, height)
+                .setFitMode(fitMode)
+                .setPreserveAspectRatio(preserveAspectRatio);
+        }
+
+        return [this._cachedRenderObject];
     }
 }
