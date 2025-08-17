@@ -1,6 +1,6 @@
 // Image scene element for displaying images with transformations and property bindings
 import { SceneElement } from './base';
-import { Image, RenderObject } from '@core/render/render-objects';
+import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 
 export class ImageElement extends SceneElement {
@@ -30,6 +30,16 @@ export class ImageElement extends SceneElement {
                             default: '',
                             accept: 'image/*',
                             description: 'Image file to display',
+                        },
+                        {
+                            key: 'playbackSpeed',
+                            type: 'number',
+                            label: 'Playback Speed',
+                            default: 1,
+                            min: 0.1,
+                            max: 10,
+                            step: 0.1,
+                            description: 'Speed multiplier for animated GIFs (1 = normal)',
                         },
                     ],
                 },
@@ -126,20 +136,32 @@ export class ImageElement extends SceneElement {
         const fitMode = this.getProperty('fitMode') as 'contain' | 'cover' | 'fill' | 'none';
         const preserveAspectRatio = this.getProperty('preserveAspectRatio') as boolean;
 
-        // Create image at origin (positioning and transformations handled by transform system)
-        const image = new Image(
-            0,
-            0,
-            width,
-            height,
-            this._currentImageSource,
-            1 // Full opacity at render object level, element opacity is handled by transform system
-        );
+        const playbackSpeed = (this.getProperty('playbackSpeed') as number) || 1;
+        const isGif =
+            typeof this._currentImageSource === 'string' &&
+            (this._currentImageSource.toLowerCase().endsWith('.gif') ||
+                this._currentImageSource.startsWith('data:image/gif'));
 
-        // Apply fit mode and aspect ratio settings
-        image.setFitMode(fitMode);
-        image.setPreserveAspectRatio(preserveAspectRatio);
+        if (isGif) {
+            const gif = new AnimatedGif(0, 0, width, height, this._currentImageSource, playbackSpeed, 1);
+            gif.setFitMode(fitMode);
+            gif.setPreserveAspectRatio(preserveAspectRatio);
+            return [gif];
+        } else {
+            // Static image
+            const image = new Image(
+                0,
+                0,
+                width,
+                height,
+                this._currentImageSource,
+                1 // Full opacity at render object level, element opacity is handled by transform system
+            );
 
-        return [image];
+            // Apply fit mode and aspect ratio settings
+            image.setFitMode(fitMode);
+            image.setPreserveAspectRatio(preserveAspectRatio);
+            return [image];
+        }
     }
 }
