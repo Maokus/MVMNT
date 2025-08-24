@@ -1,12 +1,10 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
 import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
-import { Line, Text, EmptyRenderObject, RenderObject } from '@core/render/render-objects';
+import { Line, EmptyRenderObject, RenderObject } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 import { MidiManager } from '@core/midi/midi-manager';
-import { debugLog } from '@utils/debug-log';
 import { globalMacroManager } from '@bindings/macro-manager';
 import { ConstantBinding } from '@bindings/property-bindings';
 import { MovingNotesAnimationController } from './animation-controller';
@@ -117,6 +115,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             step: 50,
                         },
                         {
+                            key: 'elementWidth',
+                            type: 'number',
+                            label: 'Element Width',
+                            default: 800,
+                            min: 100,
+                            max: 4000,
+                            step: 10,
+                            description: 'Total width (px) for the moving-notes viewport (used for clamping and bbox).',
+                        },
+                        {
                             key: 'timeUnitBars',
                             type: 'number',
                             label: 'Time Unit (Bars)',
@@ -215,180 +223,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     ],
                 },
                 {
-                    id: 'noteGrid',
-                    label: 'Note Grid',
-                    collapsed: true,
-                    properties: [
-                        { key: 'showNoteGrid', type: 'boolean', label: 'Show Note Grid', default: true },
-                        { key: 'noteGridColor', type: 'color', label: 'Grid Line Color', default: '#333333' },
-                        {
-                            key: 'noteGridLineWidth',
-                            type: 'number',
-                            label: 'Grid Line Width',
-                            default: 1,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                        },
-                        {
-                            key: 'noteGridOpacity',
-                            type: 'number',
-                            label: 'Grid Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                        },
-                    ],
-                },
-                {
-                    id: 'beatGrid',
-                    label: 'Beat Grid',
-                    collapsed: true,
-                    properties: [
-                        { key: 'showBeatGrid', type: 'boolean', label: 'Show Beat Grid', default: true },
-                        { key: 'beatGridBarColor', type: 'color', label: 'Bar Line Color', default: '#666666' },
-                        { key: 'beatGridBeatColor', type: 'color', label: 'Beat Line Color', default: '#444444' },
-                        {
-                            key: 'beatGridBarWidth',
-                            type: 'number',
-                            label: 'Bar Line Width',
-                            default: 2,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                        },
-                        {
-                            key: 'beatGridBeatWidth',
-                            type: 'number',
-                            label: 'Beat Line Width',
-                            default: 1,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                        },
-                        {
-                            key: 'beatGridOpacity',
-                            type: 'number',
-                            label: 'Grid Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                        },
-                    ],
-                },
-                {
-                    id: 'noteLabels',
-                    label: 'Note Labels',
-                    collapsed: true,
-                    properties: [
-                        { key: 'showNoteLabels', type: 'boolean', label: 'Show Note Labels', default: true },
-                        { key: 'noteLabelFontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        {
-                            key: 'noteLabelFontSize',
-                            type: 'number',
-                            label: 'Font Size',
-                            default: 10,
-                            min: 6,
-                            max: 32,
-                            step: 1,
-                        },
-                        { key: 'noteLabelFontColor', type: 'color', label: 'Font Color', default: '#ffffff' },
-                        {
-                            key: 'noteLabelInterval',
-                            type: 'number',
-                            label: 'Label Interval',
-                            default: 1,
-                            min: 1,
-                            max: 24,
-                            step: 1,
-                        },
-                        {
-                            key: 'noteLabelStartNote',
-                            type: 'number',
-                            label: 'Label Start Note',
-                            default: 0,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                        },
-                        {
-                            key: 'noteLabelOffsetX',
-                            type: 'number',
-                            label: 'Offset X',
-                            default: -10,
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                        },
-                        {
-                            key: 'noteLabelOffsetY',
-                            type: 'number',
-                            label: 'Offset Y',
-                            default: 0,
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                        },
-                        {
-                            key: 'noteLabelOpacity',
-                            type: 'number',
-                            label: 'Label Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                        },
-                    ],
-                },
-                {
-                    id: 'beatLabels',
-                    label: 'Beat / Bar Labels',
-                    collapsed: true,
-                    properties: [
-                        { key: 'showBeatLabels', type: 'boolean', label: 'Show Beat Labels', default: true },
-                        { key: 'beatLabelFontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        {
-                            key: 'beatLabelFontSize',
-                            type: 'number',
-                            label: 'Font Size',
-                            default: 12,
-                            min: 6,
-                            max: 48,
-                            step: 1,
-                        },
-                        { key: 'beatLabelFontColor', type: 'color', label: 'Font Color', default: '#ffffff' },
-                        {
-                            key: 'beatLabelOffsetY',
-                            type: 'number',
-                            label: 'Offset Y',
-                            default: -5,
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                        },
-                        {
-                            key: 'beatLabelOffsetX',
-                            type: 'number',
-                            label: 'Offset X',
-                            default: 5,
-                            min: -200,
-                            max: 200,
-                            step: 1,
-                        },
-                        {
-                            key: 'beatLabelOpacity',
-                            type: 'number',
-                            label: 'Label Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                        },
-                    ],
-                },
-                {
                     id: 'animation',
                     label: 'Animation',
                     collapsed: true,
@@ -436,6 +270,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             max: 1,
                             step: 0.01,
                         },
+                        {
+                            key: 'playheadOffset',
+                            type: 'number',
+                            label: 'Playhead Offset (px)',
+                            default: 0,
+                            min: -4000,
+                            max: 4000,
+                            step: 1,
+                            description: 'Pixel offset added to playhead position within the element width.',
+                        },
                     ],
                 },
                 {
@@ -478,43 +322,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
         const pianoWidth = this.getProperty<number>('pianoWidth');
         const rollWidth = this.getProperty<number>('rollWidth') || 800;
-        const showNoteGrid = this.getProperty<boolean>('showNoteGrid');
-        const showNoteLabels = this.getProperty<boolean>('showNoteLabels');
+        const elementWidth = this.getProperty<number>('elementWidth') || rollWidth;
         const showNotes = this.getProperty<boolean>('showNotes');
         const minNote = this.getProperty<number>('minNote');
         const maxNote = this.getProperty<number>('maxNote');
-        const showBeatGrid = this.getProperty<boolean>('showBeatGrid');
-        const showBeatLabels = this.getProperty<boolean>('showBeatLabels');
         const noteHeight = this.getProperty<number>('noteHeight');
         const showPlayhead = this.getProperty<boolean>('showPlayhead');
         const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
         const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
         const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
         const playheadPosition = Math.max(0, Math.min(1, this.getProperty<number>('playheadPosition') ?? 0.25));
-
-        // Fonts
-        const noteLabelFontSelection = this.getProperty<string>('noteLabelFontFamily') || 'Arial';
-        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
-            parseFontSelection(noteLabelFontSelection);
-        const noteLabelFontSize = this.getProperty<number>('noteLabelFontSize') || 10;
-        const noteLabelFontColor = this.getProperty<string>('noteLabelFontColor') || '#ffffff';
-        const noteLabelFontWeight = (noteLabelFontWeightPart || '400').toString();
-        const noteLabelInterval = this.getProperty<number>('noteLabelInterval') || 1;
-        const noteLabelStartNote = this.getProperty<number>('noteLabelStartNote') || 0;
-        const noteLabelOffsetX = this.getProperty<number>('noteLabelOffsetX') || -10;
-        const noteLabelOffsetY = this.getProperty<number>('noteLabelOffsetY') || 0;
-        const noteLabelOpacity = this.getProperty<number>('noteLabelOpacity') ?? 1;
-        const beatLabelFontSelection = this.getProperty<string>('beatLabelFontFamily') || 'Arial';
-        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
-            parseFontSelection(beatLabelFontSelection);
-        const beatLabelFontSize = this.getProperty<number>('beatLabelFontSize') || 12;
-        const beatLabelFontColor = this.getProperty<string>('beatLabelFontColor') || '#ffffff';
-        const beatLabelFontWeight = (beatLabelFontWeightPart || '400').toString();
-        const beatLabelOffsetY = this.getProperty<number>('beatLabelOffsetY') || -5;
-        const beatLabelOffsetX = this.getProperty<number>('beatLabelOffsetX') || 5;
-        const beatLabelOpacity = this.getProperty<number>('beatLabelOpacity') ?? 1;
-        if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
-        if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
+        const playheadOffset = this.getProperty<number>('playheadOffset') || 0;
 
         // MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');
@@ -546,8 +364,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     minNote,
                     maxNote,
                     pianoWidth,
-                    rollWidth,
+                    rollWidth: elementWidth,
                     playheadPosition,
+                    playheadOffset,
                     windowStart,
                     windowEnd,
                     currentTime: effectiveTime,
@@ -585,88 +404,23 @@ export class MovingNotesPianoRollElement extends SceneElement {
             renderObjects.push(...animatedRenderObjects);
         }
 
-        // Grids and labels use the same helpers as TimeUnitPianoRoll (copied inline for independence)
-        if (showNoteGrid) {
-            const noteLines = this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth, noteHeight);
-            const noteGridColor = this.getProperty<string>('noteGridColor') || '#333333';
-            const noteGridLineWidth = this.getProperty<number>('noteGridLineWidth') || 1;
-            const noteGridOpacity = this.getProperty<number>('noteGridOpacity') ?? 1;
-            noteLines.forEach((l: any) => {
-                l.setColor?.(noteGridColor);
-                l.setLineWidth?.(noteGridLineWidth);
-                l.setOpacity?.(noteGridOpacity);
-            });
-            renderObjects.push(...noteLines);
-        }
-
-        if (showBeatGrid) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                effectiveTime,
-                timeUnitBars
-            );
-            const beatLines = this._createBeatGridLines(
-                windowStart,
-                windowEnd,
-                beatsPerBar,
-                pianoWidth,
-                rollWidth,
-                (maxNote - minNote + 1) * noteHeight
-            );
-            const beatGridBarColor = this.getProperty<string>('beatGridBarColor') || '#666666';
-            const beatGridBeatColor = this.getProperty<string>('beatGridBeatColor') || '#444444';
-            const beatGridBarWidth = this.getProperty<number>('beatGridBarWidth') || 2;
-            const beatGridBeatWidth = this.getProperty<number>('beatGridBeatWidth') || 1;
-            const beatGridOpacity = this.getProperty<number>('beatGridOpacity') ?? 1;
-            beatLines.forEach((l: any) => {
-                const isBar = (l.lineWidth || 1) > 1;
-                l.setColor?.(isBar ? beatGridBarColor : beatGridBeatColor);
-                l.setLineWidth?.(isBar ? beatGridBarWidth : beatGridBeatWidth);
-                l.setOpacity?.(beatGridOpacity);
-            });
-            renderObjects.push(...beatLines);
-        }
-
-        if (showNoteLabels) {
-            const labels = this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight);
-            let visibleIndex = 0;
-            for (const lbl of labels as any[]) {
-                if ((visibleIndex - noteLabelStartNote) % noteLabelInterval !== 0) lbl.setOpacity?.(0);
-                else {
-                    lbl.text && (lbl.font = `${noteLabelFontWeight} ${noteLabelFontSize}px ${noteLabelFontFamily}`);
-                    lbl.color = noteLabelFontColor;
-                    lbl.setOpacity?.(noteLabelOpacity);
-                    lbl.x = pianoWidth + noteLabelOffsetX;
-                    lbl.y += noteLabelOffsetY;
-                }
-                visibleIndex++;
-            }
-            renderObjects.push(...labels);
-        }
-
-        if (showBeatLabels) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                effectiveTime,
-                timeUnitBars
-            );
-            const labels = this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth);
-            (labels as any[]).forEach((lbl) => {
-                lbl.font = `${beatLabelFontWeight} ${beatLabelFontSize}px ${beatLabelFontFamily}`;
-                lbl.color = beatLabelFontColor;
-                lbl.x += beatLabelOffsetX;
-                lbl.y += beatLabelOffsetY;
-                lbl.setOpacity?.(beatLabelOpacity);
-            });
-            renderObjects.push(...labels);
-        }
+        // Add invisible bbox anchors to stabilize layout to the configured element width
+        const totalHeight = (maxNote - minNote + 1) * noteHeight;
+        const tl = new EmptyRenderObject(0, 0, 1, 1, 0);
+        const br = new EmptyRenderObject(pianoWidth + elementWidth, totalHeight, 1, 1, 0);
+        tl.setOpacity(0);
+        br.setOpacity(0);
+        renderObjects.push(tl, br);
 
         if (showPlayhead) {
             const ph = this._createStaticPlayhead(
                 pianoWidth,
-                rollWidth,
+                elementWidth,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
                 playheadColor,
-                playheadPosition
+                playheadPosition,
+                playheadOffset
             );
             (ph as any[]).forEach((l) => l.setOpacity?.(playheadOpacity));
             renderObjects.push(...ph);
@@ -707,86 +461,19 @@ export class MovingNotesPianoRollElement extends SceneElement {
         }
     }
 
-    private _createNoteGridLines(
-        minNote: number,
-        maxNote: number,
-        pianoWidth: number,
-        rollWidth: number,
-        noteHeight: number
-    ): RenderObject[] {
-        const lines: RenderObject[] = [];
-        const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        for (let note = minNote; note <= maxNote; note++) {
-            const y = totalHeight - (note - minNote + 1) * noteHeight;
-            lines.push(new Line(pianoWidth, y, pianoWidth + rollWidth, y, '#333333', 1));
-        }
-        return lines;
-    }
-
-    private _createBeatGridLines(
-        windowStart: number,
-        windowEnd: number,
-        beatsPerBar: number,
-        pianoWidth: number,
-        rollWidth: number,
-        totalHeight: number
-    ): RenderObject[] {
-        const lines: RenderObject[] = [];
-        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
-        const duration = Math.max(1e-9, windowEnd - windowStart);
-        for (const b of beats) {
-            const rel = (b.time - windowStart) / duration;
-            const x = pianoWidth + rel * rollWidth;
-            const isBar = b.isBarStart;
-            lines.push(new Line(x, 0, x, totalHeight, isBar ? '#666666' : '#444444', isBar ? 2 : 1));
-        }
-        return lines;
-    }
-
-    private _createNoteLabels(
-        minNote: number,
-        maxNote: number,
-        pianoWidth: number,
-        noteHeight: number
-    ): RenderObject[] {
-        const labels: RenderObject[] = [];
-        const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        for (let note = minNote; note <= maxNote; note++) {
-            const y = totalHeight - (note - minNote + 0.5) * noteHeight;
-            const noteName = this.midiManager.getNoteName(note);
-            labels.push(new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle'));
-        }
-        return labels;
-    }
-
-    private _createBeatLabels(
-        windowStart: number,
-        windowEnd: number,
-        beatsPerBar: number,
-        pianoWidth: number,
-        rollWidth: number
-    ): RenderObject[] {
-        const labels: RenderObject[] = [];
-        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
-        const duration = Math.max(1e-9, windowEnd - windowStart);
-        for (const b of beats) {
-            if (!b.isBarStart) continue;
-            const rel = (b.time - windowStart) / duration;
-            const x = pianoWidth + rel * rollWidth;
-            labels.push(new Text(x + 5, -5, `Bar ${b.barNumber}`, '12px Arial', '#ffffff', 'left', 'bottom'));
-        }
-        return labels;
-    }
-
     private _createStaticPlayhead(
         pianoWidth: number,
         rollWidth: number,
         totalHeight: number,
         lineWidth: number,
         playheadColor: string,
-        playheadPosition: number
+        playheadPosition: number,
+        playheadOffset: number
     ): RenderObject[] {
-        const x = pianoWidth + rollWidth * playheadPosition;
+        const minX = pianoWidth;
+        const maxX = pianoWidth + rollWidth;
+        const unclamped = pianoWidth + rollWidth * playheadPosition + playheadOffset;
+        const x = Math.max(minX, Math.min(maxX, unclamped));
         const playhead = Line.createPlayhead
             ? Line.createPlayhead(x, 0, totalHeight, playheadColor, lineWidth)
             : new Line(x, 0, x, totalHeight, playheadColor, lineWidth);

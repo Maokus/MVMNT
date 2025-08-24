@@ -10,6 +10,7 @@ export interface BuildConfig {
     pianoWidth: number;
     rollWidth: number;
     playheadPosition: number; // 0..1 relative position inside roll area
+    playheadOffset: number; // pixels, applied to playhead x before clamping
     windowStart: number;
     windowEnd: number;
     currentTime: number;
@@ -44,6 +45,7 @@ export class MovingNotesAnimationController {
             pianoWidth,
             rollWidth,
             playheadPosition,
+            playheadOffset,
             windowStart,
             windowEnd,
             currentTime,
@@ -52,8 +54,12 @@ export class MovingNotesAnimationController {
         const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
 
         const xFromTime = (t: number) => {
+            // position relative to playhead; then clamp to viewport
             const norm = (t - currentTime) / timeUnitInSeconds + playheadPosition;
-            return pianoWidth + norm * rollWidth;
+            const unclamped = pianoWidth + norm * rollWidth + playheadOffset;
+            const minX = pianoWidth;
+            const maxX = pianoWidth + rollWidth;
+            return Math.max(minX, Math.min(maxX, unclamped));
         };
 
         const renderObjects: RenderObject[] = [];
@@ -80,8 +86,13 @@ export class MovingNotesAnimationController {
             const y = (totalNotes - (noteIndex + 1)) * noteHeight;
             const x1 = xFromTime(drawStart);
             const x2 = xFromTime(drawEnd);
-            const width = Math.max(2, Math.abs(x2 - x1));
-            const x = Math.min(x1, x2);
+            // width clamped to avoid exceeding viewport, also enforce min width
+            const minX = pianoWidth;
+            const maxX = pianoWidth + rollWidth;
+            const left = Math.max(minX, Math.min(maxX, Math.min(x1, x2)));
+            const right = Math.max(minX, Math.min(maxX, Math.max(x1, x2)));
+            const width = Math.max(2, right - left);
+            const x = left;
 
             const channelColors = this.owner.getChannelColors();
             const color = channelColors[block.channel % channelColors.length];
