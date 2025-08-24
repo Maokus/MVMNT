@@ -2,7 +2,7 @@
 import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
-import { Line, Text, EmptyRenderObject, RenderObject } from '@core/render/render-objects';
+import { Line, Text, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from './note-block';
@@ -143,7 +143,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             key: 'pianoWidth',
                             type: 'number',
                             label: 'Piano Width',
-                            default: 120,
+                            default: 0,
                             min: 80,
                             max: 300,
                             step: 10,
@@ -188,6 +188,40 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             max: 127,
                             step: 1,
                             description: 'Highest MIDI note to display (108 = C8)',
+                        },
+                    ],
+                },
+                {
+                    id: 'piano',
+                    label: 'Piano',
+                    collapsed: true,
+                    properties: [
+                        { key: 'showPiano', type: 'boolean', label: 'Show Piano', default: false },
+                        { key: 'whiteKeyColor', type: 'color', label: 'White Key Color', default: '#f0f0f0' },
+                        { key: 'blackKeyColor', type: 'color', label: 'Black Key Color', default: '#555555' },
+                        {
+                            key: 'pianoOpacity',
+                            type: 'number',
+                            label: 'Piano Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                        },
+                        {
+                            key: 'pianoRightBorderColor',
+                            type: 'color',
+                            label: 'Piano Right Border',
+                            default: '#333333',
+                        },
+                        {
+                            key: 'pianoRightBorderWidth',
+                            type: 'number',
+                            label: 'Piano Right Border Width',
+                            default: 2,
+                            min: 0,
+                            max: 10,
+                            step: 1,
                         },
                     ],
                 },
@@ -679,6 +713,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
         const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
         const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
+        const showPiano = this.getProperty<boolean>('showPiano');
+        const whiteKeyColor = this.getProperty<string>('whiteKeyColor') || '#f0f0f0';
+        const blackKeyColor = this.getProperty<string>('blackKeyColor') || '#555555';
+        const pianoOpacity = this.getProperty<number>('pianoOpacity') ?? 1;
+        const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
+        const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
         const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
         const minBBoxPadding = this.getProperty<number>('minBBoxPadding');
         // Style configs
@@ -724,6 +764,32 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Update timing via midiManager
         this.midiManager.setBPM(bpm);
         this.midiManager.setBeatsPerBar(beatsPerBar);
+
+        // Optionally draw the piano strip background first so notes/grids render on top
+        if (showPiano) {
+            const totalHeight = (maxNote - minNote + 1) * noteHeight;
+            for (let n = maxNote, i = 0; n >= minNote; n--, i++) {
+                const y = i * noteHeight;
+                const pc = n % 12;
+                const isBlack = pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10;
+                const col = isBlack ? blackKeyColor : whiteKeyColor;
+                const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
+                key.setOpacity?.(pianoOpacity);
+                renderObjects.push(key);
+            }
+            if ((pianoRightBorderWidth || 0) > 0) {
+                renderObjects.push(
+                    new Line(
+                        pianoWidth,
+                        0,
+                        pianoWidth,
+                        (maxNote - minNote + 1) * noteHeight,
+                        pianoRightBorderColor,
+                        pianoRightBorderWidth
+                    )
+                );
+            }
+        }
 
         // Build clamped segments across prev/current/next windows for lifecycle-based rendering
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(

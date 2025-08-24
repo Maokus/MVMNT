@@ -25,6 +25,15 @@ const ChangelogPage: React.FC = () => {
                     </section>
 
                     <section>
+                        <h2>v0.11.3</h2>
+                        <ul className='feature-list'>
+                            <li>Added Moving Notes Piano Roll</li>
+                            <li>Fixed piano not rendering</li>
+                            <li>Some UI Tidy up</li>
+
+                        </ul>
+                    </section>
+                    <section>
                         <h2>v0.11.2</h2>
                         <ul className='feature-list'>
                             <li>Added gif support</li>

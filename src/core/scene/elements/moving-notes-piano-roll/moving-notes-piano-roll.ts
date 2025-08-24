@@ -1,7 +1,7 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
 import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { Line, EmptyRenderObject, RenderObject } from '@core/render/render-objects';
+import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 import { MidiManager } from '@core/midi/midi-manager';
@@ -100,7 +100,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             key: 'pianoWidth',
                             type: 'number',
                             label: 'Piano Width',
-                            default: 120,
+                            default: 0,
                             min: 80,
                             max: 300,
                             step: 10,
@@ -113,6 +113,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             min: 200,
                             max: 2000,
                             step: 50,
+                            description: 'Deprecated for this element. Use Element Width; this value is ignored.',
                         },
                         {
                             key: 'elementWidth',
@@ -132,6 +133,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             min: 1,
                             max: 8,
                             step: 1,
+                            description:
+                                'Used only as a duration scale for the moving window around the playhead (no segmentation).',
                         },
                         {
                             key: 'minNote',
@@ -149,6 +152,40 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             default: 72,
                             min: 0,
                             max: 127,
+                            step: 1,
+                        },
+                    ],
+                },
+                {
+                    id: 'piano',
+                    label: 'Piano',
+                    collapsed: true,
+                    properties: [
+                        { key: 'showPiano', type: 'boolean', label: 'Show Piano', default: false },
+                        { key: 'whiteKeyColor', type: 'color', label: 'White Key Color', default: '#f0f0f0' },
+                        { key: 'blackKeyColor', type: 'color', label: 'Black Key Color', default: '#555555' },
+                        {
+                            key: 'pianoOpacity',
+                            type: 'number',
+                            label: 'Piano Opacity',
+                            default: 1,
+                            min: 0,
+                            max: 1,
+                            step: 0.05,
+                        },
+                        {
+                            key: 'pianoRightBorderColor',
+                            type: 'color',
+                            label: 'Piano Right Border',
+                            default: '#333333',
+                        },
+                        {
+                            key: 'pianoRightBorderWidth',
+                            type: 'number',
+                            label: 'Piano Right Border Width',
+                            default: 2,
+                            min: 0,
+                            max: 10,
                             step: 1,
                         },
                     ],
@@ -265,7 +302,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             key: 'playheadPosition',
                             type: 'number',
                             label: 'Playhead Position (0..1)',
-                            default: 0.25,
+                            default: 0.5,
                             min: 0,
                             max: 1,
                             step: 0.01,
@@ -358,6 +395,12 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
         const playheadPosition = Math.max(0, Math.min(1, this.getProperty<number>('playheadPosition') ?? 0.25));
         const playheadOffset = this.getProperty<number>('playheadOffset') || 0;
+        const showPiano = this.getProperty<boolean>('showPiano');
+        const whiteKeyColor = this.getProperty<string>('whiteKeyColor') || '#f0f0f0';
+        const blackKeyColor = this.getProperty<string>('blackKeyColor') || '#555555';
+        const pianoOpacity = this.getProperty<number>('pianoOpacity') ?? 1;
+        const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
+        const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
 
         // MIDI file changes
         const midiFile = this.getProperty<File>('midiFile');
@@ -368,6 +411,34 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
         this.midiManager.setBPM(bpm);
         this.midiManager.setBeatsPerBar(beatsPerBar);
+
+        // Draw piano strip (left) so pianoWidth visually applies
+        if (showPiano) {
+            const totalHeight = (maxNote - minNote + 1) * noteHeight;
+            // Draw keys from top (maxNote) to bottom (minNote)
+            for (let n = maxNote, i = 0; n >= minNote; n--, i++) {
+                const y = i * noteHeight;
+                const pitchClass = n % 12;
+                const isBlack =
+                    pitchClass === 1 || pitchClass === 3 || pitchClass === 6 || pitchClass === 8 || pitchClass === 10;
+                const col = isBlack ? blackKeyColor : whiteKeyColor;
+                const key = new Rectangle(0, y, pianoWidth, noteHeight, col, null, 0);
+                key.setOpacity?.(pianoOpacity);
+                renderObjects.push(key);
+            }
+            // Right border to separate piano from roll area
+            if ((pianoRightBorderWidth || 0) > 0) {
+                const border = new Line(
+                    pianoWidth,
+                    0,
+                    pianoWidth,
+                    (maxNote - minNote + 1) * noteHeight,
+                    pianoRightBorderColor,
+                    pianoRightBorderWidth
+                );
+                renderObjects.push(border);
+            }
+        }
 
         // Fetch raw MIDI notes (no window segmentation)
         const rawNotes = this.midiManager.getNotes();
