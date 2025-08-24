@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     TimeUnitPianoRollElement,
+    MovingNotesPianoRollElement,
     BackgroundElement,
     ImageElement,
     ProgressDisplayElement,
@@ -66,6 +67,11 @@ export class SceneElementRegistry {
             'timeUnitPianoRoll',
             (config) => new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config),
             TimeUnitPianoRollElement.getConfigSchema()
+        );
+        this.registerElement(
+            'movingNotesPianoRoll',
+            (config) => new MovingNotesPianoRollElement(config.id || 'movingNotesPianoRoll', config),
+            MovingNotesPianoRollElement.getConfigSchema()
         );
         this.registerElement(
             'background',
