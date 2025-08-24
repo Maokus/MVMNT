@@ -25,7 +25,10 @@ const ChangelogPage: React.FC = () => {
                     </section>
 
                     <section>
-                        <h2>v0.11.3</h2>
+                        <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.3</h2>
+                            <i>24-08-25</i>
+                        </div>
                         <ul className='feature-list'>
                             <li>Added Moving Notes Piano Roll</li>
                             <li>Fixed piano not rendering</li>
@@ -34,7 +37,10 @@ const ChangelogPage: React.FC = () => {
                         </ul>
                     </section>
                     <section>
-                        <h2>v0.11.2</h2>
+                        <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.2</h2>
+                            <i>17-08-25</i>
+                        </div>
                         <ul className='feature-list'>
                             <li>Added gif support</li>
                             <li>Fixed save/load z index functionality</li>
@@ -43,7 +49,10 @@ const ChangelogPage: React.FC = () => {
                         </ul>
                     </section>
                     <section>
-                        <h2>v0.11.1</h2>
+                        <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.1</h2>
+                            <i>16-08-25</i>
+                        </div>
                         <ul className="feature-list">
                             <li>Bugfixes (properties now actually show u properties. lol)</li>
                             <li>Onboarding</li>
@@ -54,7 +63,10 @@ const ChangelogPage: React.FC = () => {
                         </ul>
                     </section>
                     <section>
-                        <h2>v0.11.0</h2>
+                        <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.0</h2>
+                            <i>I forgot lol</i>
+                        </div>
                         <ul className="feature-list">
                             <li>Initial beta release</li>
                         </ul>
