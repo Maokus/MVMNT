@@ -283,6 +283,31 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     ],
                 },
                 {
+                    id: 'bbox',
+                    label: 'Bounding Box',
+                    collapsed: true,
+                    properties: [
+                        {
+                            key: 'ensureMinBBox',
+                            type: 'boolean',
+                            label: 'Ensure Min BBox',
+                            default: true,
+                            description:
+                                'Stabilize layout by pinning an invisible bbox to the configured element width.',
+                        },
+                        {
+                            key: 'minBBoxPadding',
+                            type: 'number',
+                            label: 'Min Bounding Box Padding',
+                            default: 0,
+                            min: 0,
+                            max: 2000,
+                            step: 1,
+                            description: 'Padding around the bounding box in pixels',
+                        },
+                    ],
+                },
+                {
                     id: 'playhead',
                     label: 'Playhead',
                     collapsed: true,
@@ -344,20 +369,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
         this.midiManager.setBPM(bpm);
         this.midiManager.setBeatsPerBar(beatsPerBar);
 
-        // Build segments across prev/current/next windows
-        const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
-            this.midiManager.getNotes(),
-            this.midiManager.timingManager,
-            effectiveTime,
-            timeUnitBars
-        );
+        // Fetch raw MIDI notes (no window segmentation)
+        const rawNotes = this.midiManager.getNotes();
 
         // Notes moving past static playhead
-        if (showNotes && windowedNoteBlocks.length > 0) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-                effectiveTime,
-                timeUnitBars
-            );
+        if (showNotes && rawNotes && rawNotes.length > 0) {
+            // Compute a continuous viewport window around current time using a duration scale,
+            // without splitting any notes. We re-use the timeUnit duration purely as a time scale.
+            const duration = this.midiManager.timingManager.getTimeUnitDuration(timeUnitBars);
+            const windowStart = effectiveTime - duration * playheadPosition;
+            const windowEnd = windowStart + duration;
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 {
                     noteHeight,
@@ -371,7 +392,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     windowEnd,
                     currentTime: effectiveTime,
                 },
-                windowedNoteBlocks
+                rawNotes as any
             );
 
             // Style customizations
@@ -404,13 +425,23 @@ export class MovingNotesPianoRollElement extends SceneElement {
             renderObjects.push(...animatedRenderObjects);
         }
 
-        // Add invisible bbox anchors to stabilize layout to the configured element width
-        const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        const tl = new EmptyRenderObject(0, 0, 1, 1, 0);
-        const br = new EmptyRenderObject(pianoWidth + elementWidth, totalHeight, 1, 1, 0);
-        tl.setOpacity(0);
-        br.setOpacity(0);
-        renderObjects.push(tl, br);
+        // Add invisible bbox anchors to stabilize layout (optional)
+        const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
+        const minBBoxPadding = this.getProperty<number>('minBBoxPadding') || 0;
+        if (ensureMinBBox) {
+            const totalHeight = (maxNote - minNote + 1) * noteHeight;
+            const tl = new EmptyRenderObject(0 - minBBoxPadding, 0 - minBBoxPadding, 1, 1, 0);
+            const br = new EmptyRenderObject(
+                pianoWidth + elementWidth + minBBoxPadding,
+                totalHeight + minBBoxPadding,
+                1,
+                1,
+                0
+            );
+            tl.setOpacity(0);
+            br.setOpacity(0);
+            renderObjects.push(tl, br);
+        }
 
         if (showPlayhead) {
             const ph = this._createStaticPlayhead(

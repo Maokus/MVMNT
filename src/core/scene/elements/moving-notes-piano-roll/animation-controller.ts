@@ -1,6 +1,14 @@
 // Animation controller for Moving Notes Piano Roll: static playhead, notes move.
 import { createAnimationInstance, type AnimationPhase } from '@animation/note-animations';
-import type { NoteBlock as TNoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
+type MidiLikeNote = {
+    note: number;
+    channel?: number;
+    velocity: number;
+    startTime?: number;
+    endTime?: number;
+    startBeat?: number;
+    endBeat?: number;
+};
 import { RenderObject } from '@core/render/render-objects';
 
 export interface BuildConfig {
@@ -31,7 +39,7 @@ export class MovingNotesAnimationController {
         this.owner = owner;
     }
 
-    buildNoteRenderObjects(config: BuildConfig, noteBlocks: TNoteBlock[]): RenderObject[] {
+    buildNoteRenderObjects(config: BuildConfig, noteBlocks: MidiLikeNote[]): RenderObject[] {
         const animationType = this.owner.getAnimationType();
         const attack = this.owner.getAttackDuration();
         const decay = this.owner.getDecayDuration();
@@ -66,12 +74,15 @@ export class MovingNotesAnimationController {
         if (!noteBlocks || noteBlocks.length === 0) return renderObjects;
 
         for (const block of noteBlocks) {
+            const channel = (block.channel ?? 0) as number;
+            const start = (block.startTime ??
+                this.owner.midiManager.timingManager.beatsToSeconds(block.startBeat!)) as number;
+            const end = (block.endTime ??
+                this.owner.midiManager.timingManager.beatsToSeconds(block.endBeat!)) as number;
             const noteIndex = block.note - minNote;
             if (noteIndex < 0 || noteIndex >= totalNotes) continue;
 
             // Determine ADSR relative to playhead crossing (note start)
-            const start = block.originalStartTime ?? block.startTime;
-            const end = block.originalEndTime ?? block.endTime;
             const vis = this._deriveVisualStateRelativeToPlayhead(currentTime, start, end, { attack, decay, release });
             if (!vis) continue;
 
@@ -95,13 +106,23 @@ export class MovingNotesAnimationController {
             const x = left;
 
             const channelColors = this.owner.getChannelColors();
-            const color = channelColors[block.channel % channelColors.length];
+            const color = channelColors[channel % channelColors.length];
 
             const inst = this._getAnimationInstance(animationType === 'none' ? 'expand' : animationType);
             const progress = Math.max(0, Math.min(1, vis.progress));
             const phase = vis.type as AnimationPhase;
             const objs = inst.render({
-                block,
+                block: {
+                    // minimal shape used by the note animations
+                    note: block.note,
+                    channel,
+                    startTime: start,
+                    endTime: end,
+                    velocity: block.velocity,
+                    isCurrentlyPlaying: (t: number) => start <= t && end > t,
+                    baseNoteId: 'raw',
+                    noteId: 'raw',
+                } as any,
                 x,
                 y,
                 width,
