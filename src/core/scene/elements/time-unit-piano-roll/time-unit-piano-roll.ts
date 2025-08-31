@@ -7,6 +7,8 @@ import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from './note-block';
 import { MidiManager } from '@core/midi/midi-manager';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectNotesInWindow } from '@selectors/timelineSelectors';
 import { debugLog } from '@utils/debug-log';
 import { globalMacroManager } from '@bindings/macro-manager';
 import { ConstantBinding } from '@bindings/property-bindings';
@@ -780,25 +782,28 @@ export class TimeUnitPianoRollElement extends SceneElement {
             }
         }
 
-        // Build source notes either from TimelineService (preferred) or legacy MidiManager
+        // Build source notes: prefer store-based timeline tracks; fallback to legacy MidiManager
         let sourceNotes = this.midiManager.getNotes();
         try {
             const trackId = this.getProperty<string>('midiTrackId');
             if (trackId) {
-                const svc: any = (window as any).mvmntTimelineService;
-                if (svc && typeof svc.getNotesNearTimeUnit === 'function') {
-                    const tlNotes =
-                        svc.getNotesNearTimeUnit({ trackId, centerSec: effectiveTime, bars: timeUnitBars }) || [];
-                    sourceNotes = tlNotes.map((n: any) => ({
-                        note: n.note,
-                        channel: n.channel || 0,
-                        velocity: n.velocity || 0,
-                        startTime: n.startSec,
-                        endTime: n.endSec ?? n.startSec,
-                        startBeat: undefined,
-                        endBeat: undefined,
-                    }));
-                }
+                // Compute time window aligned to bars via TimingManager, then query store selector
+                const window = this.midiManager.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
+                const state = useTimelineStore.getState();
+                const events = selectNotesInWindow(state, {
+                    trackIds: [trackId],
+                    startSec: window.start,
+                    endSec: window.end,
+                });
+                sourceNotes = events.map((e) => ({
+                    note: e.note,
+                    channel: e.channel,
+                    velocity: e.velocity || 0,
+                    startTime: e.startTime,
+                    endTime: e.endTime,
+                    startBeat: undefined,
+                    endBeat: undefined,
+                }));
             }
         } catch {}
 

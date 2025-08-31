@@ -4,6 +4,7 @@ import FormInput from '@ui/form/inputs/FormInput';
 import FontInput from '@ui/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -72,7 +73,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // Use the consolidated FormInput for all types (it delegates to specialized components internally)
         const inputType = property.type === 'string' ? 'text' : property.type;
-        return (
+        const inputEl = (
             <FormInput
                 id={commonProps.id}
                 type={inputType}
@@ -83,6 +84,30 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 onChange={commonProps.onChange}
             />
         );
+
+        // Phase 3: provide an explicit migration CTA for legacy midiFile -> timeline track
+        if (property.key === 'midiFile' && value instanceof File && !isAssignedToMacro) {
+            const migrate = async () => {
+                try {
+                    const addMidiTrack = useTimelineStore.getState().addMidiTrack;
+                    const id = await addMidiTrack({ name: value.name || 'MIDI Track', file: value, offsetSec: 0 });
+                    onValueChange('midiTrackId', id);
+                    onValueChange('midiFile', null);
+                } catch (e) {
+                    console.warn('Timeline migration failed:', e);
+                }
+            };
+            return (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {inputEl}
+                    <button type="button" onClick={migrate} title="Import this MIDI file into the Timeline and link this element">
+                        Migrate to Timeline
+                    </button>
+                </div>
+            );
+        }
+
+        return inputEl;
     };
 
     const renderMacroDropdown = (property: PropertyDefinition) => {
