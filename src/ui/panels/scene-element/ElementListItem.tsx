@@ -90,13 +90,16 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
         action();
     };
 
+    const baseItem = "flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition";
+    const unselected = "bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500";
+    const selected = "bg-[#0e639c] border-[#1177bb] text-white";
     return (
         <div
-            className={`element-item ${isSelected ? 'selected' : ''}`}
+            className={`${baseItem} ${isSelected ? selected : unselected}`}
             onClick={onSelect}
         >
-            <div className="element-info">
-                <div className="element-name-container">
+            <div className="flex-1">
+                <div className="flex items-center gap-1 mb-0.5">
                     {isEditingId ? (
                         <input
                             ref={inputRef}
@@ -105,7 +108,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                             onChange={(e) => setEditValue(e.target.value)}
                             onBlur={() => finishEditing(true)}
                             onKeyDown={handleKeyDown}
-                            className="element-id-input"
+                            className="outline-none"
                             style={{
                                 width: '100%',
                                 fontSize: '13px',
@@ -120,14 +123,14 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     ) : (
                         <>
                             <span
-                                className="element-name"
+                                className="font-medium text-[13px] cursor-pointer"
                                 title={element.id}
                                 onDoubleClick={startEditing}
                             >
                                 {truncatedId}
                             </span>
                             <button
-                                className="edit-id-btn"
+                                className="bg-transparent border-0 text-[10px] px-0 py-0 opacity-60 cursor-pointer transition hover:opacity-100"
                                 onClick={startEditing}
                                 title="Edit element ID"
                             >
@@ -136,20 +139,21 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         </>
                     )}
                 </div>
-                <div className="element-type">{elementTypeName}</div>
+                <div className="text-[11px] opacity-70">{elementTypeName}</div>
             </div>
 
-            <div className="element-controls">
+            <div className="flex gap-1">
                 <button
-                    className={`visibility-toggle ${element.visible ? 'visible' : ''}`}
+                    className={`opacity-50 cursor-pointer bg-transparent border-0 text-xs transition hover:opacity-100 ${element.visible ? 'opacity-100' : ''}`}
                     onClick={(e) => handleControlClick(e, onToggleVisibility)}
                     title={`${element.visible ? 'Hide' : 'Show'} element`}
                 >
                     {element.visible ? '👁️' : '👁️‍🗨️'}
                 </button>
 
-                <div className="z-index-controls">
+                <div className="flex gap-0.5">
                     <button
+                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => handleControlClick(e, onMoveUp)}
                         title="Move up"
                         disabled={index === 0}
@@ -157,6 +161,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         ↑
                     </button>
                     <button
+                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => handleControlClick(e, onMoveDown)}
                         title="Move down"
                         disabled={index === totalElements - 1}
@@ -164,15 +169,15 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         ↓
                     </button>
                 </div>
-
                 <button
+                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20"
                     onClick={(e) => handleControlClick(e, onDuplicate)}
                     title="Duplicate element"
                 >
                     📋
                 </button>
-
                 <button
+                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20"
                     onClick={(e) => handleControlClick(e, onDelete)}
                     title="Delete element"
                 >

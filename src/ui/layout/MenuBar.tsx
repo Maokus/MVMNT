@@ -94,7 +94,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                     )}
 
                     <button
-                        className="scene-name-edit-btn"
+                        className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1 rounded text-xs transition-colors hover:bg-white/10 hover:text-white"
                         onClick={() => setIsEditingName(true)}
                         title="Edit scene name"
                     >
@@ -103,7 +103,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
 
                     <div className="scene-menu-container" ref={sceneMenuRef}>
                         <button
-                            className="scene-menu-btn"
+                            className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                             onClick={() => setShowSceneMenu(!showSceneMenu)}
                             title="Scene options"
                         >
