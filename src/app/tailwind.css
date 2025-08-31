@@ -323,6 +323,13 @@
     .config-panel {
         @apply bg-transparent;
     }
+    /* Make the elements area take available height and scroll */
+    .elements-panel {
+        @apply flex flex-col min-h-0;
+    }
+    .scene-editor-container {
+        @apply flex-1 overflow-y-auto p-4 min-h-0;
+    }
     .element-list {
         @apply mb-4;
     }
@@ -610,6 +617,11 @@
     }
     .macro-options input[type='radio'] {
         @apply mr-2;
+    }
+
+    /* Properties panel scroll container */
+    .properties-content {
+        @apply flex-1 overflow-y-auto p-4;
     }
 
     /* AE style properties */
