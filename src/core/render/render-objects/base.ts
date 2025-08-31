@@ -25,12 +25,21 @@ export abstract class RenderObject {
     rotation: number;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
     /**
-     * When true (default), this render object is considered when computing layout bounds.
-     * When false, it is ignored in layout bounds, but still counted for visual bounds.
+     * Controls contribution to layout bounds.
+     * - true: include this object and all descendants in layout bounds
+     * - false: exclude this object and all descendants from layout bounds
+     * - undefined: include this object; respect each child's own includeInLayoutBounds
      */
-    includeInLayoutBounds: boolean;
+    includeInLayoutBounds: boolean | undefined;
 
-    constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1, options?: { includeInLayoutBounds?: boolean }) {
+    constructor(
+        x = 0,
+        y = 0,
+        scaleX = 1,
+        scaleY = 1,
+        opacity = 1,
+        options?: { includeInLayoutBounds?: boolean | undefined }
+    ) {
         this.x = x;
         this.y = y;
         this.scaleX = scaleX;
@@ -41,7 +50,8 @@ export abstract class RenderObject {
         this.visible = true;
         this.rotation = 0; // Rotation in radians
         this.children = []; // Array of child render objects
-        this.includeInLayoutBounds = options?.includeInLayoutBounds ?? true;
+        // Default undefined => include self, respect children
+        this.includeInLayoutBounds = options?.includeInLayoutBounds;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */
@@ -106,7 +116,7 @@ export abstract class RenderObject {
         return this;
     }
     /** Control if this object contributes to layout bounds (visual bounds always include all). */
-    setIncludeInLayoutBounds(include: boolean): this {
+    setIncludeInLayoutBounds(include: boolean | undefined): this {
         this.includeInLayoutBounds = include;
         return this;
     }
@@ -126,9 +136,72 @@ export abstract class RenderObject {
         this.children = [];
         return this;
     }
-    /** Basic bounds (override in subclasses) */
+    /**
+     * Visual bounds of this object including its children (ignores includeInLayoutBounds flags).
+     */
+    getVisualBounds(): Bounds {
+        let union: Bounds | null = this._getSelfBounds();
+        for (const child of this.children) {
+            if (!child) continue;
+            const cb = child.getVisualBounds();
+            union = RenderObject._unionBounds(union, cb);
+        }
+        // Fallback to empty if somehow null
+        return union ?? { x: this.x, y: this.y, width: 0, height: 0 };
+    }
+
+    /**
+     * Layout bounds honoring includeInLayoutBounds semantics.
+     * Returns null if excluded by policy.
+     */
+    getLayoutBounds(): Bounds | null {
+        const policy: 'force-include' | 'force-exclude' | 'respect' =
+            this.includeInLayoutBounds === true
+                ? 'force-include'
+                : this.includeInLayoutBounds === false
+                ? 'force-exclude'
+                : 'respect';
+        return this._getLayoutBoundsRecursive(policy);
+    }
+
+    /** Back-compat: default getBounds to visual bounds. */
     getBounds(): Bounds {
+        return this.getVisualBounds();
+    }
+
+    /**
+     * Subclasses override to return only their own bounds (no children).
+     * Base implementation has no intrinsic size.
+     */
+    protected _getSelfBounds(): Bounds | null {
         return { x: this.x, y: this.y, width: 0, height: 0 };
+    }
+
+    /** Recursively compute layout bounds based on a parent policy. */
+    protected _getLayoutBoundsRecursive(parentPolicy: 'force-include' | 'force-exclude' | 'respect'): Bounds | null {
+        if (parentPolicy === 'force-exclude') return null;
+
+        // Determine this level's policy to pass to children
+        const childPolicy: 'force-include' | 'force-exclude' | 'respect' =
+            parentPolicy === 'force-include'
+                ? 'force-include'
+                : this.includeInLayoutBounds === true
+                ? 'force-include'
+                : this.includeInLayoutBounds === false
+                ? 'force-exclude'
+                : 'respect';
+
+        // Determine whether to include self at this level
+        const includeSelf = parentPolicy === 'force-include' || this.includeInLayoutBounds !== false;
+
+        let union: Bounds | null = includeSelf ? this._getSelfBounds() : null;
+
+        for (const child of this.children) {
+            if (!child) continue;
+            const cb = child._getLayoutBoundsRecursive(childPolicy);
+            if (cb) union = RenderObject._unionBounds(union, cb);
+        }
+        return union;
     }
 
     /**
@@ -188,6 +261,20 @@ export abstract class RenderObject {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         }
+        return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
+    }
+
+    /** Utility: union two bounds */
+    private static _unionBounds(a: Bounds | null | undefined, b: Bounds | null | undefined): Bounds | null {
+        const A = a ?? null;
+        const B = b ?? null;
+        if (!A && !B) return null;
+        if (!A && B) return { ...B };
+        if (!B && A) return { ...A };
+        const minX = Math.min(A!.x, B!.x);
+        const minY = Math.min(A!.y, B!.y);
+        const maxX = Math.max(A!.x + A!.width, B!.x + B!.width);
+        const maxY = Math.max(A!.y + A!.height, B!.y + B!.height);
         return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
     }
 }

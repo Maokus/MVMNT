@@ -175,7 +175,7 @@ export class Image extends RenderObject {
     isReady(): boolean {
         return !!this.imageElement;
     }
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         // For cover / fill we keep the container bounds (cover may draw outside but is clipped; fill stretches)
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);

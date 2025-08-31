@@ -127,22 +127,11 @@ export class EmptyRenderObject extends RenderObject {
         ctx.restore();
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         const metaBase = this.baseBounds;
         if (!metaBase) {
-            if (this.getChildren().length === 0) return { x: this.x, y: this.y, width: 0, height: 0 };
-            let minX = Infinity,
-                minY = Infinity,
-                maxX = -Infinity,
-                maxY = -Infinity;
-            for (const child of this.getChildren()) {
-                const b = child.getBounds();
-                minX = Math.min(minX, b.x);
-                minY = Math.min(minY, b.y);
-                maxX = Math.max(maxX, b.x + b.width);
-                maxY = Math.max(maxY, b.y + b.height);
-            }
-            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+            // No intrinsic size
+            return { x: this.x, y: this.y, width: 0, height: 0 };
         }
         const b = metaBase;
         const anchorFrac = this.anchorFraction || { x: 0.5, y: 0.5 };

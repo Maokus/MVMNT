@@ -118,7 +118,7 @@ export class Text extends RenderObject {
         return metrics;
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         const fontSize = this.#extractFontSize(this.font);
         if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(fontSize)) {
             console.warn(

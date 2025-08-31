@@ -156,7 +156,7 @@ export class Poly extends RenderObject {
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         if (!this.points.length) return this._computeTransformedRectBounds(0, 0, 0, 0);
         let minX = Infinity,
             minY = Infinity,

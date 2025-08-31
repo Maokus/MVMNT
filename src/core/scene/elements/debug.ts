@@ -55,6 +55,7 @@ export class DebugElement extends SceneElement {
         const rect4 = new Rectangle(150, 150, 50, 50, '#ffff00');
         rect3.setScale(2, 1);
         rect4.setRotation(45);
+        rect4.x = 200;
         rect2.setIncludeInLayoutBounds(false);
         rect4.setIncludeInLayoutBounds(false);
         empty1.addChild(rect1);
@@ -62,7 +63,7 @@ export class DebugElement extends SceneElement {
         empty1.addChild(rect3);
         empty1.addChild(rect4);
         empty1.setIncludeInLayoutBounds(true);
-        objects.push(empty1);
+        objects.push(rect1, rect2, rect3, rect4);
         return objects;
     }
 

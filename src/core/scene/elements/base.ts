@@ -393,17 +393,18 @@ export class SceneElement implements SceneElementInterface {
         let validBoundsCount = 0;
 
         for (const obj of renderObjects) {
-            if (obj && typeof obj.getBounds === 'function') {
-                // Skip if computing layout bounds and object opts out
-                if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
-                const bounds = obj.getBounds();
-                if (this._validateBounds(bounds, obj)) {
-                    minX = Math.min(minX, bounds.x);
-                    minY = Math.min(minY, bounds.y);
-                    maxX = Math.max(maxX, bounds.x + bounds.width);
-                    maxY = Math.max(maxY, bounds.y + bounds.height);
-                    validBoundsCount++;
-                }
+            if (!obj) continue;
+            let bounds: any = null;
+            if (mode === 'visual' && (obj as any).getVisualBounds) bounds = (obj as any).getVisualBounds();
+            else if (mode === 'layout' && (obj as any).getLayoutBounds) bounds = (obj as any).getLayoutBounds();
+
+            if (!bounds) continue; // layout may return null when excluded
+            if (this._validateBounds(bounds, obj)) {
+                minX = Math.min(minX, bounds.x);
+                minY = Math.min(minY, bounds.y);
+                maxX = Math.max(maxX, bounds.x + bounds.width);
+                maxY = Math.max(maxY, bounds.y + bounds.height);
+                validBoundsCount++;
             }
         }
 

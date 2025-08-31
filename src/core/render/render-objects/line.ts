@@ -73,7 +73,7 @@ export class Line extends RenderObject {
         return this;
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         // Local line from (0,0) to (dx,dy); account for stroke width
         const half = (this.lineWidth || 0) / 2;
         const minLX = Math.min(0, this.deltaX) - half;

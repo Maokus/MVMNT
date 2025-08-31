@@ -169,7 +169,7 @@ export class AnimatedGif extends RenderObject {
         return !!this._provider && this._provider.isReady();
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
             return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }

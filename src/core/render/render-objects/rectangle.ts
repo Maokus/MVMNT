@@ -136,7 +136,7 @@ export class Rectangle extends RenderObject {
         return this;
     }
 
-    getBounds(): Bounds {
+    protected _getSelfBounds(): Bounds {
         // Local rect is at (0,0) with width/height; pad for stroke if any
         let lx = 0,
             ly = 0,
