@@ -97,7 +97,19 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'MIDI File',
                     collapsed: true,
                     properties: [
-                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiTrackIds',
+                            type: 'midiTrackRef',
+                            label: 'MIDI Tracks',
+                            default: [],
+                            allowMultiple: true,
+                        },
+                        {
+                            key: 'midiTrackId',
+                            type: 'midiTrackRef',
+                            label: 'MIDI Track (legacy single)',
+                            default: null,
+                        },
                         {
                             key: 'midiFile',
                             type: 'file',
@@ -440,16 +452,20 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
         // Fetch notes for this window from TimelineService
         const tl = this._timeline();
+        const trackIds = (this.getProperty('midiTrackIds') as string[] | undefined) || [];
         const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const effectiveTrackIds = Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
         const rawNotes =
-            trackId && tl
-                ? tl.getNotesInWindow({ trackIds: [trackId], startSec: windowStart, endSec: windowEnd }).map((n) => ({
-                      note: n.note,
-                      channel: n.channel,
-                      velocity: n.velocity,
-                      startTime: n.startSec ?? (n.startTime as number),
-                      endTime: n.endSec ?? (n.endTime as number),
-                  }))
+            tl && effectiveTrackIds.length > 0
+                ? tl
+                      .getNotesInWindow({ trackIds: effectiveTrackIds, startSec: windowStart, endSec: windowEnd })
+                      .map((n) => ({
+                          note: n.note,
+                          channel: n.channel,
+                          velocity: n.velocity,
+                          startTime: (n as any).startSec ?? (n as any).startTime,
+                          endTime: (n as any).endSec ?? (n as any).endTime,
+                      }))
                 : [];
 
         // Notes moving past static playhead

@@ -100,10 +100,30 @@ export class HybridSceneBuilder {
     }
     getMaxDuration() {
         let max = 0;
+        // Legacy elements duration
         for (const el of this.elements) {
             const dur = (el as any).midiManager?.getDuration?.();
             if (typeof dur === 'number' && dur > max) max = dur;
         }
+        // New timeline store-based duration
+        try {
+            // Lazy import to avoid cyclic deps at module load
+            const { useTimelineStore } = require('@state/timelineStore');
+            const state = useTimelineStore.getState();
+            for (const id of state.tracksOrder) {
+                const t = state.tracks[id];
+                if (!t || t.type !== 'midi' || !t.enabled) continue;
+                const cache = state.midiCache[t.midiSourceId ?? id];
+                if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+                const localEnd = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
+                let end = localEnd;
+                if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
+                // If regionStart beyond end, skip
+                if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
+                const timelineEnd = (t.offsetSec || 0) + end;
+                if (timelineEnd > max) max = timelineEnd;
+            }
+        } catch {}
         return max;
     }
     getAllElements() {

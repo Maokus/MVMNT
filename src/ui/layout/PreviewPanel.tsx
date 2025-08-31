@@ -3,17 +3,21 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
 import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLeave } from './canvasInteractionUtils';
+import { useTimelineStore } from '@state/timelineStore';
 
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
     const { canvasRef, isPlaying, playPause, stop, stepForward, stepBackward, currentTimeLabel, exportSettings, totalDuration, numericCurrentTime, seekPercent } = ctx;
+    const view = useTimelineStore((s) => s.timelineView);
     const { selectElement, sceneBuilder, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     // totalDuration already includes pre+base+post. We want 0% at -prePadding.
-    const prePadding = exportSettings.prePadding || 0;
-    const adjustedCurrent = numericCurrentTime + prePadding; // shift so -prePadding -> 0
-    const progressPercent = totalDuration ? (adjustedCurrent / totalDuration) : 0;
+    // Use configured timeline view from store; fallback to duration + prePadding
+    const vStart = view?.startSec ?? -(exportSettings.prePadding || 0);
+    const vEnd = view?.endSec ?? ((exportSettings.prePadding || 0) + totalDuration);
+    const vRange = Math.max(0.001, vEnd - vStart);
+    const progressPercent = Math.max(0, Math.min(1, (numericCurrentTime - vStart) / vRange));
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
@@ -56,7 +60,6 @@ const PreviewPanel: React.FC = () => {
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
-        // Adapt seekPercent: it expects percent of totalDuration (which includes padding). We pass through.
         seekPercent(percent);
     };
 

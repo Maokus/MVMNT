@@ -232,6 +232,8 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    // UI hint: when type === 'midiTrackRef', allow selecting multiple tracks
+    allowMultiple?: boolean;
 }
 
 export interface PropertyGroup {

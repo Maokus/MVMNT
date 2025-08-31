@@ -122,6 +122,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
+                            key: 'midiTrackIds',
+                            type: 'midiTrackRef',
+                            label: 'Timeline MIDI Tracks',
+                            default: [],
+                            description: 'Pick one or more MIDI tracks from the Timeline',
+                            allowMultiple: true,
+                        },
+                        {
                             key: 'midiTrackId',
                             type: 'midiTrackRef',
                             label: 'Timeline MIDI Track',
@@ -785,13 +793,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Build source notes: prefer store-based timeline tracks; fallback to legacy MidiManager
         let sourceNotes = this.midiManager.getNotes();
         try {
+            const trackIds = (this.getProperty<any>('midiTrackIds') as string[] | undefined) || [];
             const trackId = this.getProperty<string>('midiTrackId');
-            if (trackId) {
+            const effectiveTrackIds =
+                Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
+            if (effectiveTrackIds.length > 0) {
                 // Compute time window aligned to bars via TimingManager, then query store selector
                 const window = this.midiManager.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
                 const state = useTimelineStore.getState();
                 const events = selectNotesInWindow(state, {
-                    trackIds: [trackId],
+                    trackIds: effectiveTrackIds,
                     startSec: window.start,
                     endSec: window.end,
                 });

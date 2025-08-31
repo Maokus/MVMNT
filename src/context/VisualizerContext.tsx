@@ -281,12 +281,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
     const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
-        if (!visualizer || !totalDuration || totalDuration <= 0) return;
-        const { prePadding = 0 } = exportSettings;
-        // totalDuration = pre + base + post, so map 0 -> -prePadding
-        const target = -prePadding + percent * totalDuration;
+        if (!visualizer) return;
+        // Prefer explicit view window if set; otherwise fallback to visualizer duration mapping
+        const { startSec, endSec } = useTimelineStore.getState().timelineView;
+        const range = Math.max(0.001, endSec - startSec);
+        const target = startSec + Math.max(0, Math.min(1, percent)) * range;
         visualizer.seek?.(target);
-    }, [visualizer, totalDuration, exportSettings]);
+    }, [visualizer]);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;
