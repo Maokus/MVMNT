@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 
 const fmt = (s: number) => {
@@ -16,35 +16,13 @@ const TransportControls: React.FC = () => {
     const loopStart = useTimelineStore((s) => s.transport.loopStartSec);
     const loopEnd = useTimelineStore((s) => s.transport.loopEndSec);
     const current = useTimelineStore((s) => s.timeline.currentTimeSec);
-    const play = useTimelineStore((s) => s.play);
-    const pause = useTimelineStore((s) => s.pause);
+    const view = useTimelineStore((s) => s.timelineView);
+    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const togglePlay = useTimelineStore((s) => s.togglePlay);
     const scrub = useTimelineStore((s) => s.scrub);
     const setCurrent = useTimelineStore((s) => s.setCurrentTimeSec);
     const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
     const setLoopRange = useTimelineStore((s) => s.setLoopRange);
-
-    // simple RAF to advance time when playing; loop when needed
-    const rafRef = useRef<number | null>(null);
-    const lastTsRef = useRef<number | null>(null);
-    useEffect(() => {
-        if (!isPlaying) { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; lastTsRef.current = null; return; }
-        const tick = (ts: number) => {
-            const last = lastTsRef.current;
-            lastTsRef.current = ts;
-            if (last != null) {
-                const dt = (ts - last) / 1000;
-                let next = current + dt;
-                if (loopEnabled && loopStart != null && loopEnd != null && loopEnd > loopStart) {
-                    if (next > loopEnd) next = loopStart + ((next - loopStart) % (loopEnd - loopStart));
-                }
-                setCurrent(next);
-            }
-            rafRef.current = requestAnimationFrame(tick);
-        };
-        rafRef.current = requestAnimationFrame(tick);
-        return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; };
-    }, [isPlaying, loopEnabled, loopStart, loopEnd, current, setCurrent]);
 
     return (
         <div className="transport flex items-center gap-2 text-sm">
@@ -58,8 +36,19 @@ const TransportControls: React.FC = () => {
                 <span>–</span>
                 <input className="number-input w-[80px]" type="number" step={0.01} value={loopEnd ?? ''} placeholder="loop end" onChange={(e) => setLoopRange(loopStart, e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0))} />
             </div>
+            <div className="flex items-center gap-2">
+                <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+                    View
+                    <input className="number-input w-[80px]" type="number" step={0.01} value={view.startSec}
+                        onChange={(e) => setTimelineView(parseFloat(e.target.value) || 0, view.endSec)} />
+                    <span>–</span>
+                    <input className="number-input w-[80px]" type="number" step={0.01} value={view.endSec}
+                        onChange={(e) => setTimelineView(view.startSec, parseFloat(e.target.value) || 0)} />
+                </label>
+            </div>
             <div className="ml-2 text-[12px] text-neutral-400">t = {fmt(current)}</div>
-            <input type="range" min={0} max={Math.max(10, loopEnd ?? 10)} value={current} onChange={(e) => scrub(parseFloat(e.target.value) || 0)} className="flex-1" />
+            <input type="range" min={view.startSec} max={view.endSec} value={current}
+                onChange={(e) => scrub(parseFloat(e.target.value) || 0)} className="flex-1" />
         </div>
     );
 };

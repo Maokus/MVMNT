@@ -26,6 +26,8 @@ export type TimelineState = {
     tracksOrder: string[];
     transport: { isPlaying: boolean; loopEnabled: boolean; loopStartSec?: number; loopEndSec?: number };
     selection: { selectedTrackIds: string[] };
+    // UI view window for seekbar and navigation
+    timelineView: { startSec: number; endSec: number };
     midiCache: Record<
         string,
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
@@ -49,6 +51,7 @@ export type TimelineState = {
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRange: (start?: number, end?: number) => void;
     reorderTracks: (order: string[]) => void;
+    setTimelineView: (start: number, end: number) => void;
     selectTracks: (ids: string[]) => void;
     ingestMidiToCache: (
         id: string,
@@ -68,6 +71,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     transport: { isPlaying: false, loopEnabled: false },
     selection: { selectedTrackIds: [] },
     midiCache: {},
+    timelineView: { startSec: 0, endSec: 60 },
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
         const id = makeId();
@@ -173,6 +177,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     reorderTracks(order: string[]) {
         set(() => ({ tracksOrder: [...order] }));
+    },
+
+    setTimelineView(start: number, end: number) {
+        const s = Math.max(0, Math.min(start, end));
+        const e = Math.max(s + 0.001, end); // ensure min width
+        set(() => ({ timelineView: { startSec: s, endSec: e } }));
+        // Clamp current time into view range to avoid slider snapping outside
+        const cur = get().timeline.currentTimeSec;
+        if (cur < s || cur > e) {
+            get().setCurrentTimeSec(Math.min(Math.max(cur, s), e));
+        }
     },
 
     selectTracks(ids: string[]) {

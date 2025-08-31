@@ -126,19 +126,30 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [visualizer]);
 
-    // Animation / time update loop
+    // Animation / time update loop — mirror visualizer time into store and update UI
     useEffect(() => {
         if (!visualizer) return;
         let raf: number;
-        let lastCurrentTime = -1;
-        let lastExportStatus = '';
         let lastUIUpdate = 0;
         const loop = () => {
-            const current = visualizer.currentTime || 0; // allow negative (prePadding)
-            const timeChanged = current !== lastCurrentTime;
-            const now = performance.now();
-            const shouldUpdateUI = timeChanged && (now - lastUIUpdate > 80);
-            if (shouldUpdateUI) {
+            const state = useTimelineStore.getState();
+            const vNow = visualizer.currentTime || 0;
+            // Loop handling: if store loop active, wrap visualizer time
+            const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
+            if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
+                if (vNow > loopEndSec + 1e-4) {
+                    visualizer.seek?.(loopStartSec);
+                }
+            }
+            // Mirror into store if drift > small epsilon to avoid feedback churn
+            const sNow = state.timeline.currentTimeSec;
+            if (Math.abs(sNow - vNow) > 0.002) {
+                state.setCurrentTimeSec(vNow);
+            }
+
+            // Throttled UI labels
+            const nowTs = performance.now();
+            if (nowTs - lastUIUpdate > 80) {
                 const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
                 const format = (s: number) => {
                     const sign = s < 0 ? '-' : '';
@@ -147,41 +158,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const sec = Math.floor(abs % 60);
                     return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
                 };
-                setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
-                setNumericCurrentTime(current);
+                setCurrentTimeLabel(`${format(vNow)} / ${format(total)}`);
+                setNumericCurrentTime(vNow);
                 setTotalDuration(total);
-                lastCurrentTime = current;
-                lastUIUpdate = now;
                 const hasValidScene = total > 0;
-                const newExportStatus = hasValidScene ? 'Ready to export' : 'Load MIDI to enable export';
-                if (newExportStatus !== lastExportStatus) {
-                    setExportStatus(newExportStatus);
-                    lastExportStatus = newExportStatus;
-                }
+                setExportStatus(hasValidScene ? 'Ready to export' : 'Load MIDI to enable export');
+                lastUIUpdate = nowTs;
             }
             raf = requestAnimationFrame(loop);
         };
-        loop();
-        const handleVisUpdate = () => {
-            const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-            const current = visualizer.currentTime || 0;
-            const format = (s: number) => {
-                const sign = s < 0 ? '-' : '';
-                const abs = Math.abs(s);
-                const m = Math.floor(abs / 60);
-                const sec = Math.floor(abs % 60);
-                return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-            };
-            setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
-            setNumericCurrentTime(current);
-            setTotalDuration(total);
-        };
-        visualizer.canvas?.addEventListener('visualizer-update', handleVisUpdate);
-        return () => {
-            cancelAnimationFrame(raf);
-            visualizer.canvas?.removeEventListener('visualizer-update', handleVisUpdate);
-            if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
-        };
+        raf = requestAnimationFrame(loop);
+        return () => { cancelAnimationFrame(raf); if (typeof visualizer.cleanup === 'function') visualizer.cleanup(); };
     }, [visualizer]);
 
     // Apply export settings size changes
@@ -277,7 +264,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (!visualizer) return;
         const vTime = visualizer.currentTime || 0;
-        if (Math.abs(vTime - tCurrent) > 0.0005) {
+        // Only push from store to visualizer on explicit scrubs (big changes),
+        // small drift is handled by the mirroring loop above.
+        if (Math.abs(vTime - tCurrent) > 0.05) {
             visualizer.seek?.(tCurrent);
         }
     }, [visualizer, tCurrent]);
