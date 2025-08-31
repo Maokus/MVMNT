@@ -1,6 +1,6 @@
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types';
-import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
+import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {
@@ -48,14 +48,21 @@ export class DebugElement extends SceneElement {
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         let objects: RenderObject[] = [];
-        const rect1 = new Rectangle(0, 0, 10, 10, '#ff0000');
-        const rect2 = new Rectangle(50, 50, 10, 10, '#00ff00');
-        const rect3 = new Rectangle(100, 100, 10, 10, '#0000ff');
-        const rect4 = new Rectangle(150, 150, 10, 10, '#ffff00');
-        rect4.setScale(2, 4);
+        const empty1 = new EmptyRenderObject();
+        const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
+        const rect2 = new Rectangle(50, 50, 50, 50, '#00ff00');
+        const rect3 = new Rectangle(100, 100, 50, 50, '#0000ff');
+        const rect4 = new Rectangle(150, 150, 50, 50, '#ffff00');
+        rect3.setScale(2, 1);
+        rect4.setRotation(45);
         rect2.setIncludeInLayoutBounds(false);
         rect4.setIncludeInLayoutBounds(false);
-        objects.push(rect1, rect2, rect3, rect4);
+        empty1.addChild(rect1);
+        empty1.addChild(rect2);
+        empty1.addChild(rect3);
+        empty1.addChild(rect4);
+        empty1.setIncludeInLayoutBounds(true);
+        objects.push(empty1);
         return objects;
     }
 

@@ -10,8 +10,16 @@ export class Line extends RenderObject {
     lineCap: LineCap;
     lineDash: number[];
 
-    constructor(x1: number, y1: number, x2: number, y2: number, color = '#FFFFFF', lineWidth = 1) {
-        super(x1, y1);
+    constructor(
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        color = '#FFFFFF',
+        lineWidth = 1,
+        options?: { includeInLayoutBounds?: boolean }
+    ) {
+        super(x1, y1, 1, 1, 1, options);
         this.deltaX = x2 - x1;
         this.deltaY = y2 - y1;
         this.color = color;
@@ -66,13 +74,13 @@ export class Line extends RenderObject {
     }
 
     getBounds(): Bounds {
-        const x2 = this.x + this.deltaX;
-        const y2 = this.y + this.deltaY;
-        const minX = Math.min(this.x, x2);
-        const minY = Math.min(this.y, y2);
-        const maxX = Math.max(this.x, x2);
-        const maxY = Math.max(this.y, y2);
-        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        // Local line from (0,0) to (dx,dy); account for stroke width
+        const half = (this.lineWidth || 0) / 2;
+        const minLX = Math.min(0, this.deltaX) - half;
+        const minLY = Math.min(0, this.deltaY) - half;
+        const maxLX = Math.max(0, this.deltaX) + half;
+        const maxLY = Math.max(0, this.deltaY) + half;
+        return this._computeTransformedRectBounds(minLX, minLY, maxLX - minLX, maxLY - minLY);
     }
 
     static createVerticalLine(x: number, y1: number, y2: number, color = '#FFFFFF', lineWidth = 1): Line {

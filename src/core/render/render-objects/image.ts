@@ -26,9 +26,10 @@ export class Image extends RenderObject {
             fitMode?: 'contain' | 'cover' | 'fill' | 'none';
             preserveAspectRatio?: boolean;
             status?: string;
+            includeInLayoutBounds?: boolean;
         } = {}
     ) {
-        super(x, y, 1, 1, opacity);
+        super(x, y, 1, 1, opacity, { includeInLayoutBounds: options.includeInLayoutBounds });
         this.width = width;
         this.height = height;
         this.imageElement = imageElement;
@@ -177,13 +178,13 @@ export class Image extends RenderObject {
     getBounds(): Bounds {
         // For cover / fill we keep the container bounds (cover may draw outside but is clipped; fill stretches)
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
-            return { x: this.x, y: this.y, width: this.width, height: this.height };
+            return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
         // If we have intrinsic dimensions and are in contain/none, compute the actual drawn rect
         if (this.imageElement && this._intrinsicWidth && this._intrinsicHeight) {
             const { drawX, drawY, drawWidth, drawHeight } = this.#calculateDrawParams();
-            return { x: this.x + drawX, y: this.y + drawY, width: drawWidth, height: drawHeight };
+            return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
+        return this._computeTransformedRectBounds(0, 0, this.width, this.height);
     }
 }

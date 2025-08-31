@@ -34,9 +34,10 @@ export class AnimatedGif extends RenderObject {
             fitMode?: 'contain' | 'cover' | 'fill' | 'none';
             preserveAspectRatio?: boolean;
             status?: string;
+            includeInLayoutBounds?: boolean;
         } = {}
     ) {
-        super(x, y, 1, 1, opacity);
+        super(x, y, 1, 1, opacity, { includeInLayoutBounds: options.includeInLayoutBounds });
         this.width = width;
         this.height = height;
         this._provider = provider;
@@ -170,12 +171,12 @@ export class AnimatedGif extends RenderObject {
 
     getBounds(): Bounds {
         if (this.fitMode === 'cover' || this.fitMode === 'fill' || !this.preserveAspectRatio) {
-            return { x: this.x, y: this.y, width: this.width, height: this.height };
+            return this._computeTransformedRectBounds(0, 0, this.width, this.height);
         }
         if (this._lastFrameBounds) {
             const { drawX, drawY, drawWidth, drawHeight } = this._lastFrameBounds;
-            return { x: this.x + drawX, y: this.y + drawY, width: drawWidth, height: drawHeight };
+            return this._computeTransformedRectBounds(drawX, drawY, drawWidth, drawHeight);
         }
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
+        return this._computeTransformedRectBounds(0, 0, this.width, this.height);
     }
 }

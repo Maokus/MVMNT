@@ -29,7 +29,8 @@ export class Text extends RenderObject {
         font = '16px Arial',
         color = '#FFFFFF',
         align: TextAlign = 'left',
-        baseline: TextBaseline = 'top'
+        baseline: TextBaseline = 'top',
+        options?: { includeInLayoutBounds?: boolean }
     ) {
         const maxPosition = 1_000_000;
         const clampedX = Math.max(-maxPosition, Math.min(maxPosition, x));
@@ -39,7 +40,7 @@ export class Text extends RenderObject {
                 `Text constructor: Extreme position values clamped - original: (${x}, ${y}), clamped: (${clampedX}, ${clampedY})`
             );
         }
-        super(clampedX, clampedY);
+        super(clampedX, clampedY, 1, 1, 1, options);
         this.text = text;
         this.font = font;
         this.color = color;
@@ -129,23 +130,26 @@ export class Text extends RenderObject {
         if (!ctx) {
             const fallbackWidth = this.text.length * fontSize * 0.6;
             const fallbackHeight = fontSize * 1.3;
-            let fx = this.x,
-                fy = this.y;
-            if (this.align === 'center') fx -= fallbackWidth / 2;
-            else if (this.align === 'right' || this.align === 'end') fx -= fallbackWidth;
+            // Compute local rect in object space, then transform
+            let lx = 0,
+                ly = 0,
+                lw = fallbackWidth,
+                lh = fallbackHeight;
+            if (this.align === 'center') lx -= lw / 2;
+            else if (this.align === 'right' || this.align === 'end') lx -= lw;
             switch (this.baseline) {
                 case 'middle':
-                    fy -= fallbackHeight / 2;
+                    ly -= lh / 2;
                     break;
                 case 'bottom':
                 case 'ideographic':
-                    fy -= fallbackHeight;
+                    ly -= lh;
                     break;
                 case 'alphabetic':
-                    fy -= fallbackHeight * 0.8;
+                    ly -= lh * 0.8;
                     break;
             }
-            return { x: fx, y: fy, width: fallbackWidth, height: fallbackHeight };
+            return this._computeTransformedRectBounds(lx, ly, lw, lh);
         }
         const prevFont = ctx.font;
         ctx.font = this.font;
@@ -163,26 +167,29 @@ export class Text extends RenderObject {
         const strokePad = this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth : 0;
         const paddedWidth = width + strokePad;
         const paddedHeight = height + strokePad;
-        let boundsX = this.x;
-        if (this.align === 'center') boundsX -= paddedWidth / 2;
-        else if (this.align === 'right' || this.align === 'end') boundsX -= paddedWidth;
-        let boundsY = this.y;
+        // Compute local rect in object space (0,0 is text anchor point for drawing)
+        let lx = 0,
+            ly = 0,
+            lw = paddedWidth,
+            lh = paddedHeight;
+        if (this.align === 'center') lx -= lw / 2;
+        else if (this.align === 'right' || this.align === 'end') lx -= lw;
         switch (this.baseline) {
             case 'middle':
-                boundsY -= paddedHeight / 2;
+                ly -= lh / 2;
                 break;
             case 'bottom':
             case 'ideographic':
-                boundsY -= paddedHeight;
+                ly -= lh;
                 break;
             case 'alphabetic':
-                boundsY -= ascent + (strokePad ? strokePad / 2 : 0);
+                ly -= ascent + (strokePad ? strokePad / 2 : 0);
                 break;
             case 'hanging':
-                boundsY -= paddedHeight * 0.1;
+                ly -= lh * 0.1;
                 break;
         }
-        const result: Bounds = { x: boundsX, y: boundsY, width: paddedWidth, height: paddedHeight };
+        const result: Bounds = this._computeTransformedRectBounds(lx, ly, lw, lh);
         if (
             !isFinite(result.x) ||
             !isFinite(result.y) ||

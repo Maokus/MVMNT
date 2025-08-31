@@ -15,12 +15,11 @@ export class EmptyRenderObject extends RenderObject {
     anchorFraction?: { x: number; y: number };
     _worldCorners?: { x: number; y: number }[];
 
-    constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1) {
-        super(x, y, scaleX, scaleY, opacity);
+    constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1, options?: { includeInLayoutBounds?: boolean }) {
+        super(x, y, scaleX, scaleY, opacity, { includeInLayoutBounds: options?.includeInLayoutBounds ?? false });
         this.anchorOffsetX = 0;
         this.anchorOffsetY = 0;
-        // By default an empty container shouldn't affect layout bounds unless explicitly opted-in
-        this.includeInLayoutBounds = false;
+        // Default remains: an empty container shouldn't affect layout bounds unless opted-in
     }
 
     setAnchorOffset(anchorOffsetX: number, anchorOffsetY: number): this {
