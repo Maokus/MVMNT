@@ -236,15 +236,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, [visualizer]);
 
     const playPause = useCallback(() => {
-        if (!visualizer) return;
-        if (visualizer.isPlaying) {
-            visualizer.pause();
-            setIsPlaying(false);
-        } else {
-            const started = visualizer.play();
-            setIsPlaying(started && !!visualizer.isPlaying);
-        }
-    }, [visualizer]);
+        // Delegate play/pause to global timeline store so UI stays in sync
+        const { togglePlay } = useTimelineStore.getState();
+        togglePlay();
+    }, []);
 
     // Global spacebar shortcut for play/pause (ignores when typing in inputs/contentEditable)
     useEffect(() => {
@@ -255,12 +250,37 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 if (target?.isContentEditable) return; // allow editing
                 if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return; // allow form controls
                 e.preventDefault();
-                playPause();
+                const { togglePlay } = useTimelineStore.getState();
+                togglePlay();
             }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [playPause]);
+    }, []);
+
+    // Sync visualizer playback with global timeline store transport
+    const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
+    const tCurrent = useTimelineStore((s) => s.timeline.currentTimeSec);
+    useEffect(() => {
+        if (!visualizer) return;
+        // Toggle visualizer play/pause to match store
+        if (tIsPlaying && !visualizer.isPlaying) {
+            const started = visualizer.play?.();
+            setIsPlaying(started && !!visualizer.isPlaying);
+        } else if (!tIsPlaying && visualizer.isPlaying) {
+            visualizer.pause?.();
+            setIsPlaying(false);
+        }
+    }, [visualizer, tIsPlaying]);
+
+    // Seek visualizer when store time changes (scrub)
+    useEffect(() => {
+        if (!visualizer) return;
+        const vTime = visualizer.currentTime || 0;
+        if (Math.abs(vTime - tCurrent) > 0.0005) {
+            visualizer.seek?.(tCurrent);
+        }
+    }, [visualizer, tCurrent]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;

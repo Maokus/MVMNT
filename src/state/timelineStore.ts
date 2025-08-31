@@ -46,6 +46,9 @@ export type TimelineState = {
     pause: () => void;
     togglePlay: () => void;
     scrub: (to: number) => void;
+    setLoopEnabled: (enabled: boolean) => void;
+    setLoopRange: (start?: number, end?: number) => void;
+    reorderTracks: (order: string[]) => void;
     selectTracks: (ids: string[]) => void;
     ingestMidiToCache: (
         id: string,
@@ -159,6 +162,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     scrub(to: number) {
         get().setCurrentTimeSec(to);
+    },
+
+    setLoopEnabled(enabled: boolean) {
+        set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: enabled } }));
+    },
+    setLoopRange(start?: number, end?: number) {
+        set((s: TimelineState) => ({ transport: { ...s.transport, loopStartSec: start, loopEndSec: end } }));
+    },
+
+    reorderTracks(order: string[]) {
+        set(() => ({ tracksOrder: [...order] }));
     },
 
     selectTracks(ids: string[]) {
