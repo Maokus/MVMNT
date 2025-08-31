@@ -4,6 +4,7 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
+import { TimelineService } from '@core/timing';
 
 export interface ExportSettings {
     fps: number;
@@ -44,6 +45,8 @@ interface VisualizerContextValue {
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
+    // Phase 4: expose timeline service to UI
+    timelineService: TimelineService;
 }
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
@@ -75,6 +78,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const sceneNameRef = useRef<string>('scene');
+    // Singleton TimelineService
+    const [timelineService] = useState(() => new TimelineService('Main Timeline'));
 
     // Listen for scene name changes broadcast by SceneContext
     useEffect(() => {
@@ -96,6 +101,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const vid = new VideoExporter(canvasRef.current, vis);
             setVideoExporter(vid);
             (window as any).debugVisualizer = vis;
+            // Expose timeline service globally for non-React consumers (scene elements)
+            try { (window as any).mvmntTimelineService = timelineService; } catch { }
             // Sync initial fps/width/height from scene builder settings
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
@@ -364,7 +371,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         exportVideo,
         showProgressOverlay,
         progressData,
-        closeProgress: () => setShowProgressOverlay(false)
+        closeProgress: () => setShowProgressOverlay(false),
+        timelineService,
     };
 
     return <VisualizerContext.Provider value={value}>{children}</VisualizerContext.Provider>;

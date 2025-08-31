@@ -24,7 +24,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 }) => {
     const { manager } = useMacros();
     const canAssignMacro = (propertyType: string) => {
-        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font'].includes(propertyType);
+        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font', 'midiTrackRef'].includes(propertyType);
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {

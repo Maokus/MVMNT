@@ -120,12 +120,20 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
+                            key: 'midiTrackId',
+                            type: 'midiTrackRef',
+                            label: 'Timeline MIDI Track',
+                            default: null,
+                            description: 'Pick a MIDI track from the Timeline (preferred over file upload)',
+                        },
+                        {
                             key: 'midiFile',
                             type: 'file',
                             label: 'MIDI File',
                             accept: '.mid,.midi',
                             default: null,
-                            description: 'Upload a MIDI file specifically for this piano roll element',
+                            description:
+                                'Deprecated: Upload a MIDI file for this element (prefer Timeline track selection)',
                         },
                     ],
                 },
@@ -772,9 +780,31 @@ export class TimeUnitPianoRollElement extends SceneElement {
             }
         }
 
+        // Build source notes either from TimelineService (preferred) or legacy MidiManager
+        let sourceNotes = this.midiManager.getNotes();
+        try {
+            const trackId = this.getProperty<string>('midiTrackId');
+            if (trackId) {
+                const svc: any = (window as any).mvmntTimelineService;
+                if (svc && typeof svc.getNotesNearTimeUnit === 'function') {
+                    const tlNotes =
+                        svc.getNotesNearTimeUnit({ trackId, centerSec: effectiveTime, bars: timeUnitBars }) || [];
+                    sourceNotes = tlNotes.map((n: any) => ({
+                        note: n.note,
+                        channel: n.channel || 0,
+                        velocity: n.velocity || 0,
+                        startTime: n.startSec,
+                        endTime: n.endSec ?? n.startSec,
+                        startBeat: undefined,
+                        endBeat: undefined,
+                    }));
+                }
+            }
+        } catch {}
+
         // Build clamped segments across prev/current/next windows for lifecycle-based rendering
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
-            this.midiManager.getNotes(),
+            sourceNotes,
             this.midiManager.timingManager,
             effectiveTime,
             timeUnitBars
@@ -937,6 +967,21 @@ export class TimeUnitPianoRollElement extends SceneElement {
             try {
                 const resetMacroValues = this._currentMidiFile !== midiFileData;
                 await this.midiManager.loadMidiFile(midiFileData, resetMacroValues);
+
+                // Auto-import into TimelineService and set midiTrackId for migration
+                try {
+                    const svc: any = (window as any).mvmntTimelineService;
+                    if (svc && typeof svc.addMidiTrack === 'function') {
+                        const id = await svc.addMidiTrack({
+                            file: midiFileData,
+                            name: midiFileData.name,
+                            offsetSec: 0,
+                        });
+                        this.setProperty('midiTrackId', id);
+                    }
+                } catch (e) {
+                    console.warn('Timeline auto-import failed:', e);
+                }
 
                 // Optionally adjust min/max notes if bound to constants
                 const notes = this.midiManager.getNotes();
