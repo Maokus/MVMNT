@@ -61,27 +61,7 @@
         background-color: var(--twc-control);
         border-color: var(--twc-accent);
     }
-    .scene-name-edit-btn {
-        @apply bg-transparent border-0 text-neutral-300 cursor-pointer p-1 rounded text-xs transition-colors hover:bg-white/10 hover:text-white;
-    }
-
-    .scene-menu-container {
-        @apply relative;
-    }
-    .scene-menu-btn {
-        @apply bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white;
-    }
-    .scene-menu-dropdown {
-        @apply absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] hidden mt-1;
-        background-color: var(--twc-control);
-        border-color: #525252;
-    }
-    .scene-menu-dropdown.show {
-        @apply block;
-    }
-    .scene-menu-item {
-        @apply px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b;
-    }
+    /* Scene menu mappings removed; using inline utilities in MenuBar */
 
     .main-workspace {
         @apply flex flex-1 min-h-0;
@@ -282,67 +262,7 @@
     .scene-editor-container {
         @apply flex-1 overflow-y-auto p-4 min-h-0;
     }
-    .element-list {
-        @apply mb-4;
-    }
-    .element-item {
-        @apply flex items-center justify-between px-3 py-0.5 mb-1 bg-control border border-control2 rounded cursor-pointer transition;
-    }
-    .element-item:hover {
-        @apply bg-control2 border-neutral-500;
-    }
-    .element-item.selected {
-        @apply bg-[#0e639c] border-[#1177bb] text-white;
-    }
-    .element-info {
-        @apply flex-1;
-    }
-    .element-name-container {
-        @apply flex items-center gap-1 mb-0.5;
-    }
-    .element-name {
-        @apply font-medium text-[13px] cursor-pointer;
-    }
-    .edit-id-btn {
-        @apply bg-transparent border-0 text-[10px] px-0 py-0 opacity-60 cursor-pointer transition hover:opacity-100;
-    }
-    .element-id-input {
-        font-family: inherit;
-        @apply outline-none;
-    }
-    .element-type {
-        @apply text-[11px] opacity-70;
-    }
-    .element-controls {
-        @apply flex gap-1;
-    }
-    .element-controls button {
-        @apply px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 text-current;
-    }
-    .element-controls button:hover {
-        @apply bg-white/20;
-    }
-    .element-controls button:disabled {
-        @apply opacity-50 cursor-not-allowed;
-    }
-    .scene-controls {
-        @apply flex gap-2 mb-4 flex-wrap;
-    }
-    .no-selection {
-        @apply text-center text-neutral-500 italic p-5 text-xs;
-    }
-    .visibility-toggle {
-        @apply opacity-50 cursor-pointer bg-transparent border-0 text-xs transition hover:opacity-100;
-    }
-    .visibility-toggle.visible {
-        @apply opacity-100;
-    }
-    .z-index-controls {
-        @apply flex gap-0.5;
-    }
-    .z-index-controls button {
-        @apply w-5 h-5 p-0 flex items-center justify-center text-[10px];
-    }
+    /* Element list mappings removed; now using inline utilities in JSX */
 
     .config-editor {
         @apply text-white;

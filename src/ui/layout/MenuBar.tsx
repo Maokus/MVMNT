@@ -101,7 +101,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         ✏️
                     </button>
 
-                    <div className="scene-menu-container" ref={sceneMenuRef}>
+                    <div className="relative" ref={sceneMenuRef}>
                         <button
                             className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                             onClick={() => setShowSceneMenu(!showSceneMenu)}
@@ -110,11 +110,13 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             ⋯
                         </button>
                         {showSceneMenu && (
-                            <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
-                                <div className="scene-menu-item" onClick={handleSave}>💾 Save Scene (Download JSON)</div>
-                                <div className="scene-menu-item" onClick={handleLoad}>📂 Load Scene (Upload JSON)</div>
-                                <div className="scene-menu-item" onClick={handleClear}>🗑️ Clear Scene</div>
-                                <div className="scene-menu-item" onClick={handleNew}>✨ New Default Scene</div>
+                            <div
+                                className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
+                            >
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}>💾 Save Scene (Download JSON)</div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}>📂 Load Scene (Upload JSON)</div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleClear}>🗑️ Clear Scene</div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}>✨ New Default Scene</div>
                             </div>
                         )}
                     </div>
