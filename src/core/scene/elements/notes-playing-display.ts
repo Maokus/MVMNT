@@ -1,4 +1,4 @@
-// Notes Played Tracker element: shows counts of played notes and events from a MIDI file
+// Notes Playing Display: show currently playing notes per channel/track
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
@@ -6,7 +6,7 @@ import { MidiManager } from '@core/midi/midi-manager';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
 
-export class NotesPlayedTrackerElement extends SceneElement {
+export class NotesPlayingDisplayElement extends SceneElement {
     public midiManager: MidiManager;
     private _currentMidiFile: File | null = null;
     private _midiMacroListener?: (
@@ -20,8 +20,8 @@ export class NotesPlayedTrackerElement extends SceneElement {
         data: any
     ) => void;
 
-    constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
-        super('notesPlayedTracker', id, config);
+    constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
+        super('notesPlayingDisplay', id, config);
         this.midiManager = new MidiManager(this.id);
         this._setupMIDIFileListener();
     }
@@ -29,8 +29,8 @@ export class NotesPlayedTrackerElement extends SceneElement {
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
         return {
-            name: 'Notes Played Tracker',
-            description: 'Displays how many notes/events have played so far',
+            name: 'Notes Playing Display',
+            description: 'Displays active notes and velocities per track/channel',
             category: 'info',
             groups: [
                 ...base.groups,
@@ -39,22 +39,8 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     label: 'Content',
                     collapsed: false,
                     properties: [
-                        {
-                            key: 'midiFile',
-                            type: 'file',
-                            label: 'MIDI File',
-                            accept: '.mid,.midi',
-                            default: null,
-                            description: 'Upload a MIDI file for this tracker (or bind to global macro)',
-                        },
-                        {
-                            key: 'timeOffset',
-                            type: 'number',
-                            label: 'Time Offset (s)',
-                            default: 0,
-                            step: 0.01,
-                            description: 'Offset applied to target time (can be negative)',
-                        },
+                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
+                        { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                     ],
                 },
                 {
@@ -62,22 +48,8 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     label: 'Appearance',
                     collapsed: true,
                     properties: [
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            description: 'Choose the font family (Google Fonts supported)',
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size',
-                            default: 14,
-                            min: 6,
-                            max: 72,
-                            step: 1,
-                        },
+                        { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
+                        { key: 'fontSize', type: 'number', label: 'Font Size', default: 14, min: 6, max: 72, step: 1 },
                         { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
                         {
                             key: 'lineSpacing',
@@ -110,23 +82,20 @@ export class NotesPlayedTrackerElement extends SceneElement {
             this._currentMidiFile = midiFile || null;
         }
 
-        // Compute counts from notes (derive event counts from note start/end)
+        // Determine active notes at effectiveTime
         const notesRaw = this.midiManager.getNotes?.() || [];
         const noteEvents = this.midiManager.createNoteEvents(notesRaw);
-        const totalNotes = noteEvents.length;
-        let playedNotes = 0;
-        let playedEvents = 0;
-        const totalEvents = totalNotes * 2;
-        if (actualTime >= 0) {
-            playedNotes = noteEvents.filter((n) => (n.startTime ?? 0) <= effectiveTime).length;
-            for (const n of noteEvents) {
-                if ((n.startTime ?? 0) <= effectiveTime) playedEvents++;
-                if ((n.endTime ?? 0) <= effectiveTime) playedEvents++;
-            }
-        }
+        const active = noteEvents.filter(
+            (n) => (n.startTime ?? 0) <= effectiveTime && (n.endTime ?? 0) > effectiveTime
+        );
 
-        const pctNotes = totalNotes > 0 ? (playedNotes / totalNotes) * 100 : 0;
-        const pctEvents = totalEvents > 0 ? (playedEvents / totalEvents) * 100 : 0;
+        // Group by channel to represent tracks succinctly (Track N ~= Channel N+1)
+        const byChannel = new Map<number, { note: number; vel: number }[]>();
+        for (const n of active) {
+            const arr = byChannel.get(n.channel) || [];
+            arr.push({ note: n.note, vel: n.velocity });
+            byChannel.set(n.channel, arr);
+        }
 
         // Appearance
         const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
@@ -138,13 +107,34 @@ export class NotesPlayedTrackerElement extends SceneElement {
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
-        const line1 = `Num played notes: ${playedNotes}/${totalNotes} (${pctNotes.toFixed(2)}%)`;
-        const line2 = `Num played events: ${playedEvents}/${totalEvents} (${pctEvents.toFixed(2)}%)`;
+        // Build lines following the requested format
+        // Example: "Note: Bb1 (Vel: 78) Note: A2 (Vel: 60) < Track 1"
+        const noteName = (midiNote: number): string => {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const octave = Math.floor(midiNote / 12) - 1;
+            const name = names[midiNote % 12];
+            return `${name}${octave}`;
+        };
 
-        const text1 = new Text(0, 0, line1, font, color, 'left', 'top');
-        const text2 = new Text(0, fontSize + lineSpacing, line2, font, color, 'left', 'top');
+        let y = 0;
+        if (byChannel.size === 0 || actualTime < 0) {
+            const txt = new Text(0, 0, 'Note:  < Track 1', font, color, 'left', 'top');
+            renderObjects.push(txt);
+            return renderObjects;
+        }
 
-        renderObjects.push(text1, text2);
+        const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
+        for (const ch of sortedChannels) {
+            const list = byChannel.get(ch)!;
+            // keep stable ordering by pitch then velocity
+            list.sort((a, b) => a.note - b.note || a.vel - b.vel);
+            const parts = list.map((n) => `Note: ${noteName(n.note)} (Vel: ${Math.max(0, Math.min(127, n.vel))})`);
+            const line = `${parts.join(' ')} < Track ${ch + 1}`;
+            const text = new Text(0, y, line, font, color, 'left', 'top');
+            renderObjects.push(text);
+            y += fontSize + lineSpacing;
+        }
+
         return renderObjects;
     }
 

@@ -9,3 +9,4 @@ export { TimeUnitPianoRollElement } from './time-unit-piano-roll/time-unit-piano
 export { MovingNotesPianoRollElement } from './moving-notes-piano-roll/moving-notes-piano-roll';
 export { DebugElement } from './debug';
 export { NotesPlayedTrackerElement } from './notes-played-tracker';
+export { NotesPlayingDisplayElement } from './notes-playing-display';
