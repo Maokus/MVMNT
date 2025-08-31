@@ -225,6 +225,7 @@ export class HybridSceneBuilder {
                 textJustification: 'right',
                 fontSize: 20,
                 showAllAvailableTracks: true,
+                elementOpacity: 0.5,
             })
         );
         this.addElement(

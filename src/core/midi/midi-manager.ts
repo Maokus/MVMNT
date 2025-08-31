@@ -110,10 +110,21 @@ export class MidiManager {
 
     getNotesInTimeWindow(startTime: number, endTime: number) {
         if (!this.notes) return [];
-        return this.notes.filter((note) => {
-            const noteStart = note.startTime;
-            const noteEnd = note.endTime || noteStart;
-            return noteStart < endTime && noteEnd > startTime;
+        // If beat info is available, remap note times to seconds using current TimingManager
+        const hasBeats =
+            this.notes.length > 0 && (this.notes[0].startBeat !== undefined || this.notes[0].endBeat !== undefined);
+        if (hasBeats) {
+            return this.notes.filter((n) => {
+                const s = n.startBeat !== undefined ? this.timingManager.beatsToSeconds(n.startBeat) : n.startTime;
+                const e = n.endBeat !== undefined ? this.timingManager.beatsToSeconds(n.endBeat) : n.endTime || s;
+                return s < endTime && e > startTime;
+            });
+        }
+        // Fallback to static seconds-based filtering
+        return this.notes.filter((n) => {
+            const s = n.startTime;
+            const e = n.endTime || s;
+            return s < endTime && e > startTime;
         });
     }
 
