@@ -97,9 +97,9 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-    // Apply BPM from property (supports macro binding)
-    const bpmProp = this.getProperty<number>('bpm');
-    if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
+        // Apply BPM from property (supports macro binding)
+        const bpmProp = this.getProperty<number>('bpm');
+        if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
 
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const actualTime = targetTime + timeOffset;

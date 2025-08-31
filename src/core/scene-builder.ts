@@ -427,13 +427,13 @@ export class HybridSceneBuilder {
         timeDisplay?.bindToMacro('bpm', 'tempo');
         timeDisplay?.bindToMacro('beatsPerBar', 'beatsPerBar');
 
-    // Default bindings for new info elements
-    notesPlayingDisplay?.bindToMacro('midiFile', 'midiFile');
-    notesPlayingDisplay?.bindToMacro('bpm', 'tempo');
-    playedNotesTracker?.bindToMacro('midiFile', 'midiFile');
-    playedNotesTracker?.bindToMacro('bpm', 'tempo');
-    chordEstimateDisplay?.bindToMacro('midiFile', 'midiFile');
-    chordEstimateDisplay?.bindToMacro('bpm', 'tempo');
+        // Default bindings for new info elements
+        notesPlayingDisplay?.bindToMacro('midiFile', 'midiFile');
+        notesPlayingDisplay?.bindToMacro('bpm', 'tempo');
+        playedNotesTracker?.bindToMacro('midiFile', 'midiFile');
+        playedNotesTracker?.bindToMacro('bpm', 'tempo');
+        chordEstimateDisplay?.bindToMacro('midiFile', 'midiFile');
+        chordEstimateDisplay?.bindToMacro('bpm', 'tempo');
     }
     autoBindElements() {
         const pianoRolls: any[] = this.getElementsByType('boundTimeUnitPianoRoll');
