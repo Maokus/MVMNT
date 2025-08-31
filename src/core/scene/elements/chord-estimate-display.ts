@@ -2,14 +2,21 @@
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import { MidiManager } from '@core/midi/midi-manager';
+// Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
 import { computeChromaFromNotes, estimateChordPB, EstimatedChord } from '@math/midi/chord-estimator';
+import type { TimelineService } from '@core/timing';
 
 export class ChordEstimateDisplayElement extends SceneElement {
-    public midiManager: MidiManager;
     private _currentMidiFile: File | null = null;
+    private _timeline(): TimelineService | undefined {
+        try {
+            return (window as any).mvmntTimelineService as TimelineService;
+        } catch {
+            return undefined;
+        }
+    }
     private _midiMacroListener?: (
         eventType:
             | 'macroValueChanged'
@@ -26,7 +33,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
         super('chordEstimateDisplay', id, config);
-        this.midiManager = new MidiManager(this.id);
         this._setupMIDIFileListener();
     }
 
@@ -34,7 +40,8 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const base = super.getConfigSchema();
         return {
             name: 'Chord Estimate Display',
-            description: 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text',
+            description:
+                'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
             category: 'music',
             groups: [
                 ...base.groups,
@@ -53,7 +60,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             step: 0.1,
                             description: 'Beats per minute used to time analysis window',
                         },
-                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
+                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiFile',
+                            type: 'file',
+                            label: 'MIDI File (deprecated)',
+                            accept: '.mid,.midi',
+                            default: null,
+                        },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
                             key: 'windowSeconds',
@@ -155,10 +169,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        // Apply BPM from property (supports macro binding)
-        const bpmProp = this.getProperty<number>('bpm');
-        if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
-
         // Effective time
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const t = Math.max(0, targetTime + timeOffset);
@@ -175,9 +185,23 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const start = Math.max(0, t - windowSeconds / 2);
         const end = t + windowSeconds / 2;
 
-        // Active notes and chroma
-        const activeNotes = this.midiManager.getNotesInTimeWindow(start, end);
-        const noteEvents = this.midiManager.createNoteEvents(activeNotes);
+        // Active notes and chroma via timeline
+        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const tl = this._timeline();
+        const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
+            [];
+        if (trackId && tl) {
+            const notes = tl.getNotesInWindow({ trackIds: [trackId], startSec: start, endSec: end });
+            for (const n of notes) {
+                noteEvents.push({
+                    note: n.note,
+                    channel: n.channel,
+                    startTime: n.startSec ?? (n.startTime as number),
+                    endTime: n.endSec ?? (n.endTime as number),
+                    velocity: n.velocity,
+                });
+            }
+        }
         const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
         // Estimate chord
@@ -252,8 +276,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     return mapped;
                 },
             };
+            const noteName = (midiNote: number): string => {
+                const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const octave = Math.floor(midiNote / 12) - 1;
+                const name = names[midiNote % 12];
+                return `${name}${octave}`;
+            };
             const noteLine = uniqueNotes.length
-                ? `Notes: ${uniqueNotes.map((n) => this.midiManager.getNoteName(n)).join(' ')}`
+                ? `Notes: ${uniqueNotes.map((n) => noteName(n)).join(' ')}`
                 : 'Notes: —';
             const ln = new Text(0, y, noteLine, fontDetails, color, justify, 'top');
             ln.setIncludeInLayoutBounds(false);
@@ -318,20 +348,22 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
     private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
         if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._loadMIDIFile(midiFileData);
+        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
     }
 
-    private async _loadMIDIFile(file: File): Promise<void> {
+    private async _autoImportMIDIFile(file: File): Promise<void> {
         try {
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
+            const tl = this._timeline();
+            if (!tl) return;
+            const id = await tl.addMidiTrack({ file, name: file.name });
+            this.setProperty('midiTrackId', id);
             this._dispatchChangeEvent();
             if (typeof window !== 'undefined') {
                 const vis: any = (window as any).debugVisualizer;
                 if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
             }
         } catch (err) {
-            console.error(`Failed to load MIDI file for ${this.id}:`, err);
+            console.error(`Failed to import MIDI file for ${this.id}:`, err);
         }
     }
 

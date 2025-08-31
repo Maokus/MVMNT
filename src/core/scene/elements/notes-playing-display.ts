@@ -2,13 +2,20 @@
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
-import { MidiManager } from '@core/midi/midi-manager';
+// Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
+import type { TimelineService } from '@core/timing';
 
 export class NotesPlayingDisplayElement extends SceneElement {
-    public midiManager: MidiManager;
     private _currentMidiFile: File | null = null;
+    private _timeline(): TimelineService | undefined {
+        try {
+            return (window as any).mvmntTimelineService as TimelineService;
+        } catch {
+            return undefined;
+        }
+    }
     private _midiMacroListener?: (
         eventType:
             | 'macroValueChanged'
@@ -22,7 +29,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
         super('notesPlayingDisplay', id, config);
-        this.midiManager = new MidiManager(this.id);
         this._setupMIDIFileListener();
     }
 
@@ -30,7 +36,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         const base = super.getConfigSchema();
         return {
             name: 'Notes Playing Display',
-            description: 'Displays active notes and velocities per track/channel',
+            description: 'Displays active notes and velocities per track/channel (timeline-backed)',
             category: 'info',
             groups: [
                 ...base.groups,
@@ -49,7 +55,16 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             step: 0.1,
                             description: 'Beats per minute used to time note activity',
                         },
-                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
+                        // New timeline-backed source
+                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        // Deprecated file input (auto-imports into timeline)
+                        {
+                            key: 'midiFile',
+                            type: 'file',
+                            label: 'MIDI File (deprecated)',
+                            accept: '.mid,.midi',
+                            default: null,
+                        },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
                             key: 'showAllAvailableTracks',
@@ -97,42 +112,41 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        // Apply BPM from property (supports macro binding)
-        const bpmProp = this.getProperty<number>('bpm');
-        if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
-
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const actualTime = targetTime + timeOffset;
         const effectiveTime = Math.max(0, actualTime);
 
-        // Load MIDI file if changed
+        // Load MIDI file if changed (auto-import -> timeline)
         const midiFile = this.getProperty<File>('midiFile');
         if (midiFile !== this._currentMidiFile) {
             this._handleMIDIFileConfig(midiFile);
             this._currentMidiFile = midiFile || null;
         }
 
-        // Determine active notes at effectiveTime
-        const notesRaw = this.midiManager.getNotes?.() || [];
-        const noteEvents = this.midiManager.createNoteEvents(notesRaw);
-        const active = noteEvents.filter(
-            (n) => (n.startTime ?? 0) <= effectiveTime && (n.endTime ?? 0) > effectiveTime
-        );
+        // Determine active notes at effectiveTime via TimelineService
+        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const tl = this._timeline();
+        const active: { note: number; vel: number; channel: number }[] = [];
+        if (trackId && tl) {
+            const EPS = 1e-3;
+            const notes = tl.getNotesInWindow({
+                trackIds: [trackId],
+                startSec: effectiveTime - EPS,
+                endSec: effectiveTime + EPS,
+            });
+            for (const n of notes) active.push({ note: n.note, vel: n.velocity, channel: n.channel });
+        }
 
         // Group by channel to represent tracks succinctly (Track N ~= Channel N+1)
         const byChannel = new Map<number, { note: number; vel: number }[]>();
-        for (const n of active) {
+        for (const n of active as any[]) {
             const arr = byChannel.get(n.channel) || [];
-            arr.push({ note: n.note, vel: n.velocity });
+            arr.push({ note: n.note, vel: n.vel });
             byChannel.set(n.channel, arr);
         }
 
         // Compute all channels present in the loaded MIDI file
-        const allChannelsSet = new Set<number>();
-        for (const n of notesRaw) {
-            const ch = typeof n.channel === 'number' ? n.channel : 0;
-            allChannelsSet.add(ch);
-        }
+        const allChannelsSet = new Set<number>(); // unknown without full file; leave empty unless showAll forces placeholder
         const showAll = !!this.getProperty('showAllAvailableTracks');
 
         // Appearance
@@ -181,7 +195,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         };
 
         let y = 0;
-        if ((byChannel.size === 0 || actualTime < 0) && (!showAll || allChannelsSet.size === 0)) {
+        if ((byChannel.size === 0 || actualTime < 0) && !showAll) {
             const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
             // Placeholder when nothing is playing
             const placeholderLeft = justification === 'left';
@@ -210,9 +224,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         }
 
         const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
-        const sortedChannels = (showAll ? Array.from(allChannelsSet) : Array.from(byChannel.keys())).sort(
-            (a, b) => a - b
-        );
+        const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
         for (const ch of sortedChannels) {
             const list = byChannel.get(ch) || [];
             list.sort((a, b) => a.note - b.note || a.vel - b.vel);
@@ -254,20 +266,22 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
     private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
         if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._loadMIDIFile(midiFileData);
+        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
     }
 
-    private async _loadMIDIFile(file: File): Promise<void> {
+    private async _autoImportMIDIFile(file: File): Promise<void> {
         try {
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
+            const tl = this._timeline();
+            if (!tl) return;
+            const id = await tl.addMidiTrack({ file, name: file.name });
+            this.setProperty('midiTrackId', id);
             this._dispatchChangeEvent();
             if (typeof window !== 'undefined') {
                 const vis: any = (window as any).debugVisualizer;
                 if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
             }
         } catch (err) {
-            console.error(`Failed to load MIDI file for ${this.id}:`, err);
+            console.error(`Failed to import MIDI file for ${this.id}:`, err);
         }
     }
 

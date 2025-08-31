@@ -2,13 +2,20 @@
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
-import { MidiManager } from '@core/midi/midi-manager';
+// Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
+import type { TimelineService } from '@core/timing';
 
 export class NotesPlayedTrackerElement extends SceneElement {
-    public midiManager: MidiManager;
     private _currentMidiFile: File | null = null;
+    private _timeline(): TimelineService | undefined {
+        try {
+            return (window as any).mvmntTimelineService as TimelineService;
+        } catch {
+            return undefined;
+        }
+    }
     private _midiMacroListener?: (
         eventType:
             | 'macroValueChanged'
@@ -22,7 +29,6 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
     constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
         super('notesPlayedTracker', id, config);
-        this.midiManager = new MidiManager(this.id);
         this._setupMIDIFileListener();
     }
 
@@ -30,7 +36,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         const base = super.getConfigSchema();
         return {
             name: 'Notes Played Tracker',
-            description: 'Displays how many notes/events have played so far',
+            description: 'Displays how many notes/events have played so far (timeline-backed)',
             category: 'info',
             groups: [
                 ...base.groups,
@@ -49,13 +55,13 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             step: 0.1,
                             description: 'Beats per minute used to time notes/events',
                         },
+                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
                         {
                             key: 'midiFile',
                             type: 'file',
-                            label: 'MIDI File',
+                            label: 'MIDI File (deprecated)',
                             accept: '.mid,.midi',
                             default: null,
-                            description: 'Upload a MIDI file for this tracker (or bind to global macro)',
                         },
                         {
                             key: 'timeOffset',
@@ -119,10 +125,6 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        // Apply BPM from property (supports macro binding)
-        const bpmProp = this.getProperty<number>('bpm');
-        if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
-
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const actualTime = targetTime + timeOffset;
         const effectiveTime = Math.max(0, actualTime);
@@ -134,20 +136,30 @@ export class NotesPlayedTrackerElement extends SceneElement {
             this._currentMidiFile = midiFile || null;
         }
 
-        // Compute counts from notes (derive event counts from note start/end)
-        const notesRaw = this.midiManager.getNotes?.() || [];
-        const noteEvents = this.midiManager.createNoteEvents(notesRaw);
-        const totalNotes = noteEvents.length;
+        // Compute counts from notes via timeline
+        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const tl = this._timeline();
+        // To compute totals, we need all notes; if service doesn't expose a direct getter, approximate using a large window
+        let totalNotes = 0;
         let playedNotes = 0;
         let playedEvents = 0;
-        const totalEvents = totalNotes * 2;
-        if (actualTime >= 0) {
-            playedNotes = noteEvents.filter((n) => (n.startTime ?? 0) <= effectiveTime).length;
-            for (const n of noteEvents) {
-                if ((n.startTime ?? 0) <= effectiveTime) playedEvents++;
-                if ((n.endTime ?? 0) <= effectiveTime) playedEvents++;
+        if (trackId && tl) {
+            const track = tl.getTrack(trackId) as any;
+            const offset = (track?.offsetSec || 0) as number;
+            const duration = (track?.midiData?.durationSec || 0) as number;
+            const startSec = Math.max(0, offset + 0);
+            const endSec = duration ? offset + duration : effectiveTime + 600; // fallback large window
+            const all = tl.getNotesInWindow({ trackIds: [trackId], startSec, endSec });
+            totalNotes = all.length;
+            if (actualTime >= 0) {
+                playedNotes = all.filter((n) => (n.startSec ?? 0) <= effectiveTime).length;
+                for (const n of all) {
+                    if ((n.startSec ?? n.startTime ?? 0) <= effectiveTime) playedEvents++;
+                    if ((n.endSec ?? n.endTime ?? 0) <= effectiveTime) playedEvents++;
+                }
             }
         }
+        const totalEvents = totalNotes * 2;
 
         const pctNotes = totalNotes > 0 ? (playedNotes / totalNotes) * 100 : 0;
         const pctEvents = totalEvents > 0 ? (playedEvents / totalEvents) * 100 : 0;
@@ -174,20 +186,22 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
     private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
         if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._loadMIDIFile(midiFileData);
+        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
     }
 
-    private async _loadMIDIFile(file: File): Promise<void> {
+    private async _autoImportMIDIFile(file: File): Promise<void> {
         try {
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
+            const tl = this._timeline();
+            if (!tl) return;
+            const id = await tl.addMidiTrack({ file, name: file.name });
+            this.setProperty('midiTrackId', id);
             this._dispatchChangeEvent();
             if (typeof window !== 'undefined') {
                 const vis: any = (window as any).debugVisualizer;
                 if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
             }
         } catch (err) {
-            console.error(`Failed to load MIDI file for ${this.id}:`, err);
+            console.error(`Failed to import MIDI file for ${this.id}:`, err);
         }
     }
 

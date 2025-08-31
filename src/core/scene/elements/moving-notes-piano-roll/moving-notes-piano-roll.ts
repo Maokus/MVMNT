@@ -4,20 +4,29 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
-import { MidiManager } from '@core/midi/midi-manager';
+// Timeline-backed migration: remove per-element MidiManager usage
 import { globalMacroManager } from '@bindings/macro-manager';
 import { ConstantBinding } from '@bindings/property-bindings';
 import { MovingNotesAnimationController } from './animation-controller';
+import type { TimelineService } from '@core/timing';
+import { TimingManager } from '@core/timing';
 
 export class MovingNotesPianoRollElement extends SceneElement {
-    public midiManager: MidiManager;
     public animationController: MovingNotesAnimationController;
     private _currentMidiFile: File | null = null;
+    private timingManager: TimingManager;
+    private _timeline(): TimelineService | undefined {
+        try {
+            return (window as any).mvmntTimelineService as TimelineService;
+        } catch {
+            return undefined;
+        }
+    }
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
-        this.midiManager = new MidiManager(this.id);
         this.animationController = new MovingNotesAnimationController(this);
+        this.timingManager = new TimingManager(this.id);
         this._setupMIDIFileListener();
     }
 
@@ -88,7 +97,14 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'MIDI File',
                     collapsed: true,
                     properties: [
-                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
+                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiFile',
+                            type: 'file',
+                            label: 'MIDI File (deprecated)',
+                            accept: '.mid,.midi',
+                            default: null,
+                        },
                     ],
                 },
                 {
@@ -385,8 +401,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
             this._currentMidiFile = midiFile;
         }
 
-        this.midiManager.setBPM(bpm);
-        this.midiManager.setBeatsPerBar(beatsPerBar);
+        // Update local timing manager for view window duration only
+        this.timingManager.setBPM(bpm);
+        this.timingManager.setBeatsPerBar(beatsPerBar);
 
         // Draw piano strip (left) so pianoWidth visually applies
         if (showPiano) {
@@ -416,16 +433,27 @@ export class MovingNotesPianoRollElement extends SceneElement {
             }
         }
 
-        // Fetch raw MIDI notes (no window segmentation)
-        const rawNotes = this.midiManager.getNotes();
+        // Determine window around current time
+        const duration = this.timingManager.getTimeUnitDuration(timeUnitBars);
+        const windowStart = effectiveTime - duration * playheadPosition;
+        const windowEnd = windowStart + duration;
+
+        // Fetch notes for this window from TimelineService
+        const tl = this._timeline();
+        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const rawNotes =
+            trackId && tl
+                ? tl.getNotesInWindow({ trackIds: [trackId], startSec: windowStart, endSec: windowEnd }).map((n) => ({
+                      note: n.note,
+                      channel: n.channel,
+                      velocity: n.velocity,
+                      startTime: n.startSec ?? (n.startTime as number),
+                      endTime: n.endSec ?? (n.endTime as number),
+                  }))
+                : [];
 
         // Notes moving past static playhead
-        if (showNotes && rawNotes && rawNotes.length > 0) {
-            // Compute a continuous viewport window around current time using a duration scale,
-            // without splitting any notes. We re-use the timeUnit duration purely as a time scale.
-            const duration = this.midiManager.timingManager.getTimeUnitDuration(timeUnitBars);
-            const windowStart = effectiveTime - duration * playheadPosition;
-            const windowEnd = windowStart + duration;
+        if (showNotes && rawNotes && (rawNotes as any[]).length > 0) {
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 {
                     noteHeight,
@@ -502,15 +530,18 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
     private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
         if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._loadMIDIFile(midiFileData);
+        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
     }
 
-    private async _loadMIDIFile(file: File): Promise<void> {
+    private async _autoImportMIDIFile(file: File): Promise<void> {
         try {
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
-
-            const notes = this.midiManager.getNotes();
+            const tl = this._timeline();
+            if (!tl) return;
+            const id = await tl.addMidiTrack({ file, name: file.name });
+            this.setProperty('midiTrackId', id);
+            // Best-effort: adjust min/max note if track is available
+            const track = tl.getTrack(id) as any;
+            const notes = (track?.notesRaw || []) as any[];
             if (Array.isArray(notes) && notes.length > 0) {
                 const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
                 if (noteValues.length > 0) {
@@ -528,7 +559,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
             }
         } catch (err) {
-            console.error(`Failed to load MIDI file for ${this.id}:`, err);
+            console.error(`Failed to import MIDI file for ${this.id}:`, err);
         }
     }
 
@@ -603,7 +634,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return this;
     }
     getTimeUnit(): number {
-        return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
+        return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
     getMidiFile(): File | null {
         return this.getProperty<File>('midiFile');
