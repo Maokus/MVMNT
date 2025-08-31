@@ -311,10 +311,11 @@ export class SceneElement implements SceneElementInterface {
 
         if (childRenderObjects.length === 0) return [];
 
-        // Calculate the layout bounding box and anchor point for transformation
-        const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
-        const anchorPixelX = bounds.x + bounds.width * this.anchorX;
-        const anchorPixelY = bounds.y + bounds.height * this.anchorY;
+        // Calculate the layout and visual bounding boxes and anchor point for transformation
+        const layoutBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
+        const visualBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'visual');
+        const anchorPixelX = layoutBounds.x + layoutBounds.width * this.anchorX;
+        const anchorPixelY = layoutBounds.y + layoutBounds.height * this.anchorY;
 
         // Create an empty render object that will contain all child objects
         const containerObject = new EmptyRenderObject(
@@ -341,7 +342,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Store the untransformed aggregate bounds for later transform math (selection, handles)
         // (Consumers can compute oriented bounding boxes using element transform parameters.)
-        (containerObject as any).baseBounds = { ...bounds };
+        (containerObject as any).baseBounds = { ...layoutBounds };
         (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
         (containerObject as any).elementTransform = {
             offsetX: this.offsetX,
@@ -355,7 +356,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
-            containerObject.setAnchorVisualizationData(bounds, this.anchorX, this.anchorY);
+            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, this.anchorX, this.anchorY);
         }
 
         return [containerObject];

@@ -1,7 +1,8 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
 
 interface AnchorVisualizationData {
-    bounds: Bounds;
+    layoutBounds: Bounds;
+    visualBounds: Bounds;
     anchorX: number;
     anchorY: number;
 }
@@ -27,8 +28,8 @@ export class EmptyRenderObject extends RenderObject {
         this.anchorOffsetY = anchorOffsetY;
         return this;
     }
-    setAnchorVisualizationData(bounds: Bounds, anchorX: number, anchorY: number): this {
-        this.anchorVisualizationData = { bounds, anchorX, anchorY };
+    setAnchorVisualizationData(layoutBounds: Bounds, visualBounds: Bounds, anchorX: number, anchorY: number): this {
+        this.anchorVisualizationData = { layoutBounds, visualBounds, anchorX, anchorY };
         return this;
     }
 
@@ -58,7 +59,8 @@ export class EmptyRenderObject extends RenderObject {
         if (config.showAnchorPoints && this.anchorVisualizationData) {
             this.renderAnchorVisualization(
                 ctx,
-                this.anchorVisualizationData.bounds,
+                this.anchorVisualizationData.visualBounds,
+                this.anchorVisualizationData.layoutBounds,
                 this.anchorVisualizationData.anchorX,
                 this.anchorVisualizationData.anchorY
             );
@@ -71,25 +73,41 @@ export class EmptyRenderObject extends RenderObject {
         /* no-op */
     }
 
-    renderAnchorVisualization(ctx: CanvasRenderingContext2D, bounds: Bounds, anchorX: number, anchorY: number): void {
-        if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
-        const anchorPixelX = bounds.x + bounds.width * anchorX;
-        const anchorPixelY = bounds.y + bounds.height * anchorY;
+    renderAnchorVisualization(
+        ctx: CanvasRenderingContext2D,
+        visualBounds: Bounds,
+        layoutBounds: Bounds,
+        anchorX: number,
+        anchorY: number
+    ): void {
+        const v = visualBounds;
+        const l = layoutBounds;
+        if (!v || v.width <= 0 || v.height <= 0) return;
+        if (!l || l.width <= 0 || l.height <= 0) return;
+        const anchorPixelX = l.x + l.width * anchorX;
+        const anchorPixelY = l.y + l.height * anchorY;
         ctx.save();
+        // Visual bounds (cyan dashed)
         ctx.strokeStyle = '#00FFFF';
         ctx.lineWidth = 1;
         ctx.setLineDash([5, 5]);
-        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        ctx.strokeRect(v.x, v.y, v.width, v.height);
         ctx.setLineDash([]);
+        // Layout bounds (magenta dotted)
+        ctx.strokeStyle = '#FF00FF';
+        ctx.setLineDash([2, 4]);
+        ctx.strokeRect(l.x, l.y, l.width, l.height);
+        ctx.setLineDash([]);
+        // Anchor crosshair and label (yellow), based on layout bounds
         ctx.strokeStyle = '#FFFF00';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(bounds.x, anchorPixelY);
-        ctx.lineTo(bounds.x + bounds.width, anchorPixelY);
+        ctx.moveTo(l.x, anchorPixelY);
+        ctx.lineTo(l.x + l.width, anchorPixelY);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(anchorPixelX, bounds.y);
-        ctx.lineTo(anchorPixelX, bounds.y + bounds.height);
+        ctx.moveTo(anchorPixelX, l.y);
+        ctx.lineTo(anchorPixelX, l.y + l.height);
         ctx.stroke();
         ctx.fillStyle = '#FFFF00';
         ctx.fillRect(anchorPixelX - 5, anchorPixelY - 5, 10, 10);

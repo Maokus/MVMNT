@@ -181,7 +181,6 @@ export class HybridSceneBuilder {
                 showBeatGrid: false,
                 showNoteLabels: false,
                 showBeatLabels: false,
-                minBBoxPadding: 200,
             })
         );
         this.addElement(

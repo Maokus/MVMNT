@@ -47,44 +47,15 @@ export class DebugElement extends SceneElement {
      * config.points: Array<{ x: number, y: number }>
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const points: Array<{ x: number; y: number }> = [];
-        const objects: RenderObject[] = [];
-
-        for (let i = 0; i < 3; i++) {
-            for (let j = 0; j < 3; j++) {
-                points.push({ x: i * 300, y: j * 300 });
-            }
-        }
-        if (this.bindings.get('showDots')) {
-            for (const pt of points) {
-                let screenPt = this.estimateScreenSpaceLocation(600, 600, pt);
-                // Rectangle at point (yellow fill, no stroke)
-                objects.push(new Rectangle(pt.x - 2, pt.y - 2, 4, 4, '#fff', null, 1));
-                // Text label for coordinates (font, color, align)
-                objects.push(
-                    new Text(
-                        pt.x + 4,
-                        pt.y + 4,
-                        `(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`,
-                        '24px Arial',
-                        '#FFF',
-                        'left',
-                        'middle'
-                    )
-                );
-                objects.push(
-                    new Text(
-                        pt.x - 8,
-                        pt.y - 4,
-                        `(${screenPt.x.toFixed(1)},${screenPt.y.toFixed(1)})`,
-                        '24px Arial',
-                        '#FFF',
-                        'right',
-                        'middle'
-                    )
-                );
-            }
-        }
+        let objects: RenderObject[] = [];
+        const rect1 = new Rectangle(0, 0, 10, 10, '#ff0000');
+        const rect2 = new Rectangle(50, 50, 10, 10, '#00ff00');
+        const rect3 = new Rectangle(100, 100, 10, 10, '#0000ff');
+        const rect4 = new Rectangle(150, 150, 10, 10, '#ffff00');
+        rect4.setScale(2, 4);
+        rect2.setIncludeInLayoutBounds(false);
+        rect4.setIncludeInLayoutBounds(false);
+        objects.push(rect1, rect2, rect3, rect4);
         return objects;
     }
 

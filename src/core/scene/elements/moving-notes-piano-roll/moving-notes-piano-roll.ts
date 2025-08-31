@@ -319,31 +319,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         },
                     ],
                 },
-                {
-                    id: 'bbox',
-                    label: 'Bounding Box',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'ensureMinBBox',
-                            type: 'boolean',
-                            label: 'Ensure Min BBox',
-                            default: true,
-                            description:
-                                'Stabilize layout by pinning an invisible bbox to the configured element width.',
-                        },
-                        {
-                            key: 'minBBoxPadding',
-                            type: 'number',
-                            label: 'Min Bounding Box Padding',
-                            default: 0,
-                            min: 0,
-                            max: 2000,
-                            step: 1,
-                            description: 'Padding around the bounding box in pixels',
-                        },
-                    ],
-                },
+                // (Removed legacy min-bbox group)
                 {
                     id: 'playhead',
                     label: 'Playhead',
@@ -496,24 +472,12 @@ export class MovingNotesPianoRollElement extends SceneElement {
             renderObjects.push(...animatedRenderObjects);
         }
 
-        // Add invisible bbox anchors to stabilize layout (optional)
-        const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
-        const minBBoxPadding = this.getProperty<number>('minBBoxPadding') || 0;
-        if (ensureMinBBox) {
+        // Add a non-drawing rectangle to establish layout bounds for the content area
+        {
             const totalHeight = (maxNote - minNote + 1) * noteHeight;
-            const tl = new EmptyRenderObject(0 - minBBoxPadding, 0 - minBBoxPadding, 1, 1, 0);
-            const br = new EmptyRenderObject(
-                pianoWidth + elementWidth + minBBoxPadding,
-                totalHeight + minBBoxPadding,
-                1,
-                1,
-                0
-            );
-            tl.setOpacity(0);
-            br.setOpacity(0);
-            tl.setIncludeInLayoutBounds(true);
-            br.setIncludeInLayoutBounds(true);
-            renderObjects.push(tl, br);
+            const layoutRect = new Rectangle(0, 0, pianoWidth + elementWidth, totalHeight, null, null, 0);
+            (layoutRect as any).setIncludeInLayoutBounds?.(true);
+            renderObjects.push(layoutRect);
         }
 
         if (showPlayhead) {
