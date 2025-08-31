@@ -157,45 +157,56 @@ export class TimelineService {
         endSec: number;
     }): Array<NoteLike & { trackId: string; startSec: number; endSec: number }> {
         const out: Array<NoteLike & { trackId: string; startSec: number; endSec: number }> = [];
-        for (const id of trackIds) {
+
+        // Determine candidate tracks: if any tracks are soloed, restrict to those; otherwise all enabled & not muted.
+        const allMidiTracks = this.timeline.tracks.filter((t): t is TimelineMidiTrack => t.type === 'midi');
+        const soloed = allMidiTracks.filter((t) => t.solo);
+        const allowedSet = new Set(
+            (soloed.length > 0 ? soloed : allMidiTracks).filter((t) => t.enabled && !t.mute).map((t) => t.id)
+        );
+
+        // If trackIds is empty or undefined, treat as all allowed tracks
+        const ids = (trackIds && trackIds.length > 0 ? trackIds : Array.from(allowedSet)).filter((id) =>
+            allowedSet.has(id)
+        );
+
+        for (const id of ids) {
             const t = this.getTrack(id) as TimelineMidiTrack | undefined;
             if (!t || !t.enabled || t.mute) continue;
-            const windowStartLocal = this.map.timelineToTrackSeconds(id, startSec);
-            const windowEndLocal = this.map.timelineToTrackSeconds(id, endSec);
-            // If start or end is outside, approximate local range by subtracting offset and clipping by region
-            const lo = windowStartLocal ?? Math.max(0, startSec - (t.offsetSec || 0));
-            const hi = windowEndLocal ?? Math.max(0, endSec - (t.offsetSec || 0));
+
+            // Compute local window by removing offset and clamping to track region if present
+            let lo = startSec - (t.offsetSec || 0);
+            let hi = endSec - (t.offsetSec || 0);
+            if (t.regionStartSec !== undefined) lo = Math.max(lo, t.regionStartSec);
+            if (t.regionEndSec !== undefined) hi = Math.min(hi, t.regionEndSec);
+            if (!(hi > lo)) continue; // no overlap with track region/window
+
+            const secondsPerBeat = this.timing.getSecondsPerBeat();
+            const map = t.tempoMap ?? this.timeline.masterTempoMap;
 
             for (const n of t.notesRaw) {
-                // Choose best available representation
+                // Resolve note times in local (track) seconds
                 let s = n.startTime;
                 let e = n.endTime ?? n.startTime;
                 if (n.startBeat !== undefined) {
-                    s = beatsToSecondsWithMap(
-                        n.startBeat,
-                        t.tempoMap ?? this.timeline.masterTempoMap,
-                        this.timing.getSecondsPerBeat()
-                    );
+                    s = beatsToSecondsWithMap(n.startBeat, map, secondsPerBeat);
                 }
                 if (n.endBeat !== undefined) {
-                    e = beatsToSecondsWithMap(
-                        n.endBeat,
-                        t.tempoMap ?? this.timeline.masterTempoMap,
-                        this.timing.getSecondsPerBeat()
-                    );
+                    e = beatsToSecondsWithMap(n.endBeat, map, secondsPerBeat);
                 }
                 // Intersect with local window
                 if (s! < hi && e! > lo) {
+                    const off = t.offsetSec || 0;
                     out.push({
                         ...n,
-                        startSec: (s as number) + (t.offsetSec || 0),
-                        endSec: (e as number) + (t.offsetSec || 0),
+                        startSec: (s as number) + off,
+                        endSec: (e as number) + off,
                         trackId: id,
                     });
                 }
             }
         }
-        // Sort by start time
+        // Sort by start time for deterministic rendering/processing
         out.sort((a, b) => a.startSec - b.startSec);
         return out;
     }
