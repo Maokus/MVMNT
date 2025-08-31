@@ -226,7 +226,18 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         // Active notes line (unique MIDI notes overlapping window)
         if (this.getProperty('showActiveNotes')) {
-            const uniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
+            const allUniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
+            const MAX_NOTES = 8;
+            const truncated = allUniqueNotes.length > MAX_NOTES;
+            const displayNotes = truncated ? allUniqueNotes.slice(0, MAX_NOTES) : allUniqueNotes;
+            const uniqueNotes: { length: number; map: (fn: (n: number) => any) => any[] } = {
+                length: displayNotes.length,
+                map: (fn: (n: number) => any) => {
+                    const mapped = displayNotes.map(fn);
+                    if (truncated) mapped.push('...');
+                    return mapped;
+                },
+            };
             const noteLine = uniqueNotes.length
                 ? `Notes: ${uniqueNotes.map((n) => this.midiManager.getNoteName(n)).join(' ')}`
                 : 'Notes: —';
