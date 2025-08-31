@@ -5,15 +5,7 @@ import { RenderObject, Text } from '@core/render/render-objects';
 import { MidiManager } from '@core/midi/midi-manager';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
-
-type ChordQuality = 'maj' | 'min' | 'dim' | 'aug' | '7' | 'maj7' | 'min7' | 'm7b5' | 'dim7';
-
-interface EstimatedChord {
-    root: number; // 0..11 pitch class
-    quality: ChordQuality;
-    bassPc?: number; // optional bass pitch class
-    confidence: number; // 0..1
-}
+import { computeChromaFromNotes, estimateChordPB, EstimatedChord } from '@math/midi/chord-estimator';
 
 export class ChordEstimateDisplayElement extends SceneElement {
     public midiManager: MidiManager;
@@ -134,32 +126,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         // Active notes and chroma
         const activeNotes = this.midiManager.getNotesInTimeWindow(start, end);
         const noteEvents = this.midiManager.createNoteEvents(activeNotes);
-        const chroma = new Float32Array(12);
-        let bassPc: number | undefined = undefined;
-        let bassFreq: number | undefined = undefined;
-
-        // Weight by overlap duration within window and velocity
-        for (const n of noteEvents) {
-            const overlap = Math.max(0, Math.min(end, n.endTime) - Math.max(start, n.startTime));
-            if (overlap <= 0) continue;
-            const velocity = Math.max(1, Math.min(127, n.velocity || 64));
-            const weight = overlap * (0.5 + (0.5 * velocity) / 127); // duration + velocity weighting
-            const pc = ((n.note % 12) + 12) % 12;
-            chroma[pc] += weight;
-
-            // Track bass (lowest frequency note) within window
-            const freq = n.note + (n.channel || 0) * 0; // frequency proxy: MIDI note number is sufficient
-            if (bassFreq === undefined || n.note < (bassFreq as number)) {
-                bassFreq = n.note;
-                bassPc = pc;
-            }
-        }
-
-        // Normalize chroma
-        const total = chroma.reduce((a, b) => a + b, 0);
-        if (total > 0) {
-            for (let i = 0; i < 12; i++) chroma[i] /= total;
-        }
+        const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
         // Estimate chord
         const includeTriads = !!this.getProperty('includeTriads');
@@ -170,12 +137,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const smoothingMs = Math.max(0, (this.getProperty('smoothingMs') as number) ?? 160);
 
         let chord: EstimatedChord | undefined;
-        if (total > 0) {
-            chord = this._estimateChordPB(chroma, bassPc, {
+        const energy = chroma.reduce((a, b) => a + b, 0);
+        if (energy > 0) {
+            chord = estimateChordPB(chroma, bassPc, {
                 includeTriads,
-                includeDim,
-                includeAug,
-                include7,
+                includeDiminished: includeDim,
+                includeAugmented: includeAug,
+                includeSevenths: include7,
                 preferBassRoot,
             });
         }
@@ -254,89 +222,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         return label;
     }
 
-    private _estimateChordPB(
-        chroma: Float32Array,
-        bassPc: number | undefined,
-        opts: {
-            includeTriads: boolean;
-            includeDim: boolean;
-            includeAug: boolean;
-            include7: boolean;
-            preferBassRoot: boolean;
-        }
-    ): EstimatedChord | undefined {
-        // Build candidate templates (binary chord tones) per root
-        type Template = { quality: ChordQuality; mask: number[] };
-        const baseTemplates: Template[] = [];
-        if (opts.includeTriads) {
-            baseTemplates.push(
-                { quality: 'maj', mask: [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0] }, // 0,4,7
-                { quality: 'min', mask: [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0] } // 0,3,7
-            );
-        }
-        if (opts.includeDim) {
-            baseTemplates.push({ quality: 'dim', mask: [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0] }); // 0,3,6
-        }
-        if (opts.includeAug) {
-            baseTemplates.push({ quality: 'aug', mask: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0] }); // 0,4,8
-        }
-        if (opts.include7) {
-            // Add sevenths based on majors/minors
-            baseTemplates.push(
-                { quality: '7', mask: [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0] }, // 0,4,7,10 (dominant)
-                { quality: 'maj7', mask: [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1] }, // 0,4,7,11
-                { quality: 'min7', mask: [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0] }, // 0,3,7,10
-                { quality: 'm7b5', mask: [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0] }, // 0,3,6,10 (half-dim)
-                { quality: 'dim7', mask: [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0] } // 0,3,6,9
-            );
-        }
-
-        const toneWeight = 1.0; // weight for chord tones
-        const nonTonePenalty = 0.35; // penalty factor for non-chord tones (inspired by PB nonchord treatment)
-        const bassBonusRoot = opts.preferBassRoot ? 0.15 : 0.0;
-        const bassBonusChordTone = 0.07;
-
-        let best: { root: number; quality: ChordQuality; score: number } | null = null;
-
-        for (let root = 0; root < 12; root++) {
-            for (const tmpl of baseTemplates) {
-                // Rotate template to this root
-                const tmask = new Array(12).fill(0);
-                for (let i = 0; i < 12; i++) {
-                    if (tmpl.mask[i]) tmask[(i + root) % 12] = 1;
-                }
-
-                // Score: chord tone energy minus penalty for non-chord energy
-                let toneEnergy = 0;
-                let nonToneEnergy = 0;
-                for (let pc = 0; pc < 12; pc++) {
-                    const e = chroma[pc];
-                    if (tmask[pc]) toneEnergy += e;
-                    else nonToneEnergy += e;
-                }
-                let score = toneEnergy * toneWeight - nonToneEnergy * nonTonePenalty;
-
-                // Bass bonuses
-                if (bassPc !== undefined) {
-                    if (bassPc === root) score += bassBonusRoot;
-                    else if (tmask[bassPc]) score += bassBonusChordTone;
-                }
-
-                if (!best || score > best.score) {
-                    best = { root, quality: tmpl.quality, score };
-                }
-            }
-        }
-
-        if (!best) return undefined;
-
-        // Confidence: clamp score into 0..1 by comparing with ideal case (all energy on tones)
-        // Approximate ideal toneEnergy = 1, nonToneEnergy = 0 -> scoreIdeal = 1 * toneWeight
-        const scoreIdeal = toneWeight;
-        const confidence = Math.max(0, Math.min(1, best.score / scoreIdeal));
-
-        return { root: best.root, quality: best.quality, bassPc, confidence };
-    }
+    // Estimation moved to @math/midi/chord-estimator
 
     private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
         if (!midiFileData) return;
