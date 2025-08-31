@@ -26,6 +26,18 @@ const ChangelogPage: React.FC = () => {
 
                     <section>
                         <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.5</h2>
+                            <i>24-08-31</i>
+                        </div>
+                        <ul className='feature-list'>
+                            <li>Added chord estimation element</li>
+                            <li>Added played notes tracker element</li>
+                            <li>Added playing notes display element</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <div style={{ marginBottom: "8px" }}>
                             <h2 style={{ marginBottom: "-3px" }}>v0.11.4</h2>
                             <i>24-08-31</i>
                         </div>
