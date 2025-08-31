@@ -26,7 +26,7 @@ export class FadeAnimation extends BaseNoteAnimation {
             default:
                 break;
         }
-        return [rect];
+        return this.markNonLayout([rect]);
     }
 }
 

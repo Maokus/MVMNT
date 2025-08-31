@@ -15,7 +15,7 @@ export class PressAnimation extends BaseNoteAnimation {
         switch (phase) {
             case 'attack': {
                 rect.opacity = af.lerp(0, 1, progress);
-                return [rect];
+                return this.markNonLayout([rect]);
             }
             case 'decay': {
                 let bounceCurve = new af.FloatCurve([
@@ -25,16 +25,16 @@ export class PressAnimation extends BaseNoteAnimation {
                 ]);
                 rect.y = y + bounceCurve.valAt(progress);
                 rect.opacity = af.lerp(1, 0.8, progress);
-                return [rect];
+                return this.markNonLayout([rect]);
             }
             case 'sustain':
                 rect.y = y;
                 rect.opacity = 0.8;
-                return [rect];
+                return this.markNonLayout([rect]);
             case 'release': {
                 rect.y = y;
                 rect.opacity = af.lerp(0.8, 0, progress);
-                return [rect];
+                return this.markNonLayout([rect]);
             }
             default:
                 return [];

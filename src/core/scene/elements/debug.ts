@@ -1,6 +1,6 @@
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types';
-import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
+import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {
@@ -47,44 +47,30 @@ export class DebugElement extends SceneElement {
      * config.points: Array<{ x: number, y: number }>
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const points: Array<{ x: number; y: number }> = [];
-        const objects: RenderObject[] = [];
+        let objects: RenderObject[] = [];
+        const empty1 = new EmptyRenderObject();
+        const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
+        const rect2 = new Rectangle(50, 50, 50, 50, '#00ff00');
+        const rect3 = new Rectangle(100, 100, 50, 50, '#0000ff');
+        const rect4 = new Rectangle(150, 150, 50, 50, '#ffff00');
+        const rect5 = new Rectangle(0, 0, 50, 50, '#ff00ff');
 
-        for (let i = 0; i < 3; i++) {
-            for (let j = 0; j < 3; j++) {
-                points.push({ x: i * 300, y: j * 300 });
-            }
-        }
-        if (this.bindings.get('showDots')) {
-            for (const pt of points) {
-                let screenPt = this.estimateScreenSpaceLocation(600, 600, pt);
-                // Rectangle at point (yellow fill, no stroke)
-                objects.push(new Rectangle(pt.x - 2, pt.y - 2, 4, 4, '#fff', null, 1));
-                // Text label for coordinates (font, color, align)
-                objects.push(
-                    new Text(
-                        pt.x + 4,
-                        pt.y + 4,
-                        `(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`,
-                        '24px Arial',
-                        '#FFF',
-                        'left',
-                        'middle'
-                    )
-                );
-                objects.push(
-                    new Text(
-                        pt.x - 8,
-                        pt.y - 4,
-                        `(${screenPt.x.toFixed(1)},${screenPt.y.toFixed(1)})`,
-                        '24px Arial',
-                        '#FFF',
-                        'right',
-                        'middle'
-                    )
-                );
-            }
-        }
+        rect2.setIncludeInLayoutBounds(false);
+        rect3.setScale(2, 1);
+        rect4.setRotation(45);
+        rect4.x = 200;
+        rect4.setIncludeInLayoutBounds(false);
+
+        rect5.setRotation(180);
+        rect5.setIncludeInLayoutBounds(false);
+
+        empty1.addChild(rect1);
+        empty1.addChild(rect2);
+        empty1.addChild(rect3);
+        empty1.addChild(rect4);
+        empty1.addChild(rect5);
+        empty1.setIncludeInLayoutBounds(true);
+        objects.push(rect1, rect2, rect3, rect4, rect5);
         return objects;
     }
 

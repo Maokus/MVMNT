@@ -25,9 +25,10 @@ export class Poly extends RenderObject {
         points: unknown = [],
         fillColor: string | null = null,
         strokeColor: string | null = '#FFFFFF',
-        strokeWidth = 1
+        strokeWidth = 1,
+        options?: { includeInLayoutBounds?: boolean }
     ) {
-        super(0, 0);
+        super(0, 0, 1, 1, 1, options);
         this.points = this.#normalizePoints(points);
         this.fillColor = fillColor;
         this.strokeColor = strokeColor;
@@ -155,8 +156,8 @@ export class Poly extends RenderObject {
         if (this.globalAlpha !== 1) ctx.globalAlpha = originalAlpha;
     }
 
-    getBounds(): Bounds {
-        if (!this.points.length) return { x: this.x, y: this.y, width: 0, height: 0 };
+    protected _getSelfBounds(): Bounds {
+        if (!this.points.length) return this._computeTransformedRectBounds(0, 0, 0, 0);
         let minX = Infinity,
             minY = Infinity,
             maxX = -Infinity,
@@ -167,6 +168,12 @@ export class Poly extends RenderObject {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         }
-        return { x: this.x + minX, y: this.y + minY, width: maxX - minX, height: maxY - minY };
+        // Account for stroke width
+        const half = (this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth : 0) / 2;
+        minX -= half;
+        minY -= half;
+        maxX += half;
+        maxY += half;
+        return this._computeTransformedRectBounds(minX, minY, maxX - minX, maxY - minY);
     }
 }

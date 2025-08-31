@@ -21,8 +21,8 @@ export class SceneElement implements SceneElementInterface {
     // Cache for frequently accessed values
     private _cachedValues: Map<string, any> = new Map();
     private _cacheValid: Map<string, boolean> = new Map();
-    // Cache for computed scene element bounds (per target time bucket)
-    private _boundsCache: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+    // Cache for computed scene element bounds (per target time bucket and mode)
+    private _boundsCache: Map<string, { x: number; y: number; width: number; height: number }> = new Map();
     private _boundsDirty: boolean = true;
 
     private _macroListenerRef?: (eventType: any, data: any) => void;
@@ -311,10 +311,11 @@ export class SceneElement implements SceneElementInterface {
 
         if (childRenderObjects.length === 0) return [];
 
-        // Calculate the bounding box and anchor point for transformation
-        const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime);
-        const anchorPixelX = bounds.x + bounds.width * this.anchorX;
-        const anchorPixelY = bounds.y + bounds.height * this.anchorY;
+        // Calculate the layout and visual bounding boxes and anchor point for transformation
+        const layoutBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
+        const visualBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'visual');
+        const anchorPixelX = layoutBounds.x + layoutBounds.width * this.anchorX;
+        const anchorPixelY = layoutBounds.y + layoutBounds.height * this.anchorY;
 
         // Create an empty render object that will contain all child objects
         const containerObject = new EmptyRenderObject(
@@ -341,7 +342,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Store the untransformed aggregate bounds for later transform math (selection, handles)
         // (Consumers can compute oriented bounding boxes using element transform parameters.)
-        (containerObject as any).baseBounds = { ...bounds };
+        (containerObject as any).baseBounds = { ...layoutBounds };
         (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
         (containerObject as any).elementTransform = {
             offsetX: this.offsetX,
@@ -355,7 +356,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
-            containerObject.setAnchorVisualizationData(bounds, this.anchorX, this.anchorY);
+            containerObject.setAnchorVisualizationData(layoutBounds, visualBounds, this.anchorX, this.anchorY);
         }
 
         return [containerObject];
@@ -372,7 +373,10 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Calculate the bounding box of all child render objects
      */
-    private _calculateSceneElementBounds(renderObjects: RenderObject[]): {
+    private _calculateSceneElementBounds(
+        renderObjects: RenderObject[],
+        mode: 'visual' | 'layout' = 'layout'
+    ): {
         x: number;
         y: number;
         width: number;
@@ -389,15 +393,18 @@ export class SceneElement implements SceneElementInterface {
         let validBoundsCount = 0;
 
         for (const obj of renderObjects) {
-            if (obj && typeof obj.getBounds === 'function') {
-                const bounds = obj.getBounds();
-                if (this._validateBounds(bounds, obj)) {
-                    minX = Math.min(minX, bounds.x);
-                    minY = Math.min(minY, bounds.y);
-                    maxX = Math.max(maxX, bounds.x + bounds.width);
-                    maxY = Math.max(maxY, bounds.y + bounds.height);
-                    validBoundsCount++;
-                }
+            if (!obj) continue;
+            let bounds: any = null;
+            if (mode === 'visual' && (obj as any).getVisualBounds) bounds = (obj as any).getVisualBounds();
+            else if (mode === 'layout' && (obj as any).getLayoutBounds) bounds = (obj as any).getLayoutBounds();
+
+            if (!bounds) continue; // layout may return null when excluded
+            if (this._validateBounds(bounds, obj)) {
+                minX = Math.min(minX, bounds.x);
+                minY = Math.min(minY, bounds.y);
+                maxX = Math.max(maxX, bounds.x + bounds.width);
+                maxY = Math.max(maxY, bounds.y + bounds.height);
+                validBoundsCount++;
             }
         }
 
@@ -420,24 +427,26 @@ export class SceneElement implements SceneElementInterface {
      */
     private _getCachedSceneElementBounds(
         renderObjects: RenderObject[],
-        targetTime: number
+        targetTime: number,
+        mode: 'visual' | 'layout' = 'layout'
     ): { x: number; y: number; width: number; height: number } {
         const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-        if (!this._boundsDirty && this._boundsCache.has(timeBucket)) {
-            const cached = this._boundsCache.get(timeBucket)!;
+        const cacheKey = `${mode}:${timeBucket}`;
+        if (!this._boundsDirty && this._boundsCache.has(cacheKey)) {
+            const cached = this._boundsCache.get(cacheKey)!;
             return { ...cached };
         }
 
-        const computed = this._calculateSceneElementBounds(renderObjects);
+        const computed = this._calculateSceneElementBounds(renderObjects, mode);
 
-        // Update cache and mark clean
-        this._boundsCache.set(timeBucket, computed);
+        // Update cache and mark clean for this mode/time
+        this._boundsCache.set(cacheKey, computed);
         this._boundsDirty = false;
 
-        // Prune cache to a small size to prevent growth
-        const MAX_ENTRIES = 8;
+        // Prune cache to a small size to prevent growth (per mode/time entries)
+        const MAX_ENTRIES = 16;
         if (this._boundsCache.size > MAX_ENTRIES) {
-            const keys = Array.from(this._boundsCache.keys()).sort((a, b) => a - b);
+            const keys = Array.from(this._boundsCache.keys()).sort();
             while (this._boundsCache.size > MAX_ENTRIES) {
                 const k = keys.shift();
                 if (typeof k !== 'undefined') this._boundsCache.delete(k);

@@ -47,12 +47,13 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                 arrow.opacity = af.lerp(0, 1, progress);
                 arrow.strokeColor = color;
                 arrow.lineJoin = 'bevel';
-                return [arrow];
+                return this.markNonLayout([arrow]);
             }
             case 'decay': {
                 let renderObjs: RenderObject[] = [];
 
                 let burst = new EmptyRenderObject();
+                (burst as any).setIncludeInLayoutBounds?.(false);
                 for (let i = 0; i < objs.length; i++) {
                     let renderObj;
                     if (objs[i].shape == 0) {
@@ -74,6 +75,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     renderObj.x = -objBounds.width / 2;
                     renderObj.y = -objBounds.height / 2;
                     let parent = new EmptyRenderObject();
+                    (parent as any).setIncludeInLayoutBounds?.(false);
                     parent.addChild(renderObj);
                     parent.x = af.lerp(x, objs[i].endX, easingFunctions.easeOutExpo(progress));
                     parent.y = af.lerp(y, objs[i].endY, easingFunctions.easeOutExpo(progress));
@@ -97,19 +99,19 @@ export class ExplodeAnimation extends BaseNoteAnimation {
 
                 renderObjs.push(skeleton);
 
-                return renderObjs;
+                return this.markNonLayout(renderObjs);
             }
             case 'sustain':
                 let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
                 skeleton.opacity = 0.8;
-                return [skeleton];
+                return this.markNonLayout([skeleton]);
             case 'release': {
                 let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
                 skeleton.opacity = af.lerp(0.8, 0, progress);
-                return [skeleton];
+                return this.markNonLayout([skeleton]);
             }
             default:
-                return [new Rectangle(x, y, width, height, color)];
+                return this.markNonLayout([new Rectangle(x, y, width, height, color)]);
         }
     }
 }

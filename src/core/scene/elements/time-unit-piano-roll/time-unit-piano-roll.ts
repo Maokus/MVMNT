@@ -14,11 +14,7 @@ import { ConstantBinding } from '@bindings/property-bindings';
 export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
-    // BBox cache that stores top-left and bottom-right points for the full-display configuration per time bucket
-    // Keyed by timeBucket (ms). Invalidated when relevant configs change.
-    private _ensureMinBBoxCache: Map<number, { tl: { x: number; y: number }; br: { x: number; y: number } }> =
-        new Map();
-    private _ensureMinBBoxCacheConfigHash: string | undefined;
+    // (Min BBox cache removed; layout stabilizes via includeInLayoutBounds)
     private _currentMidiFile: File | null = null;
     private _midiMacroListener?: (
         eventType:
@@ -661,31 +657,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         },
                     ],
                 },
-                {
-                    id: 'bbox',
-                    label: 'Bounding Box',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'ensureMinBBox',
-                            type: 'boolean',
-                            label: 'Ensure Min BBox',
-                            default: true,
-                            description:
-                                'Stabilize layout by ensuring the bounding box matches the full display (grids/labels) even when toggled off',
-                        },
-                        {
-                            key: 'minBBoxPadding',
-                            type: 'number',
-                            label: 'Min Bounding Box Padding',
-                            default: 0,
-                            min: 0,
-                            max: 2000,
-                            step: 1,
-                            description: 'Padding around the bounding box in pixels',
-                        },
-                    ],
-                },
+                // (Min BBox controls removed)
             ],
         };
     }
@@ -719,8 +691,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const pianoOpacity = this.getProperty<number>('pianoOpacity') ?? 1;
         const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
         const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
-        const ensureMinBBox = this.getProperty<boolean>('ensureMinBBox');
-        const minBBoxPadding = this.getProperty<number>('minBBoxPadding');
+        // (Min BBox properties removed)
         // Style configs
         const noteGridColor = this.getProperty<string>('noteGridColor') || '#333333';
         const noteGridLineWidth = this.getProperty<number>('noteGridLineWidth') || 1;
@@ -765,9 +736,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
         this.midiManager.setBPM(bpm);
         this.midiManager.setBeatsPerBar(beatsPerBar);
 
+        // Compute overall content extents (for layout bounds and optional backgrounds)
+        const totalHeight = (maxNote - minNote + 1) * noteHeight;
+        const totalWidth = (showPiano ? pianoWidth : 0) + (rollWidth || 800);
+
+        // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
+        // This prevents jitter when other decorative elements toggle or animations change.
+        const layoutBoundsRect = new Rectangle(0, 0, totalWidth, totalHeight, null, null, 0);
+        (layoutBoundsRect as any).setIncludeInLayoutBounds?.(true);
+        // No fill/stroke, so it's not drawn, but it contributes to layout bounds via getBounds().
+        renderObjects.push(layoutBoundsRect);
+
         // Optionally draw the piano strip background first so notes/grids render on top
         if (showPiano) {
-            const totalHeight = (maxNote - minNote + 1) * noteHeight;
             for (let n = maxNote, i = 0; n >= minNote; n--, i++) {
                 const y = i * noteHeight;
                 const pc = n % 12;
@@ -822,6 +803,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const noteGlowOpacity = this.getProperty<number>('noteGlowOpacity') ?? 0.5;
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
+                // Animation-generated objects should not affect layout bounds
+                (obj as any).setIncludeInLayoutBounds?.(false);
                 if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0) {
                     obj.setCornerRadius(noteCornerRadius);
                 }
@@ -932,31 +915,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 playheadLineWidth,
                 playheadColor
             );
-            (ph as any[]).forEach((l) => l.setOpacity?.(playheadOpacity));
+            (ph as any[]).forEach((l) => {
+                l.setOpacity?.(playheadOpacity);
+                (l as any).setIncludeInLayoutBounds?.(false);
+            });
             renderObjects.push(...ph);
         }
 
-        // Optionally ensure minimum bounding box by adding two empty render objects at the cached TL/BR of the
-        // full-display configuration (as if all Display toggles were true). This reduces jumping when grids/lines are toggled.
-        if (ensureMinBBox) {
-            const bbox = this._getOrComputeMinBBox(effectiveTime, {
-                timeUnitBars,
-                minNote,
-                maxNote,
-                pianoWidth,
-                rollWidth: rollWidth || 800,
-                noteHeight,
-                beatsPerBar,
-            });
-
-            if (bbox) {
-                const tl = new EmptyRenderObject(bbox.tl.x - minBBoxPadding, bbox.tl.y - minBBoxPadding, 1, 1, 0);
-                const br = new EmptyRenderObject(bbox.br.x + minBBoxPadding, bbox.br.y + minBBoxPadding, 1, 1, 0);
-                tl.setOpacity(0);
-                br.setOpacity(0);
-                renderObjects.push(tl, br);
-            }
-        }
+        // (Min BBox anchoring removed)
 
         return renderObjects;
     }
@@ -968,65 +934,37 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (!midiFileData) return;
 
         if (midiFileData instanceof File) {
-            await this._loadMIDIFile(midiFileData);
+            try {
+                const resetMacroValues = this._currentMidiFile !== midiFileData;
+                await this.midiManager.loadMidiFile(midiFileData, resetMacroValues);
+
+                // Optionally adjust min/max notes if bound to constants
+                const notes = this.midiManager.getNotes();
+                if (Array.isArray(notes) && notes.length > 0) {
+                    const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
+                    if (noteValues.length > 0) {
+                        const actualMin = Math.max(0, Math.min(...noteValues));
+                        const actualMax = Math.min(127, Math.max(...noteValues));
+                        const minBinding = this.getBinding('minNote');
+                        const maxBinding = this.getBinding('maxNote');
+                        if (minBinding instanceof ConstantBinding) this.setProperty('minNote', actualMin);
+                        if (maxBinding instanceof ConstantBinding) this.setProperty('maxNote', actualMax);
+                    }
+                }
+
+                this._dispatchChangeEvent();
+                if (typeof window !== 'undefined') {
+                    const vis: any = (window as any).debugVisualizer;
+                    if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
+                }
+            } catch (err) {
+                console.error(`Failed to load MIDI file for ${this.id}:`, err);
+            }
         }
     }
 
     /**
-     * Load and parse a MIDI file for this element
-     */
-    private async _loadMIDIFile(file: File): Promise<void> {
-        try {
-            console.log(`Loading MIDI file for bound element ${this.id}:`, file.name);
-
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
-
-            console.log(`Successfully loaded MIDI file for bound element ${this.id}:`, {
-                duration: this.midiManager.getDuration(),
-                noteCount: this.midiManager.getNotes().length,
-                bpm: this.midiManager.timingManager.bpm,
-            });
-
-            // If minNote/maxNote are constant-bound, set them to actual min/max from the MIDI snippet
-            const notes = this.midiManager.getNotes();
-            if (Array.isArray(notes) && notes.length > 0) {
-                const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
-                if (noteValues.length > 0) {
-                    const actualMin = Math.max(0, Math.min(...noteValues));
-                    const actualMax = Math.min(127, Math.max(...noteValues));
-                    const minBinding = this.getBinding('minNote');
-                    const maxBinding = this.getBinding('maxNote');
-                    if (minBinding instanceof ConstantBinding) {
-                        this.setProperty('minNote', actualMin);
-                    }
-                    if (maxBinding instanceof ConstantBinding) {
-                        this.setProperty('maxNote', actualMax);
-                    }
-                }
-            }
-
-            // Trigger a re-render
-            this._dispatchChangeEvent();
-            // Also trigger global visualizer re-render if available
-            if (typeof window !== 'undefined') {
-                const canvas: any = (window as any).debugVisualizer?.canvas;
-                const vis: any = (window as any).debugVisualizer;
-                if (vis && typeof vis.invalidateRender === 'function') {
-                    vis.invalidateRender();
-                } else if (canvas && canvas.dispatchEvent) {
-                    canvas.dispatchEvent(new CustomEvent('visualizer-update'));
-                }
-            }
-        } catch (error) {
-            console.error(`Failed to load MIDI file for bound element ${this.id}:`, error);
-        }
-    }
-
-    // Note block creation delegated to MidiManager
-
-    /**
-     * Create horizontal grid lines for notes
+     * Create horizontal note grid lines across the roll area
      */
     private _createNoteGridLines(
         minNote: number,
@@ -1037,18 +975,20 @@ export class TimeUnitPianoRollElement extends SceneElement {
     ): RenderObject[] {
         const lines: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
-
-        for (let note = minNote; note <= maxNote; note++) {
-            const y = totalHeight - (note - minNote + 1) * noteHeight;
-            const line = new Line(pianoWidth, y, pianoWidth + rollWidth, y, '#333333', 1);
-            lines.push(line);
+        const x1 = pianoWidth;
+        const x2 = pianoWidth + rollWidth;
+        // draw line at each note boundary
+        for (let i = 0; i <= maxNote - minNote; i++) {
+            const y = i * noteHeight;
+            const ln = new Line(x1, y, x2, y, '#333333', 1);
+            (ln as any).setIncludeInLayoutBounds?.(false);
+            lines.push(ln);
         }
-
         return lines;
     }
 
     /**
-     * Create vertical grid lines for beats
+     * Create vertical beat and bar grid lines across the roll area
      */
     private _createBeatGridLines(
         windowStart: number,
@@ -1064,17 +1004,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
         for (const b of beats) {
             const rel = (b.time - windowStart) / duration;
             const x = pianoWidth + rel * rollWidth;
-            const strokeColor = b.isBarStart ? '#666666' : '#444444';
-            const strokeWidth = b.isBarStart ? 2 : 1;
-            const line = new Line(x, 0, x, totalHeight, strokeColor, strokeWidth);
-            lines.push(line);
+            const isBar = !!b.isBarStart;
+            const ln = new Line(x, 0, x, totalHeight, isBar ? '#666666' : '#444444', isBar ? 2 : 1);
+            (ln as any).setIncludeInLayoutBounds?.(false);
+            lines.push(ln);
         }
-
         return lines;
     }
 
     /**
-     * Create note name labels
+     * Create note labels for each visible note row in the piano area
      */
     private _createNoteLabels(
         minNote: number,
@@ -1084,15 +1023,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
     ): RenderObject[] {
         const labels: RenderObject[] = [];
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
-
         for (let note = minNote; note <= maxNote; note++) {
             const y = totalHeight - (note - minNote + 0.5) * noteHeight;
             const noteName = this.midiManager.getNoteName(note);
-
             const label = new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle');
+            (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
-
         return labels;
     }
 
@@ -1115,6 +1052,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const x = pianoWidth + rel * rollWidth;
             const bar = b.barNumber;
             const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', '#ffffff', 'left', 'bottom');
+            (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
 
@@ -1156,117 +1094,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return playheadObjects;
     }
 
-    /**
-     * Compute and cache the min bounding box for the "full display" configuration at a given time bucket.
-     * Extracted from _buildRenderObjects for readability.
-     */
-    private _getOrComputeMinBBox(
-        targetTime: number,
-        args: {
-            timeUnitBars: number;
-            minNote: number;
-            maxNote: number;
-            pianoWidth: number;
-            rollWidth: number;
-            noteHeight: number;
-            beatsPerBar: number;
-        }
-    ): { tl: { x: number; y: number }; br: { x: number; y: number } } | undefined {
-        // Invalidate cache if the configuration has changed
-        const cfgHash = this._computeConfigHashForBBox();
-        if (this._ensureMinBBoxCacheConfigHash !== cfgHash) {
-            this._ensureMinBBoxCache.clear();
-            this._ensureMinBBoxCacheConfigHash = cfgHash;
-        }
-
-        const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-        let cached = this._ensureMinBBoxCache.get(timeBucket);
-        if (cached) return cached;
-
-        const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
-            targetTime,
-            args.timeUnitBars
-        );
-        const totalHeight = (args.maxNote - args.minNote + 1) * args.noteHeight;
-
-        // Build objects that define extents when all display toggles are true
-        const fullObjs: RenderObject[] = [];
-        fullObjs.push(
-            ...this._createNoteGridLines(args.minNote, args.maxNote, args.pianoWidth, args.rollWidth, args.noteHeight)
-        );
-        fullObjs.push(
-            ...this._createBeatGridLines(
-                windowStart,
-                windowEnd,
-                args.beatsPerBar,
-                args.pianoWidth,
-                args.rollWidth,
-                totalHeight
-            )
-        );
-        fullObjs.push(...this._createNoteLabels(args.minNote, args.maxNote, args.pianoWidth, args.noteHeight));
-        fullObjs.push(
-            ...this._createBeatLabels(windowStart, windowEnd, args.beatsPerBar, args.pianoWidth, args.rollWidth)
-        );
-
-        // Compute bounds
-        let minX = Infinity,
-            minY = Infinity,
-            maxX = -Infinity,
-            maxY = -Infinity;
-        let count = 0;
-        for (const obj of fullObjs) {
-            if (obj && typeof (obj as any).getBounds === 'function') {
-                const b = (obj as any).getBounds();
-                if (
-                    b &&
-                    typeof b.x === 'number' &&
-                    typeof b.y === 'number' &&
-                    typeof b.width === 'number' &&
-                    typeof b.height === 'number' &&
-                    isFinite(b.x) &&
-                    isFinite(b.y) &&
-                    isFinite(b.width) &&
-                    isFinite(b.height)
-                ) {
-                    minX = Math.min(minX, b.x);
-                    minY = Math.min(minY, b.y);
-                    maxX = Math.max(maxX, b.x + b.width);
-                    maxY = Math.max(maxY, b.y + b.height);
-                    count++;
-                }
-            }
-        }
-
-        cached =
-            count === 0
-                ? { tl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
-                : { tl: { x: minX, y: minY }, br: { x: maxX, y: maxY } };
-        this._ensureMinBBoxCache.set(timeBucket, cached);
-        return cached;
-    }
-
-    // Build a configuration signature based on all current bindings to detect any config change
-    private _computeConfigHashForBBox(): string {
-        const cfgEntries: Record<string, any> = {};
-        (this as any).bindings?.forEach((binding: any, key: string) => {
-            try {
-                const v = binding?.getValue?.();
-                if (typeof File !== 'undefined' && v instanceof File) {
-                    cfgEntries[key] = { __fileName: v.name || null };
-                } else if (v && typeof v === 'object') {
-                    cfgEntries[key] = JSON.parse(
-                        JSON.stringify(v, (_k, val) => (val instanceof File ? { __fileName: val.name } : val))
-                    );
-                } else {
-                    cfgEntries[key] = v;
-                }
-            } catch {
-                cfgEntries[key] = String(binding?.getValue?.());
-            }
-        });
-        return JSON.stringify(cfgEntries);
-    }
+    // (Removed legacy min-bbox helpers)
 
     // Note name resolution handled by MidiManager
 

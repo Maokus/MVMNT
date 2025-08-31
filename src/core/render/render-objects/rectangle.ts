@@ -20,7 +20,8 @@ export class Rectangle extends RenderObject {
         height: number,
         fillColor: string | null = '#FFFFFF',
         strokeColor: string | null = null,
-        strokeWidth = 1
+        strokeWidth = 1,
+        options?: { includeInLayoutBounds?: boolean }
     ) {
         const maxPosition = 1_000_000;
         const maxSize = 1_000_000;
@@ -33,7 +34,7 @@ export class Rectangle extends RenderObject {
                 `Rectangle constructor: Extreme values clamped - original: (${x}, ${y}, ${width}, ${height}), clamped: (${clampedX}, ${clampedY}, ${clampedWidth}, ${clampedHeight})`
             );
         }
-        super(clampedX, clampedY);
+        super(clampedX, clampedY, 1, 1, 1, options);
         this.width = clampedWidth;
         this.height = clampedHeight;
         this.fillColor = fillColor;
@@ -135,7 +136,19 @@ export class Rectangle extends RenderObject {
         return this;
     }
 
-    getBounds(): Bounds {
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
+    protected _getSelfBounds(): Bounds {
+        // Local rect is at (0,0) with width/height; pad for stroke if any
+        let lx = 0,
+            ly = 0,
+            w = this.width,
+            h = this.height;
+        const strokePad = this.strokeColor && this.strokeWidth > 0 ? this.strokeWidth : 0;
+        if (strokePad) {
+            lx -= strokePad / 2;
+            ly -= strokePad / 2;
+            w += strokePad;
+            h += strokePad;
+        }
+        return this._computeTransformedRectBounds(lx, ly, w, h);
     }
 }

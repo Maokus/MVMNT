@@ -159,10 +159,8 @@ export class HybridSceneBuilder {
         return this.elements.filter((e) => (e as any).type === type);
     }
     createDebugScene() {
-        this.clearElements();
-        this.addElement(
-            new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0, offsetX: 0, offsetY: 0 })
-        );
+        this.createDefaultMIDIScene();
+        this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
     }
     createDefaultMIDIScene() {
         this.clearElements();
@@ -181,7 +179,6 @@ export class HybridSceneBuilder {
                 showBeatGrid: false,
                 showNoteLabels: false,
                 showBeatLabels: false,
-                minBBoxPadding: 200,
             })
         );
         this.addElement(

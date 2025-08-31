@@ -40,7 +40,7 @@ export class ScaleAnimation extends BaseNoteAnimation {
         const oy = (height - h) / 2;
         let rect2 = new Rectangle(x + ox, y + oy, w, h, color);
         rect2.opacity = rect.opacity;
-        return [rect2];
+        return this.markNonLayout([rect2]);
     }
 }
 
