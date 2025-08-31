@@ -2,6 +2,11 @@
  * TimingManager - Element-specific timing manager for independent timing configurations
  * Pure timing responsibilities (no MIDI note management)
  */
+import {
+    beatsToSecondsWithMap as _beatsToSecondsWithTempoMap,
+    secondsToBeatsWithMap as _secondsToBeatsWithTempoMap,
+} from './tempo-utils';
+
 export interface TimeSignature {
     numerator: number;
     denominator: number;
@@ -256,6 +261,24 @@ export class TimingManager {
         return this._secondsToBeats(seconds);
     }
 
+    /**
+     * Convert beats to seconds using a provided tempo map when available.
+     * Falls back to this TimingManager's tempoMap and finally fixed tempo.
+     */
+    beatsToSecondsWithMap(beats: number, tempoMap?: TempoMapEntry[] | null) {
+        const fallbackSPB = this.getSecondsPerBeat();
+        return _beatsToSecondsWithTempoMap(beats, tempoMap ?? this.tempoMap, fallbackSPB);
+    }
+
+    /**
+     * Convert seconds to beats using a provided tempo map when available.
+     * Falls back to this TimingManager's tempoMap and finally fixed tempo.
+     */
+    secondsToBeatsWithMap(seconds: number, tempoMap?: TempoMapEntry[] | null) {
+        const fallbackSPB = this.getSecondsPerBeat();
+        return _secondsToBeatsWithTempoMap(seconds, tempoMap ?? this.tempoMap, fallbackSPB);
+    }
+
     getTimeUnitWindow(referenceTimeInSeconds: number, bars = 1) {
         const beatsPerWindow = bars * this.beatsPerBar;
         let totalBeatsAtRef: number;
@@ -271,6 +294,14 @@ export class TimingManager {
         const start = this._beatsToSeconds(startBeats);
         const end = this._beatsToSeconds(endBeats);
         return { start, end };
+    }
+
+    /**
+     * Convenience alias for bar-aligned window calculation.
+     * Returns the [start, end] in seconds of the bar-aligned window around centerSec.
+     */
+    getBarAlignedWindow(centerSec: number, bars = 1) {
+        return this.getTimeUnitWindow(centerSec, bars);
     }
 
     getBeatGridInWindow(windowStart: number, windowEnd: number) {
