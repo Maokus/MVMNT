@@ -5,7 +5,7 @@ import { createAnimationInstance, getAnimationSelectOptions } from '@animation/n
 import type { AnimationPhase } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 import { RenderObject } from '@core/index';
-import './animationTest.css';
+// Using Tailwind component classes defined in tailwind.css
 
 interface PhaseConfig {
     name: string;

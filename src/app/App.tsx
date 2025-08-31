@@ -1,5 +1,5 @@
 import React from 'react';
-import './App.css';
+// Tailwind styles are loaded via index.tsx
 import MidiVisualizer from '@ui/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
 import AnimationTestPage from '@pages/AnimationTestPage';

@@ -1,5 +1,5 @@
 import React from 'react';
-import '@app/App.css';
+// Using Tailwind component classes defined in tailwind.css
 import { Link } from 'react-router-dom';
 
 /**
