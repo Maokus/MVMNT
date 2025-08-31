@@ -31,6 +31,16 @@ const ChangelogPage: React.FC = () => {
 
                     <section>
                         <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.6</h2>
+                            <i>24-08-31</i>
+                        </div>
+                        <ul className='feature-list'>
+                            <li>Migrated over to tailwindcss</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <div style={{ marginBottom: "8px" }}>
                             <h2 style={{ marginBottom: "-3px" }}>v0.11.5</h2>
                             <i>24-08-31</i>
                         </div>

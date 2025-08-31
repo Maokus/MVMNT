@@ -66,6 +66,74 @@
     .main-workspace {
         @apply flex flex-1 min-h-0;
     }
+    /* Bottom timeline dock */
+    .timeline-container {
+        @apply border-t shrink-0;
+        background-color: var(--twc-background);
+        border-color: var(--twc-border);
+    }
+    .timeline-panel {
+        @apply flex flex-col;
+        height: 220px;
+        min-height: 160px;
+        max-height: 40vh;
+    }
+    .timeline-header {
+        @apply border-b px-3 py-1.5;
+        background-color: var(--twc-menubar);
+        border-color: var(--twc-border);
+    }
+    .timeline-ruler {
+        @apply flex mt-1.5 h-[18px];
+        gap: 0;
+    }
+    .timeline-ruler .tick {
+        position: relative;
+        width: 5%;
+        border-left: 1px solid var(--twc-border);
+    }
+    .timeline-ruler .tick .label {
+        position: absolute;
+        top: 0;
+        left: 2px;
+        font-size: 10px;
+        color: #9a9a9a;
+    }
+    .timeline-body {
+        @apply flex min-h-0 overflow-auto;
+    }
+    .track-list {
+        @apply flex-1;
+    }
+    .timeline-row {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        align-items: stretch;
+        border-bottom: 1px solid #2f2f33;
+        min-height: 28px;
+    }
+    .track-label {
+        background: #232323;
+        border-right: 1px solid #2f2f33;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: #cfcfcf;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .track-lane {
+        position: relative;
+    }
+    .clip {
+        position: absolute;
+        top: 5px;
+        height: 18px;
+        background: #0e639c;
+        border: 1px solid #1177bb;
+        border-radius: 3px;
+        opacity: 0.9;
+    }
     .preview-panel {
         @apply flex-[2] border-r flex flex-col min-w-0;
         background-color: var(--twc-panel);

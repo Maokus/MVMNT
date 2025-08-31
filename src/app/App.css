@@ -211,6 +211,8 @@ section p {
     min-height: 0;
 }
 
+/* Timeline styles moved to tailwind.css */
+
 /* Preview Panel (2/3 width) */
 .preview-panel {
     flex: 2;

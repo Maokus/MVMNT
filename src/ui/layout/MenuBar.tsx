@@ -5,9 +5,13 @@ import logo from '@assets/Logo_Transparent.png'
 
 interface MenuBarProps {
     onHelp?: () => void;
+    onToggleSidePanels?: () => void;
+    onToggleTimeline?: () => void;
+    sidePanelsVisible?: boolean;
+    timelineVisible?: boolean;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleTimeline, sidePanelsVisible, timelineVisible }) => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
@@ -123,6 +127,20 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                 </div>
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <div className="flex items-center gap-2 mr-2">
+                    <button
+                        type="button"
+                        onClick={onToggleSidePanels}
+                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
+                        title="Show/Hide side panels"
+                    >{sidePanelsVisible ? 'Hide Side' : 'Show Side'}</button>
+                    <button
+                        type="button"
+                        onClick={onToggleTimeline}
+                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
+                        title="Show/Hide timeline panel"
+                    >{timelineVisible ? 'Hide Timeline' : 'Show Timeline'}</button>
+                </div>
                 <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
                     <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                 </Link>
