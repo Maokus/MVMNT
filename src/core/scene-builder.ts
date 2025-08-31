@@ -8,6 +8,9 @@ import {
     TimeUnitPianoRollElement,
     DebugElement,
     SceneElement,
+    NotesPlayedTrackerElement,
+    NotesPlayingDisplayElement,
+    ChordEstimateDisplayElement,
 } from '@core/scene/elements';
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
@@ -203,6 +206,37 @@ export class HybridSceneBuilder {
             })
         );
         this.addElement(
+            new NotesPlayedTrackerElement('notesPlayedTracker', {
+                zIndex: 46,
+                anchorX: 1,
+                anchorY: 0,
+                offsetX: 1400,
+                offsetY: 100,
+                textJustification: 'right',
+            })
+        );
+        this.addElement(
+            new NotesPlayingDisplayElement('notesPlayingDisplay', {
+                zIndex: 47,
+                anchorX: 1,
+                anchorY: 0,
+                offsetX: 1400,
+                offsetY: 180,
+                textJustification: 'right',
+                fontSize: 20,
+                showAllAvailableTracks: true,
+            })
+        );
+        this.addElement(
+            new ChordEstimateDisplayElement('chordEstimateDisplay', {
+                zIndex: 48,
+                anchorX: 1,
+                anchorY: 1,
+                offsetX: 1400,
+                offsetY: 1400,
+            })
+        );
+        this.addElement(
             new TextOverlayElement('textElement1', {
                 zIndex: 50,
                 anchorX: 0,
@@ -381,6 +415,9 @@ export class HybridSceneBuilder {
     _assignDefaultMacros() {
         const pianoRoll: any = this.getElementsByType('timeUnitPianoRoll')[0];
         const timeDisplay: any = this.getElementsByType('timeDisplay')[0];
+        const notesPlayingDisplay: any = this.getElementsByType('notesPlayingDisplay')[0];
+        const playedNotesTracker: any = this.getElementsByType('notesPlayedTracker')[0];
+        const chordEstimateDisplay: any = this.getElementsByType('chordEstimateDisplay')[0];
         pianoRoll?.bindToMacro('bpm', 'tempo');
         pianoRoll?.bindToMacro('beatsPerBar', 'beatsPerBar');
         pianoRoll?.bindToMacro('midiFile', 'midiFile');
@@ -389,6 +426,10 @@ export class HybridSceneBuilder {
         } catch {}
         timeDisplay?.bindToMacro('bpm', 'tempo');
         timeDisplay?.bindToMacro('beatsPerBar', 'beatsPerBar');
+
+        notesPlayingDisplay.bindToMacro('midiFile', 'midiFile');
+        playedNotesTracker.bindToMacro('midiFile', 'midiFile');
+        chordEstimateDisplay.bindToMacro('midiFile', 'midiFile');
     }
     autoBindElements() {
         const pianoRolls: any[] = this.getElementsByType('boundTimeUnitPianoRoll');
