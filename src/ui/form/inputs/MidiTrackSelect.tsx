@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import type { TimelineTrack } from '@core/timing';
+import React from 'react';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectMidiTracks } from '@selectors/timelineSelectors';
+import type { TimelineTrack } from '@state/timelineStore';
 
 interface Props {
     id: string;
@@ -11,23 +13,7 @@ interface Props {
 }
 
 const MidiTrackSelect: React.FC<Props> = ({ id, value, schema, disabled, title, onChange }) => {
-    const [tracks, setTracks] = useState<TimelineTrack[]>([]);
-
-    useEffect(() => {
-        const fetchTracks = () => {
-            try {
-                const svc = (window as any).mvmntTimelineService;
-                if (svc && typeof svc.getTracks === 'function') {
-                    const all = svc.getTracks() as TimelineTrack[];
-                    setTracks(all.filter((t: any) => t.type === 'midi'));
-                }
-            } catch { }
-        };
-        fetchTracks();
-        const i = setInterval(fetchTracks, 500);
-        return () => clearInterval(i);
-    }, []);
-
+    const tracks = useTimelineStore(selectMidiTracks);
     return (
         <select id={id} value={value || ''} disabled={disabled} title={title} onChange={(e) => onChange(e.target.value || null)}>
             <option value="">Select MIDI Track…</option>

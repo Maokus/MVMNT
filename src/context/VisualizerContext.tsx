@@ -5,6 +5,9 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
 import { TimelineService } from '@core/timing';
+import { useTimelineStore } from '@state/timelineStore';
+import type { TimelineState } from '@state/timelineStore';
+import { selectTimeline } from '@selectors/timelineSelectors';
 
 export interface ExportSettings {
     fps: number;
@@ -47,6 +50,9 @@ interface VisualizerContextValue {
     closeProgress: () => void;
     // Phase 4: expose timeline service to UI
     timelineService: TimelineService;
+    // Phase 2: expose convenience store hooks
+    useTimeline: () => TimelineState['timeline'];
+    useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrub: (to: number) => void; setCurrentTimeSec: (t: number) => void } };
 }
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
@@ -373,6 +379,16 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         progressData,
         closeProgress: () => setShowProgressOverlay(false),
         timelineService,
+        useTimeline: () => useTimelineStore(selectTimeline),
+        useTransport: () => {
+            const transport = useTimelineStore((s) => s.transport);
+            const play = useTimelineStore((s) => s.play);
+            const pause = useTimelineStore((s) => s.pause);
+            const togglePlay = useTimelineStore((s) => s.togglePlay);
+            const scrub = useTimelineStore((s) => s.scrub);
+            const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
+            return { transport, actions: { play, pause, togglePlay, scrub, setCurrentTimeSec } };
+        },
     };
 
     return <VisualizerContext.Provider value={value}>{children}</VisualizerContext.Provider>;
