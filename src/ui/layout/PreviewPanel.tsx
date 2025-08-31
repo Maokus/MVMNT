@@ -7,17 +7,11 @@ import { useTimelineStore } from '@state/timelineStore';
 
 const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
-    const { canvasRef, isPlaying, playPause, stop, stepForward, stepBackward, currentTimeLabel, exportSettings, totalDuration, numericCurrentTime, seekPercent } = ctx;
+    const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
     const { selectElement, sceneBuilder, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
-    // totalDuration already includes pre+base+post. We want 0% at -prePadding.
-    // Use configured timeline view from store; fallback to duration + prePadding
-    const vStart = view?.startSec ?? -(exportSettings.prePadding || 0);
-    const vEnd = view?.endSec ?? ((exportSettings.prePadding || 0) + totalDuration);
-    const vRange = Math.max(0.001, vEnd - vStart);
-    const progressPercent = Math.max(0, Math.min(1, (numericCurrentTime - vStart) / vRange));
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
@@ -54,14 +48,6 @@ const PreviewPanel: React.FC = () => {
         window.addEventListener('resize', compute);
         return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
     }, [width, height]);
-
-    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!seekPercent) return;
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        seekPercent(percent);
-    };
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
@@ -101,36 +87,7 @@ const PreviewPanel: React.FC = () => {
                 ></canvas>
             </div>
 
-            <div className="playback-controls">
-                <button
-                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
-                    onClick={stepBackward}
-                >
-                    ⏪
-                </button>
-                <button
-                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
-                    onClick={playPause}
-                >
-                    {isPlaying ? '⏸️' : '▶️'}
-                </button>
-                <button
-                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
-                    onClick={stepForward}
-                >
-                    ⏩
-                </button>
-                <button
-                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
-                    onClick={stop}
-                >
-                    ⏹️
-                </button>
-                <span className="time-display">{currentTimeLabel}</span>
-                <div className="progress-bar-container" onClick={handleProgressClick}>
-                    <div className="progress-bar-fill" style={{ width: `${Math.max(0, Math.min(100, progressPercent * 100))}%` }}></div>
-                </div>
-            </div>
+            {/* Legacy playback controls removed; use Timeline panel controls instead */}
         </div>
     );
 };

@@ -161,8 +161,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: false } }));
     },
     togglePlay() {
-        const playing = get().transport.isPlaying;
-        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: !playing } }));
+        const wasPlaying = get().transport.isPlaying;
+        // If we are transitioning from stopped->playing, jump to the current view start
+        if (!wasPlaying) {
+            const { startSec } = get().timelineView;
+            get().setCurrentTimeSec(startSec);
+        }
+        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: !wasPlaying } }));
     },
     scrub(to: number) {
         get().setCurrentTimeSec(to);

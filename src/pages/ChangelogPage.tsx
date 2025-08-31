@@ -35,7 +35,7 @@ const ChangelogPage: React.FC = () => {
                             <i>24-08-31</i>
                         </div>
                         <ul className='feature-list'>
-                            <li>Overhauled timing system and added timeline panel</li>
+                            <li>Overhauled timing and midi file handling system and added timeline panel</li>
                             <li>Started using zustand for some state management</li>
                             <li>Migrated over to tailwindcss</li>
                         </ul>

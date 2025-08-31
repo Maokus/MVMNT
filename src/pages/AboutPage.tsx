@@ -31,7 +31,7 @@ const AboutPage: React.FC = () => {
                             <li><strong>Load a MIDI File</strong>: In the macros, click the "Load MIDI" button and select your file.</li>
                             <li><strong>Create / Edit Scene</strong>: Add scene elements (text, images, overlays) and adjust their properties in the right-hand panels.</li>
                             <li><strong>Arrange & Animate</strong>: Use macros / property bindings for dynamic changes or timing-based effects.</li>
-                            <li><strong>Preview Playback</strong>: Use the transport controls below the canvas to scrub and preview synced visuals.</li>
+                            <li><strong>Preview Playback</strong>: Use the Timeline panel's transport and play range inputs to scrub and preview synced visuals.</li>
                             <li><strong>Export</strong>: Trigger export to generate image frames or a compiled video; watch progress in the overlay.</li>
                         </ol>
                     </section>

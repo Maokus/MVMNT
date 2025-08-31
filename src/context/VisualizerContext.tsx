@@ -140,6 +140,14 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 if (vNow > loopEndSec + 1e-4) {
                     visualizer.seek?.(loopStartSec);
                 }
+            } else {
+                // When not looping, clamp playback to timeline view end (user-defined play window)
+                const { endSec } = state.timelineView;
+                if (vNow > endSec + 1e-4) {
+                    visualizer.pause?.();
+                    state.pause();
+                    visualizer.seek?.(endSec);
+                }
             }
             // Mirror into store if drift > small epsilon to avoid feedback churn
             const sNow = state.timeline.currentTimeSec;
