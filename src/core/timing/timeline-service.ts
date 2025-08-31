@@ -39,7 +39,7 @@ export class TimelineService {
     }
 
     // Track management
-    addMidiTrack({
+    async addMidiTrack({
         file,
         midiData,
         name,
@@ -49,7 +49,7 @@ export class TimelineService {
         midiData?: MIDIData;
         name?: string;
         offsetSec?: number;
-    }): string {
+    }): Promise<string> {
         if (!midiData && !file) throw new Error('addMidiTrack requires midiData or file');
         const id = Math.random().toString(36).slice(2);
         const createTrack = (data: MIDIData): TimelineMidiTrack => {
@@ -113,8 +113,12 @@ export class TimelineService {
             return id;
         }
 
-        // If a File was provided, parse synchronously via dynamic import (UI should await caller's promise)
-        throw new Error('File ingestion path to be handled in Phase 3 with midi-library');
+        // File ingestion path using midi-library
+        const { parseMIDIFileToData } = await import('../midi/midi-library');
+        const parsed = await parseMIDIFileToData(file as File);
+        const track = createTrack(parsed);
+        this.timeline.tracks.push(track);
+        return id;
     }
 
     getTracks(): TimelineTrack[] {
