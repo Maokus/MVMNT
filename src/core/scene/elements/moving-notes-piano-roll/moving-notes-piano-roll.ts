@@ -511,6 +511,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
             );
             tl.setOpacity(0);
             br.setOpacity(0);
+            tl.setIncludeInLayoutBounds(true);
+            br.setIncludeInLayoutBounds(true);
             renderObjects.push(tl, br);
         }
 
@@ -524,7 +526,10 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 playheadPosition,
                 playheadOffset
             );
-            (ph as any[]).forEach((l) => l.setOpacity?.(playheadOpacity));
+            (ph as any[]).forEach((l) => {
+                l.setOpacity?.(playheadOpacity);
+                (l as any).setIncludeInLayoutBounds?.(false);
+            });
             renderObjects.push(...ph);
         }
 

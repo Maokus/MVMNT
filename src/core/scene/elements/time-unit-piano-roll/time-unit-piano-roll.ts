@@ -15,8 +15,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
     // BBox cache that stores top-left and bottom-right points for the full-display configuration per time bucket
-    // Keyed by timeBucket (ms). Invalidated when relevant configs change.
-    private _ensureMinBBoxCache: Map<number, { tl: { x: number; y: number }; br: { x: number; y: number } }> =
+    // Keyed by "mode:timeBucketMs". Invalidated when relevant configs change.
+    private _ensureMinBBoxCache: Map<string, { tl: { x: number; y: number }; br: { x: number; y: number } }> =
         new Map();
     private _ensureMinBBoxCacheConfigHash: string | undefined;
     private _currentMidiFile: File | null = null;
@@ -932,7 +932,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 playheadLineWidth,
                 playheadColor
             );
-            (ph as any[]).forEach((l) => l.setOpacity?.(playheadOpacity));
+            (ph as any[]).forEach((l) => {
+                l.setOpacity?.(playheadOpacity);
+                (l as any).setIncludeInLayoutBounds?.(false);
+            });
             renderObjects.push(...ph);
         }
 
@@ -947,13 +950,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 rollWidth: rollWidth || 800,
                 noteHeight,
                 beatsPerBar,
-            });
+            }, 'layout');
 
             if (bbox) {
                 const tl = new EmptyRenderObject(bbox.tl.x - minBBoxPadding, bbox.tl.y - minBBoxPadding, 1, 1, 0);
                 const br = new EmptyRenderObject(bbox.br.x + minBBoxPadding, bbox.br.y + minBBoxPadding, 1, 1, 0);
                 tl.setOpacity(0);
                 br.setOpacity(0);
+                // These anchors exist solely to stabilize layout, so include them in layout bounds
+                tl.setIncludeInLayoutBounds(true);
+                br.setIncludeInLayoutBounds(true);
                 renderObjects.push(tl, br);
             }
         }
@@ -1041,6 +1047,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         for (let note = minNote; note <= maxNote; note++) {
             const y = totalHeight - (note - minNote + 1) * noteHeight;
             const line = new Line(pianoWidth, y, pianoWidth + rollWidth, y, '#333333', 1);
+            (line as any).setIncludeInLayoutBounds?.(false);
             lines.push(line);
         }
 
@@ -1067,6 +1074,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const strokeColor = b.isBarStart ? '#666666' : '#444444';
             const strokeWidth = b.isBarStart ? 2 : 1;
             const line = new Line(x, 0, x, totalHeight, strokeColor, strokeWidth);
+            (line as any).setIncludeInLayoutBounds?.(false);
             lines.push(line);
         }
 
@@ -1090,6 +1098,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const noteName = this.midiManager.getNoteName(note);
 
             const label = new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle');
+            (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
 
@@ -1115,6 +1124,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const x = pianoWidth + rel * rollWidth;
             const bar = b.barNumber;
             const label = new Text(x + 5, -5, `Bar ${bar}`, '12px Arial', '#ffffff', 'left', 'bottom');
+            (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
 
@@ -1170,7 +1180,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             rollWidth: number;
             noteHeight: number;
             beatsPerBar: number;
-        }
+        },
+        mode: 'visual' | 'layout' = 'layout'
     ): { tl: { x: number; y: number }; br: { x: number; y: number } } | undefined {
         // Invalidate cache if the configuration has changed
         const cfgHash = this._computeConfigHashForBBox();
@@ -1179,8 +1190,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this._ensureMinBBoxCacheConfigHash = cfgHash;
         }
 
-        const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-        let cached = this._ensureMinBBoxCache.get(timeBucket);
+    const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
+    const cacheKey = `${mode}:${timeBucket}`;
+    let cached = (this._ensureMinBBoxCache as any).get(cacheKey);
         if (cached) return cached;
 
         const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
@@ -1209,7 +1221,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             ...this._createBeatLabels(windowStart, windowEnd, args.beatsPerBar, args.pianoWidth, args.rollWidth)
         );
 
-        // Compute bounds
+    // Compute bounds
         let minX = Infinity,
             minY = Infinity,
             maxX = -Infinity,
@@ -1217,6 +1229,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         let count = 0;
         for (const obj of fullObjs) {
             if (obj && typeof (obj as any).getBounds === 'function') {
+        if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
                 const b = (obj as any).getBounds();
                 if (
                     b &&
@@ -1242,7 +1255,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             count === 0
                 ? { tl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
                 : { tl: { x: minX, y: minY }, br: { x: maxX, y: maxY } };
-        this._ensureMinBBoxCache.set(timeBucket, cached);
+    (this._ensureMinBBoxCache as any).set(cacheKey, cached);
         return cached;
     }
 

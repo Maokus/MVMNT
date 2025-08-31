@@ -21,8 +21,8 @@ export class SceneElement implements SceneElementInterface {
     // Cache for frequently accessed values
     private _cachedValues: Map<string, any> = new Map();
     private _cacheValid: Map<string, boolean> = new Map();
-    // Cache for computed scene element bounds (per target time bucket)
-    private _boundsCache: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+    // Cache for computed scene element bounds (per target time bucket and mode)
+    private _boundsCache: Map<string, { x: number; y: number; width: number; height: number }> = new Map();
     private _boundsDirty: boolean = true;
 
     private _macroListenerRef?: (eventType: any, data: any) => void;
@@ -311,8 +311,8 @@ export class SceneElement implements SceneElementInterface {
 
         if (childRenderObjects.length === 0) return [];
 
-        // Calculate the bounding box and anchor point for transformation
-        const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime);
+    // Calculate the layout bounding box and anchor point for transformation
+    const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
         const anchorPixelX = bounds.x + bounds.width * this.anchorX;
         const anchorPixelY = bounds.y + bounds.height * this.anchorY;
 
@@ -339,7 +339,7 @@ export class SceneElement implements SceneElementInterface {
             }
         }
 
-        // Store the untransformed aggregate bounds for later transform math (selection, handles)
+    // Store the untransformed aggregate bounds for later transform math (selection, handles)
         // (Consumers can compute oriented bounding boxes using element transform parameters.)
         (containerObject as any).baseBounds = { ...bounds };
         (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
@@ -372,7 +372,10 @@ export class SceneElement implements SceneElementInterface {
     /**
      * Calculate the bounding box of all child render objects
      */
-    private _calculateSceneElementBounds(renderObjects: RenderObject[]): {
+    private _calculateSceneElementBounds(
+        renderObjects: RenderObject[],
+        mode: 'visual' | 'layout' = 'layout'
+    ): {
         x: number;
         y: number;
         width: number;
@@ -388,8 +391,10 @@ export class SceneElement implements SceneElementInterface {
         let maxY = -Infinity;
         let validBoundsCount = 0;
 
-        for (const obj of renderObjects) {
+    for (const obj of renderObjects) {
             if (obj && typeof obj.getBounds === 'function') {
+        // Skip if computing layout bounds and object opts out
+        if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
                 const bounds = obj.getBounds();
                 if (this._validateBounds(bounds, obj)) {
                     minX = Math.min(minX, bounds.x);
@@ -420,24 +425,26 @@ export class SceneElement implements SceneElementInterface {
      */
     private _getCachedSceneElementBounds(
         renderObjects: RenderObject[],
-        targetTime: number
+        targetTime: number,
+        mode: 'visual' | 'layout' = 'layout'
     ): { x: number; y: number; width: number; height: number } {
         const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-        if (!this._boundsDirty && this._boundsCache.has(timeBucket)) {
-            const cached = this._boundsCache.get(timeBucket)!;
+        const cacheKey = `${mode}:${timeBucket}`;
+        if (!this._boundsDirty && this._boundsCache.has(cacheKey)) {
+            const cached = this._boundsCache.get(cacheKey)!;
             return { ...cached };
         }
 
-        const computed = this._calculateSceneElementBounds(renderObjects);
+        const computed = this._calculateSceneElementBounds(renderObjects, mode);
 
-        // Update cache and mark clean
-        this._boundsCache.set(timeBucket, computed);
+        // Update cache and mark clean for this mode/time
+        this._boundsCache.set(cacheKey, computed);
         this._boundsDirty = false;
 
-        // Prune cache to a small size to prevent growth
-        const MAX_ENTRIES = 8;
+        // Prune cache to a small size to prevent growth (per mode/time entries)
+        const MAX_ENTRIES = 16;
         if (this._boundsCache.size > MAX_ENTRIES) {
-            const keys = Array.from(this._boundsCache.keys()).sort((a, b) => a - b);
+            const keys = Array.from(this._boundsCache.keys()).sort();
             while (this._boundsCache.size > MAX_ENTRIES) {
                 const k = keys.shift();
                 if (typeof k !== 'undefined') this._boundsCache.delete(k);

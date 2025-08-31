@@ -24,6 +24,11 @@ export abstract class RenderObject {
     visible: boolean;
     rotation: number;
     children: RenderObject[]; // public to satisfy RenderObjectInterface
+    /**
+     * When true (default), this render object is considered when computing layout bounds.
+     * When false, it is ignored in layout bounds, but still counted for visual bounds.
+     */
+    includeInLayoutBounds: boolean;
 
     constructor(x = 0, y = 0, scaleX = 1, scaleY = 1, opacity = 1) {
         this.x = x;
@@ -36,6 +41,7 @@ export abstract class RenderObject {
         this.visible = true;
         this.rotation = 0; // Rotation in radians
         this.children = []; // Array of child render objects
+        this.includeInLayoutBounds = true;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */
@@ -97,6 +103,11 @@ export abstract class RenderObject {
     }
     setRotation(rotation: number): this {
         this.rotation = rotation;
+        return this;
+    }
+    /** Control if this object contributes to layout bounds (visual bounds always include all). */
+    setIncludeInLayoutBounds(include: boolean): this {
+        this.includeInLayoutBounds = include;
         return this;
     }
     addChild(child: (RenderObject & { [key: string]: any }) | null | undefined): this {
