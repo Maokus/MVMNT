@@ -1,4 +1,5 @@
 import { RenderObject, RenderConfig, Bounds } from './base';
+import { applyRSK } from '@math/numeric';
 
 interface AnchorVisualizationData {
     layoutBounds: Bounds;
@@ -137,41 +138,29 @@ export class EmptyRenderObject extends RenderObject {
         const anchorFrac = this.anchorFraction || { x: 0.5, y: 0.5 };
         const anchorX = b.x + b.width * anchorFrac.x;
         const anchorY = b.y + b.height * anchorFrac.y;
-        const sin = Math.sin(this.rotation || 0);
-        const cos = Math.cos(this.rotation || 0);
-        const skewX = Math.tan(this.skewX || 0);
-        const skewY = Math.tan(this.skewY || 0);
-        const sx = this.scaleX || 1;
-        const sy = this.scaleY || 1;
-        const multiply = (m1: any, m2: any) => ({
-            a: m1.a * m2.a + m1.c * m2.b,
-            b: m1.b * m2.a + m1.d * m2.b,
-            c: m1.a * m2.c + m1.c * m2.d,
-            d: m1.b * m2.c + m1.d * m2.d,
-            e: m1.a * m2.e + m1.c * m2.f + m1.e,
-            f: m1.b * m2.e + m1.d * m2.f + m1.f,
-        });
-        const T = (tx: number, ty: number) => ({ a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
-        const R = (cs: number, sn: number) => ({ a: cs, b: sn, c: -sn, d: cs, e: 0, f: 0 });
-        const S = (sx: number, sy: number) => ({ a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
-        const K = (kx: number, ky: number) => ({ a: 1, b: ky, c: kx, d: 1, e: 0, f: 0 });
-        let M = T(this.x, this.y);
-        M = multiply(M, T(anchorX, anchorY));
-        M = multiply(M, R(cos, sin));
-        M = multiply(M, S(sx, sy));
-        M = multiply(M, K(skewX, skewY));
-        M = multiply(M, T(-anchorX, -anchorY));
-        const corners: [number, number][] = [
-            [b.x, b.y],
-            [b.x + b.width, b.y],
-            [b.x + b.width, b.y + b.height],
-            [b.x, b.y + b.height],
+
+        // Transform a point by rotating/skewing/scaling about the anchor, then translating by this.x/this.y
+        const txPoint = (px: number, py: number) => {
+            const dx = px - anchorX;
+            const dy = py - anchorY;
+            const v = applyRSK(
+                dx,
+                dy,
+                this.rotation || 0,
+                this.skewX || 0,
+                this.skewY || 0,
+                this.scaleX || 1,
+                this.scaleY || 1
+            );
+            return { x: anchorX + this.x + v.x, y: anchorY + this.y + v.y };
+        };
+
+        const worldCorners = [
+            txPoint(b.x, b.y),
+            txPoint(b.x + b.width, b.y),
+            txPoint(b.x + b.width, b.y + b.height),
+            txPoint(b.x, b.y + b.height),
         ];
-        const txPt = (pt: [number, number]) => ({
-            x: M.a * pt[0] + M.c * pt[1] + M.e,
-            y: M.b * pt[0] + M.d * pt[1] + M.f,
-        });
-        const worldCorners = corners.map(txPt);
         let minX = Infinity,
             minY = Infinity,
             maxX = -Infinity,
