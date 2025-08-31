@@ -104,6 +104,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], midiSourceId: id } } }));
         }
 
+        // Notify UI that a new track was added (for auto-binding defaults)
+        try {
+            window.dispatchEvent(new CustomEvent('timeline-track-added', { detail: { trackId: id } }));
+        } catch {}
         return id;
     },
 

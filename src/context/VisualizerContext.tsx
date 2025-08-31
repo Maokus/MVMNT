@@ -109,6 +109,25 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             (window as any).debugVisualizer = vis;
             // Expose timeline service globally for non-React consumers (scene elements)
             try { (window as any).mvmntTimelineService = timelineService; } catch { }
+            // Auto-bind first timeline track to default piano roll if none assigned
+            try {
+                const st = useTimelineStore.getState();
+                const firstTrackId = st.tracksOrder.find((id) => st.tracks[id]?.type === 'midi');
+                if (firstTrackId) {
+                    const sb = vis.getSceneBuilder?.();
+                    const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
+                    const roll: any = rolls[0];
+                    if (roll) {
+                        const ids = roll.getProperty?.('midiTrackIds');
+                        const id = roll.getProperty?.('midiTrackId');
+                        const hasIds = Array.isArray(ids) && ids.length > 0;
+                        const hasId = !!id;
+                        if (!hasIds && !hasId) {
+                            roll.updateConfig?.({ midiTrackId: firstTrackId });
+                        }
+                    }
+                }
+            } catch { }
             // Sync initial fps/width/height from scene builder settings
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
@@ -125,6 +144,29 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             } catch { }
         }
     }, [visualizer]);
+
+    // Auto-bind first newly added track if default piano roll has no selection yet
+    useEffect(() => {
+        const onAdded = (e: any) => {
+            try {
+                const vis = (window as any).debugVisualizer;
+                const sb = vis?.getSceneBuilder?.();
+                const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
+                const roll: any = rolls[0];
+                if (!roll) return;
+                const ids = roll.getProperty?.('midiTrackIds');
+                const id = roll.getProperty?.('midiTrackId');
+                const hasIds = Array.isArray(ids) && ids.length > 0;
+                const hasId = !!id;
+                if (!hasIds && !hasId) {
+                    const trackId = e?.detail?.trackId;
+                    if (trackId) roll.updateConfig?.({ midiTrackId: trackId });
+                }
+            } catch { }
+        };
+        window.addEventListener('timeline-track-added', onAdded as EventListener);
+        return () => window.removeEventListener('timeline-track-added', onAdded as EventListener);
+    }, []);
 
     // Animation / time update loop — mirror visualizer time into store and update UI
     useEffect(() => {
