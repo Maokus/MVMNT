@@ -127,6 +127,34 @@ export class TimelineService {
     getTrack(id: string): TimelineTrack | undefined {
         return this.timeline.tracks.find((t) => t.id === id);
     }
+    updateTrack(
+        id: string,
+        patch: Partial<
+            Pick<TimelineTrack, 'name' | 'offsetSec' | 'enabled' | 'mute' | 'solo' | 'regionStartSec' | 'regionEndSec'>
+        >
+    ): boolean {
+        const t = this.getTrack(id) as any;
+        if (!t) return false;
+        if ('name' in patch && typeof patch.name === 'string') t.name = patch.name;
+        if ('offsetSec' in patch && typeof patch.offsetSec === 'number') t.offsetSec = patch.offsetSec;
+        if ('enabled' in patch && typeof patch.enabled === 'boolean') t.enabled = patch.enabled;
+        if ('mute' in patch && typeof patch.mute === 'boolean') t.mute = patch.mute;
+        if ('solo' in patch && typeof patch.solo === 'boolean') t.solo = patch.solo;
+        if ('regionStartSec' in patch) t.regionStartSec = patch.regionStartSec as number | undefined;
+        if ('regionEndSec' in patch) t.regionEndSec = patch.regionEndSec as number | undefined;
+        return true;
+    }
+    removeTrack(id: string): boolean {
+        const i = this.timeline.tracks.findIndex((t) => t.id === id);
+        if (i >= 0) {
+            this.timeline.tracks.splice(i, 1);
+            return true;
+        }
+        return false;
+    }
+    clearAllTracks() {
+        this.timeline.tracks = [];
+    }
 
     // Mapping helpers
     map = {

@@ -334,6 +334,21 @@ export class HybridSceneBuilder {
         } catch {}
         if (!bindingVersion && typeof process !== 'undefined')
             bindingVersion = (process as any).env?.REACT_APP_BINDING_VERSION;
+        // Optional: include a minimal timeline spec if available via window service
+        let timeline: any = undefined;
+        try {
+            const tl = (window as any).mvmntTimelineService;
+            if (tl && typeof tl.getTracks === 'function') {
+                const tracks = tl.getTracks()?.map((t: any) => ({
+                    id: t.id,
+                    name: t.name,
+                    type: t.type,
+                    offsetSec: t.offsetSec || 0,
+                    // Do not serialize full midiData by default to keep files small
+                }));
+                timeline = { tracks };
+            }
+        } catch {}
         return {
             version,
             elements: serialized,
@@ -341,6 +356,7 @@ export class HybridSceneBuilder {
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: bindingVersion,
             sceneSettings: { ...this.config },
+            timeline,
         };
     }
     loadScene(sceneData: any) {

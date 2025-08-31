@@ -509,6 +509,13 @@ export class MIDIVisualizerCore {
     getAvailableSceneElementTypes() {
         return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
     }
+    getTimelineService() {
+        try {
+            return (window as any).mvmntTimelineService;
+        } catch {
+            return undefined;
+        }
+    }
     addSceneElement(type: string, config: any = {}) {
         const element = this.sceneBuilder.addElementFromRegistry(type, config);
         if (element) this.invalidateRender();
@@ -545,6 +552,29 @@ export class MIDIVisualizerCore {
                         })
                     );
                 } catch {}
+            }
+            // Optional: seed timeline from sceneData.timeline if present
+            const timelineSpec = (sceneData as any)?.timeline;
+            const tl = this.getTimelineService();
+            if (tl && timelineSpec && Array.isArray(timelineSpec.tracks)) {
+                (async () => {
+                    try {
+                        tl.clearAllTracks();
+                        // Only MIDI seed supported for now
+                        for (const tr of timelineSpec.tracks) {
+                            if (tr?.type === 'midi' && (tr.midiData || tr.file)) {
+                                await tl.addMidiTrack({
+                                    midiData: tr.midiData,
+                                    file: tr.file,
+                                    name: tr.name,
+                                    offsetSec: tr.offsetSec || 0,
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to seed timeline from scene data:', e);
+                    }
+                })();
             }
         } catch (e) {
             console.warn('Failed applying scene settings', e);
@@ -588,6 +618,10 @@ export class MIDIVisualizerCore {
     }
     resetToDefaultScene() {
         this.sceneBuilder.createDefaultMIDIScene();
+        // Clear timeline tracks on reset
+        try {
+            this.getTimelineService()?.clearAllTracks?.();
+        } catch {}
         const settings = this.sceneBuilder.getSceneSettings();
         try {
             this.canvas?.dispatchEvent(
