@@ -18,8 +18,8 @@ export class EmptyRenderObject extends RenderObject {
         super(x, y, scaleX, scaleY, opacity);
         this.anchorOffsetX = 0;
         this.anchorOffsetY = 0;
-    // By default an empty container shouldn't affect layout bounds unless explicitly opted-in
-    this.includeInLayoutBounds = false;
+        // By default an empty container shouldn't affect layout bounds unless explicitly opted-in
+        this.includeInLayoutBounds = false;
     }
 
     setAnchorOffset(anchorOffsetX: number, anchorOffsetY: number): this {
@@ -55,7 +55,7 @@ export class EmptyRenderObject extends RenderObject {
         }
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
         for (const child of this.getChildren()) child.render(ctx, config, currentTime);
-    if (config.showAnchorPoints && this.anchorVisualizationData) {
+        if (config.showAnchorPoints && this.anchorVisualizationData) {
             this.renderAnchorVisualization(
                 ctx,
                 this.anchorVisualizationData.bounds,

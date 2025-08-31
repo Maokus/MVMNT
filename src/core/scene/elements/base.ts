@@ -311,8 +311,8 @@ export class SceneElement implements SceneElementInterface {
 
         if (childRenderObjects.length === 0) return [];
 
-    // Calculate the layout bounding box and anchor point for transformation
-    const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
+        // Calculate the layout bounding box and anchor point for transformation
+        const bounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
         const anchorPixelX = bounds.x + bounds.width * this.anchorX;
         const anchorPixelY = bounds.y + bounds.height * this.anchorY;
 
@@ -339,7 +339,7 @@ export class SceneElement implements SceneElementInterface {
             }
         }
 
-    // Store the untransformed aggregate bounds for later transform math (selection, handles)
+        // Store the untransformed aggregate bounds for later transform math (selection, handles)
         // (Consumers can compute oriented bounding boxes using element transform parameters.)
         (containerObject as any).baseBounds = { ...bounds };
         (containerObject as any).anchorFraction = { x: this.anchorX, y: this.anchorY };
@@ -391,10 +391,10 @@ export class SceneElement implements SceneElementInterface {
         let maxY = -Infinity;
         let validBoundsCount = 0;
 
-    for (const obj of renderObjects) {
+        for (const obj of renderObjects) {
             if (obj && typeof obj.getBounds === 'function') {
-        // Skip if computing layout bounds and object opts out
-        if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
+                // Skip if computing layout bounds and object opts out
+                if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
                 const bounds = obj.getBounds();
                 if (this._validateBounds(bounds, obj)) {
                     minX = Math.min(minX, bounds.x);

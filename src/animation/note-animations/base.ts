@@ -20,6 +20,13 @@ export abstract class BaseNoteAnimation {
     // Entry point for any concrete animation
     abstract render(ctx: AnimationContext): RenderObject[];
 
+    // Helper to mark all returned render objects as non-layout by default
+    protected markNonLayout<T extends RenderObject>(objs: T[] | null | undefined): T[] {
+        if (!objs) return [] as T[];
+        for (const o of objs) (o as any).setIncludeInLayoutBounds?.(false);
+        return objs;
+    }
+
     // Utilities
     protected brighten(color: string, factor = 1.3): string {
         if (color.startsWith('#')) {

@@ -16,18 +16,18 @@ export class SlideAnimation extends BaseNoteAnimation {
                 dx = width * (1 - easingFunctions.easeOutExpo(p));
                 rectangle.x = x - dx;
                 rectangle.opacity = af.lerp(0, 1, progress);
-                return [rectangle];
+                return this.markNonLayout([rectangle]);
             case 'decay':
-                return [rectangle];
+                return this.markNonLayout([rectangle]);
             case 'sustain':
-                return [rectangle];
+                return this.markNonLayout([rectangle]);
             case 'release':
                 dx = width * easingFunctions.easeInExpo(p);
                 rectangle.x = x + dx;
                 rectangle.opacity = af.lerp(1, 0, progress);
-                return [rectangle];
+                return this.markNonLayout([rectangle]);
             default:
-                return [rectangle];
+                return this.markNonLayout([rectangle]);
         }
     }
 }

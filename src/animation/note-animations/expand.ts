@@ -14,17 +14,17 @@ export class ExpandAnimation extends BaseNoteAnimation {
             }
             case 'decay': {
                 const w = Math.max(1, width * easingFunctions.easeOutQuint(p));
-                return [new Rectangle(x, y, w, height, color)];
+                return this.markNonLayout([new Rectangle(x, y, w, height, color)]);
             }
             case 'sustain': {
-                return [new Rectangle(x, y, width, height, color)];
+                return this.markNonLayout([new Rectangle(x, y, width, height, color)]);
             }
             case 'release': {
                 const w = Math.max(1, width * (1 - easingFunctions.easeOutExpo(p)));
-                return [new Rectangle(x + width - w, y, w, height, color)];
+                return this.markNonLayout([new Rectangle(x + width - w, y, w, height, color)]);
             }
             default:
-                return [new Rectangle(x, y, width, height, color)];
+                return this.markNonLayout([new Rectangle(x, y, width, height, color)]);
         }
     }
 }

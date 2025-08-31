@@ -765,9 +765,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
         this.midiManager.setBPM(bpm);
         this.midiManager.setBeatsPerBar(beatsPerBar);
 
+        // Compute overall content extents (for layout bounds and optional backgrounds)
+        const totalHeight = (maxNote - minNote + 1) * noteHeight;
+        const totalWidth = (showPiano ? pianoWidth : 0) + (rollWidth || 800);
+
+        // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
+        // This prevents jitter when other decorative elements toggle or animations change.
+        const layoutBoundsRect = new Rectangle(0, 0, totalWidth, totalHeight, null, null, 0);
+        (layoutBoundsRect as any).setIncludeInLayoutBounds?.(true);
+        // No fill/stroke, so it's not drawn, but it contributes to layout bounds via getBounds().
+        renderObjects.push(layoutBoundsRect);
+
         // Optionally draw the piano strip background first so notes/grids render on top
         if (showPiano) {
-            const totalHeight = (maxNote - minNote + 1) * noteHeight;
             for (let n = maxNote, i = 0; n >= minNote; n--, i++) {
                 const y = i * noteHeight;
                 const pc = n % 12;
@@ -822,6 +832,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const noteGlowOpacity = this.getProperty<number>('noteGlowOpacity') ?? 0.5;
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
+                // Animation-generated objects should not affect layout bounds
+                (obj as any).setIncludeInLayoutBounds?.(false);
                 if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0) {
                     obj.setCornerRadius(noteCornerRadius);
                 }
@@ -942,15 +954,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Optionally ensure minimum bounding box by adding two empty render objects at the cached TL/BR of the
         // full-display configuration (as if all Display toggles were true). This reduces jumping when grids/lines are toggled.
         if (ensureMinBBox) {
-            const bbox = this._getOrComputeMinBBox(effectiveTime, {
-                timeUnitBars,
-                minNote,
-                maxNote,
-                pianoWidth,
-                rollWidth: rollWidth || 800,
-                noteHeight,
-                beatsPerBar,
-            }, 'layout');
+            const bbox = this._getOrComputeMinBBox(
+                effectiveTime,
+                {
+                    timeUnitBars,
+                    minNote,
+                    maxNote,
+                    pianoWidth,
+                    rollWidth: rollWidth || 800,
+                    noteHeight,
+                    beatsPerBar,
+                },
+                'layout'
+            );
 
             if (bbox) {
                 const tl = new EmptyRenderObject(bbox.tl.x - minBBoxPadding, bbox.tl.y - minBBoxPadding, 1, 1, 0);
@@ -1190,9 +1206,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
             this._ensureMinBBoxCacheConfigHash = cfgHash;
         }
 
-    const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
-    const cacheKey = `${mode}:${timeBucket}`;
-    let cached = (this._ensureMinBBoxCache as any).get(cacheKey);
+        const timeBucket = Math.floor((isFinite(targetTime) ? targetTime : 0) * 1000);
+        const cacheKey = `${mode}:${timeBucket}`;
+        let cached = (this._ensureMinBBoxCache as any).get(cacheKey);
         if (cached) return cached;
 
         const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
@@ -1221,7 +1237,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             ...this._createBeatLabels(windowStart, windowEnd, args.beatsPerBar, args.pianoWidth, args.rollWidth)
         );
 
-    // Compute bounds
+        // Compute bounds
         let minX = Infinity,
             minY = Infinity,
             maxX = -Infinity,
@@ -1229,7 +1245,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         let count = 0;
         for (const obj of fullObjs) {
             if (obj && typeof (obj as any).getBounds === 'function') {
-        if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
+                if (mode === 'layout' && (obj as any).includeInLayoutBounds === false) continue;
                 const b = (obj as any).getBounds();
                 if (
                     b &&
@@ -1255,7 +1271,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             count === 0
                 ? { tl: { x: 0, y: 0 }, br: { x: 0, y: 0 } }
                 : { tl: { x: minX, y: minY }, br: { x: maxX, y: maxY } };
-    (this._ensureMinBBoxCache as any).set(cacheKey, cached);
+        (this._ensureMinBBoxCache as any).set(cacheKey, cached);
         return cached;
     }
 
