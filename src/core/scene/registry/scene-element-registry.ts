@@ -9,6 +9,7 @@ import {
     TextOverlayElement,
     TimeDisplayElement,
     DebugElement,
+    NotesPlayedTrackerElement,
 } from '@core/scene/elements';
 
 export interface SceneElementFactorySchema {
@@ -102,6 +103,12 @@ export class SceneElementRegistry {
             'debug',
             (config) => new DebugElement(config.id || 'debug', config),
             DebugElement.getConfigSchema()
+        );
+
+        this.registerElement(
+            'notesPlayedTracker',
+            (config) => new NotesPlayedTrackerElement(config.id || 'notesPlayedTracker', config),
+            NotesPlayedTrackerElement.getConfigSchema()
         );
     }
 }
