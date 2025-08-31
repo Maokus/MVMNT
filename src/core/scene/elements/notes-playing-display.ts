@@ -41,6 +41,12 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     properties: [
                         { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
+                        {
+                            key: 'showAllAvailableTracks',
+                            type: 'boolean',
+                            label: 'Show All Available Tracks',
+                            default: false,
+                        },
                     ],
                 },
                 {
@@ -107,6 +113,14 @@ export class NotesPlayingDisplayElement extends SceneElement {
             byChannel.set(n.channel, arr);
         }
 
+        // Compute all channels present in the loaded MIDI file
+        const allChannelsSet = new Set<number>();
+        for (const n of notesRaw) {
+            const ch = typeof n.channel === 'number' ? n.channel : 0;
+            allChannelsSet.add(ch);
+        }
+        const showAll = !!this.getProperty('showAllAvailableTracks');
+
         // Appearance
         const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
@@ -153,7 +167,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         };
 
         let y = 0;
-        if (byChannel.size === 0 || actualTime < 0) {
+        if ((byChannel.size === 0 || actualTime < 0) && (!showAll || allChannelsSet.size === 0)) {
             const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
             // Placeholder when nothing is playing
             const placeholderLeft = justification === 'left';
@@ -182,9 +196,11 @@ export class NotesPlayingDisplayElement extends SceneElement {
         }
 
         const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
-        const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
+        const sortedChannels = (showAll ? Array.from(allChannelsSet) : Array.from(byChannel.keys())).sort(
+            (a, b) => a - b
+        );
         for (const ch of sortedChannels) {
-            const list = byChannel.get(ch)!;
+            const list = byChannel.get(ch) || [];
             list.sort((a, b) => a.note - b.note || a.vel - b.vel);
             const parts = list.map((n) => `Note: ${noteName(n.note)} (Vel: ${Math.max(0, Math.min(127, n.vel))})`);
 
@@ -192,23 +208,29 @@ export class NotesPlayingDisplayElement extends SceneElement {
                 // Left-justified: Track > Note
                 const staticPrefix = `Track ${ch + 1} > `;
                 const staticObj = new Text(0, y, staticPrefix, font, color, 'left', 'top');
-                const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'left', 'top', {
-                    includeInLayoutBounds: false,
-                });
-                // place dynamic after static by measuring static width
-                dynamicObj.x = measureWidth(staticPrefix, font);
-                renderObjects.push(staticObj, dynamicObj);
+                renderObjects.push(staticObj);
+                if (parts.length > 0) {
+                    const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'left', 'top', {
+                        includeInLayoutBounds: false,
+                    });
+                    // place dynamic after static by measuring static width
+                    dynamicObj.x = measureWidth(staticPrefix, font);
+                    renderObjects.push(dynamicObj);
+                }
             } else {
                 // Right-justified: Note < Track
                 const staticSuffix = ` < Track ${ch + 1}`;
                 const staticObj = new Text(0, y, staticSuffix, font, color, 'right', 'top');
-                const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'right', 'top', {
-                    includeInLayoutBounds: false,
-                });
-                // place dynamic to the left of static by measuring static width
-                dynamicObj.x = -measureWidth(staticSuffix, font);
-                // draw dynamic then static so the visual order matches anchor
-                renderObjects.push(dynamicObj, staticObj);
+                if (parts.length > 0) {
+                    const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'right', 'top', {
+                        includeInLayoutBounds: false,
+                    });
+                    // place dynamic to the left of static by measuring static width
+                    dynamicObj.x = -measureWidth(staticSuffix, font);
+                    // draw dynamic then static so the visual order matches anchor
+                    renderObjects.push(dynamicObj);
+                }
+                renderObjects.push(staticObj);
             }
             y += fontSize + lineSpacing;
         }
