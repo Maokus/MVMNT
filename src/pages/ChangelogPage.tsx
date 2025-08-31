@@ -26,6 +26,18 @@ const ChangelogPage: React.FC = () => {
 
                     <section>
                         <div style={{ marginBottom: "8px" }}>
+                            <h2 style={{ marginBottom: "-3px" }}>v0.11.4</h2>
+                            <i>24-08-31</i>
+                        </div>
+                        <ul className='feature-list'>
+                            <li>Changed bounding box handling logic (Created includeInLayoutBounds flag to reduce layout jitter)</li>
+                            <li>Cleaned up some renderObject logic</li>
+
+                        </ul>
+                    </section>
+
+                    <section>
+                        <div style={{ marginBottom: "8px" }}>
                             <h2 style={{ marginBottom: "-3px" }}>v0.11.3</h2>
                             <i>24-08-25</i>
                         </div>

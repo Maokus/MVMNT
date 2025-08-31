@@ -53,17 +53,24 @@ export class DebugElement extends SceneElement {
         const rect2 = new Rectangle(50, 50, 50, 50, '#00ff00');
         const rect3 = new Rectangle(100, 100, 50, 50, '#0000ff');
         const rect4 = new Rectangle(150, 150, 50, 50, '#ffff00');
+        const rect5 = new Rectangle(0, 0, 50, 50, '#ff00ff');
+
+        rect2.setIncludeInLayoutBounds(false);
         rect3.setScale(2, 1);
         rect4.setRotation(45);
         rect4.x = 200;
-        rect2.setIncludeInLayoutBounds(false);
         rect4.setIncludeInLayoutBounds(false);
+
+        rect5.setRotation(180);
+        rect5.setIncludeInLayoutBounds(false);
+
         empty1.addChild(rect1);
         empty1.addChild(rect2);
         empty1.addChild(rect3);
         empty1.addChild(rect4);
+        empty1.addChild(rect5);
         empty1.setIncludeInLayoutBounds(true);
-        objects.push(rect1, rect2, rect3, rect4);
+        objects.push(rect1, rect2, rect3, rect4, rect5);
         return objects;
     }
 
