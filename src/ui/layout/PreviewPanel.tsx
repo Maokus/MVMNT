@@ -99,12 +99,30 @@ const PreviewPanel: React.FC = () => {
             </div>
 
             <div className="playback-controls">
-                <button className="btn btn-secondary" onClick={stepBackward}>⏪</button>
-                <button className="btn btn-primary" onClick={playPause}>
+                <button
+                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
+                    onClick={stepBackward}
+                >
+                    ⏪
+                </button>
+                <button
+                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
+                    onClick={playPause}
+                >
                     {isPlaying ? '⏸️' : '▶️'}
                 </button>
-                <button className="btn btn-secondary" onClick={stepForward}>⏩</button>
-                <button className="btn btn-secondary" onClick={stop}>⏹️</button>
+                <button
+                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
+                    onClick={stepForward}
+                >
+                    ⏩
+                </button>
+                <button
+                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
+                    onClick={stop}
+                >
+                    ⏹️
+                </button>
                 <span className="time-display">{currentTimeLabel}</span>
                 <div className="progress-bar-container" onClick={handleProgressClick}>
                     <div className="progress-bar-fill" style={{ width: `${Math.max(0, Math.min(100, progressPercent * 100))}%` }}></div>

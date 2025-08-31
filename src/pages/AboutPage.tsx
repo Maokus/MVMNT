@@ -14,7 +14,12 @@ const AboutPage: React.FC = () => {
         <div className="app-container about-page-root">
             <main className="about-container">
                 <div className="about-content">
-                    <Link to="/" className="btn btn-primary" style={{ float: 'right' }}>Return to App</Link>
+                    <Link
+                        to="/"
+                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] float-right"
+                    >
+                        Return to App
+                    </Link>
                     <h1>MVMNT v{((import.meta as any).env?.VITE_VERSION)}</h1>
                     <p className="lead" style={{ marginLeft: "20px" }}>
                         MVMNT (Pronounced movement) is a free and open-source MIDI Visualization tool by <a href='https://maok.us' target='_blank'>Maokus</a>.
@@ -82,12 +87,17 @@ const AboutPage: React.FC = () => {
                     </section>
 
                     <div className="about-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
-                        <Link to="/" className="btn btn-primary">Return to App</Link>
+                        <Link
+                            to="/"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
+                        >
+                            Return to App
+                        </Link>
                         <a
                             href='https://maok.us/discord'
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="btn btn-secondary"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center text-white hover:opacity-90"
                             style={{
                                 margin: '4px 0',
                                 backgroundColor: '#5865F2', // Discord blurple
@@ -108,7 +118,7 @@ const AboutPage: React.FC = () => {
                             href='https://github.com/Maokus/mvmnt'
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="btn btn-secondary"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center text-white hover:opacity-90"
                             style={{
                                 margin: '4px 0',
                                 backgroundColor: '#24292f', // GitHub dark
@@ -130,7 +140,7 @@ const AboutPage: React.FC = () => {
                             href='https://ko-fi.com/maokus'
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="btn btn-secondary"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center text-white hover:opacity-90"
                             style={{
                                 margin: '4px 0',
                                 backgroundColor: '#24292f', // GitHub dark

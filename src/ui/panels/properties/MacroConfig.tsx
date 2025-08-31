@@ -303,7 +303,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                         />
                         <button
                             type="button"
-                            className="btn btn-file"
+                            className="px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700"
                             onClick={() => document.getElementById(`macro-file-${macro.name}`)?.click()}
                         >
                             📁 Choose File
@@ -343,14 +343,14 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
                         <button
-                            className="btn-icon"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
                             onClick={() => handleShowAssignmentDialog(macro.name)}
                             title="Manage Assignments"
                         >
                             🔗
                         </button>
                         <button
-                            className="btn-icon"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
                             onClick={() => handleDeleteMacro(macro.name)}
                             title="Delete Macro"
                         >
@@ -376,7 +376,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             <div className="macro-header">
                 <h4>🎛️ Macros</h4>
                 <button
-                    className="btn btn-add macro-add-btn"
+                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb]"
                     onClick={() => setShowCreateDialog(true)}
                 >
                     + Add Macro
@@ -502,11 +502,14 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                             </div>
                         )}
                         <div className="dialog-actions">
-                            <button className="btn btn-primary" onClick={handleCreateMacro}>
+                            <button
+                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
+                                onClick={handleCreateMacro}
+                            >
                                 Create
                             </button>
                             <button
-                                className="btn btn-secondary"
+                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
                                 onClick={() => setShowCreateDialog(false)}
                             >
                                 Cancel

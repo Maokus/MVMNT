@@ -40,15 +40,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                     <div className="download-section">
                         <a
                             href={downloadUrl}
-                            className="download-btn"
+                            className="inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
                             download={filename}
                         >
                             ⬇ Download PNG Sequence
                         </a>
                         <button
-                            className="btn btn-secondary"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400 ml-[10px]"
                             onClick={onClose}
-                            style={{ marginLeft: '10px' }}
                         >
                             Close
                         </button>

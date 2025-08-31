@@ -228,15 +228,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                 const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
                                 return (
                                     <button
-                                        className="btn-export"
+                                        className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
                                         onClick={() => onExport(exportSettings)}
                                         disabled={!canExport || invalidRange}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px 16px',
-                                            fontSize: '14px',
-                                            fontWeight: 'bold'
-                                        }}
                                         title={invalidRange ? 'Start time must be less than end time' : ''}
                                     >
                                         📸 Export PNG Sequence
@@ -247,15 +241,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                 const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
                                 return (
                                     <button
-                                        className="btn-export"
+                                        className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
                                         onClick={() => onExportVideo && onExportVideo(exportSettings)}
                                         disabled={!canExport || !onExportVideo || invalidRange}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px 16px',
-                                            fontSize: '14px',
-                                            fontWeight: 'bold'
-                                        }}
                                         title={!onExportVideo ? 'Video export not available' : (invalidRange ? 'Start time must be less than end time' : '')}
                                     >
                                         🎬 Export MP4 Video

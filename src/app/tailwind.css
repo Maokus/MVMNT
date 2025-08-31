@@ -139,48 +139,7 @@
         @apply absolute top-full right-0 z-[1001] mt-1;
     }
 
-    .btn {
-        @apply px-3 py-1 border rounded cursor-pointer text-xs font-medium transition text-neutral-300 inline-flex items-center justify-center;
-        background-color: var(--twc-control);
-        border-color: var(--twc-control2);
-    }
-    .btn:hover {
-        @apply border-neutral-500;
-        background-color: var(--twc-control2);
-    }
-    .btn-primary {
-        @apply bg-[#0e639c] border-[#1177bb] text-white;
-    }
-    .btn-primary:hover {
-        @apply bg-[#1177bb] border-[#1890d4];
-    }
-    .btn-secondary {
-        @apply bg-neutral-600 border-neutral-500;
-    }
-    .btn-secondary:hover {
-        @apply bg-neutral-500 border-neutral-400;
-    }
-    .btn-success {
-        @apply bg-[#196127] border-[#2d7a3d] text-white;
-    }
-    .btn-success:hover {
-        @apply bg-[#2d7a3d] border-[#3d8a4d];
-    }
-    .btn-warning {
-        @apply bg-[#b8860b] border-[#daa520] text-white;
-    }
-    .btn-warning:hover {
-        @apply bg-[#daa520] border-[#ffb347];
-    }
-    .btn-export {
-        @apply bg-violet-500 border-violet-400 text-white px-4 py-1.5 font-semibold;
-    }
-    .btn-export:hover {
-        @apply bg-violet-400 border-violet-300;
-    }
-    .btn-export:disabled {
-        @apply bg-neutral-700 border-neutral-600 text-neutral-500 cursor-not-allowed;
-    }
+    /* .btn* legacy mappings removed; using inline utilities in components */
 
     .file-input {
         @apply hidden;
@@ -201,12 +160,7 @@
     .file-input-wrapper {
         @apply flex items-center gap-2;
     }
-    .btn-file {
-        @apply px-2 py-1 bg-blue-600 text-white rounded text-[11px];
-    }
-    .btn-file:hover {
-        @apply bg-blue-700;
-    }
+    /* .btn-file removed; migrated to inline classes */
     .file-name {
         @apply text-[11px] text-neutral-300 italic whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px];
     }
@@ -312,9 +266,7 @@
         @apply text-[11px] opacity-60 mt-[18px];
     }
 
-    .download-btn {
-        @apply inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d];
-    }
+    /* .download-btn removed; migrated to inline classes */
 
     .scene-editor {
         @apply flex flex-col gap-4 text-neutral-300;
@@ -523,13 +475,7 @@
     .macro-header h4 {
         @apply m-0 text-base text-neutral-300;
     }
-    .macro-add-btn {
-        @apply text-xs px-2 py-1 text-white rounded cursor-pointer;
-        background-color: var(--twc-accent);
-    }
-    .macro-add-btn:hover {
-        @apply bg-[#1177bb];
-    }
+    /* .macro-add-btn removed; migrated to inline classes */
     .macro-list {
         @apply border rounded max-h-[200px] overflow-y-auto;
         background-color: var(--twc-panel);
@@ -563,13 +509,7 @@
     .macro-actions {
         @apply flex gap-1;
     }
-    .btn-icon {
-        @apply bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs;
-    }
-    .btn-icon:hover {
-        @apply text-neutral-300;
-        background-color: var(--twc-border);
-    }
+    /* .btn-icon removed; migrated to inline classes */
     .macro-assignments {
         @apply text-[11px] text-neutral-400 ml-[88px];
     }
@@ -742,12 +682,7 @@
         background-color: var(--twc-menubar);
         border-color: var(--twc-control2);
     }
-    .btn.small {
-        @apply px-1.5 py-0.5;
-    }
-    .btn:disabled {
-        @apply opacity-40 cursor-not-allowed;
-    }
+    /* .btn.small and .btn:disabled removed; using inline utilities */
     .field-label {
         @apply text-[11px] flex flex-col gap-1 text-neutral-300;
     }

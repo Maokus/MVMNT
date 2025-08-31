@@ -30,8 +30,19 @@ const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
                     <li>Export an image sequence or video once you're happy with the animation.</li>
                 </ul>
                 <div className="onboarding-actions">
-                    <button className="btn btn-primary" onClick={onClose}>Got it</button>
-                    <Link to="/about" onClick={onClose} className="btn btn-secondary">More Info</Link>
+                    <button
+                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
+                        onClick={onClose}
+                    >
+                        Got it
+                    </button>
+                    <Link
+                        to="/about"
+                        onClick={onClose}
+                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
+                    >
+                        More Info
+                    </Link>
                 </div>
                 <p className="onboarding-footer-hint">(You can open the About page any time via the logo in the top right.)</p>
             </div>

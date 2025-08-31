@@ -92,14 +92,9 @@ const SidePanelsInternal: React.FC = () => {
                     <h3>📚 Elements</h3>
                     <div style={{ position: 'relative' }} ref={addElementDropdownRef}>
                         <button
-                            className="btn primary"
+                            className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] ml-auto"
                             onClick={() => setShowAddElementDropdown(!showAddElementDropdown)}
                             title="Add element"
-                            style={{
-                                padding: '4px 8px',
-                                fontSize: '12px',
-                                marginLeft: 'auto'
-                            }}
                         >
                             + Add
                         </button>

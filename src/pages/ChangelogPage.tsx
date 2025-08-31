@@ -10,7 +10,12 @@ const ChangelogPage: React.FC = () => {
         <div className="app-container about-page-root">
             <main className="about-container">
                 <div className="about-content">
-                    <Link to="/" className="btn btn-primary" style={{ float: 'right' }}>Return to App</Link>
+                    <Link
+                        to="/"
+                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] float-right"
+                    >
+                        Return to App
+                    </Link>
                     <h1>Changelog</h1>
                     <p className="lead" style={{ marginLeft: '20px' }}>
                         Recent updates and feature changes for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.
