@@ -1,7 +1,7 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
 import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { RenderObject, Text } from '@core/render/render-objects';
+import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 import { MidiManager } from '@core/midi/midi-manager';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 import { globalMacroManager } from '@bindings/macro-manager';
@@ -96,6 +96,26 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
                         { key: 'fontSize', type: 'number', label: 'Font Size', default: 48, min: 6, max: 150, step: 1 },
                         { key: 'color', type: 'color', label: 'Text Color', default: '#ffffff' },
+                        {
+                            key: 'lineSpacing',
+                            type: 'number',
+                            label: 'Line Spacing',
+                            default: 6,
+                            min: 0,
+                            max: 60,
+                            step: 1,
+                        },
+                        { key: 'showActiveNotes', type: 'boolean', label: 'Show Active Notes', default: true },
+                        { key: 'showChroma', type: 'boolean', label: 'Show Chroma', default: true },
+                        {
+                            key: 'chromaPrecision',
+                            type: 'number',
+                            label: 'Chroma Precision',
+                            default: 2,
+                            min: 0,
+                            max: 6,
+                            step: 1,
+                        },
                     ],
                 },
             ],
@@ -175,9 +195,33 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const justify = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
         const showInversion = !!this.getProperty('showInversion');
 
+        let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
-        const text = new Text(0, 0, label, font, color, justify, 'top');
-        renderObjects.push(text);
+        const title = new Text(0, y, label, font, color, justify, 'top');
+        renderObjects.push(title);
+        y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+
+        // Active notes line (unique MIDI notes overlapping window)
+        if (this.getProperty('showActiveNotes')) {
+            const uniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
+            const noteLine = uniqueNotes.length
+                ? `Notes: ${uniqueNotes.map((n) => this.midiManager.getNoteName(n)).join(' ')}`
+                : 'Notes: —';
+            const ln = new Text(0, y, noteLine, font, color, justify, 'top');
+            ln.setIncludeInLayoutBounds(false);
+            renderObjects.push(ln);
+            y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+        }
+
+        // Chroma line (12 bins with names)
+        if (this.getProperty('showChroma')) {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            for (let i = 0; i < names.length; i++) {
+                const rect = new Rectangle(i * 30, y, 20, 20, `rgba(255,255,255,${chroma[i]})`);
+                renderObjects.push(rect);
+            }
+            y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+        }
 
         return renderObjects;
     }
