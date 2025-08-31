@@ -11,6 +11,7 @@ import {
     DebugElement,
     NotesPlayedTrackerElement,
     NotesPlayingDisplayElement,
+    ChordEstimateDisplayElement,
 } from '@core/scene/elements';
 
 export interface SceneElementFactorySchema {
@@ -116,6 +117,12 @@ export class SceneElementRegistry {
             'notesPlayingDisplay',
             (config) => new NotesPlayingDisplayElement(config.id || 'notesPlayingDisplay', config),
             NotesPlayingDisplayElement.getConfigSchema()
+        );
+
+        this.registerElement(
+            'chordEstimateDisplay',
+            (config) => new ChordEstimateDisplayElement(config.id || 'chordEstimateDisplay', config),
+            ChordEstimateDisplayElement.getConfigSchema()
         );
     }
 }

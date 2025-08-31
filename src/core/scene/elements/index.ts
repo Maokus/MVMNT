@@ -10,3 +10,4 @@ export { MovingNotesPianoRollElement } from './moving-notes-piano-roll/moving-no
 export { DebugElement } from './debug';
 export { NotesPlayedTrackerElement } from './notes-played-tracker';
 export { NotesPlayingDisplayElement } from './notes-playing-display';
+export { ChordEstimateDisplayElement } from './chord-estimate-display';
