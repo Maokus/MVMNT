@@ -40,6 +40,16 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
+                            key: 'bpm',
+                            type: 'number',
+                            label: 'BPM (Tempo)',
+                            default: 120,
+                            min: 20,
+                            max: 300,
+                            step: 0.1,
+                            description: 'Beats per minute used to time notes/events',
+                        },
+                        {
                             key: 'midiFile',
                             type: 'file',
                             label: 'MIDI File',
@@ -108,6 +118,10 @@ export class NotesPlayedTrackerElement extends SceneElement {
         if (!this.getProperty('visible')) return [];
 
         const renderObjects: RenderObject[] = [];
+
+    // Apply BPM from property (supports macro binding)
+    const bpmProp = this.getProperty<number>('bpm');
+    if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
 
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const actualTime = targetTime + timeOffset;

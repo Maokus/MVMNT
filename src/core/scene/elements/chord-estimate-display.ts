@@ -43,6 +43,16 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     label: 'Content',
                     collapsed: false,
                     properties: [
+                        {
+                            key: 'bpm',
+                            type: 'number',
+                            label: 'BPM (Tempo)',
+                            default: 120,
+                            min: 20,
+                            max: 300,
+                            step: 0.1,
+                            description: 'Beats per minute used to time analysis window',
+                        },
                         { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
@@ -144,6 +154,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
         if (!this.getProperty('visible')) return [];
 
         const renderObjects: RenderObject[] = [];
+
+    // Apply BPM from property (supports macro binding)
+    const bpmProp = this.getProperty<number>('bpm');
+    if (typeof bpmProp === 'number') this.midiManager.setBPM(bpmProp);
 
         // Effective time
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
