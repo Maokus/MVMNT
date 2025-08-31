@@ -22,19 +22,22 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     };
 
     return (
-        <div className="progress-overlay" onClick={handleOverlayClick}>
-            <div className="progress-modal">
-                <h3>📸 Exporting PNG Sequence</h3>
+        <div
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000]"
+            onClick={handleOverlayClick}
+        >
+            <div className="border rounded-lg p-6 min-w-[400px] text-center [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
+                <h3 className="mb-5 text-white">📸 Exporting PNG Sequence</h3>
 
                 {!downloadUrl ? (
-                    <div className="progress-section">
-                        <div className="progress-bar">
+                    <div className="mb-5">
+                        <div className="w-full h-2 rounded overflow-hidden mb-2 [background-color:var(--twc-control)]">
                             <div
-                                className="progress-fill"
+                                className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] w-0 transition-[width] duration-300"
                                 style={{ width: `${progress}%` }}
                             ></div>
                         </div>
-                        <div className="progress-text">{text}</div>
+                        <div className="text-xs text-neutral-300">{text}</div>
                     </div>
                 ) : (
                     <div className="download-section">

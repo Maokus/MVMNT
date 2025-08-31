@@ -95,29 +95,7 @@
         @apply min-w-[38px] px-[10px];
     }
 
-    .side-panels {
-        @apply flex-1 flex flex-col min-w-[320px];
-    }
-    .layer-panel {
-        @apply flex-1 border-b flex flex-col min-h-0 max-h-[250px];
-        background-color: var(--twc-panel);
-        border-color: var(--twc-border);
-    }
-    .properties-panel {
-        @apply flex-1 flex flex-col min-h-0;
-        background-color: var(--twc-panel);
-    }
-    .panel-header {
-        @apply border-b px-4 py-2 shrink-0 flex justify-between items-center relative;
-        background-color: var(--twc-menubar);
-        border-color: var(--twc-border);
-    }
-    .panel-header h3 {
-        @apply text-[13px] font-semibold text-neutral-300;
-    }
-    .panel-header .element-dropdown {
-        @apply absolute top-full right-0 z-[1001] mt-1;
-    }
+    /* Side panels mappings removed; now inlined in JSX */
 
     /* .btn* legacy mappings removed; using inline utilities in components */
 
@@ -200,51 +178,7 @@
         @apply px-2 py-1 text-[11px] mb-0;
     }
 
-    .progress-overlay {
-        @apply fixed inset-0 bg-black/80 flex items-center justify-center z-[10000];
-    }
-    .progress-modal {
-        @apply border rounded-lg p-6 min-w-[400px] text-center;
-        background-color: var(--twc-menubar);
-        border-color: var(--twc-border);
-    }
-    .progress-modal h3 {
-        @apply mb-5 text-white;
-    }
-    .progress-section {
-        @apply mb-5;
-    }
-    .progress-bar {
-        @apply w-full h-2 rounded overflow-hidden mb-2;
-        background-color: var(--twc-control);
-    }
-    .progress-fill {
-        @apply h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] w-0 transition-[width] duration-300;
-    }
-    .progress-text {
-        @apply text-xs text-neutral-300;
-    }
-
-    .onboarding-overlay {
-        @apply fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(30,30,30,.95),rgba(0,0,0,.95))] flex items-center justify-center z-[9000] animate-[fadeIn_.4s_ease];
-    }
-    .onboarding-modal {
-        @apply border rounded-[10px] px-9 py-8 max-w-[640px] w-[92vw] shadow-2xl;
-        background-color: var(--twc-menubar);
-        border-color: var(--twc-border);
-    }
-    .onboarding-modal h2 {
-        @apply m-0 mb-4 text-2xl font-semibold tracking-wide;
-    }
-    .onboarding-list {
-        @apply list-disc pl-5 my-3 flex flex-col gap-1.5 text-sm;
-    }
-    .onboarding-actions {
-        @apply flex gap-3 mt-2;
-    }
-    .onboarding-footer-hint {
-        @apply text-[11px] opacity-60 mt-[18px];
-    }
+    /* Progress and onboarding overlays migrated to inline utilities */
 
     /* .download-btn removed; migrated to inline classes */
 
@@ -635,12 +569,7 @@
         .preview-panel {
             @apply flex-1 border-r-0 border-b border-border;
         }
-        .side-panels {
-            @apply flex-row h-[40vh];
-        }
-        .layer-panel {
-            @apply border-b-0 border-r border-border max-h-none;
-        }
+        /* side-panels responsive rules removed (now inlined) */
         .scene-name-display,
         .scene-name-input {
             @apply max-w-[250px];
@@ -665,12 +594,7 @@
         .scene-name-input {
             @apply max-w-[200px];
         }
-        .side-panels {
-            @apply flex-col h-[50vh];
-        }
-        .layer-panel {
-            @apply border-r-0 border-b border-border max-h-none;
-        }
+        /* side-panels responsive rules removed (now inlined) */
         #canvas {
             @apply w-[250px] h-[250px];
         }

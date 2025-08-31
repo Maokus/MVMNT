@@ -25,58 +25,21 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
 
     return (
         <div
-            className="element-dropdown show"
-            style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                zIndex: 1000,
-                background: '#2d2d30',
-                border: '1px solid #464647',
-                borderRadius: '4px',
-                marginTop: '4px',
-                maxHeight: '300px',
-                overflowY: 'auto',
-                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
-                minWidth: '200px',
-            }}
+            className="absolute top-full right-0 z-[1000] bg-menubar border border-control2 rounded mt-1 max-h-[300px] overflow-y-auto shadow-lg min-w-[200px]"
         >
             {Object.entries(categories).map(([category, categoryTypes]) => (
                 <div key={category}>
                     <div
-                        className="element-dropdown-category"
-                        style={{
-                            padding: '8px 12px',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            color: '#cccccc',
-                            background: '#3c3c3c',
-                            borderBottom: '1px solid #464647',
-                            textTransform: 'uppercase',
-                        }}
+                        className="px-3 py-2 text-[11px] font-bold text-neutral-300 bg-control border-b border-control2 uppercase"
                     >
                         {category.charAt(0).toUpperCase() + category.slice(1)}
                     </div>
                     {categoryTypes.map((type: any) => (
                         <div
                             key={type.type}
-                            className="element-dropdown-item"
+                            className="px-3 py-2 cursor-pointer border-b border-control2 text-[13px] text-neutral-300 hover:bg-control/80 transition-colors"
                             onClick={() => handleItemClick(type.type)}
                             title={type.description}
-                            style={{
-                                padding: '8px 12px',
-                                cursor: 'pointer',
-                                borderBottom: '1px solid #464647',
-                                fontSize: '13px',
-                                color: '#cccccc',
-                                transition: 'background-color 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#464647';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
                         >
                             {type.name}
                         </div>
