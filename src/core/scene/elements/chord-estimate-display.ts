@@ -95,6 +95,24 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         },
                         { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
                         { key: 'fontSize', type: 'number', label: 'Font Size', default: 48, min: 6, max: 150, step: 1 },
+                        {
+                            key: 'chordFontSize',
+                            type: 'number',
+                            label: 'Chord Font Size',
+                            default: 48,
+                            min: 6,
+                            max: 150,
+                            step: 1,
+                        },
+                        {
+                            key: 'detailsFontSize',
+                            type: 'number',
+                            label: 'Details Font Size',
+                            default: 24,
+                            min: 6,
+                            max: 150,
+                            step: 1,
+                        },
                         { key: 'color', type: 'color', label: 'Text Color', default: '#ffffff' },
                         {
                             key: 'lineSpacing',
@@ -175,7 +193,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 if (
                     dtMs < smoothingMs &&
                     this._lastChord.confidence > 0.2 &&
-                    chord.confidence < this._lastChord.confidence * 1.05
+                    chord.confidence < this._lastChord.confidence * 1.0
                 ) {
                     chord = this._lastChord; // hold previous
                 }
@@ -188,18 +206,23 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '600').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 48;
+        const fontSize = (this.getProperty('fontSize') as number) || 48; // legacy fallback
+        const chordFontSize = (this.getProperty('chordFontSize') as number) ?? fontSize;
+        const detailsFontSize =
+            (this.getProperty('detailsFontSize') as number) ?? Math.max(6, Math.round(fontSize * 0.5));
         const color = (this.getProperty('color') as string) || '#ffffff';
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
-        const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
+        const fontChord = `${fontWeight} ${chordFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
+        const fontDetails = `${fontWeight} ${detailsFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
         const justify = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
         const showInversion = !!this.getProperty('showInversion');
+        const lineSpacing = ((this.getProperty('lineSpacing') as number) ?? 6) as number;
 
         let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
-        const title = new Text(0, y, label, font, color, justify, 'top');
+        const title = new Text(0, y, label, fontChord, color, justify, 'top');
         renderObjects.push(title);
-        y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+        y += chordFontSize + lineSpacing;
 
         // Active notes line (unique MIDI notes overlapping window)
         if (this.getProperty('showActiveNotes')) {
@@ -207,10 +230,10 @@ export class ChordEstimateDisplayElement extends SceneElement {
             const noteLine = uniqueNotes.length
                 ? `Notes: ${uniqueNotes.map((n) => this.midiManager.getNoteName(n)).join(' ')}`
                 : 'Notes: —';
-            const ln = new Text(0, y, noteLine, font, color, justify, 'top');
+            const ln = new Text(0, y, noteLine, fontDetails, color, justify, 'top');
             ln.setIncludeInLayoutBounds(false);
             renderObjects.push(ln);
-            y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+            y += detailsFontSize + lineSpacing;
         }
 
         // Chroma line (12 bins with names)
@@ -220,7 +243,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                 const rect = new Rectangle(i * 30, y, 20, 20, `rgba(255,255,255,${chroma[i]})`);
                 renderObjects.push(rect);
             }
-            y += fontSize + ((this.getProperty('lineSpacing') as number) ?? 6);
+            y += detailsFontSize + lineSpacing;
         }
 
         return renderObjects;
