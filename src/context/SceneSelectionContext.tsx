@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useVisualizer } from './VisualizerContext';
+import { HybridSceneBuilder } from '@core/scene-builder';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -178,6 +179,28 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
         const uniqueId = `${elementType}_${Date.now()}`;
         const success = sceneBuilder.addElement?.(elementType, uniqueId);
         if (success) {
+            let allElements = (sceneBuilder as HybridSceneBuilder).getAllElements();
+            // determine highest numeric zIndex among existing elements (ignore the newly added one)
+            let maxZ = Number.NEGATIVE_INFINITY;
+            for (const el of allElements || []) {
+                if (!el || el.id === uniqueId) continue;
+                let z: any = el.zIndex;
+                if (z && typeof z === 'object' && 'type' in z && (z as any).type === 'constant' && 'value' in z) {
+                    z = (z as any).value;
+                }
+                if (typeof z !== 'number' || !isFinite(z)) z = 0;
+                if (z > maxZ) maxZ = z;
+            }
+            const initialZ = isFinite(maxZ) ? maxZ + 1 : 0;
+            // apply zIndex to the newly created element
+            const newElement = (sceneBuilder as HybridSceneBuilder).getElement(uniqueId);
+            if (newElement) {
+                if (typeof sceneBuilder.updateElementConfig === 'function') {
+                    sceneBuilder.updateElementConfig(uniqueId, { zIndex: initialZ });
+                } else if (typeof newElement.setZIndex === 'function') {
+                    newElement.setZIndex(initialZ);
+                }
+            }
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             refreshElements();
             setRefreshTrigger(prev => prev + 1);

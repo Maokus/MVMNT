@@ -41,7 +41,7 @@ export class MIDIVisualizerCore {
         if (!ctx) throw new Error('Could not get 2D context from canvas');
         this.ctx = ctx;
         this._setupImageLoadedListener();
-        this.sceneBuilder.createDefaultMIDIScene();
+        this.sceneBuilder.createDebugScene();
         (window as any).vis = this; // debug helper
     }
     updateSceneElementTimingManager() {
