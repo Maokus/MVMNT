@@ -48,8 +48,18 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     label: 'Appearance',
                     collapsed: true,
                     properties: [
+                        {
+                            key: 'textJustification',
+                            type: 'select',
+                            label: 'Text Justification',
+                            default: 'left',
+                            options: [
+                                { value: 'left', label: 'Left' },
+                                { value: 'right', label: 'Right' },
+                            ],
+                        },
                         { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Font Size', default: 14, min: 6, max: 72, step: 1 },
+                        { key: 'fontSize', type: 'number', label: 'Font Size', default: 30, min: 6, max: 72, step: 1 },
                         { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
                         {
                             key: 'lineSpacing',
@@ -116,22 +126,90 @@ export class NotesPlayingDisplayElement extends SceneElement {
             return `${name}${octave}`;
         };
 
+        // Helper to measure text width robustly
+        const measureWidth = (text: string, fontStr: string): number => {
+            try {
+                if (typeof OffscreenCanvas !== 'undefined') {
+                    const c = new OffscreenCanvas(1, 1);
+                    const ctx = c.getContext('2d') as CanvasRenderingContext2D | null;
+                    if (ctx) {
+                        ctx.font = fontStr;
+                        return ctx.measureText(text).width || 0;
+                    }
+                }
+                if (typeof document !== 'undefined') {
+                    const c = document.createElement('canvas');
+                    const ctx = c.getContext('2d');
+                    if (ctx) {
+                        ctx.font = fontStr;
+                        return ctx.measureText(text).width || 0;
+                    }
+                }
+            } catch {}
+            // Fallback approximate: characters * fontSize * average factor
+            const m = fontStr.match(/(\d*\.?\d+)px/);
+            const fs = m ? parseFloat(m[1]) : 16;
+            return text.length * fs * 0.6;
+        };
+
         let y = 0;
         if (byChannel.size === 0 || actualTime < 0) {
-            const txt = new Text(0, 0, 'Note:  < Track 1', font, color, 'left', 'top');
-            renderObjects.push(txt);
+            const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+            // Placeholder when nothing is playing
+            const placeholderLeft = justification === 'left';
+            const staticPrefix = placeholderLeft ? 'Track 1 > ' : ' < Track 1';
+            const dynamicText = 'Note: ';
+            if (placeholderLeft) {
+                // Left: Track > Note
+                const staticObj = new Text(0, 0, staticPrefix, font, color, 'left', 'top');
+                const dynamicObj = new Text(0, 0, dynamicText, font, color, 'left', 'top', {
+                    includeInLayoutBounds: false,
+                });
+                // Measure static to place dynamic right after
+                dynamicObj.x = measureWidth(staticPrefix, font); // place to the right of static
+                renderObjects.push(staticObj, dynamicObj);
+            } else {
+                // Right: Note < Track
+                const staticObj = new Text(0, 0, staticPrefix, font, color, 'right', 'top');
+                const dynamicObj = new Text(0, 0, dynamicText, font, color, 'right', 'top', {
+                    includeInLayoutBounds: false,
+                });
+                // Measure static to place dynamic left of it
+                dynamicObj.x = -measureWidth(staticPrefix, font); // place to the left of static (since align right)
+                renderObjects.push(dynamicObj, staticObj);
+            }
             return renderObjects;
         }
 
+        const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
         const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
         for (const ch of sortedChannels) {
             const list = byChannel.get(ch)!;
-            // keep stable ordering by pitch then velocity
             list.sort((a, b) => a.note - b.note || a.vel - b.vel);
             const parts = list.map((n) => `Note: ${noteName(n.note)} (Vel: ${Math.max(0, Math.min(127, n.vel))})`);
-            const line = `${parts.join(' ')} < Track ${ch + 1}`;
-            const text = new Text(0, y, line, font, color, 'left', 'top');
-            renderObjects.push(text);
+
+            if (justification === 'left') {
+                // Left-justified: Track > Note
+                const staticPrefix = `Track ${ch + 1} > `;
+                const staticObj = new Text(0, y, staticPrefix, font, color, 'left', 'top');
+                const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'left', 'top', {
+                    includeInLayoutBounds: false,
+                });
+                // place dynamic after static by measuring static width
+                dynamicObj.x = measureWidth(staticPrefix, font);
+                renderObjects.push(staticObj, dynamicObj);
+            } else {
+                // Right-justified: Note < Track
+                const staticSuffix = ` < Track ${ch + 1}`;
+                const staticObj = new Text(0, y, staticSuffix, font, color, 'right', 'top');
+                const dynamicObj = new Text(0, y, parts.join(' '), font, color, 'right', 'top', {
+                    includeInLayoutBounds: false,
+                });
+                // place dynamic to the left of static by measuring static width
+                dynamicObj.x = -measureWidth(staticSuffix, font);
+                // draw dynamic then static so the visual order matches anchor
+                renderObjects.push(dynamicObj, staticObj);
+            }
             y += fontSize + lineSpacing;
         }
 

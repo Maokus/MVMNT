@@ -63,6 +63,16 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
+                            key: 'textJustification',
+                            type: 'select',
+                            label: 'Text Justification',
+                            default: 'left',
+                            options: [
+                                { value: 'left', label: 'Left' },
+                                { value: 'right', label: 'Right' },
+                            ],
+                        },
+                        {
                             key: 'fontFamily',
                             type: 'font',
                             label: 'Font Family',
@@ -73,7 +83,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             key: 'fontSize',
                             type: 'number',
                             label: 'Font Size',
-                            default: 14,
+                            default: 30,
                             min: 6,
                             max: 72,
                             step: 1,
@@ -140,9 +150,9 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
         const line1 = `Num played notes: ${playedNotes}/${totalNotes} (${pctNotes.toFixed(2)}%)`;
         const line2 = `Num played events: ${playedEvents}/${totalEvents} (${pctEvents.toFixed(2)}%)`;
-
-        const text1 = new Text(0, 0, line1, font, color, 'left', 'top');
-        const text2 = new Text(0, fontSize + lineSpacing, line2, font, color, 'left', 'top');
+        const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+        const text1 = new Text(0, 0, line1, font, color, justification, 'top');
+        const text2 = new Text(0, fontSize + lineSpacing, line2, font, color, justification, 'top');
 
         renderObjects.push(text1, text2);
         return renderObjects;
