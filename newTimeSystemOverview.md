@@ -187,6 +187,63 @@ Migration path from the current messy system
 - Phase 5: Diff bridge and performance passes
   - Send compact patches to Worker; add memoized selectors; validate large‑project performance.
 
+### 🧭 Component Architecture & Data Flow
+
+This section outlines how the system layers communicate, who owns what, and how timing flows from user actions to visual output.
+
+#### 🔹 Component Hierarchy and Responsibilities
+
+| Layer      | Component             | Owns State?      | Reads From             | Writes To         | Responsibilities                                     |
+| ---------- | --------------------- | ---------------- | ---------------------- | ----------------- | ---------------------------------------------------- |
+| 🧠 State   | `Zustand Store`       | ✅ Transport/UI   | UI, Controller         | Subscribed layers | Holds declarative state for transport, timeline, UI  |
+| 🕰 Control | `TransportController` | ✅ Internal clock | Zustand selectors      | SchedulerBridge   | Converts state into timing logic; exposes `getNow()` |
+| 📦 Worker  | `Scheduler`           | ✅ Schedule queue | Transport snapshot     | Visualizer        | Schedules events in a look-ahead window for playback |
+| 🎨 View    | `Visualizer`          | ❌ (derived only) | Scheduler + `getNow()` | —                 | Renders playback visuals and time-aligned effects    |
+
+---
+
+#### 🔹 Data & Control Flow
+
+```mermaid
+graph TD
+  UI[User Interface] -->|Dispatches actions| Store[Zustand Store]
+  Store -->|Subscribes to selectors| Controller[TransportController]
+  Controller -->|Initiates timing, sends state| Scheduler[Scheduler Worker]
+  Scheduler -->|Emits SCHEDULE_BATCH| Visualizer
+  Visualizer -->|Queries time per frame| Controller
+```
+
+* **UI** dispatches pure actions to the store.
+* **Zustand** reflects those updates declaratively.
+* **TransportController** reacts to store changes to start/stop the AudioContext clock, manage `getNow()`, and communicate with the scheduler.
+* **Scheduler** compiles renderable events and emits time-batched outputs.
+* **Visualizer** uses `requestAnimationFrame` and `transport.getNow()` for precise rendering.
+
+---
+
+#### 🔹 Unidirectional Timing Flow
+
+```
+[User]
+   ↓ dispatch
+[Zustand Store]
+   ↓ subscribed
+[TransportController] → getNow()
+   ↓ messages
+[Scheduler Worker]
+   ↓ batches
+[Visualizer] → rAF(getNow())
+```
+
+---
+
+#### 🔹 Key Separation Rules
+
+* Only the **TransportController** talks to both the clock and the store.
+* The **store is the single source of truth** for state — but not for real-time timing.
+* The **Visualizer never drives time** — it only consumes it.
+* The **Scheduler is isolated in a Worker**, ensuring real-time safety and avoiding UI thread jank.
+
 Open questions for your context
 - Do you have an audio engine (e.g., WebAudio/Tone.js) that must be sample‑accurate, or is this visuals‑only?
 - Should start/stop be quantized to grid by default?
