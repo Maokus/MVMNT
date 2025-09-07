@@ -186,8 +186,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             // Loop handling: if store loop active, wrap visualizer time
             const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
             if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
-                if (vNow > loopEndSec + 1e-4) {
+                if (vNow >= loopEndSec - 1e-6) {
+                    // Seek exactly to loop start; then mirror immediately so UI doesn't show post-start drift
                     visualizer.seek?.(loopStartSec);
+                    state.setCurrentTimeSec(loopStartSec);
                 }
             } else {
                 // When not looping, clamp playback to timeline view end (user-defined play window)
@@ -201,7 +203,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             // Mirror into store if drift > small epsilon to avoid feedback churn
             const sNow = state.timeline.currentTimeSec;
             if (Math.abs(sNow - vNow) > 0.002) {
-                state.setCurrentTimeSec(vNow);
+                state.setCurrentTimeSec(visualizer.currentTime || vNow);
             }
 
             // Throttled UI labels

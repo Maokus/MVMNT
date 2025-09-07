@@ -71,19 +71,19 @@ describe('Phase 4 transport FSM, quantized seek, and looping', () => {
         expect(useTimelineStore.getState().transport.state).toBe('seeking');
     });
 
-    it('loop wraps and respects quantize on wrap', () => {
+    it('loop wraps exactly to loop start (no quantize on wrap)', () => {
         resetStore();
         const s = useTimelineStore.getState();
         s.setGlobalBpm(120); // 2 sec/bar
         s.setBeatsPerBar(4);
         s.setQuantize('bar');
         s.setLoopEnabled(true);
-        s.setLoopRange(2.2, 6.0); // start ~1.10 bars -> should wrap to 1 bar => 2.0s
+        s.setLoopRange(2.2, 6.0); // wrap should go to exact start => 2.2s
         s.play();
         // exceed loop end
         s.setCurrentTimeSec(6.1);
         const cur = useTimelineStore.getState().timeline.currentTimeSec;
-        expect(Math.abs(cur - 2.0)).toBeLessThan(1e-6);
+        expect(Math.abs(cur - 2.2)).toBeLessThan(1e-6);
     });
 
     it('toggleLoop toggles flag', () => {

@@ -302,14 +302,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const { loopEnabled, loopStartSec, loopEndSec, isPlaying } = s.transport;
             if (isPlaying && loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number') {
                 if (newT >= loopEndSec) {
-                    // Quantize loop seek if configured
-                    const quant = s.transport.quantize;
-                    if (quant === 'bar') {
-                        const snappedBars = Math.round(_secondsToBarsLocal(s, loopStartSec));
-                        newT = _barsToSecondsLocal(s, snappedBars);
-                    } else {
-                        newT = loopStartSec;
-                    }
+                    // On wrap, jump exactly to the loop start brace (no quantization)
+                    newT = loopStartSec;
                 }
             }
             return { timeline: { ...s.timeline, currentTimeSec: newT } } as TimelineState;
