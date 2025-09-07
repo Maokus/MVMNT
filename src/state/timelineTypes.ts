@@ -1,6 +1,5 @@
 // Shared types for Timeline state that are needed outside the store implementation
-
-export type TempoMapEntry = { time: number; tempo: number }; // time in seconds, tempo in microseconds per quarter
+export type { TempoMapEntry } from '@core/timing/types';
 
 export interface NoteRaw {
     note: number;

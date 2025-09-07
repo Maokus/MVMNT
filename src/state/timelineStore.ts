@@ -21,7 +21,14 @@ export type TimelineTrack = {
 };
 
 export type TimelineState = {
-    timeline: { id: string; name: string; masterTempoMap?: TempoMapEntry[]; currentTimeSec: number };
+    timeline: {
+        id: string;
+        name: string;
+        masterTempoMap?: TempoMapEntry[];
+        currentTimeSec: number;
+        globalBpm: number; // fallback bpm for conversions when map is empty
+        beatsPerBar: number; // global meter (constant for now)
+    };
     tracks: Record<string, TimelineTrack>;
     tracksOrder: string[];
     transport: { isPlaying: boolean; loopEnabled: boolean; loopStartSec?: number; loopEndSec?: number };
@@ -43,6 +50,8 @@ export type TimelineState = {
     setTrackMute: (id: string, mute: boolean) => void;
     setTrackSolo: (id: string, solo: boolean) => void;
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
+    setGlobalBpm: (bpm: number) => void;
+    setBeatsPerBar: (n: number) => void;
     setCurrentTimeSec: (t: number) => void;
     play: () => void;
     pause: () => void;
@@ -65,7 +74,7 @@ function makeId(prefix: string = 'trk'): string {
 }
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
-    timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0 },
+    timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
     tracksOrder: [],
     transport: { isPlaying: false, loopEnabled: false },
@@ -152,6 +161,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     setMasterTempoMap(map?: TempoMapEntry[]) {
         set((s: TimelineState) => ({ timeline: { ...s.timeline, masterTempoMap: map } }));
+    },
+
+    setGlobalBpm(bpm: number) {
+        const v = isFinite(bpm) && bpm > 0 ? bpm : 120;
+        set((s: TimelineState) => ({ timeline: { ...s.timeline, globalBpm: v } }));
+    },
+
+    setBeatsPerBar(n: number) {
+        const v = Math.max(1, Math.floor(n || 4));
+        set((s: TimelineState) => ({ timeline: { ...s.timeline, beatsPerBar: v } }));
     },
 
     setCurrentTimeSec(t: number) {

@@ -1,6 +1,6 @@
 import type { MIDIData } from '@core/types';
-
-export type TempoMapEntry = { time: number; tempo?: number; bpm?: number };
+import type { TempoMapEntry } from './types';
+export type { TempoMapEntry } from './types';
 
 export interface Timeline {
     id: string;

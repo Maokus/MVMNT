@@ -1,6 +1,5 @@
 // Shared helpers for seconds<->beats given a tempo map (microseconds per quarter entries)
-
-type TempoMapEntry = { time: number; tempo?: number; bpm?: number };
+import type { TempoMapEntry } from './types';
 
 type Seg = {
     time: number;
@@ -33,11 +32,12 @@ function normalizeMap(map: TempoMapEntry[] | null | undefined): Seg[] {
     return segs;
 }
 
-export function beatsToSecondsWithMap(
-    beats: number,
+// Primary API (Phase 0): direct conversions with explicit fallback seconds-per-beat
+export function beatsToSeconds(
     map: TempoMapEntry[] | null | undefined,
+    beats: number,
     fallbackSecondsPerBeat: number
-) {
+): number {
     const segs = normalizeMap(map);
     if (segs.length === 0) return beats * fallbackSecondsPerBeat;
     let lo = 0,
@@ -57,11 +57,11 @@ export function beatsToSecondsWithMap(
     return seg.time + beatsInSeg * seg.secondsPerBeat;
 }
 
-export function secondsToBeatsWithMap(
-    seconds: number,
+export function secondsToBeats(
     map: TempoMapEntry[] | null | undefined,
+    seconds: number,
     fallbackSecondsPerBeat: number
-) {
+): number {
     const segs = normalizeMap(map);
     if (segs.length === 0) return seconds / fallbackSecondsPerBeat;
     let lo = 0,
@@ -79,4 +79,29 @@ export function secondsToBeatsWithMap(
     const seg = segs[idx];
     const dt = seconds - seg.time;
     return seg.cumulativeBeats + dt / seg.secondsPerBeat;
+}
+
+export function getSecondsPerBeat(args: { bpm: number; map?: TempoMapEntry[] | null }): number {
+    // If a map exists and starts at time 0, prefer its first segment; else use bpm.
+    const { bpm, map } = args;
+    const segs = normalizeMap(map);
+    if (segs.length > 0 && segs[0].time <= 0) return segs[0].secondsPerBeat;
+    return 60 / Math.max(1e-6, bpm);
+}
+
+// Compatibility wrappers (old signature): beats first/seconds first, then map, then fallback SPB
+export function beatsToSecondsWithMap(
+    beats: number,
+    map: TempoMapEntry[] | null | undefined,
+    fallbackSecondsPerBeat: number
+): number {
+    return beatsToSeconds(map, beats, fallbackSecondsPerBeat);
+}
+
+export function secondsToBeatsWithMap(
+    seconds: number,
+    map: TempoMapEntry[] | null | undefined,
+    fallbackSecondsPerBeat: number
+): number {
+    return secondsToBeats(map, seconds, fallbackSecondsPerBeat);
 }
