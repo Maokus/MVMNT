@@ -107,6 +107,28 @@ function makeId(prefix: string = 'trk'): string {
     return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Compute the total content end time (in seconds) across all enabled tracks using cached MIDI data
+// This mirrors the logic in scene-builder.getMaxDuration but stays store-local to avoid circular deps.
+function computeContentEndSec(state: TimelineState): number {
+    let max = 0;
+    try {
+        for (const id of state.tracksOrder) {
+            const t = state.tracks[id];
+            if (!t || t.type !== 'midi' || !t.enabled) continue;
+            const cacheKey = t.midiSourceId ?? id;
+            const cache = state.midiCache[cacheKey];
+            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+            const localEnd = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
+            let end = localEnd;
+            if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
+            if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
+            const timelineEnd = (t.offsetSec || 0) + end;
+            if (timelineEnd > max) max = timelineEnd;
+        }
+    } catch {}
+    return max;
+}
+
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
@@ -346,7 +368,22 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) {
-        set((s: TimelineState) => ({ midiCache: { ...s.midiCache, [id]: { ...data } } }));
+        // Update cache, then auto-fit the timeline view to content length if the current view appears default or wildly larger
+        set((s: TimelineState) => {
+            const nextCache = { ...s.midiCache, [id]: { ...data } };
+            const nextState = { ...s, midiCache: nextCache } as TimelineState;
+            const contentEnd = computeContentEndSec(nextState);
+            const curWidth = Math.max(0, s.timelineView.endSec - s.timelineView.startSec);
+            const isDefaultish = Math.abs(curWidth - 60) < 1e-6 || curWidth === 0;
+            const isWildlyLarger = contentEnd > 0 && curWidth / contentEnd > 2.0;
+            if ((isDefaultish || isWildlyLarger) && contentEnd > 0) {
+                return {
+                    midiCache: nextCache,
+                    timelineView: { startSec: 0, endSec: Math.max(1, contentEnd) },
+                } as Partial<TimelineState> as TimelineState;
+            }
+            return { midiCache: nextCache } as Partial<TimelineState> as TimelineState;
+        });
     },
 });
 

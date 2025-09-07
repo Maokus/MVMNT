@@ -150,6 +150,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [visualizer]);
 
+    // (Removed duplicate view sync; see effect near bottom that also clamps current time)
+
     // Auto-bind first newly added track if default piano roll has no selection yet
     useEffect(() => {
         const onAdded = (e: any) => {
@@ -330,6 +332,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, [visualizer, tCurrent]);
 
     const tView = useTimelineStore((s) => s.timelineView);
+    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     useEffect(() => {
         if (!visualizer) return;
         visualizer.setPlayRange?.(tView.startSec, tView.endSec);
@@ -338,6 +341,18 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             visualizer.seek?.(Math.min(Math.max(visualizer.currentTime, tView.startSec), tView.endSec));
         }
     }, [visualizer, tView.startSec, tView.endSec]);
+
+    // Auto-fit timeline view to scene duration when it becomes available or changes significantly
+    useEffect(() => {
+        const duration = totalDuration;
+        if (!isFinite(duration) || duration <= 0) return;
+        const width = Math.max(0, tView.endSec - tView.startSec);
+        const isDefaultish = Math.abs(width - 60) < 1e-6 || width === 0;
+        const isWildlyLarger = width / duration > 2.0;
+        if (isDefaultish || isWildlyLarger) {
+            setTimelineView(0, Math.max(1, duration));
+        }
+    }, [totalDuration, tView.startSec, tView.endSec, setTimelineView]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
