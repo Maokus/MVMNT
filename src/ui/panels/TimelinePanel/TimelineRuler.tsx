@@ -33,7 +33,7 @@ const TimelineRuler: React.FC = () => {
     const { view, toSeconds, toX } = useTimeScale();
     const seek = useTimelineStore((s) => s.seek);
     const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
-    const setLoopRange = useTimelineStore((s) => s.setLoopRange);
+    // Loop UI disabled: keep state wired for compatibility, but do not render or edit loop braces
     const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
@@ -113,10 +113,8 @@ const TimelineRuler: React.FC = () => {
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
 
-        let type: 'seek' | 'loop-start' | 'loop-end' | 'play-start' | 'play-end' = 'seek';
-        if (loopStartX != null && Math.abs(x - loopStartX) <= BRACE_HIT_W) type = 'loop-start';
-        else if (loopEndX != null && Math.abs(x - loopEndX) <= BRACE_HIT_W) type = 'loop-end';
-        else if (Math.abs(x - playStartX) <= BRACE_HIT_W) type = 'play-start';
+        let type: 'seek' | 'play-start' | 'play-end' = 'seek';
+        if (Math.abs(x - playStartX) <= BRACE_HIT_W) type = 'play-start';
         else if (Math.abs(x - playEndX) <= BRACE_HIT_W) type = 'play-end';
 
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -124,8 +122,8 @@ const TimelineRuler: React.FC = () => {
             type,
             originX: x,
             originSec: tSec,
-            startSec: type.startsWith('loop') ? loopStartSec : playStart,
-            endSec: type.startsWith('loop') ? loopEndSec : playEnd,
+            startSec: playStart,
+            endSec: playEnd,
             alt: !!e.altKey,
         };
 
@@ -148,15 +146,7 @@ const TimelineRuler: React.FC = () => {
         const forceBar = !!e.shiftKey;
         const snapped = snapSeconds(cand, { altKey: alt, forceBar });
         const d = dragState.current;
-        if (d.type === 'loop-start') {
-            const newStart = Math.max(0, snapped);
-            const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
-            setLoopRange(newStart, newEnd);
-        } else if (d.type === 'loop-end') {
-            const newEnd = Math.max(0.0001, snapped);
-            const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 0.0001) : d.startSec;
-            setLoopRange(newStart, newEnd);
-        } else if (d.type === 'play-start') {
+        if (d.type === 'play-start') {
             const newStart = Math.max(0, snapped);
             const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
             setPlaybackRange(newStart, newEnd);
@@ -176,8 +166,8 @@ const TimelineRuler: React.FC = () => {
     };
 
     const playheadX = toX(currentTimeSec, width);
-    const loopStartX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
-    const loopEndX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
+    const loopStartX = null;
+    const loopEndX = null;
     const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
     const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
     const playStartX = toX(playStart, width);
@@ -216,32 +206,7 @@ const TimelineRuler: React.FC = () => {
                 })}
             </svg>
 
-            {/* Loop region tint + blue markers */}
-            {loopEnabled && loopStartX != null && loopEndX != null && loopEndX > loopStartX && (
-                <>
-                    <div
-                        className="absolute top-0 bottom-0 bg-blue-500/10 pointer-events-none"
-                        style={{ left: loopStartX, width: Math.max(0, loopEndX - loopStartX) }}
-                    />
-                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400" style={{ left: loopStartX }} aria-hidden />
-                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400" style={{ left: loopEndX }} aria-hidden />
-                </>
-            )}
-            {/* Braces (draggable), keep visible for interaction regardless of loopEnabled */}
-            {loopStartX != null && (
-                <div
-                    className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400 cursor-ew-resize"
-                    style={{ left: loopStartX }}
-                    aria-label="Loop start"
-                />
-            )}
-            {loopEndX != null && (
-                <div
-                    className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400 cursor-ew-resize"
-                    style={{ left: loopEndX }}
-                    aria-label="Loop end"
-                />
-            )}
+            {/* Loop UI removed for now */}
 
             {/* Playback range tint + yellow markers (always visible) */}
             {playEnd > playStart && (

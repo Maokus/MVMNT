@@ -1,8 +1,7 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
-import { TimingManager } from '@core/timing-manager';
-import { MidiManager } from '@core/midi/midi-manager';
+import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 
@@ -21,13 +20,13 @@ interface MinSecMs {
 
 export class TimeDisplayElement extends SceneElement {
     public timingManager: TimingManager;
-    public midiManager?: MidiManager;
+    public midiManager?: any;
 
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
 
         // Use timing manager by default for independent timing control; if a MIDI-aware timing is needed in future, this can be swapped
-        this.timingManager = new TimingManager(null);
+        this.timingManager = new TimingManager('timeDisplay');
     }
 
     static getConfigSchema(): EnhancedConfigSchema {

@@ -430,7 +430,6 @@ export class HybridSceneBuilder {
         }
     }
     _createDefaultMacros() {
-        globalMacroManager.createMacro('midiFile', 'file', null, { accept: '.mid,.midi', description: 'MIDI file' });
         globalMacroManager.createMacro('tempo', 'number', 120, { min: 20, max: 300, step: 0.1, description: 'BPM' });
         globalMacroManager.createMacro('beatsPerBar', 'number', 4, {
             min: 1,
@@ -457,26 +456,21 @@ export class HybridSceneBuilder {
         const chordEstimateDisplay: any = this.getElementsByType('chordEstimateDisplay')[0];
         pianoRoll?.bindToMacro('bpm', 'tempo');
         pianoRoll?.bindToMacro('beatsPerBar', 'beatsPerBar');
-        pianoRoll?.bindToMacro('midiFile', 'midiFile');
         try {
             pianoRoll?.bindToMacro('animationType', 'noteAnimation');
         } catch {}
         timeDisplay?.bindToMacro('bpm', 'tempo');
         timeDisplay?.bindToMacro('beatsPerBar', 'beatsPerBar');
 
-        // Default bindings for new info elements
-        notesPlayingDisplay?.bindToMacro('midiFile', 'midiFile');
+        // Default bindings for new info elements (timeline-backed)
         notesPlayingDisplay?.bindToMacro('bpm', 'tempo');
-        playedNotesTracker?.bindToMacro('midiFile', 'midiFile');
         playedNotesTracker?.bindToMacro('bpm', 'tempo');
-        chordEstimateDisplay?.bindToMacro('midiFile', 'midiFile');
         chordEstimateDisplay?.bindToMacro('bpm', 'tempo');
     }
     autoBindElements() {
         const pianoRolls: any[] = this.getElementsByType('boundTimeUnitPianoRoll');
         pianoRolls.forEach((pr) => {
             if (pr instanceof TimeUnitPianoRollElement) {
-                pr.bindMidiFileToMacro('midiFile');
                 pr.bindBPMToMacro('tempo');
                 pr.bindBeatsPerBarToMacro('beatsPerBar');
             }

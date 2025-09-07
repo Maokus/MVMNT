@@ -4,36 +4,16 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { computeChromaFromNotes, estimateChordPB, EstimatedChord } from '@math/midi/chord-estimator';
-import type { TimelineService } from '@core/timing';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectNotesInWindow } from '@selectors/timelineSelectors';
 
 export class ChordEstimateDisplayElement extends SceneElement {
-    private _currentMidiFile: File | null = null;
-    private _timeline(): TimelineService | undefined {
-        try {
-            return (window as any).mvmntTimelineService as TimelineService;
-        } catch {
-            return undefined;
-        }
-    }
-    private _midiMacroListener?: (
-        eventType:
-            | 'macroValueChanged'
-            | 'macroCreated'
-            | 'macroDeleted'
-            | 'macroAssigned'
-            | 'macroUnassigned'
-            | 'macrosImported',
-        data: any
-    ) => void;
-
     private _lastChord?: EstimatedChord;
     private _lastTime = -1;
 
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
         super('chordEstimateDisplay', id, config);
-        this._setupMIDIFileListener();
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -61,13 +41,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             description: 'Beats per minute used to time analysis window',
                         },
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
-                        {
-                            key: 'midiFile',
-                            type: 'file',
-                            label: 'MIDI File (deprecated)',
-                            accept: '.mid,.midi',
-                            default: null,
-                        },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
                             key: 'windowSeconds',
@@ -173,32 +146,25 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const timeOffset = (this.getProperty('timeOffset') as number) || 0;
         const t = Math.max(0, targetTime + timeOffset);
 
-        // Load MIDI file if changed
-        const midiFile = this.getProperty<File>('midiFile');
-        if (midiFile !== this._currentMidiFile) {
-            this._handleMIDIFileConfig(midiFile);
-            this._currentMidiFile = midiFile || null;
-        }
-
         // Estimation window
         const windowSeconds = Math.max(0.05, (this.getProperty('windowSeconds') as number) ?? 0.6);
         const start = Math.max(0, t - windowSeconds / 2);
         const end = t + windowSeconds / 2;
 
-        // Active notes and chroma via timeline
+        // Active notes and chroma via timeline store
         const trackId = (this.getProperty('midiTrackId') as string) || null;
-        const tl = this._timeline();
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
             [];
-        if (trackId && tl) {
-            const notes = tl.getNotesInWindow({ trackIds: [trackId], startSec: start, endSec: end });
+        if (trackId) {
+            const state = useTimelineStore.getState();
+            const notes = selectNotesInWindow(state, { trackIds: [trackId], startSec: start, endSec: end });
             for (const n of notes) {
                 noteEvents.push({
                     note: n.note,
                     channel: n.channel,
-                    startTime: n.startSec ?? (n.startTime as number),
-                    endTime: n.endSec ?? (n.endTime as number),
-                    velocity: n.velocity,
+                    startTime: n.startTime,
+                    endTime: n.endTime,
+                    velocity: n.velocity || 0,
                 });
             }
         }
@@ -346,66 +312,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
     // Estimation moved to @math/midi/chord-estimator
 
-    private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
-        if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
-    }
-
-    private async _autoImportMIDIFile(file: File): Promise<void> {
-        try {
-            const tl = this._timeline();
-            if (!tl) return;
-            const id = await tl.addMidiTrack({ file, name: file.name });
-            this.setProperty('midiTrackId', id);
-            this._dispatchChangeEvent();
-            if (typeof window !== 'undefined') {
-                const vis: any = (window as any).debugVisualizer;
-                if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
-            }
-        } catch (err) {
-            console.error(`Failed to import MIDI file for ${this.id}:`, err);
-        }
-    }
-
-    private _setupMIDIFileListener(): void {
-        this._midiMacroListener = (
-            eventType:
-                | 'macroValueChanged'
-                | 'macroCreated'
-                | 'macroDeleted'
-                | 'macroAssigned'
-                | 'macroUnassigned'
-                | 'macrosImported',
-            data: any
-        ) => {
-            if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
-                if (this.isBoundToMacro('midiFile', 'midiFile')) {
-                    const newFile = this.getProperty<File>('midiFile');
-                    if (newFile !== this._currentMidiFile) {
-                        this._handleMIDIFileConfig(newFile);
-                        this._currentMidiFile = newFile || null;
-                        if (typeof window !== 'undefined') {
-                            const vis: any = (window as any).debugVisualizer;
-                            if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
-                        }
-                    }
-                }
-            }
-        };
-        globalMacroManager.addListener(this._midiMacroListener);
-    }
-
     dispose(): void {
         super.dispose();
-        if (this._midiMacroListener) {
-            globalMacroManager.removeListener(this._midiMacroListener);
-            this._midiMacroListener = undefined;
-        }
-    }
-
-    private _dispatchChangeEvent(): void {
-        if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.dispatchEvent(new CustomEvent('sceneElementChanged', { detail: { elementId: this.id } }));
-        }
     }
 }

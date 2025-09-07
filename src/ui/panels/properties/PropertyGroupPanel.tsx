@@ -85,27 +85,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             />
         );
 
-        // Phase 3: provide an explicit migration CTA for legacy midiFile -> timeline track
-        if (property.key === 'midiFile' && value instanceof File && !isAssignedToMacro) {
-            const migrate = async () => {
-                try {
-                    const addMidiTrack = useTimelineStore.getState().addMidiTrack;
-                    const id = await addMidiTrack({ name: value.name || 'MIDI Track', file: value, offsetSec: 0 });
-                    onValueChange('midiTrackId', id);
-                    onValueChange('midiFile', null);
-                } catch (e) {
-                    console.warn('Timeline migration failed:', e);
-                }
-            };
-            return (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {inputEl}
-                    <button type="button" onClick={migrate} title="Import this MIDI file into the Timeline and link this element">
-                        Migrate to Timeline
-                    </button>
-                </div>
-            );
-        }
+        // Legacy midiFile migration CTA removed
 
         return inputEl;
     };

@@ -2,7 +2,7 @@
 import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
-import { Line, Text, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
+import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from './note-block';
@@ -10,24 +10,11 @@ import { MidiManager } from '@core/midi/midi-manager';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 import { debugLog } from '@utils/debug-log';
-import { globalMacroManager } from '@bindings/macro-manager';
-import { ConstantBinding } from '@bindings/property-bindings';
 
 export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
     // (Min BBox cache removed; layout stabilizes via includeInLayoutBounds)
-    private _currentMidiFile: File | null = null;
-    private _midiMacroListener?: (
-        eventType:
-            | 'macroValueChanged'
-            | 'macroCreated'
-            | 'macroDeleted'
-            | 'macroAssigned'
-            | 'macroUnassigned'
-            | 'macrosImported',
-        data: any
-    ) => void;
 
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
@@ -38,8 +25,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Initialize animation controller
         this.animationController = new AnimationController(this);
 
-        // Set up specific MIDI file change handling
-        this._setupMIDIFileListener();
+        // Legacy midiFile handling removed; timeline tracks only
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -117,14 +103,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     })),
                 },
                 {
-                    id: 'midiFile',
-                    label: 'MIDI File',
+                    id: 'midiSource',
+                    label: 'MIDI Source',
                     collapsed: true,
                     properties: [
                         {
                             key: 'midiTrackIds',
                             type: 'midiTrackRef',
-                            label: 'Timeline MIDI Tracks',
+                            label: 'MIDI Tracks',
                             default: [],
                             description: 'Pick one or more MIDI tracks from the Timeline',
                             allowMultiple: true,
@@ -132,18 +118,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             key: 'midiTrackId',
                             type: 'midiTrackRef',
-                            label: 'Timeline MIDI Track',
+                            label: 'MIDI Track',
                             default: null,
-                            description: 'Pick a MIDI track from the Timeline (preferred over file upload)',
-                        },
-                        {
-                            key: 'midiFile',
-                            type: 'file',
-                            label: 'MIDI File',
-                            accept: '.mid,.midi',
-                            default: null,
-                            description:
-                                'Deprecated: Upload a MIDI file for this element (prefer Timeline track selection)',
+                            description: 'Pick a MIDI track from the Timeline',
                         },
                     ],
                 },
@@ -743,12 +720,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
-        // Handle MIDI file changes
-        const midiFile = this.getProperty<File>('midiFile');
-        if (midiFile !== this._currentMidiFile) {
-            this._handleMIDIFileConfig(midiFile);
-            this._currentMidiFile = midiFile;
-        }
+        // Legacy midiFile handling removed; use timeline tracks only
 
         // Update timing via midiManager
         this.midiManager.setBPM(bpm);
@@ -790,8 +762,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
             }
         }
 
-        // Build source notes: prefer store-based timeline tracks; fallback to legacy MidiManager
-        let sourceNotes = this.midiManager.getNotes();
+        // Build source notes from timeline tracks only
+        let sourceNotes: Array<{
+            note: number;
+            channel: number;
+            velocity: number;
+            startTime: number;
+            endTime: number;
+            startBeat?: number;
+            endBeat?: number;
+        }> = [];
         try {
             const trackIds = (this.getProperty<any>('midiTrackIds') as string[] | undefined) || [];
             const trackId = this.getProperty<string>('midiTrackId');
@@ -973,56 +953,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return renderObjects;
     }
 
-    /**
-     * Handle MIDI file configuration changes
-     */
-    private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
-        if (!midiFileData) return;
-
-        if (midiFileData instanceof File) {
-            try {
-                const resetMacroValues = this._currentMidiFile !== midiFileData;
-                await this.midiManager.loadMidiFile(midiFileData, resetMacroValues);
-
-                // Auto-import into TimelineService and set midiTrackId for migration
-                try {
-                    const svc: any = (window as any).mvmntTimelineService;
-                    if (svc && typeof svc.addMidiTrack === 'function') {
-                        const id = await svc.addMidiTrack({
-                            file: midiFileData,
-                            name: midiFileData.name,
-                            offsetSec: 0,
-                        });
-                        this.setProperty('midiTrackId', id);
-                    }
-                } catch (e) {
-                    console.warn('Timeline auto-import failed:', e);
-                }
-
-                // Optionally adjust min/max notes if bound to constants
-                const notes = this.midiManager.getNotes();
-                if (Array.isArray(notes) && notes.length > 0) {
-                    const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
-                    if (noteValues.length > 0) {
-                        const actualMin = Math.max(0, Math.min(...noteValues));
-                        const actualMax = Math.min(127, Math.max(...noteValues));
-                        const minBinding = this.getBinding('minNote');
-                        const maxBinding = this.getBinding('maxNote');
-                        if (minBinding instanceof ConstantBinding) this.setProperty('minNote', actualMin);
-                        if (maxBinding instanceof ConstantBinding) this.setProperty('maxNote', actualMax);
-                    }
-                }
-
-                this._dispatchChangeEvent();
-                if (typeof window !== 'undefined') {
-                    const vis: any = (window as any).debugVisualizer;
-                    if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
-                }
-            } catch (err) {
-                console.error(`Failed to load MIDI file for ${this.id}:`, err);
-            }
-        }
-    }
+    // Legacy midi file support removed
 
     /**
      * Create horizontal note grid lines across the roll area
@@ -1172,50 +1103,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
         }
     }
 
-    /**
-     * Set up listener specifically for MIDI file changes to immediately process file
-     */
-    private _setupMIDIFileListener(): void {
-        this._midiMacroListener = (
-            eventType:
-                | 'macroValueChanged'
-                | 'macroCreated'
-                | 'macroDeleted'
-                | 'macroAssigned'
-                | 'macroUnassigned'
-                | 'macrosImported',
-            data: any
-        ) => {
-            if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
-                // Check if this element is bound to the midiFile macro
-                if (this.isBoundToMacro('midiFile', 'midiFile')) {
-                    console.log(`[MIDI File Listener] Processing MIDI file change for element ${this.id}`);
-                    // Get the new MIDI file and process it immediately
-                    const newMidiFile = this.getProperty<File>('midiFile');
-                    if (newMidiFile !== this._currentMidiFile) {
-                        this._handleMIDIFileConfig(newMidiFile);
-                        this._currentMidiFile = newMidiFile;
-                        // Force immediate re-render so duration/UI updates without stepping
-                        if (typeof window !== 'undefined') {
-                            const vis: any = (window as any).debugVisualizer;
-                            if (vis && typeof vis.invalidateRender === 'function') {
-                                vis.invalidateRender();
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        globalMacroManager.addListener(this._midiMacroListener);
-    }
+    // Macro listener for midiFile removed
 
     // Ensure listeners are detached when element is disposed
     dispose(): void {
         super.dispose();
-        if (this._midiMacroListener) {
-            globalMacroManager.removeListener(this._midiMacroListener);
-            this._midiMacroListener = undefined;
-        }
     }
 
     // Convenience methods for property access
@@ -1269,14 +1161,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
 
-    getMidiFile(): File | null {
-        return this.getProperty<File>('midiFile');
-    }
-
-    setMidiFile(file: File | null): this {
-        this.setProperty('midiFile', file);
-        return this;
-    }
+    // Removed midiFile getters/setters
 
     // Binding-specific methods
     bindBPMToMacro(macroId: string): this {
@@ -1289,10 +1174,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return this;
     }
 
-    bindMidiFileToMacro(macroId: string): this {
-        this.bindToMacro('midiFile', macroId);
-        return this;
-    }
+    // Removed midiFile macro binding
 
     /**
      * Get channel colors for MIDI channels

@@ -3,31 +3,21 @@ import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
-import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 // Timeline-backed migration: remove per-element MidiManager usage
-import { globalMacroManager } from '@bindings/macro-manager';
-import { ConstantBinding } from '@bindings/property-bindings';
 import { MovingNotesAnimationController } from './animation-controller';
-import type { TimelineService } from '@core/timing';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectNotesInWindow } from '@selectors/timelineSelectors';
 import { TimingManager } from '@core/timing';
 
 export class MovingNotesPianoRollElement extends SceneElement {
     public animationController: MovingNotesAnimationController;
-    private _currentMidiFile: File | null = null;
     private timingManager: TimingManager;
-    private _timeline(): TimelineService | undefined {
-        try {
-            return (window as any).mvmntTimelineService as TimelineService;
-        } catch {
-            return undefined;
-        }
-    }
+    // TimelineService removed; use store selectors for MIDI retrieval
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
         this.animationController = new MovingNotesAnimationController(this);
         this.timingManager = new TimingManager(this.id);
-        this._setupMIDIFileListener();
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -93,8 +83,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     })),
                 },
                 {
-                    id: 'midiFile',
-                    label: 'MIDI File',
+                    id: 'midiSource',
+                    label: 'MIDI Source',
                     collapsed: true,
                     properties: [
                         {
@@ -107,14 +97,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         {
                             key: 'midiTrackId',
                             type: 'midiTrackRef',
-                            label: 'MIDI Track (legacy single)',
-                            default: null,
-                        },
-                        {
-                            key: 'midiFile',
-                            type: 'file',
-                            label: 'MIDI File (deprecated)',
-                            accept: '.mid,.midi',
+                            label: 'MIDI Track',
                             default: null,
                         },
                     ],
@@ -406,13 +389,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
         const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
 
-        // MIDI file changes
-        const midiFile = this.getProperty<File>('midiFile');
-        if (midiFile !== this._currentMidiFile) {
-            this._handleMIDIFileConfig(midiFile);
-            this._currentMidiFile = midiFile;
-        }
-
         // Update local timing manager for view window duration only
         this.timingManager.setBPM(bpm);
         this.timingManager.setBeatsPerBar(beatsPerBar);
@@ -450,22 +426,24 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowStart = effectiveTime - duration * playheadPosition;
         const windowEnd = windowStart + duration;
 
-        // Fetch notes for this window from TimelineService
-        const tl = this._timeline();
+        // Fetch notes for this window from timeline store
         const trackIds = (this.getProperty('midiTrackIds') as string[] | undefined) || [];
         const trackId = (this.getProperty('midiTrackId') as string) || null;
         const effectiveTrackIds = Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
+        const state = useTimelineStore.getState();
         const rawNotes =
-            tl && effectiveTrackIds.length > 0
-                ? tl
-                      .getNotesInWindow({ trackIds: effectiveTrackIds, startSec: windowStart, endSec: windowEnd })
-                      .map((n) => ({
-                          note: n.note,
-                          channel: n.channel,
-                          velocity: n.velocity,
-                          startTime: (n as any).startSec ?? (n as any).startTime,
-                          endTime: (n as any).endSec ?? (n as any).endTime,
-                      }))
+            effectiveTrackIds.length > 0
+                ? selectNotesInWindow(state, {
+                      trackIds: effectiveTrackIds,
+                      startSec: windowStart,
+                      endSec: windowEnd,
+                  }).map((n) => ({
+                      note: n.note,
+                      channel: n.channel,
+                      velocity: n.velocity || 0,
+                      startTime: n.startTime,
+                      endTime: n.endTime,
+                  }))
                 : [];
 
         // Notes moving past static playhead
@@ -544,41 +522,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return renderObjects;
     }
 
-    private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
-        if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._autoImportMIDIFile(midiFileData);
-    }
-
-    private async _autoImportMIDIFile(file: File): Promise<void> {
-        try {
-            const tl = this._timeline();
-            if (!tl) return;
-            const id = await tl.addMidiTrack({ file, name: file.name });
-            this.setProperty('midiTrackId', id);
-            // Best-effort: adjust min/max note if track is available
-            const track = tl.getTrack(id) as any;
-            const notes = (track?.notesRaw || []) as any[];
-            if (Array.isArray(notes) && notes.length > 0) {
-                const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
-                if (noteValues.length > 0) {
-                    const actualMin = Math.max(0, Math.min(...noteValues));
-                    const actualMax = Math.min(127, Math.max(...noteValues));
-                    const minBinding = this.getBinding('minNote');
-                    const maxBinding = this.getBinding('maxNote');
-                    if (minBinding instanceof ConstantBinding) this.setProperty('minNote', actualMin);
-                    if (maxBinding instanceof ConstantBinding) this.setProperty('maxNote', actualMax);
-                }
-            }
-            this._dispatchChangeEvent();
-            if (typeof window !== 'undefined') {
-                const vis: any = (window as any).debugVisualizer;
-                if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
-            }
-        } catch (err) {
-            console.error(`Failed to import MIDI file for ${this.id}:`, err);
-        }
-    }
-
     private _createStaticPlayhead(
         pianoWidth: number,
         rollWidth: number,
@@ -596,23 +539,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             ? Line.createPlayhead(x, 0, totalHeight, playheadColor, lineWidth)
             : new Line(x, 0, x, totalHeight, playheadColor, lineWidth);
         return [playhead];
-    }
-
-    private _dispatchChangeEvent(): void {
-        if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.dispatchEvent(new CustomEvent('sceneElementChanged', { detail: { elementId: this.id } }));
-        }
-    }
-
-    private _setupMIDIFileListener(): void {
-        globalMacroManager.addListener((eventType: any, data: any) => {
-            if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
-                if (this.isBoundToMacro('midiFile', 'midiFile')) {
-                    const file = this.getMidiFile();
-                    if (file) this._handleMIDIFileConfig(file);
-                }
-            }
-        });
     }
 
     // Convenience getters/setters mirroring TimeUnitPianoRoll
@@ -652,23 +578,12 @@ export class MovingNotesPianoRollElement extends SceneElement {
     getTimeUnit(): number {
         return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
-    getMidiFile(): File | null {
-        return this.getProperty<File>('midiFile');
-    }
-    setMidiFile(file: File | null): this {
-        this.setProperty('midiFile', file);
-        return this;
-    }
     bindBPMToMacro(macroId: string): this {
         this.bindToMacro('bpm', macroId);
         return this;
     }
     bindBeatsPerBarToMacro(macroId: string): this {
         this.bindToMacro('beatsPerBar', macroId);
-        return this;
-    }
-    bindMidiFileToMacro(macroId: string): this {
-        this.bindToMacro('midiFile', macroId);
         return this;
     }
     getChannelColors(): string[] {

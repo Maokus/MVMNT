@@ -335,25 +335,23 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
-    const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
+    // Loop UI disabled: ignore loop braces and use playbackRange/view only
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     // Phase 4: Prefer loop braces as explicit visualizer play range when enabled; otherwise use the timeline view window
     useEffect(() => {
         if (!visualizer) return;
-        const loopActive =
-            !!loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number' && loopEndSec > loopStartSec;
         const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : tView.startSec;
         const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : tView.endSec;
-        const start = loopActive ? (loopStartSec as number) : playStart;
-        const end = loopActive ? (loopEndSec as number) : playEnd;
+        const start = playStart;
+        const end = playEnd;
         visualizer.setPlayRange?.(start, end);
         // If current time is outside the active play window, clamp/seek inside
         if (visualizer.currentTime < start || visualizer.currentTime > end) {
             const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
             visualizer.seek?.(clamped);
         }
-    }, [visualizer, tView.startSec, tView.endSec, playbackRange?.startSec, playbackRange?.endSec, loopEnabled, loopStartSec, loopEndSec]);
+    }, [visualizer, tView.startSec, tView.endSec, playbackRange?.startSec, playbackRange?.endSec]);
 
     // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
     useEffect(() => {

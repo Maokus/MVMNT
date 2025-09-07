@@ -33,9 +33,7 @@ const TimelinePanel: React.FC = () => {
         if (!visualizer) return;
         try {
             const { startSec, endSec } = useTimelineStore.getState().timelineView;
-            const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore.getState().transport;
-            const loopActive = !!loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number' && loopEndSec > loopStartSec;
-            visualizer.setPlayRange?.(loopActive ? (loopStartSec as number) : startSec, loopActive ? (loopEndSec as number) : endSec);
+            visualizer.setPlayRange?.(startSec, endSec);
         } catch { }
     }, [visualizer]);
 
@@ -167,7 +165,7 @@ const TimelinePanel: React.FC = () => {
                 <div className="flex items-center justify-center justify-self-center">
                     <TransportControls />
                 </div>
-                {/* Right: timeline view + loop/quantize buttons */}
+                {/* Right: timeline view + quantize buttons */}
                 <div className="justify-self-end">
                     <HeaderRightControls follow={follow} setFollow={setFollow} />
                 </div>
@@ -234,14 +232,12 @@ const TimeIndicator: React.FC = () => {
     );
 };
 
-// Right-side header controls: zoom slider, play start/end inputs, loop/quantize toggles, follow
+// Right-side header controls: zoom slider, play start/end inputs, quantize toggle, follow
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
-    const loopEnabled = useTimelineStore((s) => s.transport.loopEnabled);
-    const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     // Zoom slider state maps to view range width using logarithmic scale
@@ -334,16 +330,6 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }}
                 />
             </label>
-
-            {/* Loop toggle (icon button) */}
-            <button
-                className={`px-2 py-1 rounded border border-neutral-700 ${loopEnabled ? 'bg-blue-600/70 text-white' : 'bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60'}`}
-                title="Toggle loop"
-                onClick={() => setLoopEnabled(!loopEnabled)}
-            >
-                ⟲
-            </button>
-            {/* Loop start/end inputs removed; edit via ruler braces only */}
 
             {/* Quantize toggle (Q button) */}
             <button
