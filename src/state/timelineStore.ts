@@ -31,7 +31,14 @@ export type TimelineState = {
     };
     tracks: Record<string, TimelineTrack>;
     tracksOrder: string[];
-    transport: { isPlaying: boolean; loopEnabled: boolean; loopStartSec?: number; loopEndSec?: number };
+    transport: {
+        isPlaying: boolean;
+        loopEnabled: boolean;
+        loopStartSec?: number;
+        loopEndSec?: number;
+        rate: number; // playback rate factor (inactive until wired to visualizer/worker)
+        quantize: 'off' | 'bar'; // minimal Phase 2: toggle bar quantization on/off
+    };
     selection: { selectedTrackIds: string[] };
     // UI view window for seekbar and navigation
     timelineView: { startSec: number; endSec: number };
@@ -57,6 +64,8 @@ export type TimelineState = {
     pause: () => void;
     togglePlay: () => void;
     scrub: (to: number) => void;
+    setRate: (rate: number) => void;
+    setQuantize: (q: 'off' | 'bar') => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRange: (start?: number, end?: number) => void;
     reorderTracks: (order: string[]) => void;
@@ -77,7 +86,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
     tracksOrder: [],
-    transport: { isPlaying: false, loopEnabled: false },
+    transport: { isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
     selection: { selectedTrackIds: [] },
     midiCache: {},
     timelineView: { startSec: 0, endSec: 60 },
@@ -194,6 +203,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     scrub(to: number) {
         get().setCurrentTimeSec(to);
+    },
+
+    setRate(rate: number) {
+        const r = isFinite(rate) && rate > 0 ? rate : 1.0;
+        set((s: TimelineState) => ({ transport: { ...s.transport, rate: r } }));
+    },
+
+    setQuantize(q: 'off' | 'bar') {
+        const v: 'off' | 'bar' = q === 'bar' ? 'bar' : 'off';
+        set((s: TimelineState) => ({ transport: { ...s.transport, quantize: v } }));
     },
 
     setLoopEnabled(enabled: boolean) {

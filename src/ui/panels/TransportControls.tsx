@@ -24,6 +24,10 @@ const TransportControls: React.FC = () => {
     const setCurrent = useTimelineStore((s) => s.setCurrentTimeSec);
     const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
     const setLoopRange = useTimelineStore((s) => s.setLoopRange);
+    const quantize = useTimelineStore((s) => s.transport.quantize);
+    const setQuantize = useTimelineStore((s) => s.setQuantize);
+    const rate = useTimelineStore((s) => s.transport.rate);
+    const setRate = useTimelineStore((s) => s.setRate);
     // Phase 1: derive beats/bars from the unified selectors
     const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec));
     const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec));
@@ -39,6 +43,14 @@ const TransportControls: React.FC = () => {
                 <input className="number-input w-[80px]" type="number" step={0.01} value={loopStart ?? ''} placeholder="loop start" onChange={(e) => setLoopRange(e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0), loopEnd)} />
                 <span>–</span>
                 <input className="number-input w-[80px]" type="number" step={0.01} value={loopEnd ?? ''} placeholder="loop end" onChange={(e) => setLoopRange(loopStart, e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0))} />
+                <label className="text-[12px] text-neutral-300 flex items-center gap-1 ml-2" title="Quantize to bar boundaries">
+                    <input type="checkbox" checked={quantize === 'bar'} onChange={(e) => setQuantize(e.target.checked ? 'bar' : 'off')} /> Quantize: Bar
+                </label>
+                <label className="text-[12px] text-neutral-300 flex items-center gap-1 ml-2" title="Playback rate (not yet affecting live playback)">
+                    Rate
+                    <input className="number-input w-[70px]" type="number" step={0.1} min={0.1} value={rate}
+                        onChange={(e) => setRate(parseFloat(e.target.value) || 1)} />
+                </label>
             </div>
             <div className="flex items-center gap-2">
                 <label className="text-[12px] text-neutral-300 flex items-center gap-1">
