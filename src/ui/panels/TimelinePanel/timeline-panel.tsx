@@ -67,6 +67,9 @@ const TimelinePanel: React.FC = () => {
     // Phase 3: wheel zoom & pan handlers on the right container
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const view = useTimelineStore((s) => s.timelineView);
+    const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
+    const currentTime = useTimelineStore((s) => s.timeline.currentTimeSec);
+    const [follow, setFollow] = useState(false);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
 
     const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
@@ -134,6 +137,21 @@ const TimelinePanel: React.FC = () => {
         }
     };
 
+    // Optional auto-follow playhead: keep playhead within view, nudging the window when it exits right 85% or left 10%
+    useEffect(() => {
+        if (!follow || !isPlaying) return;
+        const range = Math.max(0.001, view.endSec - view.startSec);
+        const left = view.startSec + range * 0.1;
+        const right = view.startSec + range * 0.85;
+        if (currentTime < left) {
+            const newStart = currentTime - range * 0.3;
+            setTimelineView(newStart, newStart + range);
+        } else if (currentTime > right) {
+            const newStart = currentTime - range * 0.7;
+            setTimelineView(newStart, newStart + range);
+        }
+    }, [currentTime, follow, isPlaying, view.startSec, view.endSec, setTimelineView]);
+
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
@@ -152,7 +170,7 @@ const TimelinePanel: React.FC = () => {
                 </div>
                 {/* Right: timeline view + loop/quantize buttons */}
                 <div className="justify-self-end">
-                    <HeaderRightControls />
+                    <HeaderRightControls follow={follow} setFollow={setFollow} />
                 </div>
             </div>
             <div className="timeline-body flex items-stretch gap-0">
@@ -217,7 +235,7 @@ const TimeIndicator: React.FC = () => {
 };
 
 // Right-side header controls: view start/end inputs, loop/quantize toggles, current time
-const HeaderRightControls: React.FC = () => {
+const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const loopEnabled = useTimelineStore((s) => s.transport.loopEnabled);
@@ -290,6 +308,15 @@ const HeaderRightControls: React.FC = () => {
                 onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')}
             >
                 Q
+            </button>
+
+            {/* Follow playhead toggle */}
+            <button
+                className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60'}`}
+                title="Auto-follow playhead"
+                onClick={() => setFollow && setFollow(!follow)}
+            >
+                ▶︎⇢
             </button>
 
         </div>
