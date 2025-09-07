@@ -1,5 +1,6 @@
 // Image Sequence Generator Module
 // Generates PNG image sequences instead of video files
+import SimulatedClock from '@export/simulated-clock';
 
 interface ImageBlobData {
     blob: Blob;
@@ -133,26 +134,36 @@ export class ImageSequenceGenerator {
         onProgress: (progress: number, text?: string) => void,
         startFrame: number = 0
     ): Promise<void> {
-        const frameInterval = 1 / fps;
-        let prePadding = 0;
-        try {
-            prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-        } catch {}
-        // Anchor to explicit play range start when available
-        let baseStartTime = -prePadding;
-        try {
-            const pr = this.visualizer?.getPlayRange?.();
-            if (pr && typeof pr.startSec === 'number') baseStartTime = (pr.startSec as number) - prePadding;
-        } catch {}
+        const prePadding = (() => {
+            try {
+                return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+            } catch {
+                return 0;
+            }
+        })();
+        const playRangeStart = (() => {
+            try {
+                const pr = this.visualizer?.getPlayRange?.();
+                if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
+                return 0;
+            } catch {
+                return 0;
+            }
+        })();
+
+        const clock = new SimulatedClock({
+            fps,
+            prePaddingSec: prePadding,
+            playRangeStartSec: playRangeStart,
+            startFrame,
+        });
 
         console.log('Rendering frames to PNG...');
         for (let frame = 0; frame < totalFrames; frame++) {
-            const currentTime = baseStartTime + (frame + startFrame) * frameInterval;
+            const currentTime = clock.timeForFrame(frame);
 
             // Use the stateless rendering method from the visualizer
             this.visualizer.renderAtTime(currentTime);
-
-            console.log('Debug: Current Time:', this.visualizer.currentTime);
 
             // Convert canvas to PNG blob
             const blob = await this.canvasToPngBlob();
