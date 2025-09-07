@@ -168,7 +168,11 @@ export class VideoExporter {
         try {
             prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
         } catch {}
-        const baseStartTime = -prePadding;
+        let baseStartTime = -prePadding;
+        try {
+            const pr = this.visualizer?.getPlayRange?.();
+            if (pr && typeof pr.startSec === 'number') baseStartTime = (pr.startSec as number) - prePadding;
+        } catch {}
         for (let i = 0; i < totalFrames; i++) {
             const currentTime = baseStartTime + (i + startFrame) * frameInterval;
             this.visualizer.renderAtTime(currentTime);

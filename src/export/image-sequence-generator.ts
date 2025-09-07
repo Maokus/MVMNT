@@ -138,7 +138,12 @@ export class ImageSequenceGenerator {
         try {
             prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
         } catch {}
-        const baseStartTime = -prePadding; // first frame time (can be negative)
+        // Anchor to explicit play range start when available
+        let baseStartTime = -prePadding;
+        try {
+            const pr = this.visualizer?.getPlayRange?.();
+            if (pr && typeof pr.startSec === 'number') baseStartTime = (pr.startSec as number) - prePadding;
+        } catch {}
 
         console.log('Rendering frames to PNG...');
         for (let frame = 0; frame < totalFrames; frame++) {

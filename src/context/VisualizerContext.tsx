@@ -100,8 +100,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (canvasRef.current && !visualizer) {
             const vis = new MIDIVisualizerCore(canvasRef.current);
-            // Let the external Timeline control play range; don't auto-stop at scene duration.
-            try { vis.setIgnoreSceneDurationStop?.(true); } catch { }
+            // Initialize play range from current view window
+            try {
+                const { startSec, endSec } = useTimelineStore.getState().timelineView;
+                vis.setPlayRange?.(startSec, endSec);
+            } catch { }
             vis.render();
             setVisualizer(vis);
             const gen = new ImageSequenceGenerator(canvasRef.current, vis);
@@ -203,6 +206,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const nowTs = performance.now();
             if (nowTs - lastUIUpdate > 80) {
                 const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
+                // Display time relative to the current playback window start to match manual start/end UX
+                let rel = vNow;
+                try { const view = useTimelineStore.getState().timelineView; rel = vNow - (view?.startSec ?? 0); } catch { }
                 const format = (s: number) => {
                     const sign = s < 0 ? '-' : '';
                     const abs = Math.abs(s);
@@ -210,7 +216,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const sec = Math.floor(abs % 60);
                     return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
                 };
-                setCurrentTimeLabel(`${format(vNow)} / ${format(total)}`);
+                setCurrentTimeLabel(`${format(rel)} / ${format(total)}`);
                 setNumericCurrentTime(vNow);
                 setTotalDuration(total);
                 const hasValidScene = total > 0;
@@ -312,7 +318,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [visualizer, tIsPlaying]);
 
-    // Seek visualizer when store time changes (scrub)
+    // Seek visualizer when store time changes (scrub) and update play range when view window changes
     useEffect(() => {
         if (!visualizer) return;
         const vTime = visualizer.currentTime || 0;
@@ -322,6 +328,16 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             visualizer.seek?.(tCurrent);
         }
     }, [visualizer, tCurrent]);
+
+    const tView = useTimelineStore((s) => s.timelineView);
+    useEffect(() => {
+        if (!visualizer) return;
+        visualizer.setPlayRange?.(tView.startSec, tView.endSec);
+        // Ensure current time remains inside new range
+        if (visualizer.currentTime < tView.startSec || visualizer.currentTime > tView.endSec) {
+            visualizer.seek?.(Math.min(Math.max(visualizer.currentTime, tView.startSec), tView.endSec));
+        }
+    }, [visualizer, tView.startSec, tView.endSec]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
