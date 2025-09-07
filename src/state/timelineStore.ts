@@ -319,18 +319,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     togglePlay() {
         const wasPlaying = get().transport.isPlaying;
-        // If we are transitioning from stopped->playing, jump to the current view start
-        if (!wasPlaying) {
-            const { startSec } = get().timelineView;
-            // Respect quantize on play from stop
-            const s = get();
-            if (s.transport.quantize === 'bar') {
-                const snappedBars = Math.round(_secondsToBarsLocal(s, startSec));
-                get().setCurrentTimeSec(_barsToSecondsLocal(s, snappedBars));
-            } else {
-                get().setCurrentTimeSec(startSec);
-            }
-        }
+        // Resume from the current playhead position; do NOT jump to view start.
+        // This preserves the user's last seek/paused position when starting playback.
         set((s: TimelineState) => ({
             transport: { ...s.transport, isPlaying: !wasPlaying, state: !wasPlaying ? 'playing' : 'paused' },
         }));
