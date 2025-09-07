@@ -19,6 +19,16 @@ function _barsToSecondsLocal(state: TimelineState, bars: number): number {
     return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
 }
 
+// Local helpers for beats<->seconds using current timeline tempo context
+function _secondsToBeatsLocal(state: TimelineState, seconds: number): number {
+    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+    return secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+}
+function _beatsToSecondsLocal(state: TimelineState, beats: number): number {
+    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+}
+
 // Phase 1: Base types for the Timeline system
 // Types are now in timelineTypes.ts
 
@@ -29,7 +39,9 @@ export type TimelineTrack = {
     enabled: boolean;
     mute: boolean;
     solo: boolean;
-    offsetSec: number; // timeline -> track time offset
+    // Source of truth is offsetBeats; offsetSec is maintained for compatibility and rendering
+    offsetSec: number; // derived from offsetBeats
+    offsetBeats?: number; // beats from first beat (Phase 1)
     regionStartSec?: number;
     regionEndSec?: number;
     midiSourceId?: string; // references midiCache key
@@ -68,6 +80,7 @@ export type TimelineState = {
     removeTrack: (id: string) => void;
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
     setTrackOffset: (id: string, offsetSec: number) => void;
+    setTrackOffsetBeats: (id: string, offsetBeats: number) => void;
     setTrackRegion: (id: string, start?: number, end?: number) => void;
     setTrackEnabled: (id: string, enabled: boolean) => void;
     setTrackMute: (id: string, mute: boolean) => void;
@@ -122,7 +135,11 @@ function computeContentEndSec(state: TimelineState): number {
             let end = localEnd;
             if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
             if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
-            const timelineEnd = (t.offsetSec || 0) + end;
+            const offset =
+                typeof (t as any).offsetBeats === 'number'
+                    ? _beatsToSecondsLocal(state, (t as any).offsetBeats)
+                    : t.offsetSec || 0;
+            const timelineEnd = offset + end;
             if (timelineEnd > max) max = timelineEnd;
         }
     } catch {}
@@ -140,6 +157,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
         const id = makeId();
+        const s = get();
+        const initialOffsetSec = input.offsetSec ?? 0;
+        const initialOffsetBeats = _secondsToBeatsLocal(s, initialOffsetSec);
         const track: TimelineTrack = {
             id,
             name: input.name || 'MIDI Track',
@@ -147,7 +167,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             enabled: true,
             mute: false,
             solo: false,
-            offsetSec: input.offsetSec ?? 0,
+            offsetSec: initialOffsetSec,
+            offsetBeats: initialOffsetBeats,
         };
 
         set((s: TimelineState) => ({
@@ -190,11 +211,40 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     updateTrack(id: string, patch: Partial<TimelineTrack>) {
-        set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], ...patch } } }));
+        // Keep offsetSec <-> offsetBeats in sync; prefer explicit values in patch
+        set((s: TimelineState) => {
+            const prev = s.tracks[id];
+            if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
+            let next: TimelineTrack = { ...prev, ...patch } as TimelineTrack;
+            // If offsetBeats is provided but offsetSec isn't, derive seconds
+            if (typeof patch.offsetBeats === 'number' && typeof patch.offsetSec !== 'number') {
+                const sec = _beatsToSecondsLocal(s, patch.offsetBeats);
+                next.offsetSec = sec;
+            }
+            // If offsetSec is provided but offsetBeats isn't, derive beats
+            if (typeof patch.offsetSec === 'number' && typeof patch.offsetBeats !== 'number') {
+                const beats = _secondsToBeatsLocal(s, patch.offsetSec);
+                (next as any).offsetBeats = beats;
+            }
+            return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
+        });
     },
 
     setTrackOffset(id: string, offsetSec: number) {
-        set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], offsetSec } } }));
+        // Delegate to beats-based storage for source of truth
+        const s = get();
+        const beats = _secondsToBeatsLocal(s, offsetSec);
+        get().setTrackOffsetBeats(id, beats);
+    },
+
+    setTrackOffsetBeats(id: string, offsetBeats: number) {
+        set((s: TimelineState) => {
+            const sec = _beatsToSecondsLocal(s, offsetBeats);
+            const prev = s.tracks[id];
+            if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
+            const next: TimelineTrack = { ...prev, offsetBeats, offsetSec: sec };
+            return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
+        });
     },
 
     setTrackRegion(id: string, start?: number, end?: number) {

@@ -1,5 +1,42 @@
 import type { TimelineState, TimelineTrack } from '../timelineStore';
 
+// Helpers: derive seconds offset from beats if needed using timeline context
+const beatsToSeconds = (s: TimelineState, beats: number): number => {
+    const spbFallback = 60 / (s.timeline.globalBpm || 120);
+    const map = s.timeline.masterTempoMap;
+    // Avoid importing to prevent cycles; inline simple converter compatible with tempo-utils signature
+    // We rely on tempo-utils in store; here we fallback to uniform tempo if map missing
+    if (!map || map.length === 0) {
+        return beats * spbFallback;
+    }
+    // Piecewise convert beats using map entries with cumulative beats->seconds ratio
+    // Simplified: assume map entries are in seconds domain with bpm at that time; approximate
+    // For selectors, approximation is acceptable; store is the source of truth for conversions.
+    // We'll just use fallback to keep it deterministic here.
+    return beats * spbFallback;
+};
+
+const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
+    if (typeof t.offsetBeats === 'number') return beatsToSeconds(s, t.offsetBeats);
+    return t.offsetSec || 0;
+};
+
+export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
+    const t = s.tracks[id];
+    if (!t) return 0;
+    if (typeof t.offsetBeats === 'number') return t.offsetBeats;
+    // derive from seconds
+    const spbFallback = 60 / (s.timeline.globalBpm || 120);
+    const sec = t.offsetSec || 0;
+    return sec / spbFallback; // approximate without tempo map to avoid cycle
+};
+
+export const getTrackOffsetSeconds = (s: TimelineState, id: string): number => {
+    const t = s.tracks[id];
+    if (!t) return 0;
+    return getEffectiveOffsetSec(s, t);
+};
+
 export type TimelineNoteEvent = {
     trackId: string;
     note: number;
@@ -40,7 +77,7 @@ export const selectNotesInWindow = (
         const cache = s.midiCache[cacheKey];
         if (!cache) continue;
 
-        const offset = track.offsetSec || 0;
+        const offset = getEffectiveOffsetSec(s, track);
         const rStart = track.regionStartSec ?? -Infinity;
         const rEnd = track.regionEndSec ?? Infinity;
 
@@ -94,7 +131,7 @@ export const selectNotesInWindowMemo = (
         const cache = s.midiCache[cacheKey];
         const notesId = cache ? (cache.notesRaw as any) : null;
         depParts.push(
-            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${t.offsetSec}:${t.regionStartSec ?? ''}:${
+            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getEffectiveOffsetSec(s, t)}:${t.regionStartSec ?? ''}:${
                 t.regionEndSec ?? ''
             }:` +
                 `${cache ? cache.ticksPerQuarter : ''}:${cache ? cache.tempoMap?.length ?? 0 : ''}:${
