@@ -33,13 +33,17 @@ const TimelinePanel: React.FC = () => {
                     <TransportControls />
                 </div>
             </div>
-            <div className="timeline-body">
-                <div className="tracklist-container max-w-full overflow-x-auto">
+            <div className="timeline-body flex items-stretch gap-0">
+                {/* Left: Track list */}
+                <div className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800">
                     <TrackList trackIds={trackIds} />
                 </div>
 
-                <TimelineRuler />
-                <TrackLanes trackIds={trackIds} />
+                {/* Right: Ruler stacked above lanes */}
+                <div className="flex-1 min-w-0 flex flex-col">
+                    <TimelineRuler />
+                    <TrackLanes trackIds={trackIds} />
+                </div>
             </div>
         </div>
     );
