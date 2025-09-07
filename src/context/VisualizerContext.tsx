@@ -360,8 +360,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-fit timeline view to scene duration when first available and the view is at default width.
+    // Auto-fit timeline view to scene duration only once when first available and the view is at default width.
+    const didAutoFitRef = useRef(false);
     useEffect(() => {
+        if (didAutoFitRef.current) return;
         const duration = totalDuration;
         if (!isFinite(duration) || duration <= 0) return;
         const width = Math.max(0, tView.endSec - tView.startSec);
@@ -369,10 +371,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (isExactlyDefault) {
             const end = Math.max(1, duration);
             setTimelineView(0, end);
-            // Also seed playback range if not already set by user
             if (!(typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number')) {
                 setPlaybackRange(0, end);
             }
+            didAutoFitRef.current = true;
         }
     }, [totalDuration, tView.startSec, tView.endSec, setTimelineView, playbackRange?.startSec, playbackRange?.endSec, setPlaybackRange]);
 

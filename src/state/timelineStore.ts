@@ -76,6 +76,8 @@ export type TimelineState = {
         string,
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     >;
+    // UI preferences
+    rowHeight: number; // track row height in px
 
     // Actions
     addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) => Promise<string>;
@@ -112,6 +114,7 @@ export type TimelineState = {
     setTimelineView: (start: number, end: number) => void;
     selectTracks: (ids: string[]) => void;
     setPlaybackRange: (start?: number, end?: number) => void;
+    setRowHeight: (h: number) => void;
     ingestMidiToCache: (
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
@@ -153,11 +156,20 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
     tracksOrder: [],
-    transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
+    transport: {
+        state: 'idle',
+        isPlaying: false,
+        loopEnabled: false,
+        rate: 1.0,
+        quantize: 'off',
+        loopStartSec: 2,
+        loopEndSec: 5,
+    },
     selection: { selectedTrackIds: [] },
     midiCache: {},
     timelineView: { startSec: 0, endSec: 60 },
     playbackRange: undefined,
+    rowHeight: 30,
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
         const id = makeId();
@@ -405,11 +417,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         let e = Math.max(s + MIN_RANGE, eRaw);
         if (e - s > MAX_RANGE) e = s + MAX_RANGE;
         set(() => ({ timelineView: { startSec: s, endSec: e } }));
-        // Clamp current time into view range to avoid slider snapping outside
-        const cur = get().timeline.currentTimeSec;
-        if (cur < s || cur > e) {
-            get().setCurrentTimeSec(Math.min(Math.max(cur, s), e));
-        }
     },
 
     selectTracks(ids: string[]) {
@@ -431,6 +438,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
             },
         }));
+    },
+
+    setRowHeight(h: number) {
+        const minH = 16;
+        const maxH = 160;
+        const v = Math.max(minH, Math.min(maxH, Math.floor(h)));
+        set(() => ({ rowHeight: v }));
     },
 });
 

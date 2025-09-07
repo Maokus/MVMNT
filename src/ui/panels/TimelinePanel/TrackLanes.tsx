@@ -308,7 +308,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
         setHoverX(null);
     };
 
-    const rowHeight = 30;
+    const rowHeight = useTimelineStore((s) => s.rowHeight);
     const lanesHeight = Math.max(rowHeight * Math.max(1, trackIds.length), 120);
     const playheadX = toX(currentTimeSec, Math.max(1, width));
 

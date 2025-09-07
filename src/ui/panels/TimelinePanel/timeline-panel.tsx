@@ -72,8 +72,10 @@ const TimelinePanel: React.FC = () => {
     const [follow, setFollow] = useState(false);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
 
+    const setRowHeight = useTimelineStore((s) => s.setRowHeight);
+    const rowHeight = useTimelineStore((s) => s.rowHeight);
     const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
-        // Ctrl/Meta/Pinch => zoom horizontally around cursor; Shift => horizontal pan; else let scroll work (vertical)
+        // Map pinch (ctrl/meta) to zoom and horizontal wheel (deltaX) to pan; allow vertical scroll to pass through unchanged.
         const container = rightScrollRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
@@ -84,11 +86,20 @@ const TimelinePanel: React.FC = () => {
         const MIN_RANGE = 0.05; // 50ms min zoom
         const MAX_RANGE = 60 * 60 * 24; // 24h max
 
-        const isZoom = e.ctrlKey || e.metaKey;
-        const isPanH = e.shiftKey && !isZoom;
+        const isZoom = e.ctrlKey || e.metaKey; // pinch-zoom gesture
+        // If zooming with Shift held, treat as vertical zoom of track height instead of time zoom.
+        if (isZoom && e.shiftKey) {
+            e.preventDefault();
+            const factor = Math.exp(-Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 120) * 0.2);
+            setRowHeight(rowHeight * factor);
+            return;
+        }
+        // Only pan horizontally when there is meaningful horizontal delta; otherwise let vertical scroll happen (for track list syncing via native scrollbars).
+        const isPanH = !isZoom && Math.abs(e.deltaX) > Math.abs(e.deltaY);
 
         if (isZoom) {
             e.preventDefault();
+            e.stopPropagation();
             // Wheel delta: positive => scroll down => zoom out; negative => zoom in
             const zoomFactor = Math.exp(-Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 120) * 0.2);
             let newRange = Math.min(MAX_RANGE, Math.max(MIN_RANGE, range * zoomFactor));
@@ -101,13 +112,13 @@ const TimelinePanel: React.FC = () => {
         }
         if (isPanH) {
             e.preventDefault();
-            // Horizontal pan proportional to wheel deltaX/Y
-            const delta = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / Math.max(1, width);
+            // Horizontal pan proportional to wheel deltaX only
+            const delta = e.deltaX / Math.max(1, width);
             const shift = delta * range;
             setTimelineView(view.startSec + shift, view.endSec + shift);
             return;
         }
-        // Default: allow native scrolling; vertical sync handled by onRightScroll
+        // Default: allow vertical scroll to bubble (do not call preventDefault)
     };
 
     const onRightPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -136,6 +147,23 @@ const TimelinePanel: React.FC = () => {
             try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
         }
     };
+
+    // Prevent browser gesture zoom on Safari (gesturestart/gesturechange/gestureend)
+    useEffect(() => {
+        const el = rightScrollRef.current;
+        if (!el) return;
+        const prevent = (ev: Event) => {
+            ev.preventDefault();
+        };
+        el.addEventListener('gesturestart', prevent as EventListener, { passive: false } as any);
+        el.addEventListener('gesturechange', prevent as EventListener, { passive: false } as any);
+        el.addEventListener('gestureend', prevent as EventListener, { passive: false } as any);
+        return () => {
+            el.removeEventListener('gesturestart', prevent as EventListener);
+            el.removeEventListener('gesturechange', prevent as EventListener);
+            el.removeEventListener('gestureend', prevent as EventListener);
+        };
+    }, []);
 
     // Optional auto-follow playhead: keep playhead within view, nudging the window when it exits right 85% or left 10%
     useEffect(() => {
@@ -187,13 +215,14 @@ const TimelinePanel: React.FC = () => {
                 <div className="flex-1 min-w-0 min-h-0">
                     {/* Single scroll container to keep ruler sticky and horizontal-scrollable together with lanes */}
                     <div
-                        className="relative w-full h-full overflow-auto"
+                        className="relative w-full h-full overflow-auto "
                         ref={rightScrollRef}
                         onScroll={onRightScroll}
                         onWheel={onRightWheel}
                         onPointerDown={onRightPointerDown}
                         onPointerMove={onRightPointerMove}
                         onPointerUp={onRightPointerUp}
+                        style={{ overscrollBehavior: 'contain', overflowX: 'hidden' }}
                     >
                         {/* Sticky ruler */}
                         <div className="sticky top-0 z-10">
@@ -241,10 +270,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     const loopEnabled = useTimelineStore((s) => s.transport.loopEnabled);
-    const loopStart = useTimelineStore((s) => s.transport.loopStartSec);
-    const loopEnd = useTimelineStore((s) => s.transport.loopEndSec);
     const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
-    const setLoopRange = useTimelineStore((s) => s.setLoopRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     // Local input buffers so typing isn't overridden; commit on blur or Enter
@@ -332,12 +358,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             >
                 ⟲
             </button>
-            {/* Loop start/end inputs */}
-            <input className="number-input w-[70px]" type="number" step={0.01} value={loopStart ?? ''} placeholder="loop start"
-                onChange={(e) => setLoopRange(e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0), loopEnd)} />
-            <span>–</span>
-            <input className="number-input w-[70px]" type="number" step={0.01} value={loopEnd ?? ''} placeholder="loop end"
-                onChange={(e) => setLoopRange(loopStart, e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0))} />
+            {/* Loop start/end inputs removed; edit via ruler braces only */}
 
             {/* Quantize toggle (Q button) */}
             <button
