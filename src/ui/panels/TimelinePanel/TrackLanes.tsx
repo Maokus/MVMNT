@@ -251,7 +251,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
                     <div
                         key={id}
                         className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/20' : 'bg-neutral-800/10'}`}
-                        style={{ height: rowHeight, top: idx * rowHeight }}
+                        style={{ height: rowHeight }}
                     >
                         {/* Horizontal separator */}
                         <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />
