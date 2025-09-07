@@ -16,6 +16,10 @@ const TimelinePanel: React.FC = () => {
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
+    // Scroll containers for sync (Phase 2)
+    const leftScrollRef = useRef<HTMLDivElement | null>(null);
+    const rightScrollRef = useRef<HTMLDivElement | null>(null);
+    const isSyncingRef = useRef(false);
 
     const handleAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -34,6 +38,31 @@ const TimelinePanel: React.FC = () => {
             visualizer.setPlayRange?.(loopActive ? (loopStartSec as number) : startSec, loopActive ? (loopEndSec as number) : endSec);
         } catch { }
     }, [visualizer]);
+
+    // Scroll sync handlers: mirror vertical scroll between left (track list) and right (lanes)
+    const onLeftScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+        if (isSyncingRef.current) return;
+        const left = e.currentTarget;
+        const right = rightScrollRef.current;
+        if (!right) return;
+        if (right.scrollTop !== left.scrollTop) {
+            isSyncingRef.current = true;
+            right.scrollTop = left.scrollTop;
+            // release flag on next frame
+            requestAnimationFrame(() => { isSyncingRef.current = false; });
+        }
+    };
+    const onRightScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+        if (isSyncingRef.current) return;
+        const right = e.currentTarget;
+        const left = leftScrollRef.current;
+        if (!left) return;
+        if (left.scrollTop !== right.scrollTop) {
+            isSyncingRef.current = true;
+            left.scrollTop = right.scrollTop;
+            requestAnimationFrame(() => { isSyncingRef.current = false; });
+        }
+    };
 
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">
@@ -58,15 +87,27 @@ const TimelinePanel: React.FC = () => {
             </div>
             <div className="timeline-body flex items-stretch gap-0">
                 {/* Left: Track list */}
-                <div className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800">
+                <div
+                    className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800"
+                    ref={leftScrollRef}
+                    onScroll={onLeftScroll}
+                >
                     <TrackList trackIds={trackIds} />
                 </div>
 
                 {/* Right: Ruler stacked above lanes */}
-                <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                    <TimelineRuler />
-                    {/* Scrollable lanes container */}
-                    <div className="flex-1 min-h-0 overflow-auto">
+                <div className="flex-1 min-w-0 min-h-0">
+                    {/* Single scroll container to keep ruler sticky and horizontal-scrollable together with lanes */}
+                    <div
+                        className="relative w-full h-full overflow-auto"
+                        ref={rightScrollRef}
+                        onScroll={onRightScroll}
+                    >
+                        {/* Sticky ruler */}
+                        <div className="sticky top-0 z-10">
+                            <TimelineRuler />
+                        </div>
+                        {/* Lanes content below */}
                         <TrackLanes trackIds={trackIds} />
                     </div>
                 </div>

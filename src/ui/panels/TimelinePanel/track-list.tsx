@@ -1,7 +1,6 @@
 import React from 'react';
+import { RULER_HEIGHT } from './constants';
 import TrackEditorRow from './track-editor-row';
-
-const RULER_HEIGHT = 28; // keep in sync with TimelineRuler height
 
 const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
     if (trackIds.length === 0) {
@@ -13,8 +12,8 @@ const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
     }
     return (
         <div className="track-list space-y-0">
-            {/* Spacer to align rows with the lanes below the ruler */}
-            <div style={{ height: RULER_HEIGHT }} />
+            {/* Sticky spacer to align rows with the lanes below the sticky ruler */}
+            <div className="sticky top-0 z-10 bg-neutral-900/40 border-b border-neutral-800" style={{ height: RULER_HEIGHT }} />
             {trackIds.map((id) => (
                 <TrackEditorRow key={id} trackId={id} />
             ))}

@@ -1,31 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { barsToSeconds, secondsToBars } from '@state/selectors/timing';
+import { RULER_HEIGHT } from './constants';
+import { useTimeScale } from './useTimeScale';
 
-// Local scale utilities using the global timelineView
-function useTimeScale() {
-    const view = useTimelineStore((s) => s.timelineView);
-    const rawRange = Math.max(0.001, view.endSec - view.startSec);
-    const pad = Math.max(0.2, rawRange * 0.02);
-    const dispStart = Math.max(0, view.startSec - pad);
-    const dispEnd = view.endSec + pad;
-    const rangeSec = Math.max(0.001, dispEnd - dispStart);
-    const toSeconds = useCallback(
-        (x: number, width: number) => {
-            const raw = dispStart + (Math.min(Math.max(0, x), width) / Math.max(1, width)) * rangeSec;
-            return Math.min(Math.max(raw, view.startSec), view.endSec);
-        },
-        [dispStart, rangeSec, view.startSec, view.endSec]
-    );
-    const toX = useCallback(
-        (sec: number, width: number) => {
-            const t = (sec - dispStart) / rangeSec;
-            return t * Math.max(1, width);
-        },
-        [dispStart, rangeSec]
-    );
-    return { view, toSeconds, toX };
-}
+// Use shared time scale
 
 function useSnapSeconds() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
@@ -49,7 +28,7 @@ const BRACE_HIT_W = 8;
 const TimelineRuler: React.FC = () => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [width, setWidth] = useState(0);
-    const height = 28;
+    const height = RULER_HEIGHT;
     const currentTimeSec = useTimelineStore((s) => s.timeline.currentTimeSec);
     const { view, toSeconds, toX } = useTimeScale();
     const seek = useTimelineStore((s) => s.seek);
@@ -83,6 +62,29 @@ const TimelineRuler: React.FC = () => {
         }
         return items;
     }, [view.startSec, view.endSec]);
+
+    // Optionally compute beat ticks if there's enough room per bar
+    const beatTicks = useMemo(() => {
+        const s = useTimelineStore.getState();
+        const bpb = s.timeline.beatsPerBar || 4;
+        if (!width || bars.length < 2) return [] as Array<{ sec: number; isBar: boolean }>;
+        // estimate px per bar using first two bars
+        const pxPerBar = Math.abs(toX(bars[1].sec, width) - toX(bars[0].sec, width));
+        const showBeats = pxPerBar > 48; // threshold: only show beats when bars are wide enough
+        const ticks: Array<{ sec: number; isBar: boolean }> = [];
+        for (let i = 0; i < bars.length; i++) {
+            const b = bars[i];
+            // bar line
+            ticks.push({ sec: b.sec, isBar: true });
+            if (showBeats) {
+                for (let beat = 1; beat < bpb; beat++) {
+                    const sec = barsToSeconds(s, b.barIdx + beat / bpb);
+                    ticks.push({ sec, isBar: false });
+                }
+            }
+        }
+        return ticks;
+    }, [bars, width, toX]);
 
     // Pointer interactions: click to seek, drag braces
     const dragState = useRef<
@@ -171,18 +173,21 @@ const TimelineRuler: React.FC = () => {
         >
             {/* Bar ticks and labels */}
             <svg className="absolute inset-0" width={width} height={height} aria-hidden>
+                {beatTicks.map((t, i) => {
+                    const x = toX(t.sec, width);
+                    const col = t.isBar ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.12)';
+                    const h = t.isBar ? height : Math.floor(height * 0.6);
+                    const y1 = t.isBar ? 0 : height - h;
+                    return <line key={`tick-${i}`} x1={x} x2={x} y1={y1} y2={height} stroke={col} strokeWidth={1} />;
+                })}
                 {bars.map((b, i) => {
                     const x = toX(b.sec, width);
+                    // Label bars when there's room
+                    if (width / Math.max(1, bars.length) <= 24) return null;
                     return (
-                        <g key={i}>
-                            <line x1={x} x2={x} y1={0} y2={height} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
-                            {/* Label every bar; avoid crowding by simple density check */}
-                            {width / Math.max(1, bars.length) > 24 && (
-                                <text x={x + 4} y={16} fill="#ddd" fontSize={11}>
-                                    {b.barIdx + 1}
-                                </text>
-                            )}
-                        </g>
+                        <text key={`lbl-${i}`} x={x + 4} y={16} fill="#ddd" fontSize={11}>
+                            {b.barIdx + 1}
+                        </text>
                     );
                 })}
             </svg>
