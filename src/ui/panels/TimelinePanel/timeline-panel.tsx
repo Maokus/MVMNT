@@ -3,6 +3,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { selectMidiTracks, selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
 import TrackList from './track-list';
+import TrackLanes from './TrackLanes';
 
 const TimelinePanel: React.FC = () => {
     const timeline = useTimelineStore(selectTimeline);
@@ -33,6 +34,7 @@ const TimelinePanel: React.FC = () => {
             </div>
             <div className="timeline-body">
                 <TrackList trackIds={trackIds} />
+                <TrackLanes trackIds={trackIds} />
             </div>
         </div>
     );
