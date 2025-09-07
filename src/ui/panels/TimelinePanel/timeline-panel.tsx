@@ -238,6 +238,8 @@ const TimeIndicator: React.FC = () => {
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
+    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     const loopEnabled = useTimelineStore((s) => s.transport.loopEnabled);
     const loopStart = useTimelineStore((s) => s.transport.loopStartSec);
     const loopEnd = useTimelineStore((s) => s.transport.loopEndSec);
@@ -248,8 +250,12 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     // Local input buffers so typing isn't overridden; commit on blur or Enter
     const [startText, setStartText] = useState<string>(() => String(view.startSec));
     const [endText, setEndText] = useState<string>(() => String(view.endSec));
+    const [playStartText, setPlayStartText] = useState<string>(() => String(playbackRange?.startSec ?? view.startSec));
+    const [playEndText, setPlayEndText] = useState<string>(() => String(playbackRange?.endSec ?? view.endSec));
     useEffect(() => { setStartText(String(view.startSec)); }, [view.startSec]);
     useEffect(() => { setEndText(String(view.endSec)); }, [view.endSec]);
+    useEffect(() => { setPlayStartText(String((playbackRange?.startSec ?? view.startSec))); }, [playbackRange?.startSec, view.startSec]);
+    useEffect(() => { setPlayEndText(String((playbackRange?.endSec ?? view.endSec))); }, [playbackRange?.endSec, view.endSec]);
 
     const commitView = (_which: 'start' | 'end') => {
         const sVal = parseFloat(startText);
@@ -258,11 +264,18 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         const e = isFinite(eVal) ? eVal : s + 1; // ensure some width if end invalid
         setTimelineView(s, e);
     };
+    const commitPlay = (_which: 'start' | 'end') => {
+        const sVal = parseFloat(playStartText);
+        const eVal = parseFloat(playEndText);
+        const s = isFinite(sVal) ? sVal : undefined;
+        const e = isFinite(eVal) ? eVal : undefined;
+        setPlaybackRange(s, e);
+    };
 
     return (
         <div className="flex items-center gap-2 text-[12px]">
             <label className="text-neutral-300 flex items-center gap-1">
-                Start/End
+                View
                 <input
                     aria-label="View start (seconds)"
                     className="number-input w-[80px]"
@@ -283,6 +296,31 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     onChange={(e) => setEndText(e.target.value)}
                     onBlur={() => commitView('end')}
                     onKeyDown={(e) => { if (e.key === 'Enter') commitView('end'); }}
+                />
+            </label>
+
+            <label className="text-neutral-300 flex items-center gap-1">
+                Play
+                <input
+                    aria-label="Playback start (seconds)"
+                    className="number-input w-[80px]"
+                    type="number"
+                    step={0.01}
+                    value={playStartText}
+                    onChange={(e) => setPlayStartText(e.target.value)}
+                    onBlur={() => commitPlay('start')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }}
+                />
+                <span>–</span>
+                <input
+                    aria-label="Playback end (seconds)"
+                    className="number-input w-[80px]"
+                    type="number"
+                    step={0.01}
+                    value={playEndText}
+                    onChange={(e) => setPlayEndText(e.target.value)}
+                    onBlur={() => commitPlay('end')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }}
                 />
             </label>
 

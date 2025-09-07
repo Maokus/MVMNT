@@ -332,22 +332,33 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, [visualizer, tCurrent]);
 
     const tView = useTimelineStore((s) => s.timelineView);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
     const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     // Phase 4: Prefer loop braces as explicit visualizer play range when enabled; otherwise use the timeline view window
     useEffect(() => {
         if (!visualizer) return;
         const loopActive =
             !!loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number' && loopEndSec > loopStartSec;
-        const start = loopActive ? (loopStartSec as number) : tView.startSec;
-        const end = loopActive ? (loopEndSec as number) : tView.endSec;
+        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : tView.startSec;
+        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : tView.endSec;
+        const start = loopActive ? (loopStartSec as number) : playStart;
+        const end = loopActive ? (loopEndSec as number) : playEnd;
         visualizer.setPlayRange?.(start, end);
         // If current time is outside the active play window, clamp/seek inside
         if (visualizer.currentTime < start || visualizer.currentTime > end) {
             const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
             visualizer.seek?.(clamped);
         }
-    }, [visualizer, tView.startSec, tView.endSec, loopEnabled, loopStartSec, loopEndSec]);
+    }, [visualizer, tView.startSec, tView.endSec, playbackRange?.startSec, playbackRange?.endSec, loopEnabled, loopStartSec, loopEndSec]);
+
+    // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
+    useEffect(() => {
+        if (typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number') return;
+        setPlaybackRange(tView.startSec, tView.endSec);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Auto-fit timeline view to scene duration when first available and the view is at default width.
     useEffect(() => {
@@ -355,8 +366,15 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!isFinite(duration) || duration <= 0) return;
         const width = Math.max(0, tView.endSec - tView.startSec);
         const isExactlyDefault = Math.abs(width - 60) < 1e-6 || width === 0;
-        if (isExactlyDefault) setTimelineView(0, Math.max(1, duration));
-    }, [totalDuration, tView.startSec, tView.endSec, setTimelineView]);
+        if (isExactlyDefault) {
+            const end = Math.max(1, duration);
+            setTimelineView(0, end);
+            // Also seed playback range if not already set by user
+            if (!(typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number')) {
+                setPlaybackRange(0, end);
+            }
+        }
+    }, [totalDuration, tView.startSec, tView.endSec, setTimelineView, playbackRange?.startSec, playbackRange?.endSec, setPlaybackRange]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;

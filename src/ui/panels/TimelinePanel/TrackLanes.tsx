@@ -169,9 +169,17 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         };
 
         const offsetSec = dragSec != null ? dragSec : track?.offsetSec || 0;
-        const leftX = toX(Math.max(0, offsetSec + localStartSec), laneWidth);
-        const rightX = toX(Math.max(0, offsetSec + localEndSec), laneWidth);
-        const widthPx = Math.max(8, rightX - leftX); // minimal visible width when empty or very small
+        // Compute absolute start/end in seconds
+        const absStart = Math.max(0, offsetSec + localStartSec);
+        const absEnd = Math.max(absStart, offsetSec + localEndSec);
+        // Clip to current visible window so objects outside don't render incorrectly
+        const visStart = view.startSec;
+        const visEnd = view.endSec;
+        const clippedStart = Math.max(absStart, visStart);
+        const clippedEnd = Math.max(clippedStart, Math.min(absEnd, visEnd));
+        const leftX = toX(clippedStart, laneWidth);
+        const rightX = toX(clippedEnd, laneWidth);
+        const widthPx = Math.max(0, rightX - leftX);
 
         // Label: show offset as +bars|beats
         const offsetBeats = useMemo(() => {
@@ -214,31 +222,33 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 onPointerUp={onPointerUp}
             >
                 {/* Track clip rectangle (width reflects clip length) */}
-                <div
-                    className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                    style={{ left: Math.max(0, leftX), width: widthPx, height: Math.max(18, laneHeight * 0.6) }}
-                    title={tooltip}
-                    onPointerDown={onPointerDown}
-                    data-clip="1"
-                >
-                    {track?.name}{' '}
-                    <span className="opacity-80">{label}</span>
-                    {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
-                        <span className="ml-2 text-[10px] opacity-70">No data</span>
-                    )}
+                {widthPx > 0 && (
+                    <div
+                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
+                        style={{ left: Math.max(0, leftX), width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
+                        title={tooltip}
+                        onPointerDown={onPointerDown}
+                        data-clip="1"
+                    >
+                        {track?.name}{' '}
+                        <span className="opacity-80">{label}</span>
+                        {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
+                            <span className="ml-2 text-[10px] opacity-70">No data</span>
+                        )}
 
-                    {/* Resize handles */}
-                    <div
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                        onPointerDown={(e) => onResizeDown(e, 'left')}
-                        title="Resize start (Shift snaps to bars, Alt bypass)"
-                    />
-                    <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                        onPointerDown={(e) => onResizeDown(e, 'right')}
-                        title="Resize end (Shift snaps to bars, Alt bypass)"
-                    />
-                </div>
+                        {/* Resize handles */}
+                        <div
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                            onPointerDown={(e) => onResizeDown(e, 'left')}
+                            title="Resize start (Shift snaps to bars, Alt bypass)"
+                        />
+                        <div
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                            onPointerDown={(e) => onResizeDown(e, 'right')}
+                            title="Resize end (Shift snaps to bars, Alt bypass)"
+                        />
+                    </div>
+                )}
             </div>
         );
     };

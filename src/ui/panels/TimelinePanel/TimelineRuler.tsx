@@ -35,6 +35,8 @@ const TimelineRuler: React.FC = () => {
     const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
     const setLoopRange = useTimelineStore((s) => s.setLoopRange);
     const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
+    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     const snapSeconds = useSnapSeconds();
 
     // Resize handling
@@ -90,7 +92,7 @@ const TimelineRuler: React.FC = () => {
     const dragState = useRef<
         | null
         | {
-            type: 'seek' | 'brace-start' | 'brace-end';
+            type: 'seek' | 'loop-start' | 'loop-end' | 'play-start' | 'play-end';
             originX: number;
             originSec: number;
             startSec: number | undefined;
@@ -104,20 +106,26 @@ const TimelineRuler: React.FC = () => {
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const tSec = toSeconds(x, width);
-        const startX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
-        const endX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
+        const loopStartX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
+        const loopEndX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
+        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
+        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+        const playStartX = toX(playStart, width);
+        const playEndX = toX(playEnd, width);
 
-        let type: 'seek' | 'brace-start' | 'brace-end' = 'seek';
-        if (startX != null && Math.abs(x - startX) <= BRACE_HIT_W) type = 'brace-start';
-        else if (endX != null && Math.abs(x - endX) <= BRACE_HIT_W) type = 'brace-end';
+        let type: 'seek' | 'loop-start' | 'loop-end' | 'play-start' | 'play-end' = 'seek';
+        if (loopStartX != null && Math.abs(x - loopStartX) <= BRACE_HIT_W) type = 'loop-start';
+        else if (loopEndX != null && Math.abs(x - loopEndX) <= BRACE_HIT_W) type = 'loop-end';
+        else if (Math.abs(x - playStartX) <= BRACE_HIT_W) type = 'play-start';
+        else if (Math.abs(x - playEndX) <= BRACE_HIT_W) type = 'play-end';
 
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         dragState.current = {
             type,
             originX: x,
             originSec: tSec,
-            startSec: loopStartSec,
-            endSec: loopEndSec,
+            startSec: type.startsWith('loop') ? loopStartSec : playStart,
+            endSec: type.startsWith('loop') ? loopEndSec : playEnd,
             alt: !!e.altKey,
         };
 
@@ -140,14 +148,22 @@ const TimelineRuler: React.FC = () => {
         const forceBar = !!e.shiftKey;
         const snapped = snapSeconds(cand, { altKey: alt, forceBar });
         const d = dragState.current;
-        if (d.type === 'brace-start') {
+        if (d.type === 'loop-start') {
             const newStart = Math.max(0, snapped);
             const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
             setLoopRange(newStart, newEnd);
-        } else if (d.type === 'brace-end') {
+        } else if (d.type === 'loop-end') {
             const newEnd = Math.max(0.0001, snapped);
             const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 0.0001) : d.startSec;
             setLoopRange(newStart, newEnd);
+        } else if (d.type === 'play-start') {
+            const newStart = Math.max(0, snapped);
+            const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
+            setPlaybackRange(newStart, newEnd);
+        } else if (d.type === 'play-end') {
+            const newEnd = Math.max(0.0001, snapped);
+            const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 0.0001) : d.startSec;
+            setPlaybackRange(newStart, newEnd);
         }
     };
 
@@ -162,6 +178,10 @@ const TimelineRuler: React.FC = () => {
     const playheadX = toX(currentTimeSec, width);
     const loopStartX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
     const loopEndX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
+    const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
+    const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+    const playStartX = toX(playStart, width);
+    const playEndX = toX(playEnd, width);
 
     return (
         <div
@@ -221,6 +241,18 @@ const TimelineRuler: React.FC = () => {
                     style={{ left: loopEndX }}
                     aria-label="Loop end"
                 />
+            )}
+
+            {/* Playback range tint + yellow markers (always visible) */}
+            {playEnd > playStart && (
+                <>
+                    <div
+                        className="absolute top-0 bottom-0 bg-yellow-400/10 pointer-events-none"
+                        style={{ left: playStartX, width: Math.max(0, playEndX - playStartX) }}
+                    />
+                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400" style={{ left: playStartX }} aria-hidden />
+                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400" style={{ left: playEndX }} aria-hidden />
+                </>
             )}
 
             {/* Playhead */}

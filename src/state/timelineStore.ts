@@ -70,6 +70,8 @@ export type TimelineState = {
     selection: { selectedTrackIds: string[] };
     // UI view window for seekbar and navigation
     timelineView: { startSec: number; endSec: number };
+    // Real playback range braces (yellow). Optional; when unset, fallback to timelineView.
+    playbackRange?: { startSec?: number; endSec?: number };
     midiCache: Record<
         string,
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
@@ -109,6 +111,7 @@ export type TimelineState = {
     reorderTracks: (order: string[]) => void;
     setTimelineView: (start: number, end: number) => void;
     selectTracks: (ids: string[]) => void;
+    setPlaybackRange: (start?: number, end?: number) => void;
     ingestMidiToCache: (
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
@@ -154,6 +157,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     selection: { selectedTrackIds: [] },
     midiCache: {},
     timelineView: { startSec: 0, endSec: 60 },
+    playbackRange: undefined,
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
         const id = makeId();
@@ -418,6 +422,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ) {
         // Update cache only. Do NOT auto-adjust the timeline view here to respect manual start/end settings.
         set((s: TimelineState) => ({ midiCache: { ...s.midiCache, [id]: { ...data } } }));
+    },
+
+    setPlaybackRange(start?: number, end?: number) {
+        set((s: TimelineState) => ({
+            playbackRange: {
+                startSec: typeof start === 'number' ? Math.max(0, start) : undefined,
+                endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
+            },
+        }));
     },
 });
 
