@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
 import { useVisualizer } from '@context/VisualizerContext';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface ExportSettings {
     fps: number;
@@ -37,6 +38,7 @@ interface GlobalPropertiesPanelProps {
 const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const ctx = useVisualizer();
     const visualizer = props.visualizer || ctx.visualizer;
+    const sceneBuilder = visualizer?.getSceneBuilder?.();
     const onExport = props.onExport;
     // @ts-ignore optional video export function if provided via props or context (not typed yet)
     const onExportVideo = props.onExportVideo || (ctx as any).exportVideo;
@@ -48,6 +50,10 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
     const [localWidth, setLocalWidth] = useState(exportSettings.width);
     const [localHeight, setLocalHeight] = useState(exportSettings.height);
+    // Global timing values from timeline store
+    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const hasTempoMap = useTimelineStore((s) => (s.timeline.masterTempoMap?.length || 0) > 0);
 
     // Sync local state when external exportSettings change (e.g., reset)
     useEffect(() => {
@@ -143,6 +149,56 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
                             onKeyDown={handleExportInputKeyDown}
                         />
+
+                        <div style={{ marginTop: '16px' }}>
+                            <h4 style={{ marginBottom: '4px' }}>Timing</h4>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="tempoInput">Tempo (BPM):</label>
+                                    <input
+                                        type="number"
+                                        id="tempoInput"
+                                        min={1}
+                                        max={400}
+                                        step={0.1}
+                                        value={Number.isFinite(globalBpm) ? globalBpm : 120}
+                                        onChange={(e) => {
+                                            const v = parseFloat(e.target.value);
+                                            const value = Number.isFinite(v) && v > 0 ? v : 120;
+                                            // Prefer sceneBuilder API to keep sceneSettings in sync and serialize-able
+                                            if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ tempo: value });
+                                            else {
+                                                try { useTimelineStore.getState().setGlobalBpm(value); } catch { }
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label htmlFor="beatsPerBarInput">Beats per Bar:</label>
+                                    <input
+                                        type="number"
+                                        id="beatsPerBarInput"
+                                        min={1}
+                                        max={16}
+                                        step={1}
+                                        value={Number.isFinite(beatsPerBar) ? beatsPerBar : 4}
+                                        onChange={(e) => {
+                                            const v = parseInt(e.target.value);
+                                            const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : 4;
+                                            if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ beatsPerBar: value });
+                                            else {
+                                                try { useTimelineStore.getState().setBeatsPerBar(value); } catch { }
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            {hasTempoMap && (
+                                <small style={{ color: '#888' }}>
+                                    A tempo map is active. BPM acts as a fallback where the map has no entries.
+                                </small>
+                            )}
+                        </div>
 
                         {/* Removed legacy export controls: pre/post padding, full duration, start/end. */}
 

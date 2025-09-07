@@ -33,24 +33,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'Timing',
                     collapsed: true,
                     properties: [
-                        {
-                            key: 'bpm',
-                            type: 'number',
-                            label: 'BPM (Tempo)',
-                            default: 120,
-                            min: 20,
-                            max: 300,
-                            step: 0.1,
-                        },
-                        {
-                            key: 'beatsPerBar',
-                            type: 'number',
-                            label: 'Beats per Bar',
-                            default: 4,
-                            min: 1,
-                            max: 16,
-                            step: 1,
-                        },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                     ],
                 },
@@ -364,8 +346,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const renderObjects: RenderObject[] = [];
-        const bpm = this.getProperty<number>('bpm');
-        const beatsPerBar = this.getProperty<number>('beatsPerBar');
+        // Use global timeline tempo and meter
         const timeOffset = this.getProperty<number>('timeOffset') || 0;
         const effectiveTime = targetTime + timeOffset;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
@@ -389,9 +370,20 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
         const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
 
-        // Update local timing manager for view window duration only
-        this.timingManager.setBPM(bpm);
-        this.timingManager.setBeatsPerBar(beatsPerBar);
+        // Update local timing manager from global store for view window duration calculations
+        try {
+            const state = useTimelineStore.getState();
+            const bpm = state.timeline.globalBpm || 120;
+            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            this.timingManager.setBPM(bpm);
+            this.timingManager.setBeatsPerBar(beatsPerBar);
+            // If a master tempo map exists, apply to timing manager for accurate windows
+            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
+                this.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            } else {
+                this.timingManager.setTempoMap(null);
+            }
+        } catch {}
 
         // Draw piano strip (left) so pianoWidth visually applies
         if (showPiano) {
@@ -541,21 +533,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return [playhead];
     }
 
-    // Convenience getters/setters mirroring TimeUnitPianoRoll
-    getBPM(): number {
-        return this.getProperty<number>('bpm');
-    }
-    setBPM(bpm: number): this {
-        this.setProperty('bpm', bpm);
-        return this;
-    }
-    getBeatsPerBar(): number {
-        return this.getProperty<number>('beatsPerBar');
-    }
-    setBeatsPerBar(beatsPerBar: number): this {
-        this.setProperty('beatsPerBar', beatsPerBar);
-        return this;
-    }
+    // Convenience getters/setters removed: element uses global tempo/meter from store
     getAnimationType(): string {
         return this.getProperty<string>('animationType');
     }
@@ -578,14 +556,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
     getTimeUnit(): number {
         return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
-    bindBPMToMacro(macroId: string): this {
-        this.bindToMacro('bpm', macroId);
-        return this;
-    }
-    bindBeatsPerBarToMacro(macroId: string): this {
-        this.bindToMacro('beatsPerBar', macroId);
-        return this;
-    }
+    // Legacy macro bindings for bpm/beat removed
     getChannelColors(): string[] {
         const colors: string[] = [];
         for (let i = 0; i < 16; i++) {

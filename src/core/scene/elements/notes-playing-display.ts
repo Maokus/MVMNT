@@ -25,16 +25,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     label: 'Content',
                     collapsed: false,
                     properties: [
-                        {
-                            key: 'bpm',
-                            type: 'number',
-                            label: 'BPM (Tempo)',
-                            default: 120,
-                            min: 20,
-                            max: 300,
-                            step: 0.1,
-                            description: 'Beats per minute used to time note activity',
-                        },
                         // Timeline-backed source only
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
                         { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },

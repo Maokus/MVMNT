@@ -43,26 +43,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
-                            key: 'bpm',
-                            type: 'number',
-                            label: 'BPM (Tempo)',
-                            default: 120,
-                            min: 20,
-                            max: 300,
-                            step: 0.1,
-                            description: 'Beats per minute for this element',
-                        },
-                        {
-                            key: 'beatsPerBar',
-                            type: 'number',
-                            label: 'Beats per Bar',
-                            default: 4,
-                            min: 1,
-                            max: 16,
-                            step: 1,
-                            description: 'Number of beats in each bar for this element',
-                        },
-                        {
                             key: 'timeOffset',
                             type: 'number',
                             label: 'Time Offset (s)',
@@ -660,9 +640,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const renderObjects: RenderObject[] = [];
 
-        // Get current property values through bindings
-        const bpm = this.getProperty<number>('bpm');
-        const beatsPerBar = this.getProperty<number>('beatsPerBar');
+        // Get current property values through bindings (global timing used; no per-element bpm/meter)
         const timeOffset = this.getProperty<number>('timeOffset') || 0;
         const effectiveTime = targetTime + timeOffset;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
@@ -722,9 +700,19 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Legacy midiFile handling removed; use timeline tracks only
 
-        // Update timing via midiManager
-        this.midiManager.setBPM(bpm);
-        this.midiManager.setBeatsPerBar(beatsPerBar);
+        // Update timing via midiManager from global store
+        try {
+            const state = useTimelineStore.getState();
+            const bpm = state.timeline.globalBpm || 120;
+            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            this.midiManager.setBPM(bpm);
+            this.midiManager.setBeatsPerBar(beatsPerBar);
+            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
+                this.midiManager.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            } else {
+                this.midiManager.timingManager.setTempoMap(null);
+            }
+        } catch {}
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
@@ -875,10 +863,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 effectiveTime,
                 timeUnitBars
             );
+            const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
             const beatLines = this._createBeatGridLines(
                 windowStart,
                 windowEnd,
-                beatsPerBar,
+                beatsPerBarForGrid,
                 pianoWidth,
                 rollWidth || 800,
                 (maxNote - minNote + 1) * noteHeight
@@ -920,7 +909,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 effectiveTime,
                 timeUnitBars
             );
-            const labels = this._createBeatLabels(windowStart, windowEnd, beatsPerBar, pianoWidth, rollWidth || 800);
+            const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
+            const labels = this._createBeatLabels(
+                windowStart,
+                windowEnd,
+                beatsPerBarForGrid,
+                pianoWidth,
+                rollWidth || 800
+            );
             (labels as any[]).forEach((lbl) => {
                 lbl.font = `${beatLabelFontWeight} ${beatLabelFontSize}px ${beatLabelFontFamily}`;
                 lbl.color = beatLabelFontColor;
@@ -1110,24 +1106,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         super.dispose();
     }
 
-    // Convenience methods for property access
-    getBPM(): number {
-        return this.getProperty<number>('bpm');
-    }
-
-    setBPM(bpm: number): this {
-        this.setProperty('bpm', bpm);
-        return this;
-    }
-
-    getBeatsPerBar(): number {
-        return this.getProperty<number>('beatsPerBar');
-    }
-
-    setBeatsPerBar(beatsPerBar: number): this {
-        this.setProperty('beatsPerBar', beatsPerBar);
-        return this;
-    }
+    // Convenience methods for property access (timing-specific methods removed; global timeline used)
 
     // Public getters for animation properties (used by AnimationController)
     getAnimationType(): string {
@@ -1163,16 +1142,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     // Removed midiFile getters/setters
 
-    // Binding-specific methods
-    bindBPMToMacro(macroId: string): this {
-        this.bindToMacro('bpm', macroId);
-        return this;
-    }
-
-    bindBeatsPerBarToMacro(macroId: string): this {
-        this.bindToMacro('beatsPerBar', macroId);
-        return this;
-    }
+    // Binding-specific methods (timing macro binding removed)
 
     // Removed midiFile macro binding
 
