@@ -8,12 +8,6 @@ Key recap carried forward from v6:
 -   MIDI-first timeline tracks (one file per track) with horizontal drag and bar snapping.
 -   Authoritative transport domain is seconds; beat/bar conversions are derived for UI and snapping.
 
-Assumptions verified in v6:
-
--   `timeline.masterTempoMap?: TempoMapEntry[]` exists.
--   `TimelineTrack` uses `offsetSec` and references a single file.
--   `timeline.beatsPerBar` does not yet exist and must be added (default 4).
-
 Glossary (used throughout):
 
 -   SPB: seconds per beat.
