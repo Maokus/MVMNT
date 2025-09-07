@@ -30,9 +30,9 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
     }, [trackId, updateTrack]);
 
     return (
-        <div className="timeline-row flex items-center gap-2 py-1 px-2 border-b border-neutral-800 bg-neutral-900/40 text-xs">
+        <div className="timeline-row flex items-center gap-1.5 py-0.5 px-1.5 border-b border-neutral-800 bg-neutral-900/40 text-xs">
             <input
-                className="text-input bg-neutral-900 border-neutral-700 rounded px-1.5 py-0.5 w-[140px]"
+                className="text-input bg-neutral-900 border-neutral-700 rounded px-1 py-0.5 w-[120px]"
                 value={track.name}
                 onChange={onNameChange}
             />
@@ -49,20 +49,20 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                 <input type="checkbox" checked={track.solo} onChange={(e) => setSolo(trackId, e.target.checked)} />
                 Solo
             </label>
-            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1.5">
                 Offset (s)
                 <input
-                    className="number-input w-[64px] px-1 py-0.5"
+                    className="number-input w-[56px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.offsetSec}
                     onChange={(e) => setOffset(trackId, parseFloat(e.target.value) || 0)}
                 />
             </label>
-            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1.5">
                 Region
                 <input
-                    className="number-input w-[60px] px-1 py-0.5"
+                    className="number-input w-[56px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.regionStartSec ?? ''}
@@ -71,7 +71,7 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                 />
                 <span>–</span>
                 <input
-                    className="number-input w-[60px] px-1 py-0.5"
+                    className="number-input w-[56px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.regionEndSec ?? ''}

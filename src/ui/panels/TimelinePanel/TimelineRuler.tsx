@@ -5,17 +5,24 @@ import { barsToSeconds, secondsToBars } from '@state/selectors/timing';
 // Local scale utilities using the global timelineView
 function useTimeScale() {
     const view = useTimelineStore((s) => s.timelineView);
-    const rangeSec = Math.max(0.001, view.endSec - view.startSec);
+    const rawRange = Math.max(0.001, view.endSec - view.startSec);
+    const pad = Math.max(0.2, rawRange * 0.02);
+    const dispStart = Math.max(0, view.startSec - pad);
+    const dispEnd = view.endSec + pad;
+    const rangeSec = Math.max(0.001, dispEnd - dispStart);
     const toSeconds = useCallback(
-        (x: number, width: number) => view.startSec + (Math.min(Math.max(0, x), width) / Math.max(1, width)) * rangeSec,
-        [view.startSec, rangeSec]
+        (x: number, width: number) => {
+            const raw = dispStart + (Math.min(Math.max(0, x), width) / Math.max(1, width)) * rangeSec;
+            return Math.min(Math.max(raw, view.startSec), view.endSec);
+        },
+        [dispStart, rangeSec, view.startSec, view.endSec]
     );
     const toX = useCallback(
         (sec: number, width: number) => {
-            const t = (sec - view.startSec) / rangeSec;
+            const t = (sec - dispStart) / rangeSec;
             return t * Math.max(1, width);
         },
-        [view.startSec, rangeSec]
+        [dispStart, rangeSec]
     );
     return { view, toSeconds, toX };
 }
@@ -64,11 +71,11 @@ const TimelineRuler: React.FC = () => {
         return () => ro.disconnect();
     }, []);
 
-    // Build bar ticks for the visible range
+    // Build bar ticks for the visible range (with slight padding for readability)
     const bars = useMemo(() => {
         const s = useTimelineStore.getState();
-        const startBars = Math.floor(secondsToBars(s, view.startSec) - 1e-6);
-        const endBars = Math.ceil(secondsToBars(s, view.endSec) + 1e-6);
+        const startBars = Math.floor(secondsToBars(s, Math.max(0, view.startSec - 0.001)) - 1e-6) - 1;
+        const endBars = Math.ceil(secondsToBars(s, view.endSec + 0.001) + 1e-6) + 1;
         const items: Array<{ barIdx: number; sec: number }> = [];
         for (let b = Math.max(0, startBars); b <= Math.max(startBars, endBars); b++) {
             const sec = barsToSeconds(s, b);
@@ -153,7 +160,7 @@ const TimelineRuler: React.FC = () => {
     return (
         <div
             ref={containerRef}
-            className="timeline-ruler relative select-none bg-neutral-900/60 border-y border-neutral-800"
+            className="timeline-ruler relative select-none bg-neutral-900/40 border-y border-neutral-800"
             style={{ height }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -180,25 +187,28 @@ const TimelineRuler: React.FC = () => {
                 })}
             </svg>
 
-            {/* Loop region tint */}
+            {/* Loop region tint + blue markers */}
             {loopEnabled && loopStartX != null && loopEndX != null && loopEndX > loopStartX && (
-                <div
-                    className="absolute top-0 bottom-0 bg-emerald-500/10 pointer-events-none"
-                    style={{ left: loopStartX, width: Math.max(0, loopEndX - loopStartX) }}
-                />
+                <>
+                    <div
+                        className="absolute top-0 bottom-0 bg-blue-500/10 pointer-events-none"
+                        style={{ left: loopStartX, width: Math.max(0, loopEndX - loopStartX) }}
+                    />
+                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400" style={{ left: loopStartX }} aria-hidden />
+                    <div className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400" style={{ left: loopEndX }} aria-hidden />
+                </>
             )}
-
-            {/* Braces */}
+            {/* Braces (draggable), keep visible for interaction regardless of loopEnabled */}
             {loopStartX != null && (
                 <div
-                    className="absolute top-0 bottom-0 w-0 border-l-2 border-emerald-400 cursor-ew-resize"
+                    className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400 cursor-ew-resize"
                     style={{ left: loopStartX }}
                     aria-label="Loop start"
                 />
             )}
             {loopEndX != null && (
                 <div
-                    className="absolute top-0 bottom-0 w-0 border-l-2 border-emerald-400 cursor-ew-resize"
+                    className="absolute top-0 bottom-0 w-0 border-l-2 border-blue-400 cursor-ew-resize"
                     style={{ left: loopEndX }}
                     aria-label="Loop end"
                 />

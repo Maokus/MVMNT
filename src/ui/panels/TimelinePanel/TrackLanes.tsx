@@ -9,15 +9,22 @@ type Props = {
 // Utility to convert px <-> seconds using current view and container width
 function useTimeScale() {
     const view = useTimelineStore((s) => s.timelineView);
-    const rangeSec = Math.max(0.001, view.endSec - view.startSec);
+    const rawRange = Math.max(0.001, view.endSec - view.startSec);
+    const pad = Math.max(0.2, rawRange * 0.02);
+    const dispStart = Math.max(0, view.startSec - pad);
+    const dispEnd = view.endSec + pad;
+    const rangeSec = Math.max(0.001, dispEnd - dispStart);
     const toSeconds = useCallback(
-        (x: number, width: number) => view.startSec + (Math.min(Math.max(0, x), width) / Math.max(1, width)) * rangeSec,
-        [view.startSec, rangeSec]
+        (x: number, width: number) => {
+            const raw = dispStart + (Math.min(Math.max(0, x), width) / Math.max(1, width)) * rangeSec;
+            return Math.min(Math.max(raw, view.startSec), view.endSec);
+        },
+        [dispStart, rangeSec, view.startSec, view.endSec]
     );
     const toX = useCallback((sec: number, width: number) => {
-        const t = (sec - view.startSec) / rangeSec;
+        const t = (sec - dispStart) / rangeSec;
         return t * Math.max(1, width);
-    }, [view.startSec, rangeSec]);
+    }, [dispStart, rangeSec]);
     return { view, toSeconds, toX };
 }
 
@@ -157,7 +164,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             >
                 {/* Track clip rectangle (width reflects clip length) */}
                 <div
-                    className="absolute top-1/2 -translate-y-1/2 bg-blue-500/50 border border-blue-300/70 rounded px-2 py-1 text-[11px] text-white cursor-grab active:cursor-grabbing select-none"
+                    className="absolute top-1/2 -translate-y-1/2 bg-blue-500/40 border border-blue-400/60 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none"
                     style={{ left: Math.max(0, leftX), width: widthPx, height: Math.max(18, laneHeight * 0.6) }}
                     title={`Drag horizontally to change offset (Alt to bypass snapping) — offset ${label}`}
                     onPointerDown={onPointerDown}
@@ -224,9 +231,15 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
         setHoverX(null);
     };
 
-    const rowHeight = 36;
+    const rowHeight = 30;
     const lanesHeight = Math.max(rowHeight * Math.max(1, trackIds.length), 120);
     const playheadX = toX(currentTimeSec, Math.max(1, width));
+
+    // Compute display pad to extend beyond view for readability (keep in sync with useTimeScale)
+    const rawRange = Math.max(0.001, view.endSec - view.startSec);
+    const pad = Math.max(0.2, rawRange * 0.02);
+    const dispStart = Math.max(0, view.startSec - pad);
+    const dispEnd = view.endSec + pad;
 
     return (
         <div className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900/40"
@@ -238,7 +251,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             style={{ height: lanesHeight, width: '100%' }}
         >
             {/* Grid */}
-            <GridLines width={width} height={lanesHeight} startSec={view.startSec} endSec={view.endSec} />
+            <GridLines width={width} height={lanesHeight} startSec={dispStart} endSec={dispEnd} />
 
             {/* Hover snapped line for DnD and dragging */}
             {hoverX != null && (
@@ -250,7 +263,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
                 {trackIds.map((id, idx) => (
                     <div
                         key={id}
-                        className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/20' : 'bg-neutral-800/10'}`}
+                        className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/15' : 'bg-neutral-800/5'}`}
                         style={{ height: rowHeight }}
                     >
                         {/* Horizontal separator */}
