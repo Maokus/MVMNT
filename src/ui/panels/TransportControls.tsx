@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { secondsToBars, secondsToBeatsSelector } from '@state/selectors/timing';
 
 const fmt = (s: number) => {
     const sign = s < 0 ? '-' : '';
@@ -23,6 +24,9 @@ const TransportControls: React.FC = () => {
     const setCurrent = useTimelineStore((s) => s.setCurrentTimeSec);
     const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
     const setLoopRange = useTimelineStore((s) => s.setLoopRange);
+    // Phase 1: derive beats/bars from the unified selectors
+    const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec));
+    const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec));
 
     return (
         <div className="transport flex items-center gap-2 text-sm">
@@ -46,7 +50,11 @@ const TransportControls: React.FC = () => {
                         onChange={(e) => setTimelineView(view.startSec, parseFloat(e.target.value) || 0)} />
                 </label>
             </div>
-            <div className="ml-2 text-[12px] text-neutral-400">t = {fmt(current)}</div>
+            <div className="ml-2 text-[12px] text-neutral-400">
+                t = {fmt(current)}
+                <span className="ml-2">beats: {beats.toFixed(2)}</span>
+                <span className="ml-2">bars: {bars.toFixed(2)}</span>
+            </div>
             <input type="range" min={view.startSec} max={view.endSec} value={current}
                 onChange={(e) => scrub(parseFloat(e.target.value) || 0)} className="flex-1" />
         </div>

@@ -71,3 +71,14 @@ This should add the animation such that it will be selectable from `/animation-t
 `localStorage.setItem("VIS_DEBUG",1)` enables debug logging.
 
 `localStorage.removeItem("mvmnt_onboarded_v1")` re-enables onboarding modal
+
+```
+window.__mvmntDebug.getTimingState()
+window.__mvmntDebug.setGlobalBpm(140)
+window.__mvmntDebug.setBeatsPerBar(3)
+window.__mvmntDebug.setCurrentTimeSec(12.5)
+window.__mvmntDebug.s2b(10) -> beats
+window.__mvmntDebug.b2s(32) -> seconds
+window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
+window.__mvmntDebug.getBeatGrid(0, 30)
+```
