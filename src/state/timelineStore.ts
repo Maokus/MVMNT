@@ -3,6 +3,21 @@ import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from './timelineTypes';
+import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
+
+// Local helpers to avoid importing selectors (prevent circular deps)
+function _secondsToBarsLocal(state: TimelineState, seconds: number): number {
+    const bpb = state.timeline.beatsPerBar || 4;
+    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+    const beats = secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+    return beats / bpb;
+}
+function _barsToSecondsLocal(state: TimelineState, bars: number): number {
+    const bpb = state.timeline.beatsPerBar || 4;
+    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+    const beats = bars * bpb;
+    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+}
 
 // Phase 1: Base types for the Timeline system
 // Types are now in timelineTypes.ts
@@ -32,6 +47,7 @@ export type TimelineState = {
     tracks: Record<string, TimelineTrack>;
     tracksOrder: string[];
     transport: {
+        state?: 'idle' | 'playing' | 'paused' | 'seeking';
         isPlaying: boolean;
         loopEnabled: boolean;
         loopStartSec?: number;
@@ -63,11 +79,20 @@ export type TimelineState = {
     play: () => void;
     pause: () => void;
     togglePlay: () => void;
+    seek: (sec: number) => void;
     scrub: (to: number) => void;
     setRate: (rate: number) => void;
     setQuantize: (q: 'off' | 'bar') => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRange: (start?: number, end?: number) => void;
+    setLoop: (cfg: {
+        enabled?: boolean;
+        startSec?: number;
+        endSec?: number;
+        startBars?: number;
+        endBars?: number;
+    }) => void;
+    toggleLoop: () => void;
     reorderTracks: (order: string[]) => void;
     setTimelineView: (start: number, end: number) => void;
     selectTracks: (ids: string[]) => void;
@@ -86,7 +111,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
     tracksOrder: [],
-    transport: { isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
+    transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
     selection: { selectedTrackIds: [] },
     midiCache: {},
     timelineView: { startSec: 0, endSec: 60 },
@@ -183,23 +208,74 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setCurrentTimeSec(t: number) {
-        set((s: TimelineState) => ({ timeline: { ...s.timeline, currentTimeSec: Math.max(0, t) } }));
+        set((s: TimelineState) => {
+            // Loop wrap behavior (Phase 4): if playing and loop is enabled and end is defined and exceeded, wrap to start
+            let newT = Math.max(0, t);
+            const { loopEnabled, loopStartSec, loopEndSec, isPlaying } = s.transport;
+            if (isPlaying && loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number') {
+                if (newT >= loopEndSec) {
+                    // Quantize loop seek if configured
+                    const quant = s.transport.quantize;
+                    if (quant === 'bar') {
+                        const snappedBars = Math.round(_secondsToBarsLocal(s, loopStartSec));
+                        newT = _barsToSecondsLocal(s, snappedBars);
+                    } else {
+                        newT = loopStartSec;
+                    }
+                }
+            }
+            return { timeline: { ...s.timeline, currentTimeSec: newT } } as TimelineState;
+        });
     },
 
     play() {
-        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: true } }));
+        set((s: TimelineState) => {
+            // Quantized play (Phase 4): optionally snap current time to nearest bar before starting
+            let t = s.timeline.currentTimeSec;
+            if (s.transport.quantize === 'bar') {
+                const snappedBars = Math.round(_secondsToBarsLocal(s, t));
+                t = _barsToSecondsLocal(s, snappedBars);
+            }
+            return {
+                timeline: { ...s.timeline, currentTimeSec: t },
+                transport: { ...s.transport, isPlaying: true, state: 'playing' },
+            } as TimelineState;
+        });
     },
     pause() {
-        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: false } }));
+        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: false, state: 'paused' } }));
     },
     togglePlay() {
         const wasPlaying = get().transport.isPlaying;
         // If we are transitioning from stopped->playing, jump to the current view start
         if (!wasPlaying) {
             const { startSec } = get().timelineView;
-            get().setCurrentTimeSec(startSec);
+            // Respect quantize on play from stop
+            const s = get();
+            if (s.transport.quantize === 'bar') {
+                const snappedBars = Math.round(_secondsToBarsLocal(s, startSec));
+                get().setCurrentTimeSec(_barsToSecondsLocal(s, snappedBars));
+            } else {
+                get().setCurrentTimeSec(startSec);
+            }
         }
-        set((s: TimelineState) => ({ transport: { ...s.transport, isPlaying: !wasPlaying } }));
+        set((s: TimelineState) => ({
+            transport: { ...s.transport, isPlaying: !wasPlaying, state: !wasPlaying ? 'playing' : 'paused' },
+        }));
+    },
+    seek(sec: number) {
+        set((s: TimelineState) => {
+            const quant = s.transport.quantize;
+            let t = Math.max(0, sec);
+            if (quant === 'bar') {
+                const snappedBars = Math.round(_secondsToBarsLocal(s, t));
+                t = _barsToSecondsLocal(s, snappedBars);
+            }
+            return {
+                timeline: { ...s.timeline, currentTimeSec: t },
+                transport: { ...s.transport, state: 'seeking' },
+            } as TimelineState;
+        });
     },
     scrub(to: number) {
         get().setCurrentTimeSec(to);
@@ -220,6 +296,31 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     setLoopRange(start?: number, end?: number) {
         set((s: TimelineState) => ({ transport: { ...s.transport, loopStartSec: start, loopEndSec: end } }));
+    },
+    setLoop(cfg: { enabled?: boolean; startSec?: number; endSec?: number; startBars?: number; endBars?: number }) {
+        set((s: TimelineState) => {
+            const next: TimelineState['transport'] = { ...s.transport };
+            if (typeof cfg.enabled === 'boolean') next.loopEnabled = cfg.enabled;
+            // Convert bars to seconds if provided
+            const start =
+                typeof cfg.startSec === 'number'
+                    ? cfg.startSec
+                    : typeof cfg.startBars === 'number'
+                    ? _barsToSecondsLocal(s, cfg.startBars)
+                    : next.loopStartSec;
+            const end =
+                typeof cfg.endSec === 'number'
+                    ? cfg.endSec
+                    : typeof cfg.endBars === 'number'
+                    ? _barsToSecondsLocal(s, cfg.endBars)
+                    : next.loopEndSec;
+            next.loopStartSec = start;
+            next.loopEndSec = end;
+            return { transport: next } as TimelineState;
+        });
+    },
+    toggleLoop() {
+        set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: !s.transport.loopEnabled } }));
     },
 
     reorderTracks(order: string[]) {
