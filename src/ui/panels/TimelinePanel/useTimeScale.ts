@@ -7,7 +7,8 @@ export function useTimeScale() {
     const view = useTimelineStore((s) => s.timelineView);
     const rawRange = Math.max(0.001, view.endSec - view.startSec);
     const pad = Math.max(0.2, rawRange * 0.02);
-    const dispStart = Math.max(0, view.startSec - pad);
+    // Allow negative pre-roll: do not clamp display start to 0 here.
+    const dispStart = view.startSec - pad;
     const dispEnd = view.endSec + pad;
     const rangeSec = Math.max(0.001, dispEnd - dispStart);
     const toSeconds = useCallback(

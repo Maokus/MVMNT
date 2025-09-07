@@ -122,7 +122,8 @@ const TimelineRuler: React.FC = () => {
         };
 
         if (type === 'seek') {
-            const snapped = snapSeconds(tSec, { altKey: e.altKey });
+            // Shift => force bar snapping; Alt => bypass
+            const snapped = snapSeconds(tSec, { altKey: e.altKey, forceBar: e.shiftKey });
             if (e.altKey) setCurrentTimeSec(snapped);
             else seek(snapped);
         }
@@ -134,7 +135,10 @@ const TimelineRuler: React.FC = () => {
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const cand = toSeconds(x, width);
-        const snapped = snapSeconds(cand, { altKey: dragState.current.alt });
+        // Track live modifier keys: Alt/Shift
+        const alt = !!(e.altKey || dragState.current.alt);
+        const forceBar = !!e.shiftKey;
+        const snapped = snapSeconds(cand, { altKey: alt, forceBar });
         const d = dragState.current;
         if (d.type === 'brace-start') {
             const newStart = Math.max(0, snapped);
@@ -169,7 +173,7 @@ const TimelineRuler: React.FC = () => {
             onPointerUp={onPointerUp}
             role="group"
             aria-label="Timeline ruler"
-            title="Click to seek. Drag braces to set loop. Hold Alt to bypass snapping."
+            title="Click to seek (Shift snaps to bar, Alt bypass). Drag braces to set loop (Shift snaps to bar, Alt bypass)."
         >
             {/* Bar ticks and labels */}
             <svg className="absolute inset-0" width={width} height={height} aria-hidden>

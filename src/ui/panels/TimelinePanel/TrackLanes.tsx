@@ -220,7 +220,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     // Compute display pad to extend beyond view for readability (keep in sync with useTimeScale)
     const rawRange = Math.max(0.001, view.endSec - view.startSec);
     const pad = Math.max(0.2, rawRange * 0.02);
-    const dispStart = Math.max(0, view.startSec - pad);
+    const dispStart = view.startSec - pad;
     const dispEnd = view.endSec + pad;
 
     return (

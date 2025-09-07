@@ -64,6 +64,76 @@ const TimelinePanel: React.FC = () => {
         }
     };
 
+    // Phase 3: wheel zoom & pan handlers on the right container
+    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    const view = useTimelineStore((s) => s.timelineView);
+    const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
+
+    const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
+        // Ctrl/Meta/Pinch => zoom horizontally around cursor; Shift => horizontal pan; else let scroll work (vertical)
+        const container = rightScrollRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const x = Math.max(0, Math.min(width, e.clientX - rect.left));
+        const range = Math.max(0.001, view.endSec - view.startSec);
+        const tAtCursor = view.startSec + (x / Math.max(1, width)) * range;
+        const MIN_RANGE = 0.05; // 50ms min zoom
+        const MAX_RANGE = 60 * 60 * 24; // 24h max
+
+        const isZoom = e.ctrlKey || e.metaKey;
+        const isPanH = e.shiftKey && !isZoom;
+
+        if (isZoom) {
+            e.preventDefault();
+            // Wheel delta: positive => scroll down => zoom out; negative => zoom in
+            const zoomFactor = Math.exp(-Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 120) * 0.2);
+            let newRange = Math.min(MAX_RANGE, Math.max(MIN_RANGE, range * zoomFactor));
+            // Keep cursor time stable: adjust start/end around tAtCursor
+            const tRel = (tAtCursor - view.startSec) / range; // 0..1
+            const newStart = tAtCursor - tRel * newRange;
+            const newEnd = newStart + newRange;
+            setTimelineView(newStart, newEnd);
+            return;
+        }
+        if (isPanH) {
+            e.preventDefault();
+            // Horizontal pan proportional to wheel deltaX/Y
+            const delta = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / Math.max(1, width);
+            const shift = delta * range;
+            setTimelineView(view.startSec + shift, view.endSec + shift);
+            return;
+        }
+        // Default: allow native scrolling; vertical sync handled by onRightScroll
+    };
+
+    const onRightPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
+        if (e.button !== 1) return; // middle button drag to pan
+        const container = rightScrollRef.current;
+        if (!container) return;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        rightDragRef.current = { active: true, startClientX: e.clientX, startView: { s: view.startSec, e: view.endSec } };
+        e.preventDefault();
+    };
+    const onRightPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
+        const drag = rightDragRef.current;
+        if (!drag?.active) return;
+        const container = rightScrollRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const range = Math.max(0.001, drag.startView.e - drag.startView.s);
+        const dx = e.clientX - drag.startClientX;
+        const shift = (dx / Math.max(1, width)) * range;
+        setTimelineView(drag.startView.s - shift, drag.startView.e - shift);
+    };
+    const onRightPointerUp: React.PointerEventHandler<HTMLDivElement> = (e) => {
+        if (rightDragRef.current?.active) {
+            rightDragRef.current = null;
+            try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+        }
+    };
+
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
@@ -102,6 +172,10 @@ const TimelinePanel: React.FC = () => {
                         className="relative w-full h-full overflow-auto"
                         ref={rightScrollRef}
                         onScroll={onRightScroll}
+                        onWheel={onRightWheel}
+                        onPointerDown={onRightPointerDown}
+                        onPointerMove={onRightPointerMove}
+                        onPointerUp={onRightPointerUp}
                     >
                         {/* Sticky ruler */}
                         <div className="sticky top-0 z-10">

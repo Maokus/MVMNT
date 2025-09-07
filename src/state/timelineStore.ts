@@ -390,8 +390,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setTimelineView(start: number, end: number) {
-        const s = Math.max(0, Math.min(start, end));
-        const e = Math.max(s + 0.001, end); // ensure min width
+        // Allow a small negative pre-roll, and clamp range min/max width.
+        const MIN_RANGE = 0.05; // 50ms min
+        const MAX_RANGE = 60 * 60 * 24; // 24h max
+        let sRaw = Math.min(start, end);
+        let eRaw = Math.max(start, end);
+        // Allow pre-roll negative up to -10s
+        const PRE_ROLL = -10;
+        let s = Math.max(PRE_ROLL, sRaw);
+        let e = Math.max(s + MIN_RANGE, eRaw);
+        if (e - s > MAX_RANGE) e = s + MAX_RANGE;
         set(() => ({ timelineView: { startSec: s, endSec: e } }));
         // Clamp current time into view range to avoid slider snapping outside
         const cur = get().timeline.currentTimeSec;
