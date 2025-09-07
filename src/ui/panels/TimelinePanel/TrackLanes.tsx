@@ -132,6 +132,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     const { view, toSeconds, toX } = useTimeScale();
     const snapSeconds = useSnapSeconds();
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
+    const currentTimeSec = useTimelineStore((s) => s.timeline.currentTimeSec);
 
     // Resize observer to keep width/height up to date
     useEffect(() => {
@@ -177,6 +178,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
 
     const rowHeight = 36;
     const lanesHeight = Math.max(rowHeight * Math.max(1, trackIds.length), 120);
+    const playheadX = toX(currentTimeSec, Math.max(1, width));
 
     return (
         <div className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900/40"
@@ -185,7 +187,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             onDragEnter={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            style={{ height: lanesHeight }}
+            style={{ height: lanesHeight, width: '100%' }}
         >
             {/* Grid */}
             <GridLines width={width} height={lanesHeight} startSec={view.startSec} endSec={view.endSec} />
@@ -198,13 +200,22 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             {/* Rows */}
             <div className="absolute inset-0">
                 {trackIds.map((id, idx) => (
-                    <div key={id} className="relative" style={{ height: rowHeight, top: idx * rowHeight }}>
+                    <div
+                        key={id}
+                        className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/20' : 'bg-neutral-800/10'}`}
+                        style={{ height: rowHeight, top: idx * rowHeight }}
+                    >
+                        {/* Horizontal separator */}
+                        <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />
                         <TrackRowBlock trackId={id} laneWidth={width} laneHeight={rowHeight}
                             onHoverSnapX={(x) => setHoverX(x)}
                         />
                     </div>
                 ))}
             </div>
+
+            {/* Playhead overlay */}
+            <div className="absolute top-0 bottom-0 w-0 border-l border-red-400 pointer-events-none" style={{ left: playheadX }} />
         </div>
     );
 };

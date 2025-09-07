@@ -4,6 +4,7 @@ import { selectMidiTracks, selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
 import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
+import TimelineRuler from './TimelineRuler';
 
 const TimelinePanel: React.FC = () => {
     const timeline = useTimelineStore(selectTimeline);
@@ -36,6 +37,8 @@ const TimelinePanel: React.FC = () => {
                 <div className="tracklist-container max-w-full overflow-x-auto">
                     <TrackList trackIds={trackIds} />
                 </div>
+
+                <TimelineRuler />
                 <TrackLanes trackIds={trackIds} />
             </div>
         </div>
