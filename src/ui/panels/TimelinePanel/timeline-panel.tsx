@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectMidiTracks, selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
@@ -37,20 +37,21 @@ const TimelinePanel: React.FC = () => {
 
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">
-            {/* Header: left add-track, center transport, right view + loop + quantize + time */}
+            {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
             <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
                 {/* Left: Add track */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60">
                         Add MIDI Track
                         <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
                     </label>
+                    <TimeIndicator />
                 </div>
                 {/* Center: transport buttons only */}
                 <div className="flex items-center justify-center justify-self-center">
                     <TransportControls />
                 </div>
-                {/* Right: timeline view + loop/quantize buttons + time indicator */}
+                {/* Right: timeline view + loop/quantize buttons */}
                 <div className="justify-self-end">
                     <HeaderRightControls />
                 </div>
@@ -62,9 +63,12 @@ const TimelinePanel: React.FC = () => {
                 </div>
 
                 {/* Right: Ruler stacked above lanes */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                     <TimelineRuler />
-                    <TrackLanes trackIds={trackIds} />
+                    {/* Scrollable lanes container */}
+                    <div className="flex-1 min-h-0 overflow-auto">
+                        <TrackLanes trackIds={trackIds} />
+                    </div>
                 </div>
             </div>
         </div>
@@ -73,11 +77,34 @@ const TimelinePanel: React.FC = () => {
 
 export default TimelinePanel;
 
+// Time indicator component (moved to the left header beside Add MIDI Track)
+const TimeIndicator: React.FC = () => {
+    const current = useTimelineStore((s) => s.timeline.currentTimeSec);
+    const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec));
+    const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec));
+    const fmt = (s: number) => {
+        const sign = s < 0 ? '-' : '';
+        const abs = Math.abs(s);
+        const m = Math.floor(abs / 60);
+        const sec = Math.floor(abs % 60);
+        const ms = Math.floor((abs * 1000) % 1000);
+        return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${ms
+            .toString()
+            .padStart(3, '0')}`;
+    };
+    return (
+        <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
+            <span>t = {fmt(current)}</span>
+            <span className="hidden sm:inline">beats: {beats.toFixed(2)}</span>
+            <span className="hidden sm:inline">bars: {bars.toFixed(2)}</span>
+        </div>
+    );
+};
+
 // Right-side header controls: view start/end inputs, loop/quantize toggles, current time
 const HeaderRightControls: React.FC = () => {
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
-    const current = useTimelineStore((s) => s.timeline.currentTimeSec);
     const loopEnabled = useTimelineStore((s) => s.transport.loopEnabled);
     const loopStart = useTimelineStore((s) => s.transport.loopStartSec);
     const loopEnd = useTimelineStore((s) => s.transport.loopEndSec);
@@ -85,34 +112,45 @@ const HeaderRightControls: React.FC = () => {
     const setLoopRange = useTimelineStore((s) => s.setLoopRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    // Local input buffers so typing isn't overridden; commit on blur or Enter
+    const [startText, setStartText] = useState<string>(() => String(view.startSec));
+    const [endText, setEndText] = useState<string>(() => String(view.endSec));
+    useEffect(() => { setStartText(String(view.startSec)); }, [view.startSec]);
+    useEffect(() => { setEndText(String(view.endSec)); }, [view.endSec]);
 
-    const fmt = (s: number) => {
-        const sign = s < 0 ? '-' : '';
-        const abs = Math.abs(s);
-        const m = Math.floor(abs / 60);
-        const sec = Math.floor(abs % 60);
-        const ms = Math.floor((abs * 1000) % 1000);
-        return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+    const commitView = (_which: 'start' | 'end') => {
+        const sVal = parseFloat(startText);
+        const eVal = parseFloat(endText);
+        const s = isFinite(sVal) ? sVal : 0;
+        const e = isFinite(eVal) ? eVal : s + 1; // ensure some width if end invalid
+        setTimelineView(s, e);
     };
-
-    const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec));
-    const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec));
 
     return (
         <div className="flex items-center gap-2 text-[12px]">
-            {/* Time indicator */}
-            <div className="ml-1 text-neutral-400">
-                t = {fmt(current)}
-                <span className="ml-2">beats: {beats.toFixed(2)}</span>
-                <span className="ml-2">bars: {bars.toFixed(2)}</span>
-            </div>
             <label className="text-neutral-300 flex items-center gap-1">
                 Start/End
-                <input aria-label="View start (seconds)" className="number-input w-[70px]" type="number" step={0.01} value={view.startSec}
-                    onChange={(e) => setTimelineView(parseFloat(e.target.value) || 0, view.endSec)} />
+                <input
+                    aria-label="View start (seconds)"
+                    className="number-input w-[80px]"
+                    type="number"
+                    step={0.01}
+                    value={startText}
+                    onChange={(e) => setStartText(e.target.value)}
+                    onBlur={() => commitView('start')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitView('start'); }}
+                />
                 <span>–</span>
-                <input aria-label="View end (seconds)" className="number-input w-[70px]" type="number" step={0.01} value={view.endSec}
-                    onChange={(e) => setTimelineView(view.startSec, parseFloat(e.target.value) || 0)} />
+                <input
+                    aria-label="View end (seconds)"
+                    className="number-input w-[80px]"
+                    type="number"
+                    step={0.01}
+                    value={endText}
+                    onChange={(e) => setEndText(e.target.value)}
+                    onBlur={() => commitView('end')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitView('end'); }}
+                />
             </label>
 
             {/* Loop toggle (icon button) */}

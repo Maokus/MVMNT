@@ -418,22 +418,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) {
-        // Update cache, then auto-fit the timeline view to content length if the current view appears default or wildly larger
-        set((s: TimelineState) => {
-            const nextCache = { ...s.midiCache, [id]: { ...data } };
-            const nextState = { ...s, midiCache: nextCache } as TimelineState;
-            const contentEnd = computeContentEndSec(nextState);
-            const curWidth = Math.max(0, s.timelineView.endSec - s.timelineView.startSec);
-            const isDefaultish = Math.abs(curWidth - 60) < 1e-6 || curWidth === 0;
-            const isWildlyLarger = contentEnd > 0 && curWidth / contentEnd > 2.0;
-            if ((isDefaultish || isWildlyLarger) && contentEnd > 0) {
-                return {
-                    midiCache: nextCache,
-                    timelineView: { startSec: 0, endSec: Math.max(1, contentEnd) },
-                } as Partial<TimelineState> as TimelineState;
-            }
-            return { midiCache: nextCache } as Partial<TimelineState> as TimelineState;
-        });
+        // Update cache only. Do NOT auto-adjust the timeline view here to respect manual start/end settings.
+        set((s: TimelineState) => ({ midiCache: { ...s.midiCache, [id]: { ...data } } }));
     },
 });
 

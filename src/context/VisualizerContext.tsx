@@ -349,16 +349,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [visualizer, tView.startSec, tView.endSec, loopEnabled, loopStartSec, loopEndSec]);
 
-    // Auto-fit timeline view to scene duration when it becomes available or changes significantly
+    // Auto-fit timeline view to scene duration when first available and the view is at default width.
     useEffect(() => {
         const duration = totalDuration;
         if (!isFinite(duration) || duration <= 0) return;
         const width = Math.max(0, tView.endSec - tView.startSec);
-        const isDefaultish = Math.abs(width - 60) < 1e-6 || width === 0;
-        const isWildlyLarger = width / duration > 2.0;
-        if (isDefaultish || isWildlyLarger) {
-            setTimelineView(0, Math.max(1, duration));
-        }
+        const isExactlyDefault = Math.abs(width - 60) < 1e-6 || width === 0;
+        if (isExactlyDefault) setTimelineView(0, Math.max(1, duration));
     }, [totalDuration, tView.startSec, tView.endSec, setTimelineView]);
 
     const stop = useCallback(() => {
