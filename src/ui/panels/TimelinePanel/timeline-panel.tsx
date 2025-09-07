@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { selectMidiTracks, selectTimeline } from '@selectors/timelineSelectors';
+import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
 import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
@@ -64,7 +64,7 @@ const TimelinePanel: React.FC = () => {
         }
     };
 
-    // Phase 3: wheel zoom & pan handlers on the right container
+    // Wheel pan handler on the right container (zoom removed; only horizontal pan via deltaX)
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const view = useTimelineStore((s) => s.timelineView);
     const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
@@ -72,44 +72,15 @@ const TimelinePanel: React.FC = () => {
     const [follow, setFollow] = useState(false);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
 
-    const setRowHeight = useTimelineStore((s) => s.setRowHeight);
-    const rowHeight = useTimelineStore((s) => s.rowHeight);
     const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
-        // Map pinch (ctrl/meta) to zoom and horizontal wheel (deltaX) to pan; allow vertical scroll to pass through unchanged.
+        // Only allow horizontal wheel (deltaX) to pan; vertical scroll passes through. All zoom gestures are disabled.
         const container = rightScrollRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
-        const x = Math.max(0, Math.min(width, e.clientX - rect.left));
         const range = Math.max(0.001, view.endSec - view.startSec);
-        const tAtCursor = view.startSec + (x / Math.max(1, width)) * range;
-        const MIN_RANGE = 0.05; // 50ms min zoom
-        const MAX_RANGE = 60 * 60 * 24; // 24h max
-
-        const isZoom = e.ctrlKey || e.metaKey; // pinch-zoom gesture
-        // If zooming with Shift held, treat as vertical zoom of track height instead of time zoom.
-        if (isZoom && e.shiftKey) {
-            e.preventDefault();
-            const factor = Math.exp(-Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 120) * 0.2);
-            setRowHeight(rowHeight * factor);
-            return;
-        }
-        // Only pan horizontally when there is meaningful horizontal delta; otherwise let vertical scroll happen (for track list syncing via native scrollbars).
-        const isPanH = !isZoom && Math.abs(e.deltaX) > Math.abs(e.deltaY);
-
-        if (isZoom) {
-            e.preventDefault();
-            e.stopPropagation();
-            // Wheel delta: positive => scroll down => zoom out; negative => zoom in
-            const zoomFactor = Math.exp(-Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 120) * 0.2);
-            let newRange = Math.min(MAX_RANGE, Math.max(MIN_RANGE, range * zoomFactor));
-            // Keep cursor time stable: adjust start/end around tAtCursor
-            const tRel = (tAtCursor - view.startSec) / range; // 0..1
-            const newStart = tAtCursor - tRel * newRange;
-            const newEnd = newStart + newRange;
-            setTimelineView(newStart, newEnd);
-            return;
-        }
+        // Only pan horizontally when there is meaningful horizontal delta; otherwise let vertical scroll happen.
+        const isPanH = Math.abs(e.deltaX) > Math.abs(e.deltaY);
         if (isPanH) {
             e.preventDefault();
             // Horizontal pan proportional to wheel deltaX only
@@ -148,7 +119,7 @@ const TimelinePanel: React.FC = () => {
         }
     };
 
-    // Prevent browser gesture zoom on Safari (gesturestart/gesturechange/gestureend)
+    // Prevent browser gesture zoom on Safari within the panel to avoid page zoom side-effects
     useEffect(() => {
         const el = rightScrollRef.current;
         if (!el) return;
@@ -263,7 +234,7 @@ const TimeIndicator: React.FC = () => {
     );
 };
 
-// Right-side header controls: view start/end inputs, loop/quantize toggles, current time
+// Right-side header controls: zoom slider, play start/end inputs, loop/quantize toggles, follow
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
@@ -273,23 +244,28 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setLoopEnabled = useTimelineStore((s) => s.setLoopEnabled);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
-    // Local input buffers so typing isn't overridden; commit on blur or Enter
-    const [startText, setStartText] = useState<string>(() => String(view.startSec));
-    const [endText, setEndText] = useState<string>(() => String(view.endSec));
+    // Zoom slider state maps to view range width using logarithmic scale
+    const MIN_RANGE = 0.05; // 50ms
+    const MAX_RANGE = 60 * 60 * 24; // 24h
+    const range = Math.max(0.001, view.endSec - view.startSec);
+    const sliderFromRange = (r: number) => {
+        const t = (Math.log(r) - Math.log(MIN_RANGE)) / (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
+        const clamped = Math.max(0, Math.min(1, t));
+        return Math.round(clamped * 100);
+    };
+    const rangeFromSlider = (v: number) => {
+        const t = Math.max(0, Math.min(1, v / 100));
+        const logR = Math.log(MIN_RANGE) + t * (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
+        return Math.exp(logR);
+    };
+    const [zoomVal, setZoomVal] = useState<number>(() => sliderFromRange(range));
+    useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
+
+    // Local input buffers for play range so typing isn't overridden; commit on blur or Enter
     const [playStartText, setPlayStartText] = useState<string>(() => String(playbackRange?.startSec ?? view.startSec));
     const [playEndText, setPlayEndText] = useState<string>(() => String(playbackRange?.endSec ?? view.endSec));
-    useEffect(() => { setStartText(String(view.startSec)); }, [view.startSec]);
-    useEffect(() => { setEndText(String(view.endSec)); }, [view.endSec]);
     useEffect(() => { setPlayStartText(String((playbackRange?.startSec ?? view.startSec))); }, [playbackRange?.startSec, view.startSec]);
     useEffect(() => { setPlayEndText(String((playbackRange?.endSec ?? view.endSec))); }, [playbackRange?.endSec, view.endSec]);
-
-    const commitView = (_which: 'start' | 'end') => {
-        const sVal = parseFloat(startText);
-        const eVal = parseFloat(endText);
-        const s = isFinite(sVal) ? sVal : 0;
-        const e = isFinite(eVal) ? eVal : s + 1; // ensure some width if end invalid
-        setTimelineView(s, e);
-    };
     const commitPlay = (_which: 'start' | 'end') => {
         const sVal = parseFloat(playStartText);
         const eVal = parseFloat(playEndText);
@@ -300,29 +276,38 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
 
     return (
         <div className="flex items-center gap-2 text-[12px]">
-            <label className="text-neutral-300 flex items-center gap-1">
-                View
+            {/* Zoom slider */}
+            <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
+                <span>Zoom</span>
                 <input
-                    aria-label="View start (seconds)"
-                    className="number-input w-[80px]"
-                    type="number"
-                    step={0.01}
-                    value={startText}
-                    onChange={(e) => setStartText(e.target.value)}
-                    onBlur={() => commitView('start')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitView('start'); }}
+                    aria-label="Timeline zoom"
+                    className="w-[140px]"
+                    type="range"
+                    min={20}
+                    max={60}
+                    step={1}
+                    value={zoomVal}
+                    onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        setZoomVal(v);
+                        const newRange = rangeFromSlider(v);
+                        const center = (view.startSec + view.endSec) / 2;
+                        const newStart = center - newRange / 2;
+                        const newEnd = newStart + newRange;
+                        setTimelineView(newStart, newEnd);
+                    }}
                 />
-                <span>–</span>
-                <input
-                    aria-label="View end (seconds)"
-                    className="number-input w-[80px]"
-                    type="number"
-                    step={0.01}
-                    value={endText}
-                    onChange={(e) => setEndText(e.target.value)}
-                    onBlur={() => commitView('end')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitView('end'); }}
-                />
+                <button
+                    className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60"
+                    title="Zoom to start/end"
+                    onClick={() => {
+                        const s = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
+                        const e = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+                        setTimelineView(s, e);
+                    }}
+                >
+                    Reset Zoom
+                </button>
             </label>
 
             <label className="text-neutral-300 flex items-center gap-1">
