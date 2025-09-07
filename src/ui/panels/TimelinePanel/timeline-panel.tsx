@@ -1,12 +1,14 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectMidiTracks, selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
 import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
+import { useVisualizer } from '@context/VisualizerContext';
 
 const TimelinePanel: React.FC = () => {
+    const { visualizer } = useVisualizer();
     const timeline = useTimelineStore(selectTimeline);
     const order = useTimelineStore((s) => s.tracksOrder);
     const tracksMap = useTimelineStore((s) => s.tracks);
@@ -20,6 +22,17 @@ const TimelinePanel: React.FC = () => {
         await addMidiTrack({ name: f.name.replace(/\.[^/.]+$/, ''), file: f });
         if (fileRef.current) fileRef.current.value = '';
     };
+
+    // Optional: on mount, nudge visualizer play range to current ruler state (no-op when already synced)
+    useEffect(() => {
+        if (!visualizer) return;
+        try {
+            const { startSec, endSec } = useTimelineStore.getState().timelineView;
+            const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore.getState().transport;
+            const loopActive = !!loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number' && loopEndSec > loopStartSec;
+            visualizer.setPlayRange?.(loopActive ? (loopStartSec as number) : startSec, loopActive ? (loopEndSec as number) : endSec);
+        } catch { }
+    }, [visualizer]);
 
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">

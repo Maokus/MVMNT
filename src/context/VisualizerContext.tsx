@@ -332,15 +332,22 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, [visualizer, tCurrent]);
 
     const tView = useTimelineStore((s) => s.timelineView);
+    const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    // Phase 4: Prefer loop braces as explicit visualizer play range when enabled; otherwise use the timeline view window
     useEffect(() => {
         if (!visualizer) return;
-        visualizer.setPlayRange?.(tView.startSec, tView.endSec);
-        // Ensure current time remains inside new range
-        if (visualizer.currentTime < tView.startSec || visualizer.currentTime > tView.endSec) {
-            visualizer.seek?.(Math.min(Math.max(visualizer.currentTime, tView.startSec), tView.endSec));
+        const loopActive =
+            !!loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number' && loopEndSec > loopStartSec;
+        const start = loopActive ? (loopStartSec as number) : tView.startSec;
+        const end = loopActive ? (loopEndSec as number) : tView.endSec;
+        visualizer.setPlayRange?.(start, end);
+        // If current time is outside the active play window, clamp/seek inside
+        if (visualizer.currentTime < start || visualizer.currentTime > end) {
+            const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
+            visualizer.seek?.(clamped);
         }
-    }, [visualizer, tView.startSec, tView.endSec]);
+    }, [visualizer, tView.startSec, tView.endSec, loopEnabled, loopStartSec, loopEndSec]);
 
     // Auto-fit timeline view to scene duration when it becomes available or changes significantly
     useEffect(() => {
