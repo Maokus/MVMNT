@@ -29,7 +29,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
     // Macro context
-    const { assignListener } = useMacros();
+    const { assignListener, manager } = useMacros();
 
     // Handle macro changes
     const handleMacroChange = useCallback((eventType: string, data: any) => {
@@ -115,7 +115,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     const binding = element.getBinding(property.key);
                     if (binding && binding.type === 'macro') {
                         const macroId = binding.getMacroId ? binding.getMacroId() : null;
-                        if (macroId) macroBindings[property.key] = macroId;
+                        // Only treat as assigned if the macro actually exists. If not, auto-unbind to recover.
+                        if (macroId && manager?.getMacro(macroId)) {
+                            macroBindings[property.key] = macroId;
+                        } else if (macroId && typeof element.unbindFromMacro === 'function') {
+                            try {
+                                element.unbindFromMacro(property.key);
+                            } catch { }
+                        }
                     }
                 }
             });

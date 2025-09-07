@@ -9,7 +9,7 @@ interface MacroConfigProps {
 
 interface Macro {
     name: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font';
+    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font' | 'midiTrackRef';
     value: any;
     options: {
         min?: number;
@@ -33,7 +33,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
         value: '',
         min: '',
         max: '',
@@ -90,6 +90,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             case 'font':
                 if (typeof value !== 'string' || value.trim() === '') value = 'Arial|400';
                 break;
+            case 'midiTrackRef':
+                // Store a single track id or null initially
+                value = null;
+                break;
         }
 
         // Prepare options
@@ -114,7 +118,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
+                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
                 value: '',
                 min: '',
                 max: '',
@@ -210,7 +214,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleMacroTypeChange = (type: string) => {
         setNewMacro(prev => {
-            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' };
+            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef' };
             switch (type) {
                 case 'number':
                     updated.value = '0';
@@ -226,6 +230,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     break;
                 case 'font':
                     updated.value = 'Arial|400';
+                    break;
+                case 'midiTrackRef':
+                    updated.value = '';
                     break;
                 default:
                     updated.value = '';
@@ -321,14 +328,42 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                         onChange={(val: string) => handleUpdateMacroValue(macro.name, val)}
                     />
                 );
+            case 'midiTrackRef': {
+                // Lazy import to avoid cyclic deps in node; in browser bundlers this resolves.
+                const MidiTrackSelect = require('@ui/form/inputs/MidiTrackSelect').default as React.FC<any>;
+                return (
+                    <MidiTrackSelect
+                        id={`macro-midiTrack-${macro.name}`}
+                        value={macro.value ?? null}
+                        schema={{ allowMultiple: false }}
+                        onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                    />
+                );
+            }
             default: // string
                 return (
-                    <input
-                        type="text"
-                        value={macro.value}
-                        onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
-                        onKeyDown={handleKeyDown}
-                    />
+                    (() => {
+                        // Heuristic: if legacy macro named 'midiTrack' is a string, render the track dropdown
+                        if (macro.type === 'string' && macro.name.toLowerCase() === 'miditrack') {
+                            const MidiTrackSelect = require('@ui/form/inputs/MidiTrackSelect').default as React.FC<any>;
+                            return (
+                                <MidiTrackSelect
+                                    id={`macro-midiTrack-${macro.name}`}
+                                    value={macro.value ?? null}
+                                    schema={{ allowMultiple: false }}
+                                    onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                                />
+                            );
+                        }
+                        return (
+                            <input
+                                type="text"
+                                value={macro.value}
+                                onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
+                                onKeyDown={handleKeyDown}
+                            />
+                        );
+                    })()
                 );
         }
     };
@@ -421,6 +456,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
                                 <option value="font">Font</option>
+                                <option value="midiTrackRef">MIDI Track</option>
                             </select>
                         </div>
                         {newMacro.type !== 'font' && (

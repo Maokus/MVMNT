@@ -455,8 +455,8 @@ export class HybridSceneBuilder {
     }
     _createDefaultMacros() {
         globalMacroManager.createMacro('tempo', 'number', 120, { min: 20, max: 300, step: 0.1, description: 'BPM' });
-        // Replace beatsPerBar macro with a MIDI track macro controlling all scene elements' MIDI source
-        globalMacroManager.createMacro('midiTrack', 'string', '', {
+        // Global MIDI track selector macro controls scene elements' MIDI source
+        globalMacroManager.createMacro('midiTrack', 'midiTrackRef', null, {
             description:
                 'ID of a MIDI track from the Timeline store. When set, all default scene elements will use this track.',
         });

@@ -54,6 +54,16 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
     const hasTempoMap = useTimelineStore((s) => (s.timeline.masterTempoMap?.length || 0) > 0);
+    // Local editing buffers for tempo/meter
+    const [localTempo, setLocalTempo] = useState<string>('');
+    const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
+
+    useEffect(() => {
+        setLocalTempo(String(Number.isFinite(globalBpm) ? globalBpm : 120));
+    }, [globalBpm]);
+    useEffect(() => {
+        setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4));
+    }, [beatsPerBar]);
 
     // Sync local state when external exportSettings change (e.g., reset)
     useEffect(() => {
@@ -93,6 +103,26 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
             if (h !== exportSettings.height) updateExportSetting('height', h);
             setLocalHeight(h);
         }
+    };
+
+    const commitTempo = () => {
+        const v = parseFloat(localTempo);
+        const value = Number.isFinite(v) && v > 0 ? v : (Number.isFinite(globalBpm) ? globalBpm : 120);
+        if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ tempo: value });
+        else {
+            try { useTimelineStore.getState().setGlobalBpm(value); } catch { }
+        }
+        setLocalTempo(String(value));
+    };
+
+    const commitBeatsPerBar = () => {
+        const v = parseInt(localBeatsPerBar);
+        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : (Number.isFinite(beatsPerBar) ? beatsPerBar : 4);
+        if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ beatsPerBar: value });
+        else {
+            try { useTimelineStore.getState().setBeatsPerBar(value); } catch { }
+        }
+        setLocalBeatsPerBar(String(value));
     };
 
     return (
@@ -161,16 +191,10 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                         min={1}
                                         max={400}
                                         step={0.1}
-                                        value={Number.isFinite(globalBpm) ? globalBpm : 120}
-                                        onChange={(e) => {
-                                            const v = parseFloat(e.target.value);
-                                            const value = Number.isFinite(v) && v > 0 ? v : 120;
-                                            // Prefer sceneBuilder API to keep sceneSettings in sync and serialize-able
-                                            if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ tempo: value });
-                                            else {
-                                                try { useTimelineStore.getState().setGlobalBpm(value); } catch { }
-                                            }
-                                        }}
+                                        value={localTempo}
+                                        onChange={(e) => setLocalTempo(e.target.value)}
+                                        onBlur={commitTempo}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
                                     />
                                 </div>
                                 <div style={{ flex: 1 }}>
@@ -181,15 +205,10 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                         min={1}
                                         max={16}
                                         step={1}
-                                        value={Number.isFinite(beatsPerBar) ? beatsPerBar : 4}
-                                        onChange={(e) => {
-                                            const v = parseInt(e.target.value);
-                                            const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : 4;
-                                            if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ beatsPerBar: value });
-                                            else {
-                                                try { useTimelineStore.getState().setBeatsPerBar(value); } catch { }
-                                            }
-                                        }}
+                                        value={localBeatsPerBar}
+                                        onChange={(e) => setLocalBeatsPerBar(e.target.value)}
+                                        onBlur={commitBeatsPerBar}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { commitBeatsPerBar(); (e.currentTarget as any).blur?.(); } }}
                                     />
                                 </div>
                             </div>

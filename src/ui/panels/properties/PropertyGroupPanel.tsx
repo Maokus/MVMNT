@@ -51,8 +51,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const renderInput = (property: PropertyDefinition) => {
         const value = values[property.key];
-        const isAssignedToMacro = !!macroAssignments[property.key];
         const assignedMacro = macroAssignments[property.key];
+        const macroExists = assignedMacro ? !!manager.getMacro(assignedMacro) : false;
+        const isAssignedToMacro = !!assignedMacro && macroExists;
 
         const commonProps = {
             id: `config-${property.key}`,
