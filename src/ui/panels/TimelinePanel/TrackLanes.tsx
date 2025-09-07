@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { barsToSeconds, secondsToBars } from '@state/selectors/timing';
+import { barsToSeconds, secondsToBars, secondsToBeatsSelector } from '@state/selectors/timing';
 
 type Props = {
     trackIds: string[];
@@ -72,15 +72,35 @@ const GridLines: React.FC<{ width: number; height: number } & { startSec: number
 const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: number; onHoverSnapX: (x: number | null) => void }>
     = ({ trackId, laneWidth, laneHeight, onHoverSnapX }) => {
         const track = useTimelineStore((s) => s.tracks[trackId]);
-        const setTrackOffset = useTimelineStore((s) => s.setTrackOffset);
-        const { view, toSeconds, toX } = useTimeScale();
+        const setTrackOffsetBeats = useTimelineStore((s) => s.setTrackOffsetBeats);
+        const midiCacheEntry = useTimelineStore((s) => s.midiCache[(s.tracks[trackId]?.midiSourceId) ?? trackId]);
+        const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
+        const { view, toX } = useTimeScale();
         const snapSeconds = useSnapSeconds();
 
         const [dragging, setDragging] = useState(false);
         const [dragSec, setDragSec] = useState<number | null>(null);
         const startRef = useRef<{ startX: number; baseOffset: number; alt: boolean } | null>(null);
 
+        // Compute local clip extent from cached MIDI and optional region trimming
+        const { localStartSec, localEndSec } = useMemo(() => {
+            let start = 0;
+            let end = 0;
+            const notes = midiCacheEntry?.notesRaw || [];
+            if (notes.length > 0) {
+                start = notes.reduce((m, n) => Math.min(m, n.startTime || 0), Number.POSITIVE_INFINITY);
+                if (!isFinite(start)) start = 0;
+                end = notes.reduce((m, n) => Math.max(m, n.endTime || 0), 0);
+            }
+            // Apply region trimming if present
+            if (typeof track?.regionStartSec === 'number') start = Math.max(start, track.regionStartSec);
+            if (typeof track?.regionEndSec === 'number') end = Math.min(end, track.regionEndSec);
+            if (end < start) end = start;
+            return { localStartSec: start, localEndSec: end };
+        }, [midiCacheEntry, track?.regionStartSec, track?.regionEndSec]);
+
         const onPointerDown = (e: React.PointerEvent) => {
+            if (!track) return;
             // Begin dragging the track block
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
             startRef.current = { startX: e.clientX, baseOffset: track.offsetSec, alt: !!e.altKey };
@@ -92,33 +112,61 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             const dx = e.clientX - startRef.current.startX;
             const deltaSec = (dx / Math.max(1, laneWidth)) * (view.endSec - view.startSec);
             const cand = Math.max(0, startRef.current.baseOffset + deltaSec);
-            const snapped = snapSeconds(cand, e.altKey, true);
+            const snapped = snapSeconds(cand, e.altKey, false);
             setDragSec(snapped);
             onHoverSnapX(toX(snapped, laneWidth));
         };
         const onPointerUp = (e: React.PointerEvent) => {
             if (!dragging) return;
             setDragging(false);
-            const final = dragSec != null ? dragSec : track.offsetSec;
-            setTrackOffset(trackId, Math.max(0, final));
+            const finalSec = Math.max(0, dragSec != null ? dragSec : (track?.offsetSec || 0));
+            // Convert to beats for storage
+            const state = useTimelineStore.getState();
+            const beats = secondsToBeatsSelector(state, finalSec);
+            setTrackOffsetBeats(trackId, beats);
             setDragSec(null);
             onHoverSnapX(null);
         };
 
-        const x = toX(dragSec != null ? dragSec : track.offsetSec, laneWidth);
+        const offsetSec = dragSec != null ? dragSec : track?.offsetSec || 0;
+        const leftX = toX(Math.max(0, offsetSec + localStartSec), laneWidth);
+        const rightX = toX(Math.max(0, offsetSec + localEndSec), laneWidth);
+        const widthPx = Math.max(8, rightX - leftX); // minimal visible width when empty or very small
+
+        // Label: show offset as +bars|beats
+        const offsetBeats = useMemo(() => {
+            if (!track) return 0;
+            if (dragSec != null) {
+                const st = useTimelineStore.getState();
+                return secondsToBeatsSelector(st, dragSec);
+            }
+            return typeof (track as any).offsetBeats === 'number'
+                ? (track as any).offsetBeats as number
+                : secondsToBeatsSelector(useTimelineStore.getState(), track.offsetSec || 0);
+        }, [track, dragSec]);
+        const beatsPerBar = Math.max(1, bpb);
+        const wholeBeats = Math.floor(offsetBeats + 1e-9);
+        const barsDisplay = Math.floor(wholeBeats / beatsPerBar);
+        const beatInBarDisplay = (wholeBeats % beatsPerBar) + 1; // 1-based beat index like DAWs
+        const label = `+${barsDisplay}|${beatInBarDisplay}`;
 
         return (
             <div className="relative h-full"
-                onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
             >
-                {/* Track block */}
-                <div className="absolute top-1/2 -translate-y-1/2 bg-blue-500/50 border border-blue-300/70 rounded px-2 py-1 text-[11px] text-white cursor-grab active:cursor-grabbing select-none"
-                    style={{ left: Math.max(0, x), width: 120, height: Math.max(18, laneHeight * 0.6) }}
-                    title="Drag horizontally to change offset (Alt to bypass snapping)"
+                {/* Track clip rectangle (width reflects clip length) */}
+                <div
+                    className="absolute top-1/2 -translate-y-1/2 bg-blue-500/50 border border-blue-300/70 rounded px-2 py-1 text-[11px] text-white cursor-grab active:cursor-grabbing select-none"
+                    style={{ left: Math.max(0, leftX), width: widthPx, height: Math.max(18, laneHeight * 0.6) }}
+                    title={`Drag horizontally to change offset (Alt to bypass snapping) — offset ${label}`}
+                    onPointerDown={onPointerDown}
                 >
-                    {track.name}
+                    {track?.name}{' '}
+                    <span className="opacity-80">{label}</span>
+                    {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
+                        <span className="ml-2 text-[10px] opacity-70">No data</span>
+                    )}
                 </div>
             </div>
         );
