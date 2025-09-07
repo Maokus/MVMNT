@@ -72,3 +72,49 @@ export const selectNotesInWindow = (
     res.sort((a, b) => a.startTime - b.startTime || a.note - b.note);
     return res;
 };
+
+// Simple memoized variant: caches last inputs and result using shallow identity checks
+let _lastArgs: { trackIdsKey: string; startSec: number; endSec: number } | null = null;
+let _lastDepsKey: string | null = null;
+let _lastResult: TimelineNoteEvent[] = [];
+
+export const selectNotesInWindowMemo = (
+    s: TimelineState,
+    args: { trackIds: string[]; startSec: number; endSec: number }
+): TimelineNoteEvent[] => {
+    // Build a stable key for trackIds and window
+    const trackIdsKey = args.trackIds.join('|');
+    const baseKey = `${trackIdsKey}|${args.startSec}|${args.endSec}`;
+    // Build a dependency key from track offsets/regions/enabled/mute and midi cache identities
+    let depParts: string[] = [];
+    for (const tid of args.trackIds) {
+        const t = s.tracks[tid];
+        if (!t) continue;
+        const cacheKey = t.midiSourceId ?? tid;
+        const cache = s.midiCache[cacheKey];
+        const notesId = cache ? (cache.notesRaw as any) : null;
+        depParts.push(
+            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${t.offsetSec}:${t.regionStartSec ?? ''}:${
+                t.regionEndSec ?? ''
+            }:` +
+                `${cache ? cache.ticksPerQuarter : ''}:${cache ? cache.tempoMap?.length ?? 0 : ''}:${
+                    notesId ? (notesId as any).length : 0
+                }`
+        );
+    }
+    const depsKey = depParts.join('||');
+    if (
+        _lastArgs &&
+        _lastArgs.trackIdsKey === trackIdsKey &&
+        _lastArgs.startSec === args.startSec &&
+        _lastArgs.endSec === args.endSec &&
+        _lastDepsKey === depsKey
+    ) {
+        return _lastResult;
+    }
+    const res = selectNotesInWindow(s, args);
+    _lastArgs = { trackIdsKey, startSec: args.startSec, endSec: args.endSec };
+    _lastDepsKey = depsKey;
+    _lastResult = res;
+    return res;
+};
