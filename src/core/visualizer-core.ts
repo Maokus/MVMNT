@@ -34,6 +34,8 @@ export class MIDIVisualizerCore {
     };
     private _interactionBoundsCache = new Map();
     private _interactionHandlesCache = new Map();
+    // When true, do not stop/clamp playback at scene duration; external controller (Timeline) decides.
+    private _ignoreSceneDurationStop = false;
     constructor(canvas: HTMLCanvasElement, timingManager: any = null) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
@@ -43,6 +45,9 @@ export class MIDIVisualizerCore {
         this._setupImageLoadedListener();
         this.sceneBuilder.createDefaultMIDIScene();
         (window as any).vis = this; // debug helper
+    }
+    setIgnoreSceneDurationStop(v: boolean) {
+        this._ignoreSceneDurationStop = !!v;
     }
     updateSceneElementTimingManager() {
         this.sceneBuilder.createDefaultMIDIScene();
@@ -88,8 +93,12 @@ export class MIDIVisualizerCore {
         const currentDuration = this.getCurrentDuration();
         const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
         const minTime = -prePadding - bufferTime;
-        const maxTime = currentDuration + bufferTime;
-        this.currentTime = Math.max(minTime, Math.min(time, maxTime));
+        if (this._ignoreSceneDurationStop) {
+            this.currentTime = Math.max(minTime, time);
+        } else {
+            const maxTime = currentDuration + bufferTime;
+            this.currentTime = Math.max(minTime, Math.min(time, maxTime));
+        }
         if (this.isPlaying) this.startTime = performance.now() - (this.currentTime + 0.5) * 1000;
         this.invalidateRender();
     }
@@ -154,9 +163,11 @@ export class MIDIVisualizerCore {
             const bufferTime = 0.5;
             this.currentTime = (now - this.startTime) / 1000 + bufferTime;
             const currentDuration = this.getCurrentDuration();
-            if (this.currentTime >= currentDuration + bufferTime) {
-                this.stop();
-                return;
+            if (!this._ignoreSceneDurationStop) {
+                if (this.currentTime >= currentDuration + bufferTime) {
+                    this.stop();
+                    return;
+                }
             }
             this.render();
             this._lastRAFTime = now;

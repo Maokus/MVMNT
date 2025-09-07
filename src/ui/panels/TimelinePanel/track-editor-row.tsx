@@ -30,39 +30,39 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
     }, [trackId, updateTrack]);
 
     return (
-        <div className="timeline-row flex items-center gap-2 py-1 px-2 border-b border-neutral-800 bg-neutral-900/40">
+        <div className="timeline-row flex items-center gap-2 py-1 px-2 border-b border-neutral-800 bg-neutral-900/40 text-xs">
             <input
-                className="text-input text-sm bg-neutral-900 border-neutral-700 rounded px-2 py-1 w-[180px]"
+                className="text-input bg-neutral-900 border-neutral-700 rounded px-1.5 py-0.5 w-[140px]"
                 value={track.name}
                 onChange={onNameChange}
             />
-            <span className="text-[11px] text-neutral-400">{track.type.toUpperCase()}</span>
-            <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+            <span className="text-[10px] text-neutral-500">{track.type.toUpperCase()}</span>
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
                 <input type="checkbox" checked={track.enabled} onChange={(e) => setEnabled(trackId, e.target.checked)} />
                 Enabled
             </label>
-            <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
                 <input type="checkbox" checked={track.mute} onChange={(e) => setMute(trackId, e.target.checked)} />
                 Mute
             </label>
-            <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
                 <input type="checkbox" checked={track.solo} onChange={(e) => setSolo(trackId, e.target.checked)} />
                 Solo
             </label>
-            <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
                 Offset (s)
                 <input
-                    className="number-input w-[80px]"
+                    className="number-input w-[64px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.offsetSec}
                     onChange={(e) => setOffset(trackId, parseFloat(e.target.value) || 0)}
                 />
             </label>
-            <label className="text-[12px] text-neutral-300 flex items-center gap-1">
+            <label className="text-[11px] text-neutral-300 flex items-center gap-1">
                 Region
                 <input
-                    className="number-input w-[70px]"
+                    className="number-input w-[60px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.regionStartSec ?? ''}
@@ -71,7 +71,7 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                 />
                 <span>–</span>
                 <input
-                    className="number-input w-[70px]"
+                    className="number-input w-[60px] px-1 py-0.5"
                     type="number"
                     step={0.01}
                     value={track.regionEndSec ?? ''}
@@ -79,7 +79,7 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                     onChange={(e) => setRegion(trackId, track.regionStartSec, e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0))}
                 />
             </label>
-            <div className="flex-1 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-1">
                 {!track.enabled && <span className="text-[10px] bg-neutral-800 text-neutral-300 px-1.5 py-0.5 rounded">Disabled</span>}
                 {track.mute && <span className="text-[10px] bg-yellow-900/40 text-yellow-300 px-1.5 py-0.5 rounded">Muted</span>}
                 {track.regionStartSec != null || track.regionEndSec != null ? (

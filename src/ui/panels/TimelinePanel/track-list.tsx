@@ -10,7 +10,7 @@ const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
         );
     }
     return (
-        <div className="track-list">
+        <div className="track-list space-y-0">
             {trackIds.map((id) => (
                 <TrackEditorRow key={id} trackId={id} />
             ))}

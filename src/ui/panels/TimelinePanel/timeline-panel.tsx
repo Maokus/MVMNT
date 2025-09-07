@@ -33,7 +33,9 @@ const TimelinePanel: React.FC = () => {
                 </div>
             </div>
             <div className="timeline-body">
-                <TrackList trackIds={trackIds} />
+                <div className="tracklist-container max-w-full overflow-x-auto">
+                    <TrackList trackIds={trackIds} />
+                </div>
                 <TrackLanes trackIds={trackIds} />
             </div>
         </div>

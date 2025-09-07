@@ -100,6 +100,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (canvasRef.current && !visualizer) {
             const vis = new MIDIVisualizerCore(canvasRef.current);
+            // Let the external Timeline control play range; don't auto-stop at scene duration.
+            try { vis.setIgnoreSceneDurationStop?.(true); } catch { }
             vis.render();
             setVisualizer(vis);
             const gen = new ImageSequenceGenerator(canvasRef.current, vis);
