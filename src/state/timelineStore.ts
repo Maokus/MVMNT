@@ -72,6 +72,8 @@ export type TimelineState = {
     timelineView: { startSec: number; endSec: number };
     // Real playback range braces (yellow). Optional; when unset, fallback to timelineView.
     playbackRange?: { startSec?: number; endSec?: number };
+    // Marks that user explicitly set the playbackRange (scene start/end). When false, system may auto-adjust
+    playbackRangeUserDefined: boolean;
     midiCache: Record<
         string,
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
@@ -114,6 +116,8 @@ export type TimelineState = {
     setTimelineView: (start: number, end: number) => void;
     selectTracks: (ids: string[]) => void;
     setPlaybackRange: (start?: number, end?: number) => void;
+    // Explicit variant that marks user override (dragging braces / manual input)
+    setPlaybackRangeExplicit: (start?: number, end?: number) => void;
     setRowHeight: (h: number) => void;
     ingestMidiToCache: (
         id: string,
@@ -152,6 +156,59 @@ function computeContentEndSec(state: TimelineState): number {
     return max;
 }
 
+// Compute earliest content start across enabled tracks
+function computeContentStartSec(state: TimelineState): number {
+    let min = Infinity;
+    try {
+        for (const id of state.tracksOrder) {
+            const t = state.tracks[id];
+            if (!t || t.type !== 'midi' || !t.enabled) continue;
+            const cacheKey = t.midiSourceId ?? id;
+            const cache = state.midiCache[cacheKey];
+            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+            const localStart = cache.notesRaw.reduce((m: number, n: any) => Math.min(m, n.startTime || 0), Infinity);
+            let start = localStart;
+            if (typeof t.regionStartSec === 'number') start = Math.max(start, t.regionStartSec);
+            if (!isFinite(start)) start = 0;
+            const offset =
+                typeof (t as any).offsetBeats === 'number'
+                    ? _beatsToSecondsLocal(state, (t as any).offsetBeats)
+                    : t.offsetSec || 0;
+            const timelineStart = offset + start;
+            if (timelineStart < min) min = timelineStart;
+        }
+    } catch {}
+    if (!isFinite(min)) return 0;
+    return Math.max(0, min);
+}
+
+function computeContentBounds(state: TimelineState): { start: number; end: number } | null {
+    const end = computeContentEndSec(state);
+    if (!isFinite(end) || end <= 0) return null;
+    const start = computeContentStartSec(state);
+    return { start, end };
+}
+
+// Internal helper to auto-adjust scene range + zoom if user hasn't explicitly set it
+function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) => void) {
+    const s = get();
+    if (s.playbackRangeUserDefined) return;
+    const bounds = computeContentBounds(s);
+    if (!bounds) return;
+    const { start, end } = bounds;
+    const current = s.playbackRange || {};
+    const same = Math.abs((current.startSec ?? -1) - start) < 1e-6 && Math.abs((current.endSec ?? -1) - end) < 1e-6;
+    if (same) return;
+
+    const oneBar = _barsToSecondsLocal(s, 1);
+
+    // Update playback range (auto) and zoom view
+    set((prev: TimelineState) => ({
+        playbackRange: { startSec: start, endSec: end + oneBar },
+        timelineView: { startSec: start - oneBar, endSec: end + oneBar * 2 }, // add 1s padding
+    }));
+}
+
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
@@ -170,6 +227,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     midiCache: {},
     timelineView: { startSec: 0, endSec: 60 },
     playbackRange: undefined,
+    playbackRangeUserDefined: false,
     rowHeight: 30,
 
     async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
@@ -192,12 +250,19 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             tracks: { ...s.tracks, [id]: track },
             tracksOrder: [...s.tracksOrder, id],
         }));
+        // Auto adjust after adding track (before/after ingestion)
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
 
         // If MIDI data provided, ingest immediately. File-based ingestion will be wired later in Phase 2/4 UI.
         if (input.midiData) {
             const ingested = buildNotesFromMIDI(input.midiData);
             get().ingestMidiToCache(id, ingested);
             set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], midiSourceId: id } } }));
+            try {
+                autoAdjustSceneRangeIfNeeded(get, set);
+            } catch {}
         } else if (input.file) {
             // Lazy parse using existing midi-library
             const { parseMIDIFileToData } = await import('@core/midi/midi-library');
@@ -205,6 +270,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const ingested = buildNotesFromMIDI(midiData);
             get().ingestMidiToCache(id, ingested);
             set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], midiSourceId: id } } }));
+            try {
+                autoAdjustSceneRangeIfNeeded(get, set);
+            } catch {}
         }
 
         // Notify UI that a new track was added (for auto-binding defaults)
@@ -225,6 +293,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 },
             };
         });
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     updateTrack(id: string, patch: Partial<TimelineTrack>) {
@@ -245,6 +316,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             }
             return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
         });
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     setTrackOffset(id: string, offsetSec: number) {
@@ -252,6 +326,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         const s = get();
         const beats = _secondsToBeatsLocal(s, offsetSec);
         get().setTrackOffsetBeats(id, beats);
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     setTrackOffsetBeats(id: string, offsetBeats: number) {
@@ -262,12 +339,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const next: TimelineTrack = { ...prev, offsetBeats, offsetSec: sec };
             return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
         });
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     setTrackRegion(id: string, start?: number, end?: number) {
         set((s: TimelineState) => ({
             tracks: { ...s.tracks, [id]: { ...s.tracks[id], regionStartSec: start, regionEndSec: end } },
         }));
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     setTrackEnabled(id: string, enabled: boolean) {
@@ -434,6 +517,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ) {
         // Update cache only. Do NOT auto-adjust the timeline view here to respect manual start/end settings.
         set((s: TimelineState) => ({ midiCache: { ...s.midiCache, [id]: { ...data } } }));
+        // Now that notes are available, attempt auto adjust (if not user-defined)
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
     },
 
     setPlaybackRange(start?: number, end?: number) {
@@ -442,6 +529,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 startSec: typeof start === 'number' ? Math.max(0, start) : undefined,
                 endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
             },
+        }));
+    },
+
+    setPlaybackRangeExplicit(start?: number, end?: number) {
+        set((s: TimelineState) => ({
+            playbackRange: {
+                startSec: typeof start === 'number' ? Math.max(0, start) : undefined,
+                endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
+            },
+            playbackRangeUserDefined: true,
         }));
     },
 

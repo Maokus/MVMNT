@@ -41,6 +41,7 @@ const TimelineRuler: React.FC = () => {
     const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
+    const setPlaybackRangeExplicit = useTimelineStore((s) => s.setPlaybackRangeExplicit);
     const snapSeconds = useSnapSeconds();
 
     // Resize handling
@@ -186,11 +187,11 @@ const TimelineRuler: React.FC = () => {
         if (d.type === 'play-start') {
             const newStart = Math.max(0, snapped);
             const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
-            setPlaybackRange(newStart, newEnd);
+            setPlaybackRangeExplicit(newStart, newEnd);
         } else if (d.type === 'play-end') {
             const newEnd = Math.max(0.0001, snapped);
             const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 0.0001) : d.startSec;
-            setPlaybackRange(newStart, newEnd);
+            setPlaybackRangeExplicit(newStart, newEnd);
         }
     };
 

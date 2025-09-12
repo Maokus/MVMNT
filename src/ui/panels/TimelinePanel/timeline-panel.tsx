@@ -241,6 +241,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
+    const setPlaybackRangeExplicit = useTimelineStore((s) => s.setPlaybackRangeExplicit);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     // Global timing state
@@ -285,7 +286,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         const eVal = parseFloat(playEndText);
         const s = isFinite(sVal) ? sVal : undefined;
         const e = isFinite(eVal) ? eVal : undefined;
-        setPlaybackRange(s, e);
+        setPlaybackRangeExplicit(s, e);
     };
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
