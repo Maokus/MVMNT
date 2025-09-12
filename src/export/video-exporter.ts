@@ -49,7 +49,7 @@ export class VideoExporter {
 
     async exportVideo(options: VideoExportOptions = {}): Promise<void> {
         const {
-            fps = 30,
+            fps = 60,
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',

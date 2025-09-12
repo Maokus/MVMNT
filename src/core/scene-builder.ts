@@ -31,7 +31,7 @@ export class HybridSceneBuilder {
     elementRegistry = new Map<string, SceneElement>();
     sceneElementRegistry = sceneElementRegistry;
     private _defaultSceneSettings: SceneSettings = {
-        fps: 30,
+        fps: 60, // updated default framerate
         width: 1500,
         height: 1500,
         prePadding: 0,

@@ -237,6 +237,7 @@ const TimeIndicator: React.FC = () => {
 
 // Right-side header controls: zoom slider, play start/end inputs, quantize toggle, follow
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
+    const { exportSettings, setExportSettings, debugSettings, setDebugSettings } = useVisualizer();
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
@@ -307,6 +308,24 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         setLocalBeatsPerBar(String(value));
     };
 
+    // Local buffer for scene settings so typing doesn't spam context updates
+    const [localFps, setLocalFps] = useState<string>(() => String(exportSettings.fps));
+    const [localWidth, setLocalWidth] = useState<string>(() => String(exportSettings.width));
+    const [localHeight, setLocalHeight] = useState<string>(() => String(exportSettings.height));
+    useEffect(() => { setLocalFps(String(exportSettings.fps)); }, [exportSettings.fps]);
+    useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
+    useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
+    const commitSceneSetting = (key: 'fps' | 'width' | 'height') => {
+        let valStr = key === 'fps' ? localFps : key === 'width' ? localWidth : localHeight;
+        let v = parseInt(valStr, 10);
+        if (!Number.isFinite(v) || v <= 0) {
+            v = (exportSettings as any)[key];
+        }
+        setExportSettings((prev) => ({ ...prev, [key]: v }));
+        if (key === 'fps') setLocalFps(String(v));
+        if (key === 'width') setLocalWidth(String(v));
+        if (key === 'height') setLocalHeight(String(v));
+    };
     return (
         <div className="flex items-center gap-3 text-[12px] relative" ref={menuRef}>
             {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
@@ -368,7 +387,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                 <FaEllipsisV />
             </button>
             {menuOpen && (
-                <div role="menu" className="absolute right-0 bottom-full mb-1 w-72 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-3 z-20" aria-label="Timeline options menu">
+                <div role="menu" className="absolute right-0 bottom-full mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4 z-20" aria-label="Timeline options menu">
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Quantize (bars)</span>
                         <button className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')} role="menuitemcheckbox" aria-checked={quantize === 'bar'}>Q</button>
@@ -385,6 +404,29 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                             <input aria-label="Scene end (seconds)" className="number-input w-[90px]" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
                         </label>
                         <p className="text-[11px] text-neutral-500 leading-snug">Scene range defines playback start/end boundaries. Playback stops at end unless looping.</p>
+                    </div>
+                    {/* Scene Settings moved from GlobalPropertiesPanel */}
+                    <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
+                        <h4 className="text-neutral-200 text-[12px] font-semibold">Scene Settings</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                            <label className="flex flex-col text-[11px] text-neutral-300">Width
+                                <input className="number-input w-full" type="number" min={16} max={8192} value={localWidth} onChange={(e) => setLocalWidth(e.target.value)} onBlur={() => commitSceneSetting('width')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('width'); (e.currentTarget as any).blur?.(); } }} />
+                            </label>
+                            <label className="flex flex-col text-[11px] text-neutral-300">Height
+                                <input className="number-input w-full" type="number" min={16} max={8192} value={localHeight} onChange={(e) => setLocalHeight(e.target.value)} onBlur={() => commitSceneSetting('height')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('height'); (e.currentTarget as any).blur?.(); } }} />
+                            </label>
+                            <label className="flex flex-col text-[11px] text-neutral-300">FPS
+                                <input className="number-input w-full" type="number" min={1} max={240} value={localFps} onChange={(e) => setLocalFps(e.target.value)} onBlur={() => commitSceneSetting('fps')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('fps'); (e.currentTarget as any).blur?.(); } }} />
+                            </label>
+                        </div>
+                    </div>
+                    {/* Debug Settings moved */}
+                    <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
+                        <h4 className="text-neutral-200 text-[12px] font-semibold">Debug</h4>
+                        <label className="flex items-center gap-2 text-[12px] text-neutral-300">
+                            <input type="checkbox" checked={debugSettings.showAnchorPoints} onChange={(e) => setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))} />
+                            Show Anchor Points
+                        </label>
                     </div>
                 </div>
             )}

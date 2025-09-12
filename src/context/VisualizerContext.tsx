@@ -36,7 +36,6 @@ interface VisualizerContextValue {
     currentTimeLabel: string;
     numericCurrentTime: number;
     totalDuration: number;
-    exportStatus: string;
     exportSettings: ExportSettings;
     setExportSettings: React.Dispatch<React.SetStateAction<ExportSettings>>;
     debugSettings: DebugSettings;
@@ -72,9 +71,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [currentTimeLabel, setCurrentTimeLabel] = useState('00:00 / 00:00');
     const [numericCurrentTime, setNumericCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
-    const [exportStatus, setExportStatus] = useState('Load MIDI or create scene to enable export');
     const [exportSettings, setExportSettings] = useState<ExportSettings>({
-        fps: 30,
+        // Default framerate updated to 60fps
+        fps: 60,
         width: 1500,
         height: 1500,
         fullDuration: true,
@@ -113,25 +112,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             (window as any).debugVisualizer = vis;
             // Expose timeline service globally for non-React consumers (scene elements)
             try { (window as any).mvmntTimelineService = timelineService; } catch { }
-            // Auto-bind first timeline track to default piano roll if none assigned
-            try {
-                const st = useTimelineStore.getState();
-                const firstTrackId = st.tracksOrder.find((id) => st.tracks[id]?.type === 'midi');
-                if (firstTrackId) {
-                    const sb = vis.getSceneBuilder?.();
-                    const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
-                    const roll: any = rolls[0];
-                    if (roll) {
-                        const ids = roll.getProperty?.('midiTrackIds');
-                        const id = roll.getProperty?.('midiTrackId');
-                        const hasIds = Array.isArray(ids) && ids.length > 0;
-                        const hasId = !!id;
-                        if (!hasIds && !hasId) {
-                            roll.updateConfig?.({ midiTrackId: firstTrackId });
-                        }
-                    }
-                }
-            } catch { }
+            // Removed auto-binding of first timeline track to piano roll to avoid confusion
+            // (Explicit user selection now required.)
+            try { /* no-op */ } catch { }
             // Sync initial fps/width/height from scene builder settings
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
@@ -151,28 +134,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     // (Removed duplicate view sync; see effect near bottom that also clamps current time)
 
-    // Auto-bind first newly added track if default piano roll has no selection yet
-    useEffect(() => {
-        const onAdded = (e: any) => {
-            try {
-                const vis = (window as any).debugVisualizer;
-                const sb = vis?.getSceneBuilder?.();
-                const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
-                const roll: any = rolls[0];
-                if (!roll) return;
-                const ids = roll.getProperty?.('midiTrackIds');
-                const id = roll.getProperty?.('midiTrackId');
-                const hasIds = Array.isArray(ids) && ids.length > 0;
-                const hasId = !!id;
-                if (!hasIds && !hasId) {
-                    const trackId = e?.detail?.trackId;
-                    if (trackId) roll.updateConfig?.({ midiTrackId: trackId });
-                }
-            } catch { }
-        };
-        window.addEventListener('timeline-track-added', onAdded as EventListener);
-        return () => window.removeEventListener('timeline-track-added', onAdded as EventListener);
-    }, []);
+    // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
+    useEffect(() => { return () => { /* cleanup only */ }; }, []);
 
     // Animation / time update loop — mirror visualizer time into store and update UI
     useEffect(() => {
@@ -214,8 +177,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 setCurrentTimeLabel(`${format(rel)} / ${format(total)}`);
                 setNumericCurrentTime(vNow);
                 setTotalDuration(total);
-                const hasValidScene = total > 0;
-                setExportStatus(hasValidScene ? 'Ready to export' : 'Load MIDI to enable export');
                 lastUIUpdate = nowTs;
             }
             raf = requestAnimationFrame(loop);
@@ -476,7 +437,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         currentTimeLabel,
         numericCurrentTime,
         totalDuration,
-        exportStatus,
         exportSettings,
         setExportSettings,
         debugSettings,

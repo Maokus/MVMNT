@@ -201,11 +201,12 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     if (same) return;
 
     const oneBar = _barsToSecondsLocal(s, 1);
+    const clippedEnd = Math.min(end, 500); // hard cap to prevent runaway scenes
 
     // Update playback range (auto) and zoom view
     set((prev: TimelineState) => ({
-        playbackRange: { startSec: start, endSec: end + oneBar },
-        timelineView: { startSec: start - oneBar, endSec: end + oneBar * 2 }, // add 1s padding
+        playbackRange: { startSec: start, endSec: clippedEnd + oneBar },
+        timelineView: { startSec: start - oneBar, endSec: clippedEnd + oneBar * 2 }, // add 1s padding
     }));
 }
 

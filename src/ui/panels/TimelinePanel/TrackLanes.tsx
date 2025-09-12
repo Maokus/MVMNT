@@ -238,21 +238,49 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         onPointerDown={onPointerDown}
                         data-clip="1"
                     >
-                        {/* Edge indicators: show solid cap when actual edge is visible; gradient fade when clipped */}
-                        {/* Left edge */}
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center">
+                        {/* Edge indicators: jagged mask when clipped, solid when fully visible */}
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-stretch">
                             {isClippedLeft ? (
-                                <div className="w-2 h-full bg-gradient-to-r from-blue-900/60 via-blue-500/20 to-transparent" />
+                                <div className="relative h-full w-3 overflow-hidden">
+                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
+                                        <defs>
+                                            <pattern id="zigL" width="4" height="8" patternUnits="userSpaceOnUse">
+                                                <path d="M0 0 L4 4 L0 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
+                                            </pattern>
+                                            <linearGradient id="fadeL" x1="0" x2="1" y1="0" y2="0">
+                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
+                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
+                                                <stop offset="100%" stopColor="transparent" />
+                                            </linearGradient>
+                                        </defs>
+                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeL)" />
+                                        <rect x="0" y="0" width="6" height="100" fill="url(#zigL)" />
+                                    </svg>
+                                </div>
                             ) : (
-                                <div className="w-[3px] h-full bg-white/50 opacity-70" />
+                                <div className="w-[3px] h-full bg-white/60" />
                             )}
                         </div>
-                        {/* Right edge */}
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center">
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch">
                             {isClippedRight ? (
-                                <div className="w-2 h-full bg-gradient-to-l from-blue-900/60 via-blue-500/20 to-transparent" />
+                                <div className="relative h-full w-3 overflow-hidden">
+                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
+                                        <defs>
+                                            <pattern id="zigR" width="4" height="8" patternUnits="userSpaceOnUse">
+                                                <path d="M4 0 L0 4 L4 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
+                                            </pattern>
+                                            <linearGradient id="fadeR" x1="1" x2="0" y1="0" y2="0">
+                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
+                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
+                                                <stop offset="100%" stopColor="transparent" />
+                                            </linearGradient>
+                                        </defs>
+                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeR)" />
+                                        <rect x="4" y="0" width="6" height="100" fill="url(#zigR)" />
+                                    </svg>
+                                </div>
                             ) : (
-                                <div className="w-[3px] h-full bg-white/50 opacity-70" />
+                                <div className="w-[3px] h-full bg-white/60" />
                             )}
                         </div>
                         {track?.name}{' '}

@@ -137,7 +137,7 @@ export class MIDIVisualizerCore {
         if (Object.keys(scenePartial).length) {
             const before = this.sceneBuilder.getSceneSettings();
             const updated = this.sceneBuilder.updateSceneSettings(scenePartial);
-            const fps = Math.max(1, (updated as any).fps || 30);
+            const fps = Math.max(1, (updated as any).fps || 60);
             this._rafMinIntervalMs = 1000 / fps;
             const widthChanged = 'width' in scenePartial && (before as any).width !== (updated as any).width;
             const heightChanged = 'height' in scenePartial && (before as any).height !== (updated as any).height;
