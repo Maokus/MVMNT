@@ -6,7 +6,8 @@ import { useTimelineStore } from '@state/timelineStore';
 export function useTimeScale() {
     const view = useTimelineStore((s) => s.timelineView);
     const rawRange = Math.max(0.001, view.endSec - view.startSec);
-    const pad = Math.max(0.2, rawRange * 0.02);
+    // Reduced padding so clips are less truncated at edges (previously 2% or 0.2s min)
+    const pad = Math.max(0.05, rawRange * 0.005);
     // Allow negative pre-roll: do not clamp display start to 0 here.
     const dispStart = view.startSec - pad;
     const dispEnd = view.endSec + pad;

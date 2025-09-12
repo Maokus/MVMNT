@@ -9,7 +9,7 @@ function resetStore() {
             timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
             tracks: {},
             tracksOrder: [],
-            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
+            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'bar' },
             selection: { selectedTrackIds: [] },
             midiCache: {},
             timelineView: { startSec: 0, endSec: 60 },

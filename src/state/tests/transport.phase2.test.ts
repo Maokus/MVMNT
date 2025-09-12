@@ -13,7 +13,7 @@ function makeState(partial?: Partial<TimelineState>): TimelineState {
         },
         tracks: {},
         tracksOrder: [],
-        transport: { isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'off' },
+        transport: { isPlaying: false, loopEnabled: false, rate: 1.0, quantize: 'bar' },
         selection: { selectedTrackIds: [] },
         timelineView: { startSec: 0, endSec: 60 },
         midiCache: {},
@@ -49,6 +49,6 @@ describe('Phase 2 transport additions', () => {
     it('has defaults for rate and quantize', () => {
         const s = makeState();
         expect(s.transport.rate).toBe(1);
-        expect(s.transport.quantize).toBe('off');
+        expect(s.transport.quantize).toBe('bar');
     });
 });

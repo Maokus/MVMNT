@@ -128,10 +128,9 @@ const TimelineRuler: React.FC = () => {
         };
 
         if (type === 'seek') {
-            // Shift => force bar snapping; Alt => bypass
+            // Initial seek
             const snapped = snapSeconds(tSec, { altKey: e.altKey, forceBar: e.shiftKey });
-            if (e.altKey) setCurrentTimeSec(snapped);
-            else seek(snapped);
+            if (e.altKey) setCurrentTimeSec(snapped); else seek(snapped);
         }
     };
 
@@ -156,7 +155,19 @@ const TimelineRuler: React.FC = () => {
     };
 
     const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragState.current || dragState.current.type === 'seek') return;
+        if (!dragState.current) return;
+        // Handle drag scrubbing when type === 'seek' and not near braces
+        if (dragState.current.type === 'seek') {
+            if (!containerRef.current) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const cand = toSeconds(x, width);
+            const snapped = snapSeconds(cand, { altKey: e.altKey, forceBar: e.shiftKey });
+            // During drag we set currentTime directly (no quantize jump) for smoothness
+            setCurrentTimeSec(snapped);
+            return;
+        }
+        // Else handle brace drag
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;

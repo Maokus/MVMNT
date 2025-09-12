@@ -161,7 +161,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         isPlaying: false,
         loopEnabled: false,
         rate: 1.0,
-        quantize: 'off',
+        // Quantize enabled by default (bar snapping)
+        quantize: 'bar',
         loopStartSec: 2,
         loopEndSec: 5,
     },
@@ -297,13 +298,23 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     setCurrentTimeSec(t: number) {
         set((s: TimelineState) => {
-            // Loop wrap behavior (Phase 4): if playing and loop is enabled and end is defined and exceeded, wrap to start
+            // Enforce playback boundaries & looping
             let newT = Math.max(0, t);
             const { loopEnabled, loopStartSec, loopEndSec, isPlaying } = s.transport;
+            const playbackRange = s.playbackRange;
+            // Loop wrap takes precedence over playback end stop
             if (isPlaying && loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number') {
                 if (newT >= loopEndSec) {
-                    // On wrap, jump exactly to the loop start brace (no quantization)
-                    newT = loopStartSec;
+                    newT = loopStartSec; // wrap
+                }
+            } else if (isPlaying && playbackRange?.endSec != null) {
+                if (newT >= playbackRange.endSec) {
+                    // Stop at scene end (do not advance beyond)
+                    newT = playbackRange.endSec;
+                    return {
+                        timeline: { ...s.timeline, currentTimeSec: newT },
+                        transport: { ...s.transport, isPlaying: false, state: 'paused' },
+                    } as TimelineState;
                 }
             }
             return { timeline: { ...s.timeline, currentTimeSec: newT } } as TimelineState;

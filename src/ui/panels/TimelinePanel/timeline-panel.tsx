@@ -67,7 +67,8 @@ const TimelinePanel: React.FC = () => {
     const view = useTimelineStore((s) => s.timelineView);
     const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
     const currentTime = useTimelineStore((s) => s.timeline.currentTimeSec);
-    const [follow, setFollow] = useState(false);
+    // Auto-follow enabled by default per new UX spec
+    const [follow, setFollow] = useState(true);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
 
     const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
@@ -165,7 +166,7 @@ const TimelinePanel: React.FC = () => {
                 <div className="flex items-center justify-center justify-self-center">
                     <TransportControls />
                 </div>
-                {/* Right: timeline view + quantize buttons */}
+                {/* Right: timeline view controls with overflow menu */}
                 <div className="justify-self-end">
                     <HeaderRightControls follow={follow} setFollow={setFollow} />
                 </div>
@@ -240,6 +241,16 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        const onDoc = (e: MouseEvent) => {
+            if (!menuRef.current) return;
+            if (!menuRef.current.contains(e.target as any)) setMenuOpen(false);
+        };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+    }, []);
     // Zoom slider state maps to view range width using logarithmic scale
     const MIN_RANGE = 0.05; // 50ms
     const MAX_RANGE = 60 * 60 * 24; // 24h
@@ -271,84 +282,48 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     };
 
     return (
-        <div className="flex items-center gap-2 text-[12px]">
-            {/* Zoom slider */}
+        <div className="flex items-center gap-2 text-[12px] relative" ref={menuRef}>
+            {/* Zoom slider remains inline */}
             <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
                 <span>Zoom</span>
-                <input
-                    aria-label="Timeline zoom"
-                    className="w-[140px]"
-                    type="range"
-                    min={20}
-                    max={60}
-                    step={1}
-                    value={zoomVal}
-                    onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        setZoomVal(v);
-                        const newRange = rangeFromSlider(v);
-                        const center = (view.startSec + view.endSec) / 2;
-                        const newStart = center - newRange / 2;
-                        const newEnd = newStart + newRange;
-                        setTimelineView(newStart, newEnd);
-                    }}
-                />
-                <button
-                    className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60"
-                    title="Zoom to start/end"
-                    onClick={() => {
-                        const s = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
-                        const e = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
-                        setTimelineView(s, e);
-                    }}
-                >
-                    Reset Zoom
-                </button>
+                <input aria-label="Timeline zoom" className="w-[120px]" type="range" min={20} max={60} step={1} value={zoomVal} onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setZoomVal(v);
+                    const newRange = rangeFromSlider(v);
+                    const center = (view.startSec + view.endSec) / 2;
+                    const newStart = center - newRange / 2;
+                    const newEnd = newStart + newRange;
+                    setTimelineView(newStart, newEnd);
+                }} />
+                <button className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60" title="Zoom to scene range" onClick={() => {
+                    const s = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
+                    const e = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+                    setTimelineView(s, e);
+                }}>Reset</button>
             </label>
-
-            <label className="text-neutral-300 flex items-center gap-1">
-                Play
-                <input
-                    aria-label="Playback start (seconds)"
-                    className="number-input w-[80px]"
-                    type="number"
-                    step={0.01}
-                    value={playStartText}
-                    onChange={(e) => setPlayStartText(e.target.value)}
-                    onBlur={() => commitPlay('start')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }}
-                />
-                <span>–</span>
-                <input
-                    aria-label="Playback end (seconds)"
-                    className="number-input w-[80px]"
-                    type="number"
-                    step={0.01}
-                    value={playEndText}
-                    onChange={(e) => setPlayEndText(e.target.value)}
-                    onBlur={() => commitPlay('end')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }}
-                />
-            </label>
-
-            {/* Quantize toggle (Q button) */}
-            <button
-                className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60'}`}
-                title="Toggle quantize to bar"
-                onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')}
-            >
-                Q
-            </button>
-
-            {/* Follow playhead toggle */}
-            <button
-                className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60'}`}
-                title="Auto-follow playhead"
-                onClick={() => setFollow && setFollow(!follow)}
-            >
-                ▶︎⇢
-            </button>
-
+            {/* Ellipsis menu trigger */}
+            <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200">…</button>
+            {menuOpen && (
+                <div role="menu" className="absolute right-0 top-full mt-1 w-72 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-3 z-20" aria-label="Timeline options menu">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-neutral-300">Quantize (bars)</span>
+                        <button className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')} role="menuitemcheckbox" aria-checked={quantize === 'bar'}>Q</button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-neutral-300">Auto follow playhead</span>
+                        <button className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setFollow && setFollow(!follow)} role="menuitemcheckbox" aria-checked={!!follow}>On</button>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-neutral-300 text-[12px] flex items-center gap-1">Scene Start
+                            <input aria-label="Scene start (seconds)" className="number-input w-[90px]" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
+                        </label>
+                        <label className="text-neutral-300 text-[12px] flex items-center gap-1">Scene End
+                            <input aria-label="Scene end (seconds)" className="number-input w-[90px]" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
+                        </label>
+                        <p className="text-[11px] text-neutral-500 leading-snug">Scene range defines playback start/end boundaries. Playback stops at end unless looping.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
