@@ -31,6 +31,10 @@ const TimelineRuler: React.FC = () => {
     const height = RULER_HEIGHT;
     const currentTimeSec = useTimelineStore((s) => s.timeline.currentTimeSec);
     const { view, toSeconds, toX } = useTimeScale();
+    // Subscribe to global timing so ruler recomputes ticks immediately when tempo/meter changes
+    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm); // fallback bpm when no tempo map
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const tempoMapRef = useTimelineStore((s) => s.timeline.masterTempoMap); // reference changes when map replaced
     const seek = useTimelineStore((s) => s.seek);
     const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
     // Loop UI disabled: keep state wired for compatibility, but do not render or edit loop braces
@@ -63,7 +67,8 @@ const TimelineRuler: React.FC = () => {
             items.push({ barIdx: b, sec });
         }
         return items;
-    }, [view.startSec, view.endSec]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view.startSec, view.endSec, globalBpm, beatsPerBar, tempoMapRef]);
 
     // Optionally compute beat ticks if there's enough room per bar
     const beatTicks = useMemo(() => {
@@ -86,7 +91,8 @@ const TimelineRuler: React.FC = () => {
             }
         }
         return ticks;
-    }, [bars, width, toX]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bars, width, toX, beatsPerBar, globalBpm, tempoMapRef]);
 
     // Pointer interactions: click to seek, drag braces
     const dragState = useRef<
