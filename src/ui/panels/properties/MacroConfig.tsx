@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@ui/form/inputs/FontInput';
+import MidiTrackSelect from '@ui/form/inputs/MidiTrackSelect';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
@@ -329,8 +330,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     />
                 );
             case 'midiTrackRef': {
-                // Lazy import to avoid cyclic deps in node; in browser bundlers this resolves.
-                const MidiTrackSelect = require('@ui/form/inputs/MidiTrackSelect').default as React.FC<any>;
                 return (
                     <MidiTrackSelect
                         id={`macro-midiTrack-${macro.name}`}
