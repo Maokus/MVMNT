@@ -5,6 +5,7 @@ import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from './timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { getSecondsPerBeat } from '@core/timing/tempo-utils';
+import { TimingManager } from '@core/timing';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
 function _secondsToBarsLocal(state: TimelineState, seconds: number): number {
@@ -43,6 +44,8 @@ export type TimelineTrack = {
     // Source of truth is offsetBeats; offsetSec is maintained for compatibility and rendering
     offsetSec: number; // derived from offsetBeats
     offsetBeats?: number; // beats from first beat (Phase 1)
+    // Phase 2 dual-write: tick domain (will become canonical in later phases)
+    offsetTicks?: number; // derived from beats (PPQ constant)
     regionStartSec?: number;
     regionEndSec?: number;
     midiSourceId?: string; // references midiCache key
@@ -54,6 +57,8 @@ export type TimelineState = {
         name: string;
         masterTempoMap?: TempoMapEntry[];
         currentTimeSec: number;
+        // Phase 2 dual-write playhead position (ticks derived from seconds until Phase 3 cutover)
+        currentTick?: number;
         globalBpm: number; // fallback bpm for conversions when map is empty
         beatsPerBar: number; // global meter (constant for now)
     };
@@ -65,6 +70,9 @@ export type TimelineState = {
         loopEnabled: boolean;
         loopStartSec?: number;
         loopEndSec?: number;
+        // Phase 2 dual-write loop range ticks
+        loopStartTick?: number;
+        loopEndTick?: number;
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
         quantize: 'off' | 'bar'; // minimal Phase 2: toggle bar quantization on/off
     };
@@ -88,6 +96,7 @@ export type TimelineState = {
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
     setTrackOffset: (id: string, offsetSec: number) => void;
     setTrackOffsetBeats: (id: string, offsetBeats: number) => void;
+    setTrackOffsetTicks: (id: string, offsetTicks: number) => void; // Phase 2 convenience
     setTrackRegion: (id: string, start?: number, end?: number) => void;
     setTrackEnabled: (id: string, enabled: boolean) => void;
     setTrackMute: (id: string, mute: boolean) => void;
@@ -96,6 +105,7 @@ export type TimelineState = {
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
     setCurrentTimeSec: (t: number) => void;
+    setCurrentTick: (tick: number) => void; // Phase 2 dual-write API
     play: () => void;
     pause: () => void;
     togglePlay: () => void;
@@ -105,12 +115,15 @@ export type TimelineState = {
     setQuantize: (q: 'off' | 'bar') => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRange: (start?: number, end?: number) => void;
+    setLoopRangeTicks: (startTick?: number, endTick?: number) => void; // dual-write
     setLoop: (cfg: {
         enabled?: boolean;
         startSec?: number;
         endSec?: number;
         startBars?: number;
+        startTick?: number; // dual-write convenience
         endBars?: number;
+        endTick?: number; // dual-write convenience
     }) => void;
     toggleLoop: () => void;
     reorderTracks: (order: string[]) => void;
@@ -211,8 +224,17 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     }));
 }
 
+// Shared singleton timing manager (Phase 2): we assume constant PPQ here; later phases may make PPQ configurable.
+const _tmSingleton = new TimingManager();
+function _beatsToTicks(beats: number): number {
+    return Math.round(beats * _tmSingleton.ticksPerQuarter);
+}
+function _ticksToBeats(ticks: number): number {
+    return ticks / _tmSingleton.ticksPerQuarter;
+}
+
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
-    timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
+    timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
     tracks: {},
     tracksOrder: [],
     transport: {
@@ -224,6 +246,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         quantize: 'bar',
         loopStartSec: 2,
         loopEndSec: 5,
+        loopStartTick: _beatsToTicks(_secondsToBeatsLocal({} as any as TimelineState, 2)), // init rough conversion
+        loopEndTick: _beatsToTicks(_secondsToBeatsLocal({} as any as TimelineState, 5)),
     },
     selection: { selectedTrackIds: [] },
     midiCache: {},
@@ -237,6 +261,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         const s = get();
         const initialOffsetSec = input.offsetSec ?? 0;
         const initialOffsetBeats = _secondsToBeatsLocal(s, initialOffsetSec);
+        const initialOffsetTicks = _beatsToTicks(initialOffsetBeats);
         const track: TimelineTrack = {
             id,
             name: input.name || 'MIDI Track',
@@ -246,6 +271,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             solo: false,
             offsetSec: initialOffsetSec,
             offsetBeats: initialOffsetBeats,
+            offsetTicks: initialOffsetTicks,
         };
 
         set((s: TimelineState) => ({
@@ -310,11 +336,24 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             if (typeof patch.offsetBeats === 'number' && typeof patch.offsetSec !== 'number') {
                 const sec = _beatsToSecondsLocal(s, patch.offsetBeats);
                 next.offsetSec = sec;
+                next.offsetTicks = _beatsToTicks(patch.offsetBeats);
             }
             // If offsetSec is provided but offsetBeats isn't, derive beats
             if (typeof patch.offsetSec === 'number' && typeof patch.offsetBeats !== 'number') {
                 const beats = _secondsToBeatsLocal(s, patch.offsetSec);
                 (next as any).offsetBeats = beats;
+                next.offsetTicks = _beatsToTicks(beats);
+            }
+            // If ticks provided only
+            if (
+                typeof (patch as any).offsetTicks === 'number' &&
+                typeof patch.offsetBeats !== 'number' &&
+                typeof patch.offsetSec !== 'number'
+            ) {
+                const beats = _ticksToBeats((patch as any).offsetTicks!);
+                const sec = _beatsToSecondsLocal(s, beats);
+                next.offsetBeats = beats;
+                next.offsetSec = sec;
             }
             return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
         });
@@ -338,7 +377,27 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const sec = _beatsToSecondsLocal(s, offsetBeats);
             const prev = s.tracks[id];
             if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
-            const next: TimelineTrack = { ...prev, offsetBeats, offsetSec: sec };
+            const next: TimelineTrack = {
+                ...prev,
+                offsetBeats,
+                offsetSec: sec,
+                offsetTicks: _beatsToTicks(offsetBeats),
+            };
+            return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
+        });
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    setTrackOffsetTicks(id: string, offsetTicks: number) {
+        // Derive beats then seconds
+        set((s: TimelineState) => {
+            const beats = _ticksToBeats(offsetTicks);
+            const sec = _beatsToSecondsLocal(s, beats);
+            const prev = s.tracks[id];
+            if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
+            const next: TimelineTrack = { ...prev, offsetBeats: beats, offsetSec: sec, offsetTicks };
             return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
         });
         try {
@@ -434,13 +493,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 if (newT >= playbackRange.endSec) {
                     // Stop at scene end (do not advance beyond)
                     newT = playbackRange.endSec;
+                    const spb = 60 / (s.timeline.globalBpm || 120);
+                    const beats = secondsToBeats(s.timeline.masterTempoMap, newT, spb);
+                    const tickVal = _beatsToTicks(beats);
                     return {
-                        timeline: { ...s.timeline, currentTimeSec: newT },
+                        timeline: { ...s.timeline, currentTimeSec: newT, currentTick: tickVal },
                         transport: { ...s.transport, isPlaying: false, state: 'paused' },
                     } as TimelineState;
                 }
             }
-            return { timeline: { ...s.timeline, currentTimeSec: newT } } as TimelineState;
+            const spb = 60 / (s.timeline.globalBpm || 120);
+            const beats = secondsToBeats(s.timeline.masterTempoMap, newT, spb);
+            const tickVal = _beatsToTicks(beats);
+            return { timeline: { ...s.timeline, currentTimeSec: newT, currentTick: tickVal } } as TimelineState;
+        });
+    },
+
+    setCurrentTick(tick: number) {
+        set((s: TimelineState) => {
+            const beats = _ticksToBeats(Math.max(0, tick));
+            const sec = _beatsToSecondsLocal(s, beats);
+            return {
+                timeline: { ...s.timeline, currentTick: Math.max(0, tick), currentTimeSec: sec },
+            } as TimelineState;
         });
     },
 
@@ -501,9 +576,52 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: enabled } }));
     },
     setLoopRange(start?: number, end?: number) {
-        set((s: TimelineState) => ({ transport: { ...s.transport, loopStartSec: start, loopEndSec: end } }));
+        set((s: TimelineState) => {
+            let loopStartTick: number | undefined = s.transport.loopStartTick;
+            let loopEndTick: number | undefined = s.transport.loopEndTick;
+            if (typeof start === 'number') {
+                const beatsStart = secondsToBeats(s.timeline.masterTempoMap, start, 60 / (s.timeline.globalBpm || 120));
+                loopStartTick = _beatsToTicks(beatsStart);
+            }
+            if (typeof end === 'number') {
+                const beatsEnd = secondsToBeats(s.timeline.masterTempoMap, end, 60 / (s.timeline.globalBpm || 120));
+                loopEndTick = _beatsToTicks(beatsEnd);
+            }
+            return {
+                transport: { ...s.transport, loopStartSec: start, loopEndSec: end, loopStartTick, loopEndTick },
+            };
+        });
     },
-    setLoop(cfg: { enabled?: boolean; startSec?: number; endSec?: number; startBars?: number; endBars?: number }) {
+
+    setLoopRangeTicks(startTick?: number, endTick?: number) {
+        set((s: TimelineState) => {
+            const startSec =
+                typeof startTick === 'number'
+                    ? _beatsToSecondsLocal(s, _ticksToBeats(startTick))
+                    : s.transport.loopStartSec;
+            const endSec =
+                typeof endTick === 'number' ? _beatsToSecondsLocal(s, _ticksToBeats(endTick)) : s.transport.loopEndSec;
+            return {
+                transport: {
+                    ...s.transport,
+                    loopStartSec: startSec,
+                    loopEndSec: endSec,
+                    loopStartTick: startTick ?? s.transport.loopStartTick,
+                    loopEndTick: endTick ?? s.transport.loopEndTick,
+                },
+            } as TimelineState;
+        });
+    },
+
+    setLoop(cfg: {
+        enabled?: boolean;
+        startSec?: number;
+        endSec?: number;
+        startBars?: number;
+        startTick?: number;
+        endBars?: number;
+        endTick?: number;
+    }) {
         set((s: TimelineState) => {
             const next: TimelineState['transport'] = { ...s.transport };
             if (typeof cfg.enabled === 'boolean') next.loopEnabled = cfg.enabled;
@@ -511,17 +629,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const start =
                 typeof cfg.startSec === 'number'
                     ? cfg.startSec
+                    : typeof cfg.startTick === 'number'
+                    ? _beatsToSecondsLocal(s, _ticksToBeats(cfg.startTick))
                     : typeof cfg.startBars === 'number'
                     ? _barsToSecondsLocal(s, cfg.startBars)
                     : next.loopStartSec;
             const end =
                 typeof cfg.endSec === 'number'
                     ? cfg.endSec
+                    : typeof cfg.endTick === 'number'
+                    ? _beatsToSecondsLocal(s, _ticksToBeats(cfg.endTick))
                     : typeof cfg.endBars === 'number'
                     ? _barsToSecondsLocal(s, cfg.endBars)
                     : next.loopEndSec;
             next.loopStartSec = start;
             next.loopEndSec = end;
+            if (typeof start === 'number') {
+                const beatsStart = secondsToBeats(s.timeline.masterTempoMap, start, 60 / (s.timeline.globalBpm || 120));
+                next.loopStartTick = _beatsToTicks(beatsStart);
+            }
+            if (typeof end === 'number') {
+                const beatsEnd = secondsToBeats(s.timeline.masterTempoMap, end, 60 / (s.timeline.globalBpm || 120));
+                next.loopEndTick = _beatsToTicks(beatsEnd);
+            }
             return { transport: next } as TimelineState;
         });
     },
