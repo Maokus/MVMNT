@@ -261,6 +261,14 @@ export class TimingManager {
         return this._secondsToBeats(seconds);
     }
 
+    // Phase 1 additions: explicit symmetrical conversions including ticks<->beats
+    ticksToBeats(ticks: number) {
+        return ticks / this.ticksPerQuarter;
+    }
+    beatsToTicks(beats: number) {
+        return beats * this.ticksPerQuarter;
+    }
+
     /**
      * Convert beats to seconds using a provided tempo map when available.
      * Falls back to this TimingManager's tempoMap and finally fixed tempo.
