@@ -37,21 +37,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             groups: [
                 ...base.groups,
                 // Timing (tempo + offset)
-                {
-                    id: 'timing',
-                    label: 'Timing',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'timeOffset',
-                            type: 'number',
-                            label: 'Time Offset (s)',
-                            default: 0,
-                            step: 0.01,
-                            description: 'Offset (seconds) added to target time for this element (can be negative)',
-                        },
-                    ],
-                },
+                // timing offset removed (global timeline governs playback)
                 // Channel Colors separated so Notes group only has geometry / style
                 {
                     id: 'noteColors',
@@ -87,14 +73,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     label: 'MIDI Source',
                     collapsed: true,
                     properties: [
-                        {
-                            key: 'midiTrackIds',
-                            type: 'midiTrackRef',
-                            label: 'MIDI Tracks',
-                            default: [],
-                            description: 'Pick one or more MIDI tracks from the Timeline',
-                            allowMultiple: true,
-                        },
                         {
                             key: 'midiTrackId',
                             type: 'midiTrackRef',
@@ -641,8 +619,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const renderObjects: RenderObject[] = [];
 
         // Get current property values through bindings (global timing used; no per-element bpm/meter)
-        const timeOffset = this.getProperty<number>('timeOffset') || 0;
-        const effectiveTime = targetTime + timeOffset;
+        // timeOffset removed; targetTime used directly
+        const effectiveTime = targetTime;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
         const pianoWidth = this.getProperty<number>('pianoWidth');
         const rollWidth = this.getProperty<number>('rollWidth');
@@ -761,18 +739,25 @@ export class TimeUnitPianoRollElement extends SceneElement {
             endBeat?: number;
         }> = [];
         try {
-            const trackIds = (this.getProperty<any>('midiTrackIds') as string[] | undefined) || [];
             const trackId = this.getProperty<string>('midiTrackId');
-            const effectiveTrackIds =
-                Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
+            const effectiveTrackIds = trackId ? [trackId] : [];
             if (effectiveTrackIds.length > 0) {
-                // Compute time window aligned to bars via TimingManager, then query store selector
-                const window = this.midiManager.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
+                // Query two-window span (prev + current) so release animation frames still have note segments
+                const currentWin = this.midiManager.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
+                // Derive previous window start without accessing private TimingManager internals.
+                const beatsPerBar = this.midiManager.timingManager.beatsPerBar || 4;
+                const bpm = this.midiManager.timingManager.bpm || 120;
+                const secondsPerBeat = 60 / bpm;
+                const windowBeats = timeUnitBars * beatsPerBar;
+                const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
+                const prevStart = currentWin.start - windowDurationApprox;
+                const queryStart = prevStart;
+                const queryEnd = currentWin.end;
                 const state = useTimelineStore.getState();
                 const events = selectNotesInWindow(state, {
                     trackIds: effectiveTrackIds,
-                    startSec: window.start,
-                    endSec: window.end,
+                    startSec: queryStart,
+                    endSec: queryEnd,
                 });
                 sourceNotes = events.map((e) => ({
                     note: e.note,

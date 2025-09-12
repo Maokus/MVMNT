@@ -28,14 +28,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
             category: 'complete',
             groups: [
                 ...base.groups,
-                {
-                    id: 'timing',
-                    label: 'Timing',
-                    collapsed: true,
-                    properties: [
-                        { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
-                    ],
-                },
+                // timing offset removed
                 {
                     id: 'noteColors',
                     label: 'Note Colors (per MIDI channel)',
@@ -69,13 +62,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'MIDI Source',
                     collapsed: true,
                     properties: [
-                        {
-                            key: 'midiTrackIds',
-                            type: 'midiTrackRef',
-                            label: 'MIDI Tracks',
-                            default: [],
-                            allowMultiple: true,
-                        },
                         {
                             key: 'midiTrackId',
                             type: 'midiTrackRef',
@@ -347,8 +333,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const renderObjects: RenderObject[] = [];
         // Use global timeline tempo and meter
-        const timeOffset = this.getProperty<number>('timeOffset') || 0;
-        const effectiveTime = targetTime + timeOffset;
+        // timeOffset removed; use targetTime directly
+        const effectiveTime = targetTime;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
         const pianoWidth = this.getProperty<number>('pianoWidth');
         const rollWidth = this.getProperty<number>('rollWidth') || 800;

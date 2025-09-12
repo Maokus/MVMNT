@@ -40,14 +40,6 @@ export class ProgressDisplayElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
-                            key: 'timeOffset',
-                            type: 'number',
-                            label: 'Time Offset (s)',
-                            default: 0,
-                            step: 0.01,
-                            description: 'Offset applied to target time (can be negative) before computing progress',
-                        },
-                        {
                             key: 'showBar',
                             type: 'boolean',
                             label: 'Show Progress Bar',
@@ -161,8 +153,7 @@ export class ProgressDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
         const { duration, playRangeStartSec, playRangeEndSec } = config as any;
-        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
-        const effectiveTime = targetTime + timeOffset;
+        const effectiveTime = targetTime;
 
         // Get properties from bindings
         const showBar = this.getProperty('showBar') as boolean;

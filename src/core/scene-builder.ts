@@ -454,7 +454,6 @@ export class HybridSceneBuilder {
         }
     }
     _createDefaultMacros() {
-        globalMacroManager.createMacro('tempo', 'number', 120, { min: 20, max: 300, step: 0.1, description: 'BPM' });
         // Global MIDI track selector macro controls scene elements' MIDI source
         globalMacroManager.createMacro('midiTrack', 'midiTrackRef', null, {
             description:

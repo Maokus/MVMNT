@@ -24,17 +24,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     id: 'content',
                     label: 'Content',
                     collapsed: false,
-                    properties: [
-                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
-                        {
-                            key: 'timeOffset',
-                            type: 'number',
-                            label: 'Time Offset (s)',
-                            default: 0,
-                            step: 0.01,
-                            description: 'Offset applied to target time (can be negative)',
-                        },
-                    ],
+                    properties: [{ key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null }],
                 },
                 {
                     id: 'appearance',
@@ -88,9 +78,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
-        const actualTime = targetTime + timeOffset;
-        const effectiveTime = Math.max(0, actualTime);
+        const effectiveTime = Math.max(0, targetTime);
 
         // Compute counts from notes via timeline
         const trackId = (this.getProperty('midiTrackId') as string) || null;
@@ -111,7 +99,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
             const endSec = duration ? offset + duration : effectiveTime + 600; // fallback large window
             const all = selectNotesInWindow(state, { trackIds: [trackId], startSec, endSec });
             totalNotes = all.length;
-            if (actualTime >= 0) {
+            if (targetTime >= 0) {
                 playedNotes = all.filter((n) => (n.startTime ?? 0) <= effectiveTime).length;
                 for (const n of all) {
                     if ((n.startTime ?? 0) <= effectiveTime) playedEvents++;

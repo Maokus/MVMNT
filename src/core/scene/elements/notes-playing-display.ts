@@ -27,7 +27,6 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     properties: [
                         // Timeline-backed source only
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
-                        { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
                             key: 'showAllAvailableTracks',
                             type: 'boolean',
@@ -74,9 +73,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         const renderObjects: RenderObject[] = [];
 
-        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
-        const actualTime = targetTime + timeOffset;
-        const effectiveTime = Math.max(0, actualTime);
+        const effectiveTime = Math.max(0, targetTime);
 
         // Determine active notes at effectiveTime via timeline store selector
         const trackId = (this.getProperty('midiTrackId') as string) || null;
@@ -150,7 +147,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         };
 
         let y = 0;
-        if ((byChannel.size === 0 || actualTime < 0) && !showAll) {
+        if ((byChannel.size === 0 || targetTime < 0) && !showAll) {
             const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
             // Placeholder when nothing is playing
             const placeholderLeft = justification === 'left';

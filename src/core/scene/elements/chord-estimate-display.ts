@@ -31,7 +31,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
-                        { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
                         {
                             key: 'windowSeconds',
                             type: 'number',
@@ -133,8 +132,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const renderObjects: RenderObject[] = [];
 
         // Effective time
-        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
-        const t = Math.max(0, targetTime + timeOffset);
+        const t = Math.max(0, targetTime);
 
         // Estimation window
         const windowSeconds = Math.max(0.05, (this.getProperty('windowSeconds') as number) ?? 0.6);
