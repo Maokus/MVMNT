@@ -7,6 +7,7 @@ import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
 import { secondsToBars, secondsToBeatsSelector } from '@state/selectors/timing';
+import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -156,8 +157,9 @@ const TimelinePanel: React.FC = () => {
             <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
-                    <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60">
-                        Add MIDI Track
+                    <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
+                        <FaPlus className="text-neutral-300" />
+                        <span>Add MIDI Track</span>
                         <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
                     </label>
                     <TimeIndicator />
@@ -295,16 +297,21 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     const newEnd = newStart + newRange;
                     setTimelineView(newStart, newEnd);
                 }} />
-                <button className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60" title="Zoom to scene range" onClick={() => {
+                <button className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center gap-1" title="Zoom to scene range" onClick={() => {
                     const s = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
                     const e = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
                     setTimelineView(s, e);
-                }}>Reset</button>
+                }}>
+                    <FaUndo className="text-neutral-300" />
+                    <span className="sr-only">Reset Zoom</span>
+                </button>
             </label>
             {/* Ellipsis menu trigger */}
-            <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200">…</button>
+            <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center">
+                <FaEllipsisV />
+            </button>
             {menuOpen && (
-                <div role="menu" className="absolute right-0 top-full mt-1 w-72 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-3 z-20" aria-label="Timeline options menu">
+                <div role="menu" className="absolute right-0 bottom-full mb-1 w-72 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-3 z-20" aria-label="Timeline options menu">
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Quantize (bars)</span>
                         <button className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')} role="menuitemcheckbox" aria-checked={quantize === 'bar'}>Q</button>

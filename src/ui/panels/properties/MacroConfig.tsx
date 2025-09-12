@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@ui/form/inputs/FontInput';
 import MidiTrackSelect from '@ui/form/inputs/MidiTrackSelect';
@@ -377,18 +378,20 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
                         <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
                             onClick={() => handleShowAssignmentDialog(macro.name)}
                             title="Manage Assignments"
+                            aria-label="Manage Assignments"
                         >
-                            🔗
+                            <FaLink />
                         </button>
                         <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
                             onClick={() => handleDeleteMacro(macro.name)}
                             title="Delete Macro"
+                            aria-label="Delete Macro"
                         >
-                            🗑️
+                            <FaTrash />
                         </button>
                     </div>
                 </div>
@@ -408,12 +411,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     return (
         <div className="macro-config">
             <div className="macro-header">
-                <h4>🎛️ Macros</h4>
+                <h4 className="flex items-center gap-2">Macros</h4>
                 <button
-                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb]"
+                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
                     onClick={() => setShowCreateDialog(true)}
                 >
-                    + Add Macro
+                    <FaPlus /> <span>Add Macro</span>
                 </button>
             </div>
 

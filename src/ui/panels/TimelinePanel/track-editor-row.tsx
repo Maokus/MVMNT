@@ -1,4 +1,5 @@
 import React from 'react';
+import { FaEye, FaEyeSlash, FaTrash } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
 
 const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
@@ -22,9 +23,10 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                 <button
                     className={`w-6 h-6 rounded flex items-center justify-center border ${track.enabled ? 'border-neutral-600 text-neutral-200' : 'border-neutral-700 text-neutral-500 opacity-80'}`}
                     title={track.enabled ? 'Disable track' : 'Enable track'}
+                    aria-label={track.enabled ? 'Disable track' : 'Enable track'}
                     onClick={(e) => { e.stopPropagation(); setEnabled(trackId, !track.enabled); }}
                 >
-                    {track.enabled ? '👁' : '🙈'}
+                    {track.enabled ? <FaEye /> : <FaEyeSlash />}
                 </button>
                 {/* Name (read-only) */}
                 <div className="truncate text-neutral-200" title={track.name}>{track.name}</div>
@@ -33,9 +35,10 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
             <button
                 className="w-6 h-6 rounded flex items-center justify-center border border-neutral-700 text-neutral-300 hover:text-red-300 hover:border-red-500"
                 title="Delete track"
+                aria-label="Delete track"
                 onClick={(e) => { e.stopPropagation(); removeTrack(trackId); }}
             >
-                🗑️
+                <FaTrash />
             </button>
         </div>
     );
