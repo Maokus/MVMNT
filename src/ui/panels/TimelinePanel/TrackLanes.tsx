@@ -181,6 +181,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const rightX = toX(clippedEnd, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
 
+        // Determine if the visible edges are clipped by the current viewport window
+        const isClippedLeft = absStart < visStart;
+        const isClippedRight = absEnd > visEnd;
+
         // Label: show offset as +bars|beats
         const offsetBeats = useMemo(() => {
             if (!track) return 0;
@@ -201,10 +205,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         // Tooltip: include absolute time and bar|beat at start/end
         const tooltip = useMemo(() => {
             const st = useTimelineStore.getState();
-            const absStart = Math.max(0, offsetSec + localStartSec);
-            const absEnd = Math.max(absStart, offsetSec + localEndSec);
-            const barsStart = secondsToBars(st, absStart);
-            const barsEnd = secondsToBars(st, absEnd);
+            const absStartReal = Math.max(0, offsetSec + localStartSec);
+            const absEndReal = Math.max(absStartReal, offsetSec + localEndSec);
+            const barsStart = secondsToBars(st, absStartReal);
+            const barsEnd = secondsToBars(st, absEndReal);
             const fmt = (s: number) => `${s.toFixed(2)}s`;
             const fmtBar = (b: number) => {
                 const bb = Math.max(0, b);
@@ -213,8 +217,12 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 return `${barIdx}|${beatInBar}`;
             };
             const snapInfo = `Snap: ${quantize === 'bar' ? 'Bar' : 'Off'} (hold Alt to bypass)`;
-            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStart)} (${fmtBar(barsStart)})\nEnd ${fmt(absEnd)} (${fmtBar(barsEnd)})`;
-        }, [offsetSec, localStartSec, localEndSec, label, bpb, track?.name, quantize]);
+            const clipInfo: string[] = [];
+            if (absStartReal < visStart) clipInfo.push('Start clipped by view');
+            if (absEndReal > visEnd) clipInfo.push('End clipped by view');
+            const clipLine = clipInfo.length ? `\n${clipInfo.join('; ')}` : '';
+            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartReal)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndReal)} (${fmtBar(barsEnd)})${clipLine}`;
+        }, [offsetSec, localStartSec, localEndSec, label, bpb, track?.name, quantize, visStart, visEnd]);
 
         return (
             <div className="relative h-full"
@@ -230,6 +238,23 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         onPointerDown={onPointerDown}
                         data-clip="1"
                     >
+                        {/* Edge indicators: show solid cap when actual edge is visible; gradient fade when clipped */}
+                        {/* Left edge */}
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center">
+                            {isClippedLeft ? (
+                                <div className="w-2 h-full bg-gradient-to-r from-blue-900/60 via-blue-500/20 to-transparent" />
+                            ) : (
+                                <div className="w-[3px] h-full bg-white/50 opacity-70" />
+                            )}
+                        </div>
+                        {/* Right edge */}
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center">
+                            {isClippedRight ? (
+                                <div className="w-2 h-full bg-gradient-to-l from-blue-900/60 via-blue-500/20 to-transparent" />
+                            ) : (
+                                <div className="w-[3px] h-full bg-white/50 opacity-70" />
+                            )}
+                        </div>
                         {track?.name}{' '}
                         <span className="opacity-80">{label}</span>
                         {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
