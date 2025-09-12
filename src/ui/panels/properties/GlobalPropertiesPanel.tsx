@@ -51,19 +51,8 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const [localWidth, setLocalWidth] = useState(exportSettings.width);
     const [localHeight, setLocalHeight] = useState(exportSettings.height);
     // Global timing values from timeline store
-    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    // Timing controls moved into timeline header; keep minimal flags if needed later
     const hasTempoMap = useTimelineStore((s) => (s.timeline.masterTempoMap?.length || 0) > 0);
-    // Local editing buffers for tempo/meter
-    const [localTempo, setLocalTempo] = useState<string>('');
-    const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
-
-    useEffect(() => {
-        setLocalTempo(String(Number.isFinite(globalBpm) ? globalBpm : 120));
-    }, [globalBpm]);
-    useEffect(() => {
-        setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4));
-    }, [beatsPerBar]);
 
     // Sync local state when external exportSettings change (e.g., reset)
     useEffect(() => {
@@ -105,25 +94,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
         }
     };
 
-    const commitTempo = () => {
-        const v = parseFloat(localTempo);
-        const value = Number.isFinite(v) && v > 0 ? v : (Number.isFinite(globalBpm) ? globalBpm : 120);
-        if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ tempo: value });
-        else {
-            try { useTimelineStore.getState().setGlobalBpm(value); } catch { }
-        }
-        setLocalTempo(String(value));
-    };
-
-    const commitBeatsPerBar = () => {
-        const v = parseInt(localBeatsPerBar);
-        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : (Number.isFinite(beatsPerBar) ? beatsPerBar : 4);
-        if (sceneBuilder?.updateSceneSettings) sceneBuilder.updateSceneSettings({ beatsPerBar: value });
-        else {
-            try { useTimelineStore.getState().setBeatsPerBar(value); } catch { }
-        }
-        setLocalBeatsPerBar(String(value));
-    };
+    // Removed commit handlers for tempo/meter
 
     return (
         <div className="global-properties-panel">
@@ -180,44 +151,13 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             onKeyDown={handleExportInputKeyDown}
                         />
 
-                        <div style={{ marginTop: '16px' }}>
-                            <h4 style={{ marginBottom: '4px' }}>Timing</h4>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="tempoInput">Tempo (BPM):</label>
-                                    <input
-                                        type="number"
-                                        id="tempoInput"
-                                        min={1}
-                                        max={400}
-                                        step={0.1}
-                                        value={localTempo}
-                                        onChange={(e) => setLocalTempo(e.target.value)}
-                                        onBlur={commitTempo}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
-                                    />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="beatsPerBarInput">Beats per Bar:</label>
-                                    <input
-                                        type="number"
-                                        id="beatsPerBarInput"
-                                        min={1}
-                                        max={16}
-                                        step={1}
-                                        value={localBeatsPerBar}
-                                        onChange={(e) => setLocalBeatsPerBar(e.target.value)}
-                                        onBlur={commitBeatsPerBar}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { commitBeatsPerBar(); (e.currentTarget as any).blur?.(); } }}
-                                    />
-                                </div>
+                        {/* Timing controls moved to timeline header. Show passive info if a tempo map is active. */}
+                        {hasTempoMap && (
+                            <div style={{ marginTop: '16px' }}>
+                                <h4 style={{ marginBottom: '4px' }}>Timing</h4>
+                                <small style={{ color: '#888' }}>A tempo map is active. Edit BPM & meter from timeline header.</small>
                             </div>
-                            {hasTempoMap && (
-                                <small style={{ color: '#888' }}>
-                                    A tempo map is active. BPM acts as a fallback where the map has no entries.
-                                </small>
-                            )}
-                        </div>
+                        )}
 
                         {/* Removed legacy export controls: pre/post padding, full duration, start/end. */}
 

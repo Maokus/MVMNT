@@ -243,6 +243,11 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    // Global timing state
+    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
+    const setBeatsPerBar = useTimelineStore((s) => s.setBeatsPerBar);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
     useEffect(() => {
@@ -283,8 +288,59 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         setPlaybackRange(s, e);
     };
 
+    // Local editable buffers so typing isn't instantly overwritten by store updates
+    const [localTempo, setLocalTempo] = useState<string>('');
+    const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
+    useEffect(() => { setLocalTempo(String(Number.isFinite(globalBpm) ? globalBpm : 120)); }, [globalBpm]);
+    useEffect(() => { setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4)); }, [beatsPerBar]);
+    const commitTempo = () => {
+        const v = parseFloat(localTempo);
+        const value = Number.isFinite(v) && v > 0 ? v : (Number.isFinite(globalBpm) ? globalBpm : 120);
+        try { setGlobalBpm(value); } catch { }
+        setLocalTempo(String(value));
+    };
+    const commitBeatsPerBar = () => {
+        const v = parseInt(localBeatsPerBar);
+        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : (Number.isFinite(beatsPerBar) ? beatsPerBar : 4);
+        try { setBeatsPerBar(value); } catch { }
+        setLocalBeatsPerBar(String(value));
+    };
+
     return (
-        <div className="flex items-center gap-2 text-[12px] relative" ref={menuRef}>
+        <div className="flex items-center gap-3 text-[12px] relative" ref={menuRef}>
+            {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
+            <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-neutral-300" title="Global tempo (BPM)">
+                    <span>BPM</span>
+                    <input
+                        aria-label="Global tempo (BPM)"
+                        className="number-input w-[70px]"
+                        type="number"
+                        min={1}
+                        max={400}
+                        step={0.1}
+                        value={localTempo}
+                        onChange={(e) => setLocalTempo(e.target.value)}
+                        onBlur={commitTempo}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
+                    />
+                </label>
+                <label className="flex items-center gap-1 text-neutral-300" title="Beats per bar (meter numerator)">
+                    <span>BPB</span>
+                    <input
+                        aria-label="Beats per bar"
+                        className="number-input w-[60px]"
+                        type="number"
+                        min={1}
+                        max={16}
+                        step={1}
+                        value={localBeatsPerBar}
+                        onChange={(e) => setLocalBeatsPerBar(e.target.value)}
+                        onBlur={commitBeatsPerBar}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { commitBeatsPerBar(); (e.currentTarget as any).blur?.(); } }}
+                    />
+                </label>
+            </div>
             {/* Zoom slider remains inline */}
             <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
                 <span>Zoom</span>
