@@ -137,27 +137,57 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
 
-    // Animation / time update loop — mirror visualizer time into store and update UI
+    // Animation / time update loop — Phase 3: drive tick-domain playhead. We still mirror seconds for legacy UI until Phase 4 purge.
     useEffect(() => {
         if (!visualizer) return;
         let raf: number;
         let lastUIUpdate = 0;
+        // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
+        // We approximate current tick from existing store on mount.
+        const { TimingManager } = require('@core/timing');
+        const { PlaybackClock } = require('@core/playback-clock');
+        const tm = new TimingManager(); // NOTE: Later phases may share instance; safe placeholder.
+        const stateAtStart = useTimelineStore.getState();
+        // Derive starting tick from store (already dual-written in Phase 2)
+        const startTick = stateAtStart.timeline.currentTick ?? 0;
+        const clock = new PlaybackClock({ timingManager: tm, initialTick: startTick });
         const loop = () => {
             const state = useTimelineStore.getState();
-            const vNow = visualizer.currentTime || 0;
+            const vNow = visualizer.currentTime || 0; // legacy seconds (visualizer still seconds-based internally)
             // Loop handling: if store loop active, wrap visualizer time
             const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
             if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
                 if (vNow >= loopEndSec - 1e-6) {
                     // Seek exactly to loop start; then mirror immediately so UI doesn't show post-start drift
                     visualizer.seek?.(loopStartSec);
-                    state.setCurrentTimeSec(loopStartSec);
+                    // Wrap both seconds (for visualizer) and authoritative ticks
+                    const spb = 60 / (state.timeline.globalBpm || 120);
+                    const beats = require('@core/timing/tempo-utils').secondsToBeats(state.timeline.masterTempoMap, loopStartSec, spb);
+                    const tmLocal = new TimingManager();
+                    const tickVal = Math.round(beats * tmLocal.ticksPerQuarter);
+                    clock.setTick(tickVal);
+                    state.setCurrentTick(tickVal); // dual-write updates seconds
                 }
             }
-            // Mirror into store if drift > small epsilon to avoid feedback churn
-            const sNow = state.timeline.currentTimeSec;
-            if (Math.abs(sNow - vNow) > 0.002) {
-                state.setCurrentTimeSec(visualizer.currentTime || vNow);
+            // Advance clock only when transport playing; rely on visualizer.isPlaying flag indirectly
+            if (state.transport.isPlaying) {
+                const nextTick = clock.update(performance.now());
+                if (nextTick !== state.timeline.currentTick) {
+                    state.setCurrentTick(nextTick); // store converts to seconds for legacy selectors
+                }
+            } else {
+                // If paused, keep clock in sync with any explicit seeks (seconds->tick derive once)
+                const sNow = state.timeline.currentTimeSec;
+                const sTick = state.timeline.currentTick ?? 0;
+                // If visualizer time diverges (e.g., external seek) sync tick
+                if (Math.abs(sNow - vNow) > 0.002) {
+                    state.setCurrentTimeSec(vNow);
+                } else if (state.timeline.currentTick == null) {
+                    state.setCurrentTimeSec(vNow);
+                } else {
+                    // keep clock aligned with current tick
+                    clock.setTick(sTick);
+                }
             }
 
             // Throttled UI labels

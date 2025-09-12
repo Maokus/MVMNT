@@ -479,6 +479,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setCurrentTimeSec(t: number) {
+        // Phase 3: This path is now legacy; authoritative advancement occurs via setCurrentTick (PlaybackClock)
+        // It remains to support UI code still driving seconds (scrub / seek) until Phase 4 purge.
         set((s: TimelineState) => {
             // Enforce playback boundaries & looping
             let newT = Math.max(0, t);
@@ -510,6 +512,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setCurrentTick(tick: number) {
+        // Phase 3 authoritative playhead setter. Keeps seconds dual-written for backwards selectors.
+        // Phase 4: remove currentTimeSec storage; convert seconds on demand only.
         set((s: TimelineState) => {
             const beats = _ticksToBeats(Math.max(0, tick));
             const sec = _beatsToSecondsLocal(s, beats);
