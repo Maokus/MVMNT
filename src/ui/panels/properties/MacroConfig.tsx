@@ -345,7 +345,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     (() => {
                         // Heuristic: if legacy macro named 'midiTrack' is a string, render the track dropdown
                         if (macro.type === 'string' && macro.name.toLowerCase() === 'miditrack') {
-                            const MidiTrackSelect = require('@ui/form/inputs/MidiTrackSelect').default as React.FC<any>;
                             return (
                                 <MidiTrackSelect
                                     id={`macro-midiTrack-${macro.name}`}

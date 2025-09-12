@@ -8,27 +8,31 @@ import { getSecondsPerBeat } from '@core/timing/tempo-utils';
 import { TimingManager } from '@core/timing';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
-function _secondsToBarsLocal(state: TimelineState, seconds: number): number {
-    const bpb = state.timeline.beatsPerBar || 4;
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    const beats = secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+function _secondsToBarsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
+    const tl: any = state?.timeline || {};
+    const bpb = tl.beatsPerBar || 4;
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    const beats = secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
     return beats / bpb;
 }
-function _barsToSecondsLocal(state: TimelineState, bars: number): number {
-    const bpb = state.timeline.beatsPerBar || 4;
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+function _barsToSecondsLocal(state: Partial<TimelineState> | undefined, bars: number): number {
+    const tl: any = state?.timeline || {};
+    const bpb = tl.beatsPerBar || 4;
+    const spbFallback = 60 / (tl.globalBpm || 120);
     const beats = bars * bpb;
-    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
 }
 
 // Local helpers for beats<->seconds using current timeline tempo context
-function _secondsToBeatsLocal(state: TimelineState, seconds: number): number {
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    return secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+function _secondsToBeatsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
+    const tl: any = state?.timeline || {};
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    return secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
 }
-function _beatsToSecondsLocal(state: TimelineState, beats: number): number {
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+function _beatsToSecondsLocal(state: Partial<TimelineState> | undefined, beats: number): number {
+    const tl: any = state?.timeline || {};
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
 }
 
 // Phase 1: Base types for the Timeline system
@@ -246,8 +250,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         quantize: 'bar',
         loopStartSec: 2,
         loopEndSec: 5,
-        loopStartTick: _beatsToTicks(_secondsToBeatsLocal({} as any as TimelineState, 2)), // init rough conversion
-        loopEndTick: _beatsToTicks(_secondsToBeatsLocal({} as any as TimelineState, 5)),
+        // Safe initial tick estimation using default BPM (120) & PPQ from TimingManager singleton
+        loopStartTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 2)),
+        loopEndTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 5)),
     },
     selection: { selectedTrackIds: [] },
     midiCache: {},

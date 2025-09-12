@@ -1,6 +1,7 @@
 import { useTimelineStore } from '@state/timelineStore';
 import { secondsToBeatsSelector, beatsToSecondsSelector, secondsToBars, barsToSeconds } from '@state/selectors/timing';
 import type { TempoMapEntry } from './types';
+import { TimingManager } from './timing-manager';
 
 // Pure function utilities (no hooks) to debug the timing system
 
@@ -54,7 +55,6 @@ export function bars2s(bars: number) {
 
 export function getBeatGrid(startSec: number, endSec: number) {
     // use TimingManager's precise grid when needed; quick approximation via selectors
-    const { TimingManager } = require('./timing-manager');
     const s = useTimelineStore.getState();
     const tm = new TimingManager('debug');
     tm.setBPM(s.timeline.globalBpm);

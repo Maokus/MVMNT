@@ -4,10 +4,12 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
-import { TimelineService } from '@core/timing';
+import { secondsToBeats, TimelineService, TimingManager } from '@core/timing';
 import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
+import { PlaybackClock } from '@core/playback-clock';
+import * as tu from '@core/timing/tempo-utils';
 
 export interface ExportSettings {
     fps: number;
@@ -144,8 +146,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         let lastUIUpdate = 0;
         // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
         // We approximate current tick from existing store on mount.
-        const { TimingManager } = require('@core/timing');
-        const { PlaybackClock } = require('@core/playback-clock');
         const tm = new TimingManager(); // NOTE: Later phases may share instance; safe placeholder.
         const stateAtStart = useTimelineStore.getState();
         // Derive starting tick from store (already dual-written in Phase 2)
@@ -162,7 +162,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     visualizer.seek?.(loopStartSec);
                     // Wrap both seconds (for visualizer) and authoritative ticks
                     const spb = 60 / (state.timeline.globalBpm || 120);
-                    const beats = require('@core/timing/tempo-utils').secondsToBeats(state.timeline.masterTempoMap, loopStartSec, spb);
+
+                    const beats = tu.secondsToBeats(state.timeline.masterTempoMap, loopStartSec, spb);
                     const tmLocal = new TimingManager();
                     const tickVal = Math.round(beats * tmLocal.ticksPerQuarter);
                     clock.setTick(tickVal);

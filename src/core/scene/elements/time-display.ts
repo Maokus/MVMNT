@@ -4,6 +4,7 @@ import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface BarBeatTick {
     bar: number;
@@ -93,7 +94,6 @@ export class TimeDisplayElement extends SceneElement {
 
         // Update timing manager from global timeline store
         try {
-            const { useTimelineStore } = require('@state/timelineStore');
             const s = useTimelineStore.getState();
             const bpm = s.timeline.globalBpm || 120;
             const beatsPerBar = s.timeline.beatsPerBar || 4;

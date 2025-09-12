@@ -15,6 +15,7 @@ import {
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { getAnimationSelectOptions } from '@animation/note-animations';
+import { useTimelineStore } from '@state/timelineStore';
 
 export interface SceneSettings {
     fps: number;
@@ -50,7 +51,6 @@ export class HybridSceneBuilder {
         try {
             if (partial.tempo != null || partial.beatsPerBar != null) {
                 // Lazy import to avoid cycles
-                const { useTimelineStore } = require('@state/timelineStore');
                 const st = useTimelineStore.getState();
                 if (partial.tempo != null) st.setGlobalBpm(Math.max(1, Number(partial.tempo) || 120));
                 if (partial.beatsPerBar != null) st.setBeatsPerBar(Math.max(1, Math.floor(partial.beatsPerBar || 4)));
@@ -62,7 +62,6 @@ export class HybridSceneBuilder {
         this.config = { ...this._defaultSceneSettings };
         // Also reset global timing to defaults
         try {
-            const { useTimelineStore } = require('@state/timelineStore');
             const st = useTimelineStore.getState();
             if (this._defaultSceneSettings.tempo != null) st.setGlobalBpm(this._defaultSceneSettings.tempo);
             if (this._defaultSceneSettings.beatsPerBar != null)
@@ -130,7 +129,6 @@ export class HybridSceneBuilder {
         // New timeline store-based duration
         try {
             // Lazy import to avoid cyclic deps at module load
-            const { useTimelineStore } = require('@state/timelineStore');
             const state = useTimelineStore.getState();
             for (const id of state.tracksOrder) {
                 const t = state.tracks[id];
