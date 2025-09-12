@@ -1,9 +1,18 @@
-// Video Exporter using @ffmpeg/ffmpeg new API (no createFFMPEG)
-// Mirrors the behavior of ImageSequenceGenerator but outputs MP4 video.
+// Video Exporter (mediabunny based)
+// Migrated from the previous ffmpeg.wasm implementation to mediabunny for
+// hardware accelerated (WebCodecs) encoding directly in the browser.
+// The public API is intentionally kept the same so existing callers keep working.
 
-import { toBlobURL } from '@ffmpeg/util';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
 import SimulatedClock from '@export/simulated-clock';
+import {
+    Output,
+    Mp4OutputFormat,
+    BufferTarget,
+    CanvasSource,
+    QUALITY_HIGH,
+    canEncodeVideo,
+    getEncodableVideoCodecs,
+} from 'mediabunny';
 
 export interface VideoExportOptions {
     fps?: number;
@@ -26,8 +35,6 @@ export class VideoExporter {
     private visualizer: any;
     private isExporting = false;
     private frames: InternalFrameData[] = [];
-    private ffmpeg: FFmpeg | null = null;
-    private loadPromise: Promise<void> | null = null;
 
     constructor(canvas: HTMLCanvasElement, visualizer: any) {
         this.canvas = canvas;
@@ -36,23 +43,6 @@ export class VideoExporter {
 
     isBusy() {
         return this.isExporting;
-    }
-
-    async ensureFFmpeg(onProgress?: (p: number, text?: string) => void) {
-        if (this.loadPromise) return this.loadPromise;
-        this.ffmpeg = new FFmpeg();
-        const coreVersion = '0.12.6';
-        const baseURL = `https://unpkg.com/@ffmpeg/core@${coreVersion}/dist/esm`;
-        const loadParams = {
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-        };
-        this.loadPromise = (async () => {
-            onProgress?.(0, 'Loading ffmpeg core...');
-            await this.ffmpeg!.load(loadParams);
-            onProgress?.(0, 'ffmpeg loaded');
-        })();
-        return this.loadPromise;
     }
 
     async exportVideo(options: VideoExportOptions = {}): Promise<void> {
@@ -88,60 +78,75 @@ export class VideoExporter {
             const actualMaxFrames = maxFrames || totalFrames;
             const limitedFrames = Math.min(totalFrames - _startFrame, actualMaxFrames);
 
-            onProgress(0, 'Preparing ffmpeg...');
-            await this.ensureFFmpeg(onProgress);
-            const ffmpeg = this.ffmpeg!;
+            onProgress(0, 'Preparing encoder...');
 
-            // Phase 1: Render frames (0-40%)
-            await this.renderFrames(fps, limitedFrames, _startFrame, (p, txt) => onProgress(p * 40, txt));
-
-            // Phase 2: Write frames into ffmpeg FS (40-50%)
-            onProgress(40, 'Writing frames to virtual FS');
-            let i = 0;
-            for (const frame of this.frames) {
-                const arrayBuffer = await frame.blob.arrayBuffer();
-                await ffmpeg.writeFile(`frame_${String(i).padStart(5, '0')}.png`, new Uint8Array(arrayBuffer));
-                i++;
-                if (i % 10 === 0) onProgress(40 + (i / this.frames.length) * 10, 'Writing frames...');
+            // Decide on codec (prefer avc, else first encodable fall-back)
+            let codec: string = 'avc';
+            if (!(await canEncodeVideo?.(codec as any))) {
+                try {
+                    const codecs = await (getEncodableVideoCodecs?.() as any);
+                    if (Array.isArray(codecs) && codecs.length) codec = codecs[0];
+                } catch {
+                    /* ignore */
+                }
             }
 
-            // Phase 3: Run ffmpeg to encode (50-99%)
-            const outputName = 'output.mp4';
-            const inputPattern = 'frame_%05d.png';
-            // Attach progress listener
-            // Attach progress listener only once per instance
-            if (!(ffmpeg as any)._progressAttached) {
-                ffmpeg.on('progress', (e: any) => {
-                    const prog = typeof e?.progress === 'number' ? e.progress : 0;
-                    const encProgress = 50 + prog * 49; // up to 99
-                    onProgress(encProgress, 'Encoding video...');
-                });
-                (ffmpeg as any)._progressAttached = true;
-            }
-            // Run
-            await ffmpeg.exec([
-                '-framerate',
-                String(fps),
-                '-i',
-                inputPattern,
-                '-c:v',
-                'libx264',
-                '-preset',
-                'ultrafast',
-                '-pix_fmt',
-                'yuv420p',
-                '-movflags',
-                '+faststart',
-                outputName,
-            ]);
+            // mediabunny Output setup
+            const target = new BufferTarget();
+            const output = new Output({ format: new Mp4OutputFormat(), target });
+            const canvasSource = new CanvasSource(this.canvas, {
+                codec: codec as any,
+                bitrate: QUALITY_HIGH, // heuristic; library maps to quality value
+            });
+            output.addVideoTrack(canvasSource);
+            await output.start();
 
-            // Phase 4: Read result (99-100%)
-            onProgress(99, 'Finalizing video...');
-            const data = (await ffmpeg.readFile(outputName)) as Uint8Array;
-            // Cast to any to satisfy TS in browser context
-            const videoBlob = new Blob([data as any], { type: 'video/mp4' });
+            // Phase 1: Render + encode frames progressively (0-95%)
+            const total = limitedFrames;
+            const frameDuration = 1 / fps;
+            const prePadding = (() => {
+                try {
+                    return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+                } catch {
+                    return 0;
+                }
+            })();
+            const playRangeStart = (() => {
+                try {
+                    const pr = this.visualizer?.getPlayRange?.();
+                    if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
+                    return 0;
+                } catch {
+                    return 0;
+                }
+            })();
+
+            const clock = new SimulatedClock({
+                fps,
+                prePaddingSec: prePadding,
+                playRangeStartSec: playRangeStart,
+                startFrame: _startFrame,
+            });
+            for (let i = 0; i < total; i++) {
+                const currentTime = clock.timeForFrame(i);
+                this.visualizer.renderAtTime(currentTime);
+                // Add frame directly from canvas – timestamp sec, duration sec
+                await canvasSource.add(currentTime, frameDuration);
+                if (i % 10 === 0) {
+                    const prog = i / total;
+                    onProgress(prog * 95, 'Rendering & encoding frames...');
+                }
+            }
+            canvasSource.close();
+
+            // Phase 2: Finalize (95-100%)
+            onProgress(97, 'Finalizing video...');
+            await output.finalize();
+            const raw = target.buffer;
+            if (!raw) throw new Error('No video data produced');
+            const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+            const videoBlob = new Blob([u8.buffer], { type: 'video/mp4' });
             onProgress(100, 'Video ready');
-            // Use _video suffix instead of _export for clarity and consistent naming
             this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`);
             onComplete(videoBlob);
         } catch (err) {
@@ -158,51 +163,7 @@ export class VideoExporter {
         }
     }
 
-    private async renderFrames(
-        fps: number,
-        totalFrames: number,
-        startFrame: number,
-        progress: (p: number, t?: string) => void
-    ) {
-        // Build a simulated, deterministic clock for frame times
-        const prePadding = (() => {
-            try {
-                return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-            } catch {
-                return 0;
-            }
-        })();
-        const playRangeStart = (() => {
-            try {
-                const pr = this.visualizer?.getPlayRange?.();
-                if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
-                return 0;
-            } catch {
-                return 0;
-            }
-        })();
-
-        const clock = new SimulatedClock({
-            fps,
-            prePaddingSec: prePadding,
-            playRangeStartSec: playRangeStart,
-            startFrame,
-        });
-        for (let i = 0; i < totalFrames; i++) {
-            const currentTime = clock.timeForFrame(i);
-            this.visualizer.renderAtTime(currentTime);
-            const blob = await this.canvasToPngBlob();
-            this.frames.push({ frameNumber: i, blob });
-            if (i % 10 === 0) progress(i / totalFrames, 'Rendering frames...');
-        }
-        progress(1, 'Frames rendered');
-    }
-
-    private async canvasToPngBlob(): Promise<Blob> {
-        return new Promise((resolve, reject) => {
-            this.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas toBlob failed'))), 'image/png', 1.0);
-        });
-    }
+    // Legacy leftover methods (now unused) intentionally removed to reduce bundle size.
 
     private downloadBlob(blob: Blob, filename: string) {
         const url = URL.createObjectURL(blob);

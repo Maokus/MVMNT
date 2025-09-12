@@ -144,6 +144,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
                         className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
                         title="Show/Hide timeline panel"
                     >{timelineVisible ? 'Hide Timeline' : 'Show Timeline'}</button>
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
+                        className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
+                        title="Render / Export Video"
+                    >Render</button>
                 </div>
                 <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
                     <img width="50" src={logo} style={{ cursor: 'pointer' }} />

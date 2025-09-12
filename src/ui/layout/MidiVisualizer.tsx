@@ -10,6 +10,7 @@ import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
 import { SceneProvider } from '@context/SceneContext';
 import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
+import RenderModal from './RenderModal';
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
@@ -19,6 +20,7 @@ const MidiVisualizerInner: React.FC = () => {
     const [sidePanelsVisible, setSidePanelsVisible] = useState(true);
     const [timelineVisible, setTimelineVisible] = useState(true);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
+    const [showRenderModal, setShowRenderModal] = useState(false);
 
     // Detect first visit via localStorage; show onboarding once
     useEffect(() => {
@@ -53,6 +55,13 @@ const MidiVisualizerInner: React.FC = () => {
         setShowSmallScreenWarning(false);
     };
 
+    // Listen for render modal open events
+    useEffect(() => {
+        const handler = () => setShowRenderModal(true);
+        window.addEventListener('open-render-modal', handler as EventListener);
+        return () => window.removeEventListener('open-render-modal', handler as EventListener);
+    }, []);
+
     return (
         <div className="app-container">
             <MenuBar
@@ -79,6 +88,7 @@ const MidiVisualizerInner: React.FC = () => {
             {showOnboarding && <OnboardingOverlay onClose={() => setShowOnboarding(false)} />}
 
             {showSmallScreenWarning && (<SmallScreenWarning onProceed={proceedSmallScreen} />)}
+            {showRenderModal && <RenderModal onClose={() => setShowRenderModal(false)} />}
         </div>
     );
 };
