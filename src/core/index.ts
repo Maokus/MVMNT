@@ -39,3 +39,8 @@ export * from '@core/types';
 // Animation Utilities Export
 // ==========================================
 export { FloatCurve, AnimMath } from '@animation/anim-math.js';
+
+// ==========================================
+// Timing/Timeline exports (Phase 1)
+// ==========================================
+export * as Timing from '@core/timing/index';

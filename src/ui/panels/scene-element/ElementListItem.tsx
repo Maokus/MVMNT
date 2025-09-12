@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { FaEye, FaEyeSlash, FaArrowUp, FaArrowDown, FaClone, FaTrash, FaPen } from 'react-icons/fa';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
 interface ElementListItemProps {
@@ -130,11 +131,12 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                                 {truncatedId}
                             </span>
                             <button
-                                className="bg-transparent border-0 text-[10px] px-0 py-0 opacity-60 cursor-pointer transition hover:opacity-100"
+                                className="bg-transparent border-0 text-[10px] px-0 py-0 opacity-60 cursor-pointer transition hover:opacity-100 flex items-center"
                                 onClick={startEditing}
                                 title="Edit element ID"
+                                aria-label="Edit element ID"
                             >
-                                ✏️
+                                <FaPen />
                             </button>
                         </>
                     )}
@@ -144,44 +146,49 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
 
             <div className="flex gap-1">
                 <button
-                    className={`opacity-50 cursor-pointer bg-transparent border-0 text-xs transition hover:opacity-100 ${element.visible ? 'opacity-100' : ''}`}
+                    className={`opacity-50 cursor-pointer bg-transparent border-0 text-xs transition hover:opacity-100 ${element.visible ? 'opacity-100' : ''} flex items-center`}
                     onClick={(e) => handleControlClick(e, onToggleVisibility)}
                     title={`${element.visible ? 'Hide' : 'Show'} element`}
+                    aria-label={`${element.visible ? 'Hide' : 'Show'} element`}
                 >
-                    {element.visible ? '👁️' : '👁️‍🗨️'}
+                    {element.visible ? <FaEye /> : <FaEyeSlash />}
                 </button>
 
                 <div className="flex gap-0.5">
                     <button
-                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => handleControlClick(e, onMoveUp)}
                         title="Move up"
+                        aria-label="Move up"
                         disabled={index === 0}
                     >
-                        ↑
+                        <FaArrowUp />
                     </button>
                     <button
-                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-5 h-5 p-0 flex items-center justify-center text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => handleControlClick(e, onMoveDown)}
                         title="Move down"
+                        aria-label="Move down"
                         disabled={index === totalElements - 1}
                     >
-                        ↓
+                        <FaArrowDown />
                     </button>
                 </div>
                 <button
-                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20"
+                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 flex items-center"
                     onClick={(e) => handleControlClick(e, onDuplicate)}
                     title="Duplicate element"
+                    aria-label="Duplicate element"
                 >
-                    📋
+                    <FaClone />
                 </button>
                 <button
-                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20"
+                    className="px-1.5 py-0.5 text-[10px] border-0 rounded cursor-pointer bg-white/10 hover:bg-white/20 flex items-center"
                     onClick={(e) => handleControlClick(e, onDelete)}
                     title="Delete element"
+                    aria-label="Delete element"
                 >
-                    🗑️
+                    <FaTrash />
                 </button>
             </div>
         </div>

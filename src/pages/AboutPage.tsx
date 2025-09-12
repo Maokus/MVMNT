@@ -28,11 +28,7 @@ const AboutPage: React.FC = () => {
                     <section>
                         <h2>Getting Started</h2>
                         <ol className="getting-started-list">
-                            <li><strong>Load a MIDI File</strong>: In the macros, click the "Load MIDI" button and select your file.</li>
-                            <li><strong>Create / Edit Scene</strong>: Add scene elements (text, images, overlays) and adjust their properties in the right-hand panels.</li>
-                            <li><strong>Arrange & Animate</strong>: Use macros / property bindings for dynamic changes or timing-based effects.</li>
-                            <li><strong>Preview Playback</strong>: Use the transport controls below the canvas to scrub and preview synced visuals.</li>
-                            <li><strong>Export</strong>: Trigger export to generate image frames or a compiled video; watch progress in the overlay.</li>
+                            <li><strong>Kitchen Crate:</strong> Allan please add details</li>
                         </ol>
                     </section>
 
@@ -46,34 +42,9 @@ const AboutPage: React.FC = () => {
                     </section>
 
                     <section>
-                        <h2>Customization</h2>
-                        <p>
-                            MVMNT has a modular design which can be easily extended with new features and functionality. If you're a developer, you can create your own custom elements, effects, and integrations.
-                        </p>
-                        <p>
-                            If you have any questions or need assistance, feel free to reach out!
-                        </p>
-
-                    </section>
-
-                    <section>
                         <h2>Motivation</h2>
-                        <p>Two months ago, I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945">really beautiful MIDI visualizer</a> by kashiwade on twitter. I asked them how they made it, and this was the response: </p>
-                        <img src={pain} width={400} style={{ margin: "auto", display: "block" }}></img>
-                        <p style={{ textAlign: "center" }}><i>Figure 1: Why would you say this</i></p>
-                        <p>The moment I saw that response I knew I had to make a decision. </p>
-                        <ol style={{ marginLeft: "48px", paddingBottom: "12px" }}>
-                            <li>Accept that Kashiwade doesn't want to share how they made the visualizer</li>
-                            <li>Spend two spite-fuelled months of my life making a piece of freeware so I can make it myself</li>
-                        </ol>
-                        <p>The rest, as they say, is history.</p>
-
-                        <p>-</p>
-
-                        <p>Edit: It has since come to my attention that Kashiwade DID respond to some other people and I just didnt see it</p>
-                        <img src={senile} width={300} style={{ margin: "auto", display: "block" }}></img>
-                        <p style={{ textAlign: "center" }}><i>Figure 2: I might be going senile</i></p>
-                        <p>Don't do drugs, kids</p>
+                        <p>Two months ago, I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945">really beautiful MIDI visualizer</a> by kashiwade on twitter. I asked them how they made it, and they never got back to me, so I decided to try and replicate it on my own.</p>
+                        <p>It started pretty simple. A html5 canvas, a png export feature, some simple controls for color and text. Then I thought: "Hey, what if I made it a little more flexible?" So started writing classes. Then I started making the UI for those classes. Then I started adding more classes. More features. More UI. And now I've spent all my free time over the last three months on this project.</p>
                     </section>
 
                     <section>

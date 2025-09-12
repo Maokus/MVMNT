@@ -34,6 +34,9 @@ export class MIDIVisualizerCore {
     };
     private _interactionBoundsCache = new Map();
     private _interactionHandlesCache = new Map();
+    // Explicit user-defined playback window (start/end in seconds). When set, replaces any scene-duration concept.
+    private _playRangeStartSec: number | null = null;
+    private _playRangeEndSec: number | null = null;
     constructor(canvas: HTMLCanvasElement, timingManager: any = null) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
@@ -46,6 +49,15 @@ export class MIDIVisualizerCore {
     }
     updateSceneElementTimingManager() {
         this.sceneBuilder.createDefaultMIDIScene();
+    }
+    // Set the explicit playback range (in seconds) controlled by the external timeline/UI
+    setPlayRange(startSec?: number | null, endSec?: number | null) {
+        const s = typeof startSec === 'number' && isFinite(startSec) ? startSec : null;
+        const e = typeof endSec === 'number' && isFinite(endSec) ? endSec : null;
+        const changed = this._playRangeStartSec !== s || this._playRangeEndSec !== e;
+        this._playRangeStartSec = s;
+        this._playRangeEndSec = e;
+        if (changed) this.invalidateRender();
     }
     play(): boolean {
         const hasGlobalEvents = this.events.length > 0;
@@ -76,7 +88,11 @@ export class MIDIVisualizerCore {
         }
         try {
             const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
-            this.currentTime = -prePadding - 0.5;
+            if (this._playRangeStartSec != null) {
+                this.currentTime = this._playRangeStartSec - 0.5;
+            } else {
+                this.currentTime = -prePadding - 0.5;
+            }
         } catch {
             this.currentTime = -0.5;
         }
@@ -85,15 +101,30 @@ export class MIDIVisualizerCore {
     }
     seek(time: number) {
         const bufferTime = 0.5;
-        const currentDuration = this.getCurrentDuration();
         const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
-        const minTime = -prePadding - bufferTime;
-        const maxTime = currentDuration + bufferTime;
-        this.currentTime = Math.max(minTime, Math.min(time, maxTime));
+        // Prefer clamping to user-defined playback range if available
+        if (this._playRangeStartSec != null || this._playRangeEndSec != null) {
+            const minTime = (this._playRangeStartSec ?? 0) - bufferTime;
+            const maxTime = (this._playRangeEndSec ?? Infinity) + bufferTime;
+            this.currentTime = Math.max(minTime, Math.min(time, maxTime));
+        } else {
+            // Fallback: allow seeking before 0 by prePadding, no upper clamp
+            const minTime = -prePadding - bufferTime;
+            this.currentTime = Math.max(minTime, time);
+        }
         if (this.isPlaying) this.startTime = performance.now() - (this.currentTime + 0.5) * 1000;
         this.invalidateRender();
     }
     getCurrentDuration() {
+        // Derive duration from user-defined playback window when available
+        if (
+            this._playRangeStartSec != null &&
+            this._playRangeEndSec != null &&
+            this._playRangeEndSec > this._playRangeStartSec
+        ) {
+            return this._playRangeEndSec - this._playRangeStartSec;
+        }
+        // Fallback to legacy: use scene builder computed max when no explicit range is set
         const maxDuration = this.sceneBuilder.getMaxDuration();
         const base = maxDuration > 0 ? maxDuration : this.duration;
         const { prePadding = 0, postPadding = 0 } = this.sceneBuilder.getSceneSettings();
@@ -131,15 +162,15 @@ export class MIDIVisualizerCore {
     stepForward() {
         const frameRate = this.sceneBuilder.getSceneSettings().fps;
         const step = 1 / frameRate;
-        const currentDuration = this.getCurrentDuration();
-        const newTime = Math.min(this.currentTime + step, currentDuration);
+        const end = this._playRangeEndSec ?? this.currentTime + step;
+        const newTime = Math.min(this.currentTime + step, end);
         this.seek(newTime);
     }
     stepBackward() {
         const frameRate = this.sceneBuilder.getSceneSettings().fps;
         const step = 1 / frameRate;
         const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
-        const minTime = -prePadding;
+        const minTime = this._playRangeStartSec != null ? this._playRangeStartSec : -prePadding;
         const newTime = Math.max(this.currentTime - step, minTime);
         this.seek(newTime);
     }
@@ -153,11 +184,7 @@ export class MIDIVisualizerCore {
             }
             const bufferTime = 0.5;
             this.currentTime = (now - this.startTime) / 1000 + bufferTime;
-            const currentDuration = this.getCurrentDuration();
-            if (this.currentTime >= currentDuration + bufferTime) {
-                this.stop();
-                return;
-            }
+            // Do not auto-stop at scene-derived duration; external controller defines range/end behavior.
             this.render();
             this._lastRAFTime = now;
             this.animationId = requestAnimationFrame(() => this.animate());
@@ -262,11 +289,13 @@ export class MIDIVisualizerCore {
             fontFamily: 'Arial',
             fontWeight: '400',
         };
-        const sceneDuration = this.getCurrentDuration();
+        const s = this._playRangeStartSec;
+        const e = this._playRangeEndSec;
         return {
             canvas: this.canvas,
             duration: this.duration,
-            sceneDuration,
+            playRangeStartSec: s ?? 0,
+            playRangeEndSec: e ?? this.getCurrentDuration(),
             isPlaying: this.isPlaying,
             backgroundColor: '#000000',
             showAnchorPoints: this.debugSettings.showAnchorPoints,
@@ -275,6 +304,9 @@ export class MIDIVisualizerCore {
     }
     getSceneBuilder() {
         return this.sceneBuilder;
+    }
+    getPlayRange(): { startSec: number | null; endSec: number | null } {
+        return { startSec: this._playRangeStartSec, endSec: this._playRangeEndSec };
     }
     setInteractionState(partial: any) {
         if (!this._interactionState) return;
@@ -509,6 +541,13 @@ export class MIDIVisualizerCore {
     getAvailableSceneElementTypes() {
         return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
     }
+    getTimelineService() {
+        try {
+            return (window as any).mvmntTimelineService;
+        } catch {
+            return undefined;
+        }
+    }
     addSceneElement(type: string, config: any = {}) {
         const element = this.sceneBuilder.addElementFromRegistry(type, config);
         if (element) this.invalidateRender();
@@ -545,6 +584,29 @@ export class MIDIVisualizerCore {
                         })
                     );
                 } catch {}
+            }
+            // Optional: seed timeline from sceneData.timeline if present
+            const timelineSpec = (sceneData as any)?.timeline;
+            const tl = this.getTimelineService();
+            if (tl && timelineSpec && Array.isArray(timelineSpec.tracks)) {
+                (async () => {
+                    try {
+                        tl.clearAllTracks();
+                        // Only MIDI seed supported for now
+                        for (const tr of timelineSpec.tracks) {
+                            if (tr?.type === 'midi' && (tr.midiData || tr.file)) {
+                                await tl.addMidiTrack({
+                                    midiData: tr.midiData,
+                                    file: tr.file,
+                                    name: tr.name,
+                                    offsetSec: tr.offsetSec || 0,
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to seed timeline from scene data:', e);
+                    }
+                })();
             }
         } catch (e) {
             console.warn('Failed applying scene settings', e);
@@ -588,6 +650,10 @@ export class MIDIVisualizerCore {
     }
     resetToDefaultScene() {
         this.sceneBuilder.createDefaultMIDIScene();
+        // Clear timeline tracks on reset
+        try {
+            this.getTimelineService()?.clearAllTracks?.();
+        } catch {}
         const settings = this.sceneBuilder.getSceneSettings();
         try {
             this.canvas?.dispatchEvent(

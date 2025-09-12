@@ -3,6 +3,7 @@
 
 import { toBlobURL } from '@ffmpeg/util';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import SimulatedClock from '@export/simulated-clock';
 
 export interface VideoExportOptions {
     fps?: number;
@@ -163,14 +164,32 @@ export class VideoExporter {
         startFrame: number,
         progress: (p: number, t?: string) => void
     ) {
-        const frameInterval = 1 / fps;
-        let prePadding = 0;
-        try {
-            prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-        } catch {}
-        const baseStartTime = -prePadding;
+        // Build a simulated, deterministic clock for frame times
+        const prePadding = (() => {
+            try {
+                return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+            } catch {
+                return 0;
+            }
+        })();
+        const playRangeStart = (() => {
+            try {
+                const pr = this.visualizer?.getPlayRange?.();
+                if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
+                return 0;
+            } catch {
+                return 0;
+            }
+        })();
+
+        const clock = new SimulatedClock({
+            fps,
+            prePaddingSec: prePadding,
+            playRangeStartSec: playRangeStart,
+            startFrame,
+        });
         for (let i = 0; i < totalFrames; i++) {
-            const currentTime = baseStartTime + (i + startFrame) * frameInterval;
+            const currentTime = clock.timeForFrame(i);
             this.visualizer.renderAtTime(currentTime);
             const blob = await this.canvasToPngBlob();
             this.frames.push({ frameNumber: i, blob });

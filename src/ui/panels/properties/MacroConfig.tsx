@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@ui/form/inputs/FontInput';
+import MidiTrackSelect from '@ui/form/inputs/MidiTrackSelect';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside
@@ -9,7 +11,7 @@ interface MacroConfigProps {
 
 interface Macro {
     name: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font';
+    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font' | 'midiTrackRef';
     value: any;
     options: {
         min?: number;
@@ -33,7 +35,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
         value: '',
         min: '',
         max: '',
@@ -90,6 +92,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             case 'font':
                 if (typeof value !== 'string' || value.trim() === '') value = 'Arial|400';
                 break;
+            case 'midiTrackRef':
+                // Store a single track id or null initially
+                value = null;
+                break;
         }
 
         // Prepare options
@@ -114,7 +120,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font',
+                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
                 value: '',
                 min: '',
                 max: '',
@@ -210,7 +216,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
 
     const handleMacroTypeChange = (type: string) => {
         setNewMacro(prev => {
-            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' };
+            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef' };
             switch (type) {
                 case 'number':
                     updated.value = '0';
@@ -226,6 +232,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     break;
                 case 'font':
                     updated.value = 'Arial|400';
+                    break;
+                case 'midiTrackRef':
+                    updated.value = '';
                     break;
                 default:
                     updated.value = '';
@@ -321,14 +330,40 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                         onChange={(val: string) => handleUpdateMacroValue(macro.name, val)}
                     />
                 );
+            case 'midiTrackRef': {
+                return (
+                    <MidiTrackSelect
+                        id={`macro-midiTrack-${macro.name}`}
+                        value={macro.value ?? null}
+                        schema={{ allowMultiple: false }}
+                        onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                    />
+                );
+            }
             default: // string
                 return (
-                    <input
-                        type="text"
-                        value={macro.value}
-                        onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
-                        onKeyDown={handleKeyDown}
-                    />
+                    (() => {
+                        // Heuristic: if legacy macro named 'midiTrack' is a string, render the track dropdown
+                        if (macro.type === 'string' && macro.name.toLowerCase() === 'miditrack') {
+                            const MidiTrackSelect = require('@ui/form/inputs/MidiTrackSelect').default as React.FC<any>;
+                            return (
+                                <MidiTrackSelect
+                                    id={`macro-midiTrack-${macro.name}`}
+                                    value={macro.value ?? null}
+                                    schema={{ allowMultiple: false }}
+                                    onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                                />
+                            );
+                        }
+                        return (
+                            <input
+                                type="text"
+                                value={macro.value}
+                                onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
+                                onKeyDown={handleKeyDown}
+                            />
+                        );
+                    })()
                 );
         }
     };
@@ -343,18 +378,20 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
                         <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
                             onClick={() => handleShowAssignmentDialog(macro.name)}
                             title="Manage Assignments"
+                            aria-label="Manage Assignments"
                         >
-                            🔗
+                            <FaLink />
                         </button>
                         <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)]"
+                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
                             onClick={() => handleDeleteMacro(macro.name)}
                             title="Delete Macro"
+                            aria-label="Delete Macro"
                         >
-                            🗑️
+                            <FaTrash />
                         </button>
                     </div>
                 </div>
@@ -374,12 +411,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     return (
         <div className="macro-config">
             <div className="macro-header">
-                <h4>🎛️ Macros</h4>
+                <h4 className="flex items-center gap-2">Macros</h4>
                 <button
-                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb]"
+                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
                     onClick={() => setShowCreateDialog(true)}
                 >
-                    + Add Macro
+                    <FaPlus /> <span>Add Macro</span>
                 </button>
             </div>
 
@@ -421,6 +458,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
                                 <option value="font">Font</option>
+                                <option value="midiTrackRef">MIDI Track</option>
                             </select>
                         </div>
                         {newMacro.type !== 'font' && (

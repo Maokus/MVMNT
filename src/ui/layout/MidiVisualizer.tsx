@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
-import TimelinePanel from './TimelinePanel';
+import { TimelinePanel } from '@ui/panels/TimelinePanel';
 import SmallScreenWarning from './SmallScreenWarning';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';

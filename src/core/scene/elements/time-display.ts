@@ -1,8 +1,7 @@
 // Time display element for showing current time with property bindings
 import { SceneElement } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
-import { TimingManager } from '@core/timing-manager';
-import { MidiManager } from '@core/midi/midi-manager';
+import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
 
@@ -21,13 +20,13 @@ interface MinSecMs {
 
 export class TimeDisplayElement extends SceneElement {
     public timingManager: TimingManager;
-    public midiManager?: MidiManager;
+    public midiManager?: any;
 
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
 
         // Use timing manager by default for independent timing control; if a MIDI-aware timing is needed in future, this can be swapped
-        this.timingManager = new TimingManager(null);
+        this.timingManager = new TimingManager('timeDisplay');
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -38,33 +37,7 @@ export class TimeDisplayElement extends SceneElement {
             category: 'info',
             groups: [
                 ...base.groups,
-                {
-                    id: 'timing',
-                    label: 'Timing',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'bpm',
-                            type: 'number',
-                            label: 'BPM (Tempo)',
-                            default: 120,
-                            min: 20,
-                            max: 300,
-                            step: 0.1,
-                            description: 'Beats per minute for this time display',
-                        },
-                        {
-                            key: 'beatsPerBar',
-                            type: 'number',
-                            label: 'Beats per Bar',
-                            default: 4,
-                            min: 1,
-                            max: 16,
-                            step: 1,
-                            description: 'Number of beats in each bar for this display',
-                        },
-                    ],
-                },
+                // Element uses global timing; no per-element bpm/beat settings
                 {
                     id: 'display',
                     label: 'Display',
@@ -118,13 +91,18 @@ export class TimeDisplayElement extends SceneElement {
         const textColor = this.getProperty('textColor') as string;
         const textSecondaryColor = this.getProperty('textSecondaryColor') as string;
 
-        // Update timing manager with bound properties
-        const bpm = this.getProperty('bpm') as number;
-        const beatsPerBar = this.getProperty('beatsPerBar') as number;
-
-        // Force update the timing manager on every frame to ensure property bindings take precedence
-        this.timingManager.setBPM(bpm);
-        this.timingManager.setBeatsPerBar(beatsPerBar);
+        // Update timing manager from global timeline store
+        try {
+            const { useTimelineStore } = require('@state/timelineStore');
+            const s = useTimelineStore.getState();
+            const bpm = s.timeline.globalBpm || 120;
+            const beatsPerBar = s.timeline.beatsPerBar || 4;
+            this.timingManager.setBPM(bpm);
+            this.timingManager.setBeatsPerBar(beatsPerBar);
+            if (s.timeline.masterTempoMap && s.timeline.masterTempoMap.length > 0)
+                this.timingManager.setTempoMap(s.timeline.masterTempoMap, 'seconds');
+            else this.timingManager.setTempoMap(null);
+        } catch {}
         // Don't force a specific PPQ; respect MIDI data when available
 
         // Debug logging for timing calculations

@@ -178,7 +178,17 @@ export interface BaseSceneElementConfig {
 }
 
 export interface ConfigSchemaProperty {
-    type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image';
+    type:
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'color'
+        | 'select'
+        | 'range'
+        | 'file'
+        | 'file-midi'
+        | 'file-image'
+        | 'midiTrackRef';
     label: string;
     default: any;
     min?: number;
@@ -202,7 +212,18 @@ export interface ConfigSchema {
 
 export interface PropertyDefinition {
     key: string;
-    type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'range' | 'file' | 'file-midi' | 'file-image' | 'font';
+    type:
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'color'
+        | 'select'
+        | 'range'
+        | 'file'
+        | 'file-midi'
+        | 'file-image'
+        | 'font'
+        | 'midiTrackRef';
     label: string;
     default?: any;
     min?: number;
@@ -211,6 +232,8 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
+    // UI hint: when type === 'midiTrackRef', allow selecting multiple tracks
+    allowMultiple?: boolean;
 }
 
 export interface PropertyGroup {

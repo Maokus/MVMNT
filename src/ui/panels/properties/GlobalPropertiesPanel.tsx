@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
 import { useVisualizer } from '@context/VisualizerContext';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface ExportSettings {
     fps: number;
     width: number;
     height: number;
     fullDuration: boolean;
-    startTime?: number; // seconds (only used when !fullDuration)
-    endTime?: number;   // seconds (only used when !fullDuration)
+    startTime?: number;
+    endTime?: number;
     prePadding?: number;
     postPadding?: number;
 }
@@ -37,6 +38,7 @@ interface GlobalPropertiesPanelProps {
 const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const ctx = useVisualizer();
     const visualizer = props.visualizer || ctx.visualizer;
+    const sceneBuilder = visualizer?.getSceneBuilder?.();
     const onExport = props.onExport;
     // @ts-ignore optional video export function if provided via props or context (not typed yet)
     const onExportVideo = props.onExportVideo || (ctx as any).exportVideo;
@@ -48,6 +50,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
     const [localWidth, setLocalWidth] = useState(exportSettings.width);
     const [localHeight, setLocalHeight] = useState(exportSettings.height);
+    // Global timing values from timeline store
+    // Timing controls moved into timeline header; keep minimal flags if needed later
+    const hasTempoMap = useTimelineStore((s) => (s.timeline.masterTempoMap?.length || 0) > 0);
 
     // Sync local state when external exportSettings change (e.g., reset)
     useEffect(() => {
@@ -88,6 +93,8 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
             setLocalHeight(h);
         }
     };
+
+    // Removed commit handlers for tempo/meter
 
     return (
         <div className="global-properties-panel">
@@ -144,71 +151,15 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             onKeyDown={handleExportInputKeyDown}
                         />
 
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="prePaddingInput">Pre Padding (s):</label>
-                                <input
-                                    type="number"
-                                    id="prePaddingInput"
-                                    min={0}
-                                    step={0.1}
-                                    value={exportSettings.prePadding ?? 0}
-                                    onChange={(e) => updateExportSetting('prePadding', parseFloat(e.target.value) || 0)}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="postPaddingInput">Post Padding (s):</label>
-                                <input
-                                    type="number"
-                                    id="postPaddingInput"
-                                    min={0}
-                                    step={0.1}
-                                    value={exportSettings.postPadding ?? 0}
-                                    onChange={(e) => updateExportSetting('postPadding', parseFloat(e.target.value) || 0)}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                        </div>
-
-                        <label style={{ display: 'block', marginTop: '8px' }}>
-                            <input
-                                type="checkbox"
-                                id="fullDurationExport"
-                                checked={exportSettings.fullDuration}
-                                onChange={(e) => updateExportSetting('fullDuration', e.target.checked)}
-                            />{' '}
-                            Export full duration
-                        </label>
-
-                        {!exportSettings.fullDuration && (
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="startTimeInput">Start (s):</label>
-                                    <input
-                                        type="number"
-                                        id="startTimeInput"
-                                        min={0}
-                                        step={0.01}
-                                        value={exportSettings.startTime ?? 0}
-                                        onChange={(e) => updateExportSetting('startTime', parseFloat(e.target.value) || 0)}
-                                        onKeyDown={handleExportInputKeyDown}
-                                    />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="endTimeInput">End (s):</label>
-                                    <input
-                                        type="number"
-                                        id="endTimeInput"
-                                        min={0}
-                                        step={0.01}
-                                        value={exportSettings.endTime ?? 0}
-                                        onChange={(e) => updateExportSetting('endTime', parseFloat(e.target.value) || 0)}
-                                        onKeyDown={handleExportInputKeyDown}
-                                    />
-                                </div>
+                        {/* Timing controls moved to timeline header. Show passive info if a tempo map is active. */}
+                        {hasTempoMap && (
+                            <div style={{ marginTop: '16px' }}>
+                                <h4 style={{ marginBottom: '4px' }}>Timing</h4>
+                                <small style={{ color: '#888' }}>A tempo map is active. Edit BPM & meter from timeline header.</small>
                             </div>
                         )}
+
+                        {/* Removed legacy export controls: pre/post padding, full duration, start/end. */}
 
                         <div style={{ marginTop: '16px' }}>
                             <h4 style={{ marginBottom: '4px' }}>Debug Settings</h4>
@@ -224,32 +175,21 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                         </div>
 
                         <div className="export-actions" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {(() => {
-                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
-                                return (
-                                    <button
-                                        className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
-                                        onClick={() => onExport(exportSettings)}
-                                        disabled={!canExport || invalidRange}
-                                        title={invalidRange ? 'Start time must be less than end time' : ''}
-                                    >
-                                        📸 Export PNG Sequence
-                                    </button>
-                                );
-                            })()}
-                            {(() => {
-                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
-                                return (
-                                    <button
-                                        className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
-                                        onClick={() => onExportVideo && onExportVideo(exportSettings)}
-                                        disabled={!canExport || !onExportVideo || invalidRange}
-                                        title={!onExportVideo ? 'Video export not available' : (invalidRange ? 'Start time must be less than end time' : '')}
-                                    >
-                                        🎬 Export MP4 Video
-                                    </button>
-                                );
-                            })()}
+                            <button
+                                className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
+                                onClick={() => onExport(exportSettings)}
+                                disabled={!canExport}
+                            >
+                                📸 Export PNG Sequence
+                            </button>
+                            <button
+                                className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
+                                onClick={() => onExportVideo && onExportVideo(exportSettings)}
+                                disabled={!canExport || !onExportVideo}
+                                title={!onExportVideo ? 'Video export not available' : ''}
+                            >
+                                🎬 Export MP4 Video
+                            </button>
                             <span style={{
                                 fontSize: '12px',
                                 color: '#666',
@@ -257,9 +197,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                                 display: 'block',
                                 textAlign: 'center'
                             }}>
-                                {(!exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime)
-                                    ? 'Invalid time range'
-                                    : exportStatus}
+                                {exportStatus}
                             </span>
                         </div>
                     </div>

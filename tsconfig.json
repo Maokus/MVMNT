@@ -21,7 +21,8 @@
     "jsx": "react-jsx",
     "types": [
       "vitest",
-      "node"
+      "node",
+      "./src/types/zustand"
     ],
     "baseUrl": "./src",
     "paths": {
@@ -45,6 +46,12 @@
       ],
       "@ui/*": [
         "ui/*"
+      ],
+      "@state/*": [
+        "state/*"
+      ],
+      "@selectors/*": [
+        "state/selectors/*"
       ],
       "@context/*": [
         "context/*"

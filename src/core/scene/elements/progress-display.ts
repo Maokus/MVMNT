@@ -40,14 +40,6 @@ export class ProgressDisplayElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
-                            key: 'timeOffset',
-                            type: 'number',
-                            label: 'Time Offset (s)',
-                            default: 0,
-                            step: 0.01,
-                            description: 'Offset applied to target time (can be negative) before computing progress',
-                        },
-                        {
                             key: 'showBar',
                             type: 'boolean',
                             label: 'Show Progress Bar',
@@ -160,20 +152,23 @@ export class ProgressDisplayElement extends SceneElement {
         if (!this.getProperty('visible')) return [];
 
         const renderObjects: RenderObject[] = [];
-        const { duration, sceneDuration } = config;
-        const timeOffset = (this.getProperty('timeOffset') as number) || 0;
-        const effectiveTime = targetTime + timeOffset;
+        const { duration, playRangeStartSec, playRangeEndSec } = config as any;
+        const effectiveTime = targetTime;
 
         // Get properties from bindings
         const showBar = this.getProperty('showBar') as boolean;
         const showStats = this.getProperty('showStats') as boolean;
         const barHeight = this.getProperty('height') as number;
 
-        // Use sceneDuration if available (total scene length), fallback to duration
-        const totalDuration = sceneDuration || duration;
+        // Use explicit playback window when provided (user-defined), fallback to full duration
+        const totalDuration =
+            isFinite(playRangeEndSec) && isFinite(playRangeStartSec)
+                ? Math.max(0, (playRangeEndSec as number) - (playRangeStartSec as number))
+                : duration;
 
-        // Calculate progress based on the total scene duration
-        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, effectiveTime / totalDuration)) : 0;
+        // Calculate progress based on the total scene duration relative to playRangeStart
+        const relTime = isFinite(playRangeStartSec) ? effectiveTime - (playRangeStartSec as number) : effectiveTime;
+        const progress = totalDuration > 0 ? Math.max(0, Math.min(1, relTime / totalDuration)) : 0;
 
         // Fixed width for progress bar (positioning handled by transform system)
         const margin = 0;
@@ -256,7 +251,7 @@ export class ProgressDisplayElement extends SceneElement {
             const statsTextOpacity = typeof config.statsTextOpacity === 'number' ? config.statsTextOpacity : 1;
 
             // Time progress
-            const currentTimeText = this._formatTime(Math.max(0, effectiveTime));
+            const currentTimeText = this._formatTime(Math.max(0, relTime));
             const durationText = this._formatTime(totalDuration);
             const timeText = `${currentTimeText} / ${durationText}`;
 

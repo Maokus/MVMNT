@@ -22,6 +22,8 @@ export interface SceneSettings {
     height: number;
     prePadding: number;
     postPadding: number;
+    tempo?: number; // global BPM fallback when no tempo map
+    beatsPerBar?: number; // global meter
 }
 
 export class HybridSceneBuilder {
@@ -34,6 +36,8 @@ export class HybridSceneBuilder {
         height: 1500,
         prePadding: 0,
         postPadding: 0,
+        tempo: 120,
+        beatsPerBar: 4,
     };
     config: SceneSettings = { ...this._defaultSceneSettings };
 
@@ -42,10 +46,28 @@ export class HybridSceneBuilder {
     }
     updateSceneSettings(partial: Partial<SceneSettings> = {}) {
         this.config = { ...this.config, ...partial };
+        // Synchronize global timing system (timeline store) if tempo/meter provided
+        try {
+            if (partial.tempo != null || partial.beatsPerBar != null) {
+                // Lazy import to avoid cycles
+                const { useTimelineStore } = require('@state/timelineStore');
+                const st = useTimelineStore.getState();
+                if (partial.tempo != null) st.setGlobalBpm(Math.max(1, Number(partial.tempo) || 120));
+                if (partial.beatsPerBar != null) st.setBeatsPerBar(Math.max(1, Math.floor(partial.beatsPerBar || 4)));
+            }
+        } catch {}
         return this.getSceneSettings();
     }
     resetSceneSettings() {
         this.config = { ...this._defaultSceneSettings };
+        // Also reset global timing to defaults
+        try {
+            const { useTimelineStore } = require('@state/timelineStore');
+            const st = useTimelineStore.getState();
+            if (this._defaultSceneSettings.tempo != null) st.setGlobalBpm(this._defaultSceneSettings.tempo);
+            if (this._defaultSceneSettings.beatsPerBar != null)
+                st.setBeatsPerBar(this._defaultSceneSettings.beatsPerBar);
+        } catch {}
         return this.getSceneSettings();
     }
 
@@ -100,10 +122,30 @@ export class HybridSceneBuilder {
     }
     getMaxDuration() {
         let max = 0;
+        // Legacy elements duration
         for (const el of this.elements) {
             const dur = (el as any).midiManager?.getDuration?.();
             if (typeof dur === 'number' && dur > max) max = dur;
         }
+        // New timeline store-based duration
+        try {
+            // Lazy import to avoid cyclic deps at module load
+            const { useTimelineStore } = require('@state/timelineStore');
+            const state = useTimelineStore.getState();
+            for (const id of state.tracksOrder) {
+                const t = state.tracks[id];
+                if (!t || t.type !== 'midi' || !t.enabled) continue;
+                const cache = state.midiCache[t.midiSourceId ?? id];
+                if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+                const localEnd = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
+                let end = localEnd;
+                if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
+                // If regionStart beyond end, skip
+                if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
+                const timelineEnd = (t.offsetSec || 0) + end;
+                if (timelineEnd > max) max = timelineEnd;
+            }
+        } catch {}
         return max;
     }
     getAllElements() {
@@ -334,6 +376,21 @@ export class HybridSceneBuilder {
         } catch {}
         if (!bindingVersion && typeof process !== 'undefined')
             bindingVersion = (process as any).env?.REACT_APP_BINDING_VERSION;
+        // Optional: include a minimal timeline spec if available via window service
+        let timeline: any = undefined;
+        try {
+            const tl = (window as any).mvmntTimelineService;
+            if (tl && typeof tl.getTracks === 'function') {
+                const tracks = tl.getTracks()?.map((t: any) => ({
+                    id: t.id,
+                    name: t.name,
+                    type: t.type,
+                    offsetSec: t.offsetSec || 0,
+                    // Do not serialize full midiData by default to keep files small
+                }));
+                timeline = { tracks };
+            }
+        } catch {}
         return {
             version,
             elements: serialized,
@@ -341,6 +398,7 @@ export class HybridSceneBuilder {
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: bindingVersion,
             sceneSettings: { ...this.config },
+            timeline,
         };
     }
     loadScene(sceneData: any) {
@@ -358,6 +416,8 @@ export class HybridSceneBuilder {
                 if (typeof src.height === 'number') partial.height = src.height;
                 if (typeof src.prePadding === 'number') partial.prePadding = src.prePadding;
                 if (typeof src.postPadding === 'number') partial.postPadding = src.postPadding;
+                if (typeof src.tempo === 'number') partial.tempo = src.tempo;
+                if (typeof src.beatsPerBar === 'number') partial.beatsPerBar = src.beatsPerBar;
                 this.updateSceneSettings(partial);
             } else this.resetSceneSettings();
             if (sceneData.macros) globalMacroManager.importMacros(sceneData.macros);
@@ -394,13 +454,10 @@ export class HybridSceneBuilder {
         }
     }
     _createDefaultMacros() {
-        globalMacroManager.createMacro('midiFile', 'file', null, { accept: '.mid,.midi', description: 'MIDI file' });
-        globalMacroManager.createMacro('tempo', 'number', 120, { min: 20, max: 300, step: 0.1, description: 'BPM' });
-        globalMacroManager.createMacro('beatsPerBar', 'number', 4, {
-            min: 1,
-            max: 16,
-            step: 1,
-            description: 'Beats per bar',
+        // Global MIDI track selector macro controls scene elements' MIDI source
+        globalMacroManager.createMacro('midiTrack', 'midiTrackRef', null, {
+            description:
+                'ID of a MIDI track from the Timeline store. When set, all default scene elements will use this track.',
         });
         try {
             const options = [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }];
@@ -419,32 +476,18 @@ export class HybridSceneBuilder {
         const notesPlayingDisplay: any = this.getElementsByType('notesPlayingDisplay')[0];
         const playedNotesTracker: any = this.getElementsByType('notesPlayedTracker')[0];
         const chordEstimateDisplay: any = this.getElementsByType('chordEstimateDisplay')[0];
-        pianoRoll?.bindToMacro('bpm', 'tempo');
-        pianoRoll?.bindToMacro('beatsPerBar', 'beatsPerBar');
-        pianoRoll?.bindToMacro('midiFile', 'midiFile');
+        // No per-element timing bindings; elements read global tempo/meter from the Timeline store
         try {
             pianoRoll?.bindToMacro('animationType', 'noteAnimation');
         } catch {}
-        timeDisplay?.bindToMacro('bpm', 'tempo');
-        timeDisplay?.bindToMacro('beatsPerBar', 'beatsPerBar');
-
-        // Default bindings for new info elements
-        notesPlayingDisplay?.bindToMacro('midiFile', 'midiFile');
-        notesPlayingDisplay?.bindToMacro('bpm', 'tempo');
-        playedNotesTracker?.bindToMacro('midiFile', 'midiFile');
-        playedNotesTracker?.bindToMacro('bpm', 'tempo');
-        chordEstimateDisplay?.bindToMacro('midiFile', 'midiFile');
-        chordEstimateDisplay?.bindToMacro('bpm', 'tempo');
+        // Bind MIDI track selection across default elements to a single macro
+        pianoRoll?.bindToMacro?.('midiTrackId', 'midiTrack');
+        notesPlayingDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
+        playedNotesTracker?.bindToMacro?.('midiTrackId', 'midiTrack');
+        chordEstimateDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
     }
     autoBindElements() {
-        const pianoRolls: any[] = this.getElementsByType('boundTimeUnitPianoRoll');
-        pianoRolls.forEach((pr) => {
-            if (pr instanceof TimeUnitPianoRollElement) {
-                pr.bindMidiFileToMacro('midiFile');
-                pr.bindBPMToMacro('tempo');
-                pr.bindBeatsPerBarToMacro('beatsPerBar');
-            }
-        });
+        // No-op: legacy per-element timing bindings removed in favor of global timeline tempo
     }
     createTestScene() {
         this.clearElements();

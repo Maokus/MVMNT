@@ -4,6 +4,10 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
+import { TimelineService } from '@core/timing';
+import { useTimelineStore } from '@state/timelineStore';
+import type { TimelineState } from '@state/timelineStore';
+import { selectTimeline } from '@selectors/timelineSelectors';
 
 export interface ExportSettings {
     fps: number;
@@ -44,6 +48,11 @@ interface VisualizerContextValue {
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
+    // Phase 4: expose timeline service to UI
+    timelineService: TimelineService;
+    // Phase 2: expose convenience store hooks
+    useTimeline: () => TimelineState['timeline'];
+    useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrub: (to: number) => void; setCurrentTimeSec: (t: number) => void } };
 }
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
@@ -75,6 +84,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const sceneNameRef = useRef<string>('scene');
+    // Singleton TimelineService
+    const [timelineService] = useState(() => new TimelineService('Main Timeline'));
 
     // Listen for scene name changes broadcast by SceneContext
     useEffect(() => {
@@ -89,6 +100,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (canvasRef.current && !visualizer) {
             const vis = new MIDIVisualizerCore(canvasRef.current);
+            // Do not tie visualizer play range to initial timeline view; view should not constrain playback.
             vis.render();
             setVisualizer(vis);
             const gen = new ImageSequenceGenerator(canvasRef.current, vis);
@@ -96,6 +108,27 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const vid = new VideoExporter(canvasRef.current, vis);
             setVideoExporter(vid);
             (window as any).debugVisualizer = vis;
+            // Expose timeline service globally for non-React consumers (scene elements)
+            try { (window as any).mvmntTimelineService = timelineService; } catch { }
+            // Auto-bind first timeline track to default piano roll if none assigned
+            try {
+                const st = useTimelineStore.getState();
+                const firstTrackId = st.tracksOrder.find((id) => st.tracks[id]?.type === 'midi');
+                if (firstTrackId) {
+                    const sb = vis.getSceneBuilder?.();
+                    const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
+                    const roll: any = rolls[0];
+                    if (roll) {
+                        const ids = roll.getProperty?.('midiTrackIds');
+                        const id = roll.getProperty?.('midiTrackId');
+                        const hasIds = Array.isArray(ids) && ids.length > 0;
+                        const hasId = !!id;
+                        if (!hasIds && !hasId) {
+                            roll.updateConfig?.({ midiTrackId: firstTrackId });
+                        }
+                    }
+                }
+            } catch { }
             // Sync initial fps/width/height from scene builder settings
             try {
                 const s = vis.getSceneBuilder()?.getSceneSettings?.();
@@ -113,20 +146,61 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [visualizer]);
 
-    // Animation / time update loop
+    // (Removed duplicate view sync; see effect near bottom that also clamps current time)
+
+    // Auto-bind first newly added track if default piano roll has no selection yet
+    useEffect(() => {
+        const onAdded = (e: any) => {
+            try {
+                const vis = (window as any).debugVisualizer;
+                const sb = vis?.getSceneBuilder?.();
+                const rolls: any[] = sb?.getElementsByType?.('timeUnitPianoRoll') || [];
+                const roll: any = rolls[0];
+                if (!roll) return;
+                const ids = roll.getProperty?.('midiTrackIds');
+                const id = roll.getProperty?.('midiTrackId');
+                const hasIds = Array.isArray(ids) && ids.length > 0;
+                const hasId = !!id;
+                if (!hasIds && !hasId) {
+                    const trackId = e?.detail?.trackId;
+                    if (trackId) roll.updateConfig?.({ midiTrackId: trackId });
+                }
+            } catch { }
+        };
+        window.addEventListener('timeline-track-added', onAdded as EventListener);
+        return () => window.removeEventListener('timeline-track-added', onAdded as EventListener);
+    }, []);
+
+    // Animation / time update loop — mirror visualizer time into store and update UI
     useEffect(() => {
         if (!visualizer) return;
         let raf: number;
-        let lastCurrentTime = -1;
-        let lastExportStatus = '';
         let lastUIUpdate = 0;
         const loop = () => {
-            const current = visualizer.currentTime || 0; // allow negative (prePadding)
-            const timeChanged = current !== lastCurrentTime;
-            const now = performance.now();
-            const shouldUpdateUI = timeChanged && (now - lastUIUpdate > 80);
-            if (shouldUpdateUI) {
+            const state = useTimelineStore.getState();
+            const vNow = visualizer.currentTime || 0;
+            // Loop handling: if store loop active, wrap visualizer time
+            const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
+            if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
+                if (vNow >= loopEndSec - 1e-6) {
+                    // Seek exactly to loop start; then mirror immediately so UI doesn't show post-start drift
+                    visualizer.seek?.(loopStartSec);
+                    state.setCurrentTimeSec(loopStartSec);
+                }
+            }
+            // Mirror into store if drift > small epsilon to avoid feedback churn
+            const sNow = state.timeline.currentTimeSec;
+            if (Math.abs(sNow - vNow) > 0.002) {
+                state.setCurrentTimeSec(visualizer.currentTime || vNow);
+            }
+
+            // Throttled UI labels
+            const nowTs = performance.now();
+            if (nowTs - lastUIUpdate > 80) {
                 const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
+                // Display time relative to the current playback window start to match manual start/end UX
+                let rel = vNow;
+                try { const view = useTimelineStore.getState().timelineView; rel = vNow - (view?.startSec ?? 0); } catch { }
                 const format = (s: number) => {
                     const sign = s < 0 ? '-' : '';
                     const abs = Math.abs(s);
@@ -134,41 +208,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const sec = Math.floor(abs % 60);
                     return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
                 };
-                setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
-                setNumericCurrentTime(current);
+                setCurrentTimeLabel(`${format(rel)} / ${format(total)}`);
+                setNumericCurrentTime(vNow);
                 setTotalDuration(total);
-                lastCurrentTime = current;
-                lastUIUpdate = now;
                 const hasValidScene = total > 0;
-                const newExportStatus = hasValidScene ? 'Ready to export' : 'Load MIDI to enable export';
-                if (newExportStatus !== lastExportStatus) {
-                    setExportStatus(newExportStatus);
-                    lastExportStatus = newExportStatus;
-                }
+                setExportStatus(hasValidScene ? 'Ready to export' : 'Load MIDI to enable export');
+                lastUIUpdate = nowTs;
             }
             raf = requestAnimationFrame(loop);
         };
-        loop();
-        const handleVisUpdate = () => {
-            const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-            const current = visualizer.currentTime || 0;
-            const format = (s: number) => {
-                const sign = s < 0 ? '-' : '';
-                const abs = Math.abs(s);
-                const m = Math.floor(abs / 60);
-                const sec = Math.floor(abs % 60);
-                return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-            };
-            setCurrentTimeLabel(`${format(current)} / ${format(total)}`);
-            setNumericCurrentTime(current);
-            setTotalDuration(total);
-        };
-        visualizer.canvas?.addEventListener('visualizer-update', handleVisUpdate);
-        return () => {
-            cancelAnimationFrame(raf);
-            visualizer.canvas?.removeEventListener('visualizer-update', handleVisUpdate);
-            if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
-        };
+        raf = requestAnimationFrame(loop);
+        return () => { cancelAnimationFrame(raf); if (typeof visualizer.cleanup === 'function') visualizer.cleanup(); };
     }, [visualizer]);
 
     // Apply export settings size changes
@@ -223,15 +273,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     }, [visualizer]);
 
     const playPause = useCallback(() => {
-        if (!visualizer) return;
-        if (visualizer.isPlaying) {
-            visualizer.pause();
-            setIsPlaying(false);
-        } else {
-            const started = visualizer.play();
-            setIsPlaying(started && !!visualizer.isPlaying);
-        }
-    }, [visualizer]);
+        // Delegate play/pause to global timeline store so UI stays in sync
+        const { togglePlay } = useTimelineStore.getState();
+        togglePlay();
+    }, []);
 
     // Global spacebar shortcut for play/pause (ignores when typing in inputs/contentEditable)
     useEffect(() => {
@@ -242,12 +287,90 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 if (target?.isContentEditable) return; // allow editing
                 if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return; // allow form controls
                 e.preventDefault();
-                playPause();
+                const { togglePlay } = useTimelineStore.getState();
+                togglePlay();
             }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [playPause]);
+    }, []);
+
+    // Sync visualizer playback with global timeline store transport
+    const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
+    const tCurrent = useTimelineStore((s) => s.timeline.currentTimeSec);
+    useEffect(() => {
+        if (!visualizer) return;
+        // Toggle visualizer play/pause to match store
+        if (tIsPlaying && !visualizer.isPlaying) {
+            const started = visualizer.play?.();
+            setIsPlaying(started && !!visualizer.isPlaying);
+        } else if (!tIsPlaying && visualizer.isPlaying) {
+            visualizer.pause?.();
+            setIsPlaying(false);
+        }
+    }, [visualizer, tIsPlaying]);
+
+    // Seek visualizer when store time changes (scrub) and update play range when view window changes
+    useEffect(() => {
+        if (!visualizer) return;
+        const vTime = visualizer.currentTime || 0;
+        // Only push from store to visualizer on explicit scrubs (big changes),
+        // small drift is handled by the mirroring loop above.
+        if (Math.abs(vTime - tCurrent) > 0.05) {
+            visualizer.seek?.(tCurrent);
+        }
+    }, [visualizer, tCurrent]);
+
+    const tView = useTimelineStore((s) => s.timelineView);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
+    // Loop UI disabled: ignore loop braces and use playbackRange/view only
+    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
+    // Updated: Only apply an explicit play range if user defined playbackRange braces. The timeline view no longer
+    // constrains or clamps playback; view panning/zooming is purely visual and must not modify playhead.
+    useEffect(() => {
+        if (!visualizer) return;
+        const hasUserRange = typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number';
+        if (hasUserRange) {
+            const start = playbackRange!.startSec as number;
+            const end = playbackRange!.endSec as number;
+            visualizer.setPlayRange?.(start, end);
+            if (visualizer.currentTime < start || visualizer.currentTime > end) {
+                const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
+                visualizer.seek?.(clamped);
+            }
+        } else {
+            // Clear or widen play range if API supports it; fall back to leaving prior range alone.
+            try {
+                if (visualizer.clearPlayRange) visualizer.clearPlayRange();
+            } catch { }
+        }
+    }, [visualizer, playbackRange?.startSec, playbackRange?.endSec]);
+
+    // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
+    useEffect(() => {
+        if (typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number') return;
+        setPlaybackRange(tView.startSec, tView.endSec);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Auto-fit timeline view to scene duration only once when first available and the view is at default width.
+    const didAutoFitRef = useRef(false);
+    useEffect(() => {
+        if (didAutoFitRef.current) return;
+        const duration = totalDuration;
+        if (!isFinite(duration) || duration <= 0) return;
+        const width = Math.max(0, tView.endSec - tView.startSec);
+        const isExactlyDefault = Math.abs(width - 60) < 1e-6 || width === 0;
+        if (isExactlyDefault) {
+            const end = Math.max(1, duration);
+            setTimelineView(0, end);
+            if (!(typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number')) {
+                setPlaybackRange(0, end);
+            }
+            didAutoFitRef.current = true;
+        }
+    }, [totalDuration, tView.startSec, tView.endSec, setTimelineView, playbackRange?.startSec, playbackRange?.endSec, setPlaybackRange]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
@@ -259,12 +382,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
     const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
-        if (!visualizer || !totalDuration || totalDuration <= 0) return;
-        const { prePadding = 0 } = exportSettings;
-        // totalDuration = pre + base + post, so map 0 -> -prePadding
-        const target = -prePadding + percent * totalDuration;
+        if (!visualizer) return;
+        // Prefer explicit view window if set; otherwise fallback to visualizer duration mapping
+        const { startSec, endSec } = useTimelineStore.getState().timelineView;
+        const range = Math.max(0.001, endSec - startSec);
+        const target = startSec + Math.max(0, Math.min(1, percent)) * range;
         visualizer.seek?.(target);
-    }, [visualizer, totalDuration, exportSettings]);
+    }, [visualizer]);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;
@@ -364,7 +488,18 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         exportVideo,
         showProgressOverlay,
         progressData,
-        closeProgress: () => setShowProgressOverlay(false)
+        closeProgress: () => setShowProgressOverlay(false),
+        timelineService,
+        useTimeline: () => useTimelineStore(selectTimeline),
+        useTransport: () => {
+            const transport = useTimelineStore((s) => s.transport);
+            const play = useTimelineStore((s) => s.play);
+            const pause = useTimelineStore((s) => s.pause);
+            const togglePlay = useTimelineStore((s) => s.togglePlay);
+            const scrub = useTimelineStore((s) => s.scrub);
+            const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
+            return { transport, actions: { play, pause, togglePlay, scrub, setCurrentTimeSec } };
+        },
     };
 
     return <VisualizerContext.Provider value={value}>{children}</VisualizerContext.Provider>;
