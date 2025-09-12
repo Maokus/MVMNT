@@ -47,6 +47,15 @@ export class TimingManager {
     public tempoMap: TempoMapEntry[] | null;
     private _tempoSegments: NormalizedTempoEntry[] | null;
     private _cache: Record<string, any>;
+    /**
+     * Monotonic version hash that increments whenever any tempo-affecting parameter changes
+     * (bpm, tempo, tempoMap, ticksPerQuarter). Used by higher-level caches/selectors to memoize
+     * expensive tick<->seconds conversions with coarse invalidation.
+     */
+    public tempoVersionHash: number;
+    /** Simple small LRU ring buffer for ticks->seconds conversions (hot playhead + grid) */
+    private _tickToSecCache: { tick: number; seconds: number; hash: number }[];
+    private _tickToSecCacheSize: number;
 
     constructor(elementId: string | null = null) {
         this.elementId = elementId;
@@ -67,8 +76,14 @@ export class TimingManager {
         this._tempoSegments = null;
 
         this._cache = {};
+        this.tempoVersionHash = 0;
+        this._tickToSecCacheSize = 64; // small; tuned for typical concurrent queries
+        this._tickToSecCache = new Array(this._tickToSecCacheSize).fill(null) as any;
+        this._tickCacheIndex = 0;
         this._invalidateCache();
     }
+
+    private _tickCacheIndex: number;
 
     setBPM(bpm: number) {
         if (this.bpm === bpm) return;
@@ -77,6 +92,7 @@ export class TimingManager {
         this.tempoMap = null;
         this._tempoSegments = null;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     setTempo(tempo: number) {
@@ -86,6 +102,7 @@ export class TimingManager {
         this.tempoMap = null;
         this._tempoSegments = null;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     /**
@@ -98,6 +115,7 @@ export class TimingManager {
             this.tempoMap = null;
             this._tempoSegments = null;
             this._invalidateCache();
+            this._bumpTempoVersion();
             return;
         }
 
@@ -154,12 +172,14 @@ export class TimingManager {
         this.tempoMap = normalized;
         this._tempoSegments = segments;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     setBeatsPerBar(beatsPerBar: number) {
         if (this.beatsPerBar === beatsPerBar) return;
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
         this._invalidateCache();
+        // beatsPerBar does not affect absolute beats<->seconds mapping, so not bumping hash
     }
 
     setTimeSignature(timeSignature: Partial<TimeSignature>) {
@@ -181,6 +201,7 @@ export class TimingManager {
         if (this.ticksPerQuarter === ticksPerQuarter) return;
         this.ticksPerQuarter = ticksPerQuarter;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     getSecondsPerBeat(timeInSeconds?: number) {
@@ -356,6 +377,24 @@ export class TimingManager {
 
     private _invalidateCache() {
         this._cache = {};
+        // Do not clear tempoVersionHash here; callers bump explicitly via _bumpTempoVersion()
+        this._tickToSecCache = new Array(this._tickToSecCacheSize).fill(null) as any;
+        this._tickCacheIndex = 0;
+    }
+
+    private _bumpTempoVersion() {
+        this.tempoVersionHash = (this.tempoVersionHash + 1) >>> 0; // unsigned wrap
+    }
+
+    /** Fast cached conversion with tempoVersionHash invalidation */
+    ticksToSecondsCached(ticks: number): number {
+        const hash = this.tempoVersionHash;
+        const slot = ticks % this._tickToSecCacheSize;
+        const entry = this._tickToSecCache[slot];
+        if (entry && entry.tick === ticks && entry.hash === hash) return entry.seconds;
+        const sec = this.ticksToSeconds(ticks);
+        this._tickToSecCache[slot] = { tick: ticks, seconds: sec, hash };
+        return sec;
     }
 
     logConfiguration() {

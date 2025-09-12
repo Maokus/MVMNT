@@ -29,19 +29,19 @@ const TimelineRuler: React.FC = () => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [width, setWidth] = useState(0);
     const height = RULER_HEIGHT;
-    const currentTimeSec = useTimelineStore((s) => s.timeline.currentTimeSec);
+    const currentTimeSec = useTimelineStore((s) => (s as any).timeline.currentTimeSec || 0);
     const { view, toSeconds, toX } = useTimeScale();
     // Subscribe to global timing so ruler recomputes ticks immediately when tempo/meter changes
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm); // fallback bpm when no tempo map
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
     const tempoMapRef = useTimelineStore((s) => s.timeline.masterTempoMap); // reference changes when map replaced
-    const seek = useTimelineStore((s) => s.seek);
-    const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
+    const seek = useTimelineStore((s) => (s as any).seek || (() => { }));
+    const setCurrentTimeSec = useTimelineStore((s) => (s as any).setCurrentTimeSec || (() => { }));
     // Loop UI disabled: keep state wired for compatibility, but do not render or edit loop braces
-    const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => s.transport);
-    const playbackRange = useTimelineStore((s) => s.playbackRange);
-    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
-    const setPlaybackRangeExplicit = useTimelineStore((s) => s.setPlaybackRangeExplicit);
+    const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => (s as any).transport);
+    const playbackRange = useTimelineStore((s) => (s as any).playbackRange);
+    const setPlaybackRange = useTimelineStore((s) => (s as any).setPlaybackRange || (() => { }));
+    const setPlaybackRangeExplicit = useTimelineStore((s) => (s as any).setPlaybackRangeExplicit || (() => { }));
     const snapSeconds = useSnapSeconds();
 
     // Resize handling
@@ -119,6 +119,8 @@ const TimelineRuler: React.FC = () => {
         const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
+        const playStartX = toX(playStart, width);
+        const playEndX = toX(playEnd, width);
 
         let type: 'seek' | 'play-start' | 'play-end' = 'seek';
         if (Math.abs(x - playStartX) <= BRACE_HIT_W) type = 'play-start';
@@ -129,14 +131,15 @@ const TimelineRuler: React.FC = () => {
             type,
             originX: x,
             originSec: tSec,
-            startSec: playStart,
-            endSec: playEnd,
+            startSec: playStartSec,
+            endSec: playEndSec,
             alt: !!e.altKey,
         };
 
         if (type === 'seek') {
             // Initial seek
             const snapped = snapSeconds(tSec, { altKey: e.altKey, forceBar: e.shiftKey });
+            // Convert snapped seconds -> ticks
             if (e.altKey) setCurrentTimeSec(snapped); else seek(snapped);
         }
     };
@@ -187,6 +190,7 @@ const TimelineRuler: React.FC = () => {
         if (d.type === 'play-start') {
             const newStart = Math.max(0, snapped);
             const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
+            // Convert second boundaries to ticks
             setPlaybackRangeExplicit(newStart, newEnd);
         } else if (d.type === 'play-end') {
             const newEnd = Math.max(0.0001, snapped);
