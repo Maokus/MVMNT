@@ -23,6 +23,8 @@ export interface VideoExportOptions {
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob) => void;
     _startFrame?: number; // internal start frame when exporting a range
+    bitrate?: number; // explicit target bitrate in bps (overrides quality preset)
+    qualityPreset?: 'low' | 'medium' | 'high';
 }
 
 interface InternalFrameData {
@@ -55,6 +57,8 @@ export class VideoExporter {
             onProgress = () => {},
             onComplete = () => {},
             _startFrame = 0,
+            bitrate,
+            qualityPreset = 'high',
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
@@ -94,9 +98,19 @@ export class VideoExporter {
             // mediabunny Output setup
             const target = new BufferTarget();
             const output = new Output({ format: new Mp4OutputFormat(), target });
+            // Determine bitrate: explicit overrides preset; else map preset -> mediabunny heuristic
+            // QUALITY_HIGH may be an enum/opaque value; use simple numeric fallbacks if arithmetic not allowed.
+            const presetMap: Record<string, number> = {
+                low: 1_000_000, // 1 Mbps
+                medium: 4_000_000, // 4 Mbps
+                high: 8_000_000, // 8 Mbps default
+            };
+            const chosenBitrate =
+                typeof bitrate === 'number' && bitrate > 0 ? bitrate : presetMap[qualityPreset] || presetMap.high;
+
             const canvasSource = new CanvasSource(this.canvas, {
                 codec: codec as any,
-                bitrate: QUALITY_HIGH, // heuristic; library maps to quality value
+                bitrate: chosenBitrate as any,
             });
             output.addVideoTrack(canvasSource);
             await output.start();

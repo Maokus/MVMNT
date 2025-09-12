@@ -174,32 +174,8 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             </label>
                         </div>
 
-                        <div className="export-actions" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <button
-                                className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
-                                onClick={() => onExport(exportSettings)}
-                                disabled={!canExport}
-                            >
-                                📸 Export PNG Sequence
-                            </button>
-                            <button
-                                className="w-full px-4 py-1.5 border rounded cursor-pointer text-sm font-semibold transition inline-flex items-center justify-center bg-violet-500 border-violet-400 text-white hover:bg-violet-400 hover:border-violet-300 disabled:bg-neutral-700 disabled:border-neutral-600 disabled:text-neutral-500 disabled:cursor-not-allowed"
-                                onClick={() => onExportVideo && onExportVideo(exportSettings)}
-                                disabled={!canExport || !onExportVideo}
-                                title={!onExportVideo ? 'Video export not available' : ''}
-                            >
-                                🎬 Export MP4 Video
-                            </button>
-                            <span style={{
-                                fontSize: '12px',
-                                color: '#666',
-                                marginTop: '8px',
-                                display: 'block',
-                                textAlign: 'center'
-                            }}>
-                                {exportStatus}
-                            </span>
-                        </div>
+                        {/* Export buttons removed. Users now open the Render modal via the MenuBar 'Render' button. */}
+                        <div style={{ marginTop: '16px', fontSize: 12, opacity: 0.6, textAlign: 'center' }}>{exportStatus}</div>
                     </div>
                 </div>
             </div>

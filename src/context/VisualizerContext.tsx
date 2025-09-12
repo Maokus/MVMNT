@@ -18,6 +18,9 @@ export interface ExportSettings {
     endTime: number;
     prePadding?: number;
     postPadding?: number;
+    // Optional per-export (render modal) video settings. Kept here so override typing is easy.
+    bitrate?: number; // target video bitrate (bps)
+    qualityPreset?: 'low' | 'medium' | 'high';
 }
 
 export interface DebugSettings {
@@ -454,6 +457,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 sceneName: sceneNameRef.current,
                 maxFrames,
                 _startFrame: startFrame,
+                // Pass through new optional settings
+                bitrate: settings.bitrate,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),
             });
         } catch (e) {
