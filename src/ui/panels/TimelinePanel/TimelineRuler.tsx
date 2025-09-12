@@ -135,6 +135,26 @@ const TimelineRuler: React.FC = () => {
         }
     };
 
+    // Change cursor when hovering over draggable braces
+    const onPointerMoveRoot = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!containerRef.current) return;
+        // If actively dragging brace, keep default (handled elsewhere)
+        if (dragState.current && dragState.current.type !== 'seek') return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
+        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+        const playStartX = toX(playStart, width);
+        const playEndX = toX(playEnd, width);
+        const nearStart = Math.abs(x - playStartX) <= BRACE_HIT_W;
+        const nearEnd = Math.abs(x - playEndX) <= BRACE_HIT_W;
+        if (nearStart || nearEnd) {
+            containerRef.current.style.cursor = 'col-resize';
+        } else {
+            containerRef.current.style.cursor = 'default';
+        }
+    };
+
     const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!dragState.current || dragState.current.type === 'seek') return;
         if (!containerRef.current) return;
@@ -179,7 +199,7 @@ const TimelineRuler: React.FC = () => {
             className="timeline-ruler relative select-none bg-neutral-900/40 border-y border-neutral-800"
             style={{ height }}
             onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
+            onPointerMove={(e) => { onPointerMove(e); onPointerMoveRoot(e); }}
             onPointerUp={onPointerUp}
             role="group"
             aria-label="Timeline ruler"

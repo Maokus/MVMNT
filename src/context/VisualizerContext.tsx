@@ -100,11 +100,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (canvasRef.current && !visualizer) {
             const vis = new MIDIVisualizerCore(canvasRef.current);
-            // Initialize play range from current view window
-            try {
-                const { startSec, endSec } = useTimelineStore.getState().timelineView;
-                vis.setPlayRange?.(startSec, endSec);
-            } catch { }
+            // Do not tie visualizer play range to initial timeline view; view should not constrain playback.
             vis.render();
             setVisualizer(vis);
             const gen = new ImageSequenceGenerator(canvasRef.current, vis);
@@ -190,14 +186,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     // Seek exactly to loop start; then mirror immediately so UI doesn't show post-start drift
                     visualizer.seek?.(loopStartSec);
                     state.setCurrentTimeSec(loopStartSec);
-                }
-            } else {
-                // When not looping, clamp playback to timeline view end (user-defined play window)
-                const { endSec } = state.timelineView;
-                if (vNow > endSec + 1e-4) {
-                    visualizer.pause?.();
-                    state.pause();
-                    visualizer.seek?.(endSec);
                 }
             }
             // Mirror into store if drift > small epsilon to avoid feedback churn
@@ -338,20 +326,26 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // Loop UI disabled: ignore loop braces and use playbackRange/view only
     const setTimelineView = useTimelineStore((s) => s.setTimelineView);
     const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
-    // Phase 4: Prefer loop braces as explicit visualizer play range when enabled; otherwise use the timeline view window
+    // Updated: Only apply an explicit play range if user defined playbackRange braces. The timeline view no longer
+    // constrains or clamps playback; view panning/zooming is purely visual and must not modify playhead.
     useEffect(() => {
         if (!visualizer) return;
-        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : tView.startSec;
-        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : tView.endSec;
-        const start = playStart;
-        const end = playEnd;
-        visualizer.setPlayRange?.(start, end);
-        // If current time is outside the active play window, clamp/seek inside
-        if (visualizer.currentTime < start || visualizer.currentTime > end) {
-            const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
-            visualizer.seek?.(clamped);
+        const hasUserRange = typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number';
+        if (hasUserRange) {
+            const start = playbackRange!.startSec as number;
+            const end = playbackRange!.endSec as number;
+            visualizer.setPlayRange?.(start, end);
+            if (visualizer.currentTime < start || visualizer.currentTime > end) {
+                const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
+                visualizer.seek?.(clamped);
+            }
+        } else {
+            // Clear or widen play range if API supports it; fall back to leaving prior range alone.
+            try {
+                if (visualizer.clearPlayRange) visualizer.clearPlayRange();
+            } catch { }
         }
-    }, [visualizer, tView.startSec, tView.endSec, playbackRange?.startSec, playbackRange?.endSec]);
+    }, [visualizer, playbackRange?.startSec, playbackRange?.endSec]);
 
     // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
     useEffect(() => {
