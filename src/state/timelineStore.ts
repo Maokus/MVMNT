@@ -4,6 +4,7 @@ import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from './timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
+import { getSecondsPerBeat } from '@core/timing/tempo-utils';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
 function _secondsToBarsLocal(state: TimelineState, seconds: number): number {
@@ -367,12 +368,50 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setMasterTempoMap(map?: TempoMapEntry[]) {
-        set((s: TimelineState) => ({ timeline: { ...s.timeline, masterTempoMap: map } }));
+        // When tempo map changes, recompute real-time seconds for beat-based notes in cache
+        set((s: TimelineState) => {
+            const next: TimelineState = { ...s } as any;
+            next.timeline = { ...s.timeline, masterTempoMap: map };
+            const spbFallback = 60 / (next.timeline.globalBpm || 120);
+            for (const key of Object.keys(next.midiCache)) {
+                const cache = next.midiCache[key];
+                if (!cache || !cache.notesRaw) continue;
+                const notes = cache.notesRaw;
+                for (const n of notes) {
+                    if (n.startBeat !== undefined && n.endBeat !== undefined) {
+                        n.startTime = beatsToSeconds(map, n.startBeat, spbFallback);
+                        n.endTime = beatsToSeconds(map, n.endBeat, spbFallback);
+                        n.duration = Math.max(0, n.endTime - n.startTime);
+                    }
+                }
+            }
+            return next;
+        });
     },
 
     setGlobalBpm(bpm: number) {
         const v = isFinite(bpm) && bpm > 0 ? bpm : 120;
-        set((s: TimelineState) => ({ timeline: { ...s.timeline, globalBpm: v } }));
+        // Update global bpm and rescale note seconds if no tempo map (uniform tempo case)
+        set((s: TimelineState) => {
+            const hadMap = (s.timeline.masterTempoMap?.length || 0) > 0;
+            const next: TimelineState = { ...s } as any;
+            next.timeline = { ...s.timeline, globalBpm: v };
+            if (!hadMap) {
+                const spbFallback = 60 / v;
+                for (const key of Object.keys(next.midiCache)) {
+                    const cache = next.midiCache[key];
+                    if (!cache || !cache.notesRaw) continue;
+                    for (const n of cache.notesRaw) {
+                        if (n.startBeat !== undefined && n.endBeat !== undefined) {
+                            n.startTime = n.startBeat * spbFallback;
+                            n.endTime = n.endBeat * spbFallback;
+                            n.duration = Math.max(0, n.endTime - n.startTime);
+                        }
+                    }
+                }
+            }
+            return next;
+        });
     },
 
     setBeatsPerBar(n: number) {
@@ -516,8 +555,20 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) {
-        // Update cache only. Do NOT auto-adjust the timeline view here to respect manual start/end settings.
-        set((s: TimelineState) => ({ midiCache: { ...s.midiCache, [id]: { ...data } } }));
+        // Update cache; convert beat-based canonical timing to seconds according to current tempo context
+        set((s: TimelineState) => {
+            const spbFallback = 60 / (s.timeline.globalBpm || 120);
+            const map = s.timeline.masterTempoMap;
+            const notes = data.notesRaw.map((n) => {
+                if (n.startBeat !== undefined && n.endBeat !== undefined) {
+                    const startSec = beatsToSeconds(map, n.startBeat, spbFallback);
+                    const endSec = beatsToSeconds(map, n.endBeat, spbFallback);
+                    return { ...n, startTime: startSec, endTime: endSec, duration: Math.max(0, endSec - startSec) };
+                }
+                return n;
+            });
+            return { midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes } } } as TimelineState;
+        });
         // Now that notes are available, attempt auto adjust (if not user-defined)
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
