@@ -13,6 +13,9 @@ import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
+import { importScene, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { useScene } from '@context/SceneContext';
+import { useUndo } from '@context/UndoContext';
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
@@ -113,6 +116,8 @@ const MidiVisualizer: React.FC = () => {
 // Handles applying template/import based on navigation state or session storage
 const TemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
+    const { setSceneName, refreshSceneUI } = useScene();
+    const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -126,12 +131,40 @@ const TemplateInitializer: React.FC = () => {
             if (state.importScene) {
                 const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
                 if (payload) {
+                    const feature = SERIALIZATION_V1_ENABLED();
                     try {
-                        const parsed = JSON.parse(payload);
-                        const ok = sceneBuilder.loadScene?.(parsed) || visualizer.importSceneConfig?.(parsed);
-                        if (!ok) console.warn('Import via HomePage failed.');
-                        didChange = true;
-                    } catch (e) { console.error('Failed to parse imported scene payload', e); }
+                        if (feature) {
+                            const result = importScene(payload);
+                            if (!result.ok) {
+                                console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
+                            } else {
+                                // Attempt to extract name from envelope metadata
+                                try {
+                                    const parsed = JSON.parse(payload);
+                                    if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
+                                } catch { }
+                                undo?.reset();
+                                refreshSceneUI();
+                                didChange = true;
+                            }
+                        } else {
+                            // Legacy pathway identical to menu bar loadScene
+                            const parsed = JSON.parse(payload);
+                            const success = (typeof visualizer.importSceneConfig === 'function'
+                                ? visualizer.importSceneConfig(parsed)
+                                : sceneBuilder.loadScene?.(parsed));
+                            if (success) {
+                                if (parsed.name) setSceneName(parsed.name);
+                                if (visualizer.invalidateRender) visualizer.invalidateRender();
+                                refreshSceneUI();
+                                didChange = true;
+                            } else {
+                                console.warn('Import via HomePage failed (legacy).');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to import scene payload from HomePage', e);
+                    }
                     sessionStorage.removeItem('mvmnt_import_scene_payload');
                 }
             } else if (state.template) {
@@ -139,29 +172,29 @@ const TemplateInitializer: React.FC = () => {
                 sceneBuilder.clearElements();
                 switch (tpl) {
                     case 'blank':
-                        sceneBuilder.resetSceneSettings();
+                        sceneBuilder.resetSceneSettings?.();
                         break;
                     case 'default':
-                        sceneBuilder.createDefaultMIDIScene();
+                        sceneBuilder.createDefaultMIDIScene?.();
                         break;
                     case 'debug':
                         if (sceneBuilder.createAllElementsDebugScene) sceneBuilder.createAllElementsDebugScene();
-                        else sceneBuilder.createDebugScene();
+                        else sceneBuilder.createDebugScene?.();
                         break;
                     default:
-                        sceneBuilder.createDefaultMIDIScene();
+                        sceneBuilder.createDefaultMIDIScene?.();
                 }
+                refreshSceneUI();
                 didChange = true;
             }
             if (didChange) {
                 visualizer.invalidateRender?.();
-                // Clean navigation state so refreshing doesn't reapply
                 navigate('/workspace', { replace: true });
             }
         } catch (e) {
             console.error('Template initialization error', e);
         }
-    }, [visualizer, location.state, navigate]);
+    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
     return null;
 };
 

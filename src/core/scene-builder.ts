@@ -213,7 +213,13 @@ export class HybridSceneBuilder {
         return this.elements.filter((e) => (e as any).type === type);
     }
     createDebugScene() {
+        // Build the base scene first
         this.createDefaultMIDIScene();
+        // Remove the noteAnimation macro for the debug scene (user request)
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
+        // Add debug overlay element
         this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
     }
     /**
@@ -225,6 +231,11 @@ export class HybridSceneBuilder {
         this.clearElements();
         this.resetSceneSettings();
         this._createDefaultMacros();
+        // Remove the noteAnimation macro entirely in the all-elements debug scene
+        // so that animationType properties remain constant (macro binding not desired here).
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
         const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
         const usedIds = new Set<string>();
         const ensureId = (base: string) => {
@@ -262,20 +273,16 @@ export class HybridSceneBuilder {
                     offsetY,
                 });
                 if (el?.bindToMacro) {
-                    // Bind track-like property
+                    // Bind ALL track-like properties (previously only first). User request: map midiTrack macro
+                    // to all MIDI file/track sources present on the element.
                     for (const cand of trackPropCandidates) {
                         if (cand in el) {
                             try {
                                 el.bindToMacro(cand, 'midiTrack');
                             } catch {}
-                            break;
                         }
                     }
-                    if ('animationType' in el) {
-                        try {
-                            el.bindToMacro('animationType', 'noteAnimation');
-                        } catch {}
-                    }
+                    // Do NOT bind animationType in debug scene (noteAnimation macro removed)
                 }
                 index++;
             } catch (e) {
