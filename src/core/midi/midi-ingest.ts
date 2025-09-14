@@ -1,33 +1,37 @@
 import type { MIDIData } from '@core/types';
 import type { NoteRaw, TempoMapEntry } from '@state/timelineTypes';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 export function buildNotesFromMIDI(midiData: MIDIData): {
     midiData: MIDIData;
     notesRaw: NoteRaw[];
-    ticksPerQuarter: number;
+    ticksPerQuarter: number; // always CANONICAL_PPQ after normalization
     tempoMap?: TempoMapEntry[];
 } {
+    const sourceTPQ = midiData.ticksPerQuarter || CANONICAL_PPQ;
+    const scale = sourceTPQ === CANONICAL_PPQ ? 1 : CANONICAL_PPQ / sourceTPQ;
     const notes: NoteRaw[] = [];
-    // Track active note-on events keyed by note+channel storing tick position.
-    const noteOnMap = new Map<string, { note: number; channel: number; startTick: number; velocity?: number }>();
+    // Track active note-on events keyed by note+channel storing canonical start tick.
+    const noteOnMap = new Map<string, { note: number; channel: number; startTickSrc: number; velocity?: number }>();
     for (const ev of midiData.events) {
         if (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0) {
             const key = `${ev.note}_${ev.channel || 0}`;
             noteOnMap.set(key, {
                 note: ev.note!,
                 channel: ev.channel || 0,
-                startTick: ev.tick ?? 0,
+                startTickSrc: ev.tick ?? 0,
                 velocity: ev.velocity,
             });
         } else if (ev.type === 'noteOff' || (ev.type === 'noteOn' && (ev.velocity ?? 0) === 0)) {
             const key = `${ev.note}_${ev.channel || 0}`;
             const start = noteOnMap.get(key);
             if (start) {
-                const startTick = start.startTick ?? 0;
-                const endTick = ev.tick ?? startTick; // zero-length fallback if missing
-                const tpq = midiData.ticksPerQuarter || 480;
-                const startBeat = startTick / tpq;
-                const endBeat = endTick / tpq;
+                const rawStart = start.startTickSrc ?? 0;
+                const rawEnd = ev.tick ?? rawStart; // zero-length fallback if missing
+                const startTick = Math.round(rawStart * scale);
+                const endTick = Math.round(rawEnd * scale);
+                const startBeat = startTick / CANONICAL_PPQ;
+                const endBeat = endTick / CANONICAL_PPQ;
                 notes.push({
                     note: start.note,
                     channel: start.channel,
@@ -43,14 +47,14 @@ export function buildNotesFromMIDI(midiData: MIDIData): {
             }
         }
     }
-    // Close unmatched noteOns with 1 beat fallback duration (approx) rather than 1 second
+    // Close unmatched noteOns with 1 beat fallback duration (approx)
     for (const start of noteOnMap.values()) {
-        const tpq = midiData.ticksPerQuarter || 480;
-        const startTick = start.startTick ?? 0;
-        const fallbackBeats = 1; // arbitrary 1 beat length; UI can adjust later
-        const durationTicks = Math.round(fallbackBeats * tpq);
+        const rawStart = start.startTickSrc ?? 0;
+        const startTick = Math.round(rawStart * scale);
+        const fallbackBeats = 1;
+        const durationTicks = Math.round(fallbackBeats * CANONICAL_PPQ);
         const endTick = startTick + durationTicks;
-        const startBeat = startTick / tpq;
+        const startBeat = startTick / CANONICAL_PPQ;
         const endBeat = startBeat + fallbackBeats;
         notes.push({
             note: start.note,
@@ -65,11 +69,10 @@ export function buildNotesFromMIDI(midiData: MIDIData): {
         });
     }
 
-    const ticksPerQuarter = midiData.ticksPerQuarter || 480;
     const tempoMap = (midiData as any).tempoMap as { time: number; tempo: number }[] | undefined;
     const tempoMapEntries: TempoMapEntry[] | undefined = tempoMap?.map((t) => ({ time: t.time, tempo: t.tempo }));
 
-    return { midiData, notesRaw: notes, ticksPerQuarter, tempoMap: tempoMapEntries };
+    return { midiData, notesRaw: notes, ticksPerQuarter: CANONICAL_PPQ, tempoMap: tempoMapEntries };
 }
 
 export async function parseAndNormalize(input: File | MIDIData) {

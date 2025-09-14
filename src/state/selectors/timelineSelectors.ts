@@ -1,5 +1,7 @@
 import type { TimelineState, TimelineTrack } from '../timelineStore';
 import { beatsToSeconds as convertBeatsToSeconds } from '@core/timing/tempo-utils';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { offsetTicksToBeats } from '@core/timing/offset-utils';
 
 // Helpers: derive seconds offset from beats if needed using timeline context
 const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
@@ -18,8 +20,8 @@ const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
 };
 
 const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
-    const tpq = s.midiCache?.[t.midiSourceId || t.id]?.ticksPerQuarter || 480;
-    const beats = (t.offsetTicks || 0) / tpq;
+    // All offsets are already canonical; just convert via canonical PPQ
+    const beats = offsetTicksToBeats(t.offsetTicks || 0); // (offsetTicks / CANONICAL_PPQ)
     return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
 };
 
@@ -78,7 +80,7 @@ export const selectNotesInWindow = (
         const cacheKey = track.midiSourceId ?? tid;
         const cache = s.midiCache[cacheKey];
         if (!cache) continue;
-        const tpq = cache.ticksPerQuarter || 480;
+        const tpq = CANONICAL_PPQ; // normalized
         const offsetSec = getEffectiveOffsetSec(s, track);
         const regionStartTick = track.regionStartTick ?? 0;
         const regionEndTick = track.regionEndTick ?? Number.POSITIVE_INFINITY;
@@ -86,14 +88,14 @@ export const selectNotesInWindow = (
         const localStartSec = Math.max(0, startSec - offsetSec);
         const localEndSec = Math.max(0, endSec - offsetSec);
         for (const n of cache.notesRaw) {
-            const startBeat = n.startBeat !== undefined ? n.startBeat : n.startTick / tpq;
-            const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / tpq;
+            const startBeat = n.startBeat !== undefined ? n.startBeat : n.startTick / CANONICAL_PPQ;
+            const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / CANONICAL_PPQ;
             // Region clipping in tick space
             if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
             const clippedStartTick = Math.max(n.startTick, regionStartTick);
             const clippedEndTick = Math.min(n.endTick, regionEndTick);
-            const clippedStartBeat = clippedStartTick / tpq;
-            const clippedEndBeat = clippedEndTick / tpq;
+            const clippedStartBeat = clippedStartTick / CANONICAL_PPQ;
+            const clippedEndBeat = clippedEndTick / CANONICAL_PPQ;
             const noteStartSec = convertBeatsToSeconds(s.timeline.masterTempoMap, startBeat, spbFallback);
             const noteEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, endBeat, spbFallback);
             const localStart = noteStartSec;

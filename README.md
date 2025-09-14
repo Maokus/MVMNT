@@ -119,3 +119,28 @@ New regression tests:
 -   Updated `timelineStore.behavior.test.ts` now seeds and asserts in tick domain (seconds only derived).
 
 Rationale: Multiple unsynced `TimingManager` instances previously caused tempo changes not to propagate to the active playback clock, and increased complexity in tick↔seconds mirroring. Consolidation eliminates these race conditions and surfaces a single source of truth for musical time.
+
+### 2025-09 Canonical Tick Normalization (Offset Scaling Fix)
+
+Root Cause (fixed): Track offsets and note timing were sometimes mixed between a source MIDI PPQ (e.g. 96 or 240) and an assumed canonical PPQ (480). Offsets authored in canonical tick space were later divided by the original file's lower PPQ, inflating effective beats (e.g. 1 bar -> 5 bars when 480/96).
+
+Implementation Changes:
+
+-   All MIDI ingestion now normalizes note `startTick/endTick` into the canonical domain (`CANONICAL_PPQ = 480`) on load (`buildNotesFromMIDI`).
+-   Cached `ticksPerQuarter` for every ingested track is forced to `CANONICAL_PPQ`; the original PPQ is no longer used for runtime math (only implicitly in scaling during ingestion).
+-   Added `offset-utils.ts` helpers: `offsetTicksToBeats`, `beatsToOffsetTicks`, `offsetTicksToSeconds` for consistent conversions.
+-   Selectors (`timelineSelectors`) now derive offsets strictly via canonical PPQ (removed per-track TPQ divisions).
+-   A migration guard in the store subscription rescales any legacy `midiCache` entries whose `ticksPerQuarter` differs from the canonical value (dev warning emitted once per entry).
+-   New regression tests: `midiIngest.normalization.test.ts` validates normalization for PPQ 96/240/480 and correct 1-bar offset shift (2s at 120 BPM).
+
+Developer Guidance:
+
+1. Never divide by a track-local PPQ; use `CANONICAL_PPQ` or helpers.
+2. When creating synthetic notes in tests or tooling, directly author ticks in canonical space (beats \* 480).
+3. If a future requirement demands variable PPQ, perform a single normalization step immediately after parsing and keep the rest of the pipeline canonical.
+
+Benefits:
+
+-   Eliminates bar-length inflation / shrinkage when mixing MIDI files with different PPQs.
+-   Simplifies selector logic & memoization keys (no per-track PPQ dependency churn).
+-   Ensures offsets, loop ranges, and content bounds operate in a single stable tick domain.

@@ -802,6 +802,39 @@ export const useTimelineStore = create<TimelineState>(storeImpl);
 // This mutates the state object on subscribe access; components relying on seconds can continue until refactored.
 useTimelineStore.subscribe((s) => {
     const anyState: any = s as any;
+    // Migration: ensure all midiCache entries are normalized to CANONICAL_PPQ
+    if (anyState.midiCache) {
+        for (const key of Object.keys(anyState.midiCache)) {
+            const entry = anyState.midiCache[key];
+            if (entry && entry.ticksPerQuarter && entry.ticksPerQuarter !== CANONICAL_PPQ) {
+                const scale = CANONICAL_PPQ / entry.ticksPerQuarter;
+                if (process.env.NODE_ENV !== 'production') {
+                    try {
+                        console.warn(
+                            `[timelineStore][migration] Normalizing midiCache entry ${key} from PPQ ${entry.ticksPerQuarter} to ${CANONICAL_PPQ}.`
+                        );
+                    } catch {}
+                }
+                entry.notesRaw = entry.notesRaw.map((n: any) => {
+                    const startTick = Math.round(n.startTick * scale);
+                    const endTick = Math.round(n.endTick * scale);
+                    const durationTicks = Math.max(0, endTick - startTick);
+                    const startBeat = startTick / CANONICAL_PPQ;
+                    const endBeat = endTick / CANONICAL_PPQ;
+                    return {
+                        ...n,
+                        startTick,
+                        endTick,
+                        durationTicks,
+                        startBeat,
+                        endBeat,
+                        durationBeats: endBeat - startBeat,
+                    };
+                });
+                entry.ticksPerQuarter = CANONICAL_PPQ;
+            }
+        }
+    }
     // currentTimeSec derived
     if (anyState.timeline) {
         // If test or external code manually injected currentTimeSec without adjusting tick, infer tick from seconds once.
