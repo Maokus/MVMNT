@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimelineStore, getSharedTimingManager } from '../timelineStore';
+import { beatsToSeconds } from '@core/timing/tempo-utils';
 
 // Simple manual clock advancement simulation helper
 function advanceTickManually(ticks: number) {
@@ -20,13 +21,19 @@ describe('tick-domain transport behaviors', () => {
 
     it('BPM change affects expected tick->seconds ratio (derived seconds shrink/grow)', () => {
         const tm = getSharedTimingManager();
-        const s = useTimelineStore.getState();
-        s.setCurrentTick(0, 'user');
-        s.play();
-        advanceTickManually(480); // 480 ticks at 120bpm (assuming 480 tpq) => 1 beat? Actually depends on ticksPerQuarter.
-        const secAt120 = useTimelineStore.getState().timeline.currentTimeSec!;
-        s.setGlobalBpm(240); // double tempo => seconds representation should roughly halve for same beats worth of ticks
-        const secAfterTempo = useTimelineStore.getState().timeline.currentTimeSec!;
-        expect(secAfterTempo).toBeLessThan(secAt120 + 1e-6); // faster tempo => less seconds elapsed for same tick position
+        const api = useTimelineStore.getState();
+        api.setCurrentTick(0, 'user');
+        api.play();
+        const oneBeatTicks = tm.ticksPerQuarter; // 1 beat
+        advanceTickManually(8 * oneBeatTicks); // 8 beats
+        const beatsPos = useTimelineStore.getState().timeline.currentTick / tm.ticksPerQuarter;
+        const secAt120 = beatsToSeconds(api.timeline.masterTempoMap, beatsPos, 60 / api.timeline.globalBpm);
+        api.setGlobalBpm(240); // faster tempo halves seconds per beat
+        const secAt240 = beatsToSeconds(
+            api.timeline.masterTempoMap,
+            beatsPos,
+            60 / useTimelineStore.getState().timeline.globalBpm
+        );
+        expect(secAt240).toBeLessThan(secAt120 - 1e-9);
     });
 });

@@ -39,10 +39,7 @@ describe('timelineStore behavior', () => {
         expect(s2.timeline.currentTick).toBe(originalTick);
         expect(s2.timelineView.startTick).toBe(100);
         expect(s2.timelineView.endTick).toBe(1000);
-        // Derived seconds remain stable
-        const secBefore = s1.timeline.currentTimeSec;
-        const secAfter = s2.timeline.currentTimeSec;
-        expect(secAfter).toBeCloseTo(secBefore!, 6);
+        // No direct seconds field; stability implied by unchanged tick
     });
 
     it('toggling loop does not change the timelineView window (ticks)', () => {

@@ -19,6 +19,9 @@ export const useCurrentSeconds = () =>
     });
 
 // Backwards compatibility (will be removed in cleanup)
+/**
+ * @deprecated Derived seconds hook retained for UI convenience. Prefer tick domain selectors.
+ */
 export const useCurrentTimeSeconds = useCurrentSeconds;
 
 export const useLoopRangeSeconds = () =>
@@ -55,6 +58,9 @@ export const useTimelineViewSeconds = () =>
         return { start: toSec(startTick), end: toSec(endTick) };
     });
 
+/**
+ * @deprecated Derived seconds hook retained for gradual migration. Use tick offset + conversion instead.
+ */
 export const useTrackOffsetSeconds = (trackId: string) =>
     useTimelineStore((s) => {
         const tr = s.tracks[trackId];

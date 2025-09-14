@@ -25,12 +25,16 @@ const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
     return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
 };
 
+// getTrackOffsetBeats retained for convenience; canonical source is offsetTicks.
 export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
     return offsetTicksToBeats(t.offsetTicks || 0);
 };
 
+/**
+ * @deprecated Seconds-based accessor slated for removal after UI fully migrates to ticks.
+ */
 export const getTrackOffsetSeconds = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;

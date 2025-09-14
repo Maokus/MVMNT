@@ -17,13 +17,7 @@ describe('playheadAuthority precedence', () => {
         expect(after.timeline.playheadAuthority).toBe('user');
     });
 
-    it('seconds write recalculates tick but sets authority seconds', () => {
-        const api = useTimelineStore.getState();
-        api.setCurrentTimeSec(10, 'seconds');
-        const s = useTimelineStore.getState();
-        expect(s.timeline.playheadAuthority).toBe('seconds');
-        expect(typeof s.timeline.currentTick).toBe('number');
-    });
+    // Removed legacy seconds authority path; seconds are derived only. Test retained authorities (user, clock).
 
     it('clock advance overrides user authority', () => {
         const api = useTimelineStore.getState();
