@@ -25,7 +25,7 @@ describe('tick-domain transport behaviors', () => {
         advanceTickManually(240); // simulate some frames
         s.pause();
         const pausedTick = useTimelineStore.getState().timeline.currentTick;
-        advanceTickManually(480); // should be ignored logically while paused (we do not call play())
+        advanceTickManually(480); // clock-authority writes while paused are now ignored by store guard
         const after = useTimelineStore.getState().timeline.currentTick;
         // Since we directly set ticks with authority 'clock', this test ensures no unintended side-effect resets
         expect(after).toBe(pausedTick);

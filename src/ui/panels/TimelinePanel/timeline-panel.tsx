@@ -12,6 +12,7 @@ import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
+import { sharedTimingManager } from '@state/timelineStore';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -228,7 +229,6 @@ const TimeIndicator: React.FC = () => {
     const bpm = useTimelineStore((s) => s.timeline.globalBpm);
     // Use TimingManager for canonical ticksPerQuarter instead of hard-coded constant (was 960 vs core 480 mismatch)
     // Use shared timing manager (singleton) for consistent tick domain
-    const { sharedTimingManager } = require('@state/timelineStore');
     const ticksPerQuarter = sharedTimingManager.ticksPerQuarter;
     // Derive beats/seconds from tick
     const beatsFloat = currentTick / ticksPerQuarter;
