@@ -8,6 +8,7 @@ import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
 // Removed legacy seconds selectors for Phase 5 core display. Seconds shown are derived from tick on the fly.
 import { formatTickAsBBT } from '@core/timing/time-domain';
+import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
 
@@ -225,7 +226,8 @@ const TimeIndicator: React.FC = () => {
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
     const tempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
     const bpm = useTimelineStore((s) => s.timeline.globalBpm);
-    const ticksPerQuarter = 960; // TODO: central constant
+    // Use TimingManager for canonical ticksPerQuarter instead of hard-coded constant (was 960 vs core 480 mismatch)
+    const ticksPerQuarter = new TimingManager().ticksPerQuarter;
     // Derive beats/seconds from tick
     const beatsFloat = currentTick / ticksPerQuarter;
     const barsFloat = beatsFloat / (beatsPerBar || 4);

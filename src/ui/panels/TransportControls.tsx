@@ -12,7 +12,6 @@ const TransportControls: React.FC = () => {
     const seekTick = useTimelineStore((s) => s.seekTick);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const TICKS_PER_QUARTER = 960; // constant for now; unify later
     const startTick = playbackRange?.startTick ?? view.startTick;
 
     return (

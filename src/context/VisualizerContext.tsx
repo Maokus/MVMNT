@@ -140,10 +140,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
 
     // Animation / time update loop — Phase 3: drive tick-domain playhead. We still mirror seconds for legacy UI until Phase 4 purge.
+    // NOTE (2025-09): Updated paused-state sync so manual tick scrubs (ruler drag while paused) immediately seek the
+    // visualizer instead of being reverted by the seconds->tick mirror. We track the last applied tick to detect user driven changes.
     useEffect(() => {
         if (!visualizer) return;
         let raf: number;
         let lastUIUpdate = 0;
+        const lastAppliedTickRef = { current: useTimelineStore.getState().timeline.currentTick };
         // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
         // We approximate current tick from existing store on mount.
         const tm = new TimingManager(); // NOTE: Later phases may share instance; safe placeholder.
@@ -168,7 +171,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                         visualizer.pause?.();
                         const startTick = pr.startTick ?? 0;
                         clock.setTick(startTick);
-                        st.setCurrentTick(startTick);
+                        st.setCurrentTick(startTick, 'clock');
                         return; // stop advancing this frame; next RAF will resume idle updates
                     }
                 }
@@ -186,27 +189,64 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const tmLocal = new TimingManager();
                     const tickVal = Math.round(beats * tmLocal.ticksPerQuarter);
                     clock.setTick(tickVal);
-                    state.setCurrentTick(tickVal); // dual-write updates seconds
+                    state.setCurrentTick(tickVal, 'clock'); // dual-write updates seconds
                 }
             }
             // Advance clock only when transport playing; rely on visualizer.isPlaying flag indirectly
             if (state.transport.isPlaying) {
+                // Detect manual seek while playing (store tick differs from clock authority) and realign clock & visualizer.
+                const storeTick = state.timeline.currentTick ?? 0;
+                if (storeTick !== clock.currentTick) {
+                    try {
+                        clock.setTick(storeTick);
+                        const tmConv = new TimingManager();
+                        tmConv.setBPM(state.timeline.globalBpm || 120);
+                        const secFromTick = tmConv.beatsToSeconds(storeTick / tmConv.ticksPerQuarter);
+                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.02) {
+                            visualizer.seek?.(secFromTick);
+                        }
+                        lastAppliedTickRef.current = storeTick;
+                    } catch { /* ignore */ }
+                }
                 const nextTick = clock.update(performance.now());
-                if (nextTick !== state.timeline.currentTick) {
-                    state.setCurrentTick(nextTick); // store converts to seconds for legacy selectors
+                if (nextTick !== storeTick) {
+                    state.setCurrentTick(nextTick, 'clock'); // propagate forward only; seconds derive later
+                    lastAppliedTickRef.current = nextTick;
                 }
             } else {
-                // If paused, keep clock in sync with any explicit seeks (seconds->tick derive once)
-                const sNow = state.timeline.currentTimeSec;
-                const sTick = state.timeline.currentTick ?? 0;
-                // If visualizer time diverges (e.g., external seek) sync tick
-                if (Math.abs(sNow - vNow) > 0.002) {
-                    state.setCurrentTimeSec(vNow);
-                } else if (state.timeline.currentTick == null) {
-                    state.setCurrentTimeSec(vNow);
+                // Paused state synchronization strategy:
+                // 1. If the user has manually scrubbed the tick (tick changed since last frame), push that change to the visualizer.
+                // 2. Else, if only the visualizer time moved (external seek), mirror seconds -> tick.
+                const currentTickVal = state.timeline.currentTick ?? 0;
+                const tickChanged = currentTickVal !== lastAppliedTickRef.current;
+                if (tickChanged) {
+                    // Convert tick -> seconds and seek visualizer
+                    try {
+                        const tmConv = new TimingManager();
+                        tmConv.setBPM(state.timeline.globalBpm || 120);
+                        const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
+                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) {
+                            visualizer.seek?.(secFromTick);
+                        }
+                        // Ensure store seconds reflect tick precisely (avoids tiny drift triggering revert loop)
+                        const curSec = state.timeline.currentTimeSec;
+                        if (Math.abs((curSec ?? 0) - secFromTick) > 0.0005) {
+                            state.setCurrentTimeSec(secFromTick, 'tick');
+                        }
+                    } catch { /* ignore */ }
+                    clock.setTick(currentTickVal);
+                    lastAppliedTickRef.current = currentTickVal;
                 } else {
-                    // keep clock aligned with current tick
-                    clock.setTick(sTick);
+                    // No manual tick change: treat visualizer as source of truth if diverged materially
+                    const sNow = state.timeline.currentTimeSec;
+                    if (Math.abs((sNow ?? 0) - vNow) > 0.01) {
+                        state.setCurrentTimeSec(vNow, 'seconds');
+                        clock.setTick(state.timeline.currentTick ?? currentTickVal);
+                        lastAppliedTickRef.current = state.timeline.currentTick ?? currentTickVal;
+                    } else {
+                        // keep playback clock aligned without altering store
+                        clock.setTick(currentTickVal);
+                    }
                 }
             }
 
@@ -216,7 +256,12 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
                 // Display time relative to the current playback window start to match manual start/end UX
                 let rel = vNow;
-                try { const view = useTimelineStore.getState().timelineView; rel = vNow - (view?.startSec ?? 0); } catch { }
+                try {
+                    const view = useTimelineStore.getState().timelineView as any;
+                    // startSec is injected by subscribe shim; use fallback when absent
+                    const startSec = typeof view.startSec === 'number' ? view.startSec : 0;
+                    rel = vNow - startSec;
+                } catch { /* ignore */ }
                 const format = (s: number) => {
                     const sign = s < 0 ? '-' : '';
                     const abs = Math.abs(s);
@@ -330,7 +375,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const vTime = visualizer.currentTime || 0;
         // Only push from store to visualizer on explicit scrubs (big changes),
         // small drift is handled by the mirroring loop above.
-        if (Math.abs(vTime - tCurrent) > 0.05) {
+        if (typeof tCurrent === 'number' && Math.abs(vTime - tCurrent) > 0.05) {
             visualizer.seek?.(tCurrent);
         }
     }, [visualizer, tCurrent]);

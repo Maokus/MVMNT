@@ -66,6 +66,7 @@ export type TimelineState = {
         currentTimeSec?: number;
         globalBpm: number; // fallback bpm for conversions when map is empty
         beatsPerBar: number; // global meter (constant for now)
+        playheadAuthority?: 'tick' | 'seconds' | 'clock' | 'user'; // last domain that authored the playhead
     };
     tracks: Record<string, TimelineTrack>;
     tracksOrder: string[];
@@ -110,9 +111,9 @@ export type TimelineState = {
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
-    setCurrentTick: (tick: number) => void; // Phase 2 dual-write API
+    setCurrentTick: (tick: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void; // Phase 2 dual-write API
     // Legacy shim
-    setCurrentTimeSec: (t: number) => void;
+    setCurrentTimeSec: (t: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void;
     play: () => void;
     pause: () => void;
     togglePlay: () => void;
@@ -228,7 +229,14 @@ function _ticksToBeats(ticks: number): number {
 }
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
-    timeline: { id: 'tl_1', name: 'Main Timeline', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
+    timeline: {
+        id: 'tl_1',
+        name: 'Main Timeline',
+        currentTick: 0,
+        globalBpm: 120,
+        beatsPerBar: 4,
+        playheadAuthority: 'tick',
+    },
     tracks: {},
     tracksOrder: [],
     transport: {
@@ -454,10 +462,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ timeline: { ...s.timeline, beatsPerBar: v } }));
     },
 
-    setCurrentTick(tick: number) {
+    setCurrentTick(tick: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'tick') {
         set((s: TimelineState) => {
             let nextTick = Math.max(0, tick);
-            // Loop wrap (no quantize on wrap) if enabled and beyond end
             if (
                 s.transport.loopEnabled &&
                 typeof s.transport.loopStartTick === 'number' &&
@@ -467,20 +474,28 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     nextTick = s.transport.loopStartTick;
                 }
             }
-            return { timeline: { ...s.timeline, currentTick: nextTick } } as TimelineState;
+            return {
+                timeline: { ...s.timeline, currentTick: nextTick, playheadAuthority: authority },
+            } as TimelineState;
         });
     },
     // Legacy seconds-based setter (quantize & looping will be handled outside; this just sets)
-    setCurrentTimeSec(t: number) {
+    setCurrentTimeSec(t: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'seconds') {
         const s = get();
         const spb = 60 / (s.timeline.globalBpm || 120);
         const beats = secondsToBeats(s.timeline.masterTempoMap, t, spb);
         const tickVal = _beatsToTicks(beats);
-        // Direct state mutation to survive test setState overrides
-        set((prev: TimelineState) => ({
-            timeline: { ...prev.timeline, currentTick: tickVal, currentTimeSec: t },
-        }));
-        // Apply loop wrap if needed after setting
+        set(
+            (prev: TimelineState) =>
+                ({
+                    timeline: {
+                        ...prev.timeline,
+                        currentTick: tickVal,
+                        currentTimeSec: t,
+                        playheadAuthority: authority,
+                    },
+                } as TimelineState)
+        );
         set((s2: TimelineState) => {
             if (
                 s2.transport.loopEnabled &&
@@ -492,7 +507,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 const spb2 = 60 / (s2.timeline.globalBpm || 120);
                 const loopStartSec = beatsToSeconds(s2.timeline.masterTempoMap, startBeats, spb2);
                 return {
-                    timeline: { ...s2.timeline, currentTick: s2.transport.loopStartTick, currentTimeSec: loopStartSec },
+                    timeline: {
+                        ...s2.timeline,
+                        currentTick: s2.transport.loopStartTick,
+                        currentTimeSec: loopStartSec,
+                        playheadAuthority: authority,
+                    },
                 } as TimelineState;
             }
             return s2;
@@ -529,12 +549,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     seekTick(tick: number) {
         set((s: TimelineState) => ({
-            timeline: { ...s.timeline, currentTick: Math.max(0, tick) },
+            timeline: { ...s.timeline, currentTick: Math.max(0, tick), playheadAuthority: 'user' },
             transport: { ...s.transport, state: 'seeking' },
         }));
     },
     scrubTick(tick: number) {
-        get().setCurrentTick(tick);
+        get().setCurrentTick(tick, 'user');
     },
     // Legacy seconds seek (with bar quantize if enabled)
     seek(sec: number) {
@@ -555,7 +575,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
     scrub(sec: number) {
-        get().setCurrentTimeSec(sec);
+        get().setCurrentTimeSec(sec, 'user');
     },
 
     setRate(rate: number) {
@@ -713,16 +733,24 @@ useTimelineStore.subscribe((s) => {
     const anyState: any = s as any;
     // currentTimeSec derived
     if (anyState.timeline && typeof anyState.timeline.currentTick === 'number') {
+        const authority: string | undefined = anyState.timeline.playheadAuthority;
         const spb = 60 / (anyState.timeline.globalBpm || 120);
         const map = anyState.timeline.masterTempoMap;
         const existingSec = anyState.timeline.currentTimeSec;
         const derivedSec = beatsToSeconds(map, anyState.timeline.currentTick / _tmSingleton.ticksPerQuarter, spb);
-        // If external code set currentTimeSec (e.g., tests) without adjusting tick, prefer that and back-compute tick once.
-        if (typeof existingSec === 'number' && Math.abs(existingSec - derivedSec) > 1e-9) {
-            const beats = secondsToBeats(map, existingSec, spb);
-            anyState.timeline.currentTick = Math.round(_beatsToTicks(beats));
+        if (authority === 'seconds') {
+            // Seconds was authoritative: ensure tick matches existingSec
+            if (typeof existingSec === 'number') {
+                const beats = secondsToBeats(map, existingSec, spb);
+                anyState.timeline.currentTick = Math.round(_beatsToTicks(beats));
+            } else {
+                anyState.timeline.currentTimeSec = derivedSec;
+            }
         } else {
-            anyState.timeline.currentTimeSec = derivedSec;
+            // Tick / clock / user authoritative: only update seconds if drifted
+            if (Math.abs((existingSec ?? 0) - derivedSec) > 1e-9) {
+                anyState.timeline.currentTimeSec = derivedSec;
+            }
         }
     }
     // timelineView seconds
