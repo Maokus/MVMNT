@@ -1,39 +1,57 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimelineStore } from '../timelineStore';
+import { getSharedTimingManager } from '../timelineStore';
 
 describe('timelineStore behavior', () => {
     beforeEach(() => {
-        // Reset only the fields we touch to a known baseline
+        // Canonical tick domain seeding: choose a tick corresponding to 12s at 120bpm (0.5s per beat) => 24 beats.
+        const tm = getSharedTimingManager();
+        tm.setBPM(120); // ensure expected mapping
+        const beats = 24; // 12 seconds * (120 bpm / 60) = 24 beats
+        const currentTick = Math.round(beats * tm.ticksPerQuarter);
+        // Loop seconds (2-5s) become ticks as well; ensure store derives seconds via subscribe shim
+        const loopStartBeats = 2 * (120 / 60); // 2s => 4 beats
+        const loopEndBeats = 5 * (120 / 60); // 5s => 10 beats
+        const loopStartTick = Math.round(loopStartBeats * tm.ticksPerQuarter);
+        const loopEndTick = Math.round(loopEndBeats * tm.ticksPerQuarter);
         useTimelineStore.setState({
-            timeline: { ...useTimelineStore.getState().timeline, currentTimeSec: 12 },
+            timeline: { ...useTimelineStore.getState().timeline, currentTick },
             transport: {
                 ...useTimelineStore.getState().transport,
                 loopEnabled: false,
-                loopStartSec: 2,
-                loopEndSec: 5,
+                loopStartTick,
+                loopEndTick,
             },
-            timelineView: { startSec: 0, endSec: 60 },
+            // Seed view in ticks for ~60s span: 60s => 120 beats => ticks
+            timelineView: {
+                startTick: 0,
+                endTick: Math.round(120 * tm.ticksPerQuarter),
+            },
             rowHeight: 30,
         });
     });
 
-    it('setTimelineView does not change currentTimeSec (panH should not scrub)', () => {
+    it('setTimelineViewTicks does not change currentTick (panning should not scrub)', () => {
         const s1 = useTimelineStore.getState();
-        expect(s1.timeline.currentTimeSec).toBe(12);
-        s1.setTimelineView(5, 15);
+        const originalTick = s1.timeline.currentTick;
+        s1.setTimelineViewTicks(100, 1000);
         const s2 = useTimelineStore.getState();
-        expect(s2.timeline.currentTimeSec).toBe(12);
-        expect(s2.timelineView.startSec).toBeCloseTo(5, 6);
-        expect(s2.timelineView.endSec).toBeCloseTo(15, 6);
+        expect(s2.timeline.currentTick).toBe(originalTick);
+        expect(s2.timelineView.startTick).toBe(100);
+        expect(s2.timelineView.endTick).toBe(1000);
+        // Derived seconds remain stable
+        const secBefore = s1.timeline.currentTimeSec;
+        const secAfter = s2.timeline.currentTimeSec;
+        expect(secAfter).toBeCloseTo(secBefore!, 6);
     });
 
-    it('toggling loop does not change the timelineView window', () => {
+    it('toggling loop does not change the timelineView window (ticks)', () => {
         const s = useTimelineStore.getState();
         const before = { ...s.timelineView };
         s.toggleLoop();
         const after = useTimelineStore.getState().timelineView;
-        expect(after.startSec).toBeCloseTo(before.startSec, 6);
-        expect(after.endSec).toBeCloseTo(before.endSec, 6);
+        expect(after.startTick).toBe(before.startTick);
+        expect(after.endTick).toBe(before.endTick);
     });
 
     it('setRowHeight clamps between 16 and 160 px', () => {

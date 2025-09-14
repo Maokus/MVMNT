@@ -6,6 +6,7 @@
 // when needed for legacy UI code. After the purge, seconds will be strictly derived through selectors.
 
 import { TimingManager } from '@core/timing';
+import { getSharedTimingManager } from '@state/timelineStore';
 
 export interface PlaybackClockConfig {
     timingManager: TimingManager; // shared timing manager (provides tempo / tempo map / PPQ)
@@ -80,4 +81,9 @@ export class PlaybackClock {
         this._lastWallTimeMs = nowMs ?? null;
         this._fractionalTicks = 0;
     }
+}
+
+// Convenience factory ensuring all callers share the global TimingManager instance.
+export function createSharedPlaybackClock(initialTick: number = 0, rate: number = 1) {
+    return new PlaybackClock({ timingManager: getSharedTimingManager(), initialTick, rate });
 }

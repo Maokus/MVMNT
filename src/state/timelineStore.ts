@@ -223,7 +223,12 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
 }
 
 // Shared singleton timing manager (Phase 2): we assume constant PPQ here; later phases may make PPQ configurable.
+// Exported so that all runtime systems (VisualizerContext, PlaybackClock, UI rulers, selectors) share tempo state.
 const _tmSingleton = new TimingManager();
+export function getSharedTimingManager() {
+    return _tmSingleton;
+}
+export { _tmSingleton as sharedTimingManager }; // named export for direct import convenience
 function _beatsToTicks(beats: number): number {
     return Math.round(beats * _tmSingleton.ticksPerQuarter);
 }
@@ -418,6 +423,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => {
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, masterTempoMap: map };
+            // Propagate tempo map to shared timing manager for immediate effect in playback clock & UI
+            try {
+                _tmSingleton.setTempoMap(map, 'seconds');
+            } catch {
+                /* noop */
+            }
             const spbFallback = 60 / (next.timeline.globalBpm || 120);
             for (const key of Object.keys(next.midiCache)) {
                 const cache = next.midiCache[key];
@@ -442,6 +453,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const hadMap = (s.timeline.masterTempoMap?.length || 0) > 0;
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, globalBpm: v };
+            // Propagate BPM to shared timing manager so playback rate updates immediately
+            try {
+                _tmSingleton.setBPM(v);
+            } catch {
+                /* ignore */
+            }
+            // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
             if (!hadMap) {
                 const spbFallback = 60 / v;
                 for (const key of Object.keys(next.midiCache)) {
@@ -541,6 +559,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     const beats = curTick / _tmSingleton.ticksPerQuarter;
                     const spb = 60 / (s.timeline.globalBpm || 120);
                     curSec = beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
+                    // Notify runtime (VisualizerContext) to align playback clock
+                    try {
+                        window.dispatchEvent(new CustomEvent('timeline-play-snapped', { detail: { tick: curTick } }));
+                    } catch {
+                        /* ignore */
+                    }
                 }
             }
             return {

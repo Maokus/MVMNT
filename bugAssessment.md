@@ -29,22 +29,25 @@ You observed:
 
 ### At least 5 Concrete Reasons (Code-Referenced):
 
-Reason A: PlaybackClock not integrated with transport pause/resume
+Reason A: PlaybackClock continues updating during pause due to animation loop logic
 
--   `PlaybackClock` maintains `_lastWallTimeMs`; calling `pause()` in `timelineStore` only flips `transport.isPlaying`—there is no central orchestration that resets or freezes the clock instance. If a render/update loop continues calling `clock.update(performance.now())` while `isPlaying` is false, ticks will still accrue internally. When play resumes and you propagate its tick, you see a jump equal to wall time elapsed during pause.
--   Evidence: `pause()` in `timelineStore` (lines ~520-525) merely sets state; `PlaybackClock` has no pause API; its `update()` integrates based on `nowMs - _lastWallTimeMs`.
+-   **CORRECTION**: The `PlaybackClock` itself does NOT have a pause API, but the animation loop in `VisualizerContext.tsx` (lines ~180-220) correctly guards clock updates with `if (state.transport.isPlaying)`. However, the visualizer itself may continue running independently and could cause time drift.
+-   The real issue is that the visualizer (legacy seconds-based) and the tick-based clock can get out of sync during pause/resume cycles, particularly when the visualizer continues its own internal timing.
+-   Evidence: Animation loop checks `state.transport.isPlaying` before calling `clock.update()`, but visualizer synchronization logic may override this in some cases.
 
-Reason B: Missing authoritative tick propagation path binding store <-> PlaybackClock on tempo/BPM updates
+Reason B: Multiple TimingManager instances cause BPM synchronization issues
 
--   `setGlobalBpm` mutates store notes and BPM but does not notify or reconfigure any shared `TimingManager` instance used by a live `PlaybackClock` (the store uses an internal `_tmSingleton` only for conversions, not for clock scheduling).
--   If your playback loop uses a different `TimingManager` instance (e.g., one created when constructing `PlaybackClock`) the BPM change entered via UI (store) won't affect the active clock.
--   Evidence: timelineStore.ts uses `_tmSingleton = new TimingManager()` (line ~186) for conversion helpers only; `setGlobalBpm` (line ~438) does not propagate to that singleton nor export it. `PlaybackClock` is externally constructed with its own `TimingManager` passed in; no observed binding code here ensures they stay in sync.
+-   **CONFIRMED**: The store uses `_tmSingleton = new TimingManager()` (line ~215) for internal conversions, but `VisualizerContext` creates separate `TimingManager` instances (lines ~157, ~194, ~228) for the playback clock and format conversions.
+-   When `setGlobalBpm` updates the store's internal timing manager, it doesn't propagate to the clock's timing manager or other UI instances.
+-   Evidence: `setGlobalBpm` (lines ~438-460) only updates the store's `_tmSingleton` via BPM recalculation for cached notes, but doesn't export or sync the timing manager used by external `PlaybackClock` instances.
 
-Reason C: Dual-domain authority race (seconds shim vs tick updates)
+Reason C: **UPDATED**: Visualizer-Clock synchronization race conditions
 
--   The subscription shim at bottom of timelineStore.ts recalculates `currentTimeSec` from `currentTick` except when `playheadAuthority === 'seconds'`. If external legacy code writes `currentTimeSec` without adjusting authority (or sets authority 'seconds'), later tick writes might be conditionally overwritten or drift.
--   This can produce apparent "jumping" if UI momentarily writes seconds domain (e.g., via a legacy seek function) then playback clock writes a tick update with authority 'clock'; derived seconds update lags one frame, making the time appear to shift unexpectedly.
--   Evidence: Subscription code lines ~720-775 sets derived seconds depending on `playheadAuthority`.
+-   The animation loop has complex bi-directional sync logic between the tick-based clock and the seconds-based visualizer. During paused states, manual scrubs can create race conditions where:
+    -   User scrubs tick → converts to seconds → seeks visualizer
+    -   Visualizer time drifts → converts back to ticks → overrides user's tick
+-   Authority switching between 'tick', 'seconds', 'clock', and 'user' can create inconsistencies, especially in the subscription shim (lines ~720-800) which tries to keep tick/seconds in sync.
+-   Evidence: Lines 220-260 in VisualizerContext show complex paused-state sync logic that tries to detect "who moved" but could misinterpret small timing discrepancies as user actions.
 
 Reason D: Quantize-on-play logic may still snap unexpectedly relative to wall-clock integrated tick
 
@@ -70,15 +73,15 @@ Reason G (extra): Independent TimingManager instances fragment state
 
 ## 3. Validation (Mapping Reasons to Code Evidence)
 
-| Reason | Evidence Snippet / Location                                                                                             | Validation                           |
-| ------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| A      | `pause()` only toggles flags (lines ~520) vs. `PlaybackClock.update()` accumulating dt; no pause integration            | Confirms clock won't inherently stop |
-| B      | `setGlobalBpm` (lines ~438+) updates store only; `_tmSingleton` internal; separate `new TimingManager()` used elsewhere | Confirms desynchronization risk      |
-| C      | Subscription shim (lines ~720-780) with authority branch logic                                                          | Confirms potential race/drift        |
-| D      | `play()` snapping logic (lines ~470-505) lacks clock coordination                                                       | Confirms mismatch on resume possible |
-| E      | Test sets only `currentTimeSec` (behavior test lines 1-20)                                                              | Confirms seconds-centric test        |
-| F      | `setGlobalBpm` lacks playbackRange/loop adjustments                                                                     | Confirms unchanged tick loop window  |
-| G      | UI `TimelinePanel` local `TimingManager` instantiation (lines 240-260)                                                  | Confirms multiple managers pattern   |
+| Reason | Evidence Snippet / Location                                                                                      | Validation                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| A      | Animation loop guards clock updates with `isPlaying` check, but visualizer sync logic can override in some cases | **PARTIALLY CORRECT** - Clock itself is properly guarded |
+| B      | `setGlobalBpm` (lines ~438+) updates store only; multiple `new TimingManager()` instances in VisualizerContext   | **CONFIRMED** - Multiple unsynced instances              |
+| C      | Bi-directional sync logic (lines ~220-260 VisualizerContext) with complex authority switching                    | **CONFIRMED** - Race conditions possible                 |
+| D      | `play()` quantize logic (lines ~500-520) lacks clock coordination                                                | **CONFIRMED** - No clock alignment after snap            |
+| E      | Test sets only `currentTimeSec` (behavior test lines 1-20)                                                       | **CONFIRMED** - Tests are seconds-centric                |
+| F      | `setGlobalBpm` lacks playbackRange/loop adjustments                                                              | **CONFIRMED** - No loop tick recalculation               |
+| G      | Multiple `TimingManager` instantiations throughout VisualizerContext                                             | **CONFIRMED** - Creates fragmented state                 |
 
 All reasons found directly in code; no speculative external dependencies required.
 
@@ -86,42 +89,46 @@ All reasons found directly in code; no speculative external dependencies require
 
 ## 4. Proposed Solutions (Actionable)
 
-### 4.1 Core Architectural Fixes
+### 4.1 Core Architectural Fixes - **REVISED**
 
-1. Single Source of Timing Truth
+1. **Single Source of Timing Truth** ✅ **CRITICAL**
 
-    - Export a singleton (or context-provided) `TimingManager` instance used by:
-        - `PlaybackClock`
-        - `timelineStore` conversion helpers
-        - UI formatting (BBT/time display)
-    - Remove ad hoc instantiations (`new TimingManager()` in UI). Provide a hook or selector that derives formatted values from the store's tick + shared manager.
+    - Export the `_tmSingleton` from timelineStore or create a shared timing service
+    - Replace all `new TimingManager()` instances in VisualizerContext with references to the shared instance
+    - Ensure PlaybackClock uses the same shared TimingManager
+    - **Impact**: This directly addresses Reason B (multiple timing managers) and would immediately fix BPM change propagation issues
 
-2. PlaybackClock Pause/Resume Semantics
+2. **Simplify Visualizer-Clock Synchronization** ✅ **CRITICAL**
 
-    - Add methods: `pause()` capturing freeze state by setting `_lastWallTimeMs = null` so the next `update(now)` yields 0 dt after resume.
-    - Optionally guard `update()` behind an `if (!isPlaying) return currentTick` check in the outer loop rather than inside the clock (cleaner separation).
-    - On `timelineStore.pause()`, call `playbackClock.pause()`; on `play()`, call `playbackClock.resume(now)` (reset last wall time). This stops wall-time accumulation.
+    - The current bi-directional sync logic in VisualizerContext is overly complex and error-prone
+    - Establish clear authority hierarchy: Clock → Store → Visualizer (unidirectional flow)
+    - Remove complex "who moved" detection logic that can misinterpret timing discrepancies
+    - During playback: Clock drives store, store drives visualizer
+    - During pause: User scrubs update store, store updates both clock and visualizer
+    - **Impact**: This addresses Reason C (synchronization race conditions)
 
-3. Central Transport Loop Controller
+3. **Coordinate Clock with Transport State Changes** ✅ **IMPORTANT**
 
-    - Introduce a small module (e.g., `src/core/transport-controller.ts`) that:
-        - Owns the `PlaybackClock`
-        - Subscribes to `timelineStore.transport.isPlaying`
-        - On each animation frame (or worker tick) if playing: `clock.update(now); store.setCurrentTick(clock.currentTick, 'clock')`
-        - Handles loop wrap: when tick > loopEndTick, call `clock.setTick(loopStartTick); store.setCurrentTick(loopStartTick,'clock')`.
-    - Eliminates multiple sources writing ticks (prevents authority conflicts).
+    - When `play()` includes quantization, call `clock.setTick(snappedTick)` to align clock state
+    - Consider adding `clock.reset()` on pause to clear fractional accumulator
+    - **Impact**: Addresses Reason D (quantize alignment issues)
 
-4. Tempo Change Propagation
+4. **Tempo Change Propagation** ✅ **CRITICAL**
 
-    - When `setGlobalBpm` or `setMasterTempoMap` runs:
-        - Update shared `TimingManager` (`timingManager.setBPM()` / `setTempoMap()`).
-        - (Optional) Re-align `PlaybackClock` fractional accumulator: `clock.setTick(store.timeline.currentTick)` to ensure no fractional drift mismatch with new secondsPerBeat.
-    - Provide a store action `syncTimingManager()` used internally after BPM changes.
+    - When `setGlobalBpm` or `setMasterTempoMap` runs, update the shared `TimingManager` immediately
+    - Consider calling `clock.reset()` to clear any tempo-dependent fractional state
+    - **Impact**: Ensures tempo changes take effect immediately (addresses core user complaint)
 
-5. Refine Authority Semantics
-    - Limit accepted values to: 'clock', 'user'.
-    - Remove external writes to seconds (deprecate `setCurrentTimeSec` in tests / UI).
-    - Derive `currentTimeSec` purely from authoritative tick every render; remove 'seconds' authority branch to simplify.
+5. **Authority Semantics Simplification** ✅ **MEDIUM**
+
+    - Reduce authority values to: 'clock' (during playback), 'user' (manual scrubs)
+    - Remove 'seconds' authority to eliminate sync complexity
+    - **Impact**: Reduces authority-related race conditions
+
+6. **Optional Transport Controller** 🔄 **LOW PRIORITY**
+    - The current VisualizerContext animation loop already serves this purpose
+    - Could be refactored for cleaner separation, but not critical for fixing current bugs
+    - **Impact**: Code organization improvement, not bug fix
 
 ### 4.2 Migration of Tests
 
@@ -170,20 +177,31 @@ All reasons found directly in code; no speculative external dependencies require
 
 ---
 
-## 5. Suggested Implementation Steps (Prioritized)
+## 5. **UPDATED** Suggested Implementation Steps (Prioritized by Impact)
 
-1. Introduce shared `timingManagerSingleton` export.
-2. Refactor `timelineStore` conversions to use that instance (remove private `_tmSingleton`).
-3. Create `transport-controller.ts` that wires an animation loop.
-4. Extend `PlaybackClock` with `resume(now)` / `pause()`; integrate with store actions.
-5. Modify `setGlobalBpm` / `setMasterTempoMap` to call timing manager + resync clock.
-6. Simplify authority logic; remove 'seconds' as writer.
-7. Update tests:
-    - Rewrite timelineStore.behavior.test.ts to tick domain.
-    - Add pause freeze test & BPM change effect test.
-8. Deprecate `setCurrentTimeSec` path (warn & convert).
-9. Remove UI's ad hoc `new TimingManager()`; use shared for display.
-10. Add documentation comment + README section on timing domain.
+**PHASE 1 - CRITICAL (High Impact, Immediate Fixes):**
+
+1. **Export shared TimingManager singleton** from timelineStore
+2. **Replace all TimingManager instantiations** in VisualizerContext with shared reference
+3. **Update setGlobalBpm** to call `sharedTimingManager.setBPM()` immediately
+4. **Simplify VisualizerContext sync logic** - establish unidirectional flow (Clock→Store→Visualizer)
+
+**PHASE 2 - IMPORTANT (Medium Impact):** 5. **Add clock alignment** to `play()` method after quantization 6. **Update tests** - migrate timelineStore.behavior.test.ts to use ticks as primary 7. **Deprecate setCurrentTimeSec** path with warnings
+
+**PHASE 3 - POLISH (Low Impact, Future):**  
+8. **Add transport controller** abstraction (optional refactor) 9. **Authority semantics cleanup** 10. **Enhanced documentation** and debug tooling
+
+**Expected Results After Phase 1:**
+
+-   ✅ BPM changes take effect immediately during playback
+-   ✅ Reduced pause/resume timing jumps
+-   ✅ Consistent timing across all components
+
+**Expected Results After Phase 2:**
+
+-   ✅ Quantization alignment issues resolved
+-   ✅ Test suite validates actual tick behavior
+-   ✅ Deprecated legacy APIs with clear migration path
 
 ---
 
@@ -199,69 +217,42 @@ Edge Cases to handle:
 
 ---
 
-## 7. Concrete Changes to Tests (Illustrative Outline)
-
-Example transformation for one test:
-
-Old:
-
-```
-useTimelineStore.setState({ timeline: { ...state.timeline, currentTimeSec: 12 } });
-expect(store.timeline.currentTimeSec).toBe(12);
-```
-
-New:
-
-```
-const PPQ = 480;
-const secondsPerBeat = 60 / 120; // derive from BPM
-const beats = 12 / secondsPerBeat;
-const tick = Math.round(beats * PPQ);
-useTimelineStore.setState({ timeline: { ...state.timeline, currentTick: tick }});
-expect(store.timeline.currentTick).toBe(tick);
-```
-
-Then optionally:
-
-```
-const derivedSec = beats * secondsPerBeat;
-expect(store.timeline.currentTimeSec).toBeCloseTo(derivedSec, 6);
-```
-
 ---
 
-## 8. Summary of Each Problem Mapped to Solutions
+## 9. **ASSESSMENT CONCLUSION**
 
-| Problem                              | Cause(s) | Solution(s)                                                                   |
-| ------------------------------------ | -------- | ----------------------------------------------------------------------------- |
-| Playhead jump after pause            | A, D     | Add clock pause/resume; freeze updates when paused; snap & sync clock on play |
-| Tempo change ignored                 | B, G     | Single timing manager; propagate BPM to clock; UI uses shared manager         |
-| Tests still in seconds               | E        | Migrate tests to tick domain; rely on derived seconds only                    |
-| Quantize causing unexpected movement | D        | Sync clock tick after snapping; quantize only once at transition              |
-| Drift / authority confusion          | C        | Remove 'seconds' authority; centralize tick writes through controller         |
+**OVERALL VIABILITY**: ✅ **HIGHLY VIABLE** - The proposed solutions directly address the identified root causes
 
----
+**KEY FINDINGS FROM CODE REVIEW**:
 
-## 9. Next Actionable Items (If You Want Implementation)
+-   The assessment correctly identified multiple TimingManager instances as a core issue
+-   The PlaybackClock pause handling was mischaracterized - the animation loop properly guards updates
+-   The visualizer-clock synchronization logic is indeed overly complex and error-prone
+-   Test migration strategy is sound and necessary
 
-I can proceed to:
+**CONFIDENCE LEVEL**: **HIGH** - Phase 1 fixes target the exact code paths causing user-reported issues:
 
--   Add shared `timingManagerSingleton`.
--   Introduce `transport-controller.ts`.
--   Modify store actions `play/pause` to call controller.
--   Update problematic test file(s).
+-   BPM changes not taking effect → Multiple TimingManager instances not synced
+-   Pause/resume jumps → Complex bi-directional sync races in VisualizerContext
+-   Quantize misalignment → Clock not aligned after transport snapping
 
-Let me know if you want me to start implementing these—I'll create a todo plan and apply patches.
+**RISK ASSESSMENT**: **LOW** - Proposed changes are:
 
----
+-   Focused on specific, well-understood code sections
+-   Maintain backward compatibility during transition
+-   Add safeguards rather than removing functionality
+-   Testable with existing test infrastructure
 
-## Completion Summary
+**RECOMMENDATION**: Proceed with implementation starting with Phase 1 fixes. The shared TimingManager approach will provide immediate relief for the most critical user-facing timing issues.
 
-You have:
+## 8. **UPDATED** Summary of Each Problem Mapped to Solutions
 
--   Identification of outdated seconds-based test (timelineStore.behavior.test.ts), rationale to migrate.
--   Seven validated code-level reasons for timing/transport issues.
--   Detailed, prioritized solution plan with architectural and incremental refactors.
--   Concrete test migration strategy and edge case considerations.
+| Problem                                  | Root Cause(s) | Revised Solution(s)                                                              | Priority     |
+| ---------------------------------------- | ------------- | -------------------------------------------------------------------------------- | ------------ |
+| **Tempo change ignored during playback** | B, G          | **Phase 1**: Single timing manager; propagate BPM to shared instance immediately | 🔴 CRITICAL  |
+| **Playhead jump after pause**            | A, C          | **Phase 1**: Simplify sync logic; establish unidirectional authority flow        | 🔴 CRITICAL  |
+| **Quantize causing unexpected movement** | D             | **Phase 2**: Align clock tick after quantization in play() method                | 🟡 IMPORTANT |
+| **Tests masking tick-domain bugs**       | E             | **Phase 2**: Migrate test to use ticks as primary, seconds as derived            | 🟡 IMPORTANT |
+| **General timing inconsistency**         | B, C, G       | **Phase 1**: Replace all ad-hoc TimingManager instances with shared singleton    | 🔴 CRITICAL  |
 
-Would you like me to begin implementing the shared timing manager + controller and update the tests now? Just say the word and I’ll start applying changes.
+**Key Insight**: The most critical issues (tempo changes not taking effect, timing jumps) are primarily caused by **multiple unsynced TimingManager instances** rather than fundamental architectural flaws. The proposed Phase 1 fixes should resolve the core user-facing problems.
