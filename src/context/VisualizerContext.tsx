@@ -208,10 +208,26 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                         lastAppliedTickRef.current = storeTick;
                     } catch { /* ignore */ }
                 }
+                const beforeUpdateTick = clock.currentTick;
                 const nextTick = clock.update(performance.now());
                 if (nextTick !== storeTick) {
                     state.setCurrentTick(nextTick, 'clock'); // propagate forward only; seconds derive later
                     lastAppliedTickRef.current = nextTick;
+                } else if (beforeUpdateTick === nextTick) {
+                    // Fallback: if clock didn't advance (e.g., lastWallTime not primed due to first frame timing)
+                    // but visualizer time progressed, derive tick from visualizer seconds so UI playhead moves.
+                    try {
+                        const tmConv = new TimingManager();
+                        tmConv.setBPM(state.timeline.globalBpm || 120);
+                        if (state.timeline.masterTempoMap?.length) tmConv.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+                        const beatsFromVis = tmConv.secondsToBeats(vNow);
+                        const visTick = Math.round(beatsFromVis * tmConv.ticksPerQuarter);
+                        if (visTick !== storeTick) {
+                            clock.setTick(visTick);
+                            state.setCurrentTick(visTick, 'clock');
+                            lastAppliedTickRef.current = visTick;
+                        }
+                    } catch { /* ignore */ }
                 }
             } else {
                 // Paused state synchronization strategy:
