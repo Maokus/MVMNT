@@ -20,6 +20,11 @@
 // Only introduce when needed to avoid bloat.
 import { NoteEvent } from '@core/midi/note-event';
 
+// Phase 6 migration: Scene elements begin accepting tick-domain note data.
+// NoteBlock now optionally carries canonical tick timing alongside its seconds timing.
+// Seconds remain for rendering until full scene migration completes; ticks allow robust
+// reconstruction of real time when tempo or tempo map changes.
+
 export class NoteBlock extends NoteEvent {
     // For split/clamped segments (continuations between time units)
     public isSegment: boolean = false;
@@ -34,10 +39,41 @@ export class NoteBlock extends NoteEvent {
     public noteId: string; // unique to this concrete block (segment-specific)
     public baseNoteId: string; // stable for all segments of the same underlying note
 
-    constructor(note: number, channel: number, startTime: number, endTime: number, velocity: number) {
+    // Canonical tick timing (optional during migration)
+    public startTick?: number;
+    public endTick?: number;
+    public durationTicks?: number;
+
+    constructor(
+        note: number,
+        channel: number,
+        startTime: number,
+        endTime: number,
+        velocity: number,
+        opts?: {
+            startTick?: number;
+            endTick?: number;
+            durationTicks?: number;
+        }
+    ) {
         super(note, channel, startTime, endTime, velocity);
+        if (opts) {
+            this.startTick = opts.startTick;
+            this.endTick = opts.endTick;
+            this.durationTicks =
+                opts.durationTicks ??
+                (opts.endTick != null && opts.startTick != null
+                    ? Math.max(0, opts.endTick - opts.startTick)
+                    : undefined);
+        }
         // Segment-specific id initially identical to base id; base id may be reassigned by builder
-        this.noteId = NoteBlock.fastHashToHex(note, channel, startTime, endTime, velocity);
+        this.noteId = NoteBlock.fastHashToHex(
+            note,
+            channel,
+            this.startTick ?? startTime,
+            this.endTick ?? endTime,
+            velocity
+        );
         this.baseNoteId = this.noteId; // can be overwritten after construction for segments
     }
 
@@ -75,9 +111,13 @@ export class NoteBlock extends NoteEvent {
             note: number;
             channel?: number;
             velocity: number;
-            startTime: number;
-            endTime: number;
-            startBeat?: number;
+            // At least one of (startTime/endTime) in seconds OR (startTick/endTick) in ticks must be provided
+            startTime?: number;
+            endTime?: number;
+            startTick?: number;
+            endTick?: number;
+            durationTicks?: number;
+            startBeat?: number; // optional beat-domain (for legacy mixed inputs)
             endBeat?: number;
         }>,
         timingManager: any,
@@ -98,21 +138,52 @@ export class NoteBlock extends NoteEvent {
         const maxTime = next.end;
 
         const candidateNotes = notes.filter((n) => {
-            const s = n.startBeat !== undefined ? timingManager.beatsToSeconds(n.startBeat) : n.startTime;
-            const e = n.endBeat !== undefined ? timingManager.beatsToSeconds(n.endBeat) : n.endTime;
+            // Derive seconds from beats or ticks if explicit seconds not given
+            let s: number;
+            let e: number;
+            if (n.startTime != null && n.endTime != null) {
+                s = n.startTime;
+                e = n.endTime;
+            } else if (n.startBeat !== undefined && n.endBeat !== undefined) {
+                s = timingManager.beatsToSeconds(n.startBeat);
+                e = timingManager.beatsToSeconds(n.endBeat);
+            } else if (n.startTick != null && n.endTick != null) {
+                const beatsStart = n.startTick / timingManager.ticksPerQuarter;
+                const beatsEnd = n.endTick / timingManager.ticksPerQuarter;
+                s = timingManager.beatsToSeconds(beatsStart);
+                e = timingManager.beatsToSeconds(beatsEnd);
+            } else {
+                return false; // insufficient timing info
+            }
             return s < maxTime && e > minTime;
         });
 
         const segments: NoteBlock[] = [];
 
         const addClipped = (note: any, win: { start: number; end: number }) => {
-            const startTime =
-                note.startBeat !== undefined ? timingManager.beatsToSeconds(note.startBeat) : note.startTime;
-            const endTime = note.endBeat !== undefined ? timingManager.beatsToSeconds(note.endBeat) : note.endTime;
+            // Resolve canonical seconds timing first
+            let startTime: number;
+            let endTime: number;
+            if (note.startBeat !== undefined && note.endBeat !== undefined) {
+                startTime = timingManager.beatsToSeconds(note.startBeat);
+                endTime = timingManager.beatsToSeconds(note.endBeat);
+            } else if (note.startTick != null && note.endTick != null) {
+                const beatsStart = note.startTick / timingManager.ticksPerQuarter;
+                const beatsEnd = note.endTick / timingManager.ticksPerQuarter;
+                startTime = timingManager.beatsToSeconds(beatsStart);
+                endTime = timingManager.beatsToSeconds(beatsEnd);
+            } else {
+                startTime = note.startTime;
+                endTime = note.endTime;
+            }
             if (startTime < win.end && endTime > win.start) {
                 const segStart = Math.max(startTime, win.start);
                 const segEnd = Math.min(endTime, win.end);
-                const block = new NoteBlock(note.note, note.channel || 0, segStart, segEnd, note.velocity);
+                const block = new NoteBlock(note.note, note.channel || 0, segStart, segEnd, note.velocity, {
+                    startTick: note.startTick,
+                    endTick: note.endTick,
+                    durationTicks: note.durationTicks,
+                });
                 if (segStart !== startTime || segEnd !== endTime) {
                     block.isSegment = true;
                     block.originalStartTime = startTime;
