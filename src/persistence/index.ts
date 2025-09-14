@@ -20,7 +20,7 @@
  *    - Returns controller whose methods are stable no-ops in Phase 0.
  *
  * PLANNED EVOLUTION (Later Phases):
- *  Phase 1: Deterministic export/import, snapshot undo ring, validation (fatal subset).
+ *  Phase 1 (IMPLEMENTED): Deterministic export/import, snapshot undo ring, validation (fatal subset).
  *  Phase 2: Expanded validation & error codes.
  *  Phase 3: Instrumentation (performance & memory) under profiling flag.
  *  Phase 4: (Conditional) Patch-based undo alternative.

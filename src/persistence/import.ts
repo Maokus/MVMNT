@@ -1,4 +1,6 @@
 import { SERIALIZATION_V1_ENABLED } from './flags';
+import { validateSceneEnvelope } from './validate';
+import { useTimelineStore } from '../state/timelineStore';
 
 export interface ImportError {
     message: string;
@@ -11,18 +13,26 @@ export interface ImportResultDisabled {
     errors: ImportError[];
 }
 
-export interface ImportResultPlaceholder {
+export interface ImportResultSuccess {
     ok: true;
     disabled: false;
     errors: [];
+    warnings: { message: string }[];
 }
 
-export type ImportSceneResult = ImportResultDisabled | ImportResultPlaceholder;
+export interface ImportResultFailureEnabled {
+    ok: false;
+    disabled: false;
+    errors: ImportError[];
+    warnings: { message: string }[];
+}
+
+export type ImportSceneResult = ImportResultDisabled | ImportResultSuccess | ImportResultFailureEnabled;
 
 /**
  * Phase 0 importer: validates nothing, does not mutate store (no dependency yet).
  */
-export function importScene(_json: string): ImportSceneResult {
+export function importScene(json: string): ImportSceneResult {
     if (!SERIALIZATION_V1_ENABLED()) {
         return {
             ok: false,
@@ -31,11 +41,30 @@ export function importScene(_json: string): ImportSceneResult {
             errors: [{ message: 'Serialization feature disabled' }],
         };
     }
-    // Placeholder: parse just to ensure not throwing silently (ignore result)
+    let parsed: any;
     try {
-        JSON.parse(_json);
+        parsed = JSON.parse(json);
     } catch (e: any) {
-        return { ok: false, disabled: false, errors: [{ message: 'Invalid JSON: ' + e.message }] } as any; // Will refine in Phase 1/2
+        return { ok: false, disabled: false, errors: [{ message: 'Invalid JSON: ' + e.message }], warnings: [] };
     }
-    return { ok: true, disabled: false, errors: [] };
+    const validation = validateSceneEnvelope(parsed);
+    if (!validation.ok) {
+        return { ok: false, disabled: false, errors: validation.errors, warnings: validation.warnings };
+    }
+    // Hydrate store (replace-mode for timeline related slices). Scene elements placeholder not yet integrated.
+    const tl = parsed.timeline;
+    const set = useTimelineStore.setState;
+    set((prev: any) => ({
+        timeline: tl.timeline,
+        tracks: tl.tracks,
+        tracksOrder: tl.tracksOrder,
+        transport: tl.transport || prev.transport,
+        selection: tl.selection || { selectedTrackIds: [] },
+        timelineView: tl.timelineView || prev.timelineView,
+        playbackRange: tl.playbackRange,
+        playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
+        rowHeight: typeof tl.rowHeight === 'number' ? tl.rowHeight : prev.rowHeight,
+        midiCache: tl.midiCache || {},
+    }));
+    return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
 }
