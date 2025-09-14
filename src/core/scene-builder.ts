@@ -226,35 +226,72 @@ export class HybridSceneBuilder {
         this.resetSceneSettings();
         this._createDefaultMacros();
         const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
-        let z = 0;
         const usedIds = new Set<string>();
         const ensureId = (base: string) => {
             let id = base;
             let i = 1;
-            while (usedIds.has(id)) {
-                id = base + '_' + i++;
-            }
+            while (usedIds.has(id)) id = base + '_' + i++;
             usedIds.add(id);
             return id;
         };
+        // Background first so grid sits on top
+        this.addElement(new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0 }));
+        const gridCols = 4; // adjustable
+        const cellW = 320; // spacing horizontally
+        const cellH = 260; // spacing vertically
+        const startX = 160; // left padding
+        const startY = 160; // top padding
+        let index = 0;
+        let zBase = 10;
+        const trackPropCandidates = ['midiTrackId', 'trackId', 'sourceTrackId'];
         for (const t of types) {
+            if (t === 'background' || t === 'debug') continue; // already / will add debug overlay later
             try {
                 const baseId = t.replace(/[^a-zA-Z0-9]/g, '_');
                 const id = ensureId(baseId);
-                const el: any = this.addElementFromRegistry(t, { id, zIndex: (z += 5) });
-                // Attempt macro bindings for track & animation to keep consistency
-                try {
-                    if (el?.bindToMacro) {
-                        if ('midiTrackId' in el) el.bindToMacro('midiTrackId', 'midiTrack');
-                        if ('animationType' in el) el.bindToMacro('animationType', 'noteAnimation');
+                const col = index % gridCols;
+                const row = Math.floor(index / gridCols);
+                const offsetX = startX + col * cellW;
+                const offsetY = startY + row * cellH;
+                const el: any = this.addElementFromRegistry(t, {
+                    id,
+                    zIndex: zBase + index * 2,
+                    anchorX: 0,
+                    anchorY: 0,
+                    offsetX,
+                    offsetY,
+                });
+                if (el?.bindToMacro) {
+                    // Bind track-like property
+                    for (const cand of trackPropCandidates) {
+                        if (cand in el) {
+                            try {
+                                el.bindToMacro(cand, 'midiTrack');
+                            } catch {}
+                            break;
+                        }
                     }
-                } catch {}
+                    if ('animationType' in el) {
+                        try {
+                            el.bindToMacro('animationType', 'noteAnimation');
+                        } catch {}
+                    }
+                }
+                index++;
             } catch (e) {
                 console.warn('[debugScene] Failed to add element type', t, e);
             }
         }
-        // Add overlay debug element last
-        this.addElement(new DebugElement(ensureId('debugOverlay'), { zIndex: 10000, anchorX: 0, anchorY: 0 }));
+        // Add overlay debug element last, positioned top-left
+        this.addElement(
+            new DebugElement(ensureId('debugOverlay'), {
+                zIndex: 100000,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 10,
+                offsetY: 10,
+            })
+        );
         return this;
     }
     createDefaultMIDIScene() {

@@ -54,7 +54,12 @@ const HomePage: React.FC = () => {
                     <h2 className="text-xl font-semibold mb-4 text-neutral-300">Templates</h2>
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         <TemplateCard title="Blank" desc="Empty workspace – start from scratch." onClick={() => handleOpenTemplate('blank')} />
-                        <TemplateCard title="Default" desc="Starter scene with piano roll & HUD." onClick={() => handleOpenTemplate('default')} />
+                        <TemplateCard
+                            featured
+                            title="Default"
+                            desc="Starter scene with piano roll, HUD overlays, and macros bound."
+                            onClick={() => handleOpenTemplate('default')}
+                        />
                         <TemplateCard title="Debug" desc="Every scene element placed for exploration." onClick={() => handleOpenTemplate('debug')} />
                     </div>
                 </section>
@@ -62,12 +67,23 @@ const HomePage: React.FC = () => {
         </div>
     );
 };
-
-const TemplateCard: React.FC<{ title: string; desc: string; onClick: () => void; }> = ({ title, desc, onClick }) => (
-    <button onClick={onClick} className="group flex flex-col items-start text-left p-5 rounded-lg border border-neutral-800 bg-neutral-900/60 hover:border-neutral-600 hover:bg-neutral-900 transition focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-indigo-300">{title}</h3>
+interface TemplateCardProps { title: string; desc: string; onClick: () => void; featured?: boolean }
+const TemplateCard: React.FC<TemplateCardProps> = ({ title, desc, onClick, featured }) => (
+    <button
+        onClick={onClick}
+        className={[
+            'group relative flex flex-col items-start text-left p-5 rounded-lg border transition focus:outline-none focus:ring-2',
+            'border-neutral-800 bg-neutral-900/60 hover:border-neutral-600 hover:bg-neutral-900 focus:ring-indigo-500',
+            featured ? 'ring-2 ring-indigo-500/40 shadow-[0_0_0_1px_rgba(99,102,241,0.4),0_0_25px_-5px_rgba(99,102,241,0.5)]' : ''
+        ].join(' ')}>
+        {featured && (
+            <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full tracking-wide shadow">
+                Start here!
+            </span>
+        )}
+        <h3 className={`text-lg font-semibold mb-2 ${featured ? 'text-indigo-300 group-hover:text-indigo-200' : 'text-white group-hover:text-indigo-300'}`}>{title}</h3>
         <p className="text-sm text-neutral-400 leading-snug">{desc}</p>
-        <span className="mt-4 inline-flex items-center text-xs font-medium px-3 py-1 rounded bg-neutral-800 group-hover:bg-indigo-600 group-hover:text-white text-neutral-300 tracking-wide uppercase">Open</span>
+        <span className={`mt-4 inline-flex items-center text-xs font-medium px-3 py-1 rounded tracking-wide uppercase ${featured ? 'bg-indigo-600/80 text-white group-hover:bg-indigo-500' : 'bg-neutral-800 text-neutral-300 group-hover:bg-indigo-600 group-hover:text-white'}`}>Open</span>
     </button>
 );
 

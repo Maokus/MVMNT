@@ -26,7 +26,7 @@ const AboutPage: React.FC = () => {
                         <h2 className="text-xl font-semibold mb-3 text-white">Getting Started</h2>
                         <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-300">
                             <li><strong className="text-neutral-100">Load MIDI</strong> – Import a MIDI track in the Timeline panel.</li>
-                            <li><strong className="text-neutral-100">Pick a Template</strong> – Default gives you a piano roll + HUD.</li>
+                            <li><strong className="text-neutral-100">Set the midiFile sources </strong> – The easiest way to do this is with the default macro</li>
                             <li><strong className="text-neutral-100">Edit Elements</strong> – Use panels to reposition, style & bind.</li>
                             <li><strong className="text-neutral-100">Render</strong> – Export frames or video when ready.</li>
                         </ol>
@@ -43,7 +43,7 @@ const AboutPage: React.FC = () => {
                     <section className="md:col-span-2 p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Motivation</h2>
                         <div className="space-y-3 text-sm text-neutral-300 leading-relaxed">
-                            <p>I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945" className="text-indigo-300 hover:text-indigo-200 underline">beautiful MIDI visualizer</a> a while back and wanted to understand how it worked—so I built my own. It started simple: a canvas, PNG export, a few controls. Then came more flexibility, more elements, more UI—now it&apos;s a full workspace.</p>
+                            <p>I saw a <a target="_blank" href="https://x.com/Kashiwade_music/status/1931349155101982945" className="text-indigo-300 hover:text-indigo-200 underline">beautiful MIDI visualizer</a> a while back and wanted to understand how it worked—so I built my own. It started simple: a canvas, PNG export, a few controls. Over time, I got more and more obsessed with adding functionality, and now its a fully featured set of visualization tools! God bless hyperfixations!</p>
                             <p>The goal is creative velocity: fast iteration, strong defaults, and transparency so you can hack it.</p>
                         </div>
                     </section>
@@ -68,8 +68,6 @@ const AboutPage: React.FC = () => {
                                 <img src={kofi} alt="Coffee Icon" style={{ width: '22px', height: '18px' }} />
                                 Buy me a coffee
                             </a>
-                            <img src={pain} className="w-10 h-10 rounded-lg object-cover" alt="pain meme" />
-                            <img src={senile} className="w-10 h-10 rounded-lg object-cover" alt="senile meme" />
                         </div>
                     </section>
                 </div>

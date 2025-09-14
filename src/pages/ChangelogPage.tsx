@@ -28,6 +28,9 @@ const ChangelogPage: React.FC = () => {
 
                     <ChangelogEntry version="0.12.0" date="12-09-31" notes={[
                         'Overhauled timing & MIDI system (timeline panel, better arrangement)',
+                        'Improved save/load format',
+                        'Added the legendary ctrl z',
+                        'Added homepage, improved styling',
                         'Migrated to MediaBunny for faster exports & responsiveness',
                         'Partial migration to Zustand (more responsive UI)',
                         'TailwindCSS adoption for consistency & dev speed'
