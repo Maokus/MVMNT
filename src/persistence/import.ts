@@ -2,6 +2,7 @@ import { SERIALIZATION_V1_ENABLED } from './flags';
 import { validateSceneEnvelope } from './validate';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
+import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
 
 function _getSceneBuilder(): any | null {
     try {
@@ -96,11 +97,14 @@ export function importScene(json: string): ImportSceneResult {
             try {
                 globalMacroManager.importMacros(scene.macros);
             } catch (e) {
-                console.warn('[importScene] Macro import failed', e);
+                console.error('[importScene] Macro import failed', e);
             }
         }
         const sb = _getSceneBuilder();
         if (sb) {
+            try {
+                instrumentSceneBuilderForUndo(sb);
+            } catch {}
             // Build a legacy sceneData object compatible with HybridSceneBuilder.loadScene
             const sceneData = {
                 elements: Array.isArray(scene.elements) ? scene.elements : [],
@@ -109,7 +113,7 @@ export function importScene(json: string): ImportSceneResult {
             };
             if (typeof sb.loadScene === 'function') {
                 const ok = sb.loadScene(sceneData);
-                if (!ok) console.warn('[importScene] Scene builder load failed');
+                if (!ok) console.error('[importScene] Scene builder load failed');
                 try {
                     const canvas: any = sb?.canvas || (window as any).vis?.canvas;
                     canvas?.dispatchEvent?.(
@@ -122,13 +126,13 @@ export function importScene(json: string): ImportSceneResult {
                     try {
                         sb.addElementFromRegistry?.(el.type, el);
                     } catch (e) {
-                        console.warn('[importScene] addElement fallback failed', e);
+                        console.error('[importScene] addElement fallback failed', e);
                     }
                 }
             }
         }
     } catch (e) {
-        console.warn('[importScene] Scene element restoration failed', e);
+        console.error('[importScene] Scene element restoration failed', e);
     }
     return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
 }

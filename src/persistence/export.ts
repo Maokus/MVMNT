@@ -3,6 +3,7 @@ import { serializeStable } from './stable-stringify';
 import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
+import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
 
 // Attempt to access a global scene builder (visualizer) if present. This avoids a hard dependency cycle.
 function _getSceneBuilder(): any | null {
@@ -84,6 +85,7 @@ export function exportScene(): ExportSceneResult {
     const sb = _getSceneBuilder();
     if (sb && typeof sb.serializeScene === 'function') {
         try {
+            instrumentSceneBuilderForUndo(sb);
             const serialized = sb.serializeScene();
             if (serialized && Array.isArray(serialized.elements)) {
                 elements = serialized.elements.map((e: any) => ({ ...e }));

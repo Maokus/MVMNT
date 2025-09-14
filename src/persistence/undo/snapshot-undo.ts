@@ -53,6 +53,7 @@ class SnapshotUndoController extends DisabledUndoController {
     private pendingTimer: any = null;
     private lastJSON: string | null = null;
     private unsub: (() => void) | null = null;
+    private restoring: boolean = false; // guard to avoid capturing while applying undo
 
     constructor(opts: CreateSnapshotUndoOptions) {
         super();
@@ -146,6 +147,7 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     private captureIfChanged() {
+        if (this.restoring) return; // don't record snapshots while restoring one
         const entry = this.buildSnapshot();
         if (entry.stateJSON === this.lastJSON) return; // skip duplicate
         this.lastJSON = entry.stateJSON;
@@ -185,6 +187,7 @@ class SnapshotUndoController extends DisabledUndoController {
         if (!cur) return;
         try {
             const obj = JSON.parse(cur.stateJSON);
+            this.restoring = true;
             // Merge slices to preserve function properties on the store (replace=true would discard actions)
             useTimelineStore.setState(
                 (prev: any) => ({
@@ -199,16 +202,19 @@ class SnapshotUndoController extends DisabledUndoController {
                     if (obj.scene.macros) {
                         try {
                             globalMacroManager.importMacros(obj.scene.macros);
-                        } catch {}
+                        } catch (e) {
+                            console.error('[Undo][Scene] Macro import failed during undo', e);
+                        }
                     }
                     const sb = _getSceneBuilder();
                     if (sb && obj.scene.elements) {
                         if (typeof sb.loadScene === 'function') {
-                            sb.loadScene({
+                            const ok = sb.loadScene({
                                 elements: obj.scene.elements,
                                 sceneSettings: obj.scene.sceneSettings,
                                 macros: obj.scene.macros,
                             });
+                            if (!ok) console.error('[Undo][Scene] loadScene returned false during undo');
                         } else {
                             // Minimal fallback: clear + re-add
                             try {
@@ -217,15 +223,32 @@ class SnapshotUndoController extends DisabledUndoController {
                             for (const el of obj.scene.elements) {
                                 try {
                                     sb.addElementFromRegistry?.(el.type, el);
-                                } catch {}
+                                } catch (e) {
+                                    console.error('[Undo][Scene] Failed adding element in fallback path', e, el);
+                                }
                             }
                         }
+                        // Try to invalidate render if visualizer exposed
+                        try {
+                            const vis: any = (window as any).vis;
+                            vis?.invalidateRender?.();
+                        } catch {}
                     }
                 }
-            } catch {}
+            } catch (e) {
+                console.error('[Undo] Scene restoration error', e);
+            } finally {
+                this.restoring = false;
+            }
         } catch (e) {
-            // swallow - corrupt snapshot should not crash app; in a real scenario we could mark error.
+            console.error('[Undo] Failed to parse/apply snapshot', e);
         }
+    }
+
+    /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
+    markDirty() {
+        if (this.restoring) return; // ignore while restoring
+        this.scheduleCapture();
     }
 
     dispose() {
@@ -250,5 +273,39 @@ export function createSnapshotUndoController(_store: unknown, opts: CreateSnapsh
     if (!SERIALIZATION_V1_ENABLED()) {
         return new DisabledUndoController();
     }
-    return new SnapshotUndoController(opts);
+    const ctrl = new SnapshotUndoController(opts);
+    // Expose globally for scene builder instrumentation
+    try {
+        (window as any).__mvmntUndo = ctrl;
+    } catch {}
+    return ctrl;
+}
+
+// Helper to instrument a scene builder so that element/macro mutations trigger undo snapshots.
+export function instrumentSceneBuilderForUndo(sb: any) {
+    if (!sb || sb.__mvmntUndoInstrumented) return;
+    const undo: any = (window as any).__mvmntUndo;
+    if (!undo || typeof undo.markDirty !== 'function') return;
+    const wrap = (obj: any, method: string) => {
+        if (typeof obj[method] !== 'function') return;
+        const orig = obj[method].bind(obj);
+        obj[method] = function (...args: any[]) {
+            const r = orig(...args);
+            try {
+                undo.markDirty();
+            } catch {}
+            return r;
+        };
+    };
+    [
+        'addElement',
+        'removeElement',
+        'updateElementConfig',
+        'moveElement',
+        'duplicateElement',
+        'clearElements',
+        'loadScene',
+        'updateSceneSettings',
+    ].forEach((m) => wrap(sb, m));
+    sb.__mvmntUndoInstrumented = true;
 }
