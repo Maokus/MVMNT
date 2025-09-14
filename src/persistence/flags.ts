@@ -34,7 +34,11 @@ export function isFeatureEnabled(name: FeatureFlagName): boolean {
     // Detect test via common conventions (import.meta.env.MODE or NODE_ENV injected by Vite/Vitest).
     const mode: any = (import.meta as any).env?.MODE || (import.meta as any).env?.NODE_ENV;
     const isTest = typeof mode === 'string' && mode.toLowerCase() === 'test';
-    if (raw == null && isTest && name === 'SERIALIZATION_V1') return true;
+    const isDev = typeof mode === 'string' && mode.toLowerCase() === 'development';
+    if (raw == null) {
+        if (isTest && name === 'SERIALIZATION_V1') return true;
+        if (isDev && name === 'SERIALIZATION_V1') return true; // auto-enable in dev unless explicitly disabled
+    }
     return coerceBoolean(raw);
 }
 

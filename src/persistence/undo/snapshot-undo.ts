@@ -49,6 +49,13 @@ class SnapshotUndoController extends DisabledUndoController {
         this.maxDepth = Math.min(Math.max(opts.maxDepth || 50, 1), 100);
         this.maxBytes = opts.maxBytes || 10 * 1024 * 1024; // 10MB approx
         this.debounceMs = opts.debounceMs || 50;
+        try {
+            console.debug('[Persistence] SnapshotUndoController init', {
+                maxDepth: this.maxDepth,
+                maxBytes: this.maxBytes,
+                debounceMs: this.debounceMs,
+            });
+        } catch {}
         this.captureInitial();
         this.subscribe();
     }
@@ -152,8 +159,14 @@ class SnapshotUndoController extends DisabledUndoController {
         if (!cur) return;
         try {
             const obj = JSON.parse(cur.stateJSON);
-            useTimelineStore.setState(obj, true); // replace
-            // setState with replace=true ensures we fully swap slices; if not supported adjust accordingly.
+            // Merge slices to preserve function properties on the store (replace=true would discard actions)
+            useTimelineStore.setState(
+                (prev: any) => ({
+                    ...prev,
+                    ...obj,
+                }),
+                false
+            );
         } catch (e) {
             // swallow - corrupt snapshot should not crash app; in a real scenario we could mark error.
         }

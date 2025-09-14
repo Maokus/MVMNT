@@ -24,6 +24,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!controllerRef.current) {
             // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
             controllerRef.current = createSnapshotUndoController(useTimelineStore, { maxDepth: 50, debounceMs: 50 });
+            try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
         }
         // Force a tick so consumers re-read canUndo/canRedo
         const id = setInterval(() => forceTick(t => t + 1), 500); // lightweight polling to update buttons if added later
