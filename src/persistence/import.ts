@@ -3,7 +3,9 @@ import { validateSceneEnvelope } from './validate';
 import { useTimelineStore } from '../state/timelineStore';
 
 export interface ImportError {
+    code?: string; // Provided in Phase 2 validation (fatal codes)
     message: string;
+    path?: string;
 }
 
 export interface ImportResultDisabled {
@@ -45,11 +47,21 @@ export function importScene(json: string): ImportSceneResult {
     try {
         parsed = JSON.parse(json);
     } catch (e: any) {
-        return { ok: false, disabled: false, errors: [{ message: 'Invalid JSON: ' + e.message }], warnings: [] };
+        return {
+            ok: false,
+            disabled: false,
+            errors: [{ code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + e.message }],
+            warnings: [],
+        };
     }
     const validation = validateSceneEnvelope(parsed);
     if (!validation.ok) {
-        return { ok: false, disabled: false, errors: validation.errors, warnings: validation.warnings };
+        return {
+            ok: false,
+            disabled: false,
+            errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
+            warnings: validation.warnings.map((w) => ({ message: w.message })),
+        };
     }
     // Hydrate store (replace-mode for timeline related slices). Scene elements placeholder not yet integrated.
     const tl = parsed.timeline;
