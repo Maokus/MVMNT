@@ -43,11 +43,13 @@ describe('Persistence Phase 1', () => {
         if (!second.ok) throw new Error('Second export failed');
         const env1 = JSON.parse(json1);
         const env2 = JSON.parse(second.json);
-        // Remove volatile fields (createdAt/modifiedAt may differ)
+        // Remove volatile fields (createdAt/modifiedAt, macro exportedAt may differ)
         delete env1.metadata?.modifiedAt;
         delete env2.metadata?.modifiedAt;
         delete env1.metadata?.createdAt;
         delete env2.metadata?.createdAt;
+        if (env1.scene?.macros) delete env1.scene.macros.exportedAt;
+        if (env2.scene?.macros) delete env2.scene.macros.exportedAt;
         expect(serializeStable(env1)).toEqual(serializeStable(env2));
     });
 

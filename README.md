@@ -177,12 +177,21 @@ if (undo.canUndo()) undo.undo();
 if (undo.canRedo()) undo.redo();
 ```
 
-Current Scope:
+Current Scope (extended):
 
 -   Deterministic ordering & stable JSON stringify.
--   Timeline state snapshot (scene elements placeholder list currently empty; will expand in future phases).
--   Fatal-only validation (required keys, structure, duplicate element IDs) – no advisory warnings yet.
+-   Timeline state snapshot (tracks, ordering, transport, selection, playback/view ranges, midi cache, row height).
+-   Scene elements & scene settings (fps, dimensions, padding, tempo, meter) are now included in the `scene.elements` & `scene.sceneSettings` envelope fields when the visualizer/scene builder is present.
+-   Global macros (definitions & current values) serialized under `scene.macros` and restored on import & undo.
+-   Undo/redo snapshots now include scene elements + macros in addition to timeline slices.
+-   Fatal-only validation (structure + required keys) – advisory rules still TBD.
 -   Snapshot ring buffer (debounced ~50ms, memory cap ~10MB, depth configurable up to 100).
+
+Not Yet Included (future work):
+
+-   Binary / large resource deduplication (images, fonts) – future `resources` section.
+-   Element-level diff/patched undo (currently full snapshot JSON for simplicity & correctness).
+-   Versioned schema upgrades & migration helpers (currently single schemaVersion=1 path).
 
 Planned Next Phases:
 
@@ -191,5 +200,7 @@ Planned Next Phases:
 -   Conditional patch-based undo (memory optimization) if thresholds exceeded.
 -   Resource deduplication section (`resources`) for large repeated assets.
 -   Unknown element preservation & non-fatal recovery paths.
+-   Persistent font/image asset embedding & hashing.
+-   Macro assignment diff visualization tooling.
 
 Rollback: Disable the `VITE_FEATURE_SERIALIZATION_V1` flag (code paths become inert without removal).

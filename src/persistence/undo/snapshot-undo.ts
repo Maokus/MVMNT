@@ -1,6 +1,16 @@
 import { SERIALIZATION_V1_ENABLED } from '../flags';
 import { serializeStable } from '../stable-stringify';
 import { useTimelineStore } from '../../state/timelineStore';
+import { globalMacroManager } from '../../bindings/macro-manager';
+
+function _getSceneBuilder(): any | null {
+    try {
+        const vis: any = (window as any).vis || (window as any).visualizer;
+        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
+        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
+    } catch {}
+    return null;
+}
 
 export interface UndoController {
     canUndo(): boolean;
@@ -64,6 +74,21 @@ class SnapshotUndoController extends DisabledUndoController {
         // For Phase 1 we only capture the exported envelope's JSON to ensure deterministic replay.
         // We limit capture to timeline related slices (same as export) for now.
         const s = useTimelineStore.getState();
+        // Capture scene + macros (best effort)
+        let sceneElements: any[] = [];
+        let sceneSettings: any = undefined;
+        try {
+            const sb = _getSceneBuilder();
+            if (sb && typeof sb.serializeScene === 'function') {
+                const serialized = sb.serializeScene();
+                sceneElements = serialized?.elements ? [...serialized.elements] : [];
+                sceneSettings = serialized?.sceneSettings ? { ...serialized.sceneSettings } : undefined;
+            }
+        } catch {}
+        let macros: any = undefined;
+        try {
+            macros = globalMacroManager.exportMacros();
+        } catch {}
         const snapshotObj = {
             timeline: s.timeline,
             tracks: s.tracks,
@@ -75,6 +100,7 @@ class SnapshotUndoController extends DisabledUndoController {
             playbackRangeUserDefined: s.playbackRangeUserDefined,
             rowHeight: s.rowHeight,
             midiCache: s.midiCache,
+            scene: { elements: sceneElements, sceneSettings, macros },
         };
         const json = serializeStable(snapshotObj);
         return { stateJSON: json, size: json.length * 2, timestamp: performance.now() };
@@ -167,6 +193,36 @@ class SnapshotUndoController extends DisabledUndoController {
                 }),
                 false
             );
+            // Restore scene + macros
+            try {
+                if (obj.scene) {
+                    if (obj.scene.macros) {
+                        try {
+                            globalMacroManager.importMacros(obj.scene.macros);
+                        } catch {}
+                    }
+                    const sb = _getSceneBuilder();
+                    if (sb && obj.scene.elements) {
+                        if (typeof sb.loadScene === 'function') {
+                            sb.loadScene({
+                                elements: obj.scene.elements,
+                                sceneSettings: obj.scene.sceneSettings,
+                                macros: obj.scene.macros,
+                            });
+                        } else {
+                            // Minimal fallback: clear + re-add
+                            try {
+                                sb.clearElements?.();
+                            } catch {}
+                            for (const el of obj.scene.elements) {
+                                try {
+                                    sb.addElementFromRegistry?.(el.type, el);
+                                } catch {}
+                            }
+                        }
+                    }
+                }
+            } catch {}
         } catch (e) {
             // swallow - corrupt snapshot should not crash app; in a real scenario we could mark error.
         }

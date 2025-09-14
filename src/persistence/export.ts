@@ -2,6 +2,19 @@ import { SERIALIZATION_V1_ENABLED } from './flags';
 import { serializeStable } from './stable-stringify';
 import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
+import { globalMacroManager } from '../bindings/macro-manager';
+
+// Attempt to access a global scene builder (visualizer) if present. This avoids a hard dependency cycle.
+function _getSceneBuilder(): any | null {
+    try {
+        // Typical location via visualizer core debug handle
+        const vis: any = (window as any).vis || (window as any).visualizer;
+        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
+        // Fallback: some code may expose sceneBuilder directly
+        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
+    } catch {}
+    return null;
+}
 
 // --- Types (Phase 1 minimal envelope) ---
 export interface SceneMetadata {
@@ -12,13 +25,15 @@ export interface SceneMetadata {
     format: 'scene'; // reserved for future multi-format support
 }
 
+// Extended V1 schema now includes actual scene element graph + macro definitions.
 export interface SceneExportEnvelopeV1 {
     schemaVersion: 1;
     format: 'mvmnt.scene';
     metadata: SceneMetadata;
     scene: {
-        // Placeholder for future scene graph (visual elements). For Phase 1 we only persist timeline for MVP.
-        elements: any[]; // empty for now unless future UI adds elements.
+        elements: any[]; // serialized element configs (sceneBuilder.serializeScene().elements)
+        sceneSettings?: any; // fps, dimensions, padding, tempo, meter
+        macros?: any; // macro definitions (globalMacroManager.exportMacros())
     };
     timeline: any; // timeline slice captured from store
     compatibility: { warnings: any[] };
@@ -63,9 +78,27 @@ export function exportScene(): ExportSceneResult {
         midiCache: state.midiCache,
     };
 
-    // Scene elements placeholder: integrate future scene builder. For now, empty deterministic list.
-    const elements: any[] = [];
-    const ordered = canonicalizeElements(elements);
+    // Gather scene + macros (best effort; absent if no scene builder yet)
+    let elements: any[] = [];
+    let sceneSettings: any = undefined;
+    const sb = _getSceneBuilder();
+    if (sb && typeof sb.serializeScene === 'function') {
+        try {
+            const serialized = sb.serializeScene();
+            if (serialized && Array.isArray(serialized.elements)) {
+                elements = serialized.elements.map((e: any) => ({ ...e }));
+            }
+            if (serialized && serialized.sceneSettings) sceneSettings = { ...serialized.sceneSettings };
+        } catch (e) {
+            console.warn('[exportScene] Failed to serialize scene elements', e);
+        }
+    }
+    const ordered = canonicalizeElements(elements || []);
+
+    let macros: any = undefined;
+    try {
+        macros = globalMacroManager.exportMacros();
+    } catch {}
 
     const now = new Date().toISOString();
     // Derive metadata (use timeline id/name for now as scene identity)
@@ -81,7 +114,7 @@ export function exportScene(): ExportSceneResult {
         schemaVersion: 1,
         format: 'mvmnt.scene',
         metadata,
-        scene: { elements: ordered },
+        scene: { elements: ordered, sceneSettings, macros },
         timeline,
         compatibility: { warnings: [] },
     };
