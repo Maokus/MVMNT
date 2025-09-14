@@ -1,4 +1,4 @@
-// Pure note query & mapping utilities extracted from deprecated TimelineService.
+// Pure note query & mapping utilities
 // Operate on the Zustand timeline store state shape (tracks + midiCache) without side effects.
 // All time domain inputs/outputs are in timeline seconds or ticks as documented.
 
