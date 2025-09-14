@@ -151,7 +151,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
                         title="Render / Export Video"
                     >Render</button>
                 </div>
-                <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
+                <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
                     <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                 </Link>
             </div>

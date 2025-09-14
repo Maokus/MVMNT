@@ -213,8 +213,93 @@ export class HybridSceneBuilder {
         return this.elements.filter((e) => (e as any).type === type);
     }
     createDebugScene() {
+        // Build the base scene first
         this.createDefaultMIDIScene();
+        // Remove the noteAnimation macro for the debug scene (user request)
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
+        // Add debug overlay element
         this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
+    }
+    /**
+     * Create a debug scene containing every registered scene element type once.
+     * Uses registry schemas to generate ids and applies minimal default config.
+     * This helps visually QA layout / property panels.
+     */
+    createAllElementsDebugScene() {
+        this.clearElements();
+        this.resetSceneSettings();
+        this._createDefaultMacros();
+        // Remove the noteAnimation macro entirely in the all-elements debug scene
+        // so that animationType properties remain constant (macro binding not desired here).
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
+        const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
+        const usedIds = new Set<string>();
+        const ensureId = (base: string) => {
+            let id = base;
+            let i = 1;
+            while (usedIds.has(id)) id = base + '_' + i++;
+            usedIds.add(id);
+            return id;
+        };
+        // Background first so grid sits on top
+        this.addElement(new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0 }));
+        const gridCols = 4; // adjustable
+        const cellW = 320; // spacing horizontally
+        const cellH = 260; // spacing vertically
+        const startX = 160; // left padding
+        const startY = 160; // top padding
+        let index = 0;
+        let zBase = 10;
+        const trackPropCandidates = ['midiTrackId', 'trackId', 'sourceTrackId'];
+        for (const t of types) {
+            if (t === 'background' || t === 'debug') continue; // already / will add debug overlay later
+            try {
+                const baseId = t.replace(/[^a-zA-Z0-9]/g, '_');
+                const id = ensureId(baseId);
+                const col = index % gridCols;
+                const row = Math.floor(index / gridCols);
+                const offsetX = startX + col * cellW;
+                const offsetY = startY + row * cellH;
+                const el: any = this.addElementFromRegistry(t, {
+                    id,
+                    zIndex: zBase + index * 2,
+                    anchorX: 0,
+                    anchorY: 0,
+                    offsetX,
+                    offsetY,
+                });
+                if (el?.bindToMacro) {
+                    // Bind ALL track-like properties (previously only first). User request: map midiTrack macro
+                    // to all MIDI file/track sources present on the element.
+                    for (const cand of trackPropCandidates) {
+                        if (cand in el) {
+                            try {
+                                el.bindToMacro(cand, 'midiTrack');
+                            } catch {}
+                        }
+                    }
+                    // Do NOT bind animationType in debug scene (noteAnimation macro removed)
+                }
+                index++;
+            } catch (e) {
+                console.warn('[debugScene] Failed to add element type', t, e);
+            }
+        }
+        // Add overlay debug element last, positioned top-left
+        this.addElement(
+            new DebugElement(ensureId('debugOverlay'), {
+                zIndex: 100000,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 10,
+                offsetY: 10,
+            })
+        );
+        return this;
     }
     createDefaultMIDIScene() {
         this.clearElements();

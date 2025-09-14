@@ -5,6 +5,7 @@ import { Routes, Route } from 'react-router-dom';
 import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';
 import ChangelogPage from '@pages/ChangelogPage';
+import HomePage from '@pages/HomePage';
 
 export function App() {
 
@@ -38,7 +39,8 @@ export function App() {
   return (
     <div className="App">
       <Routes>
-        <Route path="/" element={<MidiVisualizer />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/workspace" element={<MidiVisualizer />} />
         <Route path="/animation-test" element={<AnimationTestPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
