@@ -16,7 +16,7 @@ Logical domains are separated to keep concerns isolated:
 
 ## Canonical Time Domain
 
--   Canonical representation: ticks (integer) at a project-level PPQ (currently fixed constant).
+-   Canonical representation: ticks (integer) at a project-level PPQ (configurable at startup).
 -   Secondary representations (beats, seconds, bars) are derived on demand through selectors/utilities; they are not stored in canonical entities.
 -   Conversion rules centralize inside `core/timing/` and are accessed via utilities or selectors (never ad-hoc per feature).
 -   PlaybackClock advances ticks from real-time deltas and writes authoritative playhead position; derived seconds are computed when needed for UI.
@@ -64,9 +64,36 @@ Logical domains are separated to keep concerns isolated:
 -   No mixing of geometry/math utilities with music theory after reorg.
 -   MIDI ingestion normalizes to tick-domain immediately.
 
+### Canonical PPQ Configuration
+
+The canonical PPQ (ticks per quarter; resolution of the tick domain) is defined in `core/timing/ppq.ts`.
+
+API:
+
+```
+import { CANONICAL_PPQ, setCanonicalPPQ, getCanonicalPPQ } from '@core/timing/ppq';
+```
+
+`CANONICAL_PPQ` is a live mutable export (updated when `setCanonicalPPQ` is called early during startup). For dynamic reads after potential runtime adjustments (tests), prefer `getCanonicalPPQ()`.
+
+Runtime Initialization:
+
+-   If the Vite env var `VITE_CANONICAL_PPQ` is set (e.g. `VITE_CANONICAL_PPQ=960`), `src/app/index.tsx` will call `setCanonicalPPQ` before the app renders, ensuring all subsequent modules see the adjusted resolution.
+-   Validation rejects non-positive / non-numeric values.
+
+Guidelines:
+
+-   Never hard-code 480/960 in production code; always derive via `CANONICAL_PPQ`.
+-   Tests that assume fixed beat-to-tick math should import `CANONICAL_PPQ` instead of literals.
+-   Helper converters (`beatsToTicks`, `ticksToBeats`) are provided in `ppq.ts`.
+
+Implications:
+
+-   Existing serialized data (if any) that persisted raw ticks will load consistently provided the same PPQ is used. A future migration layer could annotate stored PPQ to support importing sessions with different resolutions.
+
 ## Future Enhancements
 
--   Configurable PPQ with migration helper constant (see cleanup plan optional steps).
+-   Persist per-project PPQ and auto-migrate stored sessions with differing resolutions.
 -   Central time formatting utility for UI display (ticks -> human time string).
 -   ESLint rules to detect disallowed seconds field reintroductions.
 

@@ -484,11 +484,11 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                             </label>
                         </div>
                         <div className='grid grid-cols-2 gap-2'>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (s)
-                                <input aria-label="Scene start (seconds)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
+                            <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (bars)
+                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
                             </label>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene End (s)
-                                <input aria-label="Scene end (seconds)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
+                            <label className="flex flex-col text-[11px] text-neutral-300">Scene End (bars)
+                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
                             </label>
                         </div>
                     </div>
