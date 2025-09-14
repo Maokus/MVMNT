@@ -32,15 +32,6 @@ export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     return offsetTicksToBeats(t.offsetTicks || 0);
 };
 
-/**
- * @deprecated Seconds-based accessor slated for removal after UI fully migrates to ticks.
- */
-export const getTrackOffsetSeconds = (s: TimelineState, id: string): number => {
-    const t = s.tracks[id];
-    if (!t) return 0;
-    return getEffectiveOffsetSec(s, t);
-};
-
 export type TimelineNoteEvent = {
     trackId: string;
     note: number;

@@ -18,12 +18,6 @@ export const useCurrentSeconds = () =>
         return beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
     });
 
-// Backwards compatibility (will be removed in cleanup)
-/**
- * @deprecated Derived seconds hook retained for UI convenience. Prefer tick domain selectors.
- */
-export const useCurrentTimeSeconds = useCurrentSeconds;
-
 export const useLoopRangeSeconds = () =>
     useTimelineStore((s) => {
         const spb = getSPB(s);
@@ -56,18 +50,6 @@ export const useTimelineViewSeconds = () =>
         const map = s.timeline.masterTempoMap;
         const toSec = (tick: number) => beatsToSeconds(map, tick / _tm.ticksPerQuarter, spb);
         return { start: toSec(startTick), end: toSec(endTick) };
-    });
-
-/**
- * @deprecated Derived seconds hook retained for gradual migration. Use tick offset + conversion instead.
- */
-export const useTrackOffsetSeconds = (trackId: string) =>
-    useTimelineStore((s) => {
-        const tr = s.tracks[trackId];
-        if (!tr) return 0;
-        const spb = getSPB(s);
-        const beats = tr.offsetTicks / _tm.ticksPerQuarter;
-        return beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
     });
 
 // Non-hook helper for pure conversions inside tests or non-react modules
