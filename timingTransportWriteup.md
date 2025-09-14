@@ -1,3 +1,29 @@
+## What is the point of a playback clock?
+
+A playback clock is the authoritative bridge between real (wall) time and musical time (ticks / beats / bars). Instead of incrementing ticks by fixed step sizes or deriving them indirectly from a seconds counter, the clock:
+
+1. Samples high‑resolution wall time deltas (e.g. `performance.now()`).
+2. Translates each real-time delta into musical beats using the current tempo (or tempo map segment) at the _current musical position_.
+3. Accumulates fractional sub‑tick remainders so there is no long‑term drift or rounding loss.
+4. Produces a strictly monotonic, tempo-aware tick stream that downstream systems (playhead rendering, animation, scheduling) can trust as a single source of truth.
+
+Key benefits:
+
+-   Tempo Reactivity: A BPM or tempo map change immediately affects subsequent deltas without resetting accumulated position.
+-   Determinism (within frame cadence): Fractional tick accumulation prevents drift that would arise from naive rounding per frame.
+-   Clear Authority: Separates concerns — UI scrubbing / user seeks set an absolute tick; the clock only advances when transport is playing.
+-   Seamless Domain Shift: Other systems can derive seconds from ticks; seconds are no longer the authoritative domain, reducing dual‑source inconsistencies.
+
+### Updated pause semantics (2025‑09)
+
+Previously the internal `PlaybackClock` continued to accumulate ticks even while the transport was paused; only the store ignored those writes. This created a conceptual mismatch: resuming could jump because the internal clock had advanced invisibly. The new semantics freeze the clock itself while paused:
+
+-   `pause()` sets an internal flag; `update()` returns the same tick without advancing.
+-   Wall time anchoring still refreshes so that a long paused interval does not produce a large delta upon resume.
+-   `resume()` re-anchors the wall time reference to the resume moment, so the first post‑resume `update()` only accounts for the frame duration, not the entire paused gap.
+
+Result: When the user resumes playback the tick starts exactly where it was paused, eliminating hidden advancement and unexpected jumps.
+
 Completed (8/8) _Summarize findings and next steps_
 
 ## Overview

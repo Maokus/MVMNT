@@ -485,15 +485,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     setCurrentTick(tick: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'tick') {
         set((s: TimelineState) => {
-            // We need two behaviors simultaneously:
-            // 1. While explicitly paused, background clock.update() driven writes must NOT advance the store ("pausing freezes tick advancement").
-            // 2. A deliberate clock-domain write should override prior user authority in other non-playing states (e.g. initial idle) ("clock advance overrides user authority").
-            // Resolution: ignore 'clock' writes ONLY when transport.state === 'paused'. Allow in 'idle' | 'seeking' | 'playing'.
-            if (authority === 'clock' && !s.transport.isPlaying && s.transport.state === 'paused') {
-                // Ignore advancement; preserve existing authority & tick.
-                return { timeline: { ...s.timeline } } as TimelineState;
-            }
+            // Behavior goals:
+            // 1. While paused, passive advancement originating from the running render loop / clock.update should not move the store tick.
+            // 2. Explicit repositioning (seek/loop wrap) coming from the clock authority SHOULD update even while paused (e.g. tests calling setCurrentTick(500,'clock')).
+            // Implementation: if paused and authority==='clock' but tick is identical to currentTick (passive frame), ignore; otherwise apply.
             let nextTick = Math.max(0, tick);
+            if (authority === 'clock' && !s.transport.isPlaying && s.transport.state === 'paused') {
+                if (nextTick === s.timeline.currentTick) {
+                    return { timeline: { ...s.timeline } } as TimelineState; // no-op passive frame
+                }
+                // Allow change-through for explicit reposition while paused.
+            }
             if (
                 s.transport.loopEnabled &&
                 typeof s.transport.loopStartTick === 'number' &&

@@ -1,0 +1,39 @@
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/state/tests/playback.pause-freeze.and-bpm-change.test.ts > Playback pause freeze & BPM change propagation > does not advance ticks while paused (internal clock frozen)
+AssertionError: expected 61 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 61
+
+ ❯ src/state/tests/playback.pause-freeze.and-bpm-change.test.ts:33:35
+     31|         expect(endTick).toBe(startTick);
+     32|         // NEW behavior: internal clock also frozen while paused
+     33|         expect(clock.currentTick).toBe(startTick);
+       |                                   ^
+     34|     });
+     35| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/state/tests/playheadAuthority.test.ts > playheadAuthority precedence > clock advance overrides user authority
+AssertionError: expected +0 to be 500 // Object.is equality
+
+- Expected
++ Received
+
+- 500
++ 0
+
+ ❯ src/state/tests/playheadAuthority.test.ts:33:40
+     31|         api.setCurrentTick(500, 'clock');
+     32|         const s = useTimelineStore.getState();
+     33|         expect(s.timeline.currentTick).toBe(500);
+       |                                        ^
+     34|         expect(s.timeline.playheadAuthority).toBe('clock');
+     35|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

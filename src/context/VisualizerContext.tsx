@@ -154,7 +154,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const stateAtStart = useTimelineStore.getState();
         // Derive starting tick from store (already dual-written in Phase 2)
         const startTick = stateAtStart.timeline.currentTick ?? 0;
-        const clock = new PlaybackClock({ timingManager: tm, initialTick: startTick });
+        const clock = new PlaybackClock({
+            timingManager: tm,
+            initialTick: startTick,
+            autoStartPaused: !stateAtStart.transport.isPlaying,
+        });
         const playSnapHandler = (e: any) => {
             if (!e?.detail?.tick) return;
             try { clock.setTick(e.detail.tick); } catch { /* ignore */ }
@@ -175,11 +179,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const endBeats = pr.endTick / tmApprox.ticksPerQuarter;
                     const endSec = tmApprox.beatsToSeconds(endBeats);
                     if (vNow >= endSec) {
+                        // Auto-stop behavior: pause visualizer & transport, reset playhead to start (loop-like) without killing RAF loop.
                         visualizer.pause?.();
+                        try { if (st.transport.isPlaying) st.pause(); } catch { /* ignore */ }
                         const startTick = pr.startTick ?? 0;
                         clock.setTick(startTick);
                         st.setCurrentTick(startTick, 'clock');
-                        return; // stop advancing this frame; next RAF will resume idle updates
+                        // Do not early-return; allow rest of loop to process paused state and schedule next frame.
                     }
                 }
             } catch { }
@@ -199,7 +205,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     state.setCurrentTick(tickVal, 'clock'); // dual-write updates seconds
                 }
             }
-            // Advance clock only when transport playing; rely on visualizer.isPlaying flag indirectly
+            // Manage pause/resume of playback clock.
+            if (!state.transport.isPlaying) {
+                if (!clock.isPaused) clock.pause(performance.now());
+            } else if (clock.isPaused) {
+                clock.resume(performance.now());
+            }
+            // Advance clock only when transport playing
             if (state.transport.isPlaying) {
                 // CLOCK → STORE → VISUALIZER
                 const storeTick = state.timeline.currentTick ?? 0;
