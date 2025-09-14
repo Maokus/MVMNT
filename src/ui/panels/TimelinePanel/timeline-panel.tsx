@@ -6,7 +6,7 @@ import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
-import { secondsToBars, secondsToBeatsSelector } from '@state/selectors/timing'; // legacy seconds selectors (kept for display)
+// Removed legacy seconds selectors for Phase 5 core display. Seconds shown are derived from tick on the fly.
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
@@ -222,11 +222,27 @@ export default TimelinePanel;
 // Time indicator component (moved to the left header beside Add MIDI Track)
 const TimeIndicator: React.FC = () => {
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
-    const seconds = useTimelineStore((s) => s.timeline.currentTimeSec || 0); // derived legacy
-    const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec || 0));
-    const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec || 0));
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const ticksPerQuarter = 960; // constant for now
+    const tempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
+    const bpm = useTimelineStore((s) => s.timeline.globalBpm);
+    const ticksPerQuarter = 960; // TODO: central constant
+    // Derive beats/seconds from tick
+    const beatsFloat = currentTick / ticksPerQuarter;
+    const barsFloat = beatsFloat / (beatsPerBar || 4);
+    // seconds derivation using fallback tempo map util (simplified uniform tempo assumption if no map)
+    const spb = 60 / (bpm || 120);
+    let seconds = beatsFloat * spb;
+    // Use TimingManager for accurate beats->seconds with tempo map if available
+    try {
+        if (tempoMap && tempoMap.length) {
+            // Instantiate a lightweight TimingManager just for conversion (could reuse singleton)
+            const { TimingManager } = require('@core/timing');
+            const tm = new TimingManager();
+            tm.setBPM(bpm || 120);
+            tm.setTempoMap(tempoMap, 'seconds');
+            seconds = tm.beatsToSeconds(beatsFloat);
+        }
+    } catch { /* ignore */ }
     const fmt = (s: number) => {
         const sign = s < 0 ? '-' : '';
         const abs = Math.abs(s);
@@ -241,8 +257,8 @@ const TimeIndicator: React.FC = () => {
         <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
             <span>{formatTickAsBBT(currentTick, ticksPerQuarter, beatsPerBar)}</span>
             <span className="hidden sm:inline">({fmt(seconds)})</span>
-            <span className="hidden sm:inline">beats: {beats.toFixed(2)}</span>
-            <span className="hidden sm:inline">bars: {bars.toFixed(2)}</span>
+            <span className="hidden sm:inline">beats: {beatsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline">bars: {barsFloat.toFixed(2)}</span>
         </div>
     );
 };

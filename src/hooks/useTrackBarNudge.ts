@@ -1,21 +1,19 @@
 import { useCallback } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { secondsToBeatsSelector, beatsToSecondsSelector } from '@state/selectors/timing';
 
-// Nudge a given track's offset by +/- N bars
+// Nudge a given track's offset by +/- N bars using canonical tick domain
 export default function useTrackBarNudge(trackId: string, bars: number = 1) {
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const setOffset = useTimelineStore((s) => s.setTrackOffset);
-    const trackOffset = useTimelineStore((s) => s.tracks[trackId]?.offsetSec || 0);
+    const setOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
+    const offsetTicks = useTimelineStore((s) => s.tracks[trackId]?.offsetTicks || 0);
+    const ticksPerQuarter = 960; // TODO unify source
 
     return useCallback(
         (dir: 1 | -1) => {
-            const state = useTimelineStore.getState();
-            const currentBeats = secondsToBeatsSelector(state, trackOffset);
-            const nextBeats = currentBeats + dir * bars * (beatsPerBar || 4);
-            const nextSec = Math.max(0, beatsToSecondsSelector(state, nextBeats));
-            setOffset(trackId, nextSec);
+            const ticksPerBar = beatsPerBar * ticksPerQuarter;
+            const next = Math.max(0, offsetTicks + dir * bars * ticksPerBar);
+            setOffsetTicks(trackId, next);
         },
-        [trackId, trackOffset, setOffset, beatsPerBar, bars]
+        [trackId, offsetTicks, setOffsetTicks, beatsPerBar, bars]
     );
 }

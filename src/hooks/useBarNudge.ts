@@ -1,23 +1,19 @@
 import { useCallback } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { secondsToBeatsSelector, beatsToSecondsSelector } from '@state/selectors/timing';
 
+// Nudge playhead by whole bars in tick domain (Phase 5)
 export default function useBarNudge(bars: number = 1) {
-    const current = useTimelineStore((s) => s.timeline.currentTimeSec);
-    const setCurrent = useTimelineStore((s) => s.setCurrentTimeSec);
-    const masterTempo = useTimelineStore((s) => s.timeline.masterTempoMap);
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
+    const ticksPerQuarter = 960; // TODO: source from TimingManager singleton if made dynamic
 
     return useCallback(
         (dir: 1 | -1) => {
-            // Use selectors for consistent conversions and store-backed meter
-            const state = useTimelineStore.getState();
-            const beats = secondsToBeatsSelector(state, current);
-            const nextBeats = beats + dir * bars * (beatsPerBar || 4);
-            const nextSec = beatsToSecondsSelector(state, nextBeats);
-            setCurrent(nextSec);
+            const ticksPerBar = beatsPerBar * ticksPerQuarter;
+            const next = Math.max(0, currentTick + dir * bars * ticksPerBar);
+            setCurrentTick(next);
         },
-        [current, setCurrent, masterTempo, beatsPerBar, globalBpm, bars]
+        [currentTick, setCurrentTick, beatsPerBar, bars]
     );
 }
