@@ -1,26 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { barsToSeconds, secondsToBars } from '@state/selectors/timing';
-import { usePlaybackRangeSeconds } from '@state/selectors/timeDerived';
 import { RULER_HEIGHT } from './constants';
-import { useTimeScale } from './useTimeScale';
+import { useTickScale } from './useTickScale';
+import { TimingManager } from '@core/timing';
+import { formatTickAsBBT } from '@core/timing/time-domain';
 
-// Use shared time scale
-
-function useSnapSeconds() {
+// Snap tick helper
+function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const tm = useMemo(() => new TimingManager(), []);
     return useCallback(
-        (candidateSec: number, opts?: { altKey?: boolean; forceBar?: boolean }) => {
+        (candidateTick: number, opts?: { altKey?: boolean; forceBar?: boolean }) => {
             const { altKey, forceBar } = opts || {};
-            if (altKey) return Math.max(0, candidateSec);
+            if (altKey) return Math.max(0, candidateTick);
             const shouldSnap = forceBar || quantize === 'bar';
-            if (!shouldSnap) return Math.max(0, candidateSec);
-            const state = useTimelineStore.getState();
-            const bars = secondsToBars(state, candidateSec);
-            const snappedBars = Math.round(bars);
-            return barsToSeconds(state, snappedBars);
+            if (!shouldSnap) return Math.max(0, candidateTick);
+            const tpq = tm.ticksPerQuarter;
+            const ticksPerBar = beatsPerBar * tpq;
+            const snappedBars = Math.round(candidateTick / ticksPerBar);
+            return Math.max(0, snappedBars * ticksPerBar);
         },
-        [quantize]
+        [quantize, beatsPerBar, tm]
     );
 }
 
@@ -30,22 +31,12 @@ const TimelineRuler: React.FC = () => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [width, setWidth] = useState(0);
     const height = RULER_HEIGHT;
-    const currentTimeSec = useTimelineStore((s) => (s as any).timeline.currentTimeSec || 0);
-    const { view, toSeconds, toX } = useTimeScale();
-    // Subscribe to global timing so ruler recomputes ticks immediately when tempo/meter changes
-    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm); // fallback bpm when no tempo map
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const { view, toTick, toX } = useTickScale();
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const tempoMapRef = useTimelineStore((s) => s.timeline.masterTempoMap); // reference changes when map replaced
-    const seek = useTimelineStore((s) => (s as any).seek || (() => { }));
-    const setCurrentTimeSec = useTimelineStore((s) => (s as any).setCurrentTimeSec || (() => { }));
-    // Loop UI disabled: keep state wired for compatibility, but do not render or edit loop braces
-    const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => (s as any).transport);
-    const playbackRangeTicks = useTimelineStore((s) => s.playbackRange as any);
-    const setPlaybackRange = useTimelineStore((s) => (s as any).setPlaybackRange || (() => { }));
-    const setPlaybackRangeExplicit = useTimelineStore((s) => (s as any).setPlaybackRangeExplicit || (() => { }));
-    // Derived seconds form of playback range (compat layer during ticks migration)
-    const playbackRangeSeconds = usePlaybackRangeSeconds() as { start?: number; end?: number };
-    const snapSeconds = useSnapSeconds();
+    const seekTick = useTimelineStore((s) => s.seekTick);
+    const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
+    const snapTicks = useSnapTicks();
 
     // Resize handling
     useEffect(() => {
@@ -62,41 +53,34 @@ const TimelineRuler: React.FC = () => {
 
     // Build bar ticks for the visible range (with slight padding for readability)
     const bars = useMemo(() => {
-        const s = useTimelineStore.getState();
-        const startBars = Math.floor(secondsToBars(s, Math.max(0, view.startSec - 0.001)) - 1e-6) - 1;
-        const endBars = Math.ceil(secondsToBars(s, view.endSec + 0.001) + 1e-6) + 1;
-        const items: Array<{ barIdx: number; sec: number }> = [];
-        for (let b = Math.max(0, startBars); b <= Math.max(startBars, endBars); b++) {
-            const sec = barsToSeconds(s, b);
-            items.push({ barIdx: b, sec });
-        }
-        return items;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [view.startSec, view.endSec, globalBpm, beatsPerBar, tempoMapRef]);
+        const tpq = new TimingManager().ticksPerQuarter;
+        const ticksPerBar = beatsPerBar * tpq;
+        const startBar = Math.floor(view.startTick / ticksPerBar) - 1;
+        const endBar = Math.ceil(view.endTick / ticksPerBar) + 1;
+        const arr: Array<{ barIdx: number; tick: number }> = [];
+        for (let b = Math.max(0, startBar); b <= endBar; b++) arr.push({ barIdx: b, tick: b * ticksPerBar });
+        return arr;
+    }, [view.startTick, view.endTick, beatsPerBar]);
 
     // Optionally compute beat ticks if there's enough room per bar
     const beatTicks = useMemo(() => {
-        const s = useTimelineStore.getState();
-        const bpb = s.timeline.beatsPerBar || 4;
-        if (!width || bars.length < 2) return [] as Array<{ sec: number; isBar: boolean }>;
-        // estimate px per bar using first two bars
-        const pxPerBar = Math.abs(toX(bars[1].sec, width) - toX(bars[0].sec, width));
-        const showBeats = pxPerBar > 48; // threshold: only show beats when bars are wide enough
-        const ticks: Array<{ sec: number; isBar: boolean }> = [];
+        if (!width || bars.length < 2) return [] as Array<{ tick: number; isBar: boolean }>;
+        const tpq = new TimingManager().ticksPerQuarter;
+        const ticksPerBar = beatsPerBar * tpq;
+        const pxPerBar = Math.abs(toX(bars[1].tick, width) - toX(bars[0].tick, width));
+        const showBeats = pxPerBar > 48;
+        const arr: Array<{ tick: number; isBar: boolean }> = [];
         for (let i = 0; i < bars.length; i++) {
             const b = bars[i];
-            // bar line
-            ticks.push({ sec: b.sec, isBar: true });
+            arr.push({ tick: b.tick, isBar: true });
             if (showBeats) {
-                for (let beat = 1; beat < bpb; beat++) {
-                    const sec = barsToSeconds(s, b.barIdx + beat / bpb);
-                    ticks.push({ sec, isBar: false });
+                for (let beat = 1; beat < beatsPerBar; beat++) {
+                    arr.push({ tick: b.tick + beat * tpq, isBar: false });
                 }
             }
         }
-        return ticks;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bars, width, toX, beatsPerBar, globalBpm, tempoMapRef]);
+        return arr;
+    }, [bars, width, toX, beatsPerBar]);
 
     // Pointer interactions: click to seek, drag braces
     const dragState = useRef<
@@ -115,11 +99,10 @@ const TimelineRuler: React.FC = () => {
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const tSec = toSeconds(x, width);
-        const loopStartX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
-        const loopEndX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
-        const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
-        const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
+        const tick = toTick(x, width);
+        const pr = useTimelineStore.getState().playbackRange;
+        const playStart = pr?.startTick ?? view.startTick;
+        const playEnd = pr?.endTick ?? view.endTick;
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
 
@@ -131,17 +114,14 @@ const TimelineRuler: React.FC = () => {
         dragState.current = {
             type,
             originX: x,
-            originSec: tSec,
+            originSec: 0,
             startSec: playStart,
             endSec: playEnd,
             alt: !!e.altKey,
         };
-
         if (type === 'seek') {
-            // Initial seek
-            const snapped = snapSeconds(tSec, { altKey: e.altKey, forceBar: e.shiftKey });
-            // Convert snapped seconds -> ticks
-            if (e.altKey) setCurrentTimeSec(snapped); else seek(snapped);
+            const snapped = snapTicks(tick, { altKey: e.altKey, forceBar: e.shiftKey });
+            e.altKey ? setCurrentTick(snapped) : seekTick(snapped);
         }
     };
 
@@ -152,8 +132,9 @@ const TimelineRuler: React.FC = () => {
         if (dragState.current && dragState.current.type !== 'seek') return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
-        const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
+        const pr = useTimelineStore.getState().playbackRange;
+        const playStart = pr?.startTick ?? view.startTick;
+        const playEnd = pr?.endTick ?? view.endTick;
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
         const nearStart = Math.abs(x - playStartX) <= BRACE_HIT_W;
@@ -172,31 +153,29 @@ const TimelineRuler: React.FC = () => {
             if (!containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
-            const cand = toSeconds(x, width);
-            const snapped = snapSeconds(cand, { altKey: e.altKey, forceBar: e.shiftKey });
-            // During drag we set currentTime directly (no quantize jump) for smoothness
-            setCurrentTimeSec(snapped);
+            const cand = toTick(x, width);
+            const snapped = snapTicks(cand, { altKey: e.altKey, forceBar: e.shiftKey });
+            setCurrentTick(snapped);
             return;
         }
         // Else handle brace drag
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const cand = toSeconds(x, width);
+        const cand = toTick(x, width);
         // Track live modifier keys: Alt/Shift
         const alt = !!(e.altKey || dragState.current.alt);
         const forceBar = !!e.shiftKey;
-        const snapped = snapSeconds(cand, { altKey: alt, forceBar });
+        const snapped = snapTicks(cand, { altKey: alt, forceBar });
         const d = dragState.current;
         if (d.type === 'play-start') {
             const newStart = Math.max(0, snapped);
-            const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 0.0001, d.endSec) : d.endSec;
-            // Convert second boundaries to ticks
-            setPlaybackRangeExplicit(newStart, newEnd);
+            const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 1, d.endSec) : d.endSec;
+            useTimelineStore.getState().setPlaybackRangeExplicitTicks(newStart, newEnd as number | undefined);
         } else if (d.type === 'play-end') {
-            const newEnd = Math.max(0.0001, snapped);
-            const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 0.0001) : d.startSec;
-            setPlaybackRangeExplicit(newStart, newEnd);
+            const newEnd = Math.max(1, snapped);
+            const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 1) : d.startSec;
+            useTimelineStore.getState().setPlaybackRangeExplicitTicks(newStart as number | undefined, newEnd);
         }
     };
 
@@ -208,11 +187,12 @@ const TimelineRuler: React.FC = () => {
         } catch { }
     };
 
-    const playheadX = toX(currentTimeSec, width);
+    const playheadX = toX(currentTick, width);
     const loopStartX = null;
     const loopEndX = null;
-    const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
-    const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
+    const pr = useTimelineStore.getState().playbackRange;
+    const playStart = pr?.startTick ?? view.startTick;
+    const playEnd = pr?.endTick ?? view.endTick;
     const playStartX = toX(playStart, width);
     const playEndX = toX(playEnd, width);
 
@@ -226,20 +206,19 @@ const TimelineRuler: React.FC = () => {
             onPointerUp={onPointerUp}
             role="group"
             aria-label="Timeline ruler"
-            title="Click to seek (Shift snaps to bar, Alt bypass). Drag braces to set loop (Shift snaps to bar, Alt bypass)."
+            title="Click to seek (Shift snaps to bar, Alt bypass). Drag braces to set playback range (Shift snaps to bar, Alt bypass)."
         >
             {/* Bar ticks and labels */}
             <svg className="absolute inset-0" width={width} height={height} aria-hidden>
                 {beatTicks.map((t, i) => {
-                    const x = toX(t.sec, width);
+                    const x = toX(t.tick, width);
                     const col = t.isBar ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.12)';
                     const h = t.isBar ? height : Math.floor(height * 0.6);
                     const y1 = t.isBar ? 0 : height - h;
                     return <line key={`tick-${i}`} x1={x} x2={x} y1={y1} y2={height} stroke={col} strokeWidth={1} />;
                 })}
                 {bars.map((b, i) => {
-                    const x = toX(b.sec, width);
-                    // Label bars when there's room
+                    const x = toX(b.tick, width);
                     if (width / Math.max(1, bars.length) <= 24) return null;
                     return (
                         <text key={`lbl-${i}`} x={x + 4} y={16} fill="#ddd" fontSize={11}>

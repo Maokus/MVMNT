@@ -25,7 +25,7 @@ const ChangelogPage: React.FC = () => {
                         <h2>Unreleased / In Progress</h2>
                         <ul className="feature-list">
                             <li>Ctrl z functionality (sorry lol this is actually really hard)</li>
-                            <li>Decrease memory consumption leading to crashes/file handling issues (please report if this occurs so I know how widespread it is)</li>
+                            <li>Audio track functionality for syncing and export</li>
                         </ul>
                     </section>
 
@@ -35,7 +35,8 @@ const ChangelogPage: React.FC = () => {
                             <i>12-09-31</i>
                         </div>
                         <ul className='feature-list'>
-                            <li>Overhauled timing and midi file handling system and added timeline panel</li>
+                            <li>Overhauled timing and midi system (timeline panel, better arrangement)</li>
+                            <li>Migrated to MediaBunny for encoding work (faster exports, more responsive UI)</li>
                             <li>Migrated partially to zustand for some state management</li>
                             <li>Migrated over to tailwindcss</li>
                         </ul>

@@ -397,6 +397,33 @@ export class TimingManager {
         return sec;
     }
 
+    /**
+     * Generate beat grid events in a tick window. Includes every beat boundary; marks bar starts.
+     * startTick inclusive, endTick inclusive (end beat if boundary lies exactly at end).
+     */
+    getBeatGridInTicks(startTick: number, endTick: number) {
+        if (endTick < startTick) [startTick, endTick] = [endTick, startTick];
+        const startBeats = startTick / this.ticksPerQuarter;
+        const endBeats = endTick / this.ticksPerQuarter;
+        const startIndex = Math.ceil(startBeats - 1e-9);
+        const endIndex = Math.floor(endBeats + 1e-9);
+        const beats: Array<{
+            tick: number;
+            isBarStart: boolean;
+            beatIndex: number; // absolute beat index (0-based)
+            barNumber: number; // 1-based
+            beatNumber: number; // 1-based within bar
+        }> = [];
+        for (let bi = startIndex; bi <= endIndex; bi++) {
+            const tick = Math.round(bi * this.ticksPerQuarter);
+            const isBarStart = bi % this.beatsPerBar === 0;
+            const barNumber = Math.floor(bi / this.beatsPerBar) + 1;
+            const beatNumber = (bi % this.beatsPerBar) + 1;
+            beats.push({ tick, isBarStart, beatIndex: bi, barNumber, beatNumber });
+        }
+        return beats;
+    }
+
     logConfiguration() {
         // eslint-disable-next-line no-console
         console.log(`TimingManager Configuration (${this.elementId}):`, {
