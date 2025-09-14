@@ -227,7 +227,9 @@ const TimeIndicator: React.FC = () => {
     const tempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
     const bpm = useTimelineStore((s) => s.timeline.globalBpm);
     // Use TimingManager for canonical ticksPerQuarter instead of hard-coded constant (was 960 vs core 480 mismatch)
-    const ticksPerQuarter = new TimingManager().ticksPerQuarter;
+    // Use shared timing manager (singleton) for consistent tick domain
+    const { sharedTimingManager } = require('@state/timelineStore');
+    const ticksPerQuarter = sharedTimingManager.ticksPerQuarter;
     // Derive beats/seconds from tick
     const beatsFloat = currentTick / ticksPerQuarter;
     const barsFloat = beatsFloat / (beatsPerBar || 4);
@@ -237,12 +239,8 @@ const TimeIndicator: React.FC = () => {
     // Use TimingManager for accurate beats->seconds with tempo map if available
     try {
         if (tempoMap && tempoMap.length) {
-            // Instantiate a lightweight TimingManager just for conversion (could reuse singleton)
-            const { TimingManager } = require('@core/timing');
-            const tm = new TimingManager();
-            tm.setBPM(bpm || 120);
-            tm.setTempoMap(tempoMap, 'seconds');
-            seconds = tm.beatsToSeconds(beatsFloat);
+            // Reuse shared timing manager (already has BPM/tempo map set via store actions)
+            seconds = sharedTimingManager.beatsToSeconds(beatsFloat);
         }
     } catch { /* ignore */ }
     const fmt = (s: number) => {

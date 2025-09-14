@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTimelineStore } from '@state/timelineStore';
 import { RULER_HEIGHT } from './constants';
 import { useTickScale } from './useTickScale';
-import { TimingManager } from '@core/timing';
+import { sharedTimingManager } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
 
 // Snap tick helper
 function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const tm = useMemo(() => new TimingManager(), []);
+    // Use shared singleton timing manager so BPM / tempo map changes propagate consistently
+    const tm = sharedTimingManager;
     return useCallback(
         (candidateTick: number, opts?: { altKey?: boolean; forceBar?: boolean }) => {
             const { altKey, forceBar } = opts || {};
@@ -53,7 +54,7 @@ const TimelineRuler: React.FC = () => {
 
     // Build bar ticks for the visible range (with slight padding for readability)
     const bars = useMemo(() => {
-        const tpq = new TimingManager().ticksPerQuarter;
+        const tpq = sharedTimingManager.ticksPerQuarter;
         const ticksPerBar = beatsPerBar * tpq;
         const startBar = Math.floor(view.startTick / ticksPerBar) - 1;
         const endBar = Math.ceil(view.endTick / ticksPerBar) + 1;
@@ -65,7 +66,7 @@ const TimelineRuler: React.FC = () => {
     // Optionally compute beat ticks if there's enough room per bar
     const beatTicks = useMemo(() => {
         if (!width || bars.length < 2) return [] as Array<{ tick: number; isBar: boolean }>;
-        const tpq = new TimingManager().ticksPerQuarter;
+        const tpq = sharedTimingManager.ticksPerQuarter;
         const ticksPerBar = beatsPerBar * tpq;
         const pxPerBar = Math.abs(toX(bars[1].tick, width) - toX(bars[0].tick, width));
         const showBeats = pxPerBar > 48;

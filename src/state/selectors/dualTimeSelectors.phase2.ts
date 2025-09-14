@@ -3,9 +3,9 @@
 
 import { useTimelineStore } from '../timelineStore';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
-import { TimingManager } from '@core/timing';
+import { sharedTimingManager } from '../timelineStore';
 
-const tm = new TimingManager();
+const tm = sharedTimingManager;
 
 export function useCurrentTickDual(): number {
     return useTimelineStore((s) => {

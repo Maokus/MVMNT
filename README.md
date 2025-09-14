@@ -99,3 +99,23 @@ Fixes implemented:
 -   Added regression tests: `playbackRange.ppqConsistency.test.ts` (seconds↔ticks round trip) and `pause.noJump.test.ts`.
 
 If you need higher resolution later, make PPQ configurable in a single place and propagate through the store + visualizer; do not reintroduce literals.
+
+### 2025-09 Shared Timing Manager & Tick Domain Migration (Phase 2)
+
+The application now exposes a single authoritative tempo/tempo-map source: `sharedTimingManager` (exported from `src/state/timelineStore.ts`). All UI components, selectors, and the `PlaybackClock` reference this singleton so that BPM and tempo map changes take effect immediately during playback without requiring a restart.
+
+Key changes:
+
+-   Removed ad-hoc `new TimingManager()` calls across UI (`TimelineRuler`, `timeline-panel` TimeIndicator, selectors) in favor of the singleton.
+-   `setGlobalBpm` and `setMasterTempoMap` directly update the shared timing manager.
+-   Quantized `play()` snapping emits a `timeline-play-snapped` event; the visualizer listens and aligns the `PlaybackClock` via `clock.setTick(snappedTick)` clearing fractional remainder (prevents post-start micro jumps).
+-   Legacy seconds-facing store APIs now log deprecation warnings in dev and internally convert to ticks:
+    -   `setCurrentTimeSec`, `seek`, `scrub`, `setLoopRange`, `setTimelineView`, `setPlaybackRange*`.
+        Prefer the tick-first equivalents: `setCurrentTick`, `seekTick`, `scrubTick`, `setLoopRangeTicks`, `setTimelineViewTicks`, `setPlaybackRangeTicks` / `setPlaybackRangeExplicitTicks`.
+
+New regression tests:
+
+-   `playback.pause-freeze.and-bpm-change.test.ts` ensures paused transport freezes store tick while the internal clock may advance, and validates immediate BPM change impact on tick deltas.
+-   Updated `timelineStore.behavior.test.ts` now seeds and asserts in tick domain (seconds only derived).
+
+Rationale: Multiple unsynced `TimingManager` instances previously caused tempo changes not to propagate to the active playback clock, and increased complexity in tick↔seconds mirroring. Consolidation eliminates these race conditions and surfaces a single source of truth for musical time.

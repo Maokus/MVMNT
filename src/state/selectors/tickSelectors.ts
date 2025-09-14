@@ -3,7 +3,7 @@
 
 import { useTimelineStore } from '../timelineStore';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
-import { TimingManager } from '@core/timing';
+import { sharedTimingManager } from '../timelineStore';
 
 // Simple shared accessor for current timeline tempo context (fallback bpm + map)
 function getSecondsPerBeatCurrent(state: any) {
@@ -17,16 +17,14 @@ export function useCurrentTick(): number {
         const spb = getSecondsPerBeatCurrent(s);
         const beats = secondsToBeats(s.timeline.masterTempoMap, s.timeline.currentTimeSec, spb);
         // Use existing global ticksPerQuarter from TimingManager default (will align later with canonical PPQ)
-        const tm = new TimingManager();
-        return beats * tm.ticksPerQuarter; // not cached; inexpensive
+        return beats * sharedTimingManager.ticksPerQuarter; // not cached; inexpensive
     });
 }
 
 export function selectSecondsForTick(tick: number) {
     const s = useTimelineStore.getState();
     const spb = getSecondsPerBeatCurrent(s);
-    const tm = new TimingManager();
-    const beats = tick / tm.ticksPerQuarter;
+    const beats = tick / sharedTimingManager.ticksPerQuarter;
     return beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
 }
 
@@ -35,7 +33,6 @@ export function useSecondsToTicks(seconds: number): number {
     return useTimelineStore((s) => {
         const spb = getSecondsPerBeatCurrent(s);
         const beats = secondsToBeats(s.timeline.masterTempoMap, seconds, spb);
-        const tm = new TimingManager();
-        return beats * tm.ticksPerQuarter;
+        return beats * sharedTimingManager.ticksPerQuarter;
     });
 }

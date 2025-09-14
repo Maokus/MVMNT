@@ -502,6 +502,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     // Legacy seconds-based setter (quantize & looping will be handled outside; this just sets)
     setCurrentTimeSec(t: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'seconds') {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn(
+                    '[timelineStore] setCurrentTimeSec is deprecated; use setCurrentTick after converting seconds to ticks.'
+                );
+            } catch {
+                /* ignore */
+            }
+        }
         const s = get();
         const spb = 60 / (s.timeline.globalBpm || 120);
         const beats = secondsToBeats(s.timeline.masterTempoMap, t, spb);
@@ -560,6 +569,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     const spb = 60 / (s.timeline.globalBpm || 120);
                     curSec = beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
                     // Notify runtime (VisualizerContext) to align playback clock
+                    // VisualizerContext listens for 'timeline-play-snapped' and issues clock.setTick(snappedTick)
+                    // ensuring the PlaybackClock fractional accumulator is cleared (Phase 2 requirement #5).
                     try {
                         window.dispatchEvent(new CustomEvent('timeline-play-snapped', { detail: { tick: curTick } }));
                     } catch {
@@ -595,6 +606,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     // Legacy seconds seek (with bar quantize if enabled)
     seek(sec: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn('[timelineStore] seek(seconds) is deprecated; convert to ticks and call seekTick.');
+            } catch {
+                /* ignore */
+            }
+        }
         set((s: TimelineState) => {
             let target = Math.max(0, sec);
             if (s.transport.quantize === 'bar') {
@@ -612,6 +630,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
     scrub(sec: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn('[timelineStore] scrub(seconds) is deprecated; convert to ticks and call scrubTick.');
+            } catch {
+                /* ignore */
+            }
+        }
         get().setCurrentTimeSec(sec, 'user');
     },
 
@@ -649,6 +674,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     // Legacy seconds-based loop range setter
     setLoopRange(start?: number, end?: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn(
+                    '[timelineStore] setLoopRange(seconds) is deprecated; convert to ticks and call setLoopRangeTicks.'
+                );
+            } catch {
+                /* ignore */
+            }
+        }
         const s = get();
         const startBeats = typeof start === 'number' ? _secondsToBeatsLocal(s, start) : undefined;
         const endBeats = typeof end === 'number' ? _secondsToBeatsLocal(s, end) : undefined;
@@ -682,6 +716,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     // Legacy seconds-based view setter
     setTimelineView(start: number, end: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn('[timelineStore] setTimelineView(seconds) is deprecated; use setTimelineViewTicks.');
+            } catch {
+                /* ignore */
+            }
+        }
         const s = get();
         const spb = 60 / (s.timeline.globalBpm || 120);
         const beatsStart = secondsToBeats(s.timeline.masterTempoMap, start, spb);
@@ -736,6 +777,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     // Legacy playback range seconds setters
     setPlaybackRange(start?: number, end?: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn('[timelineStore] setPlaybackRange(seconds) is deprecated; use setPlaybackRangeTicks.');
+            } catch {
+                /* ignore */
+            }
+        }
         const s = get();
         const startBeats = typeof start === 'number' ? _secondsToBeatsLocal(s, start) : undefined;
         const endBeats = typeof end === 'number' ? _secondsToBeatsLocal(s, end) : undefined;
@@ -745,6 +793,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         );
     },
     setPlaybackRangeExplicit(start?: number, end?: number) {
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                console.warn(
+                    '[timelineStore] setPlaybackRangeExplicit(seconds) is deprecated; use setPlaybackRangeExplicitTicks.'
+                );
+            } catch {
+                /* ignore */
+            }
+        }
         const s = get();
         const startBeats = typeof start === 'number' ? _secondsToBeatsLocal(s, start) : undefined;
         const endBeats = typeof end === 'number' ? _secondsToBeatsLocal(s, end) : undefined;

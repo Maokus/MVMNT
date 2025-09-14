@@ -1,9 +1,9 @@
 import { useTimelineStore } from '../timelineStore';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
-import { TimingManager } from '@core/timing';
+import { sharedTimingManager } from '../timelineStore';
 
 // Singleton timing manager (reuse existing one if exported differently later)
-const _tm = new TimingManager();
+const _tm = sharedTimingManager;
 
 function getSPB(state: any) {
     return 60 / (state.timeline.globalBpm || 120);
