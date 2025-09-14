@@ -10,6 +10,7 @@ import {
     BindingType,
 } from '@bindings/property-bindings';
 import { globalMacroManager } from '@bindings/macro-manager';
+import { debugLog } from '@utils/debug-log';
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
@@ -656,9 +657,9 @@ export class SceneElement implements SceneElementInterface {
             type: this.type,
         };
 
-        // Add all bindings in serialized form
+        // Add all bindings in serialized form (debug logging only when enabled)
         this.bindings.forEach((binding, key) => {
-            console.log(`[getSerializableConfig] Serializing binding for ${key}:`, binding);
+            debugLog('[Bindings][Serialize]', key, binding);
             config[key] = binding.serialize();
         });
 

@@ -44,6 +44,9 @@
       "@math/*": [
         "math/*"
       ],
+      "@persistence/*": [
+        "persistence/*"
+      ],
       "@ui/*": [
         "ui/*"
       ],

@@ -143,3 +143,64 @@ Benefits:
 -   Eliminates bar-length inflation / shrinkage when mixing MIDI files with different PPQs.
 -   Simplifies selector logic & memoization keys (no per-track PPQ dependency churn).
 -   Ensures offsets, loop ranges, and content bounds operate in a single stable tick domain.
+
+### Scene Persistence (MVP – Phase 1)
+
+The Phase 1 serialization system introduces a feature-flagged API for exporting, importing, and undo/redo via a snapshot ring buffer.
+
+Flag: set `VITE_FEATURE_SERIALIZATION_V1=true` in `.env.local` (or your shell) to enable.
+
+API Usage:
+
+```ts
+import { exportScene, importScene, createSnapshotUndoController } from 'src/persistence';
+import { useTimelineStore } from 'src/state/timelineStore';
+
+// Initialize undo controller once (e.g. app bootstrap)
+const undo = createSnapshotUndoController(useTimelineStore, { maxDepth: 50 });
+
+// Export current scene state
+const result = exportScene();
+if (result.ok) {
+    const json = result.json; // deterministic stable JSON
+    // Persist, download, share, etc.
+}
+
+// Import scene JSON
+const imported = importScene(jsonStringFromDisk);
+if (!imported.ok) {
+    console.error('Import failed', imported.errors);
+}
+
+// Undo / Redo handlers
+if (undo.canUndo()) undo.undo();
+if (undo.canRedo()) undo.redo();
+```
+
+Current Scope (extended):
+
+-   Deterministic ordering & stable JSON stringify.
+-   Timeline state snapshot (tracks, ordering, transport, selection, playback/view ranges, midi cache, row height).
+-   Scene elements & scene settings (fps, dimensions, padding, tempo, meter) are now included in the `scene.elements` & `scene.sceneSettings` envelope fields when the visualizer/scene builder is present.
+-   Global macros (definitions & current values) serialized under `scene.macros` and restored on import & undo.
+-   Undo/redo snapshots now include scene elements + macros in addition to timeline slices.
+-   Fatal-only validation (structure + required keys) – advisory rules still TBD.
+-   Snapshot ring buffer (debounced ~50ms, memory cap ~10MB, depth configurable up to 100).
+
+Not Yet Included (future work):
+
+-   Binary / large resource deduplication (images, fonts) – future `resources` section.
+-   Element-level diff/patched undo (currently full snapshot JSON for simplicity & correctness).
+-   Versioned schema upgrades & migration helpers (currently single schemaVersion=1 path).
+
+Planned Next Phases:
+
+-   Expanded validation with error codes & advisory warnings.
+-   Performance profiling & metrics flag.
+-   Conditional patch-based undo (memory optimization) if thresholds exceeded.
+-   Resource deduplication section (`resources`) for large repeated assets.
+-   Unknown element preservation & non-fatal recovery paths.
+-   Persistent font/image asset embedding & hashing.
+-   Macro assignment diff visualization tooling.
+
+Rollback: Disable the `VITE_FEATURE_SERIALIZATION_V1` flag (code paths become inert without removal).

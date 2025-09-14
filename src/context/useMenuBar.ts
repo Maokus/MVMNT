@@ -1,5 +1,7 @@
 import { globalMacroManager } from '@bindings/macro-manager';
 import { SceneNameGenerator } from '@core/scene-name-generator';
+import { exportScene, importScene, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { useUndo } from './UndoContext';
 
 interface UseMenuBarProps {
     visualizer: any;
@@ -21,12 +23,45 @@ export const useMenuBar = ({
     onSceneNameChange,
     onSceneRefresh,
 }: UseMenuBarProps): MenuBarActions => {
+    // Access undo (optional if provider disabled)
+    let undo: ReturnType<typeof useUndo> | null = null;
+    try {
+        undo = useUndo();
+    } catch {
+        /* provider may not exist in some tests */
+    }
+
     const saveScene = () => {
+        const feature = SERIALIZATION_V1_ENABLED();
+        if (feature) {
+            try {
+                const res = exportScene();
+                if (!res.ok) {
+                    alert('Persistence feature disabled or export failed.');
+                    return;
+                }
+                const safeName = sceneName.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
+                const blob = new Blob([res.json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${safeName}.mvmnt.scene.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                console.log('Scene exported (persistence v1).');
+            } catch (e) {
+                console.error('Export error:', e);
+                alert('Error exporting scene. See console.');
+            }
+            return;
+        }
+        // Fallback legacy behavior (visualizer-based export)
         if (visualizer) {
             try {
                 const sceneBuilder = visualizer.getSceneBuilder?.();
                 if (sceneBuilder) {
-                    // Prefer visualizer export so we capture exportSettings (fps, width, height)
                     const baseData =
                         typeof visualizer.exportSceneConfig === 'function'
                             ? visualizer.exportSceneConfig()
@@ -36,17 +71,9 @@ export const useMenuBar = ({
                         ...baseData,
                         timestamp: new Date().toISOString(),
                     };
-
-                    // Save to localStorage for compatibility
-                    const savedScenes = JSON.parse(localStorage.getItem('midivis-scenes') || '[]');
-                    savedScenes.push(sceneConfig);
-                    localStorage.setItem('midivis-scenes', JSON.stringify(savedScenes));
-
-                    // Also trigger JSON download
                     const jsonStr = JSON.stringify(sceneConfig, null, 2);
                     const blob = new Blob([jsonStr], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
-
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = `${sceneName.replace(/[^a-zA-Z0-9]/g, '_')}_scene.json`;
@@ -54,14 +81,12 @@ export const useMenuBar = ({
                     link.click();
                     document.body.removeChild(link);
                     URL.revokeObjectURL(url);
-
                     console.log(`Scene "${sceneName}" saved successfully and downloaded as JSON`);
-                    alert(`Scene "${sceneName}" saved successfully and downloaded as JSON!`);
                 } else {
                     console.log('Save scene: scene builder not available');
                 }
             } catch (error) {
-                console.error('Error saving scene:', error);
+                console.error('Error saving scene (legacy):', error);
                 alert('Error saving scene. Check console for details.');
             }
         } else {
@@ -70,78 +95,60 @@ export const useMenuBar = ({
     };
 
     const loadScene = () => {
-        // Create a file input for JSON upload
+        const feature = SERIALIZATION_V1_ENABLED();
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.json';
         fileInput.style.display = 'none';
-
         fileInput.onchange = async (e: Event) => {
             const target = e.target as HTMLInputElement;
             const file = target.files?.[0];
-
-            if (file) {
-                try {
-                    const text = await file.text();
-                    const sceneConfig = JSON.parse(text);
-
-                    // Validate that this is a valid scene file
-                    if (!sceneConfig.elements && !sceneConfig.version) {
-                        throw new Error('Invalid scene file format - missing elements or version');
+            if (!file) {
+                document.body.removeChild(fileInput);
+                return;
+            }
+            try {
+                const text = await file.text();
+                if (feature) {
+                    const result = importScene(text);
+                    if (!result.ok) {
+                        alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
+                    } else {
+                        undo?.reset(); // reset undo baseline after import
+                        if (onSceneRefresh) onSceneRefresh();
+                        console.log('Scene imported (persistence v1).');
                     }
-
+                } else {
+                    // Legacy pathway for visualizer scenes
+                    const sceneConfig = JSON.parse(text);
                     if (visualizer) {
                         const sceneBuilder = visualizer.getSceneBuilder?.();
                         if (sceneBuilder) {
-                            // Prefer visualizer import so exportSettings (fps/resolution) are applied early
                             const success =
                                 typeof visualizer.importSceneConfig === 'function'
                                     ? visualizer.importSceneConfig(sceneConfig)
                                     : sceneBuilder.loadScene(sceneConfig);
-
                             if (success) {
-                                // Update scene name
-                                if (sceneConfig.name) {
-                                    onSceneNameChange(sceneConfig.name);
-                                }
-
-                                if (visualizer.invalidateRender) {
-                                    visualizer.invalidateRender();
-                                }
-
-                                // Trigger refresh of UI components
-                                if (onSceneRefresh) {
-                                    onSceneRefresh();
-                                }
-
-                                console.log(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON`);
-                                alert(`Scene "${sceneConfig.name || 'Untitled'}" loaded successfully from JSON!`);
+                                if (sceneConfig.name) onSceneNameChange(sceneConfig.name);
+                                if (visualizer.invalidateRender) visualizer.invalidateRender();
+                                if (onSceneRefresh) onSceneRefresh();
+                                console.log('Scene loaded (legacy).');
                             } else {
-                                alert(
-                                    'Failed to load scene from JSON file. The file may be corrupted or incompatible.'
-                                );
+                                alert('Failed to load scene file (legacy path).');
                             }
-                        } else {
-                            alert('Scene builder not available. Please try again.');
                         }
-                    } else {
-                        alert('Visualizer not available. Please try again.');
                     }
-                } catch (error) {
-                    console.error('Error loading scene from JSON:', error);
-                    alert('Error loading scene from JSON. Please check that the file is a valid scene JSON file.');
                 }
+            } catch (err) {
+                console.error('Load error:', err);
+                alert('Error loading scene.');
+            } finally {
+                document.body.removeChild(fileInput);
             }
-
-            // Clean up
-            document.body.removeChild(fileInput);
         };
-
-        // Handle case where user cancels file dialog
         fileInput.oncancel = () => {
             document.body.removeChild(fileInput);
         };
-
         document.body.appendChild(fileInput);
         fileInput.click();
     };

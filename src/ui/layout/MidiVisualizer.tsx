@@ -8,6 +8,7 @@ import { SceneSelectionProvider } from '@context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';
 import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
 import { SceneProvider } from '@context/SceneContext';
+import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
@@ -96,9 +97,11 @@ const MidiVisualizerInner: React.FC = () => {
 const MidiVisualizer: React.FC = () => (
     <VisualizerProvider>
         <MacroProvider>
-            <SceneProvider>
-                <MidiVisualizerInner />
-            </SceneProvider>
+            <UndoProvider>
+                <SceneProvider>
+                    <MidiVisualizerInner />
+                </SceneProvider>
+            </UndoProvider>
         </MacroProvider>
     </VisualizerProvider>
 );
