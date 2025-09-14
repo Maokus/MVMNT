@@ -2,7 +2,7 @@
 // Historically 480; some tooling expects 960. We centralize and allow runtime configuration
 // early during application startup / test setup. Avoid importing and mutating elsewhere.
 
-let _canonicalPPQ = 480; // default
+let _canonicalPPQ = 960; // default
 
 /** Read the canonical PPQ (ticks per quarter note) */
 export function getCanonicalPPQ(): number {

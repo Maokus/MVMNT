@@ -6,6 +6,7 @@ import {
     timelineSecondsToTrackBeats,
 } from '@core/timing/note-query';
 import { useTimelineStore } from '@state/timelineStore';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDIEvent } from '@core/types';
 
@@ -14,7 +15,7 @@ function makeMidi(events: MIDIEvent[], opts?: Partial<MIDIData>): MIDIData {
         events,
         duration: events.length ? Math.max(...events.map((e) => e.time)) : 0,
         tempo: 500000,
-        ticksPerQuarter: 480,
+        ticksPerQuarter: CANONICAL_PPQ,
         timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
         trimmedTicks: 0,
         ...opts,
@@ -24,15 +25,15 @@ function makeMidi(events: MIDIEvent[], opts?: Partial<MIDIData>): MIDIData {
 describe('Timeline mapping helpers (store version)', () => {
     it('timelineToTrackSeconds respects offsets and regions (converted to tick regions)', async () => {
         const id = await useTimelineStore.getState().addMidiTrack({ name: 'T', offsetTicks: 0 });
-        // Offset 1.5s => at 120 bpm: 1.5s * (120/60)=3 beats => 3*480=1440 ticks
-        useTimelineStore.getState().setTrackOffsetTicks(id, 1440);
+        // Offset 1.5s => at 120 bpm: 1.5s * (120/60)=3 beats => 3*PPQ ticks
+        useTimelineStore.getState().setTrackOffsetTicks(id, 3 * CANONICAL_PPQ);
         const midi = makeMidi([
             { type: 'noteOn', note: 60, velocity: 100, time: 0.0, tick: 0, channel: 0 },
-            { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 480, channel: 0 },
+            { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 1 * CANONICAL_PPQ, channel: 0 },
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
-        // Region 0.5s..2.0s => 0.5s=1 beat=480 ticks after offset; relative region ticks = start 480 end 1920
-        useTimelineStore.getState().setTrackRegionTicks(id, 480, 1920);
+        // Region 0.5s..2.0s => 0.5s=1 beat=PPQ ticks after offset; relative region ticks = start PPQ end 4*PPQ
+        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
         const state = useTimelineStore.getState();
         expect(timelineToTrackSeconds(state, state.tracks[id], 1.0)).toBeNull();
         expect(timelineToTrackSeconds(state, state.tracks[id], 2.0)).toBeCloseTo(0.5, 1);
