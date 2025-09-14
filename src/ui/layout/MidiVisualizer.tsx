@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
 import PreviewPanel from './PreviewPanel';
 import SidePanels from './SidePanels';
@@ -94,16 +95,74 @@ const MidiVisualizerInner: React.FC = () => {
     );
 };
 
-const MidiVisualizer: React.FC = () => (
-    <VisualizerProvider>
-        <MacroProvider>
-            <UndoProvider>
-                <SceneProvider>
-                    <MidiVisualizerInner />
-                </SceneProvider>
-            </UndoProvider>
-        </MacroProvider>
-    </VisualizerProvider>
-);
+const MidiVisualizer: React.FC = () => {
+    return (
+        <VisualizerProvider>
+            <MacroProvider>
+                <UndoProvider>
+                    <SceneProvider>
+                        <TemplateInitializer />
+                        <MidiVisualizerInner />
+                    </SceneProvider>
+                </UndoProvider>
+            </MacroProvider>
+        </VisualizerProvider>
+    );
+};
+
+// Handles applying template/import based on navigation state or session storage
+const TemplateInitializer: React.FC = () => {
+    const { visualizer } = useVisualizer() as any;
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!visualizer) return;
+        const state: any = location.state || {};
+        let didChange = false;
+        try {
+            const sceneBuilder = visualizer.getSceneBuilder?.();
+            if (!sceneBuilder) return;
+            if (state.importScene) {
+                const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                if (payload) {
+                    try {
+                        const parsed = JSON.parse(payload);
+                        const ok = sceneBuilder.loadScene?.(parsed) || visualizer.importSceneConfig?.(parsed);
+                        if (!ok) console.warn('Import via HomePage failed.');
+                        didChange = true;
+                    } catch (e) { console.error('Failed to parse imported scene payload', e); }
+                    sessionStorage.removeItem('mvmnt_import_scene_payload');
+                }
+            } else if (state.template) {
+                const tpl = state.template as string;
+                sceneBuilder.clearElements();
+                switch (tpl) {
+                    case 'blank':
+                        sceneBuilder.resetSceneSettings();
+                        break;
+                    case 'default':
+                        sceneBuilder.createDefaultMIDIScene();
+                        break;
+                    case 'debug':
+                        if (sceneBuilder.createAllElementsDebugScene) sceneBuilder.createAllElementsDebugScene();
+                        else sceneBuilder.createDebugScene();
+                        break;
+                    default:
+                        sceneBuilder.createDefaultMIDIScene();
+                }
+                didChange = true;
+            }
+            if (didChange) {
+                visualizer.invalidateRender?.();
+                // Clean navigation state so refreshing doesn't reapply
+                navigate('/workspace', { replace: true });
+            }
+        } catch (e) {
+            console.error('Template initialization error', e);
+        }
+    }, [visualizer, location.state, navigate]);
+    return null;
+};
 
 export default MidiVisualizer;

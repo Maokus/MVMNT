@@ -7,116 +7,75 @@ import { Link } from 'react-router-dom';
  */
 const ChangelogPage: React.FC = () => {
     return (
-        <div className="app-container about-page-root">
-            <main className="about-container">
-                <div className="about-content">
-                    <Link
-                        to="/"
-                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] float-right"
-                    >
-                        Return to App
-                    </Link>
-                    <h1>Changelog</h1>
-                    <p className="lead" style={{ marginLeft: '20px' }}>
-                        Recent updates and feature changes for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.
-                    </p>
+        <div className="min-h-screen bg-neutral-950 text-neutral-200 px-6 py-10">
+            <main className="max-w-4xl mx-auto">
+                <div className="flex justify-between items-start mb-10">
+                    <div>
+                        <h1 className="text-4xl font-extrabold tracking-tight text-white">Changelog</h1>
+                        <p className="mt-3 text-neutral-400 text-sm">Recent updates for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.</p>
+                    </div>
+                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Workspace</Link>
+                </div>
 
-                    <section>
-                        <h2>Unreleased / In Progress</h2>
-                        <ul className="feature-list">
-                            <li>Ctrl z functionality (sorry lol this is actually really hard)</li>
-                            <li>Audio track functionality for syncing and export</li>
+                <div className="space-y-10">
+                    <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
+                        <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
+                            <li>Ctrl+Z undo stack refinements</li>
+                            <li>Audio track sync & export pipeline</li>
                         </ul>
                     </section>
 
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.12.0</h2>
-                            <i>12-09-31</i>
-                        </div>
-                        <ul className='feature-list'>
-                            <li>Overhauled timing and midi system (timeline panel, better arrangement)</li>
-                            <li>Migrated to MediaBunny for encoding work (faster exports, more responsive UI)</li>
-                            <li>Migrated partially to zustand (More responsive, optimised UI)</li>
-                            <li>Migrated over to tailwindcss (More consistent styles, faster development speed)</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.5</h2>
-                            <i>24-08-31</i>
-                        </div>
-                        <ul className='feature-list'>
-                            <li>Added chord estimation element</li>
-                            <li>Added played notes tracker element</li>
-                            <li>Added playing notes display element</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.4</h2>
-                            <i>24-08-31</i>
-                        </div>
-                        <ul className='feature-list'>
-                            <li>Changed bounding box handling logic (Created includeInLayoutBounds flag to reduce layout jitter)</li>
-                            <li>Cleaned up some renderObject logic</li>
-
-                        </ul>
-                    </section>
-
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.3</h2>
-                            <i>24-08-25</i>
-                        </div>
-                        <ul className='feature-list'>
-                            <li>Added Moving Notes Piano Roll</li>
-                            <li>Fixed piano not rendering</li>
-                            <li>Some UI Tidy up</li>
-
-                        </ul>
-                    </section>
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.2</h2>
-                            <i>17-08-25</i>
-                        </div>
-                        <ul className='feature-list'>
-                            <li>Added gif support</li>
-                            <li>Fixed save/load z index functionality</li>
-                            <li>Moved image load logic to a separate module.</li>
-
-                        </ul>
-                    </section>
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.1</h2>
-                            <i>16-08-25</i>
-                        </div>
-                        <ul className="feature-list">
-                            <li>Bugfixes (properties now actually show u properties. lol)</li>
-                            <li>Onboarding</li>
-                            <li>SOURCE!!!! THE SOURCE IS OPEN!! GO HACK IT (its in the about page)</li>
-                            <li>NICE BUTTON WITH LOGO</li>
-                            <li>spacebar now starts playback as expected, corner cases handled properly</li>
-                            <li>opengraph</li>
-                        </ul>
-                    </section>
-                    <section>
-                        <div style={{ marginBottom: "8px" }}>
-                            <h2 style={{ marginBottom: "-3px" }}>v0.11.0</h2>
-                            <i>I forgot lol</i>
-                        </div>
-                        <ul className="feature-list">
-                            <li>Initial beta release</li>
-                        </ul>
-                    </section>
+                    <ChangelogEntry version="0.12.0" date="12-09-31" notes={[
+                        'Overhauled timing & MIDI system (timeline panel, better arrangement)',
+                        'Migrated to MediaBunny for faster exports & responsiveness',
+                        'Partial migration to Zustand (more responsive UI)',
+                        'TailwindCSS adoption for consistency & dev speed'
+                    ]} />
+                    <ChangelogEntry version="0.11.5" date="24-08-31" notes={[
+                        'Added chord estimation element',
+                        'Added played notes tracker element',
+                        'Added playing notes display element'
+                    ]} />
+                    <ChangelogEntry version="0.11.4" date="24-08-31" notes={[
+                        'Changed bounding box handling logic (includeInLayoutBounds flag)',
+                        'Cleaned up some renderObject logic'
+                    ]} />
+                    <ChangelogEntry version="0.11.3" date="24-08-25" notes={[
+                        'Added Moving Notes Piano Roll',
+                        'Fixed piano not rendering',
+                        'General UI tidy-up'
+                    ]} />
+                    <ChangelogEntry version="0.11.2" date="17-08-25" notes={[
+                        'Added GIF support',
+                        'Fixed save/load z-index functionality',
+                        'Refactored image load logic'
+                    ]} />
+                    <ChangelogEntry version="0.11.1" date="16-08-25" notes={[
+                        'Bugfixes (properties panel actually shows properties)',
+                        'Onboarding overlay',
+                        'Source opened publicly',
+                        'UI improvements (logo button)',
+                        'Spacebar playback control corner cases handled',
+                        'OpenGraph meta'
+                    ]} />
+                    <ChangelogEntry version="0.11.0" date="—" notes={['Initial beta release']} />
                 </div>
             </main>
         </div>
     );
 };
+
+const ChangelogEntry: React.FC<{ version: string; date: string; notes: string[]; }> = ({ version, date, notes }) => (
+    <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
+        <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-semibold text-white">v{version}</h2>
+            <span className="text-xs text-neutral-500 font-mono">{date}</span>
+        </div>
+        <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
+            {notes.map(n => <li key={n}>{n}</li>)}
+        </ul>
+    </section>
+);
 
 export default ChangelogPage;

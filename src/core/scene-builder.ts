@@ -216,6 +216,47 @@ export class HybridSceneBuilder {
         this.createDefaultMIDIScene();
         this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
     }
+    /**
+     * Create a debug scene containing every registered scene element type once.
+     * Uses registry schemas to generate ids and applies minimal default config.
+     * This helps visually QA layout / property panels.
+     */
+    createAllElementsDebugScene() {
+        this.clearElements();
+        this.resetSceneSettings();
+        this._createDefaultMacros();
+        const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
+        let z = 0;
+        const usedIds = new Set<string>();
+        const ensureId = (base: string) => {
+            let id = base;
+            let i = 1;
+            while (usedIds.has(id)) {
+                id = base + '_' + i++;
+            }
+            usedIds.add(id);
+            return id;
+        };
+        for (const t of types) {
+            try {
+                const baseId = t.replace(/[^a-zA-Z0-9]/g, '_');
+                const id = ensureId(baseId);
+                const el: any = this.addElementFromRegistry(t, { id, zIndex: (z += 5) });
+                // Attempt macro bindings for track & animation to keep consistency
+                try {
+                    if (el?.bindToMacro) {
+                        if ('midiTrackId' in el) el.bindToMacro('midiTrackId', 'midiTrack');
+                        if ('animationType' in el) el.bindToMacro('animationType', 'noteAnimation');
+                    }
+                } catch {}
+            } catch (e) {
+                console.warn('[debugScene] Failed to add element type', t, e);
+            }
+        }
+        // Add overlay debug element last
+        this.addElement(new DebugElement(ensureId('debugOverlay'), { zIndex: 10000, anchorX: 0, anchorY: 0 }));
+        return this;
+    }
     createDefaultMIDIScene() {
         this.clearElements();
         this.resetSceneSettings();
