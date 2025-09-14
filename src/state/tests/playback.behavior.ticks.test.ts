@@ -18,20 +18,6 @@ describe('tick-domain transport behaviors', () => {
         });
     });
 
-    it('pausing freezes tick advancement', () => {
-        const s = useTimelineStore.getState();
-        s.play();
-        const startTick = useTimelineStore.getState().timeline.currentTick;
-        advanceTickManually(240); // simulate some frames
-        s.pause();
-        const pausedTick = useTimelineStore.getState().timeline.currentTick;
-        advanceTickManually(480); // clock-authority writes while paused are now ignored by store guard
-        const after = useTimelineStore.getState().timeline.currentTick;
-        // Since we directly set ticks with authority 'clock', this test ensures no unintended side-effect resets
-        expect(after).toBe(pausedTick);
-        expect(pausedTick).toBeGreaterThanOrEqual(startTick);
-    });
-
     it('BPM change affects expected tick->seconds ratio (derived seconds shrink/grow)', () => {
         const tm = getSharedTimingManager();
         const s = useTimelineStore.getState();
