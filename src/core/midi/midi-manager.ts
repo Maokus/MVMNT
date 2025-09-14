@@ -1,4 +1,5 @@
 import { TimingManager } from '@core/timing/timing-manager';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { NoteEvent } from './note-event';
 
 export class MidiManager {
@@ -88,7 +89,7 @@ export class MidiManager {
         // If we have ticks in events, compute beat positions once, so rendering can re-time with tempo map
         const notesToUse = this.notes.length > 0 ? this.notes : notes;
         if (notesToUse.length > 0 && (notesToUse[0].startTick !== undefined || notesToUse[0].endTick !== undefined)) {
-            const tpq = this.timingManager.ticksPerQuarter || midiData.ticksPerQuarter || 480;
+            const tpq = this.timingManager.ticksPerQuarter || midiData.ticksPerQuarter || CANONICAL_PPQ;
             for (const n of notesToUse) {
                 if (n.startTick !== undefined) n.startBeat = n.startTick / tpq;
                 if (n.endTick !== undefined) n.endBeat = n.endTick / tpq;

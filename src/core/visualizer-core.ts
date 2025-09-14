@@ -2,6 +2,7 @@
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { HybridSceneBuilder } from './scene-builder';
+import { CANONICAL_PPQ } from './timing/ppq';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -598,7 +599,8 @@ export class MIDIVisualizerCore {
                                             const bpm = st.timeline.globalBpm || 120;
                                             const spb = 60 / bpm;
                                             const beats = tr.offsetSec / spb;
-                                            const ppq = st.timeline ? 480 : 480; // default canonical
+                                            // Use canonical PPQ constant (ticks per quarter) across system
+                                            const ppq = st.timeline ? CANONICAL_PPQ : CANONICAL_PPQ;
                                             return Math.round(beats * ppq);
                                         }
                                         return tr.offsetTicks || 0;

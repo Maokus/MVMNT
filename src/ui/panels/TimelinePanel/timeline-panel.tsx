@@ -8,7 +8,7 @@ import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
 // Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
-import { formatTickAsBBT } from '@core/timing/time-domain';
+import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
@@ -306,29 +306,54 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
 
     // Local input buffers for play range so typing isn't overridden; commit on blur or Enter
-    // Playback range inputs remain seconds-facing for now; derive defaults from ticks via derived seconds fields
-    const startSecDerived = (playbackRange as any)?.startSec ?? (view as any).startSec;
-    const endSecDerived = (playbackRange as any)?.endSec ?? (view as any).endSec;
-    const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0));
+    // Reordered to present musical domain (BBT) first, with seconds as secondary representation.
+    const stateNow = useTimelineStore.getState();
+    const tempoMapNow = stateNow.timeline.masterTempoMap;
+    const spbNow = 60 / (stateNow.timeline.globalBpm || 120);
+    const ppqNow = CANONICAL_PPQ;
+    const startTick = (playbackRange as any)?.startTick ?? (view as any).startTick;
+    const endTick = (playbackRange as any)?.endTick ?? (view as any).endTick;
+    const tickToBeats = (tick?: number) => (typeof tick === 'number' ? tick / ppqNow : undefined);
+    const beatsToSec = (beats?: number) => (typeof beats === 'number' ? beatsToSeconds(tempoMapNow, beats, spbNow) : undefined);
+    const startBeatsDerived = tickToBeats(startTick);
+    const endBeatsDerived = tickToBeats(endTick);
+    const startSecDerived = beatsToSec(startBeatsDerived);
+    const endSecDerived = beatsToSec(endBeatsDerived);
+    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar));
+    const [playEndBBT, setPlayEndBBT] = useState<string>(() => formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar));
+    const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0)); // seconds secondary
     const [playEndText, setPlayEndText] = useState<string>(() => String(endSecDerived ?? 0));
+    useEffect(() => { setPlayStartBBT(formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); }, [startTick, ppqNow, beatsPerBar]);
+    useEffect(() => { setPlayEndBBT(formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar)); }, [endTick, ppqNow, beatsPerBar]);
     useEffect(() => { setPlayStartText(String(startSecDerived ?? 0)); }, [startSecDerived]);
     useEffect(() => { setPlayEndText(String(endSecDerived ?? 0)); }, [endSecDerived]);
     const commitPlay = (_which: 'start' | 'end') => {
+        // Primary: parse BBT fields if changed; fallback to seconds inputs
+        const state = useTimelineStore.getState();
+        const ppq = CANONICAL_PPQ;
+        const parseBBTOrUndefined = (text: string) => {
+            const val = parseBBT(text, ppq, state.timeline.beatsPerBar || 4);
+            return typeof val === 'number' && val >= 0 ? val : undefined;
+        };
+        const sTickFromBBT = parseBBTOrUndefined(playStartBBT);
+        const eTickFromBBT = parseBBTOrUndefined(playEndBBT);
+        if (sTickFromBBT != null || eTickFromBBT != null) {
+            setPlaybackRangeExplicitTicks(sTickFromBBT, eTickFromBBT);
+            return;
+        }
+        // Seconds fallback unchanged
         const sVal = parseFloat(playStartText);
         const eVal = parseFloat(playEndText);
         const s = isFinite(sVal) ? sVal : undefined;
         const e = isFinite(eVal) ? eVal : undefined;
-        // Convert seconds -> ticks via store seek path
         if (s == null && e == null) {
             setPlaybackRangeExplicitTicks(undefined, undefined);
             return;
         }
-        const state = useTimelineStore.getState();
         const spb = 60 / (state.timeline.globalBpm || 120);
         const map = state.timeline.masterTempoMap;
         const sBeats = typeof s === 'number' ? secondsToBeats(map, s, spb) : undefined;
         const eBeats = typeof e === 'number' ? secondsToBeats(map, e, spb) : undefined;
-        const ppq = CANONICAL_PPQ;
         const toTicks = (beats?: number) => (typeof beats === 'number' ? Math.round(beats * ppq) : undefined);
         setPlaybackRangeExplicitTicks(toTicks(sBeats), toTicks(eBeats));
     };

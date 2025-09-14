@@ -6,6 +6,7 @@ import {
     beatsToSecondsWithMap as _beatsToSecondsWithTempoMap,
     secondsToBeatsWithMap as _secondsToBeatsWithTempoMap,
 } from './tempo-utils';
+import { CANONICAL_PPQ } from './ppq';
 
 export interface TimeSignature {
     numerator: number;
@@ -69,7 +70,7 @@ export class TimingManager {
             clocksPerClick: 24,
             thirtysecondNotesPerBeat: 8,
         };
-        this.ticksPerQuarter = 480;
+        this.ticksPerQuarter = CANONICAL_PPQ;
         this.tempo = 500000; // microseconds per quarter note
 
         this.tempoMap = null;

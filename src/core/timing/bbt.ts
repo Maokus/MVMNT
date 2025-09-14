@@ -1,14 +1,11 @@
 // BBT utilities for tick-domain UI
-// Canonical PPQ currently fixed at 480 (unified across TimingManager + store). If higher temporal
-// resolution is desired later we can make this configurable, but previously mixing 480 & 960 caused
-// doubling bugs (e.g. scene end seconds -> ticks -> seconds returned 2x). Keep single source.
-export const DEFAULT_TICKS_PER_QUARTER = 480;
+// Use central CANONICAL_PPQ constant to avoid mismatches across timing utilities.
+import { CANONICAL_PPQ } from './ppq';
 
-export function formatTickAsBBT(
-    tick: number,
-    ppq: number = DEFAULT_TICKS_PER_QUARTER,
-    beatsPerBar: number = 4
-): string {
+// Backwards compatibility alias (in case of lingering imports)
+export const DEFAULT_TICKS_PER_QUARTER = CANONICAL_PPQ;
+
+export function formatTickAsBBT(tick: number, ppq: number = CANONICAL_PPQ, beatsPerBar: number = 4): string {
     if (!isFinite(tick)) return '0.1.0';
     const beatsFloat = tick / ppq; // beats (quarter notes)
     const bar = Math.floor(beatsFloat / beatsPerBar) + 1; // bars are 1-based for display
@@ -19,11 +16,7 @@ export function formatTickAsBBT(
 }
 
 // Parse strings like "5.2.120" or "5:2:120" or "5.2" (defaults ticks=0) or "5" (bar only)
-export function parseBBT(
-    input: string,
-    ppq: number = DEFAULT_TICKS_PER_QUARTER,
-    beatsPerBar: number = 4
-): number | null {
+export function parseBBT(input: string, ppq: number = CANONICAL_PPQ, beatsPerBar: number = 4): number | null {
     if (!input) return null;
     const norm = input.trim().replace(/:/g, '.');
     const parts = norm
@@ -56,7 +49,7 @@ export type BeatGridLine = { tick: number; type: 'bar' | 'beat' };
 export function getBeatGridInTicks(
     startTick: number,
     endTick: number,
-    ppq: number = DEFAULT_TICKS_PER_QUARTER,
+    ppq: number = CANONICAL_PPQ,
     beatsPerBar: number = 4
 ): BeatGridLine[] {
     const s = Math.max(0, Math.min(startTick, endTick));
