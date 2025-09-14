@@ -102,11 +102,11 @@ export class ImageSequenceGenerator {
             onProgress(0);
 
             // Step 1: Render all frames to PNG images (80% of progress)
-            console.log('Phase 1: Rendering frames to PNG images...');
+            console.log('Rendering frames to PNG images...');
             await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress, _startFrame, deterministicTiming);
 
             // Step 2: Create ZIP file with all images (20% of progress)
-            console.log('Phase 2: Creating ZIP file...');
+            console.log('Creating ZIP file...');
             const zipBlob = await this.createZipFile(sceneName, onProgress);
 
             // Step 3: Download the ZIP

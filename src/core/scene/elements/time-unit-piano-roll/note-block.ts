@@ -20,7 +20,7 @@
 // Only introduce when needed to avoid bloat.
 import { NoteEvent } from '@core/midi/note-event';
 
-// Phase 6 migration: Scene elements begin accepting tick-domain note data.
+// Scene elements accept tick-domain note data.
 // NoteBlock now optionally carries canonical tick timing alongside its seconds timing.
 // Seconds remain for rendering until full scene migration completes; ticks allow robust
 // reconstruction of real time when tempo or tempo map changes.
@@ -117,7 +117,7 @@ export class NoteBlock extends NoteEvent {
             startTick?: number;
             endTick?: number;
             durationTicks?: number;
-            startBeat?: number; // optional beat-domain (for legacy mixed inputs)
+            startBeat?: number; // optional beat-domain (for mixed inputs)
             endBeat?: number;
         }>,
         timingManager: any,

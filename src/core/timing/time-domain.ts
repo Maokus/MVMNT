@@ -1,4 +1,4 @@
-// Musical Time Domain foundational types & utilities (Phase 5)
+// Musical Time Domain foundational types & utilities
 // Canonical representation is ticks (integer). Beats = ticks / PPQ. Bars aggregate beatsPerBar beats.
 
 // Branded nominal types for clarity (compile-time only)
@@ -87,4 +87,4 @@ export function formatTickAsBBTPadded(
     const b = ticksToBBT(ticks, ticksPerQuarter, beatsPerBar);
     return `${pad(b.bar)}.${pad(b.beat)}.${pad(b.tick)}`;
 }
-// (Note: Additional legacy helper block removed during Phase 5 consolidation.)
+// (Additional helper block removed during consolidation.)

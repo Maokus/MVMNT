@@ -86,7 +86,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             />
         );
 
-        // Legacy midiFile migration CTA removed
+        // midiFile migration CTA removed
 
         return inputEl;
     };

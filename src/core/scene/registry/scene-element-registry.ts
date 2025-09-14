@@ -1,4 +1,4 @@
-/* Phase 1 TS migration - minimal typing */
+/* Minimal typing (improve later) */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     TimeUnitPianoRollElement,

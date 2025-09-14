@@ -1,4 +1,4 @@
-// BBT utilities for Phase 5 tick-domain UI
+// BBT utilities for tick-domain UI
 // Canonical PPQ currently fixed at 480 (unified across TimingManager + store). If higher temporal
 // resolution is desired later we can make this configurable, but previously mixing 480 & 960 caused
 // doubling bugs (e.g. scene end seconds -> ticks -> seconds returned 2x). Keep single source.

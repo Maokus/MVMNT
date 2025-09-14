@@ -119,7 +119,7 @@ export class VideoExporter {
             output.addVideoTrack(canvasSource);
             await output.start();
 
-            // Phase 1: Render + encode frames progressively (0-95%)
+            // Render + encode frames progressively (0-95%)
             const total = limitedFrames;
             const frameDuration = 1 / fps;
             const prePadding = (() => {
@@ -169,7 +169,7 @@ export class VideoExporter {
             }
             canvasSource.close();
 
-            // Phase 2: Finalize (95-100%)
+            // Finalize (95-100%)
             onProgress(97, 'Finalizing video...');
             await output.finalize();
             const raw = target.buffer;
@@ -193,7 +193,7 @@ export class VideoExporter {
         }
     }
 
-    // Legacy leftover methods (now unused) intentionally removed to reduce bundle size.
+    // Removed unused methods to reduce bundle size.
 
     private downloadBlob(blob: Blob, filename: string) {
         const url = URL.createObjectURL(blob);

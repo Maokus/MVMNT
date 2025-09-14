@@ -7,7 +7,7 @@ type Props = {
     trackIds: string[];
 };
 
-// Tick-domain snapping (Phase 5): bar snap when quantize==='bar' or forceSnap.
+// Tick-domain snapping: bar snap when quantize==='bar' or forceSnap.
 function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);

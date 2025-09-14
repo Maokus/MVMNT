@@ -6,7 +6,7 @@ interface TickScaleView {
     endTick: number;
 }
 
-// Tick-based scaling (Phase 5): map ticks <-> x px using timelineView ticks with small padding.
+// Tick-based scaling: map ticks <-> x px using timelineView ticks with small padding.
 export function useTickScale() {
     const viewTicks = useTimelineStore((s) => s.timelineView); // { startTick, endTick }
     const startTick = viewTicks.startTick;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChordPB } from '@core/midi/music-theory/chord-estimator';
+import { estimateChordPB } from '../chord-estimator';
 
 function makeChroma(indices: number[]): Float32Array {
     const v = new Float32Array(12);
@@ -9,7 +9,7 @@ function makeChroma(indices: number[]): Float32Array {
     return v;
 }
 
-describe('Chord estimation (via @math/midi)', () => {
+describe('chord-estimator estimateChordPB', () => {
     it('detects C major triad', () => {
         const chroma = makeChroma([0, 4, 7]);
         const chord = estimateChordPB(chroma, 0, {
@@ -25,7 +25,7 @@ describe('Chord estimation (via @math/midi)', () => {
     });
 
     it('detects A minor triad', () => {
-        const chroma = makeChroma([9, 0, 4]); // Am tones relative to C major keyspace (A,C,E)
+        const chroma = makeChroma([9, 0, 4]); // A,C,E
         const chord = estimateChordPB(chroma, 9, {
             includeTriads: true,
             includeDiminished: true,
@@ -39,15 +39,15 @@ describe('Chord estimation (via @math/midi)', () => {
     });
 
     it('prefers root in bass when ambiguous', () => {
-        const chroma = makeChroma([0, 4, 7, 9]); // add A (could hint to something else)
-        const chordRootDifferentBass = estimateChordPB(chroma, 9, {
+        const chroma = makeChroma([0, 4, 7, 9]);
+        const chord = estimateChordPB(chroma, 9, {
             includeTriads: true,
             includeDiminished: true,
             includeAugmented: false,
             includeSevenths: false,
             preferBassRoot: true,
         });
-        expect(chordRootDifferentBass).toBeTruthy();
-        expect([0, 9]).toContain(chordRootDifferentBass!.root);
+        expect(chord).toBeTruthy();
+        expect([0, 9]).toContain(chord!.root);
     });
 });

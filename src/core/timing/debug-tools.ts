@@ -33,7 +33,7 @@ export function setCurrentTick(tick: number) {
     useTimelineStore.getState().setCurrentTick(tick, 'user');
 }
 
-// Direct conversion helpers (legacy aliases) using canonical tick-domain state.
+// Direct conversion helpers (aliases) using canonical tick-domain state.
 // These remain for console debugging convenience only.
 export function s2b(seconds: number) {
     const s = useTimelineStore.getState();

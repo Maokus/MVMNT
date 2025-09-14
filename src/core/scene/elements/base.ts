@@ -335,7 +335,7 @@ export class SceneElement implements SceneElementInterface {
         // Add all child render objects to the container
         for (const childObj of childRenderObjects) {
             if (childObj) {
-                // Cast to any to accommodate migrated TS RenderObject classes vs legacy interface
+                // Cast to any to accommodate migrated TS RenderObject classes vs previous interface
                 (containerObject as any).addChild(childObj as any);
             }
         }

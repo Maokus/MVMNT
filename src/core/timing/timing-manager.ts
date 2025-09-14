@@ -282,7 +282,7 @@ export class TimingManager {
         return this._secondsToBeats(seconds);
     }
 
-    // Phase 1 additions: explicit symmetrical conversions including ticks<->beats
+    // Explicit symmetrical conversions including ticks<->beats
     ticksToBeats(ticks: number) {
         return ticks / this.ticksPerQuarter;
     }

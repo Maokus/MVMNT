@@ -1,4 +1,4 @@
-import create, { type StateCreator } from 'zustand'; // NOTE: default import retained (library version does not expose named create)
+import create, { type StateCreator } from 'zustand';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
@@ -36,7 +36,7 @@ function _beatsToSecondsLocal(state: Partial<TimelineState> | undefined, beats: 
     return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
 }
 
-// Phase 1: Base types for the Timeline system
+// Timeline base types
 // Types are now in timelineTypes.ts
 
 export type TimelineTrack = {
@@ -73,7 +73,7 @@ export type TimelineState = {
         loopStartTick?: number; // canonical loop start
         loopEndTick?: number; // canonical loop end
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
-        quantize: 'off' | 'bar'; // minimal Phase 2: toggle bar quantization on/off
+        quantize: 'off' | 'bar'; // toggle bar quantization on/off
     };
     selection: { selectedTrackIds: string[] };
     // UI view window in ticks
@@ -101,7 +101,7 @@ export type TimelineState = {
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
-    setCurrentTick: (tick: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void; // Phase 2 dual-write API
+    setCurrentTick: (tick: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void; // dual-write API
     play: () => void;
     pause: () => void;
     togglePlay: () => void;
@@ -130,7 +130,7 @@ function makeId(prefix: string = 'trk'): string {
     return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Compute content bounds purely in tick domain (Phase 6+). Offsets are incorporated by adding track.offsetTicks.
+// Compute content bounds purely in tick domain. Offsets are incorporated by adding track.offsetTicks.
 function computeContentEndTick(state: TimelineState): number {
     let max = 0;
     for (const id of state.tracksOrder) {
@@ -192,7 +192,7 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     }));
 }
 
-// Shared singleton timing manager (Phase 2): we assume constant PPQ here; later phases may make PPQ configurable.
+// Shared singleton timing manager; we assume constant PPQ here; future work may make PPQ configurable.
 // Exported so that all runtime systems (VisualizerContext, PlaybackClock, UI rulers, selectors) share tempo state.
 const _tmSingleton = new TimingManager();
 export function getSharedTimingManager() {
@@ -224,7 +224,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         rate: 1.0,
         // Quantize enabled by default (bar snapping)
         quantize: 'bar',
-        loopStartTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 2)), // legacy init
+        loopStartTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 2)), // initial value derived from seconds helper
         loopEndTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 5)),
     },
     selection: { selectedTrackIds: [] },
@@ -239,7 +239,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         file?: File;
         midiData?: MIDIData;
         offsetTicks?: number;
-        // Removed legacy offsetSec/offsetBeats in Phase 8; only offsetTicks accepted
+        // Only offsetTicks accepted (seconds/beat offsets removed)
     }) {
         const id = makeId();
         const s = get();
@@ -263,7 +263,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
 
-        // If MIDI data provided, ingest immediately. File-based ingestion will be wired later in Phase 2/4 UI.
+        // If MIDI data provided, ingest immediately. (File-based ingestion UI deferred)
         if (input.midiData) {
             const ingested = buildNotesFromMIDI(input.midiData);
             get().ingestMidiToCache(id, ingested);
@@ -307,7 +307,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     updateTrack(id: string, patch: Partial<TimelineTrack>) {
-        // Only offsetTicks is honored; other legacy fields ignored
+        // Only offsetTicks is honored; any removed fields are ignored
         set((s: TimelineState) => {
             const prev = s.tracks[id];
             if (!prev) return { tracks: s.tracks } as TimelineState;
@@ -367,7 +367,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             } catch {
                 /* noop */
             }
-            // Phase 6: notes no longer store seconds; conversions happen in selectors.
+            // Notes no longer store seconds; conversions happen in selectors.
             return next;
         });
     },
@@ -386,7 +386,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 /* ignore */
             }
             // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
-            // Phase 6: seconds no longer stored on notes; real-time updates occur via selectors.
+            // Seconds no longer stored on notes; real-time updates occur via selectors.
             return next;
         });
     },
@@ -441,7 +441,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     curTick = snapped;
                     // Notify runtime (VisualizerContext) to align playback clock
                     // VisualizerContext listens for 'timeline-play-snapped' and issues clock.setTick(snappedTick)
-                    // ensuring the PlaybackClock fractional accumulator is cleared (Phase 2 requirement #5).
+                    // ensuring the PlaybackClock fractional accumulator is cleared.
                     try {
                         window.dispatchEvent(new CustomEvent('timeline-play-snapped', { detail: { tick: curTick } }));
                     } catch {

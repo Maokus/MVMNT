@@ -1,9 +1,9 @@
-// Phase 3: PlaybackClock - converts real-time deltas to musical ticks as authoritative playhead.
+// PlaybackClock - converts real-time deltas to musical ticks as authoritative playhead.
 // This abstraction replaces direct seconds-based advancement. It is tempo-aware (supports tempo map changes)
 // and accumulates fractional tick remainders to avoid drift.
 //
-// Temporary dual-domain note: Until Phase 4 purge, callers should still mirror derived seconds via TimingManager
-// when needed for legacy UI code. After the purge, seconds will be strictly derived through selectors.
+// Temporary dual-domain note: callers may mirror derived seconds via TimingManager
+// when needed for UI code. Seconds are strictly derived through selectors.
 
 import { TimingManager } from '@core/timing';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';

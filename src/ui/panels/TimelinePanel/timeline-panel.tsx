@@ -7,7 +7,7 @@ import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
-// Removed legacy seconds selectors for Phase 5 core display. Seconds shown are derived from tick on the fly.
+// Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
@@ -22,7 +22,7 @@ const TimelinePanel: React.FC = () => {
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
-    // Scroll containers for sync (Phase 2)
+    // Scroll containers for sync
     const leftScrollRef = useRef<HTMLDivElement | null>(null);
     const rightScrollRef = useRef<HTMLDivElement | null>(null);
     const isSyncingRef = useRef(false);
@@ -306,7 +306,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
 
     // Local input buffers for play range so typing isn't overridden; commit on blur or Enter
-    // Playback range inputs remain seconds-facing for now; derive defaults from ticks via legacy derived seconds fields
+    // Playback range inputs remain seconds-facing for now; derive defaults from ticks via derived seconds fields
     const startSecDerived = (playbackRange as any)?.startSec ?? (view as any).startSec;
     const endSecDerived = (playbackRange as any)?.endSec ?? (view as any).endSec;
     const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0));
@@ -318,7 +318,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         const eVal = parseFloat(playEndText);
         const s = isFinite(sVal) ? sVal : undefined;
         const e = isFinite(eVal) ? eVal : undefined;
-        // Convert seconds -> ticks via store legacy seek path
+        // Convert seconds -> ticks via store seek path
         if (s == null && e == null) {
             setPlaybackRangeExplicitTicks(undefined, undefined);
             return;

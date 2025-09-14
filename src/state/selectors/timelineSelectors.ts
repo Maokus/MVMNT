@@ -111,7 +111,7 @@ export const selectNotesInWindow = (
     return res;
 };
 
-// Phase 6: derive per-track notes (all) converted to seconds from tick domain on demand.
+// Derive per-track notes (all) converted to seconds from tick domain on demand.
 // Returns array of { startTime, endTime, duration } in timeline seconds (including track offset & region clipping)
 export const selectNotesForTrackSeconds = (s: TimelineState, trackId: string): TimelineNoteEvent[] => {
     return selectNotesInWindow(s, { trackIds: [trackId], startSec: 0, endSec: Number.POSITIVE_INFINITY }).filter(

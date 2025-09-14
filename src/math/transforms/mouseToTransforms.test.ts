@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { computeScaledTransform, computeAnchorAdjustment, computeRotation } from './mouseToTransforms';
+import { computeScaledTransform, computeAnchorAdjustment, computeRotation } from '@core/interaction/mouse-transforms';
 import { applyRSK } from '@math/numeric';
 import { ScaleComputationParams, AnchorAdjustParams } from './types';
 

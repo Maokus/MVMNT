@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 
-// Nudge playhead by whole bars in tick domain (Phase 5)
+// Nudge playhead by whole bars in tick domain
 export default function useBarNudge(bars: number = 1) {
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);

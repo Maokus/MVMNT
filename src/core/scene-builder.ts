@@ -1,4 +1,4 @@
-/* Phase 1 TS migration - minimal typing; refine later */
+/* Minimal typing; refine later */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     BackgroundElement,
@@ -121,7 +121,7 @@ export class HybridSceneBuilder {
     }
     getMaxDuration() {
         let max = 0;
-        // Legacy elements duration
+        // Elements duration
         for (const el of this.elements) {
             const dur = (el as any).midiManager?.getDuration?.();
             if (typeof dur === 'number' && dur > max) max = dur;
@@ -495,7 +495,7 @@ export class HybridSceneBuilder {
         chordEstimateDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
     }
     autoBindElements() {
-        // No-op: legacy per-element timing bindings removed in favor of global timeline tempo
+        // No-op: per-element timing bindings removed in favor of global timeline tempo
     }
     createTestScene() {
         this.clearElements();

@@ -123,7 +123,7 @@ export class MIDIVisualizerCore {
         ) {
             return this._playRangeEndSec - this._playRangeStartSec;
         }
-        // Fallback to legacy: use scene builder computed max when no explicit range is set
+        // Fallback: use scene builder computed max when no explicit range is set
         const maxDuration = this.sceneBuilder.getMaxDuration();
         const base = maxDuration > 0 ? maxDuration : this.duration;
         const { prePadding = 0, postPadding = 0 } = this.sceneBuilder.getSceneSettings();
@@ -592,7 +592,7 @@ export class MIDIVisualizerCore {
                                     name: tr.name || 'MIDI Track',
                                     midiData: tr.midiData,
                                     file: tr.file,
-                                    // Convert legacy offsetSec (seconds) to ticks via bpm fallback (approx) if provided
+                                    // Convert offsetSec (seconds) to ticks via bpm fallback (approx) if provided
                                     offsetTicks: (() => {
                                         if (typeof tr.offsetSec === 'number') {
                                             const bpm = st.timeline.globalBpm || 120;

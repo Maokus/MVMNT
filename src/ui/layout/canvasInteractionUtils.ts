@@ -10,7 +10,7 @@ import {
     findHandleUnderPoint,
     getCanvasWorldPoint,
 } from '@math/interaction';
-import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@math/transforms/mouseToTransforms';
+import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {

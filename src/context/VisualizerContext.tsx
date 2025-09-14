@@ -54,7 +54,7 @@ interface VisualizerContextValue {
     progressData: ProgressData;
     closeProgress: () => void;
     // TimelineService removed from context; use timeline store + note-query utilities instead.
-    // Phase 2: expose convenience store hooks
+    // Expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
     useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrubTick: (to: number) => void; setCurrentTick: (t: number) => void } };
 }
@@ -111,7 +111,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const vid = new VideoExporter(canvasRef.current, vis);
             setVideoExporter(vid);
             (window as any).debugVisualizer = vis;
-            // Legacy global timeline service removed; non-React consumers should use store adapters instead.
+            // Global timeline service removed; non-React consumers should use store adapters instead.
             // Removed auto-binding of first timeline track to piano roll to avoid confusion
             // (Explicit user selection now required.)
             try { /* no-op */ } catch { }
@@ -137,7 +137,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
 
-    // Animation / time update loop — Phase 3: drive tick-domain playhead. We still mirror seconds for legacy UI until Phase 4 purge.
+    // Animation / time update loop — drives tick-domain playhead. Seconds are derived for any UI that needs them.
     // NOTE (2025-09): Updated paused-state sync so manual tick scrubs (ruler drag while paused) immediately seek the
     // visualizer instead of being reverted by the seconds->tick mirror. We track the last applied tick to detect user driven changes.
     useEffect(() => {
@@ -149,7 +149,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         // We approximate current tick from existing store on mount.
         const tm = getSharedTimingManager();
         const stateAtStart = useTimelineStore.getState();
-        // Derive starting tick from store (already dual-written in Phase 2)
+        // Derive starting tick from store (already dual-written)
         const startTick = stateAtStart.timeline.currentTick ?? 0;
         const clock = new PlaybackClock({
             timingManager: tm,
@@ -164,7 +164,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
         const loop = () => {
             const state = useTimelineStore.getState();
-            const vNow = visualizer.currentTime || 0; // legacy seconds (visualizer still seconds-based internally)
+            const vNow = visualizer.currentTime || 0; // seconds (visualizer still seconds-based internally)
             // Determine playback end (stop automatically when playhead passes explicit playback range end)
             try {
                 const st = useTimelineStore.getState();
@@ -361,7 +361,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     // Sync visualizer playback with global timeline store transport
     const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
-    // Use derived seconds selector instead of legacy currentTimeSec
+    // Use derived seconds selector instead of removed currentTimeSec
     const tCurrent = useTimelineStore((s) => {
         const spb = 60 / (s.timeline.globalBpm || 120);
         const beats = s.timeline.currentTick / getSharedTimingManager().ticksPerQuarter;

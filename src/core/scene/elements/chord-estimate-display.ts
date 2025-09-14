@@ -4,7 +4,7 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { computeChromaFromNotes, estimateChordPB, EstimatedChord } from '@math/midi/chord-estimator';
+import { computeChromaFromNotes, estimateChordPB, type EstimatedChord } from '@core/midi/music-theory/chord-estimator';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 
@@ -198,7 +198,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '600').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 48; // legacy fallback
+        const fontSize = (this.getProperty('fontSize') as number) || 48; // fallback
         const chordFontSize = (this.getProperty('chordFontSize') as number) ?? fontSize;
         const detailsFontSize =
             (this.getProperty('detailsFontSize') as number) ?? Math.max(6, Math.round(fontSize * 0.5));
@@ -298,7 +298,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         return label;
     }
 
-    // Estimation moved to @math/midi/chord-estimator
+    // Estimation utilities imported from music-theory module
 
     dispose(): void {
         super.dispose();
