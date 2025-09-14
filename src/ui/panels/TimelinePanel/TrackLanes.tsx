@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
-import { secondsToBars, barsToSeconds, secondsToBeatsSelector } from '@state/selectors/timing';
 import { useTickScale } from './useTickScale';
 
 type Props = {

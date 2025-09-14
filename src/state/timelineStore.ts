@@ -1,4 +1,4 @@
-import create, { type StateCreator } from 'zustand';
+import create, { type StateCreator } from 'zustand'; // NOTE: default import retained (library version does not expose named create)
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
@@ -122,6 +122,7 @@ export type TimelineState = {
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) => void;
+    clearAllTracks: () => void;
 };
 
 // Utility to create IDs
@@ -537,6 +538,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             return { midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes } } } as TimelineState;
         });
         // Now that notes are available, attempt auto adjust (if not user-defined)
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    clearAllTracks() {
+        set((s: TimelineState) => ({
+            tracks: {},
+            tracksOrder: [],
+            selection: { selectedTrackIds: [] },
+            midiCache: {},
+        }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}

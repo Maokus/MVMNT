@@ -4,7 +4,7 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
-import { TimelineService, TimingManager } from '@core/timing';
+import { TimingManager } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
@@ -53,8 +53,7 @@ interface VisualizerContextValue {
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
-    // Phase 4: expose timeline service to UI
-    timelineService: TimelineService;
+    // TimelineService removed from context; use timeline store + note-query utilities instead.
     // Phase 2: expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
     useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrubTick: (to: number) => void; setCurrentTick: (t: number) => void } };
@@ -89,8 +88,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const sceneNameRef = useRef<string>('scene');
-    // Singleton TimelineService
-    const [timelineService] = useState(() => new TimelineService('Main Timeline'));
+    // TimelineService removed: all track/timeline operations flow through Zustand store.
 
     // Listen for scene name changes broadcast by SceneContext
     useEffect(() => {
@@ -113,8 +111,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const vid = new VideoExporter(canvasRef.current, vis);
             setVideoExporter(vid);
             (window as any).debugVisualizer = vis;
-            // Expose timeline service globally for non-React consumers (scene elements)
-            try { (window as any).mvmntTimelineService = timelineService; } catch { }
+            // Legacy global timeline service removed; non-React consumers should use store adapters instead.
             // Removed auto-binding of first timeline track to piano roll to avoid confusion
             // (Explicit user selection now required.)
             try { /* no-op */ } catch { }
@@ -573,7 +570,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         showProgressOverlay,
         progressData,
         closeProgress: () => setShowProgressOverlay(false),
-        timelineService,
         useTimeline: () => useTimelineStore(selectTimeline),
         useTransport: () => {
             const transport = useTimelineStore((s) => s.transport);

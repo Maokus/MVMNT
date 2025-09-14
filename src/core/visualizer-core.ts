@@ -1,4 +1,3 @@
-/* Phase 1 TS migration - minimal typing + cleanup of import extensions */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
@@ -541,13 +540,6 @@ export class MIDIVisualizerCore {
     getAvailableSceneElementTypes() {
         return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
     }
-    getTimelineService() {
-        try {
-            return (window as any).mvmntTimelineService;
-        } catch {
-            return undefined;
-        }
-    }
     addSceneElement(type: string, config: any = {}) {
         const element = this.sceneBuilder.addElementFromRegistry(type, config);
         if (element) this.invalidateRender();
@@ -587,24 +579,35 @@ export class MIDIVisualizerCore {
             }
             // Optional: seed timeline from sceneData.timeline if present
             const timelineSpec = (sceneData as any)?.timeline;
-            const tl = this.getTimelineService();
-            if (tl && timelineSpec && Array.isArray(timelineSpec.tracks)) {
+            // Refactored: seed through timeline store instead of TimelineService
+            if (timelineSpec && Array.isArray(timelineSpec.tracks)) {
                 (async () => {
                     try {
-                        tl.clearAllTracks();
-                        // Only MIDI seed supported for now
+                        const { useTimelineStore } = await import('@state/timelineStore');
+                        const st = useTimelineStore.getState();
+                        st.clearAllTracks();
                         for (const tr of timelineSpec.tracks) {
                             if (tr?.type === 'midi' && (tr.midiData || tr.file)) {
-                                await tl.addMidiTrack({
+                                await st.addMidiTrack({
+                                    name: tr.name || 'MIDI Track',
                                     midiData: tr.midiData,
                                     file: tr.file,
-                                    name: tr.name,
-                                    offsetSec: tr.offsetSec || 0,
+                                    // Convert legacy offsetSec (seconds) to ticks via bpm fallback (approx) if provided
+                                    offsetTicks: (() => {
+                                        if (typeof tr.offsetSec === 'number') {
+                                            const bpm = st.timeline.globalBpm || 120;
+                                            const spb = 60 / bpm;
+                                            const beats = tr.offsetSec / spb;
+                                            const ppq = st.timeline ? 480 : 480; // default canonical
+                                            return Math.round(beats * ppq);
+                                        }
+                                        return tr.offsetTicks || 0;
+                                    })(),
                                 });
                             }
                         }
                     } catch (e) {
-                        console.warn('Failed to seed timeline from scene data:', e);
+                        console.warn('Failed to seed timeline from scene data (store path):', e);
                     }
                 })();
             }
@@ -652,7 +655,13 @@ export class MIDIVisualizerCore {
         this.sceneBuilder.createDefaultMIDIScene();
         // Clear timeline tracks on reset
         try {
-            this.getTimelineService()?.clearAllTracks?.();
+            // Use store clearAllTracks
+            (async () => {
+                try {
+                    const { useTimelineStore } = await import('@state/timelineStore');
+                    useTimelineStore.getState().clearAllTracks();
+                } catch {}
+            })();
         } catch {}
         const settings = this.sceneBuilder.getSceneSettings();
         try {
