@@ -160,7 +160,22 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     canUndo(): boolean {
-        return this.index > 0;
+        if (this.index <= 0) return false;
+        // Prevent undoing back to an initial empty scene once user has a populated scene
+        try {
+            const current = this.ring[this.index];
+            const prev = this.ring[this.index - 1];
+            if (current && prev) {
+                const curObj = JSON.parse(current.stateJSON);
+                const prevObj = JSON.parse(prev.stateJSON);
+                const curHasScene = !!(curObj?.scene?.elements && curObj.scene.elements.length > 0);
+                const prevHasScene = !!(prevObj?.scene?.elements && prevObj.scene.elements.length > 0);
+                if (curHasScene && !prevHasScene) {
+                    return false; // block undo past the first populated scene snapshot
+                }
+            }
+        } catch {}
+        return true;
     }
     canRedo(): boolean {
         return this.index < this.ring.length - 1;
