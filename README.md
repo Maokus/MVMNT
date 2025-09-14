@@ -95,6 +95,7 @@ Fixes implemented:
 
 -   Introduced `CANONICAL_PPQ = 480` (`src/core/timing/ppq.ts`) and replaced hard-coded 960/480 literals in UI logic.
 -   Adjusted `play()` in `timelineStore` so quantization only applies on transition into play, not on pause, preventing a bar jump.
+    -   Uses floor snapping instead of round so the playhead never jumps forward (eliminates half-bar forward shift when starting playback inside a bar).
 -   Added regression tests: `playbackRange.ppqConsistency.test.ts` (seconds↔ticks round trip) and `pause.noJump.test.ts`.
 
 If you need higher resolution later, make PPQ configurable in a single place and propagate through the store + visualizer; do not reintroduce literals.

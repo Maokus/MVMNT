@@ -533,7 +533,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const wasPlaying = s.transport.isPlaying;
             if (!wasPlaying && s.transport.quantize === 'bar') {
                 const ticksPerBar = _beatsToTicks(s.timeline.beatsPerBar);
-                const snapped = Math.round(curTick / ticksPerBar) * ticksPerBar;
+                // Use floor so we never jump the playhead forward past the user's chosen position;
+                // this eliminates the visible half-bar forward jump experienced with Math.round.
+                const snapped = Math.floor(curTick / ticksPerBar) * ticksPerBar;
                 if (snapped !== curTick) {
                     curTick = snapped;
                     const beats = curTick / _tmSingleton.ticksPerQuarter;
@@ -743,6 +745,15 @@ export const useTimelineStore = create<TimelineState>(storeImpl);
 useTimelineStore.subscribe((s) => {
     const anyState: any = s as any;
     // currentTimeSec derived
+    if (anyState.timeline) {
+        // If test or external code manually injected currentTimeSec without adjusting tick, infer tick from seconds once.
+        if (typeof anyState.timeline.currentTick !== 'number' && typeof anyState.timeline.currentTimeSec === 'number') {
+            const spbTmp = 60 / (anyState.timeline.globalBpm || 120);
+            const beatsTmp = secondsToBeats(anyState.timeline.masterTempoMap, anyState.timeline.currentTimeSec, spbTmp);
+            anyState.timeline.currentTick = Math.round(_beatsToTicks(beatsTmp));
+            anyState.timeline.playheadAuthority = anyState.timeline.playheadAuthority || 'seconds';
+        }
+    }
     if (anyState.timeline && typeof anyState.timeline.currentTick === 'number') {
         const authority: string | undefined = anyState.timeline.playheadAuthority;
         const spb = 60 / (anyState.timeline.globalBpm || 120);
