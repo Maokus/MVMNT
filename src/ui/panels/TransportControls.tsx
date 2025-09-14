@@ -8,7 +8,11 @@ const TransportControls: React.FC = () => {
     const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
     const togglePlay = useTimelineStore((s) => s.togglePlay);
     const view = useTimelineStore((s) => s.timelineView);
-    const setCurrent = useTimelineStore((s) => s.setCurrentTimeSec);
+    const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
+    const seekTick = useTimelineStore((s) => s.seekTick);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const startTick = playbackRange?.startTick ?? view.startTick;
 
     return (
         <div className="transport flex items-center gap-2 text-sm">
@@ -22,8 +26,13 @@ const TransportControls: React.FC = () => {
             </button>
             <button
                 className="px-2 py-1 border border-neutral-700 rounded bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1"
-                onClick={() => { setCurrent(view.startSec); }}
-                aria-label="Stop and return to view start"
+                onClick={() => {
+                    // Stop = pause + seek to playback range start (or view start)
+                    if (isPlaying) togglePlay();
+                    setCurrentTick(startTick);
+                    seekTick(startTick);
+                }}
+                aria-label="Stop and return to range start"
                 title="Stop"
             >
                 <FaStop />

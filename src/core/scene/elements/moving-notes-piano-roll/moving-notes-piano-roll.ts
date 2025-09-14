@@ -298,7 +298,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         },
                     ],
                 },
-                // (Removed legacy min-bbox group)
+                // (Removed min-bbox group)
                 {
                     id: 'playhead',
                     label: 'Playhead',
@@ -542,7 +542,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
     getTimeUnit(): number {
         return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
-    // Legacy macro bindings for bpm/beat removed
+    // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
         const colors: string[] = [];
         for (let i = 0; i < 16; i++) {

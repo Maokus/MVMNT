@@ -1,7 +1,7 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
@@ -25,7 +25,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Initialize animation controller
         this.animationController = new AnimationController(this);
 
-        // Legacy midiFile handling removed; timeline tracks only
+        // midiFile handling removed; timeline tracks only
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -676,7 +676,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
-        // Legacy midiFile handling removed; use timeline tracks only
+        // midiFile handling removed; use timeline tracks only
 
         // Update timing via midiManager from global store
         try {
@@ -934,7 +934,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return renderObjects;
     }
 
-    // Legacy midi file support removed
+    // midi file support removed
 
     /**
      * Create horizontal note grid lines across the roll area
@@ -1067,7 +1067,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return playheadObjects;
     }
 
-    // (Removed legacy min-bbox helpers)
+    // (Removed min-bbox helpers)
 
     // Note name resolution handled by MidiManager
 

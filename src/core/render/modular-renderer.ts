@@ -1,4 +1,4 @@
-/* Phase 1 TS migration - minimal typing; refine in later phases */
+/* Minimal typing; refine in later iterations */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface RenderObject {

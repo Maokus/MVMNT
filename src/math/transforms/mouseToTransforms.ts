@@ -199,13 +199,13 @@ export function computeScaledTransform(
                     if (isFinite(sxExact) && isFinite(syExact)) {
                         newScaleX = clampSignedScale(sxExact);
                         newScaleY = clampSignedScale(syExact);
-                        // Skip legacy projection path
+                        // Skip alternate projection path
                     } else {
-                        // fallback to legacy method below if not finite
+                        // fallback to alternate method below if not finite
                     }
                 }
             }
-            // Only run legacy projection method if corner scales were not recomputed above (i.e., skew==0 or fallback)
+            // Only run alternate projection method if corner scales were not recomputed above (i.e., skew==0 or fallback)
             if (newScaleX === origScaleX && newScaleY === origScaleY) {
                 const cornersOrdered = [geom.corners.TL, geom.corners.TR, geom.corners.BR, geom.corners.BL];
                 const cornerNames = ['TL', 'TR', 'BR', 'BL'];

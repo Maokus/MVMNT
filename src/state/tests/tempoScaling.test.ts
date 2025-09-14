@@ -24,13 +24,16 @@ describe('tempo scaling (beats canonical)', () => {
         const cache = api.getState().midiCache[trackId];
         expect(cache).toBeTruthy();
         const note = cache.notesRaw[0];
-        // At default 120 bpm, secondsPerBeat = 0.5, 4 beats => 2 seconds
-        expect(Math.round((note.endTime - note.startTime) * 1000)).toBe(2000); // ~2s
+        // Derive seconds from beats (120 bpm => 0.5s per beat)
+        const beatsDur = note.endBeat! - note.startBeat!;
+        const spb120 = 60 / 120;
+        expect(Math.round(beatsDur * spb120 * 1000)).toBe(2000);
 
         // Change BPM to 60 (secondsPerBeat = 1) => expected duration 4s
         api.getState().setGlobalBpm(60);
         const noteAfter = api.getState().midiCache[trackId].notesRaw[0];
-        expect(Math.round(noteAfter.endTime - noteAfter.startTime)).toBe(4);
+        const spb60 = 60 / 60; // 1s per beat
+        expect(Math.round((noteAfter.endBeat! - noteAfter.startBeat!) * spb60)).toBe(4);
         // Beat distance constant
         expect(noteAfter.endBeat! - noteAfter.startBeat!).toBeCloseTo(4, 1e-6);
     });

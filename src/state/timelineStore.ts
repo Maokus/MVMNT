@@ -1,36 +1,42 @@
 import create, { type StateCreator } from 'zustand';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from './timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { getSecondsPerBeat } from '@core/timing/tempo-utils';
+import { TimingManager } from '@core/timing';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
-function _secondsToBarsLocal(state: TimelineState, seconds: number): number {
-    const bpb = state.timeline.beatsPerBar || 4;
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    const beats = secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+function _secondsToBarsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
+    const tl: any = state?.timeline || {};
+    const bpb = tl.beatsPerBar || 4;
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    const beats = secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
     return beats / bpb;
 }
-function _barsToSecondsLocal(state: TimelineState, bars: number): number {
-    const bpb = state.timeline.beatsPerBar || 4;
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
+function _barsToSecondsLocal(state: Partial<TimelineState> | undefined, bars: number): number {
+    const tl: any = state?.timeline || {};
+    const bpb = tl.beatsPerBar || 4;
+    const spbFallback = 60 / (tl.globalBpm || 120);
     const beats = bars * bpb;
-    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
 }
 
 // Local helpers for beats<->seconds using current timeline tempo context
-function _secondsToBeatsLocal(state: TimelineState, seconds: number): number {
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    return secondsToBeats(state.timeline.masterTempoMap, seconds, spbFallback);
+function _secondsToBeatsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
+    const tl: any = state?.timeline || {};
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    return secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
 }
-function _beatsToSecondsLocal(state: TimelineState, beats: number): number {
-    const spbFallback = 60 / (state.timeline.globalBpm || 120);
-    return beatsToSeconds(state.timeline.masterTempoMap, beats, spbFallback);
+function _beatsToSecondsLocal(state: Partial<TimelineState> | undefined, beats: number): number {
+    const tl: any = state?.timeline || {};
+    const spbFallback = 60 / (tl.globalBpm || 120);
+    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
 }
 
-// Phase 1: Base types for the Timeline system
+// Timeline base types
 // Types are now in timelineTypes.ts
 
 export type TimelineTrack = {
@@ -40,11 +46,11 @@ export type TimelineTrack = {
     enabled: boolean;
     mute: boolean;
     solo: boolean;
-    // Source of truth is offsetBeats; offsetSec is maintained for compatibility and rendering
-    offsetSec: number; // derived from offsetBeats
-    offsetBeats?: number; // beats from first beat (Phase 1)
-    regionStartSec?: number;
-    regionEndSec?: number;
+    // Canonical time domain fields
+    offsetTicks: number; // canonical track offset in ticks
+    // Optional region limits expressed in ticks (inclusive start, exclusive end semantics TBD)
+    regionStartTick?: number;
+    regionEndTick?: number;
     midiSourceId?: string; // references midiCache key
 };
 
@@ -53,9 +59,10 @@ export type TimelineState = {
         id: string;
         name: string;
         masterTempoMap?: TempoMapEntry[];
-        currentTimeSec: number;
+        currentTick: number; // canonical playhead position in ticks
         globalBpm: number; // fallback bpm for conversions when map is empty
         beatsPerBar: number; // global meter (constant for now)
+        playheadAuthority?: 'tick' | 'seconds' | 'clock' | 'user'; // last domain that authored the playhead
     };
     tracks: Record<string, TimelineTrack>;
     tracksOrder: string[];
@@ -63,16 +70,16 @@ export type TimelineState = {
         state?: 'idle' | 'playing' | 'paused' | 'seeking';
         isPlaying: boolean;
         loopEnabled: boolean;
-        loopStartSec?: number;
-        loopEndSec?: number;
+        loopStartTick?: number; // canonical loop start
+        loopEndTick?: number; // canonical loop end
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
-        quantize: 'off' | 'bar'; // minimal Phase 2: toggle bar quantization on/off
+        quantize: 'off' | 'bar'; // toggle bar quantization on/off
     };
     selection: { selectedTrackIds: string[] };
-    // UI view window for seekbar and navigation
-    timelineView: { startSec: number; endSec: number };
-    // Real playback range braces (yellow). Optional; when unset, fallback to timelineView.
-    playbackRange?: { startSec?: number; endSec?: number };
+    // UI view window in ticks
+    timelineView: { startTick: number; endTick: number };
+    // Real playback range braces (yellow) in ticks. Optional; when unset, fallback to timelineView.
+    playbackRange?: { startTick?: number; endTick?: number };
     // Marks that user explicitly set the playbackRange (scene start/end). When false, system may auto-adjust
     playbackRangeUserDefined: boolean;
     midiCache: Record<
@@ -83,47 +90,39 @@ export type TimelineState = {
     rowHeight: number; // track row height in px
 
     // Actions
-    addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) => Promise<string>;
+    addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) => Promise<string>;
     removeTrack: (id: string) => void;
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
-    setTrackOffset: (id: string, offsetSec: number) => void;
-    setTrackOffsetBeats: (id: string, offsetBeats: number) => void;
-    setTrackRegion: (id: string, start?: number, end?: number) => void;
+    setTrackOffsetTicks: (id: string, offsetTicks: number) => void;
+    setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => void;
     setTrackEnabled: (id: string, enabled: boolean) => void;
     setTrackMute: (id: string, mute: boolean) => void;
     setTrackSolo: (id: string, solo: boolean) => void;
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
-    setCurrentTimeSec: (t: number) => void;
+    setCurrentTick: (tick: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void; // dual-write API
     play: () => void;
     pause: () => void;
     togglePlay: () => void;
-    seek: (sec: number) => void;
-    scrub: (to: number) => void;
+    seekTick: (tick: number) => void;
+    scrubTick: (tick: number) => void;
     setRate: (rate: number) => void;
     setQuantize: (q: 'off' | 'bar') => void;
     setLoopEnabled: (enabled: boolean) => void;
-    setLoopRange: (start?: number, end?: number) => void;
-    setLoop: (cfg: {
-        enabled?: boolean;
-        startSec?: number;
-        endSec?: number;
-        startBars?: number;
-        endBars?: number;
-    }) => void;
+    setLoopRangeTicks: (startTick?: number, endTick?: number) => void;
     toggleLoop: () => void;
     reorderTracks: (order: string[]) => void;
-    setTimelineView: (start: number, end: number) => void;
+    setTimelineViewTicks: (startTick: number, endTick: number) => void;
     selectTracks: (ids: string[]) => void;
-    setPlaybackRange: (start?: number, end?: number) => void;
-    // Explicit variant that marks user override (dragging braces / manual input)
-    setPlaybackRangeExplicit: (start?: number, end?: number) => void;
+    setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
+    setPlaybackRangeExplicitTicks: (startTick?: number, endTick?: number) => void;
     setRowHeight: (h: number) => void;
     ingestMidiToCache: (
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) => void;
+    clearAllTracks: () => void;
 };
 
 // Utility to create IDs
@@ -131,62 +130,44 @@ function makeId(prefix: string = 'trk'): string {
     return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Compute the total content end time (in seconds) across all enabled tracks using cached MIDI data
-// This mirrors the logic in scene-builder.getMaxDuration but stays store-local to avoid circular deps.
-function computeContentEndSec(state: TimelineState): number {
+// Compute content bounds purely in tick domain. Offsets are incorporated by adding track.offsetTicks.
+function computeContentEndTick(state: TimelineState): number {
     let max = 0;
-    try {
-        for (const id of state.tracksOrder) {
-            const t = state.tracks[id];
-            if (!t || t.type !== 'midi' || !t.enabled) continue;
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            const localEnd = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
-            let end = localEnd;
-            if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
-            if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
-            const offset =
-                typeof (t as any).offsetBeats === 'number'
-                    ? _beatsToSecondsLocal(state, (t as any).offsetBeats)
-                    : t.offsetSec || 0;
-            const timelineEnd = offset + end;
-            if (timelineEnd > max) max = timelineEnd;
+    for (const id of state.tracksOrder) {
+        const t = state.tracks[id];
+        if (!t || t.type !== 'midi' || !t.enabled) continue;
+        const cacheKey = t.midiSourceId ?? id;
+        const cache = state.midiCache[cacheKey];
+        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+        for (const n of cache.notesRaw) {
+            const endTick = n.endTick + t.offsetTicks;
+            if (endTick > max) max = endTick;
         }
-    } catch {}
+    }
     return max;
 }
 
-// Compute earliest content start across enabled tracks
-function computeContentStartSec(state: TimelineState): number {
+function computeContentStartTick(state: TimelineState): number {
     let min = Infinity;
-    try {
-        for (const id of state.tracksOrder) {
-            const t = state.tracks[id];
-            if (!t || t.type !== 'midi' || !t.enabled) continue;
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            const localStart = cache.notesRaw.reduce((m: number, n: any) => Math.min(m, n.startTime || 0), Infinity);
-            let start = localStart;
-            if (typeof t.regionStartSec === 'number') start = Math.max(start, t.regionStartSec);
-            if (!isFinite(start)) start = 0;
-            const offset =
-                typeof (t as any).offsetBeats === 'number'
-                    ? _beatsToSecondsLocal(state, (t as any).offsetBeats)
-                    : t.offsetSec || 0;
-            const timelineStart = offset + start;
-            if (timelineStart < min) min = timelineStart;
+    for (const id of state.tracksOrder) {
+        const t = state.tracks[id];
+        if (!t || t.type !== 'midi' || !t.enabled) continue;
+        const cacheKey = t.midiSourceId ?? id;
+        const cache = state.midiCache[cacheKey];
+        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+        for (const n of cache.notesRaw) {
+            const startTick = n.startTick + t.offsetTicks;
+            if (startTick < min) min = startTick;
         }
-    } catch {}
+    }
     if (!isFinite(min)) return 0;
     return Math.max(0, min);
 }
 
-function computeContentBounds(state: TimelineState): { start: number; end: number } | null {
-    const end = computeContentEndSec(state);
+function computeContentBoundsTicks(state: TimelineState): { start: number; end: number } | null {
+    const end = computeContentEndTick(state);
     if (!isFinite(end) || end <= 0) return null;
-    const start = computeContentStartSec(state);
+    const start = computeContentStartTick(state);
     return { start, end };
 }
 
@@ -194,25 +175,46 @@ function computeContentBounds(state: TimelineState): { start: number; end: numbe
 function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) => void) {
     const s = get();
     if (s.playbackRangeUserDefined) return;
-    const bounds = computeContentBounds(s);
+    const bounds = computeContentBoundsTicks(s);
     if (!bounds) return;
     const { start, end } = bounds;
     const current = s.playbackRange || {};
-    const same = Math.abs((current.startSec ?? -1) - start) < 1e-6 && Math.abs((current.endSec ?? -1) - end) < 1e-6;
+    const same = Math.abs((current.startTick ?? -1) - start) < 1 && Math.abs((current.endTick ?? -1) - end) < 1;
     if (same) return;
-
-    const oneBar = _barsToSecondsLocal(s, 1);
-    const clippedEnd = Math.min(end, 500); // hard cap to prevent runaway scenes
-
-    // Update playback range (auto) and zoom view
+    const oneBarBeats = s.timeline.beatsPerBar;
+    const oneBarTicks = _beatsToTicks(oneBarBeats);
+    // Cap to at most 960 bars previously caused scaling issues with mixed PPQ values; instead cap to 200 bars (~content heuristic)
+    const maxBars = 200;
+    const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
     set((prev: TimelineState) => ({
-        playbackRange: { startSec: start, endSec: clippedEnd + oneBar },
-        timelineView: { startSec: start - oneBar, endSec: clippedEnd + oneBar * 2 }, // add 1s padding
+        playbackRange: { startTick: start, endTick: clippedEnd + oneBarTicks },
+        timelineView: { startTick: Math.max(0, start - oneBarTicks), endTick: clippedEnd + oneBarTicks * 2 },
     }));
 }
 
+// Shared singleton timing manager; we assume constant PPQ here; future work may make PPQ configurable.
+// Exported so that all runtime systems (VisualizerContext, PlaybackClock, UI rulers, selectors) share tempo state.
+const _tmSingleton = new TimingManager();
+export function getSharedTimingManager() {
+    return _tmSingleton;
+}
+export { _tmSingleton as sharedTimingManager }; // named export for direct import convenience
+function _beatsToTicks(beats: number): number {
+    return Math.round(beats * _tmSingleton.ticksPerQuarter);
+}
+function _ticksToBeats(ticks: number): number {
+    return ticks / _tmSingleton.ticksPerQuarter;
+}
+
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
-    timeline: { id: 'tl_1', name: 'Main Timeline', currentTimeSec: 0, globalBpm: 120, beatsPerBar: 4 },
+    timeline: {
+        id: 'tl_1',
+        name: 'Main Timeline',
+        currentTick: 0,
+        globalBpm: 120,
+        beatsPerBar: 4,
+        playheadAuthority: 'tick',
+    },
     tracks: {},
     tracksOrder: [],
     transport: {
@@ -222,21 +224,26 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         rate: 1.0,
         // Quantize enabled by default (bar snapping)
         quantize: 'bar',
-        loopStartSec: 2,
-        loopEndSec: 5,
+        loopStartTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 2)), // initial value derived from seconds helper
+        loopEndTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 5)),
     },
     selection: { selectedTrackIds: [] },
     midiCache: {},
-    timelineView: { startSec: 0, endSec: 60 },
+    timelineView: { startTick: 0, endTick: _beatsToTicks(120) },
     playbackRange: undefined,
     playbackRangeUserDefined: false,
     rowHeight: 30,
 
-    async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetSec?: number }) {
+    async addMidiTrack(input: {
+        name: string;
+        file?: File;
+        midiData?: MIDIData;
+        offsetTicks?: number;
+        // Only offsetTicks accepted (seconds/beat offsets removed)
+    }) {
         const id = makeId();
         const s = get();
-        const initialOffsetSec = input.offsetSec ?? 0;
-        const initialOffsetBeats = _secondsToBeatsLocal(s, initialOffsetSec);
+        let initialOffsetTicks = input.offsetTicks ?? 0;
         const track: TimelineTrack = {
             id,
             name: input.name || 'MIDI Track',
@@ -244,8 +251,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             enabled: true,
             mute: false,
             solo: false,
-            offsetSec: initialOffsetSec,
-            offsetBeats: initialOffsetBeats,
+            offsetTicks: initialOffsetTicks,
         };
 
         set((s: TimelineState) => ({
@@ -257,7 +263,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
 
-        // If MIDI data provided, ingest immediately. File-based ingestion will be wired later in Phase 2/4 UI.
+        // If MIDI data provided, ingest immediately. (File-based ingestion UI deferred)
         if (input.midiData) {
             const ingested = buildNotesFromMIDI(input.midiData);
             get().ingestMidiToCache(id, ingested);
@@ -301,58 +307,41 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     updateTrack(id: string, patch: Partial<TimelineTrack>) {
-        // Keep offsetSec <-> offsetBeats in sync; prefer explicit values in patch
+        // Only offsetTicks is honored; any removed fields are ignored
         set((s: TimelineState) => {
             const prev = s.tracks[id];
-            if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
-            let next: TimelineTrack = { ...prev, ...patch } as TimelineTrack;
-            // If offsetBeats is provided but offsetSec isn't, derive seconds
-            if (typeof patch.offsetBeats === 'number' && typeof patch.offsetSec !== 'number') {
-                const sec = _beatsToSecondsLocal(s, patch.offsetBeats);
-                next.offsetSec = sec;
+            if (!prev) return { tracks: s.tracks } as TimelineState;
+            let next: TimelineTrack = { ...prev } as TimelineTrack;
+            if (typeof patch.offsetTicks === 'number') {
+                next.offsetTicks = patch.offsetTicks;
             }
-            // If offsetSec is provided but offsetBeats isn't, derive beats
-            if (typeof patch.offsetSec === 'number' && typeof patch.offsetBeats !== 'number') {
-                const beats = _secondsToBeatsLocal(s, patch.offsetSec);
-                (next as any).offsetBeats = beats;
-            }
-            return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
+            if (typeof patch.name === 'string') next.name = patch.name;
+            if (typeof patch.enabled === 'boolean') next.enabled = patch.enabled;
+            if (typeof patch.mute === 'boolean') next.mute = patch.mute;
+            if (typeof patch.solo === 'boolean') next.solo = patch.solo;
+            if (typeof patch.regionStartTick === 'number') next.regionStartTick = patch.regionStartTick;
+            if (typeof patch.regionEndTick === 'number') next.regionEndTick = patch.regionEndTick;
+            return { tracks: { ...s.tracks, [id]: next } } as TimelineState;
         });
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
-
-    setTrackOffset(id: string, offsetSec: number) {
-        // Delegate to beats-based storage for source of truth
-        const s = get();
-        const beats = _secondsToBeatsLocal(s, offsetSec);
-        get().setTrackOffsetBeats(id, beats);
-        try {
-            autoAdjustSceneRangeIfNeeded(get, set);
-        } catch {}
-    },
-
-    setTrackOffsetBeats(id: string, offsetBeats: number) {
+    setTrackOffsetTicks(id: string, offsetTicks: number) {
         set((s: TimelineState) => {
-            const sec = _beatsToSecondsLocal(s, offsetBeats);
             const prev = s.tracks[id];
-            if (!prev) return { tracks: s.tracks } as Partial<TimelineState> as TimelineState;
-            const next: TimelineTrack = { ...prev, offsetBeats, offsetSec: sec };
-            return { tracks: { ...s.tracks, [id]: next } } as Partial<TimelineState> as TimelineState;
+            if (!prev) return { tracks: s.tracks } as TimelineState;
+            const next: TimelineTrack = { ...prev, offsetTicks };
+            return { tracks: { ...s.tracks, [id]: next } } as TimelineState;
         });
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
-
-    setTrackRegion(id: string, start?: number, end?: number) {
+    setTrackRegionTicks(id: string, startTick?: number, endTick?: number) {
         set((s: TimelineState) => ({
-            tracks: { ...s.tracks, [id]: { ...s.tracks[id], regionStartSec: start, regionEndSec: end } },
+            tracks: { ...s.tracks, [id]: { ...s.tracks[id], regionStartTick: startTick, regionEndTick: endTick } },
         }));
-        try {
-            autoAdjustSceneRangeIfNeeded(get, set);
-        } catch {}
     },
 
     setTrackEnabled(id: string, enabled: boolean) {
@@ -372,19 +361,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => {
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, masterTempoMap: map };
-            const spbFallback = 60 / (next.timeline.globalBpm || 120);
-            for (const key of Object.keys(next.midiCache)) {
-                const cache = next.midiCache[key];
-                if (!cache || !cache.notesRaw) continue;
-                const notes = cache.notesRaw;
-                for (const n of notes) {
-                    if (n.startBeat !== undefined && n.endBeat !== undefined) {
-                        n.startTime = beatsToSeconds(map, n.startBeat, spbFallback);
-                        n.endTime = beatsToSeconds(map, n.endBeat, spbFallback);
-                        n.duration = Math.max(0, n.endTime - n.startTime);
-                    }
-                }
+            // Propagate tempo map to shared timing manager for immediate effect in playback clock & UI
+            try {
+                _tmSingleton.setTempoMap(map, 'seconds');
+            } catch {
+                /* noop */
             }
+            // Notes no longer store seconds; conversions happen in selectors.
             return next;
         });
     },
@@ -396,20 +379,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const hadMap = (s.timeline.masterTempoMap?.length || 0) > 0;
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, globalBpm: v };
-            if (!hadMap) {
-                const spbFallback = 60 / v;
-                for (const key of Object.keys(next.midiCache)) {
-                    const cache = next.midiCache[key];
-                    if (!cache || !cache.notesRaw) continue;
-                    for (const n of cache.notesRaw) {
-                        if (n.startBeat !== undefined && n.endBeat !== undefined) {
-                            n.startTime = n.startBeat * spbFallback;
-                            n.endTime = n.endBeat * spbFallback;
-                            n.duration = Math.max(0, n.endTime - n.startTime);
-                        }
-                    }
-                }
+            // Propagate BPM to shared timing manager so playback rate updates immediately
+            try {
+                _tmSingleton.setBPM(v);
+            } catch {
+                /* ignore */
             }
+            // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
+            // Seconds no longer stored on notes; real-time updates occur via selectors.
             return next;
         });
     },
@@ -419,41 +396,61 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ timeline: { ...s.timeline, beatsPerBar: v } }));
     },
 
-    setCurrentTimeSec(t: number) {
+    setCurrentTick(tick: number, authority: 'tick' | 'seconds' | 'clock' | 'user' = 'tick') {
         set((s: TimelineState) => {
-            // Enforce playback boundaries & looping
-            let newT = Math.max(0, t);
-            const { loopEnabled, loopStartSec, loopEndSec, isPlaying } = s.transport;
-            const playbackRange = s.playbackRange;
-            // Loop wrap takes precedence over playback end stop
-            if (isPlaying && loopEnabled && typeof loopStartSec === 'number' && typeof loopEndSec === 'number') {
-                if (newT >= loopEndSec) {
-                    newT = loopStartSec; // wrap
+            // Behavior goals:
+            // 1. While paused, passive advancement originating from the running render loop / clock.update should not move the store tick.
+            // 2. Explicit repositioning (seek/loop wrap) coming from the clock authority SHOULD update even while paused (e.g. tests calling setCurrentTick(500,'clock')).
+            // Implementation: if paused and authority==='clock' but tick is identical to currentTick (passive frame), ignore; otherwise apply.
+            let nextTick = Math.max(0, tick);
+            if (authority === 'clock' && !s.transport.isPlaying && s.transport.state === 'paused') {
+                if (nextTick === s.timeline.currentTick) {
+                    return { timeline: { ...s.timeline } } as TimelineState; // no-op passive frame
                 }
-            } else if (isPlaying && playbackRange?.endSec != null) {
-                if (newT >= playbackRange.endSec) {
-                    // Stop at scene end (do not advance beyond)
-                    newT = playbackRange.endSec;
-                    return {
-                        timeline: { ...s.timeline, currentTimeSec: newT },
-                        transport: { ...s.transport, isPlaying: false, state: 'paused' },
-                    } as TimelineState;
+                // Allow change-through for explicit reposition while paused.
+            }
+            if (
+                s.transport.loopEnabled &&
+                typeof s.transport.loopStartTick === 'number' &&
+                typeof s.transport.loopEndTick === 'number'
+            ) {
+                if (nextTick > s.transport.loopEndTick) {
+                    nextTick = s.transport.loopStartTick;
                 }
             }
-            return { timeline: { ...s.timeline, currentTimeSec: newT } } as TimelineState;
+            return {
+                timeline: { ...s.timeline, currentTick: nextTick, playheadAuthority: authority },
+            } as TimelineState;
         });
     },
 
     play() {
         set((s: TimelineState) => {
-            // Quantized play (Phase 4): optionally snap current time to nearest bar before starting
-            let t = s.timeline.currentTimeSec;
-            if (s.transport.quantize === 'bar') {
-                const snappedBars = Math.round(_secondsToBarsLocal(s, t));
-                t = _barsToSecondsLocal(s, snappedBars);
+            // Only apply bar quantization when entering play from a non-playing state AND not immediately after a pause.
+            // Previous logic snapped on every play(), so toggling pause/play could shift the playhead forward a bar
+            // (observed as a one-bar jump when pausing due to tick->seconds mirror race). We guard by detecting if
+            // current tick is already aligned or if we were just playing.
+            let curTick = s.timeline.currentTick;
+            const wasPlaying = s.transport.isPlaying;
+            if (!wasPlaying && s.transport.quantize === 'bar') {
+                const ticksPerBar = _beatsToTicks(s.timeline.beatsPerBar);
+                // Use floor so we never jump the playhead forward past the user's chosen position;
+                // this eliminates the visible half-bar forward jump experienced with Math.round.
+                const snapped = Math.floor(curTick / ticksPerBar) * ticksPerBar;
+                if (snapped !== curTick) {
+                    curTick = snapped;
+                    // Notify runtime (VisualizerContext) to align playback clock
+                    // VisualizerContext listens for 'timeline-play-snapped' and issues clock.setTick(snappedTick)
+                    // ensuring the PlaybackClock fractional accumulator is cleared.
+                    try {
+                        window.dispatchEvent(new CustomEvent('timeline-play-snapped', { detail: { tick: curTick } }));
+                    } catch {
+                        /* ignore */
+                    }
+                }
             }
             return {
-                timeline: { ...s.timeline, currentTimeSec: t },
+                timeline: { ...s.timeline, currentTick: curTick },
                 transport: { ...s.transport, isPlaying: true, state: 'playing' },
             } as TimelineState;
         });
@@ -469,22 +466,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             transport: { ...s.transport, isPlaying: !wasPlaying, state: !wasPlaying ? 'playing' : 'paused' },
         }));
     },
-    seek(sec: number) {
-        set((s: TimelineState) => {
-            const quant = s.transport.quantize;
-            let t = Math.max(0, sec);
-            if (quant === 'bar') {
-                const snappedBars = Math.round(_secondsToBarsLocal(s, t));
-                t = _barsToSecondsLocal(s, snappedBars);
-            }
-            return {
-                timeline: { ...s.timeline, currentTimeSec: t },
-                transport: { ...s.transport, state: 'seeking' },
-            } as TimelineState;
-        });
+    seekTick(tick: number) {
+        set((s: TimelineState) => ({
+            timeline: { ...s.timeline, currentTick: Math.max(0, tick), playheadAuthority: 'user' },
+            transport: { ...s.transport, state: 'seeking' },
+        }));
     },
-    scrub(to: number) {
-        get().setCurrentTimeSec(to);
+    scrubTick(tick: number) {
+        get().setCurrentTick(tick, 'user');
     },
 
     setRate(rate: number) {
@@ -500,31 +489,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     setLoopEnabled(enabled: boolean) {
         set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: enabled } }));
     },
-    setLoopRange(start?: number, end?: number) {
-        set((s: TimelineState) => ({ transport: { ...s.transport, loopStartSec: start, loopEndSec: end } }));
+    setLoopRangeTicks(startTick?: number, endTick?: number) {
+        set((s: TimelineState) => ({
+            transport: {
+                ...s.transport,
+                loopStartTick: startTick ?? s.transport.loopStartTick,
+                loopEndTick: endTick ?? s.transport.loopEndTick,
+            },
+        }));
     },
-    setLoop(cfg: { enabled?: boolean; startSec?: number; endSec?: number; startBars?: number; endBars?: number }) {
-        set((s: TimelineState) => {
-            const next: TimelineState['transport'] = { ...s.transport };
-            if (typeof cfg.enabled === 'boolean') next.loopEnabled = cfg.enabled;
-            // Convert bars to seconds if provided
-            const start =
-                typeof cfg.startSec === 'number'
-                    ? cfg.startSec
-                    : typeof cfg.startBars === 'number'
-                    ? _barsToSecondsLocal(s, cfg.startBars)
-                    : next.loopStartSec;
-            const end =
-                typeof cfg.endSec === 'number'
-                    ? cfg.endSec
-                    : typeof cfg.endBars === 'number'
-                    ? _barsToSecondsLocal(s, cfg.endBars)
-                    : next.loopEndSec;
-            next.loopStartSec = start;
-            next.loopEndSec = end;
-            return { transport: next } as TimelineState;
-        });
-    },
+
     toggleLoop() {
         set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: !s.transport.loopEnabled } }));
     },
@@ -533,18 +507,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set(() => ({ tracksOrder: [...order] }));
     },
 
-    setTimelineView(start: number, end: number) {
-        // Allow a small negative pre-roll, and clamp range min/max width.
-        const MIN_RANGE = 0.05; // 50ms min
-        const MAX_RANGE = 60 * 60 * 24; // 24h max
-        let sRaw = Math.min(start, end);
-        let eRaw = Math.max(start, end);
-        // Allow pre-roll negative up to -10s
-        const PRE_ROLL = -10;
-        let s = Math.max(PRE_ROLL, sRaw);
-        let e = Math.max(s + MIN_RANGE, eRaw);
-        if (e - s > MAX_RANGE) e = s + MAX_RANGE;
-        set(() => ({ timelineView: { startSec: s, endSec: e } }));
+    setTimelineViewTicks(startTick: number, endTick: number) {
+        const MIN = 1; // at least 1 tick
+        let sT = Math.min(startTick, endTick);
+        let eT = Math.max(startTick, endTick);
+        if (eT - sT < MIN) eT = sT + MIN;
+        set(() => ({ timelineView: { startTick: sT, endTick: eT } }));
     },
 
     selectTracks(ids: string[]) {
@@ -575,20 +543,31 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         } catch {}
     },
 
-    setPlaybackRange(start?: number, end?: number) {
+    clearAllTracks() {
         set((s: TimelineState) => ({
+            tracks: {},
+            tracksOrder: [],
+            selection: { selectedTrackIds: [] },
+            midiCache: {},
+        }));
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    setPlaybackRangeTicks(startTick?: number, endTick?: number) {
+        set(() => ({
             playbackRange: {
-                startSec: typeof start === 'number' ? Math.max(0, start) : undefined,
-                endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
+                startTick: typeof startTick === 'number' ? Math.max(0, startTick) : undefined,
+                endTick: typeof endTick === 'number' ? Math.max(0, endTick) : undefined,
             },
         }));
     },
-
-    setPlaybackRangeExplicit(start?: number, end?: number) {
-        set((s: TimelineState) => ({
+    setPlaybackRangeExplicitTicks(startTick?: number, endTick?: number) {
+        set(() => ({
             playbackRange: {
-                startSec: typeof start === 'number' ? Math.max(0, start) : undefined,
-                endSec: typeof end === 'number' ? Math.max(0.0001, end) : undefined,
+                startTick: typeof startTick === 'number' ? Math.max(0, startTick) : undefined,
+                endTick: typeof endTick === 'number' ? Math.max(0, endTick) : undefined,
             },
             playbackRangeUserDefined: true,
         }));

@@ -87,7 +87,7 @@ const PreviewPanel: React.FC = () => {
                 ></canvas>
             </div>
 
-            {/* Legacy playback controls removed; use Timeline panel controls instead */}
+            {/* Playback controls removed; use Timeline panel controls instead */}
         </div>
     );
 };

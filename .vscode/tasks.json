@@ -4,17 +4,26 @@
 		{
 			"label": "Start Development Server",
 			"type": "shell",
-			"command": "npm start",
+			"command": "npm run start",
 			"group": "build",
-			"isBackground": true,
+			"isBackground": false,
 			"problemMatcher": []
 		},
 		{
-			"label": "Start Development Server",
+			"label": "Run NPM Build",
 			"type": "shell",
-			"command": "npm start",
-			"isBackground": true,
-			"group": "build"
+			"command": "npm run build",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run NPM Test",
+			"type": "shell",
+			"command": "npx vitest --watch false",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

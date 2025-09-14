@@ -1,4 +1,4 @@
-/* Phase 1 TS migration - minimal typing; refine later */
+/* Minimal typing; refine later */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     BackgroundElement,
@@ -15,6 +15,7 @@ import {
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { getAnimationSelectOptions } from '@animation/note-animations';
+import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 
 export interface SceneSettings {
     fps: number;
@@ -50,7 +51,6 @@ export class HybridSceneBuilder {
         try {
             if (partial.tempo != null || partial.beatsPerBar != null) {
                 // Lazy import to avoid cycles
-                const { useTimelineStore } = require('@state/timelineStore');
                 const st = useTimelineStore.getState();
                 if (partial.tempo != null) st.setGlobalBpm(Math.max(1, Number(partial.tempo) || 120));
                 if (partial.beatsPerBar != null) st.setBeatsPerBar(Math.max(1, Math.floor(partial.beatsPerBar || 4)));
@@ -62,7 +62,6 @@ export class HybridSceneBuilder {
         this.config = { ...this._defaultSceneSettings };
         // Also reset global timing to defaults
         try {
-            const { useTimelineStore } = require('@state/timelineStore');
             const st = useTimelineStore.getState();
             if (this._defaultSceneSettings.tempo != null) st.setGlobalBpm(this._defaultSceneSettings.tempo);
             if (this._defaultSceneSettings.beatsPerBar != null)
@@ -122,7 +121,7 @@ export class HybridSceneBuilder {
     }
     getMaxDuration() {
         let max = 0;
-        // Legacy elements duration
+        // Elements duration
         for (const el of this.elements) {
             const dur = (el as any).midiManager?.getDuration?.();
             if (typeof dur === 'number' && dur > max) max = dur;
@@ -130,20 +129,30 @@ export class HybridSceneBuilder {
         // New timeline store-based duration
         try {
             // Lazy import to avoid cyclic deps at module load
-            const { useTimelineStore } = require('@state/timelineStore');
             const state = useTimelineStore.getState();
+            const tm = getSharedTimingManager();
+            tm.setBPM(state.timeline.globalBpm || 120);
+            if (state.timeline.masterTempoMap) tm.setTempoMap(state.timeline.masterTempoMap, 'seconds');
             for (const id of state.tracksOrder) {
                 const t = state.tracks[id];
                 if (!t || t.type !== 'midi' || !t.enabled) continue;
                 const cache = state.midiCache[t.midiSourceId ?? id];
                 if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-                const localEnd = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
-                let end = localEnd;
-                if (typeof t.regionEndSec === 'number') end = Math.min(end, t.regionEndSec);
-                // If regionStart beyond end, skip
-                if (typeof t.regionStartSec === 'number') end = Math.max(end, t.regionStartSec);
-                const timelineEnd = (t.offsetSec || 0) + end;
-                if (timelineEnd > max) max = timelineEnd;
+                // Determine max end tick inside optional region
+                let regionStartTick = t.regionStartTick ?? 0;
+                let regionEndTick = t.regionEndTick ?? Number.POSITIVE_INFINITY;
+                // Compute notes' max end (in ticks) respecting region
+                let maxEndTick = 0;
+                for (const n of cache.notesRaw) {
+                    if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
+                    const clippedEnd = Math.min(n.endTick, regionEndTick);
+                    if (clippedEnd > maxEndTick) maxEndTick = clippedEnd;
+                }
+                const trackEndTick = maxEndTick + t.offsetTicks;
+                if (trackEndTick <= 0) continue;
+                const endBeats = trackEndTick / tm.ticksPerQuarter;
+                const endSec = tm.beatsToSeconds(endBeats);
+                if (endSec > max) max = endSec;
             }
         } catch {}
         return max;
@@ -385,8 +394,7 @@ export class HybridSceneBuilder {
                     id: t.id,
                     name: t.name,
                     type: t.type,
-                    offsetSec: t.offsetSec || 0,
-                    // Do not serialize full midiData by default to keep files small
+                    offsetTicks: t.offsetTicks || 0,
                 }));
                 timeline = { tracks };
             }
@@ -487,7 +495,7 @@ export class HybridSceneBuilder {
         chordEstimateDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
     }
     autoBindElements() {
-        // No-op: legacy per-element timing bindings removed in favor of global timeline tempo
+        // No-op: per-element timing bindings removed in favor of global timeline tempo
     }
     createTestScene() {
         this.clearElements();

@@ -6,6 +6,7 @@ import {
     beatsToSecondsWithMap as _beatsToSecondsWithTempoMap,
     secondsToBeatsWithMap as _secondsToBeatsWithTempoMap,
 } from './tempo-utils';
+import { CANONICAL_PPQ } from './ppq';
 
 export interface TimeSignature {
     numerator: number;
@@ -47,6 +48,15 @@ export class TimingManager {
     public tempoMap: TempoMapEntry[] | null;
     private _tempoSegments: NormalizedTempoEntry[] | null;
     private _cache: Record<string, any>;
+    /**
+     * Monotonic version hash that increments whenever any tempo-affecting parameter changes
+     * (bpm, tempo, tempoMap, ticksPerQuarter). Used by higher-level caches/selectors to memoize
+     * expensive tick<->seconds conversions with coarse invalidation.
+     */
+    public tempoVersionHash: number;
+    /** Simple small LRU ring buffer for ticks->seconds conversions (hot playhead + grid) */
+    private _tickToSecCache: { tick: number; seconds: number; hash: number }[];
+    private _tickToSecCacheSize: number;
 
     constructor(elementId: string | null = null) {
         this.elementId = elementId;
@@ -60,15 +70,21 @@ export class TimingManager {
             clocksPerClick: 24,
             thirtysecondNotesPerBeat: 8,
         };
-        this.ticksPerQuarter = 480;
+        this.ticksPerQuarter = CANONICAL_PPQ;
         this.tempo = 500000; // microseconds per quarter note
 
         this.tempoMap = null;
         this._tempoSegments = null;
 
         this._cache = {};
+        this.tempoVersionHash = 0;
+        this._tickToSecCacheSize = 64; // small; tuned for typical concurrent queries
+        this._tickToSecCache = new Array(this._tickToSecCacheSize).fill(null) as any;
+        this._tickCacheIndex = 0;
         this._invalidateCache();
     }
+
+    private _tickCacheIndex: number;
 
     setBPM(bpm: number) {
         if (this.bpm === bpm) return;
@@ -77,6 +93,7 @@ export class TimingManager {
         this.tempoMap = null;
         this._tempoSegments = null;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     setTempo(tempo: number) {
@@ -86,6 +103,7 @@ export class TimingManager {
         this.tempoMap = null;
         this._tempoSegments = null;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     /**
@@ -98,6 +116,7 @@ export class TimingManager {
             this.tempoMap = null;
             this._tempoSegments = null;
             this._invalidateCache();
+            this._bumpTempoVersion();
             return;
         }
 
@@ -154,12 +173,14 @@ export class TimingManager {
         this.tempoMap = normalized;
         this._tempoSegments = segments;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     setBeatsPerBar(beatsPerBar: number) {
         if (this.beatsPerBar === beatsPerBar) return;
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
         this._invalidateCache();
+        // beatsPerBar does not affect absolute beats<->seconds mapping, so not bumping hash
     }
 
     setTimeSignature(timeSignature: Partial<TimeSignature>) {
@@ -181,6 +202,7 @@ export class TimingManager {
         if (this.ticksPerQuarter === ticksPerQuarter) return;
         this.ticksPerQuarter = ticksPerQuarter;
         this._invalidateCache();
+        this._bumpTempoVersion();
     }
 
     getSecondsPerBeat(timeInSeconds?: number) {
@@ -261,6 +283,14 @@ export class TimingManager {
         return this._secondsToBeats(seconds);
     }
 
+    // Explicit symmetrical conversions including ticks<->beats
+    ticksToBeats(ticks: number) {
+        return ticks / this.ticksPerQuarter;
+    }
+    beatsToTicks(beats: number) {
+        return beats * this.ticksPerQuarter;
+    }
+
     /**
      * Convert beats to seconds using a provided tempo map when available.
      * Falls back to this TimingManager's tempoMap and finally fixed tempo.
@@ -280,6 +310,32 @@ export class TimingManager {
     }
 
     getTimeUnitWindow(referenceTimeInSeconds: number, bars = 1) {
+        // Guard against floating point boundary artifacts: when referenceTime lands exactly
+        // on a bar boundary (e.g. 2.0000000000) due to discrete frame stepping, downstream
+        // consumers (animation controller) can briefly treat early-phase notes as starting
+        // in the "next" window, snapping geometry (x=0 flicker). Nudge exact boundaries
+        // slightly left so export frame sampling (deterministic 1/fps) remains visually
+        // continuous with real-time playback (which often samples mid-frame deltas).
+        // EPS chosen relative to typical sub-frame (1/48000) audio resolution while
+        // remaining far below any tempo / animation duration precision.
+        const EPS = 1e-9;
+        if (
+            referenceTimeInSeconds > 0 &&
+            Math.abs(Math.round(referenceTimeInSeconds * 1e9) / 1e9 - referenceTimeInSeconds) < EPS
+        ) {
+            // Already precise decimal; additional check: if close to an exact bar boundary in beats
+            try {
+                const spb = this.getSecondsPerBeat();
+                const totalBeats = this._secondsToBeats(referenceTimeInSeconds);
+                const nearIntegerBar =
+                    Math.abs(totalBeats / this.beatsPerBar - Math.round(totalBeats / this.beatsPerBar)) < 1e-9;
+                if (nearIntegerBar) {
+                    referenceTimeInSeconds -= EPS; // shift into previous window
+                }
+            } catch {
+                /* conservative fallback */
+            }
+        }
         const beatsPerWindow = bars * this.beatsPerBar;
         let totalBeatsAtRef: number;
         if (this._tempoSegments && this._tempoSegments.length > 0) {
@@ -348,6 +404,51 @@ export class TimingManager {
 
     private _invalidateCache() {
         this._cache = {};
+        // Do not clear tempoVersionHash here; callers bump explicitly via _bumpTempoVersion()
+        this._tickToSecCache = new Array(this._tickToSecCacheSize).fill(null) as any;
+        this._tickCacheIndex = 0;
+    }
+
+    private _bumpTempoVersion() {
+        this.tempoVersionHash = (this.tempoVersionHash + 1) >>> 0; // unsigned wrap
+    }
+
+    /** Fast cached conversion with tempoVersionHash invalidation */
+    ticksToSecondsCached(ticks: number): number {
+        const hash = this.tempoVersionHash;
+        const slot = ticks % this._tickToSecCacheSize;
+        const entry = this._tickToSecCache[slot];
+        if (entry && entry.tick === ticks && entry.hash === hash) return entry.seconds;
+        const sec = this.ticksToSeconds(ticks);
+        this._tickToSecCache[slot] = { tick: ticks, seconds: sec, hash };
+        return sec;
+    }
+
+    /**
+     * Generate beat grid events in a tick window. Includes every beat boundary; marks bar starts.
+     * startTick inclusive, endTick inclusive (end beat if boundary lies exactly at end).
+     */
+    getBeatGridInTicks(startTick: number, endTick: number) {
+        if (endTick < startTick) [startTick, endTick] = [endTick, startTick];
+        const startBeats = startTick / this.ticksPerQuarter;
+        const endBeats = endTick / this.ticksPerQuarter;
+        const startIndex = Math.ceil(startBeats - 1e-9);
+        const endIndex = Math.floor(endBeats + 1e-9);
+        const beats: Array<{
+            tick: number;
+            isBarStart: boolean;
+            beatIndex: number; // absolute beat index (0-based)
+            barNumber: number; // 1-based
+            beatNumber: number; // 1-based within bar
+        }> = [];
+        for (let bi = startIndex; bi <= endIndex; bi++) {
+            const tick = Math.round(bi * this.ticksPerQuarter);
+            const isBarStart = bi % this.beatsPerBar === 0;
+            const barNumber = Math.floor(bi / this.beatsPerBar) + 1;
+            const beatNumber = (bi % this.beatsPerBar) + 1;
+            beats.push({ tick, isBarStart, beatIndex: bi, barNumber, beatNumber });
+        }
+        return beats;
     }
 
     logConfiguration() {

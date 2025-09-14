@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
@@ -6,8 +7,12 @@ import TrackList from './track-list';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';
-import { secondsToBars, secondsToBeatsSelector } from '@state/selectors/timing';
+// Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
+import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
+import { TimingManager } from '@core/timing';
+import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
+import { sharedTimingManager } from '@state/timelineStore';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -17,7 +22,7 @@ const TimelinePanel: React.FC = () => {
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
-    // Scroll containers for sync (Phase 2)
+    // Scroll containers for sync
     const leftScrollRef = useRef<HTMLDivElement | null>(null);
     const rightScrollRef = useRef<HTMLDivElement | null>(null);
     const isSyncingRef = useRef(false);
@@ -33,8 +38,12 @@ const TimelinePanel: React.FC = () => {
     useEffect(() => {
         if (!visualizer) return;
         try {
-            const { startSec, endSec } = useTimelineStore.getState().timelineView;
-            visualizer.setPlayRange?.(startSec, endSec);
+            const { startTick, endTick } = useTimelineStore.getState().timelineView;
+            const state = useTimelineStore.getState();
+            const spb = 60 / (state.timeline.globalBpm || 120);
+            const map = state.timeline.masterTempoMap;
+            const toSec = (tick: number) => beatsToSeconds(map, tick / CANONICAL_PPQ, spb);
+            visualizer.setPlayRange?.(toSec(startTick), toSec(endTick));
         } catch { }
     }, [visualizer]);
 
@@ -64,10 +73,11 @@ const TimelinePanel: React.FC = () => {
     };
 
     // Wheel pan handler on the right container (zoom removed; only horizontal pan via deltaX)
-    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
-    const view = useTimelineStore((s) => s.timelineView);
+    const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
+    const view = useTimelineStore((s) => s.timelineView); // contains startTick/endTick canonical
     const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
-    const currentTime = useTimelineStore((s) => s.timeline.currentTimeSec);
+    // Derived seconds still used for display-only follow heuristics optional; canonical follow in ticks
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     // Auto-follow enabled by default per new UX spec
     const [follow, setFollow] = useState(true);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
@@ -78,15 +88,15 @@ const TimelinePanel: React.FC = () => {
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
-        const range = Math.max(0.001, view.endSec - view.startSec);
+        const rangeTicks = Math.max(1, view.endTick - view.startTick);
         // Only pan horizontally when there is meaningful horizontal delta; otherwise let vertical scroll happen.
         const isPanH = Math.abs(e.deltaX) > Math.abs(e.deltaY);
         if (isPanH) {
             e.preventDefault();
             // Horizontal pan proportional to wheel deltaX only
             const delta = e.deltaX / Math.max(1, width);
-            const shift = delta * range;
-            setTimelineView(view.startSec + shift, view.endSec + shift);
+            const shift = Math.round(delta * rangeTicks);
+            setTimelineViewTicks(view.startTick + shift, view.endTick + shift);
             return;
         }
         // Default: allow vertical scroll to bubble (do not call preventDefault)
@@ -97,7 +107,7 @@ const TimelinePanel: React.FC = () => {
         const container = rightScrollRef.current;
         if (!container) return;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        rightDragRef.current = { active: true, startClientX: e.clientX, startView: { s: view.startSec, e: view.endSec } };
+        rightDragRef.current = { active: true, startClientX: e.clientX, startView: { s: view.startTick, e: view.endTick } };
         e.preventDefault();
     };
     const onRightPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -107,10 +117,10 @@ const TimelinePanel: React.FC = () => {
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
-        const range = Math.max(0.001, drag.startView.e - drag.startView.s);
+        const range = Math.max(1, drag.startView.e - drag.startView.s);
         const dx = e.clientX - drag.startClientX;
-        const shift = (dx / Math.max(1, width)) * range;
-        setTimelineView(drag.startView.s - shift, drag.startView.e - shift);
+        const shift = Math.round((dx / Math.max(1, width)) * range);
+        setTimelineViewTicks(drag.startView.s - shift, drag.startView.e - shift);
     };
     const onRightPointerUp: React.PointerEventHandler<HTMLDivElement> = (e) => {
         if (rightDragRef.current?.active) {
@@ -139,17 +149,17 @@ const TimelinePanel: React.FC = () => {
     // Optional auto-follow playhead: keep playhead within view, nudging the window when it exits right 85% or left 10%
     useEffect(() => {
         if (!follow || !isPlaying) return;
-        const range = Math.max(0.001, view.endSec - view.startSec);
-        const left = view.startSec + range * 0.1;
-        const right = view.startSec + range * 0.85;
-        if (currentTime < left) {
-            const newStart = currentTime - range * 0.3;
-            setTimelineView(newStart, newStart + range);
-        } else if (currentTime > right) {
-            const newStart = currentTime - range * 0.7;
-            setTimelineView(newStart, newStart + range);
+        const range = Math.max(1, view.endTick - view.startTick);
+        const left = view.startTick + range * 0.1;
+        const right = view.startTick + range * 0.85;
+        if (currentTick < left) {
+            const newStart = currentTick - range * 0.3;
+            setTimelineViewTicks(newStart, newStart + range);
+        } else if (currentTick > right) {
+            const newStart = currentTick - range * 0.7;
+            setTimelineViewTicks(newStart, newStart + range);
         }
-    }, [currentTime, follow, isPlaying, view.startSec, view.endSec, setTimelineView]);
+    }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
         <div className="timeline-panel" role="region" aria-label="Timeline panel">
@@ -213,9 +223,26 @@ export default TimelinePanel;
 
 // Time indicator component (moved to the left header beside Add MIDI Track)
 const TimeIndicator: React.FC = () => {
-    const current = useTimelineStore((s) => s.timeline.currentTimeSec);
-    const beats = useTimelineStore((s) => secondsToBeatsSelector(s, s.timeline.currentTimeSec));
-    const bars = useTimelineStore((s) => secondsToBars(s, s.timeline.currentTimeSec));
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const tempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
+    const bpm = useTimelineStore((s) => s.timeline.globalBpm);
+    // Use TimingManager for canonical ticksPerQuarter instead of hard-coded constant (was 960 vs core 480 mismatch)
+    // Use shared timing manager (singleton) for consistent tick domain
+    const ticksPerQuarter = sharedTimingManager.ticksPerQuarter;
+    // Derive beats/seconds from tick
+    const beatsFloat = currentTick / ticksPerQuarter;
+    const barsFloat = beatsFloat / (beatsPerBar || 4);
+    // seconds derivation using fallback tempo map util (simplified uniform tempo assumption if no map)
+    const spb = 60 / (bpm || 120);
+    let seconds = beatsFloat * spb;
+    // Use TimingManager for accurate beats->seconds with tempo map if available
+    try {
+        if (tempoMap && tempoMap.length) {
+            // Reuse shared timing manager (already has BPM/tempo map set via store actions)
+            seconds = sharedTimingManager.beatsToSeconds(beatsFloat);
+        }
+    } catch { /* ignore */ }
     const fmt = (s: number) => {
         const sign = s < 0 ? '-' : '';
         const abs = Math.abs(s);
@@ -228,9 +255,10 @@ const TimeIndicator: React.FC = () => {
     };
     return (
         <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
-            <span>t = {fmt(current)}</span>
-            <span className="hidden sm:inline">beats: {beats.toFixed(2)}</span>
-            <span className="hidden sm:inline">bars: {bars.toFixed(2)}</span>
+            <span>{formatTickAsBBT(currentTick, ticksPerQuarter, beatsPerBar)}</span>
+            <span className="hidden sm:inline">({fmt(seconds)})</span>
+            <span className="hidden sm:inline">beats: {beatsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline">bars: {barsFloat.toFixed(2)}</span>
         </div>
     );
 };
@@ -239,10 +267,9 @@ const TimeIndicator: React.FC = () => {
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
     const { exportSettings, setExportSettings, debugSettings, setDebugSettings } = useVisualizer();
     const view = useTimelineStore((s) => s.timelineView);
-    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
+    const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
-    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
-    const setPlaybackRangeExplicit = useTimelineStore((s) => s.setPlaybackRangeExplicit);
+    const setPlaybackRangeExplicitTicks = useTimelineStore((s) => s.setPlaybackRangeExplicitTicks);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     // Global timing state
@@ -261,9 +288,10 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         return () => document.removeEventListener('mousedown', onDoc);
     }, []);
     // Zoom slider state maps to view range width using logarithmic scale
-    const MIN_RANGE = 0.05; // 50ms
-    const MAX_RANGE = 60 * 60 * 24; // 24h
-    const range = Math.max(0.001, view.endSec - view.startSec);
+    // Zoom now operates on tick window width using logarithmic mapping
+    const MIN_RANGE = 4; // 4 ticks (~1/120 beat at PPQ=480)
+    const MAX_RANGE = CANONICAL_PPQ * 60 * 10; // heuristic
+    const range = Math.max(1, view.endTick - view.startTick);
     const sliderFromRange = (r: number) => {
         const t = (Math.log(r) - Math.log(MIN_RANGE)) / (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
         const clamped = Math.max(0, Math.min(1, t));
@@ -278,16 +306,56 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
 
     // Local input buffers for play range so typing isn't overridden; commit on blur or Enter
-    const [playStartText, setPlayStartText] = useState<string>(() => String(playbackRange?.startSec ?? view.startSec));
-    const [playEndText, setPlayEndText] = useState<string>(() => String(playbackRange?.endSec ?? view.endSec));
-    useEffect(() => { setPlayStartText(String((playbackRange?.startSec ?? view.startSec))); }, [playbackRange?.startSec, view.startSec]);
-    useEffect(() => { setPlayEndText(String((playbackRange?.endSec ?? view.endSec))); }, [playbackRange?.endSec, view.endSec]);
+    // Reordered to present musical domain (BBT) first, with seconds as secondary representation.
+    const stateNow = useTimelineStore.getState();
+    const tempoMapNow = stateNow.timeline.masterTempoMap;
+    const spbNow = 60 / (stateNow.timeline.globalBpm || 120);
+    const ppqNow = CANONICAL_PPQ;
+    const startTick = (playbackRange as any)?.startTick ?? (view as any).startTick;
+    const endTick = (playbackRange as any)?.endTick ?? (view as any).endTick;
+    const tickToBeats = (tick?: number) => (typeof tick === 'number' ? tick / ppqNow : undefined);
+    const beatsToSec = (beats?: number) => (typeof beats === 'number' ? beatsToSeconds(tempoMapNow, beats, spbNow) : undefined);
+    const startBeatsDerived = tickToBeats(startTick);
+    const endBeatsDerived = tickToBeats(endTick);
+    const startSecDerived = beatsToSec(startBeatsDerived);
+    const endSecDerived = beatsToSec(endBeatsDerived);
+    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar));
+    const [playEndBBT, setPlayEndBBT] = useState<string>(() => formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar));
+    const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0)); // seconds secondary
+    const [playEndText, setPlayEndText] = useState<string>(() => String(endSecDerived ?? 0));
+    useEffect(() => { setPlayStartBBT(formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); }, [startTick, ppqNow, beatsPerBar]);
+    useEffect(() => { setPlayEndBBT(formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar)); }, [endTick, ppqNow, beatsPerBar]);
+    useEffect(() => { setPlayStartText(String(startSecDerived ?? 0)); }, [startSecDerived]);
+    useEffect(() => { setPlayEndText(String(endSecDerived ?? 0)); }, [endSecDerived]);
     const commitPlay = (_which: 'start' | 'end') => {
+        // Primary: parse BBT fields if changed; fallback to seconds inputs
+        const state = useTimelineStore.getState();
+        const ppq = CANONICAL_PPQ;
+        const parseBBTOrUndefined = (text: string) => {
+            const val = parseBBT(text, ppq, state.timeline.beatsPerBar || 4);
+            return typeof val === 'number' && val >= 0 ? val : undefined;
+        };
+        const sTickFromBBT = parseBBTOrUndefined(playStartBBT);
+        const eTickFromBBT = parseBBTOrUndefined(playEndBBT);
+        if (sTickFromBBT != null || eTickFromBBT != null) {
+            setPlaybackRangeExplicitTicks(sTickFromBBT, eTickFromBBT);
+            return;
+        }
+        // Seconds fallback unchanged
         const sVal = parseFloat(playStartText);
         const eVal = parseFloat(playEndText);
         const s = isFinite(sVal) ? sVal : undefined;
         const e = isFinite(eVal) ? eVal : undefined;
-        setPlaybackRangeExplicit(s, e);
+        if (s == null && e == null) {
+            setPlaybackRangeExplicitTicks(undefined, undefined);
+            return;
+        }
+        const spb = 60 / (state.timeline.globalBpm || 120);
+        const map = state.timeline.masterTempoMap;
+        const sBeats = typeof s === 'number' ? secondsToBeats(map, s, spb) : undefined;
+        const eBeats = typeof e === 'number' ? secondsToBeats(map, e, spb) : undefined;
+        const toTicks = (beats?: number) => (typeof beats === 'number' ? Math.round(beats * ppq) : undefined);
+        setPlaybackRangeExplicitTicks(toTicks(sBeats), toTicks(eBeats));
     };
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
@@ -364,19 +432,19 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             {/* Zoom slider remains inline */}
             <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
                 <span>Zoom</span>
-                <input aria-label="Timeline zoom" className="w-[120px]" type="range" min={20} max={60} step={1} value={zoomVal} onChange={(e) => {
+                <input aria-label="Timeline zoom" className="w-[120px]" type="range" min={0} max={100} step={1} value={zoomVal} onChange={(e) => {
                     const v = parseInt(e.target.value, 10);
                     setZoomVal(v);
                     const newRange = rangeFromSlider(v);
-                    const center = (view.startSec + view.endSec) / 2;
-                    const newStart = center - newRange / 2;
-                    const newEnd = newStart + newRange;
-                    setTimelineView(newStart, newEnd);
+                    const center = (view.startTick + view.endTick) / 2;
+                    const newStart = Math.round(center - newRange / 2);
+                    const newEnd = Math.round(newStart + newRange);
+                    setTimelineViewTicks(newStart, newEnd);
                 }} />
                 <button className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center gap-1" title="Zoom to scene range" onClick={() => {
-                    const s = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
-                    const e = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
-                    setTimelineView(s, e);
+                    const sTick = typeof playbackRange?.startTick === 'number' ? playbackRange!.startTick! : view.startTick;
+                    const eTick = typeof playbackRange?.endTick === 'number' ? playbackRange!.endTick! : view.endTick;
+                    setTimelineViewTicks(sTick, eTick);
                 }}>
                     <FaUndo className="text-neutral-300" />
                     <span className="sr-only">Reset Zoom</span>
@@ -416,11 +484,11 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                             </label>
                         </div>
                         <div className='grid grid-cols-2 gap-2'>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (s)
-                                <input aria-label="Scene start (seconds)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
+                            <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (bars)
+                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
                             </label>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene End (s)
-                                <input aria-label="Scene end (seconds)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
+                            <label className="flex flex-col text-[11px] text-neutral-300">Scene End (bars)
+                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
                             </label>
                         </div>
                     </div>

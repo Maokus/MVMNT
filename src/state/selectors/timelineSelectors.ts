@@ -1,7 +1,10 @@
 import type { TimelineState, TimelineTrack } from '../timelineStore';
+import { beatsToSeconds as convertBeatsToSeconds } from '@core/timing/tempo-utils';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { offsetTicksToBeats } from '@core/timing/offset-utils';
 
 // Helpers: derive seconds offset from beats if needed using timeline context
-const beatsToSeconds = (s: TimelineState, beats: number): number => {
+const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
     const spbFallback = 60 / (s.timeline.globalBpm || 120);
     const map = s.timeline.masterTempoMap;
     // Avoid importing to prevent cycles; inline simple converter compatible with tempo-utils signature
@@ -17,24 +20,16 @@ const beatsToSeconds = (s: TimelineState, beats: number): number => {
 };
 
 const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
-    if (typeof t.offsetBeats === 'number') return beatsToSeconds(s, t.offsetBeats);
-    return t.offsetSec || 0;
+    // Convert canonical tick offset to seconds (no legacy offsetSec/offsetBeats fields remain)
+    const beats = offsetTicksToBeats(t.offsetTicks || 0);
+    return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
 };
 
+// getTrackOffsetBeats retained for convenience; canonical source is offsetTicks.
 export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
-    if (typeof t.offsetBeats === 'number') return t.offsetBeats;
-    // derive from seconds
-    const spbFallback = 60 / (s.timeline.globalBpm || 120);
-    const sec = t.offsetSec || 0;
-    return sec / spbFallback; // approximate without tempo map to avoid cycle
-};
-
-export const getTrackOffsetSeconds = (s: TimelineState, id: string): number => {
-    const t = s.tracks[id];
-    if (!t) return 0;
-    return getEffectiveOffsetSec(s, t);
+    return offsetTicksToBeats(t.offsetTicks || 0);
 };
 
 export type TimelineNoteEvent = {
@@ -68,7 +63,7 @@ export const selectNotesInWindow = (
 ): TimelineNoteEvent[] => {
     const { startSec, endSec } = args;
     if (args.trackIds.length === 0) return [];
-
+    const spbFallback = 60 / (s.timeline.globalBpm || 120);
     const res: TimelineNoteEvent[] = [];
     for (const tid of args.trackIds) {
         const track = s.tracks[tid];
@@ -76,38 +71,52 @@ export const selectNotesInWindow = (
         const cacheKey = track.midiSourceId ?? tid;
         const cache = s.midiCache[cacheKey];
         if (!cache) continue;
-
-        const offset = getEffectiveOffsetSec(s, track);
-        const rStart = track.regionStartSec ?? -Infinity;
-        const rEnd = track.regionEndSec ?? Infinity;
-
-        // Map timeline window -> track local seconds
-        const localStart = Math.max(0, startSec - offset);
-        const localEnd = Math.max(0, endSec - offset);
-
+        const tpq = CANONICAL_PPQ; // normalized
+        const offsetSec = getEffectiveOffsetSec(s, track);
+        const regionStartTick = track.regionStartTick ?? 0;
+        const regionEndTick = track.regionEndTick ?? Number.POSITIVE_INFINITY;
+        // Convert window to track-local seconds
+        const localStartSec = Math.max(0, startSec - offsetSec);
+        const localEndSec = Math.max(0, endSec - offsetSec);
         for (const n of cache.notesRaw) {
-            // Clip by track region in track-local time, then by window
-            const ns = Math.max(n.startTime, rStart >= 0 ? rStart : 0);
-            const ne = Math.min(n.endTime, isFinite(rEnd) ? rEnd : n.endTime);
-            if (ns >= ne) continue;
-            if (ne <= localStart || ns >= localEnd) continue;
-            // Map to timeline seconds
-            const ts = ns + offset;
-            const te = ne + offset;
+            const startBeat = n.startBeat !== undefined ? n.startBeat : n.startTick / CANONICAL_PPQ;
+            const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / CANONICAL_PPQ;
+            // Region clipping in tick space
+            if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
+            const clippedStartTick = Math.max(n.startTick, regionStartTick);
+            const clippedEndTick = Math.min(n.endTick, regionEndTick);
+            const clippedStartBeat = clippedStartTick / CANONICAL_PPQ;
+            const clippedEndBeat = clippedEndTick / CANONICAL_PPQ;
+            const noteStartSec = convertBeatsToSeconds(s.timeline.masterTempoMap, startBeat, spbFallback);
+            const noteEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, endBeat, spbFallback);
+            const localStart = noteStartSec;
+            const localEnd = noteEndSec;
+            if (localEnd <= localStartSec || localStart >= localEndSec) continue;
+            const clippedStartSec = Math.max(localStart, localStartSec);
+            const clippedEndSec = Math.min(localEnd, localEndSec);
+            const timelineStartSec = clippedStartSec + offsetSec;
+            const timelineEndSec = clippedEndSec + offsetSec;
             res.push({
                 trackId: tid,
                 note: n.note,
                 channel: n.channel,
-                startTime: ts,
-                endTime: te,
-                duration: te - ts,
+                startTime: timelineStartSec,
+                endTime: timelineEndSec,
+                duration: Math.max(0, timelineEndSec - timelineStartSec),
                 velocity: n.velocity,
             });
         }
     }
-    // Sort by start time for stable rendering
     res.sort((a, b) => a.startTime - b.startTime || a.note - b.note);
     return res;
+};
+
+// Derive per-track notes (all) converted to seconds from tick domain on demand.
+// Returns array of { startTime, endTime, duration } in timeline seconds (including track offset & region clipping)
+export const selectNotesForTrackSeconds = (s: TimelineState, trackId: string): TimelineNoteEvent[] => {
+    return selectNotesInWindow(s, { trackIds: [trackId], startSec: 0, endSec: Number.POSITIVE_INFINITY }).filter(
+        (n) => n.trackId === trackId
+    );
 };
 
 // Simple memoized variant: caches last inputs and result using shallow identity checks
@@ -131,8 +140,8 @@ export const selectNotesInWindowMemo = (
         const cache = s.midiCache[cacheKey];
         const notesId = cache ? (cache.notesRaw as any) : null;
         depParts.push(
-            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getEffectiveOffsetSec(s, t)}:${t.regionStartSec ?? ''}:${
-                t.regionEndSec ?? ''
+            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getEffectiveOffsetSec(s, t)}:${t.regionStartTick ?? ''}:$${
+                t.regionEndTick ?? ''
             }:` +
                 `${cache ? cache.ticksPerQuarter : ''}:${cache ? cache.tempoMap?.length ?? 0 : ''}:${
                     notesId ? (notesId as any).length : 0

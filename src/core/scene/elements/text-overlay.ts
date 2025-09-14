@@ -2,7 +2,7 @@
 import { SceneElement } from './base';
 import { RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {

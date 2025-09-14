@@ -3,7 +3,7 @@ import { SceneElement } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
-import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 

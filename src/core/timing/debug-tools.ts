@@ -1,6 +1,7 @@
 import { useTimelineStore } from '@state/timelineStore';
-import { secondsToBeatsSelector, beatsToSecondsSelector, secondsToBars, barsToSeconds } from '@state/selectors/timing';
 import type { TempoMapEntry } from './types';
+import { TimingManager } from './timing-manager';
+import { secondsToBeats, beatsToSeconds } from './tempo-utils';
 
 // Pure function utilities (no hooks) to debug the timing system
 
@@ -9,7 +10,7 @@ export function getTimingState() {
     return {
         globalBpm: s.timeline.globalBpm,
         beatsPerBar: s.timeline.beatsPerBar,
-        currentTimeSec: s.timeline.currentTimeSec,
+        currentTick: s.timeline.currentTick,
         masterTempoMap: s.timeline.masterTempoMap,
         tracks: s.tracks,
         tracksOrder: s.tracksOrder,
@@ -28,33 +29,38 @@ export function setMasterTempoMap(map?: TempoMapEntry[]) {
     useTimelineStore.getState().setMasterTempoMap(map);
 }
 
-export function setCurrentTimeSec(t: number) {
-    useTimelineStore.getState().setCurrentTimeSec(t);
+export function setCurrentTick(tick: number) {
+    useTimelineStore.getState().setCurrentTick(tick, 'user');
 }
 
+// Direct conversion helpers (aliases) using canonical tick-domain state.
+// These remain for console debugging convenience only.
 export function s2b(seconds: number) {
     const s = useTimelineStore.getState();
-    return secondsToBeatsSelector(s, seconds);
+    const spb = 60 / (s.timeline.globalBpm || 120);
+    return secondsToBeats(s.timeline.masterTempoMap, seconds, spb);
 }
 
 export function b2s(beats: number) {
     const s = useTimelineStore.getState();
-    return beatsToSecondsSelector(s, beats);
+    const spb = 60 / (s.timeline.globalBpm || 120);
+    return beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
 }
 
 export function s2bars(seconds: number) {
     const s = useTimelineStore.getState();
-    return secondsToBars(s, seconds);
+    const beats = s2b(seconds);
+    return beats / (s.timeline.beatsPerBar || 4);
 }
 
 export function bars2s(bars: number) {
     const s = useTimelineStore.getState();
-    return barsToSeconds(s, bars);
+    const beats = bars * (s.timeline.beatsPerBar || 4);
+    return b2s(beats);
 }
 
 export function getBeatGrid(startSec: number, endSec: number) {
     // use TimingManager's precise grid when needed; quick approximation via selectors
-    const { TimingManager } = require('./timing-manager');
     const s = useTimelineStore.getState();
     const tm = new TimingManager('debug');
     tm.setBPM(s.timeline.globalBpm);
@@ -76,7 +82,7 @@ if (typeof window !== 'undefined') {
         setGlobalBpm,
         setBeatsPerBar,
         setMasterTempoMap,
-        setCurrentTimeSec,
+        setCurrentTick,
         s2b,
         b2s,
         s2bars,
@@ -90,7 +96,7 @@ export default {
     setGlobalBpm,
     setBeatsPerBar,
     setMasterTempoMap,
-    setCurrentTimeSec,
+    setCurrentTick,
     s2b,
     b2s,
     s2bars,

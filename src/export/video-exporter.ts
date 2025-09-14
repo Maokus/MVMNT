@@ -4,6 +4,8 @@
 // The public API is intentionally kept the same so existing callers keep working.
 
 import SimulatedClock from '@export/simulated-clock';
+import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
+import { getSharedTimingManager } from '@state/timelineStore';
 import {
     Output,
     Mp4OutputFormat,
@@ -25,6 +27,7 @@ export interface VideoExportOptions {
     _startFrame?: number; // internal start frame when exporting a range
     bitrate?: number; // explicit target bitrate in bps (overrides quality preset)
     qualityPreset?: 'low' | 'medium' | 'high';
+    deterministicTiming?: boolean; // default true – snapshot tempo map at start
 }
 
 interface InternalFrameData {
@@ -59,6 +62,7 @@ export class VideoExporter {
             _startFrame = 0,
             bitrate,
             qualityPreset = 'high',
+            deterministicTiming = true,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
@@ -115,7 +119,7 @@ export class VideoExporter {
             output.addVideoTrack(canvasSource);
             await output.start();
 
-            // Phase 1: Render + encode frames progressively (0-95%)
+            // Render + encode frames progressively (0-95%)
             const total = limitedFrames;
             const frameDuration = 1 / fps;
             const prePadding = (() => {
@@ -135,11 +139,23 @@ export class VideoExporter {
                 }
             })();
 
+            // Create timing snapshot if deterministic export requested
+            let snapshot: ExportTimingSnapshot | undefined;
+            if (deterministicTiming) {
+                try {
+                    const tm = getSharedTimingManager();
+                    snapshot = createExportTimingSnapshot(tm);
+                } catch (e) {
+                    console.warn('Failed to create export timing snapshot; continuing without determinism', e);
+                }
+            }
+
             const clock = new SimulatedClock({
                 fps,
                 prePaddingSec: prePadding,
                 playRangeStartSec: playRangeStart,
                 startFrame: _startFrame,
+                timingSnapshot: snapshot,
             });
             for (let i = 0; i < total; i++) {
                 const currentTime = clock.timeForFrame(i);
@@ -153,7 +169,7 @@ export class VideoExporter {
             }
             canvasSource.close();
 
-            // Phase 2: Finalize (95-100%)
+            // Finalize (95-100%)
             onProgress(97, 'Finalizing video...');
             await output.finalize();
             const raw = target.buffer;
@@ -177,7 +193,7 @@ export class VideoExporter {
         }
     }
 
-    // Legacy leftover methods (now unused) intentionally removed to reduce bundle size.
+    // Removed unused methods to reduce bundle size.
 
     private downloadBlob(blob: Blob, filename: string) {
         const url = URL.createObjectURL(blob);

@@ -1,87 +1,78 @@
 import type { MIDIData } from '@core/types';
 import type { NoteRaw, TempoMapEntry } from '@state/timelineTypes';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 export function buildNotesFromMIDI(midiData: MIDIData): {
     midiData: MIDIData;
     notesRaw: NoteRaw[];
-    ticksPerQuarter: number;
+    ticksPerQuarter: number; // always CANONICAL_PPQ after normalization
     tempoMap?: TempoMapEntry[];
 } {
+    const sourceTPQ = midiData.ticksPerQuarter || CANONICAL_PPQ;
+    const scale = sourceTPQ === CANONICAL_PPQ ? 1 : CANONICAL_PPQ / sourceTPQ;
     const notes: NoteRaw[] = [];
-    const noteOnMap = new Map<
-        string,
-        { note: number; channel: number; startTime: number; velocity?: number; startTick?: number }
-    >();
+    // Track active note-on events keyed by note+channel storing canonical start tick.
+    const noteOnMap = new Map<string, { note: number; channel: number; startTickSrc: number; velocity?: number }>();
     for (const ev of midiData.events) {
         if (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0) {
             const key = `${ev.note}_${ev.channel || 0}`;
             noteOnMap.set(key, {
                 note: ev.note!,
                 channel: ev.channel || 0,
-                startTime: ev.time,
+                startTickSrc: ev.tick ?? 0,
                 velocity: ev.velocity,
-                startTick: ev.tick,
             });
         } else if (ev.type === 'noteOff' || (ev.type === 'noteOn' && (ev.velocity ?? 0) === 0)) {
             const key = `${ev.note}_${ev.channel || 0}`;
             const start = noteOnMap.get(key);
             if (start) {
-                const endTime = ev.time;
-                const startTick = start.startTick;
-                const endTick = ev.tick;
-                let startBeat: number | undefined;
-                let endBeat: number | undefined;
-                if (startTick !== undefined && endTick !== undefined && midiData.ticksPerQuarter) {
-                    const tpq = midiData.ticksPerQuarter || 480;
-                    startBeat = startTick / tpq;
-                    endBeat = endTick / tpq;
-                }
+                const rawStart = start.startTickSrc ?? 0;
+                const rawEnd = ev.tick ?? rawStart; // zero-length fallback if missing
+                const startTick = Math.round(rawStart * scale);
+                const endTick = Math.round(rawEnd * scale);
+                const startBeat = startTick / CANONICAL_PPQ;
+                const endBeat = endTick / CANONICAL_PPQ;
                 notes.push({
                     note: start.note,
                     channel: start.channel,
-                    startTime: start.startTime, // provisional; may be recomputed from beats
-                    endTime,
-                    duration: Math.max(0, endTime - start.startTime),
                     startTick,
                     endTick,
+                    durationTicks: Math.max(0, endTick - startTick),
                     startBeat,
                     endBeat,
-                    durationBeats: startBeat !== undefined && endBeat !== undefined ? endBeat - startBeat : undefined,
+                    durationBeats: endBeat - startBeat,
                     velocity: start.velocity,
                 });
                 noteOnMap.delete(key);
             }
         }
     }
-    // Close unmatched noteOns with 1s duration
+    // Close unmatched noteOns with 1 beat fallback duration (approx)
     for (const start of noteOnMap.values()) {
-        const endTime = start.startTime + 1;
-        let startBeat: number | undefined;
-        let endBeat: number | undefined;
-        if (start.startTick !== undefined && midiData.ticksPerQuarter) {
-            const tpq = midiData.ticksPerQuarter || 480;
-            startBeat = start.startTick / tpq;
-            endBeat = startBeat + (1 / (60 / (midiData.tempo ? 60_000_000 / midiData.tempo : 120))) * 1; // fallback 1 second duration in beats approximated
-        }
+        const rawStart = start.startTickSrc ?? 0;
+        const startTick = Math.round(rawStart * scale);
+        const fallbackBeats = 1;
+        const durationTicks = Math.round(fallbackBeats * CANONICAL_PPQ);
+        const endTick = startTick + durationTicks;
+        const startBeat = startTick / CANONICAL_PPQ;
+        const endBeat = startBeat + fallbackBeats;
         notes.push({
             note: start.note,
             channel: start.channel,
-            startTime: start.startTime,
-            endTime,
-            duration: 1,
-            startTick: start.startTick,
+            startTick,
+            endTick,
+            durationTicks,
             startBeat,
             endBeat,
-            durationBeats: startBeat !== undefined && endBeat !== undefined ? endBeat - startBeat : undefined,
+            durationBeats: fallbackBeats,
             velocity: start.velocity,
         });
     }
 
-    const ticksPerQuarter = midiData.ticksPerQuarter || 480;
     const tempoMap = (midiData as any).tempoMap as { time: number; tempo: number }[] | undefined;
     const tempoMapEntries: TempoMapEntry[] | undefined = tempoMap?.map((t) => ({ time: t.time, tempo: t.tempo }));
 
-    return { midiData, notesRaw: notes, ticksPerQuarter, tempoMap: tempoMapEntries };
+    return { midiData, notesRaw: notes, ticksPerQuarter: CANONICAL_PPQ, tempoMap: tempoMapEntries };
 }
 
 export async function parseAndNormalize(input: File | MIDIData) {

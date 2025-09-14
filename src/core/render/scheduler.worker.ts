@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Optional Phase 3 worker scaffold (feature-flagged in app; not wired by default)
+// Optional worker scaffold (feature-flagged in app; not wired by default)
 import { compileWindow } from './compile';
 
 type InMsg =

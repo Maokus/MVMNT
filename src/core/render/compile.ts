@@ -1,5 +1,6 @@
 import type { TempoMapEntry } from '@core/timing/types';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 // Narrow view of a timeline track needed for compilation
 export interface CompileTrack {
@@ -97,7 +98,7 @@ export function compileWindow(args: CompileWindowArgs): ScheduleBatch {
         if (!cache) continue;
 
         const mapToUse = cache.tempoMap ?? tempoMap;
-        const tpq = cache.ticksPerQuarter || 480;
+        const tpq = cache.ticksPerQuarter || CANONICAL_PPQ;
 
         for (const n of cache.notesRaw) {
             // Prefer beats (from ticks or explicit), fallback to provided seconds
