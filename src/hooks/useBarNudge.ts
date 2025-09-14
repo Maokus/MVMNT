@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 // Nudge playhead by whole bars in tick domain (Phase 5)
 export default function useBarNudge(bars: number = 1) {
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
-    const ticksPerQuarter = 960; // TODO: source from TimingManager singleton if made dynamic
+    const ticksPerQuarter = CANONICAL_PPQ; // unified PPQ
 
     return useCallback(
         (dir: 1 | -1) => {

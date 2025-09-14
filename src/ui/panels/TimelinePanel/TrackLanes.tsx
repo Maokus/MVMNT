@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { secondsToBars, barsToSeconds, secondsToBeatsSelector } from '@state/selectors/timing';
 import { useTickScale } from './useTickScale';
@@ -11,7 +12,7 @@ type Props = {
 function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
-    const ppq = 480; // TODO unify PPQ source
+    const ppq = CANONICAL_PPQ; // unified PPQ
     return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean) => {
         if (altKey) return Math.max(0, Math.round(candidateTick));
         const should = forceSnap || quantize === 'bar';
@@ -23,7 +24,7 @@ function useSnapTicks() {
 
 const GridLines: React.FC<{ width: number; height: number } & { startTick: number; endTick: number }> = ({ width, height, startTick, endTick }) => {
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
-    const ppq = 480; // TODO unify PPQ source
+    const ppq = CANONICAL_PPQ; // unified PPQ
     const { toX } = useTickScale();
     const ticksPerBar = bpb * ppq;
     const lines = useMemo(() => {
@@ -58,7 +59,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const selectTracks = useTimelineStore((s) => s.selectTracks);
         const midiCacheEntry = useTimelineStore((s) => s.midiCache[(s.tracks[trackId]?.midiSourceId) ?? trackId]);
         const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
-        const ppq = 480; // TODO unify PPQ source
+        const ppq = CANONICAL_PPQ; // unified PPQ
         const { view, toX } = useTickScale();
         const snapTicks = useSnapTicks();
 
@@ -383,7 +384,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
         const x2 = Math.max(m.startX, m.currentX);
         // Select tracks whose clip intersects [x1,x2]
         const selected: string[] = [];
-        const ppq = 480; // TODO: share from timing manager / store when exposed
+        const ppq = CANONICAL_PPQ; // unified PPQ
         for (const id of trackIds) {
             const t = tracksMap[id];
             if (!t) continue;

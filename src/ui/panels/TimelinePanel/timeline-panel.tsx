@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
@@ -40,8 +41,7 @@ const TimelinePanel: React.FC = () => {
             const state = useTimelineStore.getState();
             const spb = 60 / (state.timeline.globalBpm || 120);
             const map = state.timeline.masterTempoMap;
-            const TICKS_PER_QUARTER = 960;
-            const toSec = (tick: number) => beatsToSeconds(map, tick / TICKS_PER_QUARTER, spb);
+            const toSec = (tick: number) => beatsToSeconds(map, tick / CANONICAL_PPQ, spb);
             visualizer.setPlayRange?.(toSec(startTick), toSec(endTick));
         } catch { }
     }, [visualizer]);
@@ -291,8 +291,8 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     }, []);
     // Zoom slider state maps to view range width using logarithmic scale
     // Zoom now operates on tick window width using logarithmic mapping
-    const MIN_RANGE = 4; // 4 ticks (~1/240 beat at PPQ=960)
-    const MAX_RANGE = 960 * 60 * 10; // 10 minutes worth of beats at PPQ 960 and 120bpm approx (heuristic)
+    const MIN_RANGE = 4; // 4 ticks (~1/120 beat at PPQ=480)
+    const MAX_RANGE = CANONICAL_PPQ * 60 * 10; // heuristic
     const range = Math.max(1, view.endTick - view.startTick);
     const sliderFromRange = (r: number) => {
         const t = (Math.log(r) - Math.log(MIN_RANGE)) / (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
@@ -330,7 +330,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         const map = state.timeline.masterTempoMap;
         const sBeats = typeof s === 'number' ? secondsToBeats(map, s, spb) : undefined;
         const eBeats = typeof e === 'number' ? secondsToBeats(map, e, spb) : undefined;
-        const ppq = 960; // constant
+        const ppq = CANONICAL_PPQ;
         const toTicks = (beats?: number) => (typeof beats === 'number' ? Math.round(beats * ppq) : undefined);
         setPlaybackRangeExplicitTicks(toTicks(sBeats), toTicks(eBeats));
     };

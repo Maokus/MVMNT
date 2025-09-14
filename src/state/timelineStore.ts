@@ -1,4 +1,5 @@
 import create, { type StateCreator } from 'zustand';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
@@ -212,7 +213,9 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     if (same) return;
     const oneBarBeats = s.timeline.beatsPerBar;
     const oneBarTicks = _beatsToTicks(oneBarBeats);
-    const clippedEnd = Math.min(end, start + oneBarTicks * 960); // temporary cap
+    // Cap to at most 960 bars previously caused scaling issues with mixed PPQ values; instead cap to 200 bars (~content heuristic)
+    const maxBars = 200;
+    const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
     set((prev: TimelineState) => ({
         playbackRange: { startTick: start, endTick: clippedEnd + oneBarTicks },
         timelineView: { startTick: Math.max(0, start - oneBarTicks), endTick: clippedEnd + oneBarTicks * 2 },
@@ -521,14 +524,22 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     play() {
         set((s: TimelineState) => {
+            // Only apply bar quantization when entering play from a non-playing state AND not immediately after a pause.
+            // Previous logic snapped on every play(), so toggling pause/play could shift the playhead forward a bar
+            // (observed as a one-bar jump when pausing due to tick->seconds mirror race). We guard by detecting if
+            // current tick is already aligned or if we were just playing.
             let curTick = s.timeline.currentTick;
             let curSec = s.timeline.currentTimeSec;
-            if (s.transport.quantize === 'bar') {
+            const wasPlaying = s.transport.isPlaying;
+            if (!wasPlaying && s.transport.quantize === 'bar') {
                 const ticksPerBar = _beatsToTicks(s.timeline.beatsPerBar);
-                curTick = Math.round(curTick / ticksPerBar) * ticksPerBar;
-                const beats = curTick / _tmSingleton.ticksPerQuarter;
-                const spb = 60 / (s.timeline.globalBpm || 120);
-                curSec = beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
+                const snapped = Math.round(curTick / ticksPerBar) * ticksPerBar;
+                if (snapped !== curTick) {
+                    curTick = snapped;
+                    const beats = curTick / _tmSingleton.ticksPerQuarter;
+                    const spb = 60 / (s.timeline.globalBpm || 120);
+                    curSec = beatsToSeconds(s.timeline.masterTempoMap, beats, spb);
+                }
             }
             return {
                 timeline: { ...s.timeline, currentTick: curTick, currentTimeSec: curSec },

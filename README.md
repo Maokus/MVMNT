@@ -82,3 +82,19 @@ window.__mvmntDebug.b2s(32) -> seconds
 window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
 window.__mvmntDebug.getBeatGrid(0, 30)
 ```
+
+### 2025-09 PPQ Unification & Bug Fixes
+
+Previously some UI components (timeline panel & range inputs) assumed a PPQ of 960 while the core `TimingManager` and
+playback clock operated at 480. This mismatch caused:
+
+1. Scene end seconds inputs doubling (e.g. entering `20` became `40` after commit) because seconds→beats→ticks used 960 then ticks→seconds used 480.
+2. A subtle one-bar jump when pausing playback due to playhead snapping interactions and mixed-domain mirroring.
+
+Fixes implemented:
+
+-   Introduced `CANONICAL_PPQ = 480` (`src/core/timing/ppq.ts`) and replaced hard-coded 960/480 literals in UI logic.
+-   Adjusted `play()` in `timelineStore` so quantization only applies on transition into play, not on pause, preventing a bar jump.
+-   Added regression tests: `playbackRange.ppqConsistency.test.ts` (seconds↔ticks round trip) and `pause.noJump.test.ts`.
+
+If you need higher resolution later, make PPQ configurable in a single place and propagate through the store + visualizer; do not reintroduce literals.

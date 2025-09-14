@@ -51,7 +51,7 @@ export function positionBars(state: TimelineState): number {
 
 // Tick-based equivalents (preferred)
 export function ticksToBeats(state: TimelineState, tick: number): number {
-    const ppq = 960; // TODO centralize
+    const ppq = 480; // unified PPQ (matches TimingManager + CANONICAL_PPQ)
     return tick / ppq;
 }
 export function ticksToBars(state: TimelineState, tick: number): number {
