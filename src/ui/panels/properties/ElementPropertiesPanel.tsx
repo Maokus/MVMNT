@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
-import { EnhancedConfigSchema } from '@shared/types/components';
+import { EnhancedConfigSchema } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
 
 interface ElementPropertiesPanelProps {

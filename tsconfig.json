@@ -59,8 +59,8 @@
       "@hooks/*": [
         "hooks/*"
       ],
-      "@shared/*": [
-        "shared/*"
+      "@fonts/*": [
+        "fonts/*"
       ],
       "@utils/*": [
         "utils/*"

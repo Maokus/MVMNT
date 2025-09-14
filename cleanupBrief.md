@@ -41,7 +41,6 @@ High-level layout:
 
 ### Pain / Confusion Points
 
-1. Dual timing abstractions: `TimelineService` vs Zustand store + selectors creates conceptual duplication. Developers must decide “service or store?” on each change.
 2. Mixed naming: Some files still reference “Phase” migrations (historical) which adds noise for new contributors.
 3. `math/` contains both rendering-related transforms and MIDI-specific logic; splitting musical/time theory from geometric math would clarify intent.
 4. `shared/` is almost empty—acts as a dumping ground without clear boundaries; might be removed or renamed (`domain-shared`, `infrastructure`) if it gains a purpose.

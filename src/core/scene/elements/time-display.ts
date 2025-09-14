@@ -3,7 +3,7 @@ import { SceneElement } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
-import { ensureFontLoaded, parseFontSelection } from '@shared/services/fonts/font-loader';
+import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface BarBeatTick {
