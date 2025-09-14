@@ -155,15 +155,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         // Derive starting tick from store (already dual-written in Phase 2)
         const startTick = stateAtStart.timeline.currentTick ?? 0;
         const clock = new PlaybackClock({ timingManager: tm, initialTick: startTick });
-        // Align playback clock immediately on play snapping events
-        useEffect(() => {
-            const handler = (e: any) => {
-                if (!e?.detail?.tick) return;
-                try { clock.setTick(e.detail.tick); } catch { /* ignore */ }
-            };
-            window.addEventListener('timeline-play-snapped', handler as EventListener);
-            return () => window.removeEventListener('timeline-play-snapped', handler as EventListener);
-        }, []);
+        const playSnapHandler = (e: any) => {
+            if (!e?.detail?.tick) return;
+            try { clock.setTick(e.detail.tick); } catch { /* ignore */ }
+        };
+        window.addEventListener('timeline-play-snapped', playSnapHandler as EventListener);
 
         const loop = () => {
             const state = useTimelineStore.getState();
@@ -266,7 +262,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
-        return () => { cancelAnimationFrame(raf); if (typeof visualizer.cleanup === 'function') visualizer.cleanup(); };
+        return () => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener('timeline-play-snapped', playSnapHandler as EventListener);
+            if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
+        };
     }, [visualizer]);
 
     // Apply export settings size changes
