@@ -1,5 +1,8 @@
 // Image Sequence Generator Module
 // Generates PNG image sequences instead of video files
+import SimulatedClock from '@export/simulated-clock';
+import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
+import { getSharedTimingManager } from '@state/timelineStore';
 
 interface ImageBlobData {
     blob: Blob;
@@ -25,6 +28,7 @@ interface GenerateSequenceOptions {
     onComplete?: (blob: Blob) => void;
     // Internal/advanced options (not exposed in UI yet)
     _startFrame?: number; // used for partial exports
+    deterministicTiming?: boolean; // snapshot tempo map at start (default true)
 }
 
 // Type for JSZip global
@@ -47,7 +51,7 @@ export class ImageSequenceGenerator {
 
     async generateImageSequence(options: GenerateSequenceOptions = {}): Promise<void> {
         const {
-            fps = 30,
+            fps = 60,
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',
@@ -55,6 +59,7 @@ export class ImageSequenceGenerator {
             onProgress = () => {},
             onComplete = () => {},
             _startFrame = 0,
+            deterministicTiming = true,
         } = options;
 
         if (this.isGenerating) {
@@ -97,11 +102,11 @@ export class ImageSequenceGenerator {
             onProgress(0);
 
             // Step 1: Render all frames to PNG images (80% of progress)
-            console.log('Phase 1: Rendering frames to PNG images...');
-            await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress, _startFrame);
+            console.log('Rendering frames to PNG images...');
+            await this.renderFramesToPNG(duration, fps, limitedFrames, onProgress, _startFrame, deterministicTiming);
 
             // Step 2: Create ZIP file with all images (20% of progress)
-            console.log('Phase 2: Creating ZIP file...');
+            console.log('Creating ZIP file...');
             const zipBlob = await this.createZipFile(sceneName, onProgress);
 
             // Step 3: Download the ZIP
@@ -131,23 +136,48 @@ export class ImageSequenceGenerator {
         fps: number,
         totalFrames: number,
         onProgress: (progress: number, text?: string) => void,
-        startFrame: number = 0
+        startFrame: number = 0,
+        deterministicTiming: boolean = true
     ): Promise<void> {
-        const frameInterval = 1 / fps;
-        let prePadding = 0;
-        try {
-            prePadding = this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-        } catch {}
-        const baseStartTime = -prePadding; // first frame time (can be negative)
+        const prePadding = (() => {
+            try {
+                return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
+            } catch {
+                return 0;
+            }
+        })();
+        const playRangeStart = (() => {
+            try {
+                const pr = this.visualizer?.getPlayRange?.();
+                if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
+                return 0;
+            } catch {
+                return 0;
+            }
+        })();
+
+        let snapshot: ExportTimingSnapshot | undefined;
+        if (deterministicTiming) {
+            try {
+                snapshot = createExportTimingSnapshot(getSharedTimingManager());
+            } catch (e) {
+                console.warn('Failed to create export timing snapshot; continuing without determinism', e);
+            }
+        }
+        const clock = new SimulatedClock({
+            fps,
+            prePaddingSec: prePadding,
+            playRangeStartSec: playRangeStart,
+            startFrame,
+            timingSnapshot: snapshot,
+        });
 
         console.log('Rendering frames to PNG...');
         for (let frame = 0; frame < totalFrames; frame++) {
-            const currentTime = baseStartTime + (frame + startFrame) * frameInterval;
+            const currentTime = clock.timeForFrame(frame);
 
             // Use the stateless rendering method from the visualizer
             this.visualizer.renderAtTime(currentTime);
-
-            console.log('Debug: Current Time:', this.visualizer.currentTime);
 
             // Convert canvas to PNG blob
             const blob = await this.canvasToPngBlob();

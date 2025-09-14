@@ -4,6 +4,7 @@ import FormInput from '@ui/form/inputs/FormInput';
 import FontInput from '@ui/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -24,7 +25,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 }) => {
     const { manager } = useMacros();
     const canAssignMacro = (propertyType: string) => {
-        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font'].includes(propertyType);
+        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font', 'midiTrackRef'].includes(propertyType);
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
@@ -50,8 +51,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const renderInput = (property: PropertyDefinition) => {
         const value = values[property.key];
-        const isAssignedToMacro = !!macroAssignments[property.key];
         const assignedMacro = macroAssignments[property.key];
+        const macroExists = assignedMacro ? !!manager.getMacro(assignedMacro) : false;
+        const isAssignedToMacro = !!assignedMacro && macroExists;
 
         const commonProps = {
             id: `config-${property.key}`,
@@ -72,7 +74,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // Use the consolidated FormInput for all types (it delegates to specialized components internally)
         const inputType = property.type === 'string' ? 'text' : property.type;
-        return (
+        const inputEl = (
             <FormInput
                 id={commonProps.id}
                 type={inputType}
@@ -83,6 +85,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 onChange={commonProps.onChange}
             />
         );
+
+        // midiFile migration CTA removed
+
+        return inputEl;
     };
 
     const renderMacroDropdown = (property: PropertyDefinition) => {

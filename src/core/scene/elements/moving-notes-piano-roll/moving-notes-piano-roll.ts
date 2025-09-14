@@ -3,22 +3,21 @@ import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
-import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
-import { MidiManager } from '@core/midi/midi-manager';
-import { globalMacroManager } from '@bindings/macro-manager';
-import { ConstantBinding } from '@bindings/property-bindings';
+// Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { TimingManager } from '@core/timing';
 
 export class MovingNotesPianoRollElement extends SceneElement {
-    public midiManager: MidiManager;
     public animationController: MovingNotesAnimationController;
-    private _currentMidiFile: File | null = null;
+    private timingManager: TimingManager;
+    // TimelineService removed; use store selectors for MIDI retrieval
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
-        this.midiManager = new MidiManager(this.id);
         this.animationController = new MovingNotesAnimationController(this);
-        this._setupMIDIFileListener();
+        this.timingManager = new TimingManager(this.id);
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
@@ -29,32 +28,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
             category: 'complete',
             groups: [
                 ...base.groups,
-                {
-                    id: 'timing',
-                    label: 'Timing',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'bpm',
-                            type: 'number',
-                            label: 'BPM (Tempo)',
-                            default: 120,
-                            min: 20,
-                            max: 300,
-                            step: 0.1,
-                        },
-                        {
-                            key: 'beatsPerBar',
-                            type: 'number',
-                            label: 'Beats per Bar',
-                            default: 4,
-                            min: 1,
-                            max: 16,
-                            step: 1,
-                        },
-                        { key: 'timeOffset', type: 'number', label: 'Time Offset (s)', default: 0, step: 0.01 },
-                    ],
-                },
+                // timing offset removed
                 {
                     id: 'noteColors',
                     label: 'Note Colors (per MIDI channel)',
@@ -84,11 +58,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     })),
                 },
                 {
-                    id: 'midiFile',
-                    label: 'MIDI File',
+                    id: 'midiSource',
+                    label: 'MIDI Source',
                     collapsed: true,
                     properties: [
-                        { key: 'midiFile', type: 'file', label: 'MIDI File', accept: '.mid,.midi', default: null },
+                        {
+                            key: 'midiTrackId',
+                            type: 'midiTrackRef',
+                            label: 'MIDI Track',
+                            default: null,
+                        },
                     ],
                 },
                 {
@@ -319,7 +298,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         },
                     ],
                 },
-                // (Removed legacy min-bbox group)
+                // (Removed min-bbox group)
                 {
                     id: 'playhead',
                     label: 'Playhead',
@@ -353,10 +332,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const renderObjects: RenderObject[] = [];
-        const bpm = this.getProperty<number>('bpm');
-        const beatsPerBar = this.getProperty<number>('beatsPerBar');
-        const timeOffset = this.getProperty<number>('timeOffset') || 0;
-        const effectiveTime = targetTime + timeOffset;
+        // Use global timeline tempo and meter
+        // timeOffset removed; use targetTime directly
+        const effectiveTime = targetTime;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
         const pianoWidth = this.getProperty<number>('pianoWidth');
         const rollWidth = this.getProperty<number>('rollWidth') || 800;
@@ -378,15 +356,20 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
         const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
 
-        // MIDI file changes
-        const midiFile = this.getProperty<File>('midiFile');
-        if (midiFile !== this._currentMidiFile) {
-            this._handleMIDIFileConfig(midiFile);
-            this._currentMidiFile = midiFile;
-        }
-
-        this.midiManager.setBPM(bpm);
-        this.midiManager.setBeatsPerBar(beatsPerBar);
+        // Update local timing manager from global store for view window duration calculations
+        try {
+            const state = useTimelineStore.getState();
+            const bpm = state.timeline.globalBpm || 120;
+            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            this.timingManager.setBPM(bpm);
+            this.timingManager.setBeatsPerBar(beatsPerBar);
+            // If a master tempo map exists, apply to timing manager for accurate windows
+            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
+                this.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            } else {
+                this.timingManager.setTempoMap(null);
+            }
+        } catch {}
 
         // Draw piano strip (left) so pianoWidth visually applies
         if (showPiano) {
@@ -416,16 +399,33 @@ export class MovingNotesPianoRollElement extends SceneElement {
             }
         }
 
-        // Fetch raw MIDI notes (no window segmentation)
-        const rawNotes = this.midiManager.getNotes();
+        // Determine window around current time
+        const duration = this.timingManager.getTimeUnitDuration(timeUnitBars);
+        const windowStart = effectiveTime - duration * playheadPosition;
+        const windowEnd = windowStart + duration;
+
+        // Fetch notes for this window from timeline store
+        const trackIds = (this.getProperty('midiTrackIds') as string[] | undefined) || [];
+        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const effectiveTrackIds = Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
+        const state = useTimelineStore.getState();
+        const rawNotes =
+            effectiveTrackIds.length > 0
+                ? selectNotesInWindow(state, {
+                      trackIds: effectiveTrackIds,
+                      startSec: windowStart,
+                      endSec: windowEnd,
+                  }).map((n) => ({
+                      note: n.note,
+                      channel: n.channel,
+                      velocity: n.velocity || 0,
+                      startTime: n.startTime,
+                      endTime: n.endTime,
+                  }))
+                : [];
 
         // Notes moving past static playhead
-        if (showNotes && rawNotes && rawNotes.length > 0) {
-            // Compute a continuous viewport window around current time using a duration scale,
-            // without splitting any notes. We re-use the timeUnit duration purely as a time scale.
-            const duration = this.midiManager.timingManager.getTimeUnitDuration(timeUnitBars);
-            const windowStart = effectiveTime - duration * playheadPosition;
-            const windowEnd = windowStart + duration;
+        if (showNotes && rawNotes && (rawNotes as any[]).length > 0) {
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 {
                     noteHeight,
@@ -500,38 +500,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return renderObjects;
     }
 
-    private async _handleMIDIFileConfig(midiFileData: File | null): Promise<void> {
-        if (!midiFileData) return;
-        if (midiFileData instanceof File) await this._loadMIDIFile(midiFileData);
-    }
-
-    private async _loadMIDIFile(file: File): Promise<void> {
-        try {
-            const resetMacroValues = this._currentMidiFile !== file;
-            await this.midiManager.loadMidiFile(file, resetMacroValues);
-
-            const notes = this.midiManager.getNotes();
-            if (Array.isArray(notes) && notes.length > 0) {
-                const noteValues = notes.map((n: any) => n.note).filter((v: any) => typeof v === 'number');
-                if (noteValues.length > 0) {
-                    const actualMin = Math.max(0, Math.min(...noteValues));
-                    const actualMax = Math.min(127, Math.max(...noteValues));
-                    const minBinding = this.getBinding('minNote');
-                    const maxBinding = this.getBinding('maxNote');
-                    if (minBinding instanceof ConstantBinding) this.setProperty('minNote', actualMin);
-                    if (maxBinding instanceof ConstantBinding) this.setProperty('maxNote', actualMax);
-                }
-            }
-            this._dispatchChangeEvent();
-            if (typeof window !== 'undefined') {
-                const vis: any = (window as any).debugVisualizer;
-                if (vis && typeof vis.invalidateRender === 'function') vis.invalidateRender();
-            }
-        } catch (err) {
-            console.error(`Failed to load MIDI file for ${this.id}:`, err);
-        }
-    }
-
     private _createStaticPlayhead(
         pianoWidth: number,
         rollWidth: number,
@@ -551,38 +519,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return [playhead];
     }
 
-    private _dispatchChangeEvent(): void {
-        if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.dispatchEvent(new CustomEvent('sceneElementChanged', { detail: { elementId: this.id } }));
-        }
-    }
-
-    private _setupMIDIFileListener(): void {
-        globalMacroManager.addListener((eventType: any, data: any) => {
-            if (eventType === 'macroValueChanged' && data.name === 'midiFile') {
-                if (this.isBoundToMacro('midiFile', 'midiFile')) {
-                    const file = this.getMidiFile();
-                    if (file) this._handleMIDIFileConfig(file);
-                }
-            }
-        });
-    }
-
-    // Convenience getters/setters mirroring TimeUnitPianoRoll
-    getBPM(): number {
-        return this.getProperty<number>('bpm');
-    }
-    setBPM(bpm: number): this {
-        this.setProperty('bpm', bpm);
-        return this;
-    }
-    getBeatsPerBar(): number {
-        return this.getProperty<number>('beatsPerBar');
-    }
-    setBeatsPerBar(beatsPerBar: number): this {
-        this.setProperty('beatsPerBar', beatsPerBar);
-        return this;
-    }
+    // Convenience getters/setters removed: element uses global tempo/meter from store
     getAnimationType(): string {
         return this.getProperty<string>('animationType');
     }
@@ -603,27 +540,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return this;
     }
     getTimeUnit(): number {
-        return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
+        return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
-    getMidiFile(): File | null {
-        return this.getProperty<File>('midiFile');
-    }
-    setMidiFile(file: File | null): this {
-        this.setProperty('midiFile', file);
-        return this;
-    }
-    bindBPMToMacro(macroId: string): this {
-        this.bindToMacro('bpm', macroId);
-        return this;
-    }
-    bindBeatsPerBarToMacro(macroId: string): this {
-        this.bindToMacro('beatsPerBar', macroId);
-        return this;
-    }
-    bindMidiFileToMacro(macroId: string): this {
-        this.bindToMacro('midiFile', macroId);
-        return this;
-    }
+    // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
         const colors: string[] = [];
         for (let i = 0; i < 16; i++) {

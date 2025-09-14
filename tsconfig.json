@@ -21,7 +21,8 @@
     "jsx": "react-jsx",
     "types": [
       "vitest",
-      "node"
+      "node",
+      "./src/types/zustand"
     ],
     "baseUrl": "./src",
     "paths": {
@@ -43,17 +44,23 @@
       "@math/*": [
         "math/*"
       ],
+      "@persistence/*": [
+        "persistence/*"
+      ],
       "@ui/*": [
         "ui/*"
+      ],
+      "@state/*": [
+        "state/*"
+      ],
+      "@selectors/*": [
+        "state/selectors/*"
       ],
       "@context/*": [
         "context/*"
       ],
-      "@hooks/*": [
-        "hooks/*"
-      ],
-      "@shared/*": [
-        "shared/*"
+      "@fonts/*": [
+        "fonts/*"
       ],
       "@utils/*": [
         "utils/*"

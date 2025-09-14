@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
 import { useVisualizer } from '@context/VisualizerContext';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface ExportSettings {
     fps: number;
     width: number;
     height: number;
     fullDuration: boolean;
-    startTime?: number; // seconds (only used when !fullDuration)
-    endTime?: number;   // seconds (only used when !fullDuration)
+    startTime?: number;
+    endTime?: number;
     prePadding?: number;
     postPadding?: number;
 }
@@ -37,6 +38,7 @@ interface GlobalPropertiesPanelProps {
 const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const ctx = useVisualizer();
     const visualizer = props.visualizer || ctx.visualizer;
+    const sceneBuilder = visualizer?.getSceneBuilder?.();
     const onExport = props.onExport;
     // @ts-ignore optional video export function if provided via props or context (not typed yet)
     const onExportVideo = props.onExportVideo || (ctx as any).exportVideo;
@@ -48,6 +50,9 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const onDebugSettingsChange = props.onDebugSettingsChange || ctx.setDebugSettings;
     const [localWidth, setLocalWidth] = useState(exportSettings.width);
     const [localHeight, setLocalHeight] = useState(exportSettings.height);
+    // Global timing values from timeline store
+    // Timing controls moved into timeline header; keep minimal flags if needed later
+    const hasTempoMap = useTimelineStore((s) => (s.timeline.masterTempoMap?.length || 0) > 0);
 
     // Sync local state when external exportSettings change (e.g., reset)
     useEffect(() => {
@@ -89,6 +94,8 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
         }
     };
 
+    // Removed commit handlers for tempo/meter
+
     return (
         <div className="global-properties-panel">
 
@@ -100,180 +107,6 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                             sceneBuilder={visualizer?.getSceneBuilder()}
                             visualizer={visualizer}
                         />
-                    </div>
-
-                    <div className="setting-group">
-                        <h4>Scene Settings</h4>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="widthInput">Width (px):</label>
-                                <input
-                                    type="number"
-                                    id="widthInput"
-                                    min={16}
-                                    max={8192}
-                                    value={localWidth}
-                                    onChange={(e) => setLocalWidth(e.target.value === '' ? 0 : parseInt(e.target.value))}
-                                    onBlur={() => commitSize('width')}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="heightInput">Height (px):</label>
-                                <input
-                                    type="number"
-                                    id="heightInput"
-                                    min={16}
-                                    max={8192}
-                                    value={localHeight}
-                                    onChange={(e) => setLocalHeight(e.target.value === '' ? 0 : parseInt(e.target.value))}
-                                    onBlur={() => commitSize('height')}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                        </div>
-
-                        <label htmlFor="fpsInput">Frame Rate (FPS):</label>
-                        <input
-                            type="number"
-                            id="fpsInput"
-                            min="24"
-                            max="60"
-                            value={exportSettings.fps}
-                            onChange={(e) => updateExportSetting('fps', parseInt(e.target.value))}
-                            onKeyDown={handleExportInputKeyDown}
-                        />
-
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="prePaddingInput">Pre Padding (s):</label>
-                                <input
-                                    type="number"
-                                    id="prePaddingInput"
-                                    min={0}
-                                    step={0.1}
-                                    value={exportSettings.prePadding ?? 0}
-                                    onChange={(e) => updateExportSetting('prePadding', parseFloat(e.target.value) || 0)}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label htmlFor="postPaddingInput">Post Padding (s):</label>
-                                <input
-                                    type="number"
-                                    id="postPaddingInput"
-                                    min={0}
-                                    step={0.1}
-                                    value={exportSettings.postPadding ?? 0}
-                                    onChange={(e) => updateExportSetting('postPadding', parseFloat(e.target.value) || 0)}
-                                    onKeyDown={handleExportInputKeyDown}
-                                />
-                            </div>
-                        </div>
-
-                        <label style={{ display: 'block', marginTop: '8px' }}>
-                            <input
-                                type="checkbox"
-                                id="fullDurationExport"
-                                checked={exportSettings.fullDuration}
-                                onChange={(e) => updateExportSetting('fullDuration', e.target.checked)}
-                            />{' '}
-                            Export full duration
-                        </label>
-
-                        {!exportSettings.fullDuration && (
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="startTimeInput">Start (s):</label>
-                                    <input
-                                        type="number"
-                                        id="startTimeInput"
-                                        min={0}
-                                        step={0.01}
-                                        value={exportSettings.startTime ?? 0}
-                                        onChange={(e) => updateExportSetting('startTime', parseFloat(e.target.value) || 0)}
-                                        onKeyDown={handleExportInputKeyDown}
-                                    />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label htmlFor="endTimeInput">End (s):</label>
-                                    <input
-                                        type="number"
-                                        id="endTimeInput"
-                                        min={0}
-                                        step={0.01}
-                                        value={exportSettings.endTime ?? 0}
-                                        onChange={(e) => updateExportSetting('endTime', parseFloat(e.target.value) || 0)}
-                                        onKeyDown={handleExportInputKeyDown}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <div style={{ marginTop: '16px' }}>
-                            <h4 style={{ marginBottom: '4px' }}>Debug Settings</h4>
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="showAnchorPoints"
-                                    checked={debugSettings.showAnchorPoints}
-                                    onChange={(e) => onDebugSettingsChange({ ...debugSettings, showAnchorPoints: e.target.checked })}
-                                />{' '}
-                                Show Anchor Points
-                            </label>
-                        </div>
-
-                        <div className="export-actions" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {(() => {
-                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
-                                return (
-                                    <button
-                                        className="btn-export"
-                                        onClick={() => onExport(exportSettings)}
-                                        disabled={!canExport || invalidRange}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px 16px',
-                                            fontSize: '14px',
-                                            fontWeight: 'bold'
-                                        }}
-                                        title={invalidRange ? 'Start time must be less than end time' : ''}
-                                    >
-                                        📸 Export PNG Sequence
-                                    </button>
-                                );
-                            })()}
-                            {(() => {
-                                const invalidRange = !exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime;
-                                return (
-                                    <button
-                                        className="btn-export"
-                                        onClick={() => onExportVideo && onExportVideo(exportSettings)}
-                                        disabled={!canExport || !onExportVideo || invalidRange}
-                                        style={{
-                                            width: '100%',
-                                            padding: '8px 16px',
-                                            fontSize: '14px',
-                                            fontWeight: 'bold'
-                                        }}
-                                        title={!onExportVideo ? 'Video export not available' : (invalidRange ? 'Start time must be less than end time' : '')}
-                                    >
-                                        🎬 Export MP4 Video
-                                    </button>
-                                );
-                            })()}
-                            <span style={{
-                                fontSize: '12px',
-                                color: '#666',
-                                marginTop: '8px',
-                                display: 'block',
-                                textAlign: 'center'
-                            }}>
-                                {(!exportSettings.fullDuration && exportSettings.startTime != null && exportSettings.endTime != null && exportSettings.startTime >= exportSettings.endTime)
-                                    ? 'Invalid time range'
-                                    : exportStatus}
-                            </span>
-                        </div>
                     </div>
                 </div>
             </div>

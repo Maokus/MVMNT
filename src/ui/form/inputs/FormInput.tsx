@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
+import MidiTrackSelect from './MidiTrackSelect';
 
 interface FormInputProps {
     id: string;
@@ -142,6 +143,12 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         // Delegate to the specialized font input component kept in a separate file
         return (
             <FontInput id={id} value={value} schema={schema} disabled={disabled} title={title} onChange={onChange} />
+        );
+    }
+
+    if (type === 'midiTrackRef') {
+        return (
+            <MidiTrackSelect id={id} value={value ?? null} schema={schema} disabled={disabled} title={title} onChange={onChange} />
         );
     }
 

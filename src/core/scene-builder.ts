@@ -1,4 +1,4 @@
-/* Phase 1 TS migration - minimal typing; refine later */
+/* Minimal typing; refine later */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
     BackgroundElement,
@@ -15,6 +15,7 @@ import {
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { getAnimationSelectOptions } from '@animation/note-animations';
+import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 
 export interface SceneSettings {
     fps: number;
@@ -22,6 +23,8 @@ export interface SceneSettings {
     height: number;
     prePadding: number;
     postPadding: number;
+    tempo?: number; // global BPM fallback when no tempo map
+    beatsPerBar?: number; // global meter
 }
 
 export class HybridSceneBuilder {
@@ -29,11 +32,13 @@ export class HybridSceneBuilder {
     elementRegistry = new Map<string, SceneElement>();
     sceneElementRegistry = sceneElementRegistry;
     private _defaultSceneSettings: SceneSettings = {
-        fps: 30,
+        fps: 60, // updated default framerate
         width: 1500,
         height: 1500,
         prePadding: 0,
         postPadding: 0,
+        tempo: 120,
+        beatsPerBar: 4,
     };
     config: SceneSettings = { ...this._defaultSceneSettings };
 
@@ -42,10 +47,26 @@ export class HybridSceneBuilder {
     }
     updateSceneSettings(partial: Partial<SceneSettings> = {}) {
         this.config = { ...this.config, ...partial };
+        // Synchronize global timing system (timeline store) if tempo/meter provided
+        try {
+            if (partial.tempo != null || partial.beatsPerBar != null) {
+                // Lazy import to avoid cycles
+                const st = useTimelineStore.getState();
+                if (partial.tempo != null) st.setGlobalBpm(Math.max(1, Number(partial.tempo) || 120));
+                if (partial.beatsPerBar != null) st.setBeatsPerBar(Math.max(1, Math.floor(partial.beatsPerBar || 4)));
+            }
+        } catch {}
         return this.getSceneSettings();
     }
     resetSceneSettings() {
         this.config = { ...this._defaultSceneSettings };
+        // Also reset global timing to defaults
+        try {
+            const st = useTimelineStore.getState();
+            if (this._defaultSceneSettings.tempo != null) st.setGlobalBpm(this._defaultSceneSettings.tempo);
+            if (this._defaultSceneSettings.beatsPerBar != null)
+                st.setBeatsPerBar(this._defaultSceneSettings.beatsPerBar);
+        } catch {}
         return this.getSceneSettings();
     }
 
@@ -100,10 +121,40 @@ export class HybridSceneBuilder {
     }
     getMaxDuration() {
         let max = 0;
+        // Elements duration
         for (const el of this.elements) {
             const dur = (el as any).midiManager?.getDuration?.();
             if (typeof dur === 'number' && dur > max) max = dur;
         }
+        // New timeline store-based duration
+        try {
+            // Lazy import to avoid cyclic deps at module load
+            const state = useTimelineStore.getState();
+            const tm = getSharedTimingManager();
+            tm.setBPM(state.timeline.globalBpm || 120);
+            if (state.timeline.masterTempoMap) tm.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            for (const id of state.tracksOrder) {
+                const t = state.tracks[id];
+                if (!t || t.type !== 'midi' || !t.enabled) continue;
+                const cache = state.midiCache[t.midiSourceId ?? id];
+                if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+                // Determine max end tick inside optional region
+                let regionStartTick = t.regionStartTick ?? 0;
+                let regionEndTick = t.regionEndTick ?? Number.POSITIVE_INFINITY;
+                // Compute notes' max end (in ticks) respecting region
+                let maxEndTick = 0;
+                for (const n of cache.notesRaw) {
+                    if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
+                    const clippedEnd = Math.min(n.endTick, regionEndTick);
+                    if (clippedEnd > maxEndTick) maxEndTick = clippedEnd;
+                }
+                const trackEndTick = maxEndTick + t.offsetTicks;
+                if (trackEndTick <= 0) continue;
+                const endBeats = trackEndTick / tm.ticksPerQuarter;
+                const endSec = tm.beatsToSeconds(endBeats);
+                if (endSec > max) max = endSec;
+            }
+        } catch {}
         return max;
     }
     getAllElements() {
@@ -162,8 +213,93 @@ export class HybridSceneBuilder {
         return this.elements.filter((e) => (e as any).type === type);
     }
     createDebugScene() {
+        // Build the base scene first
         this.createDefaultMIDIScene();
+        // Remove the noteAnimation macro for the debug scene (user request)
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
+        // Add debug overlay element
         this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
+    }
+    /**
+     * Create a debug scene containing every registered scene element type once.
+     * Uses registry schemas to generate ids and applies minimal default config.
+     * This helps visually QA layout / property panels.
+     */
+    createAllElementsDebugScene() {
+        this.clearElements();
+        this.resetSceneSettings();
+        this._createDefaultMacros();
+        // Remove the noteAnimation macro entirely in the all-elements debug scene
+        // so that animationType properties remain constant (macro binding not desired here).
+        try {
+            globalMacroManager.deleteMacro('noteAnimation');
+        } catch {}
+        const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
+        const usedIds = new Set<string>();
+        const ensureId = (base: string) => {
+            let id = base;
+            let i = 1;
+            while (usedIds.has(id)) id = base + '_' + i++;
+            usedIds.add(id);
+            return id;
+        };
+        // Background first so grid sits on top
+        this.addElement(new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0 }));
+        const gridCols = 4; // adjustable
+        const cellW = 320; // spacing horizontally
+        const cellH = 260; // spacing vertically
+        const startX = 160; // left padding
+        const startY = 160; // top padding
+        let index = 0;
+        let zBase = 10;
+        const trackPropCandidates = ['midiTrackId', 'trackId', 'sourceTrackId'];
+        for (const t of types) {
+            if (t === 'background' || t === 'debug') continue; // already / will add debug overlay later
+            try {
+                const baseId = t.replace(/[^a-zA-Z0-9]/g, '_');
+                const id = ensureId(baseId);
+                const col = index % gridCols;
+                const row = Math.floor(index / gridCols);
+                const offsetX = startX + col * cellW;
+                const offsetY = startY + row * cellH;
+                const el: any = this.addElementFromRegistry(t, {
+                    id,
+                    zIndex: zBase + index * 2,
+                    anchorX: 0,
+                    anchorY: 0,
+                    offsetX,
+                    offsetY,
+                });
+                if (el?.bindToMacro) {
+                    // Bind ALL track-like properties (previously only first). User request: map midiTrack macro
+                    // to all MIDI file/track sources present on the element.
+                    for (const cand of trackPropCandidates) {
+                        if (cand in el) {
+                            try {
+                                el.bindToMacro(cand, 'midiTrack');
+                            } catch {}
+                        }
+                    }
+                    // Do NOT bind animationType in debug scene (noteAnimation macro removed)
+                }
+                index++;
+            } catch (e) {
+                console.warn('[debugScene] Failed to add element type', t, e);
+            }
+        }
+        // Add overlay debug element last, positioned top-left
+        this.addElement(
+            new DebugElement(ensureId('debugOverlay'), {
+                zIndex: 100000,
+                anchorX: 0,
+                anchorY: 0,
+                offsetX: 10,
+                offsetY: 10,
+            })
+        );
+        return this;
     }
     createDefaultMIDIScene() {
         this.clearElements();
@@ -334,6 +470,20 @@ export class HybridSceneBuilder {
         } catch {}
         if (!bindingVersion && typeof process !== 'undefined')
             bindingVersion = (process as any).env?.REACT_APP_BINDING_VERSION;
+        // Optional: include a minimal timeline spec if available via window service
+        let timeline: any = undefined;
+        try {
+            const tl = (window as any).mvmntTimelineService;
+            if (tl && typeof tl.getTracks === 'function') {
+                const tracks = tl.getTracks()?.map((t: any) => ({
+                    id: t.id,
+                    name: t.name,
+                    type: t.type,
+                    offsetTicks: t.offsetTicks || 0,
+                }));
+                timeline = { tracks };
+            }
+        } catch {}
         return {
             version,
             elements: serialized,
@@ -341,6 +491,7 @@ export class HybridSceneBuilder {
             serializedAt: new Date().toISOString(),
             bindingSystemVersion: bindingVersion,
             sceneSettings: { ...this.config },
+            timeline,
         };
     }
     loadScene(sceneData: any) {
@@ -358,6 +509,8 @@ export class HybridSceneBuilder {
                 if (typeof src.height === 'number') partial.height = src.height;
                 if (typeof src.prePadding === 'number') partial.prePadding = src.prePadding;
                 if (typeof src.postPadding === 'number') partial.postPadding = src.postPadding;
+                if (typeof src.tempo === 'number') partial.tempo = src.tempo;
+                if (typeof src.beatsPerBar === 'number') partial.beatsPerBar = src.beatsPerBar;
                 this.updateSceneSettings(partial);
             } else this.resetSceneSettings();
             if (sceneData.macros) globalMacroManager.importMacros(sceneData.macros);
@@ -394,13 +547,10 @@ export class HybridSceneBuilder {
         }
     }
     _createDefaultMacros() {
-        globalMacroManager.createMacro('midiFile', 'file', null, { accept: '.mid,.midi', description: 'MIDI file' });
-        globalMacroManager.createMacro('tempo', 'number', 120, { min: 20, max: 300, step: 0.1, description: 'BPM' });
-        globalMacroManager.createMacro('beatsPerBar', 'number', 4, {
-            min: 1,
-            max: 16,
-            step: 1,
-            description: 'Beats per bar',
+        // Global MIDI track selector macro controls scene elements' MIDI source
+        globalMacroManager.createMacro('midiTrack', 'midiTrackRef', null, {
+            description:
+                'ID of a MIDI track from the Timeline store. When set, all default scene elements will use this track.',
         });
         try {
             const options = [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }];
@@ -419,32 +569,18 @@ export class HybridSceneBuilder {
         const notesPlayingDisplay: any = this.getElementsByType('notesPlayingDisplay')[0];
         const playedNotesTracker: any = this.getElementsByType('notesPlayedTracker')[0];
         const chordEstimateDisplay: any = this.getElementsByType('chordEstimateDisplay')[0];
-        pianoRoll?.bindToMacro('bpm', 'tempo');
-        pianoRoll?.bindToMacro('beatsPerBar', 'beatsPerBar');
-        pianoRoll?.bindToMacro('midiFile', 'midiFile');
+        // No per-element timing bindings; elements read global tempo/meter from the Timeline store
         try {
             pianoRoll?.bindToMacro('animationType', 'noteAnimation');
         } catch {}
-        timeDisplay?.bindToMacro('bpm', 'tempo');
-        timeDisplay?.bindToMacro('beatsPerBar', 'beatsPerBar');
-
-        // Default bindings for new info elements
-        notesPlayingDisplay?.bindToMacro('midiFile', 'midiFile');
-        notesPlayingDisplay?.bindToMacro('bpm', 'tempo');
-        playedNotesTracker?.bindToMacro('midiFile', 'midiFile');
-        playedNotesTracker?.bindToMacro('bpm', 'tempo');
-        chordEstimateDisplay?.bindToMacro('midiFile', 'midiFile');
-        chordEstimateDisplay?.bindToMacro('bpm', 'tempo');
+        // Bind MIDI track selection across default elements to a single macro
+        pianoRoll?.bindToMacro?.('midiTrackId', 'midiTrack');
+        notesPlayingDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
+        playedNotesTracker?.bindToMacro?.('midiTrackId', 'midiTrack');
+        chordEstimateDisplay?.bindToMacro?.('midiTrackId', 'midiTrack');
     }
     autoBindElements() {
-        const pianoRolls: any[] = this.getElementsByType('boundTimeUnitPianoRoll');
-        pianoRolls.forEach((pr) => {
-            if (pr instanceof TimeUnitPianoRollElement) {
-                pr.bindMidiFileToMacro('midiFile');
-                pr.bindBPMToMacro('tempo');
-                pr.bindBeatsPerBarToMacro('beatsPerBar');
-            }
-        });
+        // No-op: per-element timing bindings removed in favor of global timeline tempo
     }
     createTestScene() {
         this.clearElements();

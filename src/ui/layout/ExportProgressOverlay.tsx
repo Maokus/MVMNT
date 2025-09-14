@@ -22,33 +22,35 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     };
 
     return (
-        <div className="progress-overlay" onClick={handleOverlayClick}>
-            <div className="progress-modal">
-                <h3>📸 Exporting PNG Sequence</h3>
+        <div
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000]"
+            onClick={handleOverlayClick}
+        >
+            <div className="border rounded-lg p-6 min-w-[400px] text-center [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
+                <h3 className="mb-5 text-white">📸 Exporting PNG Sequence</h3>
 
                 {!downloadUrl ? (
-                    <div className="progress-section">
-                        <div className="progress-bar">
+                    <div className="mb-5">
+                        <div className="w-full h-2 rounded overflow-hidden mb-2 [background-color:var(--twc-control)]">
                             <div
-                                className="progress-fill"
+                                className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] w-0 transition-[width] duration-300"
                                 style={{ width: `${progress}%` }}
                             ></div>
                         </div>
-                        <div className="progress-text">{text}</div>
+                        <div className="text-xs text-neutral-300">{text}</div>
                     </div>
                 ) : (
                     <div className="download-section">
                         <a
                             href={downloadUrl}
-                            className="download-btn"
+                            className="inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
                             download={filename}
                         >
                             ⬇ Download PNG Sequence
                         </a>
                         <button
-                            className="btn btn-secondary"
+                            className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400 ml-[10px]"
                             onClick={onClose}
-                            style={{ marginLeft: '10px' }}
                         >
                             Close
                         </button>

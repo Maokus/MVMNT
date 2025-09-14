@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
-import { EnhancedConfigSchema } from '@shared/types/components';
+import { EnhancedConfigSchema } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
 
 interface ElementPropertiesPanelProps {
@@ -29,7 +29,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
     // Macro context
-    const { assignListener } = useMacros();
+    const { assignListener, manager } = useMacros();
 
     // Handle macro changes
     const handleMacroChange = useCallback((eventType: string, data: any) => {
@@ -68,7 +68,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         const groupedSchema = schema as EnhancedConfigSchema;
         setEnhancedSchema(groupedSchema);
 
-        // Extract current property values using the binding system rather than legacy element.config
+        // Extract current property values using the binding system rather than element.config
         const values: PropertyValues = {};
         const macroBindings: MacroAssignments = {};
 
@@ -102,7 +102,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         }
                     }
                 } else if (element && element[property.key] !== undefined) {
-                    // Legacy direct property (not expected for new binding system but kept for safety)
+                    // Direct property (not expected for new binding system but kept for safety)
                     value = element[property.key];
                 } else {
                     value = property.default;
@@ -115,7 +115,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     const binding = element.getBinding(property.key);
                     if (binding && binding.type === 'macro') {
                         const macroId = binding.getMacroId ? binding.getMacroId() : null;
-                        if (macroId) macroBindings[property.key] = macroId;
+                        // Only treat as assigned if the macro actually exists. If not, auto-unbind to recover.
+                        if (macroId && manager?.getMacro(macroId)) {
+                            macroBindings[property.key] = macroId;
+                        } else if (macroId && typeof element.unbindFromMacro === 'function') {
+                            try {
+                                element.unbindFromMacro(property.key);
+                            } catch { }
+                        }
                     }
                 }
             });

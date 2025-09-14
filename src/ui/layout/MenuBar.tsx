@@ -2,12 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
+import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV } from 'react-icons/fa';
 
 interface MenuBarProps {
     onHelp?: () => void;
+    onToggleSidePanels?: () => void;
+    onToggleTimeline?: () => void;
+    sidePanelsVisible?: boolean;
+    timelineVisible?: boolean;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleTimeline, sidePanelsVisible, timelineVisible }) => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
@@ -94,34 +99,59 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                     )}
 
                     <button
-                        className="scene-name-edit-btn"
+                        className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1 rounded text-xs transition-colors hover:bg-white/10 hover:text-white flex items-center"
                         onClick={() => setIsEditingName(true)}
                         title="Edit scene name"
+                        aria-label="Edit scene name"
                     >
-                        ✏️
+                        <FaPen />
                     </button>
 
-                    <div className="scene-menu-container" ref={sceneMenuRef}>
+                    <div className="relative" ref={sceneMenuRef}>
                         <button
-                            className="scene-menu-btn"
+                            className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                             onClick={() => setShowSceneMenu(!showSceneMenu)}
                             title="Scene options"
+                            aria-haspopup="true"
+                            aria-expanded={showSceneMenu}
                         >
-                            ⋯
+                            <FaEllipsisV />
                         </button>
                         {showSceneMenu && (
-                            <div className={`scene-menu-dropdown ${showSceneMenu ? 'show' : ''}`}>
-                                <div className="scene-menu-item" onClick={handleSave}>💾 Save Scene (Download JSON)</div>
-                                <div className="scene-menu-item" onClick={handleLoad}>📂 Load Scene (Upload JSON)</div>
-                                <div className="scene-menu-item" onClick={handleClear}>🗑️ Clear Scene</div>
-                                <div className="scene-menu-item" onClick={handleNew}>✨ New Default Scene</div>
+                            <div
+                                className={`absolute top-full right-0 border rounded shadow-lg z-[1000] min-w-[180px] mt-1 [background-color:var(--twc-control)] [border-color:#525252] ${showSceneMenu ? 'block' : 'hidden'}`}
+                            >
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleSave}><FaSave /> <span>Save Scene (Download JSON)</span></div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleLoad}><FaFolderOpen /> <span>Load Scene (Upload JSON)</span></div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleClear}><FaTrash /> <span>Clear Scene</span></div>
+                                <div className="px-3 py-2 text-neutral-300 cursor-pointer transition-colors text-[13px] flex items-center gap-2 hover:bg-white/10 hover:text-white first:rounded-t last:rounded-b" onClick={handleNew}><FaMagic /> <span>New Default Scene</span></div>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <Link to="/about" title="About Midivis" style={{ display: 'inline-flex' }}>
+                <div className="flex items-center gap-2 mr-2">
+                    <button
+                        type="button"
+                        onClick={onToggleSidePanels}
+                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
+                        title="Show/Hide side panels"
+                    >{sidePanelsVisible ? 'Hide Side' : 'Show Side'}</button>
+                    <button
+                        type="button"
+                        onClick={onToggleTimeline}
+                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
+                        title="Show/Hide timeline panel"
+                    >{timelineVisible ? 'Hide Timeline' : 'Show Timeline'}</button>
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
+                        className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
+                        title="Render / Export Video"
+                    >Render</button>
+                </div>
+                <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
                     <img width="50" src={logo} style={{ cursor: 'pointer' }} />
                 </Link>
             </div>

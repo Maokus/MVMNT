@@ -12,7 +12,8 @@ export type MacroType =
     | 'file'
     | 'file-midi'
     | 'file-image'
-    | 'font'; // font macros store font selection strings e.g. "Family|Weight"
+    | 'font'
+    | 'midiTrackRef'; // font macros store font selection strings e.g. "Family|Weight"; midiTrackRef stores track id(s)
 
 interface MacroOptions {
     min?: number;
@@ -286,6 +287,13 @@ export class MacroManager {
                 // File validation - accept null/undefined (no file) or File objects
                 if (value === null || value === undefined) return true;
                 if (typeof value === 'object' && value instanceof File) return true;
+                return false;
+
+            case 'midiTrackRef':
+                // Accept null, string id, or array of string ids
+                if (value == null) return true;
+                if (typeof value === 'string') return true;
+                if (Array.isArray(value)) return value.every((v) => typeof v === 'string');
                 return false;
 
             default:

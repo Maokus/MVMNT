@@ -75,10 +75,8 @@ export class MovingNotesAnimationController {
 
         for (const block of noteBlocks) {
             const channel = (block.channel ?? 0) as number;
-            const start = (block.startTime ??
-                this.owner.midiManager.timingManager.beatsToSeconds(block.startBeat!)) as number;
-            const end = (block.endTime ??
-                this.owner.midiManager.timingManager.beatsToSeconds(block.endBeat!)) as number;
+            const start = (block.startTime ?? 0) as number;
+            const end = (block.endTime ?? start) as number;
             const noteIndex = block.note - minNote;
             if (noteIndex < 0 || noteIndex >= totalNotes) continue;
 

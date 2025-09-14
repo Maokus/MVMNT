@@ -5,7 +5,7 @@ import { createAnimationInstance, getAnimationSelectOptions } from '@animation/n
 import type { AnimationPhase } from '@animation/note-animations';
 import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
 import { RenderObject } from '@core/index';
-import './animationTest.css';
+// Using Tailwind component classes defined in tailwind.css
 
 interface PhaseConfig {
     name: string;
@@ -226,7 +226,13 @@ const AnimationTestPage: React.FC = () => {
                         <div key={i} className={"phase-card" + (i === currentPhaseIndex ? ' active' : '')}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                 <input className="text-input" style={{ flex: 1 }} value={p.name} onChange={e => updatePhase(i, { name: e.target.value })} />
-                                <button className="btn small" onClick={() => removePhase(i)} disabled={phases.length === 1}>x</button>
+                                <button
+                                    className="px-2 py-0.5 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center disabled:opacity-60"
+                                    onClick={() => removePhase(i)}
+                                    disabled={phases.length === 1}
+                                >
+                                    x
+                                </button>
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                                 <label className="field-label">Duration <input className="number-input" type="number" value={p.duration} onChange={e => updatePhase(i, { duration: Math.max(1, parseInt(e.target.value) || 0) })} style={{ width: 80 }} /></label>
@@ -252,10 +258,10 @@ const AnimationTestPage: React.FC = () => {
                 <div style={{ flex: 2 }}>
                     <h2>Timeline</h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button className="btn" onClick={() => { if (!playing) { setStartTime(performance.now() - effectiveTime); } setPlaying(p => !p); }}>{playing ? 'Pause' : 'Play'}</button>
-                        <button className="btn" onClick={() => { setStartTime(performance.now()); setLocalNow(0); setPlaying(true); }}>Restart</button>
-                        <button className="btn" onClick={() => stepPhase(-1)} title="Previous phase">◀︎ Phase</button>
-                        <button className="btn" onClick={() => stepPhase(1)} title="Next phase">Phase ▶︎</button>
+                        <button className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center" onClick={() => { if (!playing) { setStartTime(performance.now() - effectiveTime); } setPlaying(p => !p); }}>{playing ? 'Pause' : 'Play'}</button>
+                        <button className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center" onClick={() => { setStartTime(performance.now()); setLocalNow(0); setPlaying(true); }}>Restart</button>
+                        <button className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center" onClick={() => stepPhase(-1)} title="Previous phase">◀︎ Phase</button>
+                        <button className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center" onClick={() => stepPhase(1)} title="Next phase">Phase ▶︎</button>
                         <label style={{ fontSize: 12 }}><input type="checkbox" checked={loop} onChange={e => setLoop(e.target.checked)} /> Loop</label>
                         <div style={{ fontSize: 12 }}>t = {Math.round(effectiveTime)} ms / {total} ms</div>
                         <div style={{ fontSize: 12 }}>Phase: {phase.name} ({currentPhaseIndex + 1}/{phases.length})</div>
