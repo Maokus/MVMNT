@@ -56,9 +56,6 @@
       "@context/*": [
         "context/*"
       ],
-      "@hooks/*": [
-        "hooks/*"
-      ],
       "@fonts/*": [
         "fonts/*"
       ],

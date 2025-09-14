@@ -10,7 +10,6 @@ Logical domains are separated to keep concerns isolated:
 -   ui/: React component layer (panels, property editors, layout) consuming selectors + light view-model helpers.
 -   math/: Generic math, geometry, numeric helpers (no music / interaction logic remains after reorg).
 -   export/: User-facing export orchestration (video, image sequence) invoking core render functions.
--   hooks/: React hooks encapsulating reusable UI behavior.
 -   utils/: Small generic utilities (logging, throttling, etc.).
 
 (After reorganization) music theory helpers and MIDI parsing will live under `core/midi/music-theory/` to reflect their coupling with core timeline + rendering.
