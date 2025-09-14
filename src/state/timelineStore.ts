@@ -152,44 +152,36 @@ function makeId(prefix: string = 'trk'): string {
     return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Compute the total content end time (in seconds) across all enabled tracks using cached MIDI data
-// This mirrors the logic in scene-builder.getMaxDuration but stays store-local to avoid circular deps.
-// TODO Phase 5: convert note iteration to ticks (currently notes still store seconds)
+// Compute content bounds purely in tick domain (Phase 6+). Offsets are incorporated by adding track.offsetTicks.
 function computeContentEndTick(state: TimelineState): number {
     let max = 0;
-    try {
-        for (const id of state.tracksOrder) {
-            const t = state.tracks[id];
-            if (!t || t.type !== 'midi' || !t.enabled) continue;
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            // Fallback: derive tick via existing seconds->beats path until notes migrated
-            const localEndSec = cache.notesRaw.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0);
-            const beats = _secondsToBeatsLocal(state, localEndSec);
-            const ticks = _beatsToTicks(beats) + t.offsetTicks;
-            if (ticks > max) max = ticks;
+    for (const id of state.tracksOrder) {
+        const t = state.tracks[id];
+        if (!t || t.type !== 'midi' || !t.enabled) continue;
+        const cacheKey = t.midiSourceId ?? id;
+        const cache = state.midiCache[cacheKey];
+        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+        for (const n of cache.notesRaw) {
+            const endTick = n.endTick + t.offsetTicks;
+            if (endTick > max) max = endTick;
         }
-    } catch {}
+    }
     return max;
 }
 
-// Compute earliest content start across enabled tracks
 function computeContentStartTick(state: TimelineState): number {
     let min = Infinity;
-    try {
-        for (const id of state.tracksOrder) {
-            const t = state.tracks[id];
-            if (!t || t.type !== 'midi' || !t.enabled) continue;
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = state.midiCache[cacheKey];
-            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-            const localStartSec = cache.notesRaw.reduce((m: number, n: any) => Math.min(m, n.startTime || 0), Infinity);
-            const beats = _secondsToBeatsLocal(state, localStartSec);
-            const ticks = _beatsToTicks(beats) + t.offsetTicks;
-            if (ticks < min) min = ticks;
+    for (const id of state.tracksOrder) {
+        const t = state.tracks[id];
+        if (!t || t.type !== 'midi' || !t.enabled) continue;
+        const cacheKey = t.midiSourceId ?? id;
+        const cache = state.midiCache[cacheKey];
+        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+        for (const n of cache.notesRaw) {
+            const startTick = n.startTick + t.offsetTicks;
+            if (startTick < min) min = startTick;
         }
-    } catch {}
+    }
     if (!isFinite(min)) return 0;
     return Math.max(0, min);
 }
@@ -429,19 +421,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             } catch {
                 /* noop */
             }
-            const spbFallback = 60 / (next.timeline.globalBpm || 120);
-            for (const key of Object.keys(next.midiCache)) {
-                const cache = next.midiCache[key];
-                if (!cache || !cache.notesRaw) continue;
-                const notes = cache.notesRaw;
-                for (const n of notes) {
-                    if (n.startBeat !== undefined && n.endBeat !== undefined) {
-                        n.startTime = beatsToSeconds(map, n.startBeat, spbFallback);
-                        n.endTime = beatsToSeconds(map, n.endBeat, spbFallback);
-                        n.duration = Math.max(0, n.endTime - n.startTime);
-                    }
-                }
-            }
+            // Phase 6: notes no longer store seconds; conversions happen in selectors.
             return next;
         });
     },
@@ -460,20 +440,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 /* ignore */
             }
             // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
-            if (!hadMap) {
-                const spbFallback = 60 / v;
-                for (const key of Object.keys(next.midiCache)) {
-                    const cache = next.midiCache[key];
-                    if (!cache || !cache.notesRaw) continue;
-                    for (const n of cache.notesRaw) {
-                        if (n.startBeat !== undefined && n.endBeat !== undefined) {
-                            n.startTime = n.startBeat * spbFallback;
-                            n.endTime = n.endBeat * spbFallback;
-                            n.duration = Math.max(0, n.endTime - n.startTime);
-                        }
-                    }
-                }
-            }
+            // Phase 6: seconds no longer stored on notes; real-time updates occur via selectors.
             return next;
         });
     },

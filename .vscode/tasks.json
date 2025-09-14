@@ -20,7 +20,7 @@
 		{
 			"label": "Run NPM Test",
 			"type": "shell",
-			"command": "npm run test",
+			"command": "npx vitest --watch false",
 			"group": "build",
 			"isBackground": false,
 			"problemMatcher": []
