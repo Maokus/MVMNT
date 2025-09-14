@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { barsToSeconds, secondsToBars } from '@state/selectors/timing';
+import { usePlaybackRangeSeconds } from '@state/selectors/timeDerived';
 import { RULER_HEIGHT } from './constants';
 import { useTimeScale } from './useTimeScale';
 
@@ -39,9 +40,11 @@ const TimelineRuler: React.FC = () => {
     const setCurrentTimeSec = useTimelineStore((s) => (s as any).setCurrentTimeSec || (() => { }));
     // Loop UI disabled: keep state wired for compatibility, but do not render or edit loop braces
     const { loopEnabled, loopStartSec, loopEndSec } = useTimelineStore((s) => (s as any).transport);
-    const playbackRange = useTimelineStore((s) => (s as any).playbackRange);
+    const playbackRangeTicks = useTimelineStore((s) => s.playbackRange as any);
     const setPlaybackRange = useTimelineStore((s) => (s as any).setPlaybackRange || (() => { }));
     const setPlaybackRangeExplicit = useTimelineStore((s) => (s as any).setPlaybackRangeExplicit || (() => { }));
+    // Derived seconds form of playback range (compat layer during ticks migration)
+    const playbackRangeSeconds = usePlaybackRangeSeconds() as { start?: number; end?: number };
     const snapSeconds = useSnapSeconds();
 
     // Resize handling
@@ -115,10 +118,8 @@ const TimelineRuler: React.FC = () => {
         const tSec = toSeconds(x, width);
         const loopStartX = typeof loopStartSec === 'number' ? toX(loopStartSec, width) : null;
         const loopEndX = typeof loopEndSec === 'number' ? toX(loopEndSec, width) : null;
-        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
-        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
-        const playStartX = toX(playStart, width);
-        const playEndX = toX(playEnd, width);
+        const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
+        const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
 
@@ -131,8 +132,8 @@ const TimelineRuler: React.FC = () => {
             type,
             originX: x,
             originSec: tSec,
-            startSec: playStartSec,
-            endSec: playEndSec,
+            startSec: playStart,
+            endSec: playEnd,
             alt: !!e.altKey,
         };
 
@@ -151,8 +152,8 @@ const TimelineRuler: React.FC = () => {
         if (dragState.current && dragState.current.type !== 'seek') return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
-        const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+        const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
+        const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
         const playStartX = toX(playStart, width);
         const playEndX = toX(playEnd, width);
         const nearStart = Math.abs(x - playStartX) <= BRACE_HIT_W;
@@ -210,8 +211,8 @@ const TimelineRuler: React.FC = () => {
     const playheadX = toX(currentTimeSec, width);
     const loopStartX = null;
     const loopEndX = null;
-    const playStart = typeof playbackRange?.startSec === 'number' ? (playbackRange!.startSec as number) : view.startSec;
-    const playEnd = typeof playbackRange?.endSec === 'number' ? (playbackRange!.endSec as number) : view.endSec;
+    const playStart = typeof playbackRangeSeconds.start === 'number' ? playbackRangeSeconds.start! : view.startSec;
+    const playEnd = typeof playbackRangeSeconds.end === 'number' ? playbackRangeSeconds.end! : view.endSec;
     const playStartX = toX(playStart, width);
     const playEndX = toX(playEnd, width);
 
