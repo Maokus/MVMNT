@@ -4,13 +4,13 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
-import { secondsToBeats, TimelineService, TimingManager } from '@core/timing';
+import { TimelineService, TimingManager } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import { PlaybackClock } from '@core/playback-clock';
-import * as tu from '@core/timing/tempo-utils';
+// Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
 
 export interface ExportSettings {
     fps: number;
@@ -57,7 +57,7 @@ interface VisualizerContextValue {
     timelineService: TimelineService;
     // Phase 2: expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
-    useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrub: (to: number) => void; setCurrentTimeSec: (t: number) => void } };
+    useTransport: () => { transport: TimelineState['transport']; actions: { play: () => void; pause: () => void; togglePlay: () => void; scrubTick: (to: number) => void; setCurrentTick: (t: number) => void } };
 }
 
 const VisualizerContext = createContext<VisualizerContextValue | undefined>(undefined);
@@ -189,20 +189,27 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     }
                 }
             } catch { }
-            // Loop handling: if store loop active, wrap visualizer time
-            const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
-            if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
-                if (vNow >= loopEndSec - 1e-6) {
-                    // Seek exactly to loop start; then mirror immediately so UI doesn't show post-start drift
-                    visualizer.seek?.(loopStartSec);
-                    // Wrap both seconds (for visualizer) and authoritative ticks
-                    const spb = 60 / (state.timeline.globalBpm || 120);
-
-                    const beats = tu.secondsToBeats(state.timeline.masterTempoMap, loopStartSec, spb);
-                    const tmLocal = getSharedTimingManager();
-                    const tickVal = Math.round(beats * tmLocal.ticksPerQuarter);
-                    clock.setTick(tickVal);
-                    state.setCurrentTick(tickVal, 'clock'); // dual-write updates seconds
+            // Loop handling (tick domain): if loop active and visualizer time passes loop end, wrap to loop start.
+            const { loopEnabled, loopStartTick, loopEndTick } = state.transport;
+            if (
+                loopEnabled &&
+                typeof loopStartTick === 'number' &&
+                typeof loopEndTick === 'number' &&
+                loopEndTick > loopStartTick
+            ) {
+                try {
+                    const tmLoop = getSharedTimingManager();
+                    tmLoop.setBPM(state.timeline.globalBpm || 120);
+                    if (state.timeline.masterTempoMap) tmLoop.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+                    const loopStartSec = tmLoop.beatsToSeconds(loopStartTick / tmLoop.ticksPerQuarter);
+                    const loopEndSec = tmLoop.beatsToSeconds(loopEndTick / tmLoop.ticksPerQuarter);
+                    if (vNow >= loopEndSec - 1e-6) {
+                        visualizer.seek?.(loopStartSec);
+                        clock.setTick(loopStartTick);
+                        state.setCurrentTick(loopStartTick, 'clock');
+                    }
+                } catch {
+                    /* ignore loop wrap errors */
                 }
             }
             // Manage pause/resume of playback clock.
@@ -357,7 +364,12 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     // Sync visualizer playback with global timeline store transport
     const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
-    const tCurrent = useTimelineStore((s) => s.timeline.currentTimeSec);
+    // Use derived seconds selector instead of legacy currentTimeSec
+    const tCurrent = useTimelineStore((s) => {
+        const spb = 60 / (s.timeline.globalBpm || 120);
+        const beats = s.timeline.currentTick / getSharedTimingManager().ticksPerQuarter;
+        return getSharedTimingManager().beatsToSeconds(beats); // TimingManager already accounts for tempo map
+    });
     useEffect(() => {
         if (!visualizer) return;
         // Toggle visualizer play/pause to match store
@@ -383,27 +395,28 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
-    // Loop UI disabled: ignore loop braces and use playbackRange/view only
-    const setTimelineView = useTimelineStore((s) => s.setTimelineView);
-    const setPlaybackRange = useTimelineStore((s) => s.setPlaybackRange);
+    // Tick-based setters
+    const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
+    const setPlaybackRangeTicks = useTimelineStore((s) => s.setPlaybackRangeTicks);
     // Updated: Only apply an explicit play range if user defined playbackRange braces. The timeline view no longer
     // constrains or clamps playback; view panning/zooming is purely visual and must not modify playhead.
     useEffect(() => {
         if (!visualizer) return;
         const hasUserRange = typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number';
-        if (hasUserRange) {
-            const st = useTimelineStore.getState();
-            const tm = getSharedTimingManager();
-            tm.setBPM(st.timeline.globalBpm || 120);
-            const startSec = tm.beatsToSeconds((playbackRange!.startTick as number) / tm.ticksPerQuarter);
-            const endSec = tm.beatsToSeconds((playbackRange!.endTick as number) / tm.ticksPerQuarter);
-            visualizer.setPlayRange?.(startSec, endSec);
-            if (visualizer.currentTime < startSec || visualizer.currentTime > endSec) {
-                const clamped = Math.min(Math.max(visualizer.currentTime, startSec), endSec);
-                visualizer.seek?.(clamped);
-            }
-        } else {
-            try { if (visualizer.clearPlayRange) visualizer.clearPlayRange(); } catch { }
+        if (!hasUserRange) {
+            try { visualizer.clearPlayRange?.(); } catch { }
+            return;
+        }
+        const st = useTimelineStore.getState();
+        const tm = getSharedTimingManager();
+        tm.setBPM(st.timeline.globalBpm || 120);
+        if (st.timeline.masterTempoMap) tm.setTempoMap(st.timeline.masterTempoMap, 'seconds');
+        const startSec = tm.beatsToSeconds((playbackRange!.startTick as number) / tm.ticksPerQuarter);
+        const endSec = tm.beatsToSeconds((playbackRange!.endTick as number) / tm.ticksPerQuarter);
+        visualizer.setPlayRange?.(startSec, endSec);
+        if (visualizer.currentTime < startSec || visualizer.currentTime > endSec) {
+            const clamped = Math.min(Math.max(visualizer.currentTime, startSec), endSec);
+            visualizer.seek?.(clamped);
         }
     }, [visualizer, playbackRange?.startTick, playbackRange?.endTick]);
 
@@ -411,11 +424,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         if (typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number') return;
         const st = useTimelineStore.getState();
-        const tm = getSharedTimingManager();
-        tm.setBPM(st.timeline.globalBpm || 120);
-        const startSec = tm.beatsToSeconds(tView.startTick / tm.ticksPerQuarter);
-        const endSec = tm.beatsToSeconds(tView.endTick / tm.ticksPerQuarter);
-        setPlaybackRange(startSec, endSec);
+        setPlaybackRangeTicks(tView.startTick, tView.endTick);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -428,15 +437,19 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const st2 = useTimelineStore.getState();
         const tm2 = getSharedTimingManager();
         tm2.setBPM(st2.timeline.globalBpm || 120);
-        const widthSec = tm2.beatsToSeconds(tView.endTick / tm2.ticksPerQuarter) - tm2.beatsToSeconds(tView.startTick / tm2.ticksPerQuarter);
+        const secStart = tm2.beatsToSeconds(tView.startTick / tm2.ticksPerQuarter);
+        const secEnd = tm2.beatsToSeconds(tView.endTick / tm2.ticksPerQuarter);
+        const widthSec = secEnd - secStart;
         const isExactlyDefault = Math.abs(widthSec - 60) < 1e-6 || widthSec === 0;
         if (isExactlyDefault) {
-            const end = Math.max(1, duration);
-            setTimelineView(0, end);
-            if (!(typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number')) setPlaybackRange(0, end);
+            const endTick = Math.max(1, duration * tm2.ticksPerQuarter * (st2.timeline.globalBpm || 120) / 60); // approximate ticks for duration
+            setTimelineViewTicks(0, endTick);
+            if (!(typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number')) {
+                setPlaybackRangeTicks(0, endTick);
+            }
             didAutoFitRef.current = true;
         }
-    }, [totalDuration, tView.startTick, tView.endTick, setTimelineView, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRange]);
+    }, [totalDuration, tView.startTick, tView.endTick, setTimelineViewTicks, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRangeTicks]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
@@ -450,9 +463,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const seekPercent = useCallback((percent: number) => {
         if (!visualizer) return;
         const st = useTimelineStore.getState();
+        const { startTick, endTick } = st.timelineView;
         const tm = getSharedTimingManager();
         tm.setBPM(st.timeline.globalBpm || 120);
-        const { startTick, endTick } = st.timelineView;
         const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
         const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
         const range = Math.max(0.001, endSec - startSec);
@@ -567,9 +580,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const play = useTimelineStore((s) => s.play);
             const pause = useTimelineStore((s) => s.pause);
             const togglePlay = useTimelineStore((s) => s.togglePlay);
-            const scrub = useTimelineStore((s) => s.scrub);
-            const setCurrentTimeSec = useTimelineStore((s) => s.setCurrentTimeSec);
-            return { transport, actions: { play, pause, togglePlay, scrub, setCurrentTimeSec } };
+            const scrubTick = useTimelineStore((s) => s.scrubTick);
+            const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
+            return { transport, actions: { play, pause, togglePlay, scrubTick, setCurrentTick } };
         },
     };
 

@@ -39,8 +39,9 @@ export function barsToSeconds(state: TimelineState, bars: number): number {
 
 // Phase 1 helpers (but useful in Phase 0): derive current position in beats/bars
 export function positionBeats(state: TimelineState): number {
-    // deprecated
-    return secondsToBeatsSelector(state, state.timeline.currentTimeSec || 0);
+    // Updated: derive from canonical tick domain (previously relied on deprecated currentTimeSec)
+    const ppq = 480; // TODO: unify with CANONICAL_PPQ if exported here (kept local to avoid circular import)
+    return state.timeline.currentTick / ppq;
 }
 
 export function positionBars(state: TimelineState): number {

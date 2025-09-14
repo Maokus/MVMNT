@@ -10,7 +10,7 @@ export function getTimingState() {
     return {
         globalBpm: s.timeline.globalBpm,
         beatsPerBar: s.timeline.beatsPerBar,
-        currentTimeSec: s.timeline.currentTimeSec,
+        currentTick: s.timeline.currentTick,
         masterTempoMap: s.timeline.masterTempoMap,
         tracks: s.tracks,
         tracksOrder: s.tracksOrder,
@@ -29,8 +29,8 @@ export function setMasterTempoMap(map?: TempoMapEntry[]) {
     useTimelineStore.getState().setMasterTempoMap(map);
 }
 
-export function setCurrentTimeSec(t: number) {
-    useTimelineStore.getState().setCurrentTimeSec(t);
+export function setCurrentTick(tick: number) {
+    useTimelineStore.getState().setCurrentTick(tick, 'user');
 }
 
 export function s2b(seconds: number) {
@@ -76,7 +76,7 @@ if (typeof window !== 'undefined') {
         setGlobalBpm,
         setBeatsPerBar,
         setMasterTempoMap,
-        setCurrentTimeSec,
+        setCurrentTick,
         s2b,
         b2s,
         s2bars,
@@ -90,7 +90,7 @@ export default {
     setGlobalBpm,
     setBeatsPerBar,
     setMasterTempoMap,
-    setCurrentTimeSec,
+    setCurrentTick,
     s2b,
     b2s,
     s2bars,

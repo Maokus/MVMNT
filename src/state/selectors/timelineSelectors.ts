@@ -20,19 +20,15 @@ const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
 };
 
 const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
-    // All offsets are already canonical; just convert via canonical PPQ
-    const beats = offsetTicksToBeats(t.offsetTicks || 0); // (offsetTicks / CANONICAL_PPQ)
+    // Convert canonical tick offset to seconds (no legacy offsetSec/offsetBeats fields remain)
+    const beats = offsetTicksToBeats(t.offsetTicks || 0);
     return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
 };
 
 export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
-    if (typeof t.offsetBeats === 'number') return t.offsetBeats;
-    // derive from seconds
-    const spbFallback = 60 / (s.timeline.globalBpm || 120);
-    const sec = t.offsetSec || 0;
-    return sec / spbFallback; // approximate without tempo map to avoid cycle
+    return offsetTicksToBeats(t.offsetTicks || 0);
 };
 
 export const getTrackOffsetSeconds = (s: TimelineState, id: string): number => {

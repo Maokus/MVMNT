@@ -37,8 +37,8 @@ const ChangelogPage: React.FC = () => {
                         <ul className='feature-list'>
                             <li>Overhauled timing and midi system (timeline panel, better arrangement)</li>
                             <li>Migrated to MediaBunny for encoding work (faster exports, more responsive UI)</li>
-                            <li>Migrated partially to zustand for some state management</li>
-                            <li>Migrated over to tailwindcss</li>
+                            <li>Migrated partially to zustand (More responsive, optimised UI)</li>
+                            <li>Migrated over to tailwindcss (More consistent styles, faster development speed)</li>
                         </ul>
                     </section>
 

@@ -76,7 +76,7 @@ This should add the animation such that it will be selectable from `/animation-t
 window.__mvmntDebug.getTimingState()
 window.__mvmntDebug.setGlobalBpm(140)
 window.__mvmntDebug.setBeatsPerBar(3)
-window.__mvmntDebug.setCurrentTimeSec(12.5)
+window.__mvmntDebug.setCurrentTick(960 * 4) // seek to bar 2 (PPQ 960 example)
 window.__mvmntDebug.s2b(10) -> beats
 window.__mvmntDebug.b2s(32) -> seconds
 window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
@@ -110,8 +110,7 @@ Key changes:
 -   `setGlobalBpm` and `setMasterTempoMap` directly update the shared timing manager.
 -   Quantized `play()` snapping emits a `timeline-play-snapped` event; the visualizer listens and aligns the `PlaybackClock` via `clock.setTick(snappedTick)` clearing fractional remainder (prevents post-start micro jumps).
 -   Legacy seconds-facing store APIs now log deprecation warnings in dev and internally convert to ticks:
-    -   `setCurrentTimeSec`, `seek`, `scrub`, `setLoopRange`, `setTimelineView`, `setPlaybackRange*`.
-        Prefer the tick-first equivalents: `setCurrentTick`, `seekTick`, `scrubTick`, `setLoopRangeTicks`, `setTimelineViewTicks`, `setPlaybackRangeTicks` / `setPlaybackRangeExplicitTicks`.
+    -   Legacy seconds-based APIs have been removed in Phase 8. Use tick-first equivalents: `setCurrentTick`, `seekTick`, `scrubTick`, `setLoopRangeTicks`, `setTimelineViewTicks`, `setPlaybackRangeTicks` / `setPlaybackRangeExplicitTicks`.
 
 New regression tests:
 
