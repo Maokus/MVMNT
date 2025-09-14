@@ -154,6 +154,25 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const loop = () => {
             const state = useTimelineStore.getState();
             const vNow = visualizer.currentTime || 0; // legacy seconds (visualizer still seconds-based internally)
+            // Determine playback end (stop automatically when playhead passes explicit playback range end)
+            try {
+                const st = useTimelineStore.getState();
+                const pr = st.playbackRange;
+                if (pr?.endTick != null) {
+                    // Convert authoritative tick to seconds for comparison (approx using TimingManager)
+                    const tmApprox = new TimingManager();
+                    tmApprox.setBPM(st.timeline.globalBpm || 120);
+                    const endBeats = pr.endTick / tmApprox.ticksPerQuarter;
+                    const endSec = tmApprox.beatsToSeconds(endBeats);
+                    if (vNow >= endSec) {
+                        visualizer.pause?.();
+                        const startTick = pr.startTick ?? 0;
+                        clock.setTick(startTick);
+                        st.setCurrentTick(startTick);
+                        return; // stop advancing this frame; next RAF will resume idle updates
+                    }
+                }
+            } catch { }
             // Loop handling: if store loop active, wrap visualizer time
             const { loopEnabled, loopStartSec, loopEndSec } = state.transport;
             if (loopEnabled && loopStartSec != null && loopEndSec != null && loopEndSec > loopStartSec) {
@@ -325,27 +344,32 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // constrains or clamps playback; view panning/zooming is purely visual and must not modify playhead.
     useEffect(() => {
         if (!visualizer) return;
-        const hasUserRange = typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number';
+        const hasUserRange = typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number';
         if (hasUserRange) {
-            const start = playbackRange!.startSec as number;
-            const end = playbackRange!.endSec as number;
-            visualizer.setPlayRange?.(start, end);
-            if (visualizer.currentTime < start || visualizer.currentTime > end) {
-                const clamped = Math.min(Math.max(visualizer.currentTime, start), end);
+            const st = useTimelineStore.getState();
+            const tm = new TimingManager();
+            tm.setBPM(st.timeline.globalBpm || 120);
+            const startSec = tm.beatsToSeconds((playbackRange!.startTick as number) / tm.ticksPerQuarter);
+            const endSec = tm.beatsToSeconds((playbackRange!.endTick as number) / tm.ticksPerQuarter);
+            visualizer.setPlayRange?.(startSec, endSec);
+            if (visualizer.currentTime < startSec || visualizer.currentTime > endSec) {
+                const clamped = Math.min(Math.max(visualizer.currentTime, startSec), endSec);
                 visualizer.seek?.(clamped);
             }
         } else {
-            // Clear or widen play range if API supports it; fall back to leaving prior range alone.
-            try {
-                if (visualizer.clearPlayRange) visualizer.clearPlayRange();
-            } catch { }
+            try { if (visualizer.clearPlayRange) visualizer.clearPlayRange(); } catch { }
         }
-    }, [visualizer, playbackRange?.startSec, playbackRange?.endSec]);
+    }, [visualizer, playbackRange?.startTick, playbackRange?.endTick]);
 
     // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
     useEffect(() => {
-        if (typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number') return;
-        setPlaybackRange(tView.startSec, tView.endSec);
+        if (typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number') return;
+        const st = useTimelineStore.getState();
+        const tm = new TimingManager();
+        tm.setBPM(st.timeline.globalBpm || 120);
+        const startSec = tm.beatsToSeconds(tView.startTick / tm.ticksPerQuarter);
+        const endSec = tm.beatsToSeconds(tView.endTick / tm.ticksPerQuarter);
+        setPlaybackRange(startSec, endSec);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -355,17 +379,18 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (didAutoFitRef.current) return;
         const duration = totalDuration;
         if (!isFinite(duration) || duration <= 0) return;
-        const width = Math.max(0, tView.endSec - tView.startSec);
-        const isExactlyDefault = Math.abs(width - 60) < 1e-6 || width === 0;
+        const st2 = useTimelineStore.getState();
+        const tm2 = new TimingManager();
+        tm2.setBPM(st2.timeline.globalBpm || 120);
+        const widthSec = tm2.beatsToSeconds(tView.endTick / tm2.ticksPerQuarter) - tm2.beatsToSeconds(tView.startTick / tm2.ticksPerQuarter);
+        const isExactlyDefault = Math.abs(widthSec - 60) < 1e-6 || widthSec === 0;
         if (isExactlyDefault) {
             const end = Math.max(1, duration);
             setTimelineView(0, end);
-            if (!(typeof playbackRange?.startSec === 'number' && typeof playbackRange?.endSec === 'number')) {
-                setPlaybackRange(0, end);
-            }
+            if (!(typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number')) setPlaybackRange(0, end);
             didAutoFitRef.current = true;
         }
-    }, [totalDuration, tView.startSec, tView.endSec, setTimelineView, playbackRange?.startSec, playbackRange?.endSec, setPlaybackRange]);
+    }, [totalDuration, tView.startTick, tView.endTick, setTimelineView, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRange]);
 
     const stop = useCallback(() => {
         if (!visualizer) return;
@@ -378,8 +403,12 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
         if (!visualizer) return;
-        // Prefer explicit view window if set; otherwise fallback to visualizer duration mapping
-        const { startSec, endSec } = useTimelineStore.getState().timelineView;
+        const st = useTimelineStore.getState();
+        const tm = new TimingManager();
+        tm.setBPM(st.timeline.globalBpm || 120);
+        const { startTick, endTick } = st.timelineView;
+        const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
+        const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
         const range = Math.max(0.001, endSec - startSec);
         const target = startSec + Math.max(0, Math.min(1, percent)) * range;
         visualizer.seek?.(target);
