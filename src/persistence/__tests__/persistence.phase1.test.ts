@@ -2,6 +2,7 @@ import { exportScene, importScene, createSnapshotUndoController, SERIALIZATION_V
 import { useTimelineStore } from '../../state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
+import { describe, expect, it, test } from 'vitest';
 
 // Ensure flag is considered enabled in test environment; if env not set, skip tests gracefully.
 const flagEnabled = typeof SERIALIZATION_V1_ENABLED === 'function' ? true : true; // Assume test env sets it or treat as true.

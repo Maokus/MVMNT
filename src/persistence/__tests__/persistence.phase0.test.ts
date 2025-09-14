@@ -22,7 +22,13 @@ describe('Persistence Phase 0 Skeleton', () => {
     });
 
     it('importScene safe disabled behavior', () => {
-        const json = '{"fake":true}';
+        // In Phase 1 implementation, when flag enabled validation is enforced. Use a real export envelope.
+        let json = '{"fake":true}';
+        if (SERIALIZATION_V1_ENABLED()) {
+            const exp = exportScene();
+            expect(exp.ok).toBe(true);
+            if (exp.ok) json = exp.json;
+        }
         const res = importScene(json);
         if (!SERIALIZATION_V1_ENABLED()) {
             expect(res.ok).toBe(false);
