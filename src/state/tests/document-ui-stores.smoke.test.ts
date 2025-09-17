@@ -5,17 +5,18 @@ import { useUIStore } from '../uiStore';
 describe('Phase 1 stores scaffolding', () => {
     it('document store initializes with timeline + scene shape', () => {
         const s = useDocumentStore.getState();
-        expect(s.doc).toBeTruthy();
-        expect(s.doc.timeline).toBeTruthy();
-        expect(s.doc.scene).toBeTruthy();
-        // Check a couple of fields mirror existing store
-        expect(typeof s.doc.timeline.timeline.id).toBe('string');
-        expect(typeof s.doc.timeline.timeline.currentTick).toBe('number');
-        expect(Array.isArray(s.doc.timeline.tracksOrder)).toBe(true);
-        expect(typeof s.getSnapshot).toBe('function');
         const snap = s.getSnapshot();
-        expect(snap).not.toBe(s.doc);
-        expect(snap.timeline.timeline.id).toBe(s.doc.timeline.timeline.id);
+        expect(snap).toBeTruthy();
+        expect(snap.timeline).toBeTruthy();
+        expect(snap.scene).toBeTruthy();
+        // Check a couple of fields mirror existing store
+        expect(typeof snap.timeline.timeline.id).toBe('string');
+        expect(typeof snap.timeline.timeline.currentTick).toBe('number');
+        expect(Array.isArray(snap.timeline.tracksOrder)).toBe(true);
+        expect(typeof s.getSnapshot).toBe('function');
+        const snap2 = s.getSnapshot();
+        expect(snap2).not.toBe(snap);
+        expect(snap2.timeline.timeline.id).toBe(snap.timeline.timeline.id);
     });
 
     it('ui store initializes with default values and updates', () => {

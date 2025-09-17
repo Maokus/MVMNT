@@ -1,4 +1,5 @@
-// Phase 1 — Shared types for the upcoming document store and gateway
+// Shared types for the document store and gateway
+import type { Patch } from 'immer';
 
 export type PatchMeta = {
     label?: string;
@@ -9,9 +10,9 @@ export type PatchMeta = {
 };
 
 export type HistoryEntry<D = unknown> = {
-    // Immer patches will be introduced in Phase 2; placeholders for now
-    patches?: any[];
-    inversePatches?: any[];
+    // Immer patches for forward and backward application
+    patches?: Patch[];
+    inversePatches?: Patch[];
     meta?: PatchMeta;
     timestamp: number;
 };
