@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import logo from '@assets/Logo_Transparent.png';
 
 /**
@@ -43,10 +43,11 @@ const HomePage: React.FC = () => {
                     <p className="mt-4 text-neutral-400 text-center text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
                     <div className="mt-6 flex flex-wrap gap-4">
                         <button onClick={handleLoadFile} className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition font-medium text-sm">Load Scene (.json)</button>
-                        <a href="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</a>
-                        <a href="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</a>
-                        <a href="https://maok.us/discord" target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded bg-[#5865F2] hover:brightness-110 text-sm font-medium">Discord</a>
-                        <a href="https://github.com/Maokus/mvmnt" target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">GitHub</a>
+
+                        <Link to="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</Link>
+                        <Link to="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</Link>
+                        <Link to="https://maok.us/discord" target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded bg-[#5865F2] hover:brightness-110 text-sm font-medium">Discord</Link>
+                        <Link to="https://github.com/Maokus/mvmnt" target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">GitHub</Link>
                     </div>
                 </div>
 
