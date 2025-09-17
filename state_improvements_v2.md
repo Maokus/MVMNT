@@ -64,28 +64,35 @@ Risks & Mitigations
 
 ## Phase 2 — Patch-Based Undo Engine (Document Only)
 
-Purpose: Implement patch-based history using Immer for the `documentStore`.
+Purpose: Implement patch-based history using Immer for the `documentStore`, and harden against mutation bypass (direct writes outside `commit`).
 
 Deliverables
 
 -   `commit`, `undo`, `redo`, and `replace` implemented using `produceWithPatches` and `applyPatches`.
 -   Optional history cap setting (e.g., 200 entries).
+-   Private document state held in a closure; no public `doc` field exposed on the store API. Provide read-only `getSnapshot()` and selectors only.
+-   Dev-only runtime guard: `getSnapshot()` returns a frozen object (or Proxy) that throws on mutation attempts outside `commit`.
+-   ESLint guardrails: `no-restricted-syntax` rules to forbid assignments to any `*.doc.*` path.
 
 Key Tasks
 
 -   Wire Immer with `enablePatches()` in `documentStore`.
 -   Implement history stacks and metadata handling.
--   Add unit tests covering: commit creates entries, undo/redo applies patches, redo cleared on new commit, history cap trimming.
+-   Encapsulate `doc` in the store closure; expose selectors and `getSnapshot()` only. In dev, wrap the snapshot with `Object.freeze` or a Proxy.
+-   Add ESLint configuration to block direct writes to `doc` properties (see Appendix: Enforcement Details).
+-   Add unit tests covering: commit creates entries, undo/redo applies patches, redo cleared on new commit, history cap trimming, and that direct mutation attempts throw in dev.
 
 Acceptance Criteria
 
 -   Tests verify that UI mutations (via `uiStore`) do not affect document history.
 -   Undo/redo revert document changes exactly (deep-equal pre-state after inverse patches).
 -   Loading via `replace` clears both past and future stacks.
+-   The public store type does not expose a mutable `doc`. Consumers can only read via selectors or `getSnapshot()`.
+-   Attempting to assign to any `doc` field triggers an ESLint error and throws at runtime in dev.
 
 Risks & Mitigations
 
--   Risk: Mutations bypass `commit`. Mitigation: Grep for direct `doc` writes; add eslint rule or wrapper utilities to funnel mutations.
+-   Risk: Mutations bypass `commit`. Mitigation: Enforce via private `doc` (closure), read-only snapshots with dev-time freeze/Proxy, and ESLint rules forbidding direct `doc` writes; tests verify guardrails.
 
 ---
 
@@ -151,19 +158,24 @@ Deliverables
 
 -   Updated components/hooks/actions to call the correct store APIs.
 -   Centralized helpers for common document operations (e.g., addScene, moveElement).
+-   Action-only API surface exported from a single module (e.g., `state/document/actions.ts`) that internally uses `commit`.
+-   ESLint rules in place and passing across the codebase to prevent direct mutations of document state.
 
 Key Tasks
 
 -   Systematically refactor mutation points identified in Phase 0.
 -   Provide thin action utilities that wrap `commit` with descriptive labels.
+-   Replace all direct state writes with calls to the action-only API; forbid imports of the raw store setter outside action modules.
 -   Update `UndoContext` (or equivalent) to source undo/redo state from `documentStore`.
 -   Write integration tests that simulate mixed UI/document interactions.
+-   Add a test that tries to directly mutate `doc` and asserts it fails lint in CI and throws in dev.
 
 Acceptance Criteria
 
 -   Moving playhead (UI) followed by changing a scene (doc) and pressing undo only reverts the scene change; playhead remains unchanged.
 -   Redo restores the scene change without altering UI.
--   All document mutations route through `commit` (enforced by review/tests).
+-   All document mutations route through `commit` (enforced by tests and lint rules). No file in `src/` contains an assignment to `*.doc.*`.
+-   The only exported mutation entry points are action functions; attempting to import the store setter outside actions triggers a lint error.
 
 Risks & Mitigations
 
@@ -247,3 +259,81 @@ Risks & Mitigations
 
 -   Each phase is mergeable independently. If a phase regresses, revert the phase’s commits and keep earlier phases intact.
 -   Persistence changes are backward compatible; serializer tolerates unknown fields.
+
+---
+
+## Appendix: Enforcement Details (Mutation Bypass Guards)
+
+Goal: Ensure all document mutations go through the `commit` API and action modules.
+
+Programmatic Patterns
+
+-   Private doc state: Keep `doc` in a closure within `documentStore.ts`. Expose selectors and `getSnapshot()` only; no public mutable `doc` field.
+-   Read-only snapshots: In dev, return `Object.freeze(structuredClone(doc))` or a Proxy that throws on `set`.
+-   Action-only API: Export mutations exclusively from `state/document/actions.ts`, which internally call `useDocumentStore.getState().commit(...)`.
+-   Ban raw setter imports: Do not export the store `set` function; if needed, wrap it inside the actions module only.
+
+ESLint Guards (example)
+Add to `.eslintrc.cjs` or `.eslintrc.json`:
+
+```js
+module.exports = {
+    rules: {
+        // Disallow direct writes to any `.doc.*` property
+        'no-restricted-syntax': [
+            'error',
+            {
+                selector: "AssignmentExpression[left.property.name='doc']",
+                message: 'Do not assign to doc; use commit via actions.',
+            },
+            {
+                selector: "AssignmentExpression[left.object.property.name='doc']",
+                message: 'Do not mutate doc.*; use commit via actions.',
+            },
+        ],
+        // Optionally forbid importing the store directly except from action modules
+        'no-restricted-imports': [
+            'error',
+            {
+                paths: [
+                    {
+                        name: 'src/state/documentStore',
+                        importNames: ['useDocumentStore'],
+                        message: 'Import document actions instead of the raw store in UI code.',
+                    },
+                ],
+                patterns: [
+                    {
+                        group: ['**/state/documentStore'],
+                        message: 'Import document actions instead of the raw store in UI code.',
+                    },
+                ],
+            },
+        ],
+    },
+};
+```
+
+Dev-time Proxy example (optional)
+
+```ts
+const createFrozenSnapshot = <T>(obj: T): T => {
+    if (import.meta.env?.DEV) {
+        return new Proxy(structuredClone(obj), {
+            set() {
+                throw new Error('Direct mutation of doc is not allowed; use commit via actions');
+            },
+            deleteProperty() {
+                throw new Error('Direct mutation of doc is not allowed; use commit via actions');
+            },
+        });
+    }
+    return structuredClone(obj);
+};
+```
+
+Tests
+
+-   Unit: Attempt to mutate the snapshot in dev and assert it throws.
+-   Lint: Include a fixture or sample that would violate the rule and assert it fails in CI.
+-   Integration: Ensure all document changes in the app flow route through action functions.
