@@ -1,203 +1,249 @@
-# State Improvements v2: Phased Implementation Plan (Undo/Persistence Abstraction + Store Segregation)
-
-    Roll out changes incrementally by phase; validate with tests and smoke checks.
+# State Improvements v2: Phased Implementation Plan
 
 Date: 2025-09-17
 
-This plan turns the v1 design into an actionable, phased rollout with concrete tasks, acceptance criteria, tests, and rollback considerations per phase.
-
-## Executive Summary
-
--   Introduce a unified Document State Gateway used by both undo/redo and import/export.
--   Replace snapshot-based undo with patch-based document-only history.
--   Roll out behind an optional feature flag for safe, incremental adoption.
-
-## Scope and Non-Goals
-
-## Architecture Delta (at a glance)
-
-    -   `src/state/document/gateway.ts`
-    -   `src/persistence/document-serializer.ts`
-    -   `src/state/documentStore.ts`
-
--   Updated:
-    -   `src/context/UndoContext.tsx` to call documentStore undo/redo
--   Removed (Phase 5+): legacy snapshot-based undo and coupled UI fields in persisted document shape.
-
-## Quality Gates (applies to every phase)
-
--   Build: `npm run build` succeeds.
--   Tests: `npx vitest --watch false` green; new tests added for the phase.
-
-## Phase 0 — Readiness & Feature Flag
-
--   Add env flag plumbing (opt-in): `VITE_DOC_STORE_V1` (bool).
--   Create type shells and interfaces (no wiring):
--   Write a stub `gateway` implementation that simply defers to current structures (no behavior change when flag is off).
--   Document flag usage in `README.md` or a short `docs/STATE_MIGRATION.md` section.
-
--   App runs with and without `VITE_DOC_STORE_V1` set; behavior unchanged when off.
--   CI green with no runtime regressions.
-
--   Build and test pass.
--   Quick smoke run with flag off and on; code paths gated and safe (on still uses legacy).
-
-Rollback
-
--   Remove/ignore the flag; no production behavior depends on it yet.
-
-Purpose: Add the two stores alongside current state. Do not cut over yet.
-
--   Implement `src/state/documentStore.ts` with structure only: `{ doc, history: { past: [], future: [] } }` and placeholder `commit/undo/redo/replace` that internally still rely on current doc state (no callers yet).
--   Add selectors and minimal utils for both stores.
--   Update a single non-critical UI component to read `playhead` from `uiStore` behind the flag, defaulting to legacy source when flag is off.
--   Both stores exist and export types.
--   When flag is on, one read-only consumer uses `uiStore` without changing user-visible behavior.
--   No undo/redo changes yet; still snapshot-based.
-    Tests
-
--   Unit: `uiStore` default values and simple setters.
-
--   Build/test pass; application behaves identically.
-
-Rollback
-
--   Disable flag to route the single consumer back to legacy state.
-
-## Phase 2 — Patch-Based Undo Engine in `documentStore`
-
-Tasks
-
--   Add optional history cap (e.g., 200) and `meta.label` support.
--   Ensure history clears on `replace`.
--   Add pure unit tests under `src/**/__tests__` to validate patch correctness and history behavior.
-
--   Unit tests prove that `commit` generates patches and `undo/redo` restore exact prior states.
--   History cap respected if configured.
-
--   Document-only undo/redo cycle with multiple commits.
--   Ensure redo stack clears after new commit.
-
-Validation
-
--   None required; code path is unreferenced by UI.
+This v2 plan operationalizes the v1 design into concrete phases with acceptance criteria, risks, and validation steps. The objective is to decouple UI and document state, implement a patch-based undo engine for document data, and unify persistence via a document gateway.
 
 ---
 
-## Phase 3 — Gateway + Serializer Wiring; Persistence Pipeline Update
+## Phase 0 — Preparation and Baseline
 
--   Implement `src/state/document/gateway.ts` exporting a concrete `gateway` that:
-    -   `get`, `replace`, `apply`, `snapshot` delegate to `documentStore` methods.
--   Implement `src/persistence/document-serializer.ts` for the current `DocumentState` shape:
-    -   `version = '1'` initially.
-    -   `toPersisted` removes any UI-like/unknown fields defensively.
+Purpose: Establish guardrails and gather baselines to avoid regressions during the refactor.
+
+Deliverables
+
+-   Baseline unit/integration tests for current flows (export/import, simple undo/redo, timeline interactions).
+-   Logged inventory of state fields that are UI-only vs document data.
+-   Decision notes on initial assumptions (IDs, time units, default UI values).
+
+Key Tasks
+
+-   Identify all mutation points that currently touch the global store and classify them as UI or document mutations.
+-   Snapshot existing persistence format examples (create 2–3 fixtures).
+-   Ensure Vitest runs in CI/local and establish test watch.
 
 Acceptance Criteria
 
--   Old files (fixtures) with UI fields load and ignore those fields.
+-   You can run `Run NPM Test` and see all existing tests green.
+-   A document listing mutation points and their classification exists in `docs/` or `state/` notes.
+-   At least two persisted sample files are checked into `src/persistence/__tests__/__fixtures__/` (or equivalent) and used by tests.
 
-Tests
+Risks & Mitigations
 
--   Unit: serialize/deserialize round-trip deep-equal.
--   Unit: `replace` after load clears history.
-
-Validation
-
--   Build/test pass. Manual smoke: export then import produces identical visuals.
-
-Rollback
-
-## Phase 4 — Cut Over Undo/Redo UI to `documentStore`; Start Moving Callers
-
-Purpose: Make the app use the new document-only undo/redo; begin migrating mutations to `commit` and UI reads to `uiStore`.
-
--   Identify a minimal but representative set of document mutations (e.g., scene rename, element transform) and refactor them to use `useDocumentStore.getState().commit(draft => { ... }, { label })` behind the flag.
--   Move additional UI readers: timeline playhead, zoom, selection to `uiStore` (reads only initially), guarded by the flag.
--   Add action labels in commit calls for better history readability.
--   With flag on: undo/redo only affects document changes; UI state (playhead/zoom/selection) does not undo.
--   With flag off: unchanged behavior (snapshot-based undo remains).
--   No missing updates in UI after migrated commits.
-
--   Unit/Integration: Perform a document change, then change UI state, then undo -> document reverts, UI unchanged.
--   Unit: redo restores document change, UI still unchanged.
-    Validation
--   Manual: drag/move element then move playhead; undo should revert element only.
--   Build/test pass.
-
-Rollback
-
--   Turn flag off to return to legacy undo and legacy mutations.
-
-Purpose: Complete migration of all document mutations to `commit` and UI reads/writes to `uiStore`. Remove legacy snapshot-based undo and any UI fields from document shape.
-
-Tasks
-
--   Remove legacy snapshot-based undo logic and old combined store couplings.
--   In serializer, remove any temporary compatibility branches not needed for current version; keep legacy import upgrade paths.
--   Add history cap configuration and ensure it’s applied globally.
-
--   All document writes go through `commit`; no direct mutation bypasses.
--   All UI state lives in `uiStore` and is never serialized.
--   Persistence contains document data only; imports ignore legacy UI fields.
-
-Tests
-
--   Repo-wide search proves no remaining calls to legacy undo or direct document mutations.
--   Performance: no noticeable regression during heavy edits with history cap enabled.
-
-Validation
+-   Risk: Missing a mutation point. Mitigation: Grep for `set(`, `useStore.getState()`, and known action creators; add a test that asserts all writes go through typed APIs.
 
 ---
 
-Tasks
+## Phase 1 — Store Segregation Scaffolding
 
--   Add optional action grouping utilities: `beginGroup/endGroup` or a coalescing helper for drag operations.
--   Consider minimal UI preferences persistence via `localStorage` for `uiStore` (optional).
+Purpose: Introduce `documentStore` and `uiStore` without changing behavior.
+
+Deliverables
+
+-   `src/state/documentStore.ts`: skeleton with `doc`, `history` structure, and no-op methods wired to current state shape.
+-   `src/state/uiStore.ts`: minimal UI state (playhead, timelineZoom, selection) with defaults.
+-   Types for the gateway and history entries (`src/state/document/types.ts`).
+
+Key Tasks
+
+-   Create the two Zustand stores and export their hooks.
+-   Define shared types: `DocumentState`, `HistoryEntry`, `PatchMeta`, `DocumentStateGateway`.
+-   Add smoke tests to ensure stores initialize correctly and selectors work.
 
 Acceptance Criteria
 
--   Unit: grouped commits appear as single history entry (if grouping implemented).
--   Smoke: history size capped and reported; no memory blowups during extended sessions.
+-   Importing and instantiating both stores doesn’t break the app (build succeeds).
+-   Unit tests confirm default UI values and that `documentStore.doc` resembles the current document shape.
+-   No components are migrated yet; feature behavior remains unchanged.
 
-Validation
+Risks & Mitigations
 
--   Build/test pass; developer experience feedback addressed.
-
-Rollback
-
--   Disable grouping/telemetry via flags if they cause issues.
+-   Risk: Type mismatches. Mitigation: Introduce minimal `DocumentState` type that mirrors current persisted shape; adjust incrementally later.
 
 ---
 
-## Test Matrix Summary (What must be green by Phase)
+## Phase 2 — Patch-Based Undo Engine (Document Only)
 
--   P0: Build and baseline tests; flag toggling safe.
--   P1: Store init and UI read-only consumer.
--   P2: Patch history semantics (unit tests only).
--   P3: Serialize/deserialize round-trip; legacy file import with UI fields ignored; replace clears history.
--   P4: Document-only undo/redo from UI; UI state unaffected by document history.
--   P5: All callers migrated; no legacy undo calls; integration flows.
--   P6: Grouping/telemetry (optional) and docs.
+Purpose: Implement patch-based history using Immer for the `documentStore`.
 
-## Risks and Mitigations
+Deliverables
 
--   Hidden direct mutations bypassing `commit`: mitigate via code search, typed APIs, and tests that assert history changes on operations.
--   Shape drift between serializer and in-memory doc: mitigate with round-trip tests and fixtures for legacy imports.
--   Performance overhead from patches: cap history; group actions; measure during drags.
--   Large refactor surface: phased rollout with feature flag and partial cutovers.
+-   `commit`, `undo`, `redo`, and `replace` implemented using `produceWithPatches` and `applyPatches`.
+-   Optional history cap setting (e.g., 200 entries).
 
-## Rollout Strategy
+Key Tasks
 
--   Keep `VITE_DOC_STORE_V1` off by default until the end of Phase 4.
--   Enable in staging/beta environments; gather feedback.
--   After Phase 5 stability, flip the default on and plan one minor release focused on stabilization (Phase 6).
+-   Wire Immer with `enablePatches()` in `documentStore`.
+-   Implement history stacks and metadata handling.
+-   Add unit tests covering: commit creates entries, undo/redo applies patches, redo cleared on new commit, history cap trimming.
 
-## Acceptance Checklist (End-to-End)
+Acceptance Criteria
 
--   [ ] UI and document stores exist and are used by respective features.
--   [ ] Undo/redo stack is patch-based and affects document only.
--   [ ] Save/load uses the gateway and contains document data only.
--   [ ] Old files load correctly; UI fields ignored.
--   [ ] All callers migrated; no legacy undo remains.
--   [ ] Tests (unit + integration) green and stable.
--   [ ] Developer docs updated; history cap and optional grouping in place.
+-   Tests verify that UI mutations (via `uiStore`) do not affect document history.
+-   Undo/redo revert document changes exactly (deep-equal pre-state after inverse patches).
+-   Loading via `replace` clears both past and future stacks.
+
+Risks & Mitigations
+
+-   Risk: Mutations bypass `commit`. Mitigation: Grep for direct `doc` writes; add eslint rule or wrapper utilities to funnel mutations.
+
+---
+
+## Phase 3 — Unified Document State Gateway
+
+Purpose: Provide a single API for reading, replacing, applying patches, and (de)serializing document state.
+
+Deliverables
+
+-   `src/state/document/gateway.ts` implementing `DocumentStateGateway<D>`.
+-   `src/persistence/document-serializer.ts` handling versioning and tolerant parsing.
+
+Key Tasks
+
+-   Implement `get`, `replace`, `apply`, `snapshot`, `serialize`, `deserialize`.
+-   Create `DocumentSerializer` with current version (`"1"` or as defined) and mapping logic.
+-   Add unit tests for snapshot and serialize/deserialize round-trip.
+
+Acceptance Criteria
+
+-   `export` and `import` can be implemented purely via the gateway API in tests.
+-   Unknown/UI fields in input are ignored during `deserialize` (defensive parse).
+-   `snapshot()` returns a deep clone not affected by subsequent mutations.
+
+Risks & Mitigations
+
+-   Risk: Version drift. Mitigation: Centralize version in one place and export the constant for use across modules.
+
+---
+
+## Phase 4 — Persistence Pipeline Switch-over
+
+Purpose: Route save/load through the gateway and document serializer.
+
+Deliverables
+
+-   Updated `src/persistence/export.ts` and `src/persistence/import.ts` to use the gateway.
+-   Stable stringification maintained.
+
+Key Tasks
+
+-   Refactor export to `gateway.serialize(doc)`; stringify via existing `stable-stringify`.
+-   Refactor import to parse JSON, `gateway.deserialize`, and `useDocumentStore.getState().replace(doc)`.
+-   Add tests: round-trip, legacy UI fields ignored, history cleared on load.
+
+Acceptance Criteria
+
+-   Old files load successfully; UI fields are ignored and not stored in the document.
+-   After `importProject`, `undo` is a no-op and `redo` is empty.
+-   Exported JSON contains only document data and a version field.
+
+Risks & Mitigations
+
+-   Risk: Hidden UI leakage into doc. Mitigation: Serializer strips such fields; tests cover representative legacy examples.
+
+---
+
+## Phase 5 — Migrate Callers to New Stores
+
+Purpose: Move all mutations of persisted data to `documentStore.commit` and all UI to `uiStore`.
+
+Deliverables
+
+-   Updated components/hooks/actions to call the correct store APIs.
+-   Centralized helpers for common document operations (e.g., addScene, moveElement).
+
+Key Tasks
+
+-   Systematically refactor mutation points identified in Phase 0.
+-   Provide thin action utilities that wrap `commit` with descriptive labels.
+-   Update `UndoContext` (or equivalent) to source undo/redo state from `documentStore`.
+-   Write integration tests that simulate mixed UI/document interactions.
+
+Acceptance Criteria
+
+-   Moving playhead (UI) followed by changing a scene (doc) and pressing undo only reverts the scene change; playhead remains unchanged.
+-   Redo restores the scene change without altering UI.
+-   All document mutations route through `commit` (enforced by review/tests).
+
+Risks & Mitigations
+
+-   Risk: Regression in complex flows. Mitigation: Introduce action-level tests and a short-lived feature branch for staged rollout.
+
+---
+
+## Phase 6 — Remove Legacy Snapshot-Based Undo
+
+Purpose: Eliminate old global undo/redo pipelines and dead code.
+
+Deliverables
+
+-   Removal of legacy snapshot-based history and any global store coupling UI/doc state.
+-   Cleaned contexts and providers.
+
+Key Tasks
+
+-   Identify and delete legacy undo logic; update providers to only expose document/UI stores.
+-   Ensure keyboard shortcuts map to document undo/redo.
+-   Finalize types and remove deprecated exports.
+
+Acceptance Criteria
+
+-   Build succeeds with no references to legacy undo.
+-   Keyboard shortcuts perform document-only undo/redo in app.
+-   Codebase search shows no references to old snapshot undo APIs.
+
+Risks & Mitigations
+
+-   Risk: Orphaned references. Mitigation: CI step greps for removed symbols; add a compilation error guard while removing.
+
+---
+
+## Phase 7 — Stabilization and Polish
+
+Purpose: Improve UX and dev ergonomics; ensure performance bounds.
+
+Deliverables
+
+-   History size cap, optional action grouping, and simple developer logging hooks.
+-   Optional: localStorage-backed UI preferences (separate from document persistence).
+
+Key Tasks
+
+-   Add `beginGroup`/`endGroup` or a debounced grouping mechanism for drags.
+-   Implement a configurable history cap (default 200) with tests.
+-   Lightweight logging: track action labels and history length in dev mode.
+-   If desired, add opt-in UI preference persistence in `uiStore` only.
+
+Acceptance Criteria
+
+-   Grouped actions produce a single history entry during sustained drags.
+-   When the cap is exceeded, oldest entries are dropped and tests confirm correctness.
+-   No UI preferences leak into document exports.
+
+Risks & Mitigations
+
+-   Risk: Over-grouping hides meaningful steps. Mitigation: Keep grouping opt-in and scoped to specific interactions.
+
+---
+
+## Cross-Phase Quality Gates
+
+-   Build: `Run NPM Build` passes at the end of each phase.
+-   Lint/Typecheck: No new type errors introduced by a phase.
+-   Tests: `Run NPM Test` green, with new tests added per phase.
+-   Smoke: Manual check of core flows (open project, move playhead, edit scene, undo/redo, save/load).
+
+---
+
+## Tracking & Documentation
+
+-   Update `docs/ARCHITECTURE.md` with the new stores and persistence gateway once Phase 3 is complete.
+-   Maintain a migration note outlining removed APIs and new entry points.
+-   Keep `Acceptance Checklist` from v1 and mark items done as phases land.
+
+---
+
+## Rollback Strategy
+
+-   Each phase is mergeable independently. If a phase regresses, revert the phase’s commits and keep earlier phases intact.
+-   Persistence changes are backward compatible; serializer tolerates unknown fields.
