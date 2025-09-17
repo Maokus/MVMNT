@@ -1,0 +1,44 @@
+{
+    "schemaVersion": 1,
+    "format": "mvmnt.scene",
+    "metadata": {
+        "id": "scene_fixture_one",
+        "name": "One Track + Element",
+        "createdAt": "2025-01-01T00:00:00.000Z",
+        "modifiedAt": "2025-01-01T00:00:00.000Z",
+        "format": "scene"
+    },
+    "scene": {
+        "elements": [{ "id": "el_1", "type": "TimeDisplay", "z": 0, "props": { "color": "#fff" } }],
+        "sceneSettings": { "fps": 60, "width": 1280, "height": 720 },
+        "macros": { "m1": { "name": "m1", "value": 10 } }
+    },
+    "timeline": {
+        "timeline": {
+            "id": "tl_fixture",
+            "name": "Fixture Timeline",
+            "currentTick": 0,
+            "globalBpm": 120,
+            "beatsPerBar": 4,
+            "playheadAuthority": "tick"
+        },
+        "tracks": {
+            "t1": {
+                "id": "t1",
+                "name": "Piano",
+                "type": "midi",
+                "enabled": true,
+                "mute": false,
+                "solo": false,
+                "offsetTicks": 0
+            }
+        },
+        "tracksOrder": ["t1"],
+        "transport": { "isPlaying": false, "loopEnabled": false, "rate": 1, "quantize": "bar" },
+        "selection": { "selectedTrackIds": [] },
+        "timelineView": { "startTick": 0, "endTick": 4800 },
+        "rowHeight": 30,
+        "midiCache": {}
+    },
+    "compatibility": { "warnings": [] }
+}

@@ -1,0 +1,33 @@
+{
+    "schemaVersion": 1,
+    "format": "mvmnt.scene",
+    "metadata": {
+        "id": "scene_fixture_empty",
+        "name": "Empty Scene",
+        "createdAt": "2025-01-01T00:00:00.000Z",
+        "modifiedAt": "2025-01-01T00:00:00.000Z",
+        "format": "scene"
+    },
+    "scene": {
+        "elements": [],
+        "sceneSettings": {
+            "fps": 60,
+            "width": 1920,
+            "height": 1080
+        },
+        "macros": {}
+    },
+    "timeline": {
+        "timeline": {
+            "id": "tl_fixture",
+            "name": "Fixture Timeline",
+            "currentTick": 0,
+            "globalBpm": 120,
+            "beatsPerBar": 4,
+            "playheadAuthority": "tick"
+        },
+        "tracks": {},
+        "tracksOrder": []
+    },
+    "compatibility": { "warnings": [] }
+}
