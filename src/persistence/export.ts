@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from './flags';
 import { serializeStable } from './stable-stringify';
 import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
@@ -40,12 +39,6 @@ export interface SceneExportEnvelopeV1 {
     compatibility: { warnings: any[] };
 }
 
-export interface ExportResultDisabled {
-    ok: false;
-    disabled: true;
-    reason: 'feature-disabled';
-}
-
 export interface ExportResultSuccess {
     ok: true;
     disabled: false;
@@ -53,16 +46,12 @@ export interface ExportResultSuccess {
     json: string; // stable stringified form
 }
 
-export type ExportSceneResult = ExportResultDisabled | ExportResultSuccess;
+export type ExportSceneResult = ExportResultSuccess;
 
 /**
- * Phase 0 exportScene: returns disabled result if flag off, else placeholder envelope.
+ * Phase 0 exportScene: returns a placeholder envelope.
  */
 export function exportScene(): ExportSceneResult {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return { ok: false, disabled: true, reason: 'feature-disabled' };
-    }
-
     // Gather timeline store snapshot (shallow copy of relevant slices)
     const state = useTimelineStore.getState();
     const timeline = {

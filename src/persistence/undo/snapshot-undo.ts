@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from '../flags';
 import { serializeStable } from '../stable-stringify';
 import { useTimelineStore } from '../../state/timelineStore';
 import { globalMacroManager } from '../../bindings/macro-manager';
@@ -282,12 +281,9 @@ export interface CreateSnapshotUndoOptions {
 }
 
 /**
- * Phase 0: returns disabled controller if flag off, else placeholder controller with no behavior.
+ * Phase 0: returns a snapshot-based undo controller.
  */
 export function createSnapshotUndoController(_store: unknown, opts: CreateSnapshotUndoOptions = {}): UndoController {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return new DisabledUndoController();
-    }
     const ctrl = new SnapshotUndoController(opts);
     // Expose globally for scene builder instrumentation
     try {

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Optional worker scaffold (feature-flagged in app; not wired by default)
+// Optional worker scaffold (not wired by default)
 import { compileWindow } from './compile';
 
 type InMsg =

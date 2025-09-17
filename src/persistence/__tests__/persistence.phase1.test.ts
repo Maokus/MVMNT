@@ -1,20 +1,10 @@
-import { exportScene, importScene, createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '../index';
+import { exportScene, importScene, createSnapshotUndoController } from '../index';
 import { useTimelineStore } from '../../state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
 
-// Ensure flag is considered enabled in test environment; if env not set, skip tests gracefully.
-const flagEnabled = typeof SERIALIZATION_V1_ENABLED === 'function' ? true : true; // Assume test env sets it or treat as true.
-
 describe('Persistence Phase 1', () => {
-    if (!flagEnabled) {
-        it('Feature disabled – skipping tests', () => {
-            expect(true).toBe(true);
-        });
-        return;
-    }
-
     test('Stable stringify deterministic for object key order', () => {
         const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
         const s1 = serializeStable(a);

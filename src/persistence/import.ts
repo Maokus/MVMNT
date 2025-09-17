@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from './flags';
 import { validateSceneEnvelope } from './validate';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
@@ -19,13 +18,6 @@ export interface ImportError {
     path?: string;
 }
 
-export interface ImportResultDisabled {
-    ok: false;
-    disabled: true;
-    reason: 'feature-disabled';
-    errors: ImportError[];
-}
-
 export interface ImportResultSuccess {
     ok: true;
     disabled: false;
@@ -40,20 +32,12 @@ export interface ImportResultFailureEnabled {
     warnings: { message: string }[];
 }
 
-export type ImportSceneResult = ImportResultDisabled | ImportResultSuccess | ImportResultFailureEnabled;
+export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
 
 /**
  * Phase 0 importer: validates nothing, does not mutate store (no dependency yet).
  */
 export function importScene(json: string): ImportSceneResult {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return {
-            ok: false,
-            disabled: true,
-            reason: 'feature-disabled',
-            errors: [{ message: 'Serialization feature disabled' }],
-        };
-    }
     let parsed: any;
     try {
         parsed = JSON.parse(json);

@@ -25,6 +25,11 @@ const ChangelogPage: React.FC = () => {
                             <li>Audio track sync & export pipeline</li>
                         </ul>
                     </section>
+                    <ChangelogEntry version="0.12.1" date="17-09-31" notes={[
+                        'Improved app state management',
+                        'Improved undo stack reliability & performance',
+                        'Fixed some broken links and server issues'
+                    ]} />
 
                     <ChangelogEntry version="0.12.0" date="12-09-31" notes={[
                         'Overhauled timing & MIDI system (timeline panel, better arrangement)',
@@ -33,7 +38,8 @@ const ChangelogPage: React.FC = () => {
                         'Added homepage, improved styling',
                         'Migrated to MediaBunny for faster exports & responsiveness',
                         'Partial migration to Zustand (more responsive UI)',
-                        'TailwindCSS adoption for consistency & dev speed'
+                        'TailwindCSS adoption for consistency & dev speed',
+                        'Way, way more'
                     ]} />
                     <ChangelogEntry version="0.11.5" date="24-08-31" notes={[
                         'Added chord estimation element',

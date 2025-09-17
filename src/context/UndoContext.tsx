@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { createSnapshotUndoController } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface UndoContextValue {
@@ -14,7 +14,7 @@ interface UndoContextValue {
 const UndoContext = createContext<UndoContextValue | undefined>(undefined);
 
 export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const enabled = SERIALIZATION_V1_ENABLED();
+    const enabled = true;
     const controllerRef = useRef<ReturnType<typeof createSnapshotUndoController> | null>(null);
     const [, forceTick] = useState(0);
 

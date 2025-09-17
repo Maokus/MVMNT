@@ -6,7 +6,7 @@ import { validateSceneEnvelope } from '../validate';
 // Helper to produce a minimal valid envelope baseline to mutate
 function makeValidEnvelope() {
     const exp = exportScene();
-    if (!exp.ok) throw new Error('Feature flag disabled for tests; enable SERIALIZATION_V1');
+    if (!exp.ok) throw new Error('Export failed in tests');
     return JSON.parse(exp.json);
 }
 

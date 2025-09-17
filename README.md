@@ -146,9 +146,7 @@ Benefits:
 
 ### Scene Persistence (MVP – Phase 1)
 
-The Phase 1 serialization system introduces a feature-flagged API for exporting, importing, and undo/redo via a snapshot ring buffer.
-
-Flag: set `VITE_FEATURE_SERIALIZATION_V1=true` in `.env.local` (or your shell) to enable.
+The Phase 1 serialization system provides an API for exporting, importing, and undo/redo via a snapshot ring buffer.
 
 API Usage:
 
@@ -203,4 +201,4 @@ Planned Next Phases:
 -   Persistent font/image asset embedding & hashing.
 -   Macro assignment diff visualization tooling.
 
-Rollback: Disable the `VITE_FEATURE_SERIALIZATION_V1` flag (code paths become inert without removal).
+Rollback: Revert the persistence-related commits if necessary; the API is enabled by default.
