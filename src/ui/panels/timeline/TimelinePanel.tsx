@@ -3,7 +3,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
-import TrackList from './track-list';
+import TrackList from './TrackList';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
 import { useVisualizer } from '@context/VisualizerContext';

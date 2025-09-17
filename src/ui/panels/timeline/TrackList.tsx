@@ -1,6 +1,6 @@
 import React from 'react';
 import { RULER_HEIGHT } from './constants';
-import TrackEditorRow from './track-editor-row';
+import TrackEditorRow from './TrackEditorRow';
 
 const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
     if (trackIds.length === 0) {

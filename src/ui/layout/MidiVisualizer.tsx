@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
-import PreviewPanel from './PreviewPanel';
+import PreviewPanel from '@ui/panels/preview/PreviewPanel';
 import SidePanels from './SidePanels';
-import { TimelinePanel } from '@ui/panels/TimelinePanel';
+import { TimelinePanel } from '@ui/panels/timeline';
 import SmallScreenWarning from './SmallScreenWarning';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
 import ExportProgressOverlay from './ExportProgressOverlay';
