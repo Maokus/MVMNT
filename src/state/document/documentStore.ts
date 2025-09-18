@@ -1,10 +1,8 @@
 import create from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'immer';
-import type { DocumentStateV1, HistoryEntry, PatchMeta } from './types';
+import type { DocumentStateV1, HistoryEntry, PatchMeta, HistoryLogEvent } from './types';
 import { useTimelineStore } from '../timelineStore';
-
-// Phase 2: Patch-based undo engine for document-only state with encapsulated doc.
 
 enablePatches();
 
@@ -56,8 +54,13 @@ export type DocumentStoreState = {
     undo: () => void;
     redo: () => void;
     replace: (next: DocumentStateV1, meta?: PatchMeta) => void;
+    // Grouping API: treat multiple commits as a single history entry
+    beginGroup: (label?: string) => void;
+    endGroup: () => void;
     // Optional: configure history cap
     setHistoryCap: (n: number) => void;
+    // Optional: developer logging hook (no-op by default)
+    setHistoryLogger: (fn: ((e: HistoryLogEvent<DocumentStateV1>) => void) | null) => void;
     // Read-only accessors
     getSnapshot: () => DocumentStateV1;
     selectTimeline: () => DocumentStateV1['timeline'];
@@ -65,7 +68,7 @@ export type DocumentStoreState = {
 };
 
 function buildInitialDoc(): DocumentStateV1 {
-    // Seed from the existing timeline store to avoid double sources of truth in Phase 1/2
+    // Seed from the existing timeline store to avoid double sources of truth while migrating
     const tl = useTimelineStore.getState();
     const timeline = {
         timeline: tl.timeline,
@@ -93,10 +96,29 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
     let past: HistoryEntry<DocumentStateV1>[] = [];
     let future: HistoryEntry<DocumentStateV1>[] = [];
     let cap = 200;
+    let logger: ((e: HistoryLogEvent<DocumentStateV1>) => void) | null = null;
+    // Grouping state
+    let grouping = false;
+    let groupLabel: string | undefined;
+    let groupPatches: Patch[] = [];
+    let groupInverse: Patch[] = [];
 
     const bump = () => {
         const s = get();
         set({ rev: s.rev + 1, canUndo: past.length > 0, canRedo: future.length > 0 });
+    };
+
+    const log = (type: HistoryLogEvent['type'], meta?: PatchMeta) => {
+        if (!logger) return;
+        logger({
+            type,
+            meta,
+            historyLength: past.length,
+            redoLength: future.length,
+            timestamp: Date.now(),
+            groupActive: grouping,
+            lastEntry: past[past.length - 1],
+        });
     };
 
     const api: DocumentStoreState = {
@@ -108,6 +130,18 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             const [next, patches, inversePatches] = produceWithPatches(doc, updater);
             if (patches.length === 0) return; // no-op
             doc = next;
+            if (grouping) {
+                // Accumulate patches within the active group
+                // Forward patches apply in order
+                groupPatches.push(...(patches as Patch[]));
+                // Inverse patches must be applied in reverse order when undoing the group
+                groupInverse = [...(inversePatches as Patch[]), ...groupInverse];
+                // Do not modify history yet, but future should be cleared on first group change
+                future = [];
+                bump();
+                log('commit', meta);
+                return;
+            }
             // push onto history and clear future
             past.push({
                 patches: patches as Patch[],
@@ -117,8 +151,12 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             });
             future = [];
             // enforce cap
-            if (past.length > cap) past = past.slice(past.length - cap);
+            if (past.length > cap) {
+                past = past.slice(past.length - cap);
+                log('capTrim');
+            }
             bump();
+            log('commit', meta);
         },
 
         undo() {
@@ -129,6 +167,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             // Move entry to future for redo
             future.push(entry);
             bump();
+            log('undo', entry.meta);
         },
 
         redo() {
@@ -138,6 +177,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             doc = applyPatches(doc, entry.patches as Patch[]);
             past.push(entry);
             bump();
+            log('redo', entry.meta);
         },
 
         replace(next, meta) {
@@ -152,6 +192,44 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             future = [];
             // Optionally record meta by pushing a marker entry? Spec says clear stacks; so skip.
             bump();
+            log('replace', meta);
+        },
+
+        beginGroup(label) {
+            if (grouping) return; // nested grouping ignored for simplicity
+            grouping = true;
+            groupLabel = label;
+            groupPatches = [];
+            groupInverse = [];
+            // Clear future to begin a new linear branch
+            future = [];
+            log('beginGroup', { label });
+        },
+
+        endGroup() {
+            if (!grouping) return;
+            grouping = false;
+            if (groupPatches.length === 0) {
+                // nothing changed during group
+                groupLabel = undefined;
+                log('endGroup');
+                return;
+            }
+            past.push({
+                patches: groupPatches,
+                inversePatches: groupInverse,
+                meta: { label: groupLabel ?? 'group' },
+                timestamp: Date.now(),
+            });
+            groupPatches = [];
+            groupInverse = [];
+            groupLabel = undefined;
+            if (past.length > cap) {
+                past = past.slice(past.length - cap);
+                log('capTrim');
+            }
+            bump();
+            log('endGroup');
         },
 
         setHistoryCap(n: number) {
@@ -163,6 +241,11 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
                 past = past.slice(past.length - cap);
             }
             bump();
+            log('capTrim');
+        },
+
+        setHistoryLogger(fn) {
+            logger = fn;
         },
 
         getSnapshot() {

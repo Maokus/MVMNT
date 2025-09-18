@@ -30,6 +30,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const meta = e.metaKey || e.ctrlKey;
             if (!meta) return;
             if (e.key.toLowerCase() === 'z') {
+                console.log('ctrl+z pressed');
                 if (e.shiftKey) {
                     if (canRedo) {
                         e.preventDefault();

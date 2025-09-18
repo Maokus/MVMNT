@@ -17,7 +17,19 @@ export type HistoryEntry<D = unknown> = {
     timestamp: number;
 };
 
-// Generic gateway interface (implemented in Phase 3)
+export type HistoryEventType = 'commit' | 'undo' | 'redo' | 'replace' | 'beginGroup' | 'endGroup' | 'capTrim';
+
+export type HistoryLogEvent<D = unknown> = {
+    type: HistoryEventType;
+    meta?: PatchMeta;
+    historyLength: number; // length of past stack after the operation
+    redoLength: number; // length of future stack after the operation
+    timestamp: number;
+    groupActive: boolean;
+    lastEntry?: HistoryEntry<D>;
+};
+
+// Generic gateway interface for document access and persistence
 export interface DocumentStateGateway<D> {
     get(): D;
     replace(next: D, meta?: PatchMeta): void;
@@ -28,7 +40,7 @@ export interface DocumentStateGateway<D> {
 }
 
 // Current app "document" model mirrors what we persist today (timeline slices + scene envelope fields).
-// We keep this intentionally loose in Phase 1; it will be refined as phases land.
+// We keep this intentionally loose; it can be refined as the model evolves.
 export interface SceneDoc {
     elements: any[];
     sceneSettings?: any;
@@ -65,7 +77,7 @@ export interface TimelineDoc {
     rowHeight: number;
 }
 
-// Phase 1 DocumentState is simply { timeline + scene }. Future phases may split further.
+// DocumentState is { timeline + scene }. Future iterations may split further.
 export interface DocumentStateV1 {
     timeline: TimelineDoc;
     scene: SceneDoc;
