@@ -2,6 +2,7 @@ import { validateSceneEnvelope } from './validate';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
 import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
+import { createDocumentGateway } from '../state/document/gateway';
 
 function _getSceneBuilder(): any | null {
     try {
@@ -119,4 +120,35 @@ export function importScene(json: string): ImportSceneResult {
         console.error('[importScene] Scene element restoration failed', e);
     }
     return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
+}
+
+// --- Phase 4: Unified document import via gateway ---
+export interface ImportDocumentResultSuccess {
+    ok: true;
+    errors: [];
+    warnings: { message: string }[];
+}
+
+export interface ImportDocumentResultFailure {
+    ok: false;
+    errors: ImportError[];
+    warnings: { message: string }[];
+}
+
+export type ImportDocumentResult = ImportDocumentResultSuccess | ImportDocumentResultFailure;
+
+export function importDocument(json: string): ImportDocumentResult {
+    // Use gateway tolerant deserializer which accepts legacy Phase1 envelope or bare doc
+    let parsed: any;
+    try {
+        parsed = JSON.parse(json);
+    } catch (e: any) {
+        return { ok: false, errors: [{ code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + e.message }], warnings: [] };
+    }
+    const gw = createDocumentGateway();
+    // Allow passing raw doc or envelope
+    const doc = gw.deserialize(JSON.stringify(parsed));
+    // Replace document in store; clears history per store.replace contract
+    gw.replace(doc, { label: 'importDocument' });
+    return { ok: true, errors: [], warnings: [] };
 }

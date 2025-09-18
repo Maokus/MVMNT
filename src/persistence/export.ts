@@ -3,6 +3,8 @@ import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
 import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
+import { createDocumentGateway } from '../state/document/gateway';
+import type { DocumentStateV1 } from '../state/document/types';
 
 // Attempt to access a global scene builder (visualizer) if present. This avoids a hard dependency cycle.
 function _getSceneBuilder(): any | null {
@@ -112,4 +114,20 @@ export function exportScene(): ExportSceneResult {
 
     const json = serializeStable(envelope);
     return { ok: true, disabled: false, envelope, json };
+}
+
+// --- Phase 4: Unified document export via gateway ---
+export interface ExportDocumentResultSuccess {
+    ok: true;
+    json: string; // gateway-serialized document JSON (versioned envelope)
+    doc: DocumentStateV1; // snapshot used for serialization
+}
+
+export type ExportDocumentResult = ExportDocumentResultSuccess;
+
+export function exportDocument(): ExportDocumentResult {
+    const gw = createDocumentGateway();
+    const doc = gw.snapshot();
+    const json = gw.serialize(doc);
+    return { ok: true, json, doc };
 }

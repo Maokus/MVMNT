@@ -54,10 +54,24 @@ export function deserializeDocument(json: string): DocumentStateV1 {
 
     // Accept multiple shapes:
     // - Envelope: { version, doc }
+    // - Legacy Phase 1 envelope: { schemaVersion, format: 'mvmnt.scene', timeline, scene }
     // - Raw document: { timeline, scene }
     let candidate: any = parsed;
     if (parsed && typeof parsed === 'object' && 'version' in parsed && 'doc' in parsed) {
         candidate = parsed.doc;
+    } else if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'schemaVersion' in parsed &&
+        parsed.format === 'mvmnt.scene' &&
+        'timeline' in parsed &&
+        'scene' in parsed
+    ) {
+        // Map legacy envelope into current document shape
+        candidate = {
+            timeline: parsed.timeline,
+            scene: parsed.scene,
+        };
     }
 
     // Defensive: if still not object, fall back

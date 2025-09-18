@@ -32,11 +32,13 @@
  * NOTE: Keeping this surface stable early allows incremental implementation without widespread churn.
  */
 
-export { exportScene } from './export';
-export { importScene } from './import';
+export { exportScene, exportDocument } from './export';
+export { importScene, importDocument } from './import';
 export { createSnapshotUndoController } from './undo/snapshot-undo';
 
 // Re-export placeholder types to stabilize import paths for early adopters & tests.
 export type { ExportSceneResult } from './export';
 export type { ImportSceneResult } from './import';
+export type { ExportDocumentResult } from './export';
+export type { ImportDocumentResult } from './import';
 export type { UndoController, CreateSnapshotUndoOptions } from './undo/snapshot-undo';
