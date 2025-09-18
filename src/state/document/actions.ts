@@ -97,6 +97,23 @@ export function updateSceneElement(id: string, updater: (el: any) => void, meta?
     );
 }
 
+/**
+ * Batch update for multiple scene elements in a single commit/patch set.
+ * Useful for multi-select drags or grouped operations.
+ */
+export function updateSceneElements(ids: string[], updater: (el: any) => void, meta?: PatchMeta) {
+    useDocumentStore.getState().commit(
+        (d) => {
+            if (!Array.isArray(ids) || ids.length === 0) return;
+            for (const id of ids) {
+                const idx = d.scene.elements.findIndex((e: any) => e?.id === id);
+                if (idx >= 0) updater(d.scene.elements[idx]);
+            }
+        },
+        { label: 'updateSceneElements', ids, ...meta }
+    );
+}
+
 export function removeSceneElement(id: string, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
@@ -128,4 +145,29 @@ export function redo() {
 
 export function getDocumentSnapshot() {
     return useDocumentStore.getState().getSnapshot();
+}
+
+/**
+ * Begin a history group so that subsequent commits are accumulated and recorded
+ * as a single undo/redo entry upon {@link endHistoryGroup}.
+ */
+export function beginHistoryGroup(label?: string) {
+    useDocumentStore.getState().beginGroup(label);
+}
+
+/**
+ * End the active history group, pushing the accumulated patches as a single
+ * entry on the undo stack (if any changes occurred while grouped).
+ */
+export function endHistoryGroup() {
+    useDocumentStore.getState().endGroup();
+}
+
+/** Developer helpers: tune history behavior and logging. */
+export function setHistoryCap(n: number) {
+    useDocumentStore.getState().setHistoryCap(n);
+}
+
+export function setHistoryLogger(fn: ((e: any) => void) | null) {
+    useDocumentStore.getState().setHistoryLogger(fn as any);
 }

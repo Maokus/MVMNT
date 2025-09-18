@@ -11,6 +11,8 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import { beginHistoryGroup, endHistoryGroup, updateSceneElement } from '@state/document/actions';
+import { createThrottledAction } from '@utils/throttle';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
@@ -93,6 +95,22 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
         };
+        // Phase 2: start a history group for the drag gesture and build a throttled doc updater
+        if (!vis._dragHistoryGroup) {
+            vis._dragHistoryGroup = true;
+            beginHistoryGroup('dragElement');
+        }
+        const elId = hit.id;
+        vis._docMoveThrottled = createThrottledAction((nx: number, ny: number) => {
+            updateSceneElement(
+                elId,
+                (el: any) => {
+                    el.offsetX = nx;
+                    el.offsetY = ny;
+                },
+                { label: 'dragElement', id: elId }
+            );
+        });
     } else {
         selectElement(null);
         vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null });
@@ -114,6 +132,10 @@ function updateMoveDrag(
     const newY = meta.origOffsetY + constrained.dy;
     sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
     updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+    // Record last move and mirror updates into the document store at ~60fps
+    vis._lastMoveX = newX;
+    vis._lastMoveY = newY;
+    vis._docMoveThrottled?.trigger(newX, newY);
 }
 
 function updateScaleDrag(
@@ -253,9 +275,30 @@ function updateHover(vis: any, x: number, y: number) {
 }
 
 function finalizeDrag(vis: any, deps: InteractionDeps) {
-    if (vis._interactionState?.draggingElementId) {
+    const activeId = vis._interactionState?.draggingElementId || null;
+    const activeMode = vis._dragMeta?.mode || null;
+    if (activeId) {
+        // Ensure final state is committed to the document before closing the group
+        if (activeMode === 'move' && typeof vis._lastMoveX === 'number' && typeof vis._lastMoveY === 'number') {
+            updateSceneElement(
+                activeId,
+                (el: any) => {
+                    el.offsetX = vis._lastMoveX;
+                    el.offsetY = vis._lastMoveY;
+                },
+                { label: 'dragElement-final', id: activeId }
+            );
+        }
+        vis._docMoveThrottled?.cancel?.();
+        vis._docMoveThrottled = null;
+        if (vis._dragHistoryGroup) {
+            endHistoryGroup();
+            vis._dragHistoryGroup = false;
+        }
         vis.setInteractionState({ draggingElementId: null, activeHandle: null });
         vis._dragMeta = null;
+        vis._lastMoveX = undefined;
+        vis._lastMoveY = undefined;
         deps.incrementPropertyPanelRefresh();
     }
 }
