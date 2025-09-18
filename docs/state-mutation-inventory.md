@@ -45,7 +45,7 @@ Other mutation-like helpers
 Known external mutation entry points
 
 -   `src/persistence/import.ts` uses `useTimelineStore.setState` to hydrate timeline slices → Writes both [DOC] (tracks, timeline core) and [UI] (view, selection, rowHeight). Consider splitting later via gateway.
--   `src/persistence/undo/snapshot-undo.ts` captures/restores snapshots using `useTimelineStore.setState` → [MIXED] snapshot-based.
+-   Legacy `src/persistence/undo/snapshot-undo.ts` removed in Phase 6. Undo/redo now flows through `documentStore.commit/undo/redo` and UI is separate.
 
 Next steps
 

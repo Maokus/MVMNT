@@ -2,7 +2,6 @@ import { serializeStable } from './stable-stringify';
 import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
 import { createDocumentGateway } from '../state/document/gateway';
 import type { DocumentStateV1 } from '../state/document/types';
 
@@ -76,7 +75,6 @@ export function exportScene(): ExportSceneResult {
     const sb = _getSceneBuilder();
     if (sb && typeof sb.serializeScene === 'function') {
         try {
-            instrumentSceneBuilderForUndo(sb);
             const serialized = sb.serializeScene();
             if (serialized && Array.isArray(serialized.elements)) {
                 elements = serialized.elements.map((e: any) => ({ ...e }));

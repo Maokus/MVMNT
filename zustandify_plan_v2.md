@@ -44,7 +44,7 @@ Status: Draft v2
 ### Other consumers to refactor
 
 -   Property bindings: `src/bindings/property-bindings.ts` imports `globalMacroManager` to read/update macro values.
--   Persistence: `src/persistence/{export.ts, import.ts, undo/snapshot-undo.ts}` call `globalMacroManager`.
+-   Persistence: `src/persistence/{export.ts, import.ts}` call `globalMacroManager`.
 -   Core runtime: `src/core/scene-builder.ts`, `src/core/scene/elements/base.ts` use `globalMacroManager` and macro listeners.
 -   UI: `src/ui/panels/properties/MacroConfig.tsx` assumes manager.
 
@@ -205,7 +205,7 @@ Phase 1 (safe, incremental):
     -   `src/context/useMenuBar.ts`
     -   `src/persistence/export.ts`
     -   `src/persistence/import.ts`
-    -   `src/persistence/undo/snapshot-undo.ts`
+    -   (legacy) `src/persistence/undo/snapshot-undo.ts` – removed in Phase 6
     -   `src/persistence/__tests__/persistence.scene-elements.test.ts`
     -   `src/persistence/__tests__/undo.scene-move.test.ts`
     -   `src/core/scene-builder.ts`
@@ -316,7 +316,7 @@ See `macro_manager_to_zustand_v1.md` for the detailed slice shape and validation
 -   `src/context/useMenuBar.ts`
 -   `src/persistence/export.ts`
 -   `src/persistence/import.ts`
--   `src/persistence/undo/snapshot-undo.ts`
+-   (legacy removed) `src/persistence/undo/snapshot-undo.ts`
 -   `src/persistence/__tests__/persistence.scene-elements.test.ts`
 -   `src/persistence/__tests__/undo.scene-move.test.ts`
 -   `src/core/scene-builder.ts`

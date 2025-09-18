@@ -32,7 +32,7 @@ Persistence Envelope v1
 Notes
 
 -   Import currently hydrates both UI and document-like fields via `useTimelineStore.setState`.
--   Undo: Snapshot-based controller exists under `persistence/undo/snapshot-undo.ts`.
+-   Undo: Legacy snapshot-based controller has been removed in Phase 6; use documentStore patch-based undo via actions.
 
 Validation
 

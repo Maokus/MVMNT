@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exportScene, importScene, createSnapshotUndoController } from '../';
+import { exportScene, importScene } from '../';
 
 // These tests assert only Phase 0 placeholder semantics; they will be superseded / expanded in Phase 1.
 
@@ -20,9 +20,5 @@ describe('Persistence Phase 0 Skeleton', () => {
         expect(res.ok).toBe(true);
     });
 
-    it('undo controller placeholder responds with no capability', () => {
-        const undo = createSnapshotUndoController({});
-        expect(undo.canUndo()).toBe(false);
-        expect(() => undo.undo()).not.toThrow();
-    });
+    // Legacy snapshot-based undo controller has been removed in Phase 6.
 });

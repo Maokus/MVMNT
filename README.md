@@ -148,14 +148,14 @@ Benefits:
 
 The Phase 1 serialization system provides an API for exporting, importing, and undo/redo via a snapshot ring buffer.
 
+// Document undo/redo is now handled by the patch-based document store via actions.
+// See `src/state/document/actions.ts` for `undo`, `redo`, and `canUndo/canRedo` helpers.
+
 API Usage:
 
 ```ts
 import { exportScene, importScene, createSnapshotUndoController } from 'src/persistence';
 import { useTimelineStore } from 'src/state/timelineStore';
-
-// Initialize undo controller once (e.g. app bootstrap)
-const undo = createSnapshotUndoController(useTimelineStore, { maxDepth: 50 });
 
 // Export current scene state
 const result = exportScene();
@@ -170,9 +170,7 @@ if (!imported.ok) {
     console.error('Import failed', imported.errors);
 }
 
-// Undo / Redo handlers
-if (undo.canUndo()) undo.undo();
-if (undo.canRedo()) undo.redo();
+// Undo / Redo handlers are now handled by the patch-based document store.
 ```
 
 Current Scope (extended):

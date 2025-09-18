@@ -1,7 +1,6 @@
 import { validateSceneEnvelope } from './validate';
 import { useTimelineStore } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
 import { createDocumentGateway } from '../state/document/gateway';
 
 function _getSceneBuilder(): any | null {
@@ -87,9 +86,6 @@ export function importScene(json: string): ImportSceneResult {
         }
         const sb = _getSceneBuilder();
         if (sb) {
-            try {
-                instrumentSceneBuilderForUndo(sb);
-            } catch {}
             // Build a legacy sceneData object compatible with HybridSceneBuilder.loadScene
             const sceneData = {
                 elements: Array.isArray(scene.elements) ? scene.elements : [],

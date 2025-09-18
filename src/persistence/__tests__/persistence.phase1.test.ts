@@ -1,4 +1,4 @@
-import { exportScene, importScene, createSnapshotUndoController } from '../index';
+import { exportScene, importScene } from '../index';
 import { useTimelineStore } from '../../state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
@@ -43,32 +43,5 @@ describe('Persistence Phase 1', () => {
         expect(serializeStable(env1)).toEqual(serializeStable(env2));
     });
 
-    test('Undo controller captures snapshots and can undo/redo', () => {
-        const undo = createSnapshotUndoController(useTimelineStore, { maxDepth: 10, debounceMs: 10 });
-        const store = useTimelineStore;
-        // Perform a sequence of mutations
-        return new Promise<void>((resolve) => {
-            store.getState().setGlobalBpm(130);
-            store.getState().setBeatsPerBar(3);
-            setTimeout(() => {
-                const currentTick = store.getState().timeline.currentTick;
-                store.getState().seekTick(currentTick + 120);
-                setTimeout(() => {
-                    // Allow debounce flush
-                    setTimeout(() => {
-                        const canUndo = undo.canUndo();
-                        expect(canUndo).toBe(true);
-                        const before = store.getState().timeline.globalBpm;
-                        undo.undo();
-                        const afterUndo = store.getState().timeline.globalBpm;
-                        // Undo should revert BPM change OR tick change.
-                        expect(afterUndo === before || afterUndo === 120).toBe(true);
-                        // Redo path
-                        if (undo.canRedo()) undo.redo();
-                        resolve();
-                    }, 30);
-                }, 5);
-            }, 15);
-        });
-    });
+    // Legacy snapshot-based undo tests removed in Phase 6.
 });
