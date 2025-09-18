@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createSnapshotUndoController } from '@persistence/index';
-import { useTimelineStore } from '@state/timelineStore';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { canUndo as actionsCanUndo, canRedo as actionsCanRedo, undo as actionUndo, redo as actionRedo, getDocumentSnapshot, replaceDocument } from '@state/document/actions';
 
 interface UndoContextValue {
     canUndo: boolean;
@@ -15,23 +14,16 @@ const UndoContext = createContext<UndoContextValue | undefined>(undefined);
 
 export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const enabled = true;
-    const controllerRef = useRef<ReturnType<typeof createSnapshotUndoController> | null>(null);
     const [, forceTick] = useState(0);
 
-    // Initialize controller once when enabled
-    useEffect(() => {
-        if (!enabled) return; // keep disabled semantics
-        if (!controllerRef.current) {
-            // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
-            controllerRef.current = createSnapshotUndoController(useTimelineStore, { maxDepth: 50, debounceMs: 50 });
-            try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
-        }
-        // Force a tick so consumers re-read canUndo/canRedo
-        const id = setInterval(() => forceTick(t => t + 1), 500); // lightweight polling to update buttons if added later
-        return () => clearInterval(id);
-    }, [enabled]);
+    // Subscribe to document store rev to re-render when history changes
+    const canUndo = actionsCanUndo();
+    const canRedo = actionsCanRedo();
+    const undo = actionUndo;
+    const redo = actionRedo;
+    const reset = (snap: any) => replaceDocument(snap);
 
-    // Global keyboard shortcuts (Cmd/Ctrl+Z and redo variants)
+    // Global keyboard shortcuts (Cmd/Ctrl+Z and redo variants) mapped to document store
     useEffect(() => {
         if (!enabled) return;
         const handler = (e: KeyboardEvent) => {
@@ -39,38 +31,38 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!meta) return;
             if (e.key.toLowerCase() === 'z') {
                 if (e.shiftKey) {
-                    if (controllerRef.current?.canRedo()) {
+                    if (canRedo) {
                         e.preventDefault();
-                        controllerRef.current.redo();
+                        redo();
                         forceTick(t => t + 1);
                     }
                 } else {
-                    if (controllerRef.current?.canUndo()) {
+                    if (canUndo) {
                         e.preventDefault();
-                        controllerRef.current.undo();
+                        undo();
                         forceTick(t => t + 1);
                     }
                 }
             } else if (e.key.toLowerCase() === 'y') {
-                if (controllerRef.current?.canRedo()) {
+                if (canRedo) {
                     e.preventDefault();
-                    controllerRef.current.redo();
+                    redo();
                     forceTick(t => t + 1);
                 }
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [enabled]);
+    }, [enabled, canUndo, canRedo, undo, redo]);
 
     const value: UndoContextValue = useMemo(() => ({
-        canUndo: !!controllerRef.current?.canUndo(),
-        canRedo: !!controllerRef.current?.canRedo(),
-        undo: () => { controllerRef.current?.undo(); forceTick(t => t + 1); },
-        redo: () => { controllerRef.current?.redo(); forceTick(t => t + 1); },
-        reset: () => { controllerRef.current?.reset(); forceTick(t => t + 1); },
+        canUndo: !!canUndo,
+        canRedo: !!canRedo,
+        undo: () => { undo(); forceTick(t => t + 1); },
+        redo: () => { redo(); forceTick(t => t + 1); },
+        reset: () => { reset(getDocumentSnapshot()); forceTick(t => t + 1); },
         enabled,
-    }), [enabled, forceTick]);
+    }), [enabled, canUndo, canRedo, undo, redo]);
 
     return <UndoContext.Provider value={value}>{children}</UndoContext.Provider>;
 };

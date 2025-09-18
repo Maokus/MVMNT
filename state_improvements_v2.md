@@ -225,6 +225,7 @@ Key Tasks
 -   Implement a configurable history cap (default 200) with tests.
 -   Lightweight logging: track action labels and history length in dev mode.
 -   If desired, add opt-in UI preference persistence in `uiStore` only.
+-   Remove any references to "phases" in documentation, comments, code or test files.
 
 Acceptance Criteria
 
