@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { HybridSceneBuilder } from '@core/scene-builder';
+import { useDocumentStore } from '@state/document/documentStore';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -109,6 +110,47 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
     useEffect(() => {
         if (sceneBuilder) refreshElements();
     }, [sceneBuilder, refreshTrigger, refreshElements]);
+
+    // Mirror document-state changes (commits/undo/redo) into the runtime scene so the canvas reflects history operations.
+    const docRev = useDocumentStore((s) => s.rev);
+    useEffect(() => {
+        if (!sceneBuilder || !visualizer) return;
+        try {
+            const scene = useDocumentStore.getState().selectScene();
+            const elements = Array.isArray(scene?.elements) ? scene.elements : [];
+            for (const el of elements as any[]) {
+                const id = el?.id;
+                if (!id) continue;
+                const runtimeEl = sceneBuilder.getElement?.(id);
+                if (!runtimeEl) continue;
+                const changes: Record<string, any> = {};
+                if (typeof el.offsetX === 'number') changes.offsetX = el.offsetX;
+                if (typeof el.offsetY === 'number') changes.offsetY = el.offsetY;
+                if (typeof el.elementScaleX === 'number') changes.elementScaleX = el.elementScaleX;
+                if (typeof el.elementScaleY === 'number') changes.elementScaleY = el.elementScaleY;
+                if (typeof el.elementRotation === 'number') changes.elementRotation = el.elementRotation;
+                if (typeof el.anchorX === 'number') changes.anchorX = el.anchorX;
+                if (typeof el.anchorY === 'number') changes.anchorY = el.anchorY;
+                if (typeof el.visible === 'boolean') changes.visible = el.visible;
+                if (typeof el.zIndex === 'number') changes.zIndex = el.zIndex;
+                if (Object.keys(changes).length > 0) {
+                    sceneBuilder.updateElementConfig?.(id, changes);
+                }
+            }
+            // Ensure repaint and refresh after bulk update
+            if (visualizer?.invalidateRender) visualizer.invalidateRender();
+            refreshElements();
+            if (selectedElementId) {
+                const updated = sceneBuilder.getElement?.(selectedElementId);
+                if (updated) setSelectedElement(updated);
+            }
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[SceneSelection] Failed to mirror document changes to runtime:', e);
+        }
+        // Depend on docRev so this fires on commits/undo/redo
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [docRev, sceneBuilder, visualizer]);
 
     // (Moved below selectElement definition to avoid temporal dead zone)
 
