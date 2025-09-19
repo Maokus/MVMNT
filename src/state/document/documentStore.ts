@@ -160,6 +160,9 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         },
 
         undo() {
+            console.log('undo called');
+            console.log(past);
+            console.log(future);
             if (past.length === 0) return;
             const entry = past[past.length - 1];
             past = past.slice(0, -1);

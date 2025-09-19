@@ -30,7 +30,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const meta = e.metaKey || e.ctrlKey;
             if (!meta) return;
             if (e.key.toLowerCase() === 'z') {
-                console.log('ctrl+z pressed');
+                console.log('ctrl+z pressed. canUndo:', canUndo, 'canRedo:', canRedo);
                 if (e.shiftKey) {
                     if (canRedo) {
                         e.preventDefault();
@@ -39,6 +39,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 } else {
                     if (canUndo) {
+                        console.log('performing undo');
                         e.preventDefault();
                         undo();
                         forceTick(t => t + 1);
