@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
  */
 const ChangelogPage: React.FC = () => {
     return (
-        <div className="min-h-screen bg-neutral-950 text-neutral-200 px-6 py-10">
+        <div className="min-h-screen bg-neutral-800 text-neutral-200 px-6 py-10">
             <main className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-start mb-10">
                     <div>
