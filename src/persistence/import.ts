@@ -1,8 +1,6 @@
 import { SERIALIZATION_V1_ENABLED } from './flags';
 import { validateSceneEnvelope } from './validate';
-import { useTimelineStore } from '../state/timelineStore';
-import { globalMacroManager } from '../bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
+import { DocumentGateway } from './document-gateway';
 
 function _getSceneBuilder(): any | null {
     try {
@@ -74,65 +72,20 @@ export function importScene(json: string): ImportSceneResult {
             warnings: validation.warnings.map((w) => ({ message: w.message })),
         };
     }
-    // Hydrate store (replace-mode for timeline related slices) + scene elements/macros.
-    const tl = parsed.timeline;
-    const set = useTimelineStore.setState;
-    set((prev: any) => ({
+    // Build gateway-shaped document from envelope (dropping now-unsupported fields)
+    const tl = parsed.timeline || {};
+    const doc = {
         timeline: tl.timeline,
         tracks: tl.tracks,
-        tracksOrder: tl.tracksOrder,
-        transport: tl.transport || prev.transport,
+        tracksOrder: tl.tracksOrder || [],
         selection: tl.selection || { selectedTrackIds: [] },
-        timelineView: tl.timelineView || prev.timelineView,
         playbackRange: tl.playbackRange,
         playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
-        rowHeight: typeof tl.rowHeight === 'number' ? tl.rowHeight : prev.rowHeight,
+        rowHeight: tl.rowHeight,
         midiCache: tl.midiCache || {},
-    }));
-
-    // Scene + macros best effort hydration
-    try {
-        const scene = parsed.scene || {};
-        if (scene.macros) {
-            try {
-                globalMacroManager.importMacros(scene.macros);
-            } catch (e) {
-                console.error('[importScene] Macro import failed', e);
-            }
-        }
-        const sb = _getSceneBuilder();
-        if (sb) {
-            try {
-                instrumentSceneBuilderForUndo(sb);
-            } catch {}
-            // Build a legacy sceneData object compatible with HybridSceneBuilder.loadScene
-            const sceneData = {
-                elements: Array.isArray(scene.elements) ? scene.elements : [],
-                sceneSettings: scene.sceneSettings,
-                macros: scene.macros, // loadScene will re-import macros; that's okay (idempotent) or ignore if absent
-            };
-            if (typeof sb.loadScene === 'function') {
-                const ok = sb.loadScene(sceneData);
-                if (!ok) console.error('[importScene] Scene builder load failed');
-                try {
-                    const canvas: any = sb?.canvas || (window as any).vis?.canvas;
-                    canvas?.dispatchEvent?.(
-                        new CustomEvent('scene-imported', { detail: { exportSettings: scene.sceneSettings || {} } })
-                    );
-                } catch {}
-            } else if (Array.isArray(scene.elements) && typeof sb.setElements === 'function') {
-                // Fallback minimal restoration: assume elements are simple configs requiring registry creation
-                for (const el of scene.elements) {
-                    try {
-                        sb.addElementFromRegistry?.(el.type, el);
-                    } catch (e) {
-                        console.error('[importScene] addElement fallback failed', e);
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.error('[importScene] Scene element restoration failed', e);
-    }
+        scene: { ...parsed.scene },
+    };
+    // Apply via gateway (ignores currentTick/transport/view & strips padding keys internally)
+    DocumentGateway.apply(doc as any);
     return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
 }

@@ -1,9 +1,7 @@
 import { SERIALIZATION_V1_ENABLED } from './flags';
 import { serializeStable } from './stable-stringify';
-import { canonicalizeElements } from './ordering';
 import { useTimelineStore } from '../state/timelineStore';
-import { globalMacroManager } from '../bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
+import { DocumentGateway } from './document-gateway';
 
 // Attempt to access a global scene builder (visualizer) if present. This avoids a hard dependency cycle.
 function _getSceneBuilder(): any | null {
@@ -32,11 +30,11 @@ export interface SceneExportEnvelopeV1 {
     format: 'mvmnt.scene';
     metadata: SceneMetadata;
     scene: {
-        elements: any[]; // serialized element configs (sceneBuilder.serializeScene().elements)
-        sceneSettings?: any; // fps, dimensions, padding, tempo, meter
-        macros?: any; // macro definitions (globalMacroManager.exportMacros())
+        elements: any[];
+        sceneSettings?: any; // fps, dimensions, tempo, meter (no padding fields)
+        macros?: any;
     };
-    timeline: any; // timeline slice captured from store
+    timeline: any; // sanitized timeline (no currentTick)
     compatibility: { warnings: any[] };
 }
 
@@ -63,44 +61,9 @@ export function exportScene(): ExportSceneResult {
         return { ok: false, disabled: true, reason: 'feature-disabled' };
     }
 
-    // Gather timeline store snapshot (shallow copy of relevant slices)
+    // Build persistent document via gateway (no ephemeral fields)
+    const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
-    const timeline = {
-        timeline: state.timeline,
-        tracks: state.tracks,
-        tracksOrder: [...state.tracksOrder],
-        transport: state.transport,
-        selection: state.selection,
-        timelineView: state.timelineView,
-        playbackRange: state.playbackRange,
-        playbackRangeUserDefined: state.playbackRangeUserDefined,
-        rowHeight: state.rowHeight,
-        // midiCache can be heavy; include for determinism now (Phase 1). Could be optionally excluded later.
-        midiCache: state.midiCache,
-    };
-
-    // Gather scene + macros (best effort; absent if no scene builder yet)
-    let elements: any[] = [];
-    let sceneSettings: any = undefined;
-    const sb = _getSceneBuilder();
-    if (sb && typeof sb.serializeScene === 'function') {
-        try {
-            instrumentSceneBuilderForUndo(sb);
-            const serialized = sb.serializeScene();
-            if (serialized && Array.isArray(serialized.elements)) {
-                elements = serialized.elements.map((e: any) => ({ ...e }));
-            }
-            if (serialized && serialized.sceneSettings) sceneSettings = { ...serialized.sceneSettings };
-        } catch (e) {
-            console.warn('[exportScene] Failed to serialize scene elements', e);
-        }
-    }
-    const ordered = canonicalizeElements(elements || []);
-
-    let macros: any = undefined;
-    try {
-        macros = globalMacroManager.exportMacros();
-    } catch {}
 
     const now = new Date().toISOString();
     // Derive metadata (use timeline id/name for now as scene identity)
@@ -116,8 +79,17 @@ export function exportScene(): ExportSceneResult {
         schemaVersion: 1,
         format: 'mvmnt.scene',
         metadata,
-        scene: { elements: ordered, sceneSettings, macros },
-        timeline,
+        scene: { ...doc.scene },
+        timeline: {
+            timeline: doc.timeline,
+            tracks: doc.tracks,
+            tracksOrder: doc.tracksOrder,
+            selection: doc.selection,
+            playbackRange: doc.playbackRange,
+            playbackRangeUserDefined: doc.playbackRangeUserDefined,
+            rowHeight: doc.rowHeight,
+            midiCache: doc.midiCache,
+        },
         compatibility: { warnings: [] },
     };
 

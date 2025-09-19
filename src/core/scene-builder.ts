@@ -21,8 +21,6 @@ export interface SceneSettings {
     fps: number;
     width: number;
     height: number;
-    prePadding: number;
-    postPadding: number;
     tempo?: number; // global BPM fallback when no tempo map
     beatsPerBar?: number; // global meter
 }
@@ -35,8 +33,6 @@ export class HybridSceneBuilder {
         fps: 60, // updated default framerate
         width: 1500,
         height: 1500,
-        prePadding: 0,
-        postPadding: 0,
         tempo: 120,
         beatsPerBar: 4,
     };
@@ -507,8 +503,7 @@ export class HybridSceneBuilder {
                 if (typeof src.fps === 'number') partial.fps = src.fps;
                 if (typeof src.width === 'number') partial.width = src.width;
                 if (typeof src.height === 'number') partial.height = src.height;
-                if (typeof src.prePadding === 'number') partial.prePadding = src.prePadding;
-                if (typeof src.postPadding === 'number') partial.postPadding = src.postPadding;
+                // padding fields removed
                 if (typeof src.tempo === 'number') partial.tempo = src.tempo;
                 if (typeof src.beatsPerBar === 'number') partial.beatsPerBar = src.beatsPerBar;
                 this.updateSceneSettings(partial);

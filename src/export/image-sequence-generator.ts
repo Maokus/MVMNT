@@ -139,13 +139,7 @@ export class ImageSequenceGenerator {
         startFrame: number = 0,
         deterministicTiming: boolean = true
     ): Promise<void> {
-        const prePadding = (() => {
-            try {
-                return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-            } catch {
-                return 0;
-            }
-        })();
+        const prePadding = 0; // padding removed
         const playRangeStart = (() => {
             try {
                 const pr = this.visualizer?.getPlayRange?.();
@@ -166,7 +160,6 @@ export class ImageSequenceGenerator {
         }
         const clock = new SimulatedClock({
             fps,
-            prePaddingSec: prePadding,
             playRangeStartSec: playRangeStart,
             startFrame,
             timingSnapshot: snapshot,

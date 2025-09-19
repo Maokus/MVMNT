@@ -76,13 +76,9 @@ export class VideoExporter {
             // Resize for export resolution
             this.canvas.width = width;
             this.canvas.height = height;
-            this.visualizer.resize(width, height);
-
-            // Determine duration & frame count
-            const duration = this.visualizer.getCurrentDuration
-                ? this.visualizer.getCurrentDuration()
-                : this.visualizer.duration;
-            const totalFrames = Math.ceil(duration * fps);
+            // Derive total frames from current visualizer duration (external playback range aware)
+            const durationSec = this.visualizer.getCurrentDuration?.() || 0;
+            const totalFrames = Math.ceil(durationSec * fps);
             const actualMaxFrames = maxFrames || totalFrames;
             const limitedFrames = Math.min(totalFrames - _startFrame, actualMaxFrames);
 
@@ -106,7 +102,7 @@ export class VideoExporter {
             // QUALITY_HIGH may be an enum/opaque value; use simple numeric fallbacks if arithmetic not allowed.
             const presetMap: Record<string, number> = {
                 low: 1_000_000, // 1 Mbps
-                medium: 4_000_000, // 4 Mbps
+                // prePadding removed (kept var for compatibility if downstream expects key)
                 high: 8_000_000, // 8 Mbps default
             };
             const chosenBitrate =
@@ -122,13 +118,7 @@ export class VideoExporter {
             // Render + encode frames progressively (0-95%)
             const total = limitedFrames;
             const frameDuration = 1 / fps;
-            const prePadding = (() => {
-                try {
-                    return this.visualizer?.getSceneBuilder?.()?.getSceneSettings?.().prePadding || 0;
-                } catch {
-                    return 0;
-                }
-            })();
+            const prePadding = 0; // padding removed
             const playRangeStart = (() => {
                 try {
                     const pr = this.visualizer?.getPlayRange?.();
@@ -152,7 +142,6 @@ export class VideoExporter {
 
             const clock = new SimulatedClock({
                 fps,
-                prePaddingSec: prePadding,
                 playRangeStartSec: playRangeStart,
                 startFrame: _startFrame,
                 timingSnapshot: snapshot,

@@ -86,14 +86,10 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this.animationId);
             this.animationId = null;
         }
-        try {
-            const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
-            if (this._playRangeStartSec != null) {
-                this.currentTime = this._playRangeStartSec - 0.5;
-            } else {
-                this.currentTime = -prePadding - 0.5;
-            }
-        } catch {
+        // Start slightly negative so first frame appears at 0
+        if (this._playRangeStartSec != null) {
+            this.currentTime = this._playRangeStartSec - 0.5;
+        } else {
             this.currentTime = -0.5;
         }
         this.startTime = 0;
@@ -101,15 +97,14 @@ export class MIDIVisualizerCore {
     }
     seek(time: number) {
         const bufferTime = 0.5;
-        const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
         // Prefer clamping to user-defined playback range if available
         if (this._playRangeStartSec != null || this._playRangeEndSec != null) {
             const minTime = (this._playRangeStartSec ?? 0) - bufferTime;
             const maxTime = (this._playRangeEndSec ?? Infinity) + bufferTime;
             this.currentTime = Math.max(minTime, Math.min(time, maxTime));
         } else {
-            // Fallback: allow seeking before 0 by prePadding, no upper clamp
-            const minTime = -prePadding - bufferTime;
+            // Fallback: allow seeking slightly before 0 for pre-roll buffer only
+            const minTime = -bufferTime;
             this.currentTime = Math.max(minTime, time);
         }
         if (this.isPlaying) this.startTime = performance.now() - (this.currentTime + 0.5) * 1000;
@@ -127,11 +122,11 @@ export class MIDIVisualizerCore {
         // Fallback: use scene builder computed max when no explicit range is set
         const maxDuration = this.sceneBuilder.getMaxDuration();
         const base = maxDuration > 0 ? maxDuration : this.duration;
-        const { prePadding = 0, postPadding = 0 } = this.sceneBuilder.getSceneSettings();
-        return prePadding + base + postPadding;
+        // Padding removed; duration equals base element/timeline driven duration
+        return base;
     }
     updateExportSettings(settings: any) {
-        const sceneKeys = ['fps', 'width', 'height', 'prePadding', 'postPadding'];
+        const sceneKeys = ['fps', 'width', 'height'];
         const scenePartial: any = {};
         for (const k of sceneKeys) if (k in settings) scenePartial[k] = settings[k];
         if (Object.keys(scenePartial).length) {
@@ -169,8 +164,7 @@ export class MIDIVisualizerCore {
     stepBackward() {
         const frameRate = this.sceneBuilder.getSceneSettings().fps;
         const step = 1 / frameRate;
-        const { prePadding = 0 } = this.sceneBuilder.getSceneSettings();
-        const minTime = this._playRangeStartSec != null ? this._playRangeStartSec : -prePadding;
+        const minTime = this._playRangeStartSec != null ? this._playRangeStartSec : -0.5;
         const newTime = Math.max(this.currentTime - step, minTime);
         this.seek(newTime);
     }

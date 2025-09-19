@@ -19,8 +19,7 @@ export interface ExportSettings {
     fullDuration: boolean;
     startTime: number;
     endTime: number;
-    prePadding?: number;
-    postPadding?: number;
+    // (Padding removed from system)
     // Optional per-export (render modal) video settings. Kept here so override typing is easy.
     bitrate?: number; // target video bitrate (bps)
     qualityPreset?: 'low' | 'medium' | 'high';
@@ -81,8 +80,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         fullDuration: true,
         startTime: 0,
         endTime: 0,
-        prePadding: 0,
-        postPadding: 0,
     });
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
@@ -124,8 +121,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                         fps: s.fps ?? prev.fps,
                         width: s.width ?? prev.width,
                         height: s.height ?? prev.height,
-                        prePadding: s.prePadding ?? prev.prePadding ?? 0,
-                        postPadding: s.postPadding ?? prev.postPadding ?? 0,
                     }));
                 }
             } catch { }
@@ -292,9 +287,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (
             sceneSettings.fps !== exportSettings.fps ||
             sceneSettings.width !== exportSettings.width ||
-            sceneSettings.height !== exportSettings.height ||
-            sceneSettings.prePadding !== exportSettings.prePadding ||
-            sceneSettings.postPadding !== exportSettings.postPadding
+            sceneSettings.height !== exportSettings.height
         ) {
             visualizer.updateExportSettings?.(exportSettings);
         } else if ('fullDuration' in exportSettings) {
@@ -311,7 +304,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             if (es) {
                 setExportSettings((prev) => ({
                     ...prev,
-                    ...['fps', 'width', 'height', 'prePadding', 'postPadding'].reduce((acc: any, key) => {
+                    ...['fps', 'width', 'height'].reduce((acc: any, key) => {
                         if (es[key] != null) acc[key] = es[key];
                         return acc;
                     }, {}),

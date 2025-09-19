@@ -6,7 +6,7 @@ import { globalMacroManager } from '@bindings/macro-manager';
 // Minimal fake scene builder injection
 class FakeSceneBuilder {
     elements: any[] = [];
-    settings: any = { fps: 60, width: 100, height: 100, prePadding: 0, postPadding: 0 };
+    settings: any = { fps: 60, width: 100, height: 100 };
     serializeScene() {
         return {
             elements: this.elements.map((e, i) => ({ ...e, index: i })),

@@ -2,6 +2,7 @@ import { SERIALIZATION_V1_ENABLED } from '../flags';
 import { serializeStable } from '../stable-stringify';
 import { useTimelineStore } from '../../state/timelineStore';
 import { globalMacroManager } from '../../bindings/macro-manager';
+import { DocumentGateway } from '../document-gateway';
 
 function _getSceneBuilder(): any | null {
     try {
@@ -72,38 +73,9 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     private buildSnapshot(): SnapshotEntry {
-        // For Phase 1 we only capture the exported envelope's JSON to ensure deterministic replay.
-        // We limit capture to timeline related slices (same as export) for now.
-        const s = useTimelineStore.getState();
-        // Capture scene + macros (best effort)
-        let sceneElements: any[] = [];
-        let sceneSettings: any = undefined;
-        try {
-            const sb = _getSceneBuilder();
-            if (sb && typeof sb.serializeScene === 'function') {
-                const serialized = sb.serializeScene();
-                sceneElements = serialized?.elements ? [...serialized.elements] : [];
-                sceneSettings = serialized?.sceneSettings ? { ...serialized.sceneSettings } : undefined;
-            }
-        } catch {}
-        let macros: any = undefined;
-        try {
-            macros = globalMacroManager.exportMacros();
-        } catch {}
-        const snapshotObj = {
-            timeline: s.timeline,
-            tracks: s.tracks,
-            tracksOrder: s.tracksOrder,
-            transport: s.transport,
-            selection: s.selection,
-            timelineView: s.timelineView,
-            playbackRange: s.playbackRange,
-            playbackRangeUserDefined: s.playbackRangeUserDefined,
-            rowHeight: s.rowHeight,
-            midiCache: s.midiCache,
-            scene: { elements: sceneElements, sceneSettings, macros },
-        };
-        const json = serializeStable(snapshotObj);
+        // Use DocumentGateway with ephemeral fields (for undo we want playhead + transport + view)
+        const docWithEphemeral = DocumentGateway.build({ includeEphemeral: true });
+        const json = serializeStable(docWithEphemeral);
         return { stateJSON: json, size: json.length * 2, timestamp: performance.now() };
     }
 
@@ -204,57 +176,9 @@ class SnapshotUndoController extends DisabledUndoController {
             const obj = JSON.parse(cur.stateJSON);
             this.restoring = true;
             // Merge slices to preserve function properties on the store (replace=true would discard actions)
-            useTimelineStore.setState(
-                (prev: any) => ({
-                    ...prev,
-                    ...obj,
-                }),
-                false
-            );
-            // Restore scene + macros
-            try {
-                if (obj.scene) {
-                    if (obj.scene.macros) {
-                        try {
-                            globalMacroManager.importMacros(obj.scene.macros);
-                        } catch (e) {
-                            console.error('[Undo][Scene] Macro import failed during undo', e);
-                        }
-                    }
-                    const sb = _getSceneBuilder();
-                    if (sb && obj.scene.elements) {
-                        if (typeof sb.loadScene === 'function') {
-                            const ok = sb.loadScene({
-                                elements: obj.scene.elements,
-                                sceneSettings: obj.scene.sceneSettings,
-                                macros: obj.scene.macros,
-                            });
-                            if (!ok) console.error('[Undo][Scene] loadScene returned false during undo');
-                        } else {
-                            // Minimal fallback: clear + re-add
-                            try {
-                                sb.clearElements?.();
-                            } catch {}
-                            for (const el of obj.scene.elements) {
-                                try {
-                                    sb.addElementFromRegistry?.(el.type, el);
-                                } catch (e) {
-                                    console.error('[Undo][Scene] Failed adding element in fallback path', e, el);
-                                }
-                            }
-                        }
-                        // Try to invalidate render if visualizer exposed
-                        try {
-                            const vis: any = (window as any).vis;
-                            vis?.invalidateRender?.();
-                        } catch {}
-                    }
-                }
-            } catch (e) {
-                console.error('[Undo] Scene restoration error', e);
-            } finally {
-                this.restoring = false;
-            }
+            // Apply through gateway (ephemeral contained in __ephemeral)
+            DocumentGateway.apply(obj);
+            this.restoring = false;
         } catch (e) {
             console.error('[Undo] Failed to parse/apply snapshot', e);
         }

@@ -10,8 +10,7 @@ interface ExportSettings {
     fullDuration: boolean;
     startTime?: number;
     endTime?: number;
-    prePadding?: number;
-    postPadding?: number;
+    // padding removed
 }
 
 interface DebugSettings {

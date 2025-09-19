@@ -1,12 +1,11 @@
 // SimulatedClock — deterministic time source for export rendering
-// Computes absolute render times per frame, factoring FPS, optional prePadding, and optional play-range start.
+// Computes absolute render times per frame, factoring FPS and optional play-range start (padding removed).
 
 import type { ExportTimingSnapshot } from './export-timing-snapshot';
 import { snapshotSecondsToTicks, snapshotTicksToSeconds } from './export-timing-snapshot';
 
 export interface SimulatedClockOptions {
     fps: number; // frames per second
-    prePaddingSec?: number; // scene pre-roll padding (default 0)
     playRangeStartSec?: number; // optional play range start (seconds)
     startFrame?: number; // internal start frame offset for partial exports
     timingSnapshot?: ExportTimingSnapshot; // optional deterministic timing snapshot
@@ -15,7 +14,6 @@ export interface SimulatedClockOptions {
 export class SimulatedClock {
     private fps: number;
     private frameInterval: number;
-    private prePadding: number;
     private playStart: number; // defaults to 0 (full scene)
     private startFrame: number;
     private snapshot: ExportTimingSnapshot | null;
@@ -23,16 +21,14 @@ export class SimulatedClock {
     constructor(opts: SimulatedClockOptions) {
         this.fps = opts.fps;
         this.frameInterval = 1 / this.fps;
-        this.prePadding = opts.prePaddingSec ?? 0;
         this.playStart = opts.playRangeStartSec ?? 0;
         this.startFrame = opts.startFrame ?? 0;
         this.snapshot = opts.timingSnapshot ?? null;
     }
 
     timeForFrame(frameIndex: number): number {
-        // Base time: play range start minus prePadding
-        const baseStartTime = this.playStart - this.prePadding;
-        return baseStartTime + (this.startFrame + frameIndex) * this.frameInterval;
+        // Base time: play range start only (padding removed)
+        return this.playStart + (this.startFrame + frameIndex) * this.frameInterval;
     }
 
     /**
