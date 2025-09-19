@@ -132,22 +132,12 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     canUndo(): boolean {
-        if (this.index <= 0) return false;
-        // Prevent undoing back to an initial empty scene once user has a populated scene
-        try {
-            const current = this.ring[this.index];
-            const prev = this.ring[this.index - 1];
-            if (current && prev) {
-                const curObj = JSON.parse(current.stateJSON);
-                const prevObj = JSON.parse(prev.stateJSON);
-                const curHasScene = !!(curObj?.scene?.elements && curObj.scene.elements.length > 0);
-                const prevHasScene = !!(prevObj?.scene?.elements && prevObj.scene.elements.length > 0);
-                if (curHasScene && !prevHasScene) {
-                    return false; // block undo past the first populated scene snapshot
-                }
-            }
-        } catch {}
-        return true;
+        // We only need to ensure there is a previous snapshot.
+        // Original implementation attempted to block undoing past the first populated scene
+        // which prevented undo of the very first element addition (because the previous snapshot
+        // was the empty scene). That made initial undo feel broken. Relaxing this so users can
+        // always return to the initial empty snapshot.
+        return this.index > 0;
     }
     canRedo(): boolean {
         return this.index < this.ring.length - 1;
@@ -197,6 +187,35 @@ class SnapshotUndoController extends DisabledUndoController {
         }
         if (this.pendingTimer) clearTimeout(this.pendingTimer);
     }
+
+    // ---------------------- Debug / Inspection API ----------------------
+    /** Returns lightweight info about the undo stack for console inspection. */
+    debugStack() {
+        return {
+            length: this.ring.length,
+            index: this.index,
+            canUndo: this.canUndo(),
+            canRedo: this.canRedo(),
+            entries: this.ring.map((e, i) => ({
+                i,
+                bytes: e.size,
+                ageMs: +(performance.now() - e.timestamp).toFixed(1),
+                // Show a hash-ish first 24 chars for quick diffing
+                head: e.stateJSON.slice(0, 24),
+            })),
+        };
+    }
+
+    /** Dumps the full JSON of a specific snapshot index (default current) */
+    dump(index: number = this.index) {
+        const entry = this.ring[index];
+        if (!entry) return null;
+        try {
+            return JSON.parse(entry.stateJSON);
+        } catch {
+            return entry.stateJSON; // fallback raw
+        }
+    }
 }
 
 export interface CreateSnapshotUndoOptions {
@@ -216,6 +235,13 @@ export function createSnapshotUndoController(_store: unknown, opts: CreateSnapsh
     // Expose globally for scene builder instrumentation
     try {
         (window as any).__mvmntUndo = ctrl;
+        // Convenience helpers for quick debugging in devtools.
+        if (!(window as any).getUndoStack) {
+            (window as any).getUndoStack = () => ctrl.debugStack();
+        }
+        if (!(window as any).dumpUndo) {
+            (window as any).dumpUndo = (i?: number) => ctrl.dump(i ?? (ctrl as any).index);
+        }
     } catch {}
     return ctrl;
 }

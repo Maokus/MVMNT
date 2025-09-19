@@ -26,7 +26,11 @@ const ChangelogPage: React.FC = () => {
                         </ul>
                     </section>
 
-                    <ChangelogEntry version="0.12.0" date="12-09-31" notes={[
+                    <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
+                        'Developed trauma from trying to improve the ctrl z feature',
+                    ]} />
+
+                    <ChangelogEntry version="0.12.0" date="12-09-25" notes={[
                         'Overhauled timing & MIDI system (timeline panel, better arrangement)',
                         'Improved save/load format',
                         'Added the legendary ctrl z',
@@ -35,12 +39,12 @@ const ChangelogPage: React.FC = () => {
                         'Partial migration to Zustand (more responsive UI)',
                         'TailwindCSS adoption for consistency & dev speed'
                     ]} />
-                    <ChangelogEntry version="0.11.5" date="24-08-31" notes={[
+                    <ChangelogEntry version="0.11.5" date="24-08-25" notes={[
                         'Added chord estimation element',
                         'Added played notes tracker element',
                         'Added playing notes display element'
                     ]} />
-                    <ChangelogEntry version="0.11.4" date="24-08-31" notes={[
+                    <ChangelogEntry version="0.11.4" date="24-08-25" notes={[
                         'Changed bounding box handling logic (includeInLayoutBounds flag)',
                         'Cleaned up some renderObject logic'
                     ]} />
