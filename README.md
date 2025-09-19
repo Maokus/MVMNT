@@ -204,3 +204,20 @@ Planned Next Phases:
 -   Macro assignment diff visualization tooling.
 
 Rollback: Disable the `VITE_FEATURE_SERIALIZATION_V1` flag (code paths become inert without removal).
+
+### 2025-09 Document Validation (Phase 2)
+
+The emerging document-centric architecture now includes a lightweight validation layer for early structural & referential error detection before persistence or runtime reconcile:
+
+-   API: `validateDocument(doc)` returns an array of `{ path, message, severity }` errors (currently only severity `error`).
+-   Enforcement: `assertValidDocument(doc)` throws with an aggregated message if any errors are present.
+-   Checks Implemented:
+    -   Root required keys exist (schemaVersion, tracks, elements, meta, timestamps).
+    -   Collection shape sanity (`{ byId, allIds }`) for tracks & elements.
+    -   Duplicate ID detection (based on actual object `id`, even if stored under a different key).
+    -   Referential integrity: each `track.elementIds[]` entry must reference an existing element.
+    -   Basic numeric invariants: element `start >= 0`, `duration > 0`, required names present.
+
+Design Notes: - Intentional fail-fast: no attempt to salvage or auto-remove broken references yet (simplifies mental model during early development). - Performance: O(N) over tracks + elements with simple Set lookups; scales comfortably into the low thousands of nodes (<10ms target at ~1k items achieved in local profiling). - Extensibility: Advisory (non-throwing) warnings can later use `severity: 'warn'` without breaking callers.
+
+Next Steps (Phases 3+): Mutation funnel + patch-based undo will assume only validated documents enter the store; reconcile layer can then skip defensive null-check clutter.

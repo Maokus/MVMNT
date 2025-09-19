@@ -38,6 +38,9 @@
       "@bindings/*": [
         "bindings/*"
       ],
+      "@document/*": [
+        "document/*"
+      ],
       "@export/*": [
         "export/*"
       ],
