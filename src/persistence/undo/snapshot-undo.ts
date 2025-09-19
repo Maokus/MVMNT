@@ -248,3 +248,48 @@ export function instrumentSceneBuilderForUndo(sb: any) {
     ].forEach((m) => wrap(sb, m));
     sb.__mvmntUndoInstrumented = true;
 }
+
+// Instrument timeline store actions so that meaningful mutations capture snapshots immediately
+// rather than waiting solely on the debounced store subscription (improves granularity for undo).
+export function instrumentTimelineStoreForUndo() {
+    const undo: any = (window as any).__mvmntUndo;
+    if (!undo || typeof undo.markDirty !== 'function') return;
+    if ((useTimelineStore as any).__mvmntUndoInstrumented) return;
+    const api: any = useTimelineStore.getState();
+    const actionNames = [
+        'addMidiTrack',
+        'removeTrack',
+        'updateTrack',
+        'setTrackOffsetTicks',
+        'setTrackRegionTicks',
+        'setTrackEnabled',
+        'setTrackMute',
+        'setTrackSolo',
+        'setMasterTempoMap',
+        'setGlobalBpm',
+        'setBeatsPerBar',
+        'reorderTracks',
+        'setPlaybackRangeTicks',
+        'setPlaybackRangeExplicitTicks',
+        'setRowHeight',
+        'ingestMidiToCache',
+        'clearAllTracks',
+    ];
+    actionNames.forEach((name) => {
+        const orig = api[name];
+        if (typeof orig !== 'function') return;
+        // Wrap only once
+        if (orig.__mvmntUndoWrapped) return;
+        const wrapped = async (...args: any[]) => {
+            const result = await orig(...args);
+            try {
+                // Schedule markDirty after promise resolves (e.g., addMidiTrack async ingest)
+                setTimeout(() => undo.markDirty(), 0);
+            } catch {}
+            return result;
+        };
+        (wrapped as any).__mvmntUndoWrapped = true;
+        api[name] = wrapped;
+    });
+    (useTimelineStore as any).__mvmntUndoInstrumented = true;
+}

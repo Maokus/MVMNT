@@ -24,7 +24,6 @@ export interface PersistentDocumentV1 {
     timeline: any; // sanitized timeline slice without currentTick (playhead)
     tracks: any;
     tracksOrder: string[];
-    selection: any; // track selections (lightweight)
     playbackRange?: any;
     playbackRangeUserDefined: boolean;
     rowHeight: number;
@@ -73,7 +72,6 @@ export const DocumentGateway = {
             timeline: timelineCore,
             tracks: state.tracks,
             tracksOrder: [...state.tracksOrder],
-            selection: state.selection,
             playbackRange: state.playbackRange,
             playbackRangeUserDefined: state.playbackRangeUserDefined,
             rowHeight: state.rowHeight,
@@ -103,7 +101,6 @@ export const DocumentGateway = {
             },
             tracks: doc.tracks || {},
             tracksOrder: doc.tracksOrder || [],
-            selection: doc.selection || { selectedTrackIds: [] },
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: !!doc.playbackRangeUserDefined,
             rowHeight: typeof doc.rowHeight === 'number' ? doc.rowHeight : prev.rowHeight,

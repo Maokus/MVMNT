@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { instrumentTimelineStoreForUndo } from '@persistence/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface UndoContextValue {
@@ -24,6 +25,7 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!controllerRef.current) {
             // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
             controllerRef.current = createSnapshotUndoController(useTimelineStore, { maxDepth: 50, debounceMs: 50 });
+            try { instrumentTimelineStoreForUndo(); } catch { }
             try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
         }
         // Force a tick so consumers re-read canUndo/canRedo

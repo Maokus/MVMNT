@@ -107,3 +107,30 @@ Implications:
 ---
 
 This document should be updated whenever domains move or new timing representations are introduced to prevent knowledge drift.
+
+## 2025-09 Persistence & Undo Updates
+
+### Selection Field Removal
+
+The transient `selection` slice (track selections) is no longer serialized in scene/timeline exports nor stored in undo snapshots. Selection is pure UI state and restoring it on load created confusing implicit focus changes. Legacy JSON that still contains a `selection` field is safely ignored during import for backwards compatibility.
+
+Rationale:
+
+-   Avoid polluting diffs / version control with inconsequential UI focus changes.
+-   Reduce snapshot size and churn in the undo ring (less memory, fewer duplicate captures).
+
+### Undo Snapshot Granularity Improvements
+
+Undo previously relied solely on a debounced global store subscription and ad‑hoc scene builder instrumentation. This caused unintuitive capture points (e.g. sometimes missing a snapshot right after a discrete action, or capturing many intermediate states of a rapid drag).
+
+Enhancements implemented:
+
+1. Timeline store action instrumentation wraps key mutators (`addMidiTrack`, `removeTrack`, `updateTrack`, playback range setters, ordering, tempo/meter changes, etc.) and triggers an immediate (next tick) `markDirty()` after the action resolves (supporting async ingestion for MIDI).
+2. Scene builder instrumentation (element add/remove/move/update/settings) remains in place to capture pure scene graph mutations that bypass the store.
+3. Debounced subscription still exists as a safety net for any unwrapped mutations, but most user-driven persistent changes now yield a clean snapshot boundary.
+
+Result: Undo/redo semantics now align closely with user intent—each discrete persistent change (track add/remove, playback range change, element structural mutation) produces a logical undo step. Continuous drags still coalesce via debounce to avoid flooding the ring.
+
+### Backwards Compatibility
+
+Imports created before this change continue to load; their `selection` field (if present) is ignored. No schema version bump was required because omission is additive & non-breaking.

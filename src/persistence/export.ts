@@ -84,7 +84,6 @@ export function exportScene(): ExportSceneResult {
             timeline: doc.timeline,
             tracks: doc.tracks,
             tracksOrder: doc.tracksOrder,
-            selection: doc.selection,
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: doc.playbackRangeUserDefined,
             rowHeight: doc.rowHeight,

@@ -78,13 +78,14 @@ export function importScene(json: string): ImportSceneResult {
         timeline: tl.timeline,
         tracks: tl.tracks,
         tracksOrder: tl.tracksOrder || [],
-        selection: tl.selection || { selectedTrackIds: [] },
         playbackRange: tl.playbackRange,
         playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
         rowHeight: tl.rowHeight,
         midiCache: tl.midiCache || {},
         scene: { ...parsed.scene },
     };
+    // NOTE: legacy exports may contain a `selection` field; this is now intentionally ignored
+    // as selection is ephemeral UI state and should not be persisted.
     // Apply via gateway (ignores currentTick/transport/view & strips padding keys internally)
     DocumentGateway.apply(doc as any);
     return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
