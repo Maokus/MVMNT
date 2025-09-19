@@ -43,6 +43,9 @@ export interface DocumentStateGateway<D> {
 // We keep this intentionally loose; it can be refined as the model evolves.
 export interface SceneDoc {
     elements: any[];
+    // Phase P1 dual-write structures (will replace `elements` by P13)
+    elementsById?: Record<string, any>; // key: element.id -> element
+    elementOrder?: string[]; // ordering of element ids
     sceneSettings?: any;
     macros?: any;
 }

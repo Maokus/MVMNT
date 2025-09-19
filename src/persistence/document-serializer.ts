@@ -80,5 +80,23 @@ export function deserializeDocument(json: string): DocumentStateV1 {
     }
 
     // Sanitize by cloning only known keys from current template
-    return coerceToDocShape(candidate);
+    const doc = coerceToDocShape(candidate);
+    // P1 migration: hydrate elementsById / elementOrder if missing or empty
+    try {
+        const scene: any = doc.scene;
+        if (scene) {
+            if (!scene.elementsById || typeof scene.elementsById !== 'object') scene.elementsById = {};
+            if (!Array.isArray(scene.elementOrder)) scene.elementOrder = [];
+            if (scene.elementOrder.length === 0 && Object.keys(scene.elementsById).length === 0) {
+                if (Array.isArray(scene.elements)) {
+                    for (const el of scene.elements) {
+                        if (!el || !el.id) continue;
+                        scene.elementsById[el.id] = el;
+                        scene.elementOrder.push(el.id);
+                    }
+                }
+            }
+        }
+    } catch {}
+    return doc;
 }

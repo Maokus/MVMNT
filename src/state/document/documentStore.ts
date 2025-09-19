@@ -84,15 +84,49 @@ function buildInitialDoc(): DocumentStateV1 {
     };
     const scene = {
         elements: [],
+        // P1: dual-write structures (populated lazily/migration). Use non-optional internally after migration.
+        elementsById: {} as Record<string, any>,
+        elementOrder: [] as string[],
         sceneSettings: undefined,
         macros: undefined,
     };
     return { timeline, scene };
 }
 
+// P1: Migration utility to ensure dual structures exist and are consistent with legacy array.
+function migrateSceneStructure(doc: DocumentStateV1) {
+    const scene: any = doc.scene;
+    if (!scene.elementsById || typeof scene.elementsById !== 'object') scene.elementsById = {};
+    if (!Array.isArray(scene.elementOrder)) scene.elementOrder = [];
+    // If map/order empty but legacy elements has data, hydrate from legacy array
+    if (
+        scene.elementOrder.length === 0 &&
+        Object.keys(scene.elementsById).length === 0 &&
+        Array.isArray(scene.elements)
+    ) {
+        for (const el of scene.elements) {
+            if (!el || !el.id) continue;
+            scene.elementsById[el.id] = el;
+            scene.elementOrder.push(el.id);
+        }
+    } else {
+        // Otherwise ensure parity: any element missing in map gets added and order appended.
+        if (Array.isArray(scene.elements)) {
+            for (const el of scene.elements) {
+                if (!el || !el.id) continue;
+                if (!scene.elementsById[el.id]) {
+                    scene.elementsById[el.id] = el;
+                    if (!scene.elementOrder.includes(el.id)) scene.elementOrder.push(el.id);
+                }
+            }
+        }
+    }
+    return doc;
+}
+
 export const useDocumentStore = create<DocumentStoreState>((set, get) => {
     // Private, mutable document and history stacks
-    let doc: DocumentStateV1 = buildInitialDoc();
+    let doc: DocumentStateV1 = migrateSceneStructure(buildInitialDoc());
     let past: HistoryEntry<DocumentStateV1>[] = [];
     let future: HistoryEntry<DocumentStateV1>[] = [];
     let cap = 200;
@@ -128,8 +162,76 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         w.__undoDebug = w.__undoDebug || {};
         w.__undoDebug.dumpDoc = () => get().getSnapshot();
         w.__undoDebug.hist = () => ({ past: past.length, future: future.length, grouping, groupLabel });
+        let benchmarked = false;
+        w.__undoDebug.verify = () => {
+            const problems: string[] = [];
+            try {
+                const snap = get().getSnapshot();
+                const scene: any = snap.scene;
+                const map = scene.elementsById || {};
+                const order: string[] = scene.elementOrder || [];
+                const keys = Object.keys(map);
+                if (keys.length !== order.length) problems.push('length mismatch map vs order');
+                for (const id of order) {
+                    if (!map[id]) problems.push('order id missing in map: ' + id);
+                }
+                // ensure legacy array parity (# elements with ids match map size)
+                if (Array.isArray(scene.elements)) {
+                    const arrIds = scene.elements.map((e: any) => e && e.id).filter(Boolean);
+                    const arrUnique = Array.from(new Set(arrIds));
+                    if (arrUnique.length !== keys.length) problems.push('legacy array id count diverges from map size');
+                }
+                if (!benchmarked && isDevLikeEnv()) {
+                    benchmarked = true;
+                    try {
+                        const sampleIds = order.slice(0, 100);
+                        const t0 = performance.now();
+                        let sum = 0;
+                        for (let i = 0; i < 1000; i++) {
+                            for (const id of sampleIds) {
+                                const el = (map as any)[id];
+                                if (el) sum += el?.x ? 1 : 0;
+                            }
+                        }
+                        const dt = performance.now() - t0;
+                        // eslint-disable-next-line no-console
+                        console.log(
+                            '[undoDebug.verify][benchmark] 100 id lookups x1000 loops in',
+                            dt.toFixed(2),
+                            'ms (sum=',
+                            sum,
+                            ')'
+                        );
+                    } catch {}
+                }
+            } catch (e: any) {
+                problems.push('exception: ' + e?.message);
+            }
+            const ok = problems.length === 0;
+            if (!ok) console.warn('[undoDebug.verify] problems', problems);
+            else if (isDevLikeEnv()) console.log('[undoDebug.verify] ok');
+            return ok;
+        };
     }
     exposeDevHelpers();
+
+    // Dev invariant check (P1): ensure map/order parity after any state mutation
+    function devInvariantCheck() {
+        if (!isDevLikeEnv()) return;
+        try {
+            const scene: any = doc.scene;
+            if (!scene) return;
+            const map = scene.elementsById || {};
+            const order: string[] = scene.elementOrder || [];
+            if (Object.keys(map).length !== order.length) {
+                // eslint-disable-next-line no-console
+                console.warn('[DocumentStore][invariant] elementsById length != elementOrder length');
+            }
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[DocumentStore][invariant] exception', e);
+        }
+    }
 
     const api: DocumentStoreState = {
         rev: 0,
@@ -139,7 +241,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         commit(updater, meta) {
             const [next, patches, inversePatches] = produceWithPatches(doc, updater);
             if (patches.length === 0) return; // no-op
-            doc = next;
+            doc = migrateSceneStructure(next);
             if (grouping) {
                 // Accumulate patches within the active group
                 // Forward patches apply in order
@@ -150,6 +252,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
                 future = [];
                 bump();
                 log('commit', meta);
+                devInvariantCheck();
                 return;
             }
             // push onto history and clear future
@@ -167,6 +270,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             }
             bump();
             log('commit', { ...(meta || {}), patchCount: (patches as Patch[]).length });
+            devInvariantCheck();
         },
 
         undo() {
@@ -176,36 +280,39 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             if (past.length === 0) return;
             const entry = past[past.length - 1];
             past = past.slice(0, -1);
-            doc = applyPatches(doc, entry.inversePatches as Patch[]);
+            doc = migrateSceneStructure(applyPatches(doc, entry.inversePatches as Patch[]));
             // Move entry to future for redo
             future.push(entry);
             bump();
             log('undo', { ...(entry.meta || {}), undoPatchCount: entry.inversePatches?.length });
+            devInvariantCheck();
         },
 
         redo() {
             if (future.length === 0) return;
             const entry = future[future.length - 1];
             future = future.slice(0, -1);
-            doc = applyPatches(doc, entry.patches as Patch[]);
+            doc = migrateSceneStructure(applyPatches(doc, entry.patches as Patch[]));
             past.push(entry);
             bump();
             log('redo', { ...(entry.meta || {}), redoPatchCount: entry.patches?.length });
+            devInvariantCheck();
         },
 
         replace(next, meta) {
             // Replace entire doc and clear history stacks
             try {
                 // @ts-ignore
-                doc = structuredClone(next);
+                doc = migrateSceneStructure(structuredClone(next));
             } catch {
-                doc = JSON.parse(JSON.stringify(next));
+                doc = migrateSceneStructure(JSON.parse(JSON.stringify(next)));
             }
             past = [];
             future = [];
             // Optionally record meta by pushing a marker entry? Spec says clear stacks; so skip.
             bump();
             log('replace', meta);
+            devInvariantCheck();
         },
 
         beginGroup(label) {

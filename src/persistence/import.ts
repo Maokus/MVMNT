@@ -87,11 +87,21 @@ export function importScene(json: string): ImportSceneResult {
         const sb = _getSceneBuilder();
         if (sb) {
             // Build a legacy sceneData object compatible with HybridSceneBuilder.loadScene
+            const legacyElements = Array.isArray(scene.elements) ? scene.elements : [];
+            const elementsById: Record<string, any> = {};
+            const elementOrder: string[] = [];
+            for (const el of legacyElements) {
+                if (!el || !el.id) continue;
+                elementsById[el.id] = el;
+                elementOrder.push(el.id);
+            }
             const sceneData = {
-                elements: Array.isArray(scene.elements) ? scene.elements : [],
+                elements: legacyElements,
+                elementsById, // P1 dual-write
+                elementOrder,
                 sceneSettings: scene.sceneSettings,
                 macros: scene.macros, // loadScene will re-import macros; that's okay (idempotent) or ignore if absent
-            };
+            } as any;
             if (typeof sb.loadScene === 'function') {
                 const ok = sb.loadScene(sceneData);
                 if (!ok) console.error('[importScene] Scene builder load failed');

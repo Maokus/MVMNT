@@ -81,7 +81,14 @@ export function setTransportPlaying(isPlaying: boolean, meta?: PatchMeta) {
 export function addSceneElement(el: any, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
-            d.scene.elements.push(el);
+            const scene: any = d.scene as any;
+            scene.elements.push(el); // TODO remove legacy array (P13)
+            if (el && el.id) {
+                if (!scene.elementsById) scene.elementsById = {};
+                if (!scene.elementOrder) scene.elementOrder = [];
+                scene.elementsById[el.id] = el;
+                if (!scene.elementOrder.includes(el.id)) scene.elementOrder.push(el.id);
+            }
         },
         { label: 'addSceneElement', id: el?.id, ...meta }
     );
@@ -90,8 +97,12 @@ export function addSceneElement(el: any, meta?: PatchMeta) {
 export function updateSceneElement(id: string, updater: (el: any) => void, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
-            const idx = d.scene.elements.findIndex((e: any) => e?.id === id);
-            if (idx >= 0) updater(d.scene.elements[idx]);
+            const scene: any = d.scene as any;
+            const idx = scene.elements.findIndex((e: any) => e?.id === id);
+            if (idx >= 0) updater(scene.elements[idx]); // legacy path
+            if (scene.elementsById && scene.elementsById[id]) {
+                updater(scene.elementsById[id]);
+            }
         },
         { label: 'updateSceneElement', id, ...meta }
     );
@@ -104,10 +115,12 @@ export function updateSceneElement(id: string, updater: (el: any) => void, meta?
 export function updateSceneElements(ids: string[], updater: (el: any) => void, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
+            const scene: any = d.scene as any;
             if (!Array.isArray(ids) || ids.length === 0) return;
             for (const id of ids) {
-                const idx = d.scene.elements.findIndex((e: any) => e?.id === id);
-                if (idx >= 0) updater(d.scene.elements[idx]);
+                const idx = scene.elements.findIndex((e: any) => e?.id === id);
+                if (idx >= 0) updater(scene.elements[idx]); // legacy path
+                if (scene.elementsById && scene.elementsById[id]) updater(scene.elementsById[id]);
             }
         },
         { label: 'updateSceneElements', ids, ...meta }
@@ -117,7 +130,11 @@ export function updateSceneElements(ids: string[], updater: (el: any) => void, m
 export function removeSceneElement(id: string, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
-            d.scene.elements = d.scene.elements.filter((e: any) => e?.id !== id);
+            const scene: any = d.scene as any;
+            scene.elements = scene.elements.filter((e: any) => e?.id !== id); // legacy path
+            if (scene.elementsById && scene.elementsById[id]) delete scene.elementsById[id];
+            if (Array.isArray(scene.elementOrder))
+                scene.elementOrder = scene.elementOrder.filter((x: string) => x !== id);
         },
         { label: 'removeSceneElement', id, ...meta }
     );
