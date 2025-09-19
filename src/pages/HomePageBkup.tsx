@@ -35,11 +35,12 @@ const HomePage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-800 text-neutral-200 px-6 py-10">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 text-neutral-200 px-6 py-10">
             <div className="max-w-4xl w-full">
-                <div className="flex flex-col items-left mb-10">
-                    <p><span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</span><span>v{((import.meta as any).env?.VITE_VERSION)}</span></p>
-                    <p className="mt-4 text-neutral-400 text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
+                <div className="flex flex-col items-center mb-10">
+                    <img src={logo} alt="MVMNT" className="w-40 h-auto mb-4 opacity-90" />
+                    <h1 className="text-6xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</h1>
+                    <p className="mt-4 text-neutral-400 text-center text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
                     <div className="mt-6 flex flex-wrap gap-4">
                         <button onClick={handleLoadFile} className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition font-medium text-sm">Load Scene (.json)</button>
 

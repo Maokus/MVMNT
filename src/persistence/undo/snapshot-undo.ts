@@ -130,6 +130,12 @@ class SnapshotUndoController extends DisabledUndoController {
     private subscribe() {
         // Subscribe to store changes
         this.unsub = useTimelineStore.subscribe((state: any, prev: any) => {
+            // If we're in the middle of applying an undo/redo snapshot, suppress capturing.
+            // Without this guard the state changes produced by DocumentGateway.apply() schedule a new
+            // snapshot once the debounce fires (after restoring flag has been cleared). That results in
+            // the undo operation itself being recorded as a fresh top-of-stack entry, making further
+            // undo impossible (you remain at the newest snapshot after a single undo) and breaking redo.
+            if (this.restoring) return;
             try {
                 const tl = state?.timeline;
                 const prevTl = prev?.timeline;
