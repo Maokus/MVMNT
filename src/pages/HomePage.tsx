@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '@assets/Logo_Transparent.png';
+import "./homepage.css"
 
 /**
  * Home / Landing page
@@ -51,7 +52,7 @@ const HomePage: React.FC = () => {
                 </div>
 
                 <section>
-                    <h2 className="text-xl font-semibold mb-4 text-neutral-300">Templates</h2>
+                    <h2 className="text-xl font-semibold mb-4 text-neutral-300">New File</h2>
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         <TemplateCard title="Blank" desc="Empty workspace – start from scratch." onClick={() => handleOpenTemplate('blank')} />
                         <TemplateCard
