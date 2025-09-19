@@ -11,6 +11,7 @@ import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import { PlaybackClock } from '@core/playback-clock';
 // Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
+import { addSceneElement } from '@state/document/actions';
 
 export interface ExportSettings {
     fps: number;
@@ -129,6 +130,29 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     }));
                 }
             } catch { }
+        }
+    }, [visualizer]);
+
+    // P1: On first visualizer mount, backfill document store with any existing runtime elements (e.g., demo seeds)
+    useEffect(() => {
+        if (!visualizer) return;
+        try {
+            const runtimeElements = visualizer.getSceneElements?.() || [];
+            if (Array.isArray(runtimeElements) && runtimeElements.length) {
+                for (const el of runtimeElements) {
+                    try {
+                        // Use config snapshot for stable serialization shape
+                        const cfg = visualizer.getSceneElementConfig?.(el.id) || { id: el.id, type: el.type };
+                        addSceneElement(cfg, { label: 'init:seedElement' });
+                    } catch { }
+                }
+                if (typeof window !== 'undefined') {
+                    // eslint-disable-next-line no-console
+                    console.log('[VisualizerProvider] Seeded document store with', runtimeElements.length, 'elements');
+                }
+            }
+        } catch (e) {
+            console.warn('[VisualizerProvider] Failed seeding document store from runtime elements', e);
         }
     }, [visualizer]);
 

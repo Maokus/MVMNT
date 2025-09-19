@@ -543,12 +543,36 @@ export class MIDIVisualizerCore {
     }
     addSceneElement(type: string, config: any = {}) {
         const element = this.sceneBuilder.addElementFromRegistry(type, config);
-        if (element) this.invalidateRender();
+        if (element) {
+            try {
+                // Sync into document store (Phase P1 dual-write). Import lazily to avoid circular deps.
+                const { addSceneElement: addDocElement } = require('@state/document/actions');
+                // Use serializable config shape if available
+                const cfg = this.sceneBuilder.getElementConfig((element as any).id) || {
+                    id: (element as any).id,
+                    type,
+                };
+                addDocElement(cfg, { label: 'runtime:addSceneElement' });
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn('[visualizer-core] Failed to sync addSceneElement to document store', e);
+            }
+            this.invalidateRender();
+        }
         return element;
     }
     removeSceneElement(elementId: string) {
         const removed = this.sceneBuilder.removeElement(elementId);
-        if (removed) this.invalidateRender();
+        if (removed) {
+            try {
+                const { removeSceneElement: removeDocElement } = require('@state/document/actions');
+                removeDocElement(elementId, { label: 'runtime:removeSceneElement' });
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn('[visualizer-core] Failed to sync removeSceneElement to document store', e);
+            }
+            this.invalidateRender();
+        }
         return removed;
     }
     updateSceneElementConfig(elementId: string, config: any) {

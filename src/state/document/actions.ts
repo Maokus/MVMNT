@@ -81,14 +81,15 @@ export function setTransportPlaying(isPlaying: boolean, meta?: PatchMeta) {
 export function addSceneElement(el: any, meta?: PatchMeta) {
     useDocumentStore.getState().commit(
         (d) => {
+            if (!el || !el.id) return;
             const scene: any = d.scene as any;
-            scene.elements.push(el); // TODO remove legacy array (P13)
-            if (el && el.id) {
-                if (!scene.elementsById) scene.elementsById = {};
-                if (!scene.elementOrder) scene.elementOrder = [];
-                scene.elementsById[el.id] = el;
-                if (!scene.elementOrder.includes(el.id)) scene.elementOrder.push(el.id);
-            }
+            if (!scene.elementsById) scene.elementsById = {};
+            if (!scene.elementOrder) scene.elementOrder = [];
+            if (scene.elementsById[el.id]) return; // duplicate guard
+            const clone = { ...el }; // shallow clone to detach external mutations
+            scene.elements.push(clone); // legacy path (TODO remove P13)
+            scene.elementsById[clone.id] = clone;
+            scene.elementOrder.push(clone.id);
         },
         { label: 'addSceneElement', id: el?.id, ...meta }
     );
