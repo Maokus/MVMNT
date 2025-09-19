@@ -257,6 +257,15 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
         vis.setInteractionState({ draggingElementId: null, activeHandle: null });
         vis._dragMeta = null;
         deps.incrementPropertyPanelRefresh();
+        // Trigger undo snapshot capture after completing a drag interaction (move/scale/rotate/anchor)
+        try {
+            const undo: any = (window as any).__mvmntUndo;
+            if (undo && typeof undo.markDirty === 'function') {
+                undo.markDirty();
+            }
+        } catch {
+            /* noop */
+        }
     }
 }
 

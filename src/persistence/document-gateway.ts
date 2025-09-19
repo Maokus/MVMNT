@@ -44,7 +44,9 @@ export const DocumentGateway = {
         const state = useTimelineStore.getState();
         // Copy timeline but drop currentTick always in persistent form.
         const { timeline, transport, timelineView, ...rest } = state as any;
-        const { currentTick: _dropTick, ...timelineCore } = timeline || {};
+        // Strip ephemeral timeline fields: currentTick always, playheadAuthority should not generate undo snapshots.
+        // Additional ephemeral timeline-only fields can be added here without affecting persisted documents.
+        const { currentTick: _dropTick, playheadAuthority: _dropAuth, ...timelineCore } = timeline || {};
 
         // Scene + macros (best effort)
         let elements: any[] = [];

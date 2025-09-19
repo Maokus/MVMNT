@@ -73,8 +73,8 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     private buildSnapshot(): SnapshotEntry {
-        // Use DocumentGateway with ephemeral fields (for undo we want playhead + transport + view)
-        const docWithEphemeral = DocumentGateway.build({ includeEphemeral: true });
+        // Use DocumentGateway
+        const docWithEphemeral = DocumentGateway.build({ includeEphemeral: false });
         const json = serializeStable(docWithEphemeral);
         return { stateJSON: json, size: json.length * 2, timestamp: performance.now() };
     }
@@ -87,6 +87,7 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     private pushSnapshot(entry: SnapshotEntry) {
+        console.log('[Undo] Captured snapshot', { index: this.index, size: entry.size });
         // Drop any redo branch (everything after current index)
         if (this.index < this.ring.length - 1) {
             this.ring.splice(this.index + 1);
@@ -128,7 +129,38 @@ class SnapshotUndoController extends DisabledUndoController {
 
     private subscribe() {
         // Subscribe to store changes
-        this.unsub = useTimelineStore.subscribe(() => this.scheduleCapture());
+        this.unsub = useTimelineStore.subscribe((state: any, prev: any) => {
+            try {
+                const tl = state?.timeline;
+                const prevTl = prev?.timeline;
+                let onlyEphemeralTimelineChange = false;
+                if (tl && prevTl) {
+                    const keysChanged: string[] = [];
+                    for (const k of Object.keys({ ...tl, ...prevTl })) {
+                        if ((tl as any)[k] !== (prevTl as any)[k]) keysChanged.push(k);
+                    }
+                    const nonEphemeral = keysChanged.filter((k) => k !== 'currentTick' && k !== 'playheadAuthority');
+                    // If there were timeline changes but they were exclusively ephemeral AND no other top-level slice changed, skip.
+                    if (nonEphemeral.length === 0) {
+                        // Compare shallow identity of other top-level slices we serialize (tracks, tracksOrder, playbackRange, rowHeight, midiCache)
+                        const slicesStable =
+                            state.tracks === prev.tracks &&
+                            state.tracksOrder === prev.tracksOrder &&
+                            state.playbackRange === prev.playbackRange &&
+                            state.playbackRangeUserDefined === prev.playbackRangeUserDefined &&
+                            state.rowHeight === prev.rowHeight &&
+                            state.midiCache === prev.midiCache;
+                        if (slicesStable) {
+                            onlyEphemeralTimelineChange = true;
+                        }
+                    }
+                }
+                if (onlyEphemeralTimelineChange) return; // skip scheduling capture for scrub-only changes
+            } catch {
+                /* ignore and fall through */
+            }
+            this.scheduleCapture();
+        });
     }
 
     canUndo(): boolean {
