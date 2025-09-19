@@ -113,6 +113,13 @@ class SnapshotUndoController extends DisabledUndoController {
         if (this.pendingTimer) {
             clearTimeout(this.pendingTimer);
         }
+        try {
+            console.log('[Undo][Trace] scheduleCapture() requested', {
+                hadPending: !!this.pendingTimer,
+                restoring: this.restoring,
+                debounceMs: this.debounceMs,
+            });
+        } catch {}
         this.pendingTimer = setTimeout(() => {
             this.pendingTimer = null;
             this.captureIfChanged();
@@ -124,6 +131,9 @@ class SnapshotUndoController extends DisabledUndoController {
         const entry = this.buildSnapshot();
         if (entry.stateJSON === this.lastJSON) return; // skip duplicate
         this.lastJSON = entry.stateJSON;
+        try {
+            console.log('[Undo][Trace] captureIfChanged() proceeding to pushSnapshot (state changed)');
+        } catch {}
         this.pushSnapshot(entry);
     }
 
@@ -165,6 +175,9 @@ class SnapshotUndoController extends DisabledUndoController {
             } catch {
                 /* ignore and fall through */
             }
+            try {
+                console.log('[Undo][Trace] Store subscription triggering scheduleCapture()');
+            } catch {}
             this.scheduleCapture();
         });
     }
@@ -212,9 +225,17 @@ class SnapshotUndoController extends DisabledUndoController {
         }
     }
 
+    /** Exposed so instrumentation can detect active restore and avoid scheduling a follow-up snapshot. */
+    isRestoring(): boolean {
+        return this.restoring;
+    }
+
     /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
     markDirty() {
         if (this.restoring) return; // ignore while restoring
+        try {
+            console.log('[Undo][Trace] markDirty() called');
+        } catch {}
         this.scheduleCapture();
     }
 
@@ -295,6 +316,7 @@ export function instrumentSceneBuilderForUndo(sb: any) {
         obj[method] = function (...args: any[]) {
             const r = orig(...args);
             try {
+                console.log('[Undo][Trace] SceneBuilder method invoking markDirty()', { method });
                 undo.markDirty();
             } catch {}
             return r;
@@ -347,8 +369,19 @@ export function instrumentTimelineStoreForUndo() {
         const wrapped = async (...args: any[]) => {
             const result = await orig(...args);
             try {
+                // If we're currently restoring an undo snapshot, skip scheduling a new snapshot.
+                if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
+                    return result;
+                }
                 // Schedule markDirty after promise resolves (e.g., addMidiTrack async ingest)
-                setTimeout(() => undo.markDirty(), 0);
+                setTimeout(() => {
+                    try {
+                        // Re-check restoring state in case restore began after scheduling (belt & suspenders)
+                        if (typeof undo.isRestoring === 'function' && undo.isRestoring()) return;
+                        console.log('[Undo][Trace] Timeline action invoking markDirty()', { action: name });
+                        undo.markDirty();
+                    } catch {}
+                }, 0);
             } catch {}
             return result;
         };
