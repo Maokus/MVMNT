@@ -55,6 +55,7 @@ class SnapshotUndoController extends DisabledUndoController {
     private lastJSON: string | null = null;
     private unsub: (() => void) | null = null;
     private restoring: boolean = false; // guard to avoid capturing while applying undo
+    // Removed complex suppression logic; rely on restoring flag + lastJSON update.
 
     constructor(opts: CreateSnapshotUndoOptions) {
         super();
@@ -127,7 +128,7 @@ class SnapshotUndoController extends DisabledUndoController {
     }
 
     private captureIfChanged() {
-        if (this.restoring) return; // don't record snapshots while restoring one
+        if (this.restoring) return; // don't record snapshots while restoring
         const entry = this.buildSnapshot();
         if (entry.stateJSON === this.lastJSON) return; // skip duplicate
         this.lastJSON = entry.stateJSON;
@@ -219,6 +220,8 @@ class SnapshotUndoController extends DisabledUndoController {
             // Merge slices to preserve function properties on the store (replace=true would discard actions)
             // Apply through gateway (ephemeral contained in __ephemeral)
             DocumentGateway.apply(obj);
+            // Update lastJSON to the restored snapshot so any immediate markDirty with identical state is ignored.
+            this.lastJSON = cur.stateJSON;
             this.restoring = false;
         } catch (e) {
             console.error('[Undo] Failed to parse/apply snapshot', e);
@@ -229,6 +232,8 @@ class SnapshotUndoController extends DisabledUndoController {
     isRestoring(): boolean {
         return this.restoring;
     }
+
+    // (Suppression helpers removed)
 
     /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
     markDirty() {
@@ -376,7 +381,7 @@ export function instrumentTimelineStoreForUndo() {
                 // Schedule markDirty after promise resolves (e.g., addMidiTrack async ingest)
                 setTimeout(() => {
                     try {
-                        // Re-check restoring state in case restore began after scheduling (belt & suspenders)
+                        // Re-check restoring state in case a restore began after scheduling
                         if (typeof undo.isRestoring === 'function' && undo.isRestoring()) return;
                         console.log('[Undo][Trace] Timeline action invoking markDirty()', { action: name });
                         undo.markDirty();
