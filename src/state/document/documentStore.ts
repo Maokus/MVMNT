@@ -98,27 +98,43 @@ function migrateSceneStructure(doc: DocumentStateV1) {
     const scene: any = doc.scene;
     if (!scene.elementsById || typeof scene.elementsById !== 'object') scene.elementsById = {};
     if (!Array.isArray(scene.elementOrder)) scene.elementOrder = [];
-    // If map/order empty but legacy elements has data, hydrate from legacy array
-    if (
-        scene.elementOrder.length === 0 &&
-        Object.keys(scene.elementsById).length === 0 &&
-        Array.isArray(scene.elements)
-    ) {
+    // Legacy array to authoritative set of ids (until full migration removes scene.elements)
+    const legacyIds: string[] = Array.isArray(scene.elements)
+        ? scene.elements.map((e: any) => e && e.id).filter(Boolean)
+        : [];
+
+    // Case 1: bootstrap when both map and order are effectively empty but legacy has data
+    if (scene.elementOrder.length === 0 && Object.keys(scene.elementsById).length === 0 && legacyIds.length > 0) {
         for (const el of scene.elements) {
             if (!el || !el.id) continue;
             scene.elementsById[el.id] = el;
             scene.elementOrder.push(el.id);
         }
-    } else {
-        // Otherwise ensure parity: any element missing in map gets added and order appended.
-        if (Array.isArray(scene.elements)) {
-            for (const el of scene.elements) {
-                if (!el || !el.id) continue;
-                if (!scene.elementsById[el.id]) {
-                    scene.elementsById[el.id] = el;
-                    if (!scene.elementOrder.includes(el.id)) scene.elementOrder.push(el.id);
-                }
+        return doc;
+    }
+
+    // Case 2: prune stale ids that no longer exist in legacy array (handles removals made only against legacy array)
+    if (legacyIds.length > 0) {
+        const legacySet = new Set(legacyIds);
+        // Remove map entries whose id vanished
+        for (const id of Object.keys(scene.elementsById)) {
+            if (!legacySet.has(id)) delete scene.elementsById[id];
+        }
+        // Filter elementOrder to only current legacy ids (preserving existing relative order)
+        scene.elementOrder = scene.elementOrder.filter((id: string) => legacySet.has(id));
+        // Append any new ids (added directly to legacy array) that are missing in order at the end to preserve stable append semantics
+        for (const id of legacyIds) {
+            if (!scene.elementOrder.includes(id)) scene.elementOrder.push(id);
+            if (!scene.elementsById[id]) {
+                const el = scene.elements.find((e: any) => e && e.id === id);
+                if (el) scene.elementsById[id] = el;
             }
+        }
+    } else {
+        // If legacy array is empty, clear derived structures to avoid dangling order entries
+        if (scene.elementOrder.length > 0 || Object.keys(scene.elementsById).length > 0) {
+            scene.elementOrder = [];
+            for (const k of Object.keys(scene.elementsById)) delete scene.elementsById[k];
         }
     }
     return doc;
