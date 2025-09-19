@@ -3,6 +3,7 @@ import { produceWithPatches, enableMapSet, enablePatches } from 'immer';
 import type { DocumentRoot } from './schema';
 import { createEmptyDocument } from './schema';
 import { computeStructuralHash } from './hash';
+import { createReconciler, Reconciler } from './reconciler';
 
 enableMapSet();
 enablePatches();
@@ -22,6 +23,7 @@ interface DocumentState {
     undoStack: UndoEntry[];
     redoStack: UndoEntry[];
     lastCommitAt: number;
+    reconciler: Reconciler; // runtime reconciler instance
     applyDocMutation: (label: string, fn: (draft: DocumentRoot) => void, options?: { batchable?: boolean }) => void;
     undo: () => void;
     redo: () => void;
@@ -36,8 +38,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     undoStack: [],
     redoStack: [],
     lastCommitAt: 0,
+    reconciler: createReconciler(),
     applyDocMutation: (label, fn, options) => {
-        const { document, undoStack } = get();
+        const { document, undoStack, reconciler } = get();
         const hashBefore = computeStructuralHash(document);
         const startTime = performance.now ? performance.now() : Date.now();
         const batchable = options?.batchable !== false; // default true
@@ -78,6 +81,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         }
 
         set({ document: nextDoc, undoStack: newUndoStack, redoStack: [], lastCommitAt: now });
+        // Reconcile runtime graph after committing the (possibly merged) mutation.
+        reconciler.reconcile(nextDoc);
 
         const endTime = performance.now ? performance.now() : Date.now();
         if (endTime - startTime > 16) {
@@ -87,7 +92,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         }
     },
     undo: () => {
-        const { undoStack, document, redoStack } = get();
+        const { undoStack, document, redoStack, reconciler } = get();
         if (!undoStack.length) return;
         const entry = undoStack[undoStack.length - 1];
         // Apply inverse patches sequentially using Immer produceWithPatches over no-op draft? Instead we can re-play patches manually.
@@ -96,15 +101,17 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         const newUndo = undoStack.slice(0, undoStack.length - 1);
         const newRedo = [...redoStack, entry];
         set({ document: prev, undoStack: newUndo, redoStack: newRedo });
+        reconciler.reconcile(prev);
     },
     redo: () => {
-        const { redoStack, document, undoStack } = get();
+        const { redoStack, document, undoStack, reconciler } = get();
         if (!redoStack.length) return;
         const entry = redoStack[redoStack.length - 1];
         const next = applyPatches(document, entry.patches);
         const newRedo = redoStack.slice(0, redoStack.length - 1);
         const newUndo = [...undoStack, entry];
         set({ document: next, undoStack: newUndo, redoStack: newRedo });
+        reconciler.reconcile(next);
     },
     canUndo: () => get().undoStack.length > 0,
     canRedo: () => get().redoStack.length > 0,
