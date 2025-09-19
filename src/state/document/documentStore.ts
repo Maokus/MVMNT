@@ -121,6 +121,16 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         });
     };
 
+    // Expose simple dev-only inspectors on global for Phase P0 (will be formalized later)
+    function exposeDevHelpers() {
+        if (typeof window === 'undefined') return;
+        const w: any = window as any;
+        w.__undoDebug = w.__undoDebug || {};
+        w.__undoDebug.dumpDoc = () => get().getSnapshot();
+        w.__undoDebug.hist = () => ({ past: past.length, future: future.length, grouping, groupLabel });
+    }
+    exposeDevHelpers();
+
     const api: DocumentStoreState = {
         rev: 0,
         canUndo: false,
@@ -156,7 +166,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
                 log('capTrim');
             }
             bump();
-            log('commit', meta);
+            log('commit', { ...(meta || {}), patchCount: (patches as Patch[]).length });
         },
 
         undo() {
@@ -170,7 +180,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             // Move entry to future for redo
             future.push(entry);
             bump();
-            log('undo', entry.meta);
+            log('undo', { ...(entry.meta || {}), undoPatchCount: entry.inversePatches?.length });
         },
 
         redo() {
@@ -180,7 +190,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
             doc = applyPatches(doc, entry.patches as Patch[]);
             past.push(entry);
             bump();
-            log('redo', entry.meta);
+            log('redo', { ...(entry.meta || {}), redoPatchCount: entry.patches?.length });
         },
 
         replace(next, meta) {
