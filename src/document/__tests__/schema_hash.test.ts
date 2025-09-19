@@ -6,7 +6,7 @@ function clone<T>(v: T): T {
     return JSON.parse(JSON.stringify(v));
 }
 
-describe('Phase 1 - Schema & Structural Hash', () => {
+describe('Schema & Structural Hash', () => {
     it('migrate(createEmptyDocument()) is idempotent (hash unchanged)', () => {
         const doc = createEmptyDocument();
         const migrated = migrate(doc);

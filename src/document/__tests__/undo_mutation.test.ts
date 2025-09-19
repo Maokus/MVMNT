@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
     createEmptyDocument,
     applyDocMutation,
@@ -13,25 +13,24 @@ function sleep(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-describe('Phase 3 – Mutation Funnel & Undo/Redo', () => {
+describe('Mutation Funnel & Undo/Redo', () => {
     it('batched rapid mutations produce one undo entry', async () => {
-        // Reset store by replacing document (simplest approach)
         useDocumentStore.setState({ document: createEmptyDocument(), undoStack: [], redoStack: [] } as any);
         const docStart = useDocumentStore.getState().document;
         applyDocMutation('add-el', (draft) => {
             const id = 'el1';
-            draft.elements.byId[id] = { id, name: 'Element 1', start: 0, duration: 100 };
+            draft.elements.byId[id] = { id, name: 'Element 1', start: 0, duration: 100 } as any;
             draft.elements.allIds.push(id);
         });
         applyDocMutation('add-el', (draft) => {
             const id = 'el2';
-            draft.elements.byId[id] = { id, name: 'Element 2', start: 10, duration: 100 };
+            draft.elements.byId[id] = { id, name: 'Element 2', start: 10, duration: 100 } as any;
             draft.elements.allIds.push(id);
         });
         const { undoStack } = useDocumentStore.getState();
-        expect(undoStack.length).toBe(1); // merged
+        expect(undoStack.length).toBe(1);
         expect(Object.keys(useDocumentStore.getState().document.elements.byId).length).toBe(2);
-        expect(docStart).not.toBe(useDocumentStore.getState().document); // new identity
+        expect(docStart).not.toBe(useDocumentStore.getState().document);
     });
 
     it('timeout between mutations prevents batching', async () => {
@@ -44,7 +43,7 @@ describe('Phase 3 – Mutation Funnel & Undo/Redo', () => {
             draft.meta.name = 'Project B';
         });
         const { undoStack } = useDocumentStore.getState();
-        expect(undoStack.length).toBe(2); // not merged due to timeout
+        expect(undoStack.length).toBe(2);
     });
 
     it('undo restores previous structural hash and redo restores original', () => {

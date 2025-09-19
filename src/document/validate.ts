@@ -6,7 +6,7 @@ export interface ValidationError {
     severity?: 'error' | 'warn';
 }
 
-// Phase 2: Basic structural & referential validation.
+// Basic structural & referential validation.
 // Focus: root presence, duplicate IDs, element reference integrity (track.elementIds -> elements.byId),
 // numeric field sanity (non-negative duration, start >= 0).
 // Intentionally lean: no attempt to salvage; we simply report all errors then caller may throw.

@@ -3,7 +3,7 @@ import { migrate } from './schema';
 import { assertValidDocument } from './validate';
 import type { DocumentRoot } from './schema';
 
-// Phase 4: Deterministic serialization & deserialization
+// Deterministic serialization & deserialization
 // serializeDocument: produce canonical JSON string with sorted keys (leverages canonicalize from hash.ts)
 // deserializeDocument: parse -> migrate -> validate -> return DocumentRoot
 

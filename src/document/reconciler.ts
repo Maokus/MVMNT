@@ -1,4 +1,4 @@
-// Phase 5: Incremental Reconciler
+// Incremental Reconciler
 // Lean reconciler that tracks runtime representations of tracks & elements by ID.
 // It preserves object identity for unchanged nodes, creates runtime objects for additions,
 // updates existing objects on shallow meaningful property change, and calls dispose on removals.

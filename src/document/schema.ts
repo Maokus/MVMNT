@@ -1,4 +1,4 @@
-// Phase 1: Minimal document schema & utilities
+// Minimal document schema & utilities
 // The persisted document is pure data. Runtime/UI state lives elsewhere.
 
 export const SCHEMA_VERSION = 1 as const;
