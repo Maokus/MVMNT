@@ -261,9 +261,6 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
         try {
             const undo: any = (window as any).__mvmntUndo;
             if (undo && typeof undo.markDirty === 'function') {
-                try {
-                    console.log('[Undo][Trace] finalizeDrag() invoking markDirty()');
-                } catch {}
                 undo.markDirty();
             }
         } catch {

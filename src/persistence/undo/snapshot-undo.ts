@@ -166,9 +166,6 @@ class SnapshotUndoController extends DisabledUndoController {
             } catch {
                 /* ignore and fall through */
             }
-            try {
-                console.log('[Undo][Trace] Store subscription triggering scheduleCapture()');
-            } catch {}
             this.scheduleCapture();
         });
     }
@@ -228,9 +225,6 @@ class SnapshotUndoController extends DisabledUndoController {
     /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
     markDirty() {
         if (this.restoring) return; // ignore while restoring
-        try {
-            console.log('[Undo][Trace] markDirty() called');
-        } catch {}
         this.scheduleCapture();
     }
 
@@ -304,10 +298,7 @@ export function instrumentSceneBuilderForUndo(sb: any) {
         const orig = obj[method].bind(obj);
         obj[method] = function (...args: any[]) {
             const r = orig(...args);
-            try {
-                console.log('[Undo][Trace] SceneBuilder method invoking markDirty()', { method });
-                undo.markDirty();
-            } catch {}
+            undo.markDirty();
             return r;
         };
     };
@@ -365,7 +356,6 @@ export function instrumentTimelineStoreForUndo() {
                 try {
                     // Re-check restoring state in case a restore began after scheduling
                     if (typeof undo.isRestoring === 'function' && undo.isRestoring()) return;
-                    console.log('[Undo][Trace] Timeline action invoking markDirty()', { action: name });
                     undo.markDirty();
                 } catch (e) {
                     console.error(e);
