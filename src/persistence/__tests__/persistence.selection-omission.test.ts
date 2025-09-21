@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { exportScene } from '@persistence/export';
 import { createSnapshotUndoController } from '@persistence/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
@@ -36,7 +37,7 @@ describe('Persistence - selection omission & undo triggers', () => {
         await new Promise((r) => setTimeout(r, 15));
         expect(undo.canUndo()).toBe(true);
         // change playback range
-        store.setPlaybackRangeExplicitTicks(0, 480);
+        store.setPlaybackRangeExplicitTicks(0, CANONICAL_PPQ);
         await new Promise((r) => setTimeout(r, 15));
         const canUndoAfterRange = undo.canUndo();
         expect(canUndoAfterRange).toBe(true);

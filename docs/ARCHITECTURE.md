@@ -91,6 +91,20 @@ Implications:
 
 -   Existing serialized data (if any) that persisted raw ticks will load consistently provided the same PPQ is used. A future migration layer could annotate stored PPQ to support importing sessions with different resolutions.
 
+### Canonical PPQ Normalization (2025-09)
+
+Earlier revisions mixed `480` and `960` PPQ across parsing, tests, and timeline calculations. This produced subtle scaling issues (e.g., bar length math, offset calculations) when assumptions about tick resolution diverged.
+
+Remediation steps:
+
+1. Centralized authority in `core/timing/ppq.ts` exporting a live binding `CANONICAL_PPQ` plus helper converters.
+2. Replaced all hard-coded PPQ literals (480 / 960) in production and test logic with `CANONICAL_PPQ` where they represented resolution (kept in external data matrices where they represent source file PPQ for normalization tests).
+3. Updated tests to derive expectations from `CANONICAL_PPQ` and adjusted comments.
+4. MIDI parser default now uses `CANONICAL_PPQ` to ensure immediate alignment of imported MIDI with internal tick domain.
+5. Added environment overrides (`VITE_CANONICAL_PPQ`, `TEST_CANONICAL_PPQ`) for experimentation.
+
+Guideline: New code must always import tick resolution from `@core/timing/ppq`; pull requests with raw `480`/`960` constants implying PPQ should be rejected.
+
 ## Future Enhancements
 
 -   Persist per-project PPQ and auto-migrate stored sessions with differing resolutions.

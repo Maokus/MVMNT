@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { compileWindow, type CompileMidiCache, type CompileTrack } from '../compile';
 import type { TempoMapEntry } from '@core/timing/types';
 
@@ -18,7 +19,7 @@ describe('compileWindow (Phase 3)', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1', offsetSec: 1 })];
         const midiCache: CompileMidiCache = {
             t1: {
-                ticksPerQuarter: 960,
+                ticksPerQuarter: CANONICAL_PPQ,
                 notesRaw: [{ note: 60, channel: 0, startTime: 0.0, endTime: 0.5, duration: 0.5 }],
             },
         };
@@ -41,7 +42,7 @@ describe('compileWindow (Phase 3)', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1', regionStartSec: 0.4, regionEndSec: 0.6 })];
         const midiCache: CompileMidiCache = {
             t1: {
-                ticksPerQuarter: 480,
+                ticksPerQuarter: CANONICAL_PPQ,
                 notesRaw: [{ note: 60, channel: 0, startTime: 0.2, endTime: 0.8, duration: 0.6 }],
             },
         };
@@ -56,8 +57,14 @@ describe('compileWindow (Phase 3)', () => {
             mkTrack('t2', { midiSourceId: 't2', solo: true }),
         ];
         const midiCache: CompileMidiCache = {
-            t1: { ticksPerQuarter: 480, notesRaw: [{ note: 60, channel: 0, startTime: 0, endTime: 1, duration: 1 }] },
-            t2: { ticksPerQuarter: 480, notesRaw: [{ note: 61, channel: 0, startTime: 0, endTime: 1, duration: 1 }] },
+            t1: {
+                ticksPerQuarter: CANONICAL_PPQ,
+                notesRaw: [{ note: 60, channel: 0, startTime: 0, endTime: 1, duration: 1 }],
+            },
+            t2: {
+                ticksPerQuarter: CANONICAL_PPQ,
+                notesRaw: [{ note: 61, channel: 0, startTime: 0, endTime: 1, duration: 1 }],
+            },
         };
         const res = compileWindow({ tracks, midiCache, nowSec: 0, lookAheadSec: 1, bpm: 120, beatsPerBar: 4 });
         expect(res.events.length).toBe(2); // only t2 events
@@ -70,7 +77,7 @@ describe('compileWindow (Phase 3)', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1' })];
         const midiCache: CompileMidiCache = {
             t1: {
-                ticksPerQuarter: 960,
+                ticksPerQuarter: CANONICAL_PPQ,
                 tempoMap: map,
                 notesRaw: [{ note: 60, channel: 0, startBeat: 2, endBeat: 3, startTime: 0, endTime: 0, duration: 0 }],
             },

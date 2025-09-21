@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { diffSchedulerConfig } from '../scheduler-bridge';
 
 const mkCfg = () => ({
     tracks: [{ id: 'a', enabled: true, mute: false, solo: false, offsetSec: 0, midiSourceId: 'a' }] as any,
-    midiCache: { a: { ticksPerQuarter: 960, notesRaw: [] } },
+    midiCache: { a: { ticksPerQuarter: CANONICAL_PPQ, notesRaw: [] } },
     nowSec: 0,
     lookAheadSec: 1,
     tempoMap: undefined,
