@@ -371,23 +371,24 @@ export function instrumentTimelineStoreForUndo() {
         if (typeof orig !== 'function') return;
         // Wrap only once
         if (orig.__mvmntUndoWrapped) return;
-        const wrapped = async (...args: any[]) => {
-            const result = await orig(...args);
+        const wrapped = (...args: any[]) => {
+            const result = orig(...args);
             try {
                 // If we're currently restoring an undo snapshot, skip scheduling a new snapshot.
                 if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
                     return result;
                 }
-                // Schedule markDirty after promise resolves (e.g., addMidiTrack async ingest)
-                setTimeout(() => {
-                    try {
-                        // Re-check restoring state in case a restore began after scheduling
-                        if (typeof undo.isRestoring === 'function' && undo.isRestoring()) return;
-                        console.log('[Undo][Trace] Timeline action invoking markDirty()', { action: name });
-                        undo.markDirty();
-                    } catch {}
-                }, 0);
-            } catch {}
+                try {
+                    // Re-check restoring state in case a restore began after scheduling
+                    if (typeof undo.isRestoring === 'function' && undo.isRestoring()) return;
+                    console.log('[Undo][Trace] Timeline action invoking markDirty()', { action: name });
+                    undo.markDirty();
+                } catch (e) {
+                    console.error(e);
+                }
+            } catch (e) {
+                console.error(e);
+            }
             return result;
         };
         (wrapped as any).__mvmntUndoWrapped = true;
