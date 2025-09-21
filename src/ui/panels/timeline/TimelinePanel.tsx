@@ -516,7 +516,6 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                             </label>
                         </div>
                     </div>
-                    {/* Debug Settings moved */}
                     <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
                         <h4 className="text-neutral-200 text-[12px] font-semibold">Debug</h4>
                         <label className="flex items-center gap-2 text-[12px] text-neutral-300">

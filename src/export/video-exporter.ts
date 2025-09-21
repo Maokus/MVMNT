@@ -28,6 +28,9 @@ export interface VideoExportOptions {
     bitrate?: number; // explicit target bitrate in bps (overrides quality preset)
     qualityPreset?: 'low' | 'medium' | 'high';
     deterministicTiming?: boolean; // default true – snapshot tempo map at start
+    includeAudio?: boolean; // new Phase 4 option (false preserves previous behavior)
+    startTick?: number; // optional explicit range (when includeAudio true & using AVExporter)
+    endTick?: number;
 }
 
 interface InternalFrameData {
@@ -63,6 +66,9 @@ export class VideoExporter {
             bitrate,
             qualityPreset = 'high',
             deterministicTiming = true,
+            includeAudio = false,
+            startTick,
+            endTick,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
@@ -73,6 +79,46 @@ export class VideoExporter {
         const originalHeight = this.canvas.height;
 
         try {
+            // Phase 4: if includeAudio requested and start/end ticks provided, delegate to AVExporter.
+            if (includeAudio && typeof startTick === 'number' && typeof endTick === 'number') {
+                try {
+                    const { AVExporter } = window as any;
+                    if (AVExporter) {
+                        onProgress(0, 'Delegating to AV exporter...');
+                        const av = new AVExporter(this.canvas, this.visualizer);
+                        const result = await av.export({
+                            fps,
+                            width,
+                            height,
+                            sceneName,
+                            startTick,
+                            endTick,
+                            includeAudio: true,
+                            deterministicTiming,
+                            bitrate,
+                            onProgress: (p: number, text?: string) => onProgress(p, text),
+                        });
+                        if (result.combinedBlob) {
+                            this.downloadBlob(
+                                result.combinedBlob,
+                                `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_av.mp4`
+                            );
+                            onComplete(result.combinedBlob);
+                            return;
+                        } else if (result.videoBlob) {
+                            // fallback: deliver video only (separate audio returned separately if UI wants to prompt)
+                            this.downloadBlob(
+                                result.videoBlob,
+                                `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`
+                            );
+                            onComplete(result.videoBlob);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('AV exporter delegation failed, falling back to video-only path', e);
+                }
+            }
             // Resize for export resolution
             this.canvas.width = width;
             this.canvas.height = height;
