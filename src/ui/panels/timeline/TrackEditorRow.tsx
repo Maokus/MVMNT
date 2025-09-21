@@ -50,20 +50,48 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                         >S</button>
                     </div>
                 )}
-                {/* Gain slider for audio tracks */}
+                {/* Gain (dB) text input for audio tracks. 0.0 dB => gain 1. */}
                 {track.type === 'audio' && (
-                    <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()} title={`Gain ${(track as any).gain?.toFixed?.(2)}`}>
-                        <span className="text-[10px] opacity-70">G</span>
-                        <input
-                            aria-label="Track gain"
-                            className="h-2 max-w-4"
-                            type="range"
-                            min={0}
-                            max={2}
-                            step={0.01}
-                            value={(track as any).gain ?? 1}
-                            onChange={(e) => setTrackGain(trackId, parseFloat(e.target.value))}
-                        />
+                    <div className="flex items-center gap-1 ml-2 shrink min-w-0" onClick={(e) => e.stopPropagation()} title={`Gain ${(track as any).gain?.toFixed?.(3)} (linear)`}>
+                        <span className="text-[10px] opacity-70">dB</span>
+                        {(() => {
+                            // Convert current linear gain to dB for display; guard against zero.
+                            const lin = (track as any).gain ?? 1;
+                            const db = lin > 0 ? 20 * Math.log10(lin) : -Infinity;
+                            const display = isFinite(db) ? db.toFixed(1) : '-inf';
+                            return (
+                                <input
+                                    aria-label="Track gain (dB)"
+                                    className="w-8 px-1 py-0.5 rounded border border-neutral-700 bg-neutral-800/60 text-[10px] text-neutral-200 focus:outline-none focus:border-blue-400"
+                                    type="text"
+                                    defaultValue={display}
+                                    onBlur={(e) => {
+                                        const raw = e.target.value.trim().toLowerCase();
+                                        let valDb: number;
+                                        if (raw === '-inf' || raw === 'inf' || raw === '−inf') {
+                                            valDb = -120; // treat as very low floor
+                                        } else {
+                                            const parsed = parseFloat(raw);
+                                            valDb = isFinite(parsed) ? parsed : 0;
+                                        }
+                                        // Clamp dB range: -60dB (near silent) to +6dB (~2x)
+                                        valDb = Math.max(-60, Math.min(6, valDb));
+                                        const linNew = Math.pow(10, valDb / 20);
+                                        setTrackGain(trackId, linNew);
+                                        // Normalize formatting after commit
+                                        e.target.value = valDb.toFixed(1);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            (e.target as HTMLInputElement).blur();
+                                        } else if (e.key === 'Escape') {
+                                            (e.target as HTMLInputElement).value = display;
+                                            (e.target as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                />
+                            );
+                        })()}
                     </div>
                 )}
             </div>
