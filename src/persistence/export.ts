@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from './flags';
 import { serializeStable } from './stable-stringify';
 import { useTimelineStore } from '../state/timelineStore';
 import { DocumentGateway } from './document-gateway';
@@ -38,29 +37,13 @@ export interface SceneExportEnvelopeV1 {
     compatibility: { warnings: any[] };
 }
 
-export interface ExportResultDisabled {
-    ok: false;
-    disabled: true;
-    reason: 'feature-disabled';
-}
-
 export interface ExportResultSuccess {
     ok: true;
-    disabled: false;
     envelope: SceneExportEnvelopeV1;
     json: string; // stable stringified form
 }
-
-export type ExportSceneResult = ExportResultDisabled | ExportResultSuccess;
-
-/**
- * Phase 0 exportScene: returns disabled result if flag off, else placeholder envelope.
- */
+export type ExportSceneResult = ExportResultSuccess;
 export function exportScene(): ExportSceneResult {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return { ok: false, disabled: true, reason: 'feature-disabled' };
-    }
-
     // Build persistent document via gateway (no ephemeral fields)
     const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
@@ -93,5 +76,5 @@ export function exportScene(): ExportSceneResult {
     };
 
     const json = serializeStable(envelope);
-    return { ok: true, disabled: false, envelope, json };
+    return { ok: true, envelope, json };
 }

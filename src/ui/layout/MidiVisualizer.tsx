@@ -13,7 +13,7 @@ import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
-import { importScene, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { importScene } from '@persistence/index';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
@@ -131,36 +131,18 @@ const TemplateInitializer: React.FC = () => {
             if (state.importScene) {
                 const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
                 if (payload) {
-                    const feature = SERIALIZATION_V1_ENABLED();
                     try {
-                        if (feature) {
-                            const result = importScene(payload);
-                            if (!result.ok) {
-                                console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
-                            } else {
-                                // Attempt to extract name from envelope metadata
-                                try {
-                                    const parsed = JSON.parse(payload);
-                                    if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
-                                } catch { }
-                                undo?.reset();
-                                refreshSceneUI();
-                                didChange = true;
-                            }
+                        const result = importScene(payload);
+                        if (!result.ok) {
+                            console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
                         } else {
-                            // Legacy pathway identical to menu bar loadScene
-                            const parsed = JSON.parse(payload);
-                            const success = (typeof visualizer.importSceneConfig === 'function'
-                                ? visualizer.importSceneConfig(parsed)
-                                : sceneBuilder.loadScene?.(parsed));
-                            if (success) {
-                                if (parsed.name) setSceneName(parsed.name);
-                                if (visualizer.invalidateRender) visualizer.invalidateRender();
-                                refreshSceneUI();
-                                didChange = true;
-                            } else {
-                                console.warn('Import via HomePage failed (legacy).');
-                            }
+                            try {
+                                const parsed = JSON.parse(payload);
+                                if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
+                            } catch { }
+                            undo?.reset();
+                            refreshSceneUI();
+                            didChange = true;
                         }
                     } catch (e) {
                         console.error('Failed to import scene payload from HomePage', e);

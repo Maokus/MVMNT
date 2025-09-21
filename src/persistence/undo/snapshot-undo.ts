@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from '../flags';
 import { serializeStable } from '../stable-stringify';
 import { useTimelineStore } from '../../state/timelineStore';
 import { globalMacroManager } from '../../bindings/macro-manager';
@@ -22,6 +21,7 @@ export interface UndoController {
 }
 
 class DisabledUndoController implements UndoController {
+    // retained name for minimal churn but functionality active
     canUndo() {
         return false;
     }
@@ -29,10 +29,10 @@ class DisabledUndoController implements UndoController {
         return false;
     }
     undo() {
-        /* no-op */
+        /* no-op until initialized */
     }
     redo() {
-        /* no-op */
+        /* no-op until initialized */
     }
     reset() {
         /* no-op */
@@ -288,13 +288,7 @@ export interface CreateSnapshotUndoOptions {
     debounceMs?: number; // capture debounce (50ms default)
 }
 
-/**
- * Phase 0: returns disabled controller if flag off, else placeholder controller with no behavior.
- */
 export function createSnapshotUndoController(_store: unknown, opts: CreateSnapshotUndoOptions = {}): UndoController {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return new DisabledUndoController();
-    }
     const ctrl = new SnapshotUndoController(opts);
     // Expose globally for scene builder instrumentation
     try {

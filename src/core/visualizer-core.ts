@@ -3,6 +3,7 @@ import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
+import { useTimelineStore } from '@state/timelineStore';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -578,7 +579,6 @@ export class MIDIVisualizerCore {
             if (timelineSpec && Array.isArray(timelineSpec.tracks)) {
                 (async () => {
                     try {
-                        const { useTimelineStore } = await import('@state/timelineStore');
                         const st = useTimelineStore.getState();
                         st.clearAllTracks();
                         for (const tr of timelineSpec.tracks) {
@@ -654,7 +654,6 @@ export class MIDIVisualizerCore {
             // Use store clearAllTracks
             (async () => {
                 try {
-                    const { useTimelineStore } = await import('@state/timelineStore');
                     useTimelineStore.getState().clearAllTracks();
                 } catch {}
             })();

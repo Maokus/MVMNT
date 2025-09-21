@@ -1,4 +1,3 @@
-import { SERIALIZATION_V1_ENABLED } from './flags';
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
 
@@ -17,48 +16,26 @@ export interface ImportError {
     path?: string;
 }
 
-export interface ImportResultDisabled {
-    ok: false;
-    disabled: true;
-    reason: 'feature-disabled';
-    errors: ImportError[];
-}
-
 export interface ImportResultSuccess {
     ok: true;
-    disabled: false;
     errors: [];
     warnings: { message: string }[];
 }
 
 export interface ImportResultFailureEnabled {
     ok: false;
-    disabled: false;
     errors: ImportError[];
     warnings: { message: string }[];
 }
+export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
 
-export type ImportSceneResult = ImportResultDisabled | ImportResultSuccess | ImportResultFailureEnabled;
-
-/**
- * Phase 0 importer: validates nothing, does not mutate store (no dependency yet).
- */
 export function importScene(json: string): ImportSceneResult {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return {
-            ok: false,
-            disabled: true,
-            reason: 'feature-disabled',
-            errors: [{ message: 'Serialization feature disabled' }],
-        };
-    }
     let parsed: any;
     try {
         parsed = JSON.parse(json);
     } catch (e: any) {
         return {
             ok: false,
-            disabled: false,
             errors: [{ code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + e.message }],
             warnings: [],
         };
@@ -67,7 +44,6 @@ export function importScene(json: string): ImportSceneResult {
     if (!validation.ok) {
         return {
             ok: false,
-            disabled: false,
             errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
             warnings: validation.warnings.map((w) => ({ message: w.message })),
         };
@@ -88,5 +64,5 @@ export function importScene(json: string): ImportSceneResult {
     // as selection is ephemeral UI state and should not be persisted.
     // Apply via gateway (ignores currentTick/transport/view & strips padding keys internally)
     DocumentGateway.apply(doc as any);
-    return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
+    return { ok: true, errors: [], warnings: validation.warnings };
 }

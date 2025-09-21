@@ -114,7 +114,6 @@ export class HybridSceneBuilder {
         }
         // New timeline store-based duration
         try {
-            // Lazy import to avoid cyclic deps at module load
             const state = useTimelineStore.getState();
             const tm = getSharedTimingManager();
             tm.setBPM(state.timeline.globalBpm || 120);

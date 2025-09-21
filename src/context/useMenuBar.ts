@@ -1,6 +1,6 @@
 import { globalMacroManager } from '@bindings/macro-manager';
 import { SceneNameGenerator } from '@core/scene-name-generator';
-import { exportScene, importScene, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
 
 interface UseMenuBarProps {
@@ -32,70 +32,30 @@ export const useMenuBar = ({
     }
 
     const saveScene = () => {
-        const feature = SERIALIZATION_V1_ENABLED();
-        if (feature) {
-            try {
-                const res = exportScene();
-                if (!res.ok) {
-                    alert('Persistence feature disabled or export failed.');
-                    return;
-                }
-                const safeName = sceneName.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
-                const blob = new Blob([res.json], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `${safeName}.mvmnt.scene.json`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                console.log('Scene exported (persistence v1).');
-            } catch (e) {
-                console.error('Export error:', e);
-                alert('Error exporting scene. See console.');
+        try {
+            const res = exportScene();
+            if (!res.ok) {
+                alert('Export failed.');
+                return;
             }
-            return;
-        }
-        // Fallback legacy behavior (visualizer-based export)
-        if (visualizer) {
-            try {
-                const sceneBuilder = visualizer.getSceneBuilder?.();
-                if (sceneBuilder) {
-                    const baseData =
-                        typeof visualizer.exportSceneConfig === 'function'
-                            ? visualizer.exportSceneConfig()
-                            : sceneBuilder.serializeScene();
-                    const sceneConfig = {
-                        name: sceneName,
-                        ...baseData,
-                        timestamp: new Date().toISOString(),
-                    };
-                    const jsonStr = JSON.stringify(sceneConfig, null, 2);
-                    const blob = new Blob([jsonStr], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `${sceneName.replace(/[^a-zA-Z0-9]/g, '_')}_scene.json`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    console.log(`Scene "${sceneName}" saved successfully and downloaded as JSON`);
-                } else {
-                    console.log('Save scene: scene builder not available');
-                }
-            } catch (error) {
-                console.error('Error saving scene (legacy):', error);
-                alert('Error saving scene. Check console for details.');
-            }
-        } else {
-            console.log('Save scene functionality: visualizer not available');
+            const safeName = sceneName.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
+            const blob = new Blob([res.json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${safeName}.mvmnt.scene.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('Scene exported.');
+        } catch (e) {
+            console.error('Export error:', e);
+            alert('Error exporting scene. See console.');
         }
     };
 
     const loadScene = () => {
-        const feature = SERIALIZATION_V1_ENABLED();
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.json';
@@ -109,35 +69,18 @@ export const useMenuBar = ({
             }
             try {
                 const text = await file.text();
-                if (feature) {
-                    const result = importScene(text);
-                    if (!result.ok) {
-                        alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
-                    } else {
-                        undo?.reset(); // reset undo baseline after import
-                        if (onSceneRefresh) onSceneRefresh();
-                        console.log('Scene imported (persistence v1).');
-                    }
+                const result = importScene(text);
+                if (!result.ok) {
+                    alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
                 } else {
-                    // Legacy pathway for visualizer scenes
-                    const sceneConfig = JSON.parse(text);
-                    if (visualizer) {
-                        const sceneBuilder = visualizer.getSceneBuilder?.();
-                        if (sceneBuilder) {
-                            const success =
-                                typeof visualizer.importSceneConfig === 'function'
-                                    ? visualizer.importSceneConfig(sceneConfig)
-                                    : sceneBuilder.loadScene(sceneConfig);
-                            if (success) {
-                                if (sceneConfig.name) onSceneNameChange(sceneConfig.name);
-                                if (visualizer.invalidateRender) visualizer.invalidateRender();
-                                if (onSceneRefresh) onSceneRefresh();
-                                console.log('Scene loaded (legacy).');
-                            } else {
-                                alert('Failed to load scene file (legacy path).');
-                            }
-                        }
-                    }
+                    // Attempt to read name from envelope metadata when present
+                    try {
+                        const parsed = JSON.parse(text);
+                        if (parsed?.metadata?.name) onSceneNameChange(parsed.metadata.name);
+                    } catch {}
+                    undo?.reset();
+                    if (onSceneRefresh) onSceneRefresh();
+                    console.log('Scene imported.');
                 }
             } catch (err) {
                 console.error('Load error:', err);
