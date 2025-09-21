@@ -147,9 +147,26 @@ export class AVExporter {
                 console.log('[AVExporter] Mixed audio buffer', mixRes.buffer, 'duration', mixDuration, 'peak', mixPeak);
             }
 
-            // Derive frame count from duration vs fps
-            const durationSeconds = (endTick - startTick) / ticksPerSecond;
-            const totalFrames = Math.ceil(durationSeconds * fps);
+            // Derive nominal timeline duration from ticks (single-tempo approximation)
+            const nominalDurationSeconds = (endTick - startTick) / ticksPerSecond;
+            // If we have an audio mix and its measured duration differs (tempo changes, stretch, trailing silence trimmed)
+            // prefer the actual audio duration so A/V lengths match. A mismatch leads to container timestamps that cause
+            // the player to resample (pitch shift) or truncate/pad.
+            let videoDurationSeconds = nominalDurationSeconds;
+            if (includeAudio && mixedAudioBuffer) {
+                const audioDuration = mixedAudioBuffer.duration; // high precision duration from WebAudio buffer
+                if (Math.abs(audioDuration - nominalDurationSeconds) > 0.01) {
+                    console.warn(
+                        '[AVExporter] Adjusting video duration to match mixed audio duration',
+                        'nominal=',
+                        nominalDurationSeconds.toFixed(3),
+                        'audio=',
+                        audioDuration.toFixed(3)
+                    );
+                    videoDurationSeconds = audioDuration;
+                }
+            }
+            const totalFrames = Math.ceil(videoDurationSeconds * fps);
             const clock = new SimulatedClock({ fps, timingSnapshot: snapshot as any });
 
             // Setup mediabunny output
@@ -163,15 +180,35 @@ export class AVExporter {
             }
             const target = new BufferTarget();
             const output = new Output({ format: new Mp4OutputFormat(), target });
-            // Validate bitrate: mediabunny expects a positive integer (bps) or a quality token. If invalid/undefined, omit so library uses its own default.
-            let videoSourceConfig: any = { codec: codec as any };
+            // Bitrate handling & quality rationale:
+            // Previous implementation hard-coded 100_000 bps (~0.1 Mbps) when user bitrate invalid, producing extreme macroblocking.
+            // We now:
+            //  1. Interpret small numeric values (< 500_000) as Kbps (common UX expectation) -> multiply by 1000.
+            //  2. If no bitrate provided, compute a heuristic based on resolution & fps using bits-per-pixel-per-frame (bpppf).
+            //     Typical high quality H.264 visually lossless for synthetic graphics ~0.09 bpppf.
+            //     bitrate ≈ width * height * fps * bpppf.
+            //  3. Clamp to sane bounds (0.5 Mbps – 80 Mbps) to avoid pathological values.
+            const MIN_FALLBACK = 500_000; // 0.5 Mbps lower bound
+            const MAX_FALLBACK = 80_000_000; // 80 Mbps upper bound to protect from runaway huge canvases
+            const BPPPF = 0.09; // heuristic bits per pixel per frame
+            function computeHeuristicBitrate(w: number, h: number, f: number) {
+                const est = w * h * f * BPPPF; // bits per second
+                return Math.min(Math.max(est, MIN_FALLBACK), MAX_FALLBACK);
+            }
+            let resolvedBitrate: number | undefined;
             if (typeof bitrate === 'number' && Number.isFinite(bitrate) && bitrate > 0) {
-                console.log('[AVExporter] Using video bitrate', bitrate);
-                // Round to integer just in case a float slipped through
-                videoSourceConfig.bitrate = Math.round(bitrate);
+                resolvedBitrate = bitrate < 500_000 ? bitrate * 1000 : bitrate; // treat as Kbps if suspiciously small
             } else {
-                console.warn('[AVExporter] Ignoring invalid bitrate value', bitrate, '– using default value 100000');
-                videoSourceConfig.bitrate = 100000;
+                resolvedBitrate = computeHeuristicBitrate(width, height, fps);
+                console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
+            }
+            resolvedBitrate = Math.round(Math.min(Math.max(resolvedBitrate, MIN_FALLBACK), MAX_FALLBACK));
+            const videoSourceConfig: any = { codec: codec as any, bitrate: resolvedBitrate };
+            if (resolvedBitrate <= 1_000_000) {
+                console.warn(
+                    '[AVExporter] Selected video bitrate is quite low (<=1 Mbps). Expect visible compression. bitrate=',
+                    resolvedBitrate
+                );
             }
             const canvasSource = new CanvasSource(this.canvas, videoSourceConfig);
             output.addVideoTrack(canvasSource);
