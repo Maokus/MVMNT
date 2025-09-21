@@ -33,19 +33,17 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [audioBitrate, setAudioBitrate] = useState<number>(exportSettings.audioBitrate || 192000);
     const [audioSampleRate, setAudioSampleRate] = useState<'auto' | 44100 | 48000>(exportSettings.audioSampleRate || 'auto');
     const [audioChannels, setAudioChannels] = useState<1 | 2>(exportSettings.audioChannels || 2);
-    const [filename, setFilename] = useState<string>(exportSettings.filename || sceneName || '');
+    // Filename should default to the current scene name each time the modal opens (user request)
+    // We intentionally ignore any persisted exportSettings.filename so user always sees scene name first.
+    const [filename, setFilename] = useState<string>(sceneName || '');
 
     // When sceneName changes and user has not manually customized (empty or previously matched old sceneName), update default.
     useEffect(() => {
         setFilename(prev => {
-            // If user already typed something different (and non-empty), respect it.
-            if (prev && prev !== exportSettings.filename && prev !== sceneName) return prev;
-            if (!prev || prev === exportSettings.filename) {
-                return exportSettings.filename || sceneName || '';
-            }
-            return prev;
+            // If user already typed a custom (non-empty, non-scene) value this session, keep it.
+            if (prev && prev !== sceneName) return prev;
+            return sceneName || '';
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sceneName]);
     // Capability lists
     const [videoCodecs, setVideoCodecs] = useState<string[]>([]);
