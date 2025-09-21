@@ -86,3 +86,12 @@ window.__mvmntDebug.b2s(32) -> seconds
 window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
 window.__mvmntDebug.getBeatGrid(0, 30)
 ```
+
+### Recent Export Fixes (Audio Feature Branch)
+
+Two issues in the video export flow were resolved:
+
+1. Playback range offset: exporting a sub-range (e.g. 4s–6s) previously produced a file whose internal timestamps started at 4s, yielding leading blank/black frames. Frame timestamps are now normalized to start at 0 so the output duration equals the selected range with no initial gap.
+2. Missing audio: when `includeAudio` was set without explicit `startTick` / `endTick`, delegation to the offline audio/video (`AVExporter`) path was skipped, resulting in silent MP4s. The exporter now derives tick range from the active playback range (tempo + PPQ) if ticks are not provided, enabling deterministic audio mixing. Frame timestamps in the AV path are also zero-based to keep audio and video aligned.
+
+See tests: `src/export/__tests__/video-export-timestamps.test.ts`.

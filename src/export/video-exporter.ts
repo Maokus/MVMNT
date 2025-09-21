@@ -16,6 +16,12 @@ import {
     getEncodableVideoCodecs,
 } from 'mediabunny';
 
+// Helper: shift absolute render time to zero-based encode timeline so exported MP4 starts at 0.
+function computeEncodeTimestamp(renderTime: number, playRangeStartSec: number): number {
+    const t = renderTime - playRangeStartSec;
+    return t < 0 ? 0 : t; // clamp small negatives due to FP rounding
+}
+
 export interface VideoExportOptions {
     fps?: number;
     width?: number;
@@ -79,8 +85,37 @@ export class VideoExporter {
         const originalHeight = this.canvas.height;
 
         try {
-            // Phase 4: if includeAudio requested and start/end ticks provided, delegate to AVExporter.
-            if (includeAudio && typeof startTick === 'number' && typeof endTick === 'number') {
+            // Resolve current playback range (seconds) up-front (needed both for frame logic & optional audio delegation)
+            const pr = this.visualizer?.getPlayRange?.();
+            const playRangeStartSec = pr && typeof pr.startSec === 'number' ? pr.startSec : 0;
+            const playRangeEndSec = pr && typeof pr.endSec === 'number' ? pr.endSec : null; // may be null (open ended)
+
+            // Phase 4 / Audio delegation strategy:
+            // 1. If caller explicitly passed startTick/endTick we trust and delegate.
+            // 2. Else if includeAudio true but ticks not supplied, derive them from playback range seconds.
+            //    We use shared timing manager (tempo + PPQ) to convert seconds -> ticks so that
+            //    AVExporter can leverage offline deterministic mix.
+            let derivedStartTick: number | undefined = startTick;
+            let derivedEndTick: number | undefined = endTick;
+            if (includeAudio && (typeof derivedStartTick !== 'number' || typeof derivedEndTick !== 'number')) {
+                try {
+                    const tm = getSharedTimingManager();
+                    // ticksPerSecond = (bpm * ticksPerQuarter)/60 (same formula as av-exporter)
+                    const ticksPerSecond = (tm.bpm * tm.ticksPerQuarter) / 60;
+                    derivedStartTick = Math.round(playRangeStartSec * ticksPerSecond);
+                    // If explicit endSec not defined, fall back to (start + getCurrentDuration()) so export matches visual length
+                    const effectiveEndSec =
+                        playRangeEndSec != null
+                            ? playRangeEndSec
+                            : playRangeStartSec + (this.visualizer.getCurrentDuration?.() || 0);
+                    derivedEndTick = Math.round(effectiveEndSec * ticksPerSecond);
+                } catch (e) {
+                    console.warn('Failed to derive ticks for audio export; continuing without audio delegation', e);
+                }
+            }
+
+            // If audio delegation possible, hand off to AVExporter before continuing with video-only path.
+            if (includeAudio && typeof derivedStartTick === 'number' && typeof derivedEndTick === 'number') {
                 try {
                     const { AVExporter } = window as any;
                     if (AVExporter) {
@@ -91,8 +126,8 @@ export class VideoExporter {
                             width,
                             height,
                             sceneName,
-                            startTick,
-                            endTick,
+                            startTick: derivedStartTick,
+                            endTick: derivedEndTick,
                             includeAudio: true,
                             deterministicTiming,
                             bitrate,
@@ -165,15 +200,9 @@ export class VideoExporter {
             const total = limitedFrames;
             const frameDuration = 1 / fps;
             const prePadding = 0; // padding removed
-            const playRangeStart = (() => {
-                try {
-                    const pr = this.visualizer?.getPlayRange?.();
-                    if (pr && typeof pr.startSec === 'number') return pr.startSec as number;
-                    return 0;
-                } catch {
-                    return 0;
-                }
-            })();
+            // Use the previously resolved playback range start (playRangeStartSec). This ensures consistency
+            // with any tick derivation we may have just performed.
+            const playRangeStart = playRangeStartSec;
 
             // Create timing snapshot if deterministic export requested
             let snapshot: ExportTimingSnapshot | undefined;
@@ -193,10 +222,12 @@ export class VideoExporter {
                 timingSnapshot: snapshot,
             });
             for (let i = 0; i < total; i++) {
-                const currentTime = clock.timeForFrame(i);
-                this.visualizer.renderAtTime(currentTime);
-                // Add frame directly from canvas – timestamp sec, duration sec
-                await canvasSource.add(currentTime, frameDuration);
+                const renderTime = clock.timeForFrame(i); // absolute timeline time (includes play range start)
+                this.visualizer.renderAtTime(renderTime);
+                // IMPORTANT: Pass a zero-based timestamp to encoder to avoid leading blank gap when playRangeStart > 0.
+                // Previously we supplied absolute renderTime which caused MP4 timelines to have an initial gap (black frames / silence).
+                const encodeTimestamp = computeEncodeTimestamp(renderTime, playRangeStart);
+                await canvasSource.add(encodeTimestamp, frameDuration);
                 if (i % 10 === 0) {
                     const prog = i / total;
                     onProgress(prog * 95, 'Rendering & encoding frames...');

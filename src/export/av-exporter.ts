@@ -29,6 +29,12 @@ import {
     getEncodableVideoCodecs,
 } from 'mediabunny';
 
+// Helper: convert absolute timeline render time to zero-based encoding timestamp to avoid leading gaps.
+function toEncodeTimestamp(absSeconds: number, exportStartSeconds: number): number {
+    const rel = absSeconds - exportStartSeconds;
+    return rel < 0 ? 0 : rel;
+}
+
 export interface AVExportOptions {
     fps?: number;
     width?: number;
@@ -160,10 +166,12 @@ export class AVExporter {
             await output.start();
 
             onProgress(10, 'Rendering frames...');
+            const exportStartSeconds = startTick / ticksPerSecond;
             for (let i = 0; i < totalFrames; i++) {
-                const t = clock.timeForFrame(i) + startTick / ticksPerSecond; // shift start time
-                this.visualizer.renderAtTime(t);
-                await canvasSource.add(t, 1 / fps);
+                const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
+                this.visualizer.renderAtTime(renderTime);
+                const encodeTime = toEncodeTimestamp(renderTime, exportStartSeconds);
+                await canvasSource.add(encodeTime, 1 / fps);
                 if (i % 10 === 0) onProgress(10 + (i / totalFrames) * 80, 'Rendering frames...');
             }
             canvasSource.close();
