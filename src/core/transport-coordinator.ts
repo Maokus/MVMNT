@@ -95,29 +95,42 @@ export class TransportCoordinator {
         const tick = typeof fromTick === 'number' ? fromTick : this.state.lastDerivedTick;
         this.state.startTick = tick;
         this.state.lastDerivedTick = tick;
-        // Attempt to initialize audio engine & context (Phase 2)
+        // Attempt to initialize / create audio engine & context (Phase 2)
+        // Previous implementation only switched to audio mode if a context already existed,
+        // causing silent playback on the first play gesture. We now force-create the context
+        // via ensureContext() (synchronously sets internal ctx) and then schedule sources.
         let ctx: AudioLike | undefined | null = undefined;
         try {
+            // Caller may provide a custom context accessor (tests). If not, create or reuse engine context.
             ctx = this.cfg.getAudioContext?.();
+            const eng = this.cfg.audioEngine ?? getAudioEngine();
             if (!ctx) {
-                // Fallback: use shared audio engine if available (creates context lazily)
-                const eng = this.cfg.audioEngine ?? getAudioEngine();
+                // Invoke ensureContext() but swallow rejection (e.g., test env without Web Audio API) to avoid unhandled promise rejections.
+                try {
+                    const maybePromise = (eng as any).ensureContext?.();
+                    if (maybePromise && typeof maybePromise.then === 'function') {
+                        maybePromise.catch(() => {
+                            /* non-browser env: ignore */
+                        });
+                    }
+                } catch {
+                    /* ignore */
+                }
                 if (eng.isReady()) ctx = eng.getContext();
             }
-        } catch {
-            ctx = undefined;
-        }
-        if (ctx) {
-            this.state.playbackStartAudioTime = ctx.currentTime;
-            this.state.source = 'audio';
-            // Start audio engine sources aligned to tick
-            try {
-                (this.cfg.audioEngine ?? getAudioEngine()).playTick(tick);
-            } catch {
-                // On failure remain in clock mode
+            if (ctx) {
+                this.state.playbackStartAudioTime = ctx.currentTime;
+                this.state.source = 'audio';
+                try {
+                    // Fire-and-forget async start; any resume() inside is handled by AudioEngine.
+                    (this.cfg.audioEngine ?? getAudioEngine()).playTick(tick);
+                } catch {
+                    this.state.source = 'clock';
+                }
+            } else {
                 this.state.source = 'clock';
             }
-        } else {
+        } catch {
             this.state.source = 'clock';
         }
         this.clock.setTick(tick);

@@ -36,4 +36,22 @@ describe('AudioEngine + TransportCoordinator Phase 2 integration (mocked)', () =
         const tick = tc.updateFrame(16.6);
         expect(typeof tick === 'number').toBe(true);
     });
+
+    it('creates audio context on first play and switches to audio source', async () => {
+        const api = useTimelineStore.getState();
+        api.setCurrentTick(0, 'user');
+        const eng = new AudioEngine();
+        // Mock ensureContext to inject our MockAudioContext
+        const mockCtx = new MockAudioContext();
+        (eng as any).ensureContext = async () => {
+            (eng as any).ctx = mockCtx as any;
+            return mockCtx as any;
+        };
+        const tc = new TransportCoordinator({ audioEngine: eng });
+        tc.play(0);
+        expect(tc.getState().source).toBe('audio');
+        mockCtx.currentTime += 0.5;
+        tc.updateFrame(8.3);
+        expect(tc.getState().lastDerivedTick).toBeGreaterThanOrEqual(0);
+    });
 });
