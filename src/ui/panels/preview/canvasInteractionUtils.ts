@@ -279,7 +279,79 @@ export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
     // 1) If an element selected, attempt handle drag
     if (attemptHandleHit(vis, x, y)) return;
     // 2) Otherwise element hit test
+    const beforeSelected = vis._interactionState?.selectedElementId || null;
     performElementHitTest(vis, x, y, deps);
+
+    const afterSelected = vis._interactionState?.selectedElementId || null;
+
+    // --- Double click detection for in-canvas text editing ---
+    // We store last click timestamp + element id on the visualizer instance to avoid module globals.
+    const now = performance.now();
+    const DOUBLE_CLICK_MS = 400; // threshold window
+    const lastClickTime: number | undefined = vis.__lastCanvasClickTime;
+    const lastClickElement: string | null | undefined = vis.__lastCanvasClickElementId;
+    const isDouble =
+        afterSelected &&
+        lastClickElement === afterSelected &&
+        typeof lastClickTime === 'number' &&
+        now - lastClickTime < DOUBLE_CLICK_MS;
+
+    // Update stored click info early (will be used next time unless we early-return)
+    vis.__lastCanvasClickTime = now;
+    vis.__lastCanvasClickElementId = afterSelected;
+
+    if (isDouble && afterSelected) {
+        try {
+            // Obtain element from scene builder if available
+            const sb = deps.sceneBuilder;
+            const el = sb?.getElement?.(afterSelected) || null;
+            // Heuristic: treat as text-editable if it has a 'text' binding/property
+            const hasTextProperty = !!(el && typeof el.getBinding === 'function' && el.getBinding('text'));
+            if (hasTextProperty) {
+                // Prevent initiating a drag after double-click
+                vis.setInteractionState({ draggingElementId: null, activeHandle: null });
+
+                // Clear the text property so user typing replaces it immediately
+                deps.updateElementConfig?.(afterSelected, { text: '' });
+
+                // Force property panel refresh (in case value cached)
+                deps.incrementPropertyPanelRefresh();
+
+                // Focus the corresponding property input after DOM updates
+                setTimeout(() => {
+                    // Expand the 'Content' group if it is collapsed so the input is visible
+                    try {
+                        const groupHeaders = document.querySelectorAll('.ae-property-group .ae-group-header');
+                        groupHeaders.forEach((h) => {
+                            const labelEl = h.querySelector('.ae-group-label');
+                            if (labelEl && labelEl.textContent?.trim() === 'Content') {
+                                const wrapper = h.parentElement;
+                                if (
+                                    wrapper &&
+                                    wrapper.querySelector('.ae-property-list')?.classList.contains('hidden')
+                                ) {
+                                    // If implementation uses a hidden class we could toggle. Currently collapse toggling is via state; we can't easily change it here.
+                                    // (Left intentionally minimal; future improvement: expose an imperative expansion API.)
+                                }
+                            }
+                        });
+                    } catch {
+                        /* noop */
+                    }
+                    const input = document.getElementById('config-text') as HTMLInputElement | null;
+                    if (input) {
+                        input.focus();
+                        input.select();
+                    }
+                }, 0);
+                return; // swallow event for double-click editing path
+            }
+        } catch (err) {
+            // Non-fatal; fall back to normal behavior
+            // eslint-disable-next-line no-console
+            console.warn('[canvasInteraction] double-click text edit failed', err);
+        }
+    }
 }
 
 export function onCanvasMouseMove(e: React.MouseEvent, deps: InteractionDeps) {
