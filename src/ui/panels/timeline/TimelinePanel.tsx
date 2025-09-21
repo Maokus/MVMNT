@@ -11,7 +11,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
-import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 
 const TimelinePanel: React.FC = () => {
@@ -473,16 +473,26 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     <span className="sr-only">Reset Zoom</span>
                 </button>
             </label>
+            {/* Quantize toggle (moved out of menu) */}
+            <button
+                aria-label={quantize === 'bar' ? 'Disable bar quantize' : 'Enable bar quantize'}
+                title={quantize === 'bar' ? 'Quantize: Bar (click to turn off)' : 'Quantize: Off (click to enable bar snapping)'}
+                onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${quantize === 'bar' ? 'bg-blue-600/70 text-white border-blue-400/70' : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'}`}
+            >
+                <FaMagnet />
+            </button>
             {/* Ellipsis menu trigger */}
             <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center">
                 <FaEllipsisV />
             </button>
             {menuOpen && (
                 <div role="menu" className="absolute right-0 bottom-full mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4 z-20" aria-label="Timeline options menu">
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Quantize moved to header button; keep informational label if desired (commented out) */}
+                    {/* <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Quantize (bars)</span>
-                        <button className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')} role="menuitemcheckbox" aria-checked={quantize === 'bar'}>Q</button>
-                    </div>
+                        <span className="text-neutral-400">Use the magnet icon in header</span>
+                    </div> */}
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Auto follow playhead</span>
                         <button className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setFollow && setFollow(!follow)} role="menuitemcheckbox" aria-checked={!!follow}>On</button>

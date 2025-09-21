@@ -172,7 +172,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
         const absStartTick = Math.max(0, offsetTick + localStartTick);
         const absEndTick = Math.max(absStartTick, offsetTick + localEndTick);
-        const visStart = view.startTick;
+        const visStart = view.startTick - 100;
         const visEnd = view.endTick;
         const clippedStartTick = Math.max(absStartTick, visStart);
         const clippedEndTick = Math.max(clippedStartTick, Math.min(absEndTick, visEnd));
@@ -241,55 +241,15 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                     visibleStartTickAbs={clippedStartTick}
                                     visibleEndTickAbs={clippedEndTick}
                                 />
-                                {/* subtle gradient overlay to improve text readability */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/25" />
                             </div>
                         )}
-                        {/* Edge indicators: jagged mask when clipped, solid when fully visible */}
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-stretch">
-                            {isClippedLeft ? (
-                                <div className="relative h-full w-3 overflow-hidden">
-                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
-                                        <defs>
-                                            <pattern id="zigL" width="4" height="8" patternUnits="userSpaceOnUse">
-                                                <path d="M0 0 L4 4 L0 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
-                                            </pattern>
-                                            <linearGradient id="fadeL" x1="0" x2="1" y1="0" y2="0">
-                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
-                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
-                                                <stop offset="100%" stopColor="transparent" />
-                                            </linearGradient>
-                                        </defs>
-                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeL)" />
-                                        <rect x="0" y="0" width="6" height="100" fill="url(#zigL)" />
-                                    </svg>
-                                </div>
-                            ) : (
-                                <div className="w-[3px] h-full bg-white/60" />
-                            )}
-                        </div>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch">
-                            {isClippedRight ? (
-                                <div className="relative h-full w-3 overflow-hidden">
-                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
-                                        <defs>
-                                            <pattern id="zigR" width="4" height="8" patternUnits="userSpaceOnUse">
-                                                <path d="M4 0 L0 4 L4 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
-                                            </pattern>
-                                            <linearGradient id="fadeR" x1="1" x2="0" y1="0" y2="0">
-                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
-                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
-                                                <stop offset="100%" stopColor="transparent" />
-                                            </linearGradient>
-                                        </defs>
-                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeR)" />
-                                        <rect x="4" y="0" width="6" height="100" fill="url(#zigR)" />
-                                    </svg>
-                                </div>
-                            ) : (
-                                <div className="w-[3px] h-full bg-white/60" />
-                            )}
-                        </div>
+                        {/* Hard edge indicators: simple solid bars when clipped */}
+                        {isClippedLeft && (
+                            <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-red-400/70" />
+                        )}
+                        {isClippedRight && (
+                            <div className="pointer-events-none absolute inset-y-0 right-0 w-[2px] bg-red-400/70" />
+                        )}
                         <div className="relative z-10 flex items-center gap-1">
                             <span>{track?.name}</span>
                             <span className="opacity-80">{label}</span>
