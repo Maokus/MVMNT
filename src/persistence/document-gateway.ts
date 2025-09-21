@@ -1,4 +1,4 @@
-import { useTimelineStore } from '../state/timelineStore';
+import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
 
@@ -109,7 +109,27 @@ export const DocumentGateway = {
             midiCache: doc.midiCache || {},
         }));
 
-        // Scene & macros
+        // After timeline slice merge, propagate restored tempo state to shared timing manager.
+        try {
+            const tl = useTimelineStore.getState().timeline;
+            // Order matters: set BPM first (clears tempo map), then map, then beatsPerBar.
+            if (typeof tl.globalBpm === 'number' && tl.globalBpm > 0) {
+                sharedTimingManager.setBPM(tl.globalBpm);
+            }
+            if (Array.isArray(tl.masterTempoMap) && tl.masterTempoMap.length > 0) {
+                sharedTimingManager.setTempoMap(tl.masterTempoMap, 'seconds');
+            } else {
+                // Ensure we clear tempo map if snapshot had none.
+                sharedTimingManager.setTempoMap(null);
+            }
+            if (typeof tl.beatsPerBar === 'number' && tl.beatsPerBar > 0) {
+                sharedTimingManager.setBeatsPerBar(tl.beatsPerBar);
+            }
+        } catch {
+            /* non-fatal */
+        }
+
+        // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
         try {
             if (doc.scene?.macros) {
                 try {
@@ -124,13 +144,22 @@ export const DocumentGateway = {
                     macros: doc.scene?.macros,
                 };
                 if (sceneData.sceneSettings) {
-                    // Apply tempo / meter to timeline store BEFORE loading scene so elements dependent on timing see updated values.
+                    // Previously we unconditionally applied sceneSettings. This caused restoring a snapshot
+                    // to revert BPM/meter to stale defaults embedded in the scene if the user changed tempo
+                    // after the scene was first created. We now only apply these if the timeline slice did NOT
+                    // already carry authoritative values (for imports from older documents that lacked them).
                     try {
                         const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
                         const api = useTimelineStore.getState();
-                        if (typeof tempo === 'number') api.setGlobalBpm(Math.max(1, tempo));
-                        if (typeof beatsPerBar === 'number') api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
-                    } catch {}
+                        const tl = api.timeline;
+                        const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120; // 120 is default
+                        const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4; // 4 default
+                        if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
+                        if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
+                            api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
+                    } catch {
+                        /* ignore */
+                    }
                 }
                 if (typeof sb.loadScene === 'function') {
                     sb.loadScene(sceneData);
