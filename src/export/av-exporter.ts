@@ -200,7 +200,10 @@ export class AVExporter {
             let resolvedContainer: 'mp4' | 'webm' = 'mp4';
             if (container === 'webm') resolvedContainer = 'webm';
             // Video codec resolution
-            let codec: string = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'.
+            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            if (codecInput === 'h264') codecInput = 'avc';
+            let codec: string = codecInput;
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
@@ -256,8 +259,9 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'aac';
-                    const preferOrder = ['aac', 'opus', 'mp3', 'vorbis', 'flac', 'pcm-s16'];
+                    // Prefer mp3 by default now (UI default). 'auto' attempts mp3 → aac → opus.
+                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'mp3';
+                    const preferOrder = ['mp3', 'aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
                     const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
                     if (!supportedPreferred) {
                         try {

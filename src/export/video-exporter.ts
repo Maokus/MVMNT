@@ -43,8 +43,6 @@ export interface VideoExportOptions {
     // When true, prevents the exporter from initiating a browser download itself. Caller handles blob.
     suppressDownload?: boolean;
     // Advanced A/V controls. Some combinations may not yet be supported by the underlying encoder build.
-    // container: 'auto' selects MP4 today; placeholder for future WebM pipeline once available.
-    container?: 'auto' | 'mp4' | 'webm';
     // videoCodec: 'auto' tries H.264/AVC then falls back to first encodable codec reported by mediabunny.
     videoCodec?: string; // 'auto' | concrete codec id (e.g. 'avc', 'hevc', 'av1', 'vp9')
     // videoBitrateMode: when 'manual', use videoBitrate (bps) > legacy bitrate > preset; when 'auto' use preset or heuristic downstream.
@@ -94,7 +92,7 @@ export class VideoExporter {
             includeAudio = false,
             startTick,
             endTick,
-            container = 'auto',
+            container = 'auto', // deprecated / ignored for now – exporter outputs mp4
             videoCodec = 'auto',
             videoBitrateMode = 'auto',
             videoBitrate,
@@ -208,8 +206,10 @@ export class VideoExporter {
 
             // Decide on codec (prefer avc, else first encodable fall-back)
             // Container currently fixed to mp4 for mediabunny; webm reserved for future.
-            // Resolve video codec (allow user override)
-            let codec: string = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            // Resolve video codec (allow user override). Accept alias 'h264' → 'avc'.
+            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            if (codecInput === 'h264') codecInput = 'avc';
+            let codec: string = codecInput;
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);

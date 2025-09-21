@@ -30,8 +30,9 @@ export interface ExportSettings {
     qualityPreset?: 'low' | 'medium' | 'high';
     includeAudio?: boolean; // whether to include audio when exporting MP4 (delegates to AV exporter). Default true.
     // Advanced export settings (A/V codecs & container negotiation)
+    // container deprecated (always mp4 currently)
     container?: 'auto' | 'mp4' | 'webm';
-    videoCodec?: string; // 'auto' or concrete codec id (avc, hevc, av1, vp9, etc.)
+    videoCodec?: string; // 'h264' (alias of avc) default; 'auto' tries h264 then fallback
     videoBitrateMode?: 'auto' | 'manual';
     videoBitrate?: number; // manual video bitrate (bps) when mode == manual (supersedes legacy bitrate field)
     audioCodec?: string; // 'auto' | codec id (aac, opus, vorbis, etc.)
@@ -100,7 +101,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         startTime: 0,
         endTime: 0,
         includeAudio: true,
-        container: 'auto',
+        videoCodec: 'h264',
+        audioCodec: 'mp3',
         videoBitrateMode: 'auto',
         audioSampleRate: 'auto',
         audioChannels: 2,
@@ -688,7 +690,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 bitrate: settings.bitrate,
                 qualityPreset: settings.qualityPreset,
                 includeAudio: settings.includeAudio,
-                container: settings.container,
                 videoCodec: settings.videoCodec,
                 videoBitrateMode: settings.videoBitrateMode,
                 videoBitrate: settings.videoBitrate,

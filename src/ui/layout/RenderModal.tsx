@@ -23,13 +23,13 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     // New UI state
     const [fpsMode, setFpsMode] = useState<'24' | '30' | '60' | 'custom'>(exportSettings.fps === 24 ? '24' : exportSettings.fps === 30 ? '30' : exportSettings.fps === 60 ? '60' : 'custom');
     const [customFps, setCustomFps] = useState<number>(exportSettings.fps);
-    const [container, setContainer] = useState<'auto' | 'mp4' | 'webm'>(exportSettings.container || 'auto');
-    const [videoCodec, setVideoCodec] = useState<string>(exportSettings.videoCodec || 'auto');
+    // Container selection removed (mp4 fixed currently)
+    const [videoCodec, setVideoCodec] = useState<string>(exportSettings.videoCodec || 'h264'); // default to h264 (maps to avc internally)
     const [videoBitrateMode, setVideoBitrateMode] = useState<'auto' | 'manual'>(exportSettings.videoBitrateMode || 'auto');
     const [videoBitrate, setVideoBitrate] = useState<number>(exportSettings.videoBitrate || 0);
     const [autoBitrateEstimate, setAutoBitrateEstimate] = useState<number | null>(null);
     // Audio advanced
-    const [audioCodec, setAudioCodec] = useState<string>(exportSettings.audioCodec || 'auto');
+    const [audioCodec, setAudioCodec] = useState<string>(exportSettings.audioCodec || 'mp3'); // default to mp3
     const [audioBitrate, setAudioBitrate] = useState<number>(exportSettings.audioBitrate || 192000);
     const [audioSampleRate, setAudioSampleRate] = useState<'auto' | 44100 | 48000>(exportSettings.audioSampleRate || 'auto');
     const [audioChannels, setAudioChannels] = useState<1 | 2>(exportSettings.audioChannels || 2);
@@ -46,7 +46,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         });
     }, [sceneName]);
     // Capability lists
-    const [videoCodecs, setVideoCodecs] = useState<string[]>([]);
+    const [videoCodecs, setVideoCodecs] = useState<string[]>([]); // display list (avc shown as h264)
     const [audioCodecs, setAudioCodecs] = useState<string[]>([]);
     const [capLoaded, setCapLoaded] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
@@ -71,11 +71,19 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         (async () => {
             try {
                 const vcs = await (getEncodableVideoCodecs?.() || []);
-                if (mounted && Array.isArray(vcs)) setVideoCodecs(vcs);
+                if (mounted && Array.isArray(vcs)) {
+                    // Map internal 'avc' id to user-friendly 'h264'
+                    const mapped = vcs.map(c => (c === 'avc' ? 'h264' : c));
+                    if (!mapped.includes('h264') && vcs.includes('avc')) mapped.unshift('h264');
+                    setVideoCodecs(mapped);
+                }
             } catch { /* ignore */ }
             try {
                 const acs = await (getEncodableAudioCodecs?.() || []);
-                if (mounted && Array.isArray(acs)) setAudioCodecs(acs);
+                if (mounted && Array.isArray(acs)) {
+                    const list = Array.from(new Set(['mp3', ...acs])); // ensure mp3 selectable even if not reported
+                    setAudioCodecs(list);
+                }
             } catch { /* ignore */ }
             if (mounted) setCapLoaded(true);
         })();
@@ -100,7 +108,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             includeAudio,
             filename: filename.trim() || undefined,
             fps: effectiveFps,
-            container,
             videoCodec,
             videoBitrateMode,
             videoBitrate: videoBitrateMode === 'manual' ? videoBitrate : undefined,
@@ -123,7 +130,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     qualityPreset,
                     includeAudio,
                     fps: effectiveFps,
-                    container,
                     videoCodec,
                     videoBitrateMode,
                     videoBitrate: videoBitrateMode === 'manual' ? videoBitrate : undefined,
@@ -194,19 +200,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     )}
                     {format === 'mp4' && (
                         <>
-                            <label className="flex flex-col gap-1">Container
-                                <select value={container} onChange={e => setContainer(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                    <option value="auto">Auto (Recommended)</option>
-                                    <option value="mp4">MP4</option>
-                                    <option value="webm">WebM</option>
-                                </select>
-                            </label>
                             <label className="flex flex-col gap-1">Video Codec
                                 <select disabled={!capLoaded} value={videoCodec} onChange={e => setVideoCodec(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
+                                    <option value="h264">H.264 (Default)</option>
                                     <option value="auto">Auto</option>
                                     {videoCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
-                                <span className="text-[10px] opacity-60">Filtered by container capability.</span>
                             </label>
                             <label className="flex flex-col gap-1">Quality Preset
                                 <select value={qualityPreset} onChange={e => setQualityPreset(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
@@ -241,9 +240,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <>
                                     <label className="flex flex-col gap-1">Audio Codec
                                         <select disabled={!capLoaded} value={audioCodec} onChange={e => setAudioCodec(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
+                                            <option value="mp3">mp3 (Default)</option>
                                             <option value="auto">Auto</option>
                                             {audioCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
+                                        <span className="text-[10px] opacity-60">Auto prefers mp3 → aac → opus.</span>
                                     </label>
                                     <label className="flex flex-col gap-1">Audio Bitrate
                                         <input type="number" min={64000} max={512000} step={16000} value={audioBitrate} onChange={e => setAudioBitrate(Number(e.target.value) || 0)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm" />
