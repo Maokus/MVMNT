@@ -54,6 +54,13 @@ export class AudioEngine {
     private active: Map<string, ActiveTrackNode> = new Map();
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
     private unsub?: () => void;
+    // Phase 5 adaptive lookahead scaffolding
+    private adaptive = {
+        min: 0.15,
+        max: 0.4,
+        recentUnderruns: 0,
+        windowChecks: 0,
+    };
 
     constructor(cfg: AudioEngineConfig = {}) {
         this.cfg = { lookaheadSeconds: cfg.lookaheadSeconds ?? 0.2 };
@@ -99,11 +106,11 @@ export class AudioEngine {
     }
 
     async ensureContext(): Promise<AudioContext> {
-        if (this.ctx) return this.ctx;
+        if (this.ctx) return this.ctx as AudioContext;
         const Ctor: any = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (!Ctor) throw new Error('Web Audio API not supported');
         this.ctx = new Ctor();
-        return this.ctx;
+        return this.ctx as AudioContext;
     }
 
     async decodeFile(file: File): Promise<AudioBuffer> {
@@ -176,9 +183,37 @@ export class AudioEngine {
 
     /** For future incremental scheduling; currently ensures any missing sources are started. */
     refresh(currentTick: number) {
-        // If transport advanced beyond current single-shot sources (should not happen for full-buffer scheduling), we could reschedule here.
-        // Placeholder for lookahead-based granular scheduling.
-        return;
+        // Adaptive lookahead placeholder: increment window checks and periodically adjust.
+        // In current whole-buffer model we cannot detect real underruns; hook left for future granular scheduling.
+        this.adaptive.windowChecks++;
+        if (this.adaptive.windowChecks % 300 === 0) {
+            // Every ~300 frames (~5s at 60fps) decay underrun counter
+            this.adaptive.recentUnderruns = Math.max(0, this.adaptive.recentUnderruns - 1);
+            this.recomputeLookahead();
+        }
+    }
+
+    /** External hook (future) to report scheduling underrun */
+    reportUnderrun() {
+        this.adaptive.recentUnderruns++;
+        this.recomputeLookahead();
+    }
+
+    private recomputeLookahead() {
+        const severity = this.adaptive.recentUnderruns;
+        // Map severity 0..10 -> lookahead range min..max
+        const clamped = Math.min(10, Math.max(0, severity));
+        const span = this.adaptive.max - this.adaptive.min;
+        const next = this.adaptive.min + (span * clamped) / 10;
+        if (Math.abs(this.cfg.lookaheadSeconds - next) > 0.005) {
+            this.cfg.lookaheadSeconds = next;
+            // Dev-only debug event
+            try {
+                window.dispatchEvent(
+                    new CustomEvent('audio-lookahead-adjusted', { detail: { lookahead: next, severity } })
+                );
+            } catch {}
+        }
     }
 
     /** Test / debug helper (non-production critical) */
@@ -233,8 +268,31 @@ export class AudioEngine {
             const source = ctx.createBufferSource();
             source.buffer = buffer;
             const gainNode = ctx.createGain();
-            const initialGain = track.mute ? 0 : track.gain;
-            gainNode.gain.setValueAtTime(initialGain, ctx.currentTime);
+            const targetGain = track.mute ? 0 : track.gain;
+            // Micro-fade envelope (avoid clicks) 4ms default
+            const fadeTime = 0.004;
+            const now = ctx.currentTime;
+            // Some test mocks may not implement automation methods; guard them.
+            try {
+                if (typeof (gainNode.gain as any).cancelScheduledValues === 'function') {
+                    (gainNode.gain as any).cancelScheduledValues(now);
+                }
+                if (typeof gainNode.gain.setValueAtTime === 'function') {
+                    gainNode.gain.setValueAtTime(0, now);
+                } else {
+                    (gainNode.gain as any).value = 0;
+                }
+                if (typeof gainNode.gain.linearRampToValueAtTime === 'function') {
+                    gainNode.gain.linearRampToValueAtTime(targetGain, now + fadeTime);
+                } else if (typeof gainNode.gain.setTargetAtTime === 'function') {
+                    gainNode.gain.setTargetAtTime(targetGain, now, fadeTime / 3);
+                } else {
+                    (gainNode.gain as any).value = targetGain;
+                }
+            } catch {
+                // Fallback simple assignment
+                (gainNode.gain as any).value = targetGain;
+            }
             source.connect(gainNode).connect(ctx.destination);
             try {
                 // Start at buffer position: regionStart offset + offsetSeconds
@@ -267,9 +325,37 @@ export class AudioEngine {
     }
 
     private stopAllSources() {
+        const fadeTime = 0.004;
+        const ctx = this.ctx;
+        const now = ctx ? ctx.currentTime : 0;
         this.active.forEach((node) => {
             try {
-                node.source.stop();
+                if (ctx) {
+                    // Fade out then stop slightly after to avoid clicks
+                    try {
+                        if (typeof (node.gainNode.gain as any).cancelScheduledValues === 'function') {
+                            (node.gainNode.gain as any).cancelScheduledValues(now);
+                        }
+                        const current = (node.gainNode.gain as any).value ?? 0;
+                        if (typeof node.gainNode.gain.setValueAtTime === 'function') {
+                            node.gainNode.gain.setValueAtTime(current, now);
+                        } else {
+                            (node.gainNode.gain as any).value = current;
+                        }
+                        if (typeof node.gainNode.gain.linearRampToValueAtTime === 'function') {
+                            node.gainNode.gain.linearRampToValueAtTime(0, now + fadeTime);
+                        } else if (typeof node.gainNode.gain.setTargetAtTime === 'function') {
+                            node.gainNode.gain.setTargetAtTime(0, now, fadeTime / 3);
+                        } else {
+                            (node.gainNode.gain as any).value = 0;
+                        }
+                    } catch {
+                        (node.gainNode.gain as any).value = 0;
+                    }
+                    node.source.stop(now + fadeTime + 0.001);
+                } else {
+                    node.source.stop();
+                }
             } catch {}
             try {
                 node.source.disconnect();

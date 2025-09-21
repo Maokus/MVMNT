@@ -39,6 +39,7 @@ export interface OfflineMixParams {
     ticksPerSecond: number; // derived from tempo & PPQ snapshot
     sampleRate?: number; // default 48000
     channels?: number; // 1 or 2 (default 2)
+    normalize?: boolean; // Phase 5 optional peak normalization
 }
 
 export interface OfflineMixResult {
@@ -171,13 +172,20 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         // Cast due to differing TS lib declarations between DOM and test environment polyfills
         outBuffer.copyToChannel(mixChannels[ch] as any, ch, 0);
     }
-    return {
-        buffer: outBuffer,
-        durationSeconds,
-        sampleRate,
-        channels,
-        peak: globalPeak,
-    };
+    let peak = globalPeak;
+    if (params.normalize && peak > 0) {
+        // Target peak = -1dBFS => amplitude = 10^(-1/20) ≈ 0.89125
+        const target = 0.8912509381337456;
+        if (peak > target) {
+            const scale = target / peak;
+            for (let ch = 0; ch < channels; ch++) {
+                const data = outBuffer.getChannelData(ch);
+                for (let i = 0; i < data.length; i++) data[i] *= scale;
+            }
+            peak = target;
+        }
+    }
+    return { buffer: outBuffer, durationSeconds, sampleRate, channels, peak };
 }
 
 function collectAudibleTracks(params: OfflineMixParams): AudioTrack[] {

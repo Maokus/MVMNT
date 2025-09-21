@@ -369,12 +369,21 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     removeTrack(id: string) {
         set((s: TimelineState) => {
             const { [id]: _, ...rest } = s.tracks;
+            // Remove associated audio cache if audio track
+            let newAudioCache = s.audioCache;
+            const t: any = s.tracks[id];
+            if (t && t.type === 'audio') {
+                const cacheKey = t.audioSourceId || id;
+                const { [cacheKey]: __, ...cacheRest } = s.audioCache;
+                newAudioCache = cacheRest;
+            }
             return {
                 tracks: rest,
                 tracksOrder: s.tracksOrder.filter((t: string) => t !== id),
                 selection: {
                     selectedTrackIds: s.selection.selectedTrackIds.filter((t: string) => t !== id),
                 },
+                audioCache: newAudioCache,
             };
         });
         try {
@@ -642,6 +651,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         durationTicks,
                         sampleRate: buffer.sampleRate,
                         channels: buffer.numberOfChannels,
+                        peakData: undefined, // filled async
                     },
                 },
                 tracks: {
@@ -649,6 +659,26 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     [id]: { ...(s.tracks[id] as any), audioSourceId: id },
                 },
             }));
+            // Kick off async peak extraction (non-blocking)
+            (async () => {
+                try {
+                    const { extractPeaksAsync } = await import('@core/waveform/peak-extractor');
+                    const res = await extractPeaksAsync(buffer, { binSize: 1024, maxBins: 5000 });
+                    set((s: TimelineState) => {
+                        const existing = s.audioCache[id];
+                        if (!existing || existing.peakData) return { audioCache: s.audioCache } as TimelineState;
+                        return {
+                            audioCache: {
+                                ...s.audioCache,
+                                [id]: { ...existing, peakData: res.peaks },
+                            },
+                        } as TimelineState;
+                    });
+                } catch (err) {
+                    // Peak extraction failure is non-fatal.
+                    // console.debug('Peak extraction skipped', err);
+                }
+            })();
         } catch (err) {
             console.warn('Failed to ingest audio buffer', err);
         }
