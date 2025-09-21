@@ -55,5 +55,17 @@ export function importScene(json: string): ImportSceneResult {
     // as selection is ephemeral UI state and should not be persisted.
     // Apply via gateway (ignores currentTick/transport/view & strips padding keys internally)
     DocumentGateway.apply(doc as any);
+    // After applying, propagate metadata.name to timeline name if present so that other parts of app (e.g., timeline UI) reflect loaded scene name.
+    try {
+        if (parsed?.metadata?.name) {
+            const { useTimelineStore } = require('../state/timelineStore');
+            useTimelineStore.setState((prev: any) => ({
+                ...prev,
+                timeline: { ...prev.timeline, name: parsed.metadata.name },
+            }));
+        }
+    } catch {
+        /* non-fatal */
+    }
     return { ok: true, errors: [], warnings: validation.warnings };
 }

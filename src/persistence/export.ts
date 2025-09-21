@@ -43,16 +43,17 @@ export interface ExportResultSuccess {
     json: string; // stable stringified form
 }
 export type ExportSceneResult = ExportResultSuccess;
-export function exportScene(): ExportSceneResult {
+export function exportScene(sceneNameOverride?: string): ExportSceneResult {
     // Build persistent document via gateway (no ephemeral fields)
     const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
 
     const now = new Date().toISOString();
-    // Derive metadata (use timeline id/name for now as scene identity)
+    // Prefer explicit override (from UI SceneContext), else timeline name, else fallback
+    const resolvedName = sceneNameOverride?.trim() || state.timeline.name || 'Untitled Scene';
     const metadata: SceneMetadata = {
         id: state.timeline.id || 'scene_1',
-        name: state.timeline.name || 'Untitled Scene',
+        name: resolvedName,
         createdAt: now, // Without persisted value we set both created/modified to now (import will preserve original)
         modifiedAt: now,
         format: 'scene',

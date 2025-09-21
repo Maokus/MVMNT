@@ -34,7 +34,7 @@ export const useMenuBar = ({
 
     const saveScene = () => {
         try {
-            const res = exportScene();
+            const res = exportScene(sceneName);
             if (!res.ok) {
                 alert('Export failed.');
                 return;
@@ -44,7 +44,8 @@ export const useMenuBar = ({
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `${safeName}.mvmnt.scene.json`;
+            // New simplified extension for scenes
+            link.download = `${safeName}.mvt`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -59,7 +60,8 @@ export const useMenuBar = ({
     const loadScene = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.json';
+        // Accept legacy .json exports and new .mvt extension
+        fileInput.accept = '.mvt,.json';
         fileInput.style.display = 'none';
         fileInput.onchange = async (e: Event) => {
             const target = e.target as HTMLInputElement;
@@ -77,7 +79,13 @@ export const useMenuBar = ({
                     // Attempt to read name from envelope metadata when present
                     try {
                         const parsed = JSON.parse(text);
-                        if (parsed?.metadata?.name) onSceneNameChange(parsed.metadata.name);
+                        if (parsed?.metadata?.name) {
+                            onSceneNameChange(parsed.metadata.name);
+                        } else if (file.name) {
+                            // Fallback: derive scene name from filename (strip extension)
+                            const base = file.name.replace(/\.(mvt|json)$/i, '');
+                            if (base) onSceneNameChange(base);
+                        }
                     } catch {}
                     undo?.reset();
                     if (onSceneRefresh) onSceneRefresh();
