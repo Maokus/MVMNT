@@ -139,22 +139,20 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             <option value="png">PNG Sequence</option>
                         </select>
                     </label>
-                    {format === 'mp4' && (
-                        <label className="flex flex-col gap-1">Frame Rate
-                            <div className="flex gap-2 items-center">
-                                <select value={fpsMode} onChange={e => setFpsMode(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm flex-1">
-                                    <option value="24">24 fps</option>
-                                    <option value="30">30 fps</option>
-                                    <option value="60">60 fps</option>
-                                    <option value="custom">Custom…</option>
-                                </select>
-                                {fpsMode === 'custom' && (
-                                    <input type="number" min={1} max={240} value={customFps} onChange={e => setCustomFps(Math.max(1, Number(e.target.value) || 1))} className="w-20 bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm" />
-                                )}
-                            </div>
-                        </label>
-                    )}
-                    <label className="flex flex-col gap-1">Duration
+                    <label className="flex flex-col gap-1">Frame Rate
+                        <div className="flex gap-2 items-center">
+                            <select value={fpsMode} onChange={e => setFpsMode(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm flex-1">
+                                <option value="24">24 fps</option>
+                                <option value="30">30 fps</option>
+                                <option value="60">60 fps</option>
+                                <option value="custom">Custom…</option>
+                            </select>
+                            {fpsMode === 'custom' && (
+                                <input type="number" min={1} max={240} value={customFps} onChange={e => setCustomFps(Math.max(1, Number(e.target.value) || 1))} className="w-20 bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm" />
+                            )}
+                        </div>
+                    </label>
+                    <label className="flex flex-col gap-1">Export Range
                         <select value={rangeMode ? 'full' : 'range'} onChange={e => setRangeMode(e.target.value === 'full')} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
                             <option value="full">Full</option>
                             <option value="range">Range</option>

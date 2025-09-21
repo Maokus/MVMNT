@@ -6,6 +6,7 @@ interface ProgressOverlayProps {
     onClose: () => void;
     downloadUrl?: string;
     filename?: string; // allow dynamic filename based on scene
+    kind?: 'png' | 'video' | null; // to drive dynamic heading
 }
 
 const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
@@ -13,7 +14,8 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     text,
     onClose,
     downloadUrl,
-    filename = 'midi-visualization-sequence.zip'
+    filename = 'midi-visualization-sequence.zip',
+    kind = 'png'
 }) => {
     const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) {
@@ -27,7 +29,9 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
             onClick={handleOverlayClick}
         >
             <div className="border rounded-lg p-6 min-w-[400px] text-center [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
-                <h3 className="mb-5 text-white">📸 Exporting PNG Sequence</h3>
+                <h3 className="mb-5 text-white">
+                    {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
+                </h3>
 
                 {!downloadUrl ? (
                     <div className="mb-5">
@@ -46,7 +50,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             className="inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
                             download={filename}
                         >
-                            ⬇ Download PNG Sequence
+                            ⬇ Download {kind === 'video' ? 'Video' : 'PNG Sequence'}
                         </a>
                         <button
                             className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400 ml-[10px]"

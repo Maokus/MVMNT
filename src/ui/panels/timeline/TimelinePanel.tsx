@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { beatsToTicks, CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';

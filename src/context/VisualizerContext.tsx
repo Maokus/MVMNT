@@ -44,6 +44,8 @@ export interface DebugSettings {
 
 interface ProgressData { progress: number; text: string; }
 
+type ExportKind = 'png' | 'video' | null;
+
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any | null;
@@ -65,6 +67,7 @@ interface VisualizerContextValue {
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
+    exportKind: ExportKind;
     // TimelineService removed from context; use timeline store + note-query utilities instead.
     // Expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
@@ -102,6 +105,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
+    const [exportKind, setExportKind] = useState<ExportKind>(null);
     const sceneNameRef = useRef<string>('scene');
     // TimelineService removed: all track/timeline operations flow through Zustand store.
 
@@ -494,6 +498,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             }
         }
         setShowProgressOverlay(true);
+        setExportKind('png');
         setProgressData({ progress: 0, text: 'Generating images...' });
         try {
             let maxFrames: number | null = null; let startFrame = 0;
@@ -531,6 +536,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             }
         }
         setShowProgressOverlay(true);
+        setExportKind('video');
         setProgressData({ progress: 0, text: 'Rendering & encoding video...' });
         try {
             let maxFrames: number | null = null; let startFrame = 0;
@@ -618,6 +624,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         exportVideo,
         showProgressOverlay,
         progressData,
+        exportKind,
         closeProgress: () => setShowProgressOverlay(false),
         useTimeline: () => useTimelineStore(selectTimeline),
         useTransport: () => {
