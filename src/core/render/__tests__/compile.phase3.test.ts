@@ -18,7 +18,7 @@ describe('compileWindow (Phase 3)', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1', offsetSec: 1 })];
         const midiCache: CompileMidiCache = {
             t1: {
-                ticksPerQuarter: 480,
+                ticksPerQuarter: 960,
                 notesRaw: [{ note: 60, channel: 0, startTime: 0.0, endTime: 0.5, duration: 0.5 }],
             },
         };
@@ -70,7 +70,7 @@ describe('compileWindow (Phase 3)', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1' })];
         const midiCache: CompileMidiCache = {
             t1: {
-                ticksPerQuarter: 480,
+                ticksPerQuarter: 960,
                 tempoMap: map,
                 notesRaw: [{ note: 60, channel: 0, startBeat: 2, endBeat: 3, startTime: 0, endTime: 0, duration: 0 }],
             },

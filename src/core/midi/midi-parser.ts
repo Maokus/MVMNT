@@ -40,7 +40,7 @@ export class MIDIParser {
     constructor() {
         this.tracks = [];
         // Defaults
-        this.ticksPerQuarter = 480;
+        this.ticksPerQuarter = 960;
         this.tempo = 500000; // 120 BPM
         this.bpm = 60000000 / this.tempo;
         this.timeSignature = {

@@ -29,7 +29,7 @@ describe('Time Domain Conversions (Phase 1)', () => {
 
     it('tempo map multi-segment ticks<->seconds round trip', () => {
         const tm = new TimingManager();
-        tm.setTicksPerQuarter(480);
+        tm.setTicksPerQuarter(960);
         // Two segments: 120bpm for first 4s (8 beats), then 90bpm
         tm.setTempoMap([
             { time: 0, bpm: 120 },

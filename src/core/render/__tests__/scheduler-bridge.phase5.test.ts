@@ -3,7 +3,7 @@ import { diffSchedulerConfig } from '../scheduler-bridge';
 
 const mkCfg = () => ({
     tracks: [{ id: 'a', enabled: true, mute: false, solo: false, offsetSec: 0, midiSourceId: 'a' }] as any,
-    midiCache: { a: { ticksPerQuarter: 480, notesRaw: [] } },
+    midiCache: { a: { ticksPerQuarter: 960, notesRaw: [] } },
     nowSec: 0,
     lookAheadSec: 1,
     tempoMap: undefined,

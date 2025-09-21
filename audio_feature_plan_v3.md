@@ -262,11 +262,7 @@ Key integration points:
     - Stream video frames as PNG/JPEG sequence or pre-encoded MP4 (if hardware encoding accessible).
     - POST mux job with audio asset ID + video asset ID + timing metadata (duration, fps, audio sample rate).
     - Poll job status → download final file.
-2. Fallback (Local Mux):
-    - Use `ffmpeg.wasm` (cost: performance) or backend microservice.
-    - Feed raw RGBA frames + PCM to ffmpeg command: `-r <fps> -i frame_%05d.png -i audio.wav -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k output.mp4`.
-    - Provide user with generated blob.
-3. Minimal (Separate Assets):
+2. Minimal (Separate Assets):
     - Provide user with audio.wav + frame sequence zip + JSON timing manifest.
 
 ### 4.7 Implementation Tasks
@@ -389,7 +385,7 @@ Total: 27–40 dev days (similar overall; export research front-loaded).
 
 ## Assumptions (Current)
 
--   Single global tempo constant for MVP (e.g., 120 BPM, PPQ=480) – stored centrally.
+-   Single global tempo constant for MVP (e.g., 120 BPM, PPQ=960) – stored centrally.
 -   Browser environment provides sufficient memory for offline audio buffers up to ~5 minutes (longer warns user).
 -   MediaBunny supports at least one lossless or high-bitrate audio ingest format.
 
