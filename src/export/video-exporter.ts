@@ -37,6 +37,19 @@ export interface VideoExportOptions {
     includeAudio?: boolean; // new Phase 4 option (false preserves previous behavior)
     startTick?: number; // optional explicit range (when includeAudio true & using AVExporter)
     endTick?: number;
+    // Extended (Phase 5 UI upgrade): advanced A/V controls. Not all combinations currently supported by mediabunny build.
+    // container: 'auto' selects MP4 today; placeholder for future WebM pipeline once available.
+    container?: 'auto' | 'mp4' | 'webm';
+    // videoCodec: 'auto' tries H.264/AVC then falls back to first encodable codec reported by mediabunny.
+    videoCodec?: string; // 'auto' | concrete codec id (e.g. 'avc', 'hevc', 'av1', 'vp9')
+    // videoBitrateMode: when 'manual', use videoBitrate (bps) > legacy bitrate > preset; when 'auto' use preset or heuristic downstream.
+    videoBitrateMode?: 'auto' | 'manual';
+    videoBitrate?: number; // manual override (bps) when videoBitrateMode === 'manual'
+    // Advanced audio fields are passed through only when includeAudio + AVExporter path; video-only exporter ignores them presently.
+    audioCodec?: string; // 'auto' | specific (aac, opus, etc.)
+    audioBitrate?: number; // target audio bitrate (bps)
+    audioSampleRate?: 'auto' | 44100 | 48000; // mixing / encode SR preference
+    audioChannels?: 1 | 2; // channel layout
 }
 
 interface InternalFrameData {
@@ -75,6 +88,14 @@ export class VideoExporter {
             includeAudio = false,
             startTick,
             endTick,
+            container = 'auto',
+            videoCodec = 'auto',
+            videoBitrateMode = 'auto',
+            videoBitrate,
+            audioCodec = 'auto',
+            audioBitrate,
+            audioSampleRate = 'auto',
+            audioChannels = 2,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
@@ -130,7 +151,15 @@ export class VideoExporter {
                             endTick: derivedEndTick,
                             includeAudio: true,
                             deterministicTiming,
-                            bitrate,
+                            bitrate, // legacy support
+                            container,
+                            videoCodec,
+                            videoBitrateMode,
+                            videoBitrate,
+                            audioCodec,
+                            audioBitrate,
+                            audioSampleRate,
+                            audioChannels,
                             onProgress: (p: number, text?: string) => onProgress(p, text),
                         });
                         if (result.combinedBlob) {
@@ -171,7 +200,9 @@ export class VideoExporter {
             onProgress(0, 'Preparing encoder...');
 
             // Decide on codec (prefer avc, else first encodable fall-back)
-            let codec: string = 'avc';
+            // Container currently fixed to mp4 for mediabunny; webm reserved for future.
+            // Resolve video codec (allow user override)
+            let codec: string = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
@@ -191,8 +222,15 @@ export class VideoExporter {
                 // prePadding removed (kept var for compatibility if downstream expects key)
                 high: 8_000_000, // 8 Mbps default
             };
-            const chosenBitrate =
-                typeof bitrate === 'number' && bitrate > 0 ? bitrate : presetMap[qualityPreset] || presetMap.high;
+            // Manual bitrate overrides preset. videoBitrateMode/manual > legacy bitrate > preset.
+            let chosenBitrate: number;
+            if (videoBitrateMode === 'manual' && typeof videoBitrate === 'number' && videoBitrate > 0) {
+                chosenBitrate = videoBitrate;
+            } else if (typeof bitrate === 'number' && bitrate > 0) {
+                chosenBitrate = bitrate;
+            } else {
+                chosenBitrate = presetMap[qualityPreset] || presetMap.high;
+            }
 
             const canvasSource = new CanvasSource(this.canvas, {
                 codec: codec as any,

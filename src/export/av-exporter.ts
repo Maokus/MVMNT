@@ -51,6 +51,15 @@ export interface AVExportOptions {
     onProgress?: (p: number, text?: string) => void;
     onComplete?: (result: AVExportResult) => void;
     bitrate?: number;
+    // Extended (Phase 5): container & codec overrides. Some are forward-looking (webm) pending mediabunny support.
+    container?: 'auto' | 'mp4' | 'webm';
+    videoCodec?: string; // 'auto' | specific (avc, hevc, av1, vp9)
+    videoBitrateMode?: 'auto' | 'manual';
+    videoBitrate?: number; // manual override (bps) when videoBitrateMode === 'manual'
+    audioCodec?: string; // 'auto' | specific (aac, opus, etc.)
+    audioBitrate?: number; // audio target bitrate (bps)
+    audioSampleRate?: 'auto' | 44100 | 48000; // requested mix SR
+    audioChannels?: 1 | 2; // channel layout (currently mix always produces 2 when channels=2)
 }
 
 export interface AVExportResult {
@@ -93,6 +102,14 @@ export class AVExporter {
             onProgress = () => {},
             onComplete = () => {},
             bitrate,
+            container = 'auto',
+            videoCodec = 'auto',
+            videoBitrateMode = 'auto',
+            videoBitrate,
+            audioCodec = 'auto',
+            audioBitrate,
+            audioSampleRate = 'auto',
+            audioChannels = 2,
         } = options;
 
         const originalWidth = this.canvas.width;
@@ -171,7 +188,11 @@ export class AVExporter {
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
-            let codec: string = 'avc';
+            // Container selection (currently mediabunny only exposes Mp4OutputFormat; future: WebMOutputFormat)
+            let resolvedContainer: 'mp4' | 'webm' = 'mp4';
+            if (container === 'webm') resolvedContainer = 'webm';
+            // Video codec resolution
+            let codec: string = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
@@ -179,6 +200,7 @@ export class AVExporter {
                 } catch {}
             }
             const target = new BufferTarget();
+            // NOTE: Only mp4 implemented in current mediabunny build; webm path reserved for future addition.
             const output = new Output({ format: new Mp4OutputFormat(), target });
             // Bitrate handling & quality rationale:
             // Previous implementation hard-coded 100_000 bps (~0.1 Mbps) when user bitrate invalid, producing extreme macroblocking.
@@ -196,8 +218,14 @@ export class AVExporter {
                 return Math.min(Math.max(est, MIN_FALLBACK), MAX_FALLBACK);
             }
             let resolvedBitrate: number | undefined;
-            if (typeof bitrate === 'number' && Number.isFinite(bitrate) && bitrate > 0) {
-                resolvedBitrate = bitrate < 500_000 ? bitrate * 1000 : bitrate; // treat as Kbps if suspiciously small
+            // videoBitrateMode/manual takes precedence over legacy bitrate prop
+            const userBitrateCandidate = videoBitrateMode === 'manual' ? videoBitrate : bitrate;
+            if (
+                typeof userBitrateCandidate === 'number' &&
+                Number.isFinite(userBitrateCandidate) &&
+                userBitrateCandidate > 0
+            ) {
+                resolvedBitrate = userBitrateCandidate < 500_000 ? userBitrateCandidate * 1000 : userBitrateCandidate; // treat as Kbps if suspiciously small
             } else {
                 resolvedBitrate = computeHeuristicBitrate(width, height, fps);
                 console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
@@ -219,25 +247,27 @@ export class AVExporter {
             if (includeAudio && mixedAudioBuffer) {
                 onProgress(6, 'Preparing audio track...');
                 try {
-                    // Choose preferred audio codec (attempt aac -> opus -> mp3 -> pcm-s16)
-                    let audioCodec: any = 'aac';
+                    // Resolve audio codec
+                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'aac';
                     const preferOrder = ['aac', 'opus', 'mp3', 'vorbis', 'flac', 'pcm-s16'];
-                    // Verify support for preferred codec; if not, ask mediabunny for available audio codecs
-                    const supportedPreferred = await canEncodeAudio?.(audioCodec as any).catch(() => false);
+                    const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
                     if (!supportedPreferred) {
                         try {
                             const encodable = await (getEncodableAudioCodecs?.() as any);
                             const match = preferOrder.find((c) => encodable?.includes?.(c));
-                            if (match) audioCodec = match;
+                            if (match) resolvedAudioCodec = match;
                         } catch {
                             /* ignore */
                         }
                     }
-                    const bitrateBps = 192_000; // sensible default for music
+                    // Choose sample rate
+                    const resolvedSampleRate =
+                        audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
+                    const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
                     audioSource = new AudioBufferSource({
-                        codec: audioCodec,
+                        codec: resolvedAudioCodec,
                         numberOfChannels: mixedAudioChannels,
-                        sampleRate: mixedAudioBuffer.sampleRate,
+                        sampleRate: resolvedSampleRate,
                         bitrate: bitrateBps,
                     } as any);
                     output.addAudioTrack(audioSource as any);
