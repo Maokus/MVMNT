@@ -23,7 +23,6 @@
         background: var(--twc-background);
         color: #fff;
         height: 100vh;
-        overflow: hidden;
     }
     a {
         color: #fff;

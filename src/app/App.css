@@ -1242,9 +1242,6 @@ section p {
 /* ================================
    ABOUT PAGE STYLES
    ================================ */
-.about-page-root {
-    overflow: hidden;
-}
 
 .about-container {
     flex: 1;
