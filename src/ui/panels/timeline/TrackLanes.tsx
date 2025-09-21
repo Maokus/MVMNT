@@ -233,7 +233,14 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         {/* Audio waveform background (only for audio tracks) */}
                         {track?.type === 'audio' && (
                             <div className="absolute inset-0 pointer-events-none opacity-70">
-                                <AudioWaveform trackId={trackId} height={Math.max(18, laneHeight * 0.6) - 4} />
+                                <AudioWaveform
+                                    trackId={trackId}
+                                    height={Math.max(18, laneHeight * 0.6) - 4}
+                                    regionStartTickAbs={absStartTick}
+                                    regionEndTickAbs={absEndTick}
+                                    visibleStartTickAbs={clippedStartTick}
+                                    visibleEndTickAbs={clippedEndTick}
+                                />
                                 {/* subtle gradient overlay to improve text readability */}
                                 <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/25" />
                             </div>

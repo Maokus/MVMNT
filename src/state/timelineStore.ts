@@ -480,6 +480,24 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             }
             // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
             // Seconds no longer stored on notes; real-time updates occur via selectors.
+            // Recompute audioCache durationTicks so displayed beat length and clip width scale with BPM.
+            // Original audioBuffer duration (in seconds) is constant; ticksPerSecond = (bpm * ppq)/60.
+            try {
+                const ppq = _tmSingleton.ticksPerQuarter;
+                const ticksPerSecond = (v * ppq) / 60;
+                const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
+                for (const [id, entry] of Object.entries(next.audioCache)) {
+                    if (!entry || !entry.audioBuffer) {
+                        updatedAudio[id] = entry as any;
+                        continue;
+                    }
+                    const newDurationTicks = Math.round(entry.audioBuffer.duration * ticksPerSecond);
+                    updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
+                }
+                next.audioCache = updatedAudio;
+            } catch {
+                /* noop */
+            }
             return next;
         });
     },
