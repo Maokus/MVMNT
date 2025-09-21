@@ -20,8 +20,10 @@ const TimelinePanel: React.FC = () => {
     const order = useTimelineStore((s) => s.tracksOrder);
     const tracksMap = useTimelineStore((s) => s.tracks);
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
+    const addAudioTrack = useTimelineStore((s) => s.addAudioTrack);
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
+    const audioFileRef = useRef<HTMLInputElement | null>(null);
     // Scroll containers for sync
     const leftScrollRef = useRef<HTMLDivElement | null>(null);
     const rightScrollRef = useRef<HTMLDivElement | null>(null);
@@ -32,6 +34,15 @@ const TimelinePanel: React.FC = () => {
         if (!f) return;
         await addMidiTrack({ name: f.name.replace(/\.[^/.]+$/, ''), file: f });
         if (fileRef.current) fileRef.current.value = '';
+    };
+
+    const handleAddAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        // Basic file type filter; accept common audio if user bypassed accept attribute.
+        const name = f.name.replace(/\.[^/.]+$/, '');
+        await addAudioTrack({ name, file: f });
+        if (audioFileRef.current) audioFileRef.current.value = '';
     };
 
     // Optional: on mount, nudge visualizer play range to current ruler state (no-op when already synced)
@@ -167,11 +178,24 @@ const TimelinePanel: React.FC = () => {
             <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
-                    <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
-                        <FaPlus className="text-neutral-300" />
-                        <span>Add MIDI Track</span>
-                        <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
-                    </label>
+                    <div className="flex items-center gap-2">
+                        <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
+                            <FaPlus className="text-neutral-300" />
+                            <span>MIDI</span>
+                            <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
+                        </label>
+                        <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
+                            <FaPlus className="text-emerald-300" />
+                            <span>Audio</span>
+                            <input
+                                ref={audioFileRef}
+                                type="file"
+                                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
+                                className="hidden"
+                                onChange={handleAddAudio}
+                            />
+                        </label>
+                    </div>
                     <TimeIndicator />
                 </div>
                 {/* Center: transport buttons only */}
