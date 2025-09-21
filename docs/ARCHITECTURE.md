@@ -122,6 +122,27 @@ Guideline: New code must always import tick resolution from `@core/timing/ppq`; 
 
 This document should be updated whenever domains move or new timing representations are introduced to prevent knowledge drift.
 
+### 2025-09 Audio Waveform Integration
+
+Audio track lanes now render a lightweight peak-based waveform preview. Implementation details:
+
+-   Component: `ui/components/AudioWaveform.tsx` renders a mono peak array (`peakData`) on a `<canvas>` with device‑pixel scaling.
+-   Integration point: Injected inside the clip rectangle in `TrackLanes.tsx` (`TrackRowBlock`) only when `track.type === 'audio'`.
+-   Data source: Peaks and duration ticks come from `state.timelineStore.audioCache[trackId|audioSourceId]`.
+-   Rendering strategy: Vertical line (min-max style) per horizontal pixel sampling precomputed absolute peak bins (cheap O(width)).
+-   Selection: Clip selection border is handled by existing track selection styling; a secondary yellow outline is drawn by the waveform component when the track is selected.
+-   Testing: Added `audioWaveform.integration.test.tsx` with jsdom stubs for `ResizeObserver` and `canvas.getContext` to assert the canvas mounts for an audio track.
+
+Performance Notes:
+
+-   Peak extraction occurs elsewhere (not in the rendering component); the waveform component is pure & re-renders only when peak data or selection changes.
+-   Canvas is scaled via `devicePixelRatio` to keep crisp lines without heavy overdraw.
+
+Future Enhancements:
+
+-   Stereo visualization (dual polarity) if peak arrays carry channel separation.
+-   Lazy/virtual rendering for extremely long clips (current approach is already efficient for typical lane widths).
+
 ### 2025-09 SceneBuilder Purity Refactor
 
 Previously `HybridSceneBuilder.updateSceneSettings` and `resetSceneSettings` performed timeline store mutations (setting global BPM / beatsPerBar). During undo/redo flows this caused double state writes because `DocumentGateway.apply()` also mutated the store when applying a snapshot, followed by `sceneBuilder.loadScene()` indirectly updating tempo again.

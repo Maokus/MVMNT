@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
+import AudioWaveform from '@ui/components/AudioWaveform';
 
 type Props = {
     trackIds: string[];
@@ -223,12 +224,20 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 {/* Track clip rectangle (width reflects clip length) */}
                 {widthPx > 0 && (
                     <div
-                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
+                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
                         style={{ left: Math.max(0, leftX), width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
                     >
+                        {/* Audio waveform background (only for audio tracks) */}
+                        {track?.type === 'audio' && (
+                            <div className="absolute inset-0 pointer-events-none opacity-70">
+                                <AudioWaveform trackId={trackId} height={Math.max(18, laneHeight * 0.6) - 4} />
+                                {/* subtle gradient overlay to improve text readability */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/25" />
+                            </div>
+                        )}
                         {/* Edge indicators: jagged mask when clipped, solid when fully visible */}
                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-stretch">
                             {isClippedLeft ? (
@@ -274,15 +283,17 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                 <div className="w-[3px] h-full bg-white/60" />
                             )}
                         </div>
-                        {track?.name}{' '}
-                        <span className="opacity-80">{label}</span>
-                        {track?.type === 'audio' ? (
-                            <span className="ml-2 text-[10px] opacity-80">{audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}</span>
-                        ) : (
-                            (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
-                                <span className="ml-2 text-[10px] opacity-70">No data</span>
-                            )
-                        )}
+                        <div className="relative z-10 flex items-center gap-1">
+                            <span>{track?.name}</span>
+                            <span className="opacity-80">{label}</span>
+                            {track?.type === 'audio' ? (
+                                <span className="ml-1 text-[10px] opacity-80">{audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}</span>
+                            ) : (
+                                (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
+                                    <span className="ml-1 text-[10px] opacity-70">No data</span>
+                                )
+                            )}
+                        </div>
 
                         {/* Resize handles */}
                         <div
