@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TimingManager, TempoMapEntry } from '@core/timing';
 
-describe('TimingManager Phase 2 additions', () => {
+describe('TimingManager additions', () => {
     it('beatsToSecondsWithMap and secondsToBeatsWithMap handle tempo changes', () => {
         const tm = new TimingManager('test');
         const map: TempoMapEntry[] = [

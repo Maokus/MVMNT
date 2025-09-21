@@ -95,7 +95,7 @@ export class TransportCoordinator {
         const tick = typeof fromTick === 'number' ? fromTick : this.state.lastDerivedTick;
         this.state.startTick = tick;
         this.state.lastDerivedTick = tick;
-        // Attempt to initialize / create audio engine & context (Phase 2)
+        // Attempt to initialize / create audio engine & context
         // Previous implementation only switched to audio mode if a context already existed,
         // causing silent playback on the first play gesture. We now force-create the context
         // via ensureContext() (synchronously sets internal ctx) and then schedule sources.

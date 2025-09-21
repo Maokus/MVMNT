@@ -1,26 +1,23 @@
-// Offline Audio Mixer (Phase 4)
-// Deterministic offline mixing of audio tracks into a single AudioBuffer.
-// Requirements:
-//  - Pure function given snapshot + track data + export range.
-//  - Obeys mute/solo, gain, region trimming, offset ticks.
-//  - Deterministic ordering & summation (stable iteration order: tracksOrder array).
-//  - Uses OfflineAudioContext when available; falls back to manual Float32Array summation.
-//  - Output sampleRate: configurable (default 48000).
-//  - Clipping is NOT applied (caller may normalize later). No dithering (Phase 5 optimization).
-//
-// Simplifications:
-//  - All sources assumed small enough to fit in memory (single buffer each).
-//  - No effects chain / micro-fades (Phase 5).
-//
-// Edge Cases:
-//  - If no audible tracks -> returns silent buffer.
-//  - Region outside buffer or zero length -> skipped.
-//  - Solo logic: if any solo=true among enabled tracks, only those solos are mixed.
-//
-// Determinism Notes:
-//  - Summation performed in fixed order; sample-wise addition uses JS number (IEEE 754) so identical inputs => identical output bits (within same engine/runtime). Browser differences in OfflineAudioContext rendering are minimized by summing manually rather than relying on engine mixing nuances.
-//  - If OfflineAudioContext used, we still schedule sources in deterministic order and avoid time-based randomness.
-//
+/**
+ * Offline Audio Mixer
+ * -------------------------------------------------
+ * Deterministically mixes enabled audio tracks into a single stereo (or mono) `AudioBuffer` for export.
+ *
+ * Core Responsibilities:
+ *  - Honor mute / solo / gain / timeline offset / region trimming.
+ *  - Produce identical floating‑point output for identical inputs (order stabilized by `tracksOrder`).
+ *  - Perform lightweight linear‑interpolation resampling when source sample rate differs from target.
+ *  - Optionally peak‑normalize (not limiting) to a headroom target (currently -1 dBFS) when `normalize` is set.
+ *
+ * Exclusions (by design):
+ *  - No effects processing, micro‑fades, or dithering (caller can post‑process if desired).
+ *  - No streaming / chunked processing: entire range rendered in memory for simplicity.
+ *
+ * Determinism Strategy:
+ *  - Manual summation performed in a fixed order using plain JS number arithmetic to avoid engine‑specific
+ *    graph scheduling differences.
+ *  - Resampling uses pure arithmetic (linear interpolation) ensuring cross‑run stability.
+ */
 import type { AudioTrack, AudioCacheEntry } from '@state/audioTypes';
 
 declare global {
@@ -39,7 +36,7 @@ export interface OfflineMixParams {
     ticksPerSecond: number; // derived from tempo & PPQ snapshot
     sampleRate?: number; // default 48000
     channels?: number; // 1 or 2 (default 2)
-    normalize?: boolean; // Phase 5 optional peak normalization
+    normalize?: boolean; // optional peak normalization to -1 dBFS headroom
 }
 
 export interface OfflineMixResult {
@@ -114,7 +111,7 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         //   browsers. This preserves reproducibility hashing expectations.
         // Quality:
         //   Linear is adequate for offline preview/export for now; future upgrades could introduce windowed sinc or
-        //   polyphase filters for improved HF retention. We isolate logic here so that upgrade is localized.
+        //   polyphase filters for improved HF retention. Logic isolated here so future upgrade stays localized.
         // Performance:
         //   Complexity O(N * channels). Typical export durations (< several minutes) with modest track counts keep
         //   this acceptable. Fast path retained for equal sample rates.

@@ -34,10 +34,10 @@ export interface VideoExportOptions {
     bitrate?: number; // explicit target bitrate in bps (overrides quality preset)
     qualityPreset?: 'low' | 'medium' | 'high';
     deterministicTiming?: boolean; // default true – snapshot tempo map at start
-    includeAudio?: boolean; // new Phase 4 option (false preserves previous behavior)
+    includeAudio?: boolean; // when true, delegate to AVExporter for combined audio+video if ticks resolvable
     startTick?: number; // optional explicit range (when includeAudio true & using AVExporter)
     endTick?: number;
-    // Extended (Phase 5 UI upgrade): advanced A/V controls. Not all combinations currently supported by mediabunny build.
+    // Advanced A/V controls. Some combinations may not yet be supported by the underlying encoder build.
     // container: 'auto' selects MP4 today; placeholder for future WebM pipeline once available.
     container?: 'auto' | 'mp4' | 'webm';
     // videoCodec: 'auto' tries H.264/AVC then falls back to first encodable codec reported by mediabunny.
@@ -111,7 +111,7 @@ export class VideoExporter {
             const playRangeStartSec = pr && typeof pr.startSec === 'number' ? pr.startSec : 0;
             const playRangeEndSec = pr && typeof pr.endSec === 'number' ? pr.endSec : null; // may be null (open ended)
 
-            // Phase 4 / Audio delegation strategy:
+            // Audio delegation strategy:
             // 1. If caller explicitly passed startTick/endTick we trust and delegate.
             // 2. Else if includeAudio true but ticks not supplied, derive them from playback range seconds.
             //    We use shared timing manager (tempo + PPQ) to convert seconds -> ticks so that

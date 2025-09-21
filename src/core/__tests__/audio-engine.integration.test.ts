@@ -20,7 +20,7 @@ class MockAudioContext {
     }
 }
 
-describe('AudioEngine + TransportCoordinator Phase 2 integration (mocked)', () => {
+describe('AudioEngine + TransportCoordinator integration (mocked)', () => {
     it('falls back gracefully if audio engine not ready', () => {
         const api = useTimelineStore.getState();
         api.setCurrentTick(0, 'user');

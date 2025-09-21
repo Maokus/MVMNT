@@ -1,20 +1,26 @@
-// AV Exporter (Phase 4)
-// Combines offline audio mix (deterministic) with video frames rendered using existing visualizer pipeline.
-// Uses mediabunny Output. If direct raw PCM ingestion not supported by current mediabunny build, falls back
-// to delivering separate WAV blob & video blob to caller.
-//
-// Limitations:
-//  - Current mediabunny typings (if any) may not expose addAudioTrack(AudioSource). We'll feature-detect.
-//  - If audio mux unsupported, we still provide reproducibility hash and offline audio buffer.
-//
-// Fallback Strategy:
-//  - Provide { videoBlob, audioBlob, combinedBlob?: Blob } to caller.
-//  - combinedBlob present only if mux succeeded.
-//
-// Determinism:
-//  - Timing snapshot used for consistent frame->time mapping when deterministicTiming = true.
-//  - Audio mix uses offlineMix pure function.
-//
+/**
+ * AV Exporter
+ * ---------------------------------------------
+ * Produces an MP4 (or future alternative container) by combining a deterministic offline audio mix with
+ * video frames rendered from the existing visualizer pipeline (canvas → WebCodecs via mediabunny).
+ *
+ * Key Guarantees:
+ *  - Deterministic when `deterministicTiming` is true (tempo / tick mapping snapshot + pure offline mix).
+ *  - Provides a reproducibility hash derived from canonical track + timing serialization.
+ *  - Graceful degradation: if audio muxing or codec selection fails, returns a video-only blob plus a
+ *    standalone WAV for UI download.
+ *
+ * Design Notes:
+ *  - All bitrate / codec heuristics are encapsulated here to keep callers simple.
+ *  - The class is intentionally stateful only during an active export (guarded by `isExporting`).
+ *  - Future extensions (multi‑audio track, alternative containers) should isolate branching inside
+ *    local helper sections instead of leaking flags into public API.
+ *
+ * Limitations / Current Assumptions:
+ *  - Single mixed audio track (stereo) fed as one `AudioBuffer` (no per‑track metadata in container).
+ *  - Canvas rendering assumed synchronous & side‑effect free for a given render time.
+ *  - No adaptive chunk flushing: entire result buffered in memory (sufficient for short / mid‑length exports).
+ */
 import { offlineMix } from './offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
 import SimulatedClock from './simulated-clock';
@@ -51,7 +57,7 @@ export interface AVExportOptions {
     onProgress?: (p: number, text?: string) => void;
     onComplete?: (result: AVExportResult) => void;
     bitrate?: number;
-    // Extended (Phase 5): container & codec overrides. Some are forward-looking (webm) pending mediabunny support.
+    // Container & codec overrides. "auto" selects the best supported implementation (currently mp4/avc fallback).
     container?: 'auto' | 'mp4' | 'webm';
     videoCodec?: string; // 'auto' | specific (avc, hevc, av1, vp9)
     videoBitrateMode?: 'auto' | 'manual';

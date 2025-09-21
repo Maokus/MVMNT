@@ -1,5 +1,5 @@
-// AudioEngine - Phase 2 (initial implementation)
-// Manages AudioContext lifecycle, decoding, and per-track scheduling (MVP: whole buffer playback aligned to timeline offset).
+// AudioEngine
+// Manages AudioContext lifecycle, decoding, and per-track scheduling (current model: whole buffer playback aligned to timeline offset).
 // Responsibilities:
 // 1. Lazy-create AudioContext on first play (user gesture) via ensureContext().
 // 2. Decode files -> AudioBuffer (delegated to browser).
@@ -8,9 +8,9 @@
 // 5. Provide playTick(tick) and stop() for TransportCoordinator integration.
 // 6. Expose refresh(currentTick, audioTime) for per-frame lookahead scheduling (MVP minimal: ensure a playing source spanning needed time; future granular scheduling not yet implemented).
 //
-// Simplifications in this MVP step:
+// Simplifications in current model:
 // - Each audio track uses a single AudioBufferSourceNode per play session (recreated on seek/start).
-// - No micro-fades yet (Phase 5).
+// - Micro-fades limited to short fade-in/out envelopes on start/stop (click reduction); no cross-fade seek smoothing yet.
 // - Region trimming done via start offset / duration arguments to start().
 // - Adaptive lookahead not implemented (fixed 0.2s constant reserved for future).
 // - No waveform or offline mixing logic here (export path separate).
@@ -26,12 +26,12 @@
 // - Per-track effects chain insertion.
 // - OfflineAudioContext integration for deterministic export.
 //
-// Phase 2 Implementation Notes:
+// Implementation Notes:
 // - Current model intentionally simple: one BufferSource per audible track per play session.
 // - Seeking triggers full recreation; acceptable for small N tracks (<10) and short buffers.
 // - Gain/mute/solo updates mutate GainNode in-place with small smoothing constants.
 // - Solo state change triggers a lightweight full reschedule (seek at lastPlayheadTick) to update audible set.
-// - No attempt (yet) to keep phase continuity across seeks; micro-fades planned Phase 5.
+// - No attempt (yet) to keep phase continuity across seeks; acceptable for discrete clip playback use cases.
 // - refresh() is a no-op placeholder; future granular scheduling will populate lookahead logic here.
 
 import { useTimelineStore } from '@state/timelineStore';
@@ -54,7 +54,7 @@ export class AudioEngine {
     private active: Map<string, ActiveTrackNode> = new Map();
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
     private unsub?: () => void;
-    // Phase 5 adaptive lookahead scaffolding
+    // Adaptive lookahead scaffolding (currently passive; future scheduling granularity may use this)
     private adaptive = {
         min: 0.15,
         max: 0.4,

@@ -1,4 +1,4 @@
-// Phase 5: Waveform peak extraction utility
+// Waveform peak extraction utility
 // Provides a synchronous (chunked) downsampling of an AudioBuffer into peak bins for fast waveform rendering.
 // Strategy:
 //  - Choose a target number of samples per peak bin (binSizeSamples) ~ 512 or 1024.
@@ -10,7 +10,7 @@
 export interface PeakExtractionOptions {
     binSize?: number; // preferred bin size in source samples (default 1024)
     maxBins?: number; // cap number of bins (default 4096)
-    channelMode?: 'mono-abs-max' | 'separate'; // MVP only implements mono-abs-max
+    channelMode?: 'mono-abs-max' | 'separate'; // currently only 'mono-abs-max' implemented
 }
 
 export interface PeakExtractionResult {

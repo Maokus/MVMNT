@@ -1,7 +1,15 @@
-// Reproducibility Hash Utility (Phase 4)
-// Computes SHA-256 over canonical JSON per specification in audio_feature_plan_v4.md section 8.
-// Inputs: app version, tempoBPM, ppq (fixed 960), ticksPerSecond, exportRange, tracks (normalized), fps.
-// Tracks normalization: include only audio-relevant & shared fields in stable key order.
+/**
+ * Reproducibility Hash Utility
+ * -------------------------------------------------
+ * Computes SHA‑256 over canonical JSON (see `audio_feature_plan_v4.md` section 8) so that identical
+ * project state + export parameters yield identical hashes. This underpins deterministic export validation.
+ *
+ * Inputs:
+ *  - app version, tempoBPM, ppq (fixed 960), ticksPerSecond, exportRange, normalized tracks array, fps.
+ * Track Normalization:
+ *  - Only persistence/significant timing & mix fields included (id, type, offset, region bounds, gain, mute, solo).
+ *  - Non‑audio tracks reduced to minimal shape (id, type, offset) to avoid future accidental drift.
+ */
 
 import type { AudioTrack } from '@state/audioTypes';
 

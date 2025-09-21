@@ -12,7 +12,7 @@ const mkCfg = () => ({
     beatsPerBar: 4,
 });
 
-describe('scheduler-bridge diff (Phase 5)', () => {
+describe('scheduler-bridge diff', () => {
     it('flags changes in primitives', () => {
         const a = mkCfg();
         const b = { ...a, nowSec: 0.5, bpm: 110 };

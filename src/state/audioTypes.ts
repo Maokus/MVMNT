@@ -1,5 +1,4 @@
-// Audio feature Phase 1: new audio track & cache types
-// These integrate with the existing tick-based timeline. PPQ assumed constant via shared TimingManager.
+// Audio track & cache types integrating with the tick-based timeline (constant PPQ via shared TimingManager).
 
 export interface AudioTrack {
     id: string;
@@ -21,7 +20,7 @@ export interface AudioCacheEntry {
     sampleRate: number;
     channels: number;
     filePath?: string; // optional reference (not persisted across sessions yet)
-    peakData?: Float32Array; // reserved for Phase 5 waveform peaks
+    peakData?: Float32Array; // optional waveform peak bins for UI rendering
 }
 
 export type AnyTrack = AudioTrack | import('./timelineStore').TimelineTrack; // existing midi timeline track
