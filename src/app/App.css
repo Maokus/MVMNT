@@ -9,7 +9,12 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     background: #1e1e1e;
     color: #ffffff;
-    height: 100vh;
+    /* Allow scrolling by default; workspace view will opt-out via a class */
+    min-height: 100vh;
+}
+
+/* Applied only while inside the /workspace route to lock layout panels */
+body.no-scroll {
     overflow: hidden;
 }
 

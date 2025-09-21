@@ -55,7 +55,11 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
     return (
         <div className="menu-bar">
             <div className="menu-section quick-actions" style={{ gap: 12 }}>
-                <h3 style={{ marginRight: 0 }}>MVMNT v{((import.meta as any).env?.VITE_VERSION)}</h3>
+                <h3 style={{ marginRight: 0 }}>
+                    <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
+                        MVMNT v{((import.meta as any).env?.VITE_VERSION)}
+                    </Link>
+                </h3>
                 <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
                     <button
                         type="button"

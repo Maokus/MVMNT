@@ -21,12 +21,13 @@ const ChangelogPage: React.FC = () => {
                     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
                         <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-                            <li>Ctrl+Z undo stack refinements</li>
                             <li>Audio track sync & export pipeline</li>
                         </ul>
                     </section>
 
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
+                        'Improved undo stack reliability and snapshot creation',
+                        'fixed various minor ui/ux issues (scrolling disabled, unreliable ',
                         'Developed trauma from trying to improve the ctrl z feature',
                     ]} />
 

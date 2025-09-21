@@ -335,17 +335,38 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         togglePlay();
     }, []);
 
-    // Global spacebar shortcut for play/pause (ignores when typing in inputs/contentEditable)
+    // Global spacebar shortcut for play/pause
+    // Requirements:
+    // - Always toggle transport with Space while in workspace (this provider only mounts there)
+    // - Prevent default behavior that re-opens or re-focuses dropdown <select> elements
+    // - Still allow entering spaces inside genuine text-editing fields (text inputs, textareas, contentEditable)
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if (e.code === 'Space' || e.key === ' ') {
                 const target = e.target as HTMLElement | null;
                 const tag = target?.tagName;
-                if (target?.isContentEditable) return; // allow editing
-                if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return; // allow form controls
+                // Determine if the focused element is a text-editing control where the user reasonably expects a space character
+                let isEditing = false;
+                if (target) {
+                    if (target.isContentEditable) {
+                        isEditing = true;
+                    } else if (tag === 'TEXTAREA') {
+                        isEditing = true;
+                    } else if (tag === 'INPUT') {
+                        const type = (target as HTMLInputElement).type;
+                        const textLike = ['text', 'search', 'url', 'tel', 'email', 'password'];
+                        if (textLike.includes(type)) isEditing = true;
+                    }
+                }
+                // If it's a pure text editing field, do NOT hijack space.
+                if (isEditing) return;
+                // For everything else (including SELECT, number inputs, buttons, etc.) we treat space as transport toggle.
+                // This prevents reopening of dropdown menus after interaction.
                 e.preventDefault();
-                const { togglePlay } = useTimelineStore.getState();
-                togglePlay();
+                try {
+                    const { togglePlay } = useTimelineStore.getState();
+                    togglePlay();
+                } catch { /* ignore */ }
             }
         };
         window.addEventListener('keydown', handleKey);
