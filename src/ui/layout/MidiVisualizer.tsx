@@ -14,6 +14,7 @@ import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
 import { importScene } from '@persistence/index';
+import { createDefaultMIDIScene, createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
@@ -157,14 +158,14 @@ const TemplateInitializer: React.FC = () => {
                         sceneBuilder.resetSceneSettings?.();
                         break;
                     case 'default':
-                        sceneBuilder.createDefaultMIDIScene?.();
+                        createDefaultMIDIScene(sceneBuilder);
                         break;
                     case 'debug':
-                        if (sceneBuilder.createAllElementsDebugScene) sceneBuilder.createAllElementsDebugScene();
-                        else sceneBuilder.createDebugScene?.();
+                        try { createAllElementsDebugScene(sceneBuilder); }
+                        catch { createDebugScene(sceneBuilder); }
                         break;
                     default:
-                        sceneBuilder.createDefaultMIDIScene?.();
+                        createDefaultMIDIScene(sceneBuilder);
                 }
                 refreshSceneUI();
                 didChange = true;

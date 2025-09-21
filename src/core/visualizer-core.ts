@@ -3,7 +3,7 @@ import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
-import { useTimelineStore } from '@state/timelineStore';
+import { createDefaultMIDIScene } from './scene-templates';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -45,11 +45,20 @@ export class MIDIVisualizerCore {
         if (!ctx) throw new Error('Could not get 2D context from canvas');
         this.ctx = ctx;
         this._setupImageLoadedListener();
-        this.sceneBuilder.createDefaultMIDIScene();
+        // Initialize with default template via scene-templates module
+        try {
+            createDefaultMIDIScene(this.sceneBuilder);
+        } catch {
+            this.sceneBuilder.clearElements();
+        }
         (window as any).vis = this; // debug helper
     }
     updateSceneElementTimingManager() {
-        this.sceneBuilder.createDefaultMIDIScene();
+        // Maintain previous behavior: rebuild default scene (template abstraction)
+        try {
+            createDefaultMIDIScene(this.sceneBuilder);
+            this.invalidateRender();
+        } catch {}
     }
     // Set the explicit playback range (in seconds) controlled by the external timeline/UI
     setPlayRange(startSec?: number | null, endSec?: number | null) {
@@ -559,25 +568,6 @@ export class MIDIVisualizerCore {
     }
     exportSceneConfig() {
         return this.sceneBuilder.serializeScene();
-    }
-    resetToDefaultScene() {
-        this.sceneBuilder.createDefaultMIDIScene();
-        // Clear timeline tracks on reset
-        try {
-            // Use store clearAllTracks
-            (async () => {
-                try {
-                    useTimelineStore.getState().clearAllTracks();
-                } catch {}
-            })();
-        } catch {}
-        const settings = this.sceneBuilder.getSceneSettings();
-        try {
-            this.canvas?.dispatchEvent(
-                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-            );
-        } catch {}
-        this.invalidateRender();
     }
     cleanup() {
         if (this._handleImageLoaded) document.removeEventListener('imageLoaded', this._handleImageLoaded);

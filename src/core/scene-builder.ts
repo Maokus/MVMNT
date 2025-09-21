@@ -198,14 +198,7 @@ export class HybridSceneBuilder {
         return this.elements.filter((e) => (e as any).type === type);
     }
     createDebugScene() {
-        // Build the base scene first
-        this.createDefaultMIDIScene();
-        // Remove the noteAnimation macro for the debug scene (user request)
-        try {
-            globalMacroManager.deleteMacro('noteAnimation');
-        } catch {}
-        // Add debug overlay element
-        this.addElement(new DebugElement('debugOverlay', { zIndex: 1000, anchorX: 0, anchorY: 0 }));
+        console.warn('[HybridSceneBuilder] createDebugScene deprecated. Use scene-templates.createDebugScene(builder)');
     }
     /**
      * Create a debug scene containing every registered scene element type once.
@@ -213,177 +206,15 @@ export class HybridSceneBuilder {
      * This helps visually QA layout / property panels.
      */
     createAllElementsDebugScene() {
-        this.clearElements();
-        this.resetSceneSettings();
-        this._createDefaultMacros();
-        // Remove the noteAnimation macro entirely in the all-elements debug scene
-        // so that animationType properties remain constant (macro binding not desired here).
-        try {
-            globalMacroManager.deleteMacro('noteAnimation');
-        } catch {}
-        const types = (this.sceneElementRegistry as any).getAvailableTypes?.() || [];
-        const usedIds = new Set<string>();
-        const ensureId = (base: string) => {
-            let id = base;
-            let i = 1;
-            while (usedIds.has(id)) id = base + '_' + i++;
-            usedIds.add(id);
-            return id;
-        };
-        // Background first so grid sits on top
-        this.addElement(new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0 }));
-        const gridCols = 4; // adjustable
-        const cellW = 320; // spacing horizontally
-        const cellH = 260; // spacing vertically
-        const startX = 160; // left padding
-        const startY = 160; // top padding
-        let index = 0;
-        let zBase = 10;
-        const trackPropCandidates = ['midiTrackId', 'trackId', 'sourceTrackId'];
-        for (const t of types) {
-            if (t === 'background' || t === 'debug') continue; // already / will add debug overlay later
-            try {
-                const baseId = t.replace(/[^a-zA-Z0-9]/g, '_');
-                const id = ensureId(baseId);
-                const col = index % gridCols;
-                const row = Math.floor(index / gridCols);
-                const offsetX = startX + col * cellW;
-                const offsetY = startY + row * cellH;
-                const el: any = this.addElementFromRegistry(t, {
-                    id,
-                    zIndex: zBase + index * 2,
-                    anchorX: 0,
-                    anchorY: 0,
-                    offsetX,
-                    offsetY,
-                });
-                if (el?.bindToMacro) {
-                    // Bind ALL track-like properties (previously only first). User request: map midiTrack macro
-                    // to all MIDI file/track sources present on the element.
-                    for (const cand of trackPropCandidates) {
-                        if (cand in el) {
-                            try {
-                                el.bindToMacro(cand, 'midiTrack');
-                            } catch {}
-                        }
-                    }
-                    // Do NOT bind animationType in debug scene (noteAnimation macro removed)
-                }
-                index++;
-            } catch (e) {
-                console.warn('[debugScene] Failed to add element type', t, e);
-            }
-        }
-        // Add overlay debug element last, positioned top-left
-        this.addElement(
-            new DebugElement(ensureId('debugOverlay'), {
-                zIndex: 100000,
-                anchorX: 0,
-                anchorY: 0,
-                offsetX: 10,
-                offsetY: 10,
-            })
+        console.warn(
+            '[HybridSceneBuilder] createAllElementsDebugScene deprecated. Use scene-templates.createAllElementsDebugScene(builder)'
         );
         return this;
     }
     createDefaultMIDIScene() {
-        this.clearElements();
-        this.resetSceneSettings();
-        this._createDefaultMacros();
-        this.addElement(new BackgroundElement('background', { zIndex: 0, anchorX: 0, anchorY: 0 }));
-        this.addElement(
-            new TimeUnitPianoRollElement('main', {
-                zIndex: 10,
-                timeUnitBars: 1,
-                offsetX: 750,
-                offsetY: 750,
-                anchorX: 0.5,
-                anchorY: 0.5,
-                showNoteGrid: false,
-                showBeatGrid: false,
-                showNoteLabels: false,
-                showBeatLabels: false,
-            })
+        console.warn(
+            '[HybridSceneBuilder] createDefaultMIDIScene deprecated. Use scene-templates.createDefaultMIDIScene(builder)'
         );
-        this.addElement(
-            new TimeDisplayElement('timeDisplay', {
-                zIndex: 40,
-                anchorX: 0,
-                anchorY: 1,
-                offsetX: 100,
-                offsetY: 1400,
-                elementScaleX: 2.5,
-                elementScaleY: 2.5,
-            })
-        );
-        this.addElement(
-            new ProgressDisplayElement('progressDisplay', {
-                zIndex: 45,
-                anchorX: 0,
-                anchorY: 1,
-                offsetX: 10,
-                offsetY: 1490,
-                barWidth: 1480,
-            })
-        );
-        this.addElement(
-            new NotesPlayedTrackerElement('notesPlayedTracker', {
-                zIndex: 46,
-                anchorX: 1,
-                anchorY: 0,
-                offsetX: 1400,
-                offsetY: 100,
-                textJustification: 'right',
-            })
-        );
-        this.addElement(
-            new NotesPlayingDisplayElement('notesPlayingDisplay', {
-                zIndex: 47,
-                anchorX: 1,
-                anchorY: 0,
-                offsetX: 1400,
-                offsetY: 180,
-                textJustification: 'right',
-                fontSize: 20,
-                showAllAvailableTracks: true,
-                elementOpacity: 0.5,
-            })
-        );
-        this.addElement(
-            new ChordEstimateDisplayElement('chordEstimateDisplay', {
-                zIndex: 48,
-                anchorX: 1,
-                anchorY: 1,
-                offsetX: 1400,
-                offsetY: 1400,
-            })
-        );
-        this.addElement(
-            new TextOverlayElement('textElement1', {
-                zIndex: 50,
-                anchorX: 0,
-                anchorY: 0,
-                offsetX: 100,
-                offsetY: 100,
-                text: 'Song Title',
-                fontSize: 100,
-                fontFamily: 'Inter',
-            })
-        );
-        this.addElement(
-            new TextOverlayElement('textElement2', {
-                zIndex: 51,
-                anchorX: 0,
-                anchorY: 0,
-                offsetX: 105,
-                offsetY: 210,
-                text: 'Artist Name',
-                fontSize: 40,
-                fontWeight: 'normal',
-                fontFamily: 'Inter | 100',
-            })
-        );
-        this._assignDefaultMacros();
         return this;
     }
     addElementFromRegistry(type: string, config: any = {}) {
@@ -566,44 +397,7 @@ export class HybridSceneBuilder {
         // No-op: per-element timing bindings removed in favor of global timeline tempo
     }
     createTestScene() {
-        this.clearElements();
-        this._createDefaultMacros();
-        this.addElement(new BackgroundElement('background'));
-        this.addElement(
-            new TimeUnitPianoRollElement('main', {
-                zIndex: 10,
-                timeUnitBars: 1,
-                offsetX: 750,
-                offsetY: 750,
-                anchorX: 0.5,
-                anchorY: 0.5,
-            })
-        );
-        this.addElement(
-            new TextOverlayElement('titleText', {
-                zIndex: 50,
-                anchorX: 0,
-                anchorY: 0,
-                offsetX: 100,
-                offsetY: 100,
-                text: 'Text 1',
-                fontSize: 100,
-                fontWeight: 'bold',
-            })
-        );
-        this.addElement(
-            new TextOverlayElement('artistText', {
-                zIndex: 51,
-                anchorX: 0,
-                anchorY: 0,
-                offsetX: 105,
-                offsetY: 210,
-                text: 'Text 2',
-                fontSize: 40,
-                fontWeight: 'normal',
-            })
-        );
-        this.autoBindElements();
+        console.warn('[HybridSceneBuilder] createTestScene deprecated. Use scene-templates.createTestScene(builder)');
         return this;
     }
 }

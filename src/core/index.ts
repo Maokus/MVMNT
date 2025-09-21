@@ -14,6 +14,13 @@ export { MacroManager, globalMacroManager } from '@bindings/macro-manager';
 export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
 export type { PropertyBindingData } from '@bindings/property-bindings';
 export { HybridSceneBuilder } from '@core/scene-builder';
+export {
+    createDefaultMIDIScene,
+    createAllElementsDebugScene,
+    createDebugScene,
+    createTestScene,
+    resetToDefaultScene,
+} from './scene-templates';
 
 // ==========================================
 // Visualizer Rendering Exports

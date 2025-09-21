@@ -114,13 +114,6 @@ class SnapshotUndoController extends DisabledUndoController {
         if (this.pendingTimer) {
             clearTimeout(this.pendingTimer);
         }
-        try {
-            console.log('[Undo][Trace] scheduleCapture() requested', {
-                hadPending: !!this.pendingTimer,
-                restoring: this.restoring,
-                debounceMs: this.debounceMs,
-            });
-        } catch {}
         this.pendingTimer = setTimeout(() => {
             this.pendingTimer = null;
             this.captureIfChanged();
@@ -132,9 +125,6 @@ class SnapshotUndoController extends DisabledUndoController {
         const entry = this.buildSnapshot();
         if (entry.stateJSON === this.lastJSON) return; // skip duplicate
         this.lastJSON = entry.stateJSON;
-        try {
-            console.log('[Undo][Trace] captureIfChanged() proceeding to pushSnapshot (state changed)');
-        } catch {}
         this.pushSnapshot(entry);
     }
 

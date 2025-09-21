@@ -1,4 +1,5 @@
 import { globalMacroManager } from '@bindings/macro-manager';
+import { createDefaultMIDIScene, resetToDefaultScene } from '@core/scene-templates';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
@@ -138,27 +139,24 @@ export const useMenuBar = ({
             onSceneNameChange(newSceneName);
 
             // Reset to default scene
-            if (visualizer.resetToDefaultScene) {
-                visualizer.resetToDefaultScene();
-            } else {
-                // Fallback: clear and create default scene manually
-                const sceneBuilder = visualizer.getSceneBuilder();
-                if (sceneBuilder && sceneBuilder.createDefaultMIDIScene) {
-                    sceneBuilder.clearElements();
-                    sceneBuilder.createDefaultMIDIScene();
-                }
+            // Use centralized template reset (handles track clearing & events)
+            try {
+                resetToDefaultScene(visualizer);
+            } catch {
+                // Fallback minimal default if template fails
+                try {
+                    createDefaultMIDIScene(visualizer.getSceneBuilder());
+                } catch {}
             }
 
             // Reset scene settings to defaults and notify contexts about the reset
             const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder && sceneBuilder.getSceneSettings) {
+            try {
                 const settings = sceneBuilder.getSceneSettings();
-                try {
-                    visualizer.canvas?.dispatchEvent(
-                        new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-                    );
-                } catch {}
-            }
+                visualizer.canvas?.dispatchEvent(
+                    new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+                );
+            } catch {}
 
             if (visualizer.invalidateRender) {
                 visualizer.invalidateRender();
