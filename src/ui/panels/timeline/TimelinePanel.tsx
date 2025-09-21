@@ -151,6 +151,28 @@ const TimelinePanel: React.FC = () => {
         }
     };
 
+    // Keyboard: Delete key removes all currently selected tracks (batch) when focus isn't in a text-editable field.
+    useEffect(() => {
+        const removeTracks = useTimelineStore.getState().removeTracks;
+        const getSelection = () => useTimelineStore.getState().selection.selectedTrackIds;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const active = document.activeElement as HTMLElement | null;
+            if (active) {
+                const tag = active.tagName;
+                const editable = active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || (active as any).getAttribute?.('role') === 'textbox';
+                if (editable) return; // Don't intercept when typing in inputs
+            }
+            const ids = getSelection();
+            if (!ids.length) return;
+            removeTracks(ids);
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
+    }, []);
+
     // Prevent browser gesture zoom on Safari within the panel to avoid page zoom side-effects
     useEffect(() => {
         const el = rightScrollRef.current;

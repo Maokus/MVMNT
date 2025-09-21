@@ -101,6 +101,7 @@ export type TimelineState = {
         offsetTicks?: number;
     }) => Promise<string>;
     removeTrack: (id: string) => void;
+    removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
     setTrackOffsetTicks: (id: string, offsetTicks: number) => void;
     setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => void;
@@ -387,6 +388,40 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 },
                 audioCache: newAudioCache,
             };
+        });
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    // Batch removal utility so multi-delete (keyboard) produces a single state update & undo snapshot.
+    removeTracks(ids: string[]) {
+        if (!ids || !ids.length) return;
+        set((s: TimelineState) => {
+            const idSet = new Set(ids);
+            // Build new tracks map excluding ids
+            const newTracks: Record<string, any> = {};
+            for (const k in s.tracks) {
+                if (!idSet.has(k)) newTracks[k] = s.tracks[k];
+            }
+            // Remove audio cache entries for removed audio tracks
+            let newAudioCache = { ...s.audioCache } as Record<string, any>;
+            for (const id of ids) {
+                const t: any = s.tracks[id];
+                if (t && t.type === 'audio') {
+                    const cacheKey = t.audioSourceId || id;
+                    if (cacheKey in newAudioCache) {
+                        const { [cacheKey]: _rm, ...restCache } = newAudioCache;
+                        newAudioCache = restCache;
+                    }
+                }
+            }
+            return {
+                tracks: newTracks,
+                tracksOrder: s.tracksOrder.filter((t: string) => !idSet.has(t)),
+                selection: { selectedTrackIds: s.selection.selectedTrackIds.filter((t: string) => !idSet.has(t)) },
+                audioCache: newAudioCache,
+            } as TimelineState;
         });
         try {
             autoAdjustSceneRangeIfNeeded(get, set);

@@ -325,6 +325,7 @@ export function instrumentTimelineStoreForUndo() {
     const actionNames = [
         'addMidiTrack',
         'removeTrack',
+        'removeTracks',
         'updateTrack',
         'setTrackOffsetTicks',
         'setTrackRegionTicks',
