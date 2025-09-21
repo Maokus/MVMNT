@@ -11,7 +11,7 @@ interface RenderModalProps {
 
 // Simple modal to configure export settings & trigger video export.
 const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
-    const { exportSettings, exportVideo, exportSequence, setExportSettings } = useVisualizer() as any;
+    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName } = useVisualizer() as any;
     // Local UI state: format selection & optional overrides (currently only range + video params)
     const [format, setFormat] = useState<'png' | 'mp4'>('mp4');
     const [rangeMode, setRangeMode] = useState(exportSettings.fullDuration);
@@ -33,6 +33,20 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [audioBitrate, setAudioBitrate] = useState<number>(exportSettings.audioBitrate || 192000);
     const [audioSampleRate, setAudioSampleRate] = useState<'auto' | 44100 | 48000>(exportSettings.audioSampleRate || 'auto');
     const [audioChannels, setAudioChannels] = useState<1 | 2>(exportSettings.audioChannels || 2);
+    const [filename, setFilename] = useState<string>(exportSettings.filename || sceneName || '');
+
+    // When sceneName changes and user has not manually customized (empty or previously matched old sceneName), update default.
+    useEffect(() => {
+        setFilename(prev => {
+            // If user already typed something different (and non-empty), respect it.
+            if (prev && prev !== exportSettings.filename && prev !== sceneName) return prev;
+            if (!prev || prev === exportSettings.filename) {
+                return exportSettings.filename || sceneName || '';
+            }
+            return prev;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sceneName]);
     // Capability lists
     const [videoCodecs, setVideoCodecs] = useState<string[]>([]);
     const [audioCodecs, setAudioCodecs] = useState<string[]>([]);
@@ -86,6 +100,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             startTime,
             endTime,
             includeAudio,
+            filename: filename.trim() || undefined,
             fps: effectiveFps,
             container,
             videoCodec,
@@ -99,12 +114,13 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         setIsExporting(true);
         try {
             if (format === 'png') {
-                await exportSequence({ fullDuration: rangeMode, startTime, endTime });
+                await exportSequence({ fullDuration: rangeMode, startTime, endTime, filename: filename.trim() || undefined });
             } else {
                 await exportVideo({
                     fullDuration: rangeMode,
                     startTime,
                     endTime,
+                    filename: filename.trim() || undefined,
                     bitrate: bitrate === '' ? undefined : bitrate, // legacy path
                     qualityPreset,
                     includeAudio,
@@ -133,6 +149,16 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
                 <p className="m-0 mb-4 text-sm opacity-80">Choose output format & advanced settings. Resolution defaults come from Global Properties; you can override FPS here.</p>
                 <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                    <label className="flex flex-col gap-1 col-span-2">Filename
+                        <input
+                            type="text"
+                            placeholder={sceneName || 'filename'}
+                            value={filename}
+                            onChange={e => setFilename(e.target.value)}
+                            className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm"
+                        />
+                        <span className="text-[10px] opacity-60">Do not include extension; it will be added automatically (.mp4 or .zip).</span>
+                    </label>
                     <label className="flex flex-col gap-1">Format
                         <select value={format} onChange={e => setFormat(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
                             <option value="mp4">MP4 Video</option>

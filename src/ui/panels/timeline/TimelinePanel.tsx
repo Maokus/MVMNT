@@ -39,7 +39,18 @@ const TimelinePanel: React.FC = () => {
     const handleAddAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
         if (!f) return;
-        // Basic file type filter; accept common audio if user bypassed accept attribute.
+        const lower = f.name.toLowerCase();
+        if (/(\.mid|\.midi)$/.test(lower)) {
+            alert('MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).');
+            if (audioFileRef.current) audioFileRef.current.value = '';
+            return;
+        }
+        // Basic file type filter; rely on accept attribute but double-check MIME starts with audio/
+        if (!f.type.startsWith('audio/')) {
+            alert('Unsupported file type. Please select an audio file.');
+            if (audioFileRef.current) audioFileRef.current.value = '';
+            return;
+        }
         const name = f.name.replace(/\.[^/.]+$/, '');
         await addAudioTrack({ name, file: f });
         if (audioFileRef.current) audioFileRef.current.value = '';

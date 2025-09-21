@@ -95,3 +95,12 @@ Two issues in the video export flow were resolved:
 2. Missing audio: when `includeAudio` was set without explicit `startTick` / `endTick`, delegation to the offline audio/video (`AVExporter`) path was skipped, resulting in silent MP4s. The exporter now derives tick range from the active playback range (tempo + PPQ) if ticks are not provided, enabling deterministic audio mixing. Frame timestamps in the AV path are also zero-based to keep audio and video aligned.
 
 See tests: `src/export/__tests__/video-export-timestamps.test.ts`.
+
+### New: Custom Export Filenames
+
+The Render / Export modal now includes a Filename field. Leave it blank to fall back to the current scene name.
+
+-   MP4 exports: the proper `.mp4` extension is enforced (added if missing).
+-   PNG sequence exports: downloaded as a `.zip` (frames inside remain `frame_00000.png`, etc.). If you provide an extension other than `.zip`, it will still be normalized to `.zip`.
+
+Any disallowed characters are sanitized to underscores before download.

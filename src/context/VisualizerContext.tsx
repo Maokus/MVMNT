@@ -22,6 +22,8 @@ export interface ExportSettings {
     fullDuration: boolean;
     startTime: number;
     endTime: number;
+    // Optional user-specified base filename (without extension). Defaults to current scene name when not provided.
+    filename?: string;
     // (Padding removed from system)
     // Optional per-export (render modal) video settings. Kept here so override typing is easy.
     bitrate?: number; // target video bitrate (bps)
@@ -53,6 +55,7 @@ interface VisualizerContextValue {
     currentTimeLabel: string;
     numericCurrentTime: number;
     totalDuration: number;
+    sceneName: string;
     exportSettings: ExportSettings;
     setExportSettings: React.Dispatch<React.SetStateAction<ExportSettings>>;
     debugSettings: DebugSettings;
@@ -107,12 +110,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const [exportKind, setExportKind] = useState<ExportKind>(null);
     const sceneNameRef = useRef<string>('scene');
+    // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
+    const [sceneNameState, setSceneNameState] = useState<string>('scene');
     // TimelineService removed: all track/timeline operations flow through Zustand store.
 
     // Listen for scene name changes broadcast by SceneContext
     useEffect(() => {
         const handler = (e: any) => {
-            if (e?.detail?.sceneName) sceneNameRef.current = e.detail.sceneName;
+            if (e?.detail?.sceneName) {
+                sceneNameRef.current = e.detail.sceneName;
+                setSceneNameState(e.detail.sceneName);
+            }
         };
         window.addEventListener('scene-name-changed', handler as EventListener);
         return () => window.removeEventListener('scene-name-changed', handler as EventListener);
@@ -514,6 +522,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 width: settings.width,
                 height: settings.height,
                 sceneName: sceneNameRef.current,
+                filename: settings.filename,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Generating images...') => setProgressData({ progress, text }),
@@ -575,6 +584,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 width: settings.width,
                 height: settings.height,
                 sceneName: sceneNameRef.current,
+                filename: settings.filename,
                 maxFrames,
                 _startFrame: startFrame,
                 // Pass through new optional settings
@@ -608,6 +618,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         currentTimeLabel,
         numericCurrentTime,
         totalDuration,
+        // Expose reactive scene name so UI defaults (e.g., filename field) follow latest scene title.
+        sceneName: sceneNameState,
         exportSettings,
         setExportSettings,
         debugSettings,

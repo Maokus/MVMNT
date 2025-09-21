@@ -4,6 +4,7 @@
 // The public API is intentionally kept the same so existing callers keep working.
 
 import SimulatedClock from '@export/simulated-clock';
+import { buildExportFilename } from '@utils/filename';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
 import {
@@ -27,6 +28,8 @@ export interface VideoExportOptions {
     width?: number;
     height?: number;
     sceneName?: string;
+    // Optional explicit filename (without or with extension). If provided and suppressDownload=false, will be used for downloads.
+    filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob) => void;
@@ -80,6 +83,7 @@ export class VideoExporter {
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',
+            filename,
             maxFrames = null,
             onProgress = () => {},
             onComplete = () => {},
@@ -167,20 +171,16 @@ export class VideoExporter {
                         });
                         if (result.combinedBlob) {
                             if (!suppressDownload) {
-                                this.downloadBlob(
-                                    result.combinedBlob,
-                                    `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_av.mp4`
-                                );
+                                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                                this.downloadBlob(result.combinedBlob, finalName);
                             }
                             onComplete(result.combinedBlob);
                             return;
                         } else if (result.videoBlob) {
                             // fallback: deliver video only (separate audio returned separately if UI wants to prompt)
                             if (!suppressDownload) {
-                                this.downloadBlob(
-                                    result.videoBlob,
-                                    `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`
-                                );
+                                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                                this.downloadBlob(result.videoBlob, finalName);
                             }
                             onComplete(result.videoBlob);
                             return;
@@ -294,7 +294,8 @@ export class VideoExporter {
             const videoBlob = new Blob([u8.buffer], { type: 'video/mp4' });
             onProgress(100, 'Video ready');
             if (!suppressDownload) {
-                this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`);
+                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                this.downloadBlob(videoBlob, finalName);
             }
             onComplete(videoBlob);
         } catch (err) {

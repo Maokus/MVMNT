@@ -49,6 +49,8 @@ export interface AVExportOptions {
     width?: number;
     height?: number;
     sceneName?: string;
+    // Optional explicit desired filename (used by caller when creating download link)
+    filename?: string;
     startTick: number; // export range
     endTick: number;
     includeAudio?: boolean;
