@@ -8,6 +8,7 @@ import type { TempoMapEntry, NoteRaw } from './timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { getSecondsPerBeat } from '@core/timing/tempo-utils';
 import { TimingManager } from '@core/timing';
+import { parseMIDIFileToData } from '@core/midi/midi-library';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
 function _secondsToBarsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
@@ -303,8 +304,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 autoAdjustSceneRangeIfNeeded(get, set);
             } catch {}
         } else if (input.file) {
-            // Lazy parse using existing midi-library
-            const { parseMIDIFileToData } = await import('@core/midi/midi-library');
             const midiData = await parseMIDIFileToData(input.file);
             const ingested = buildNotesFromMIDI(midiData);
             get().ingestMidiToCache(id, ingested);

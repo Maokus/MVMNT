@@ -1,6 +1,7 @@
 import type { MIDIData } from '@core/types';
 import type { NoteRaw, TempoMapEntry } from '@state/timelineTypes';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { parseMIDIFileToData } from './midi-library';
 
 export function buildNotesFromMIDI(midiData: MIDIData): {
     midiData: MIDIData;
@@ -77,7 +78,6 @@ export function buildNotesFromMIDI(midiData: MIDIData): {
 
 export async function parseAndNormalize(input: File | MIDIData) {
     if (input instanceof File) {
-        const { parseMIDIFileToData } = await import('./midi-library');
         const data = await parseMIDIFileToData(input);
         return buildNotesFromMIDI(data);
     }
