@@ -283,21 +283,6 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                 <span className="ml-2 text-[10px] opacity-70">No data</span>
                             )
                         )}
-                        {track?.type === 'audio' && (
-                            <div className="absolute -bottom-4 left-0 flex items-center gap-1 text-[10px]">
-                                <label className="opacity-70">Gain</label>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={2}
-                                    step={0.01}
-                                    value={(track as any).gain ?? 1}
-                                    onChange={(e) => setTrackGain(trackId, parseFloat(e.target.value))}
-                                    className="h-2"
-                                    title={`Gain ${(track as any).gain?.toFixed?.(2)}`}
-                                />
-                            </div>
-                        )}
 
                         {/* Resize handles */}
                         <div
