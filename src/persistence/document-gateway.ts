@@ -123,6 +123,15 @@ export const DocumentGateway = {
                     sceneSettings: doc.scene?.sceneSettings,
                     macros: doc.scene?.macros,
                 };
+                if (sceneData.sceneSettings) {
+                    // Apply tempo / meter to timeline store BEFORE loading scene so elements dependent on timing see updated values.
+                    try {
+                        const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
+                        const api = useTimelineStore.getState();
+                        if (typeof tempo === 'number') api.setGlobalBpm(Math.max(1, tempo));
+                        if (typeof beatsPerBar === 'number') api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
+                    } catch {}
+                }
                 if (typeof sb.loadScene === 'function') {
                     sb.loadScene(sceneData);
                 } else if (sceneData.elements) {

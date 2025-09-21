@@ -108,6 +108,25 @@ Implications:
 
 This document should be updated whenever domains move or new timing representations are introduced to prevent knowledge drift.
 
+### 2025-09 SceneBuilder Purity Refactor
+
+Previously `HybridSceneBuilder.updateSceneSettings` and `resetSceneSettings` performed timeline store mutations (setting global BPM / beatsPerBar). During undo/redo flows this caused double state writes because `DocumentGateway.apply()` also mutated the store when applying a snapshot, followed by `sceneBuilder.loadScene()` indirectly updating tempo again.
+
+Refactor summary:
+
+-   SceneBuilder no longer writes to the Zustand store at all; it only mutates its internal `config` and element list.
+-   `DocumentGateway.apply()` is now the single integration point that applies scene-derived tempo / meter to the store (if provided in `scene.sceneSettings`).
+-   A purity test (`src/core/__tests__/scene-builder.purity.test.ts`) asserts that calling `updateSceneSettings` does not alter store BPM or meter.
+-   Any future scene-level property requiring persistent timeline changes must be applied inside `DocumentGateway.apply()` (or a dedicated orchestrator) rather than inside SceneBuilder.
+
+Benefits:
+
+1. Eliminates duplicate undo snapshots and race conditions from double writes.
+2. Clarifies ownership: persistence layer governs store state, scene utilities are pure.
+3. Simplifies reasoning about side effects—SceneBuilder calls are now safe in tests without needing snapshot suppression.
+
+If a regression reintroduces store writes inside SceneBuilder, add/update purity tests and route the change through the gateway instead.
+
 ## 2025-09 Persistence & Undo Updates
 
 ### Selection Field Removal

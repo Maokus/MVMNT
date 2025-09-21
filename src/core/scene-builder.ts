@@ -15,6 +15,9 @@ import {
 import { globalMacroManager } from '@bindings/macro-manager';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { getAnimationSelectOptions } from '@animation/note-animations';
+// NOTE: SceneBuilder must not WRITE to the timeline store. It may read for derived info (e.g. duration).
+// We deliberately only import read helpers. Do NOT call mutation actions here; mutations are centralized
+// in the DocumentGateway (persistence layer) per architectural refactor.
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 
 export interface SceneSettings {
@@ -42,27 +45,14 @@ export class HybridSceneBuilder {
         return { ...this.config };
     }
     updateSceneSettings(partial: Partial<SceneSettings> = {}) {
+        // Pure configuration update (no store writes). Tempo / meter synchronization is now handled
+        // by DocumentGateway when applying documents or other higher-level orchestrators.
         this.config = { ...this.config, ...partial };
-        // Synchronize global timing system (timeline store) if tempo/meter provided
-        try {
-            if (partial.tempo != null || partial.beatsPerBar != null) {
-                // Lazy import to avoid cycles
-                const st = useTimelineStore.getState();
-                if (partial.tempo != null) st.setGlobalBpm(Math.max(1, Number(partial.tempo) || 120));
-                if (partial.beatsPerBar != null) st.setBeatsPerBar(Math.max(1, Math.floor(partial.beatsPerBar || 4)));
-            }
-        } catch {}
         return this.getSceneSettings();
     }
     resetSceneSettings() {
+        // Pure reset (no store writes). Upstream layers may decide whether timeline store should also reset.
         this.config = { ...this._defaultSceneSettings };
-        // Also reset global timing to defaults
-        try {
-            const st = useTimelineStore.getState();
-            if (this._defaultSceneSettings.tempo != null) st.setGlobalBpm(this._defaultSceneSettings.tempo);
-            if (this._defaultSceneSettings.beatsPerBar != null)
-                st.setBeatsPerBar(this._defaultSceneSettings.beatsPerBar);
-        } catch {}
         return this.getSceneSettings();
     }
 
@@ -503,7 +493,6 @@ export class HybridSceneBuilder {
                 if (typeof src.fps === 'number') partial.fps = src.fps;
                 if (typeof src.width === 'number') partial.width = src.width;
                 if (typeof src.height === 'number') partial.height = src.height;
-                // padding fields removed
                 if (typeof src.tempo === 'number') partial.tempo = src.tempo;
                 if (typeof src.beatsPerBar === 'number') partial.beatsPerBar = src.beatsPerBar;
                 this.updateSceneSettings(partial);
