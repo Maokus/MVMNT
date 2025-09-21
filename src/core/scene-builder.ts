@@ -40,6 +40,33 @@ export class HybridSceneBuilder {
         beatsPerBar: 4,
     };
     config: SceneSettings = { ...this._defaultSceneSettings };
+    // Optimization #5: cache max duration until invalidated
+    private _cachedMaxDurationSec: number | null = null;
+    private _cachedSignature: string | null = null; // signature of elements + tracks/tempo influencing duration
+    private _unsubStore?: () => void;
+
+    constructor() {
+        // Subscribe to timeline store to invalidate cache when track regions / tempo context change
+        try {
+            this._unsubStore = useTimelineStore.subscribe((s, prev) => {
+                if (
+                    s.timeline.globalBpm !== prev.timeline.globalBpm ||
+                    (s.timeline.masterTempoMap?.length || 0) !== (prev.timeline.masterTempoMap?.length || 0) ||
+                    s.tracksOrder !== prev.tracksOrder ||
+                    s.tracks !== prev.tracks
+                ) {
+                    this._invalidateDurationCache();
+                }
+            });
+        } catch {
+            /* ignore subscription errors (e.g., during SSR/tests) */
+        }
+    }
+
+    private _invalidateDurationCache() {
+        this._cachedMaxDurationSec = null;
+        this._cachedSignature = null;
+    }
 
     getSceneSettings(): SceneSettings {
         return { ...this.config };
@@ -64,6 +91,7 @@ export class HybridSceneBuilder {
         const element = elementOrType;
         this.elements.push(element);
         if ((element as any).id) this.elementRegistry.set((element as any).id, element);
+        this._invalidateDurationCache();
         return element;
     }
     removeElement(id: string) {
@@ -77,6 +105,7 @@ export class HybridSceneBuilder {
             this.elements.splice(idx, 1);
         }
         this.elementRegistry.delete(id);
+        this._invalidateDurationCache();
         return true;
     }
     getElement(id: string) {
@@ -100,33 +129,39 @@ export class HybridSceneBuilder {
         this.elements = [];
         this.elementRegistry.clear();
         this.resetSceneSettings();
+        this._invalidateDurationCache();
         return this;
     }
     clearScene() {
         return this.clearElements();
     }
     getMaxDuration() {
-        let max = 0;
-        // Elements duration
-        for (const el of this.elements) {
-            const dur = (el as any).midiManager?.getDuration?.();
-            if (typeof dur === 'number' && dur > max) max = dur;
-        }
-        // New timeline store-based duration
+        // Build signature: element count + each element id + track order length + bpm + tempo map length
         try {
             const state = useTimelineStore.getState();
+            const elIds = this.elements.map((e: any) => e.id || '').join('|');
+            const trackSig = state.tracksOrder.join(',');
+            const bpm = state.timeline.globalBpm || 120;
+            const tempoLen = state.timeline.masterTempoMap?.length || 0;
+            const signature = `${elIds}::${trackSig}::${bpm}::${tempoLen}`;
+            if (this._cachedSignature === signature && this._cachedMaxDurationSec != null) {
+                return this._cachedMaxDurationSec;
+            }
+            let max = 0;
+            for (const el of this.elements) {
+                const dur = (el as any).midiManager?.getDuration?.();
+                if (typeof dur === 'number' && dur > max) max = dur;
+            }
             const tm = getSharedTimingManager();
-            tm.setBPM(state.timeline.globalBpm || 120);
+            tm.setBPM(bpm);
             if (state.timeline.masterTempoMap) tm.setTempoMap(state.timeline.masterTempoMap, 'seconds');
             for (const id of state.tracksOrder) {
-                const t = state.tracks[id];
+                const t: any = (state as any).tracks[id];
                 if (!t || t.type !== 'midi' || !t.enabled) continue;
-                const cache = state.midiCache[t.midiSourceId ?? id];
+                const cache = (state as any).midiCache[t.midiSourceId ?? id];
                 if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-                // Determine max end tick inside optional region
-                let regionStartTick = t.regionStartTick ?? 0;
-                let regionEndTick = t.regionEndTick ?? Number.POSITIVE_INFINITY;
-                // Compute notes' max end (in ticks) respecting region
+                const regionStartTick = t.regionStartTick ?? 0;
+                const regionEndTick = t.regionEndTick ?? Number.POSITIVE_INFINITY;
                 let maxEndTick = 0;
                 for (const n of cache.notesRaw) {
                     if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
@@ -139,8 +174,12 @@ export class HybridSceneBuilder {
                 const endSec = tm.beatsToSeconds(endBeats);
                 if (endSec > max) max = endSec;
             }
-        } catch {}
-        return max;
+            this._cachedMaxDurationSec = max;
+            this._cachedSignature = signature;
+            return max;
+        } catch {
+            return this._cachedMaxDurationSec ?? 0;
+        }
     }
     getAllElements() {
         return [...this.elements];

@@ -167,8 +167,28 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // visualizer instead of being reverted by the seconds->tick mirror. We track the last applied tick to detect user driven changes.
     useEffect(() => {
         if (!visualizer) return;
-        let raf: number;
+        let raf: number | null = null;
+        let loopActive = true; // whether we are currently running RAF frames
         let lastUIUpdate = 0;
+        const UI_UPDATE_INTERVAL = 150; // ms (throttled per Optimization #2)
+        // Memoization for TimingManager config (#3)
+        let lastAppliedBpm: number | null = null;
+        let lastTempoMapVersion: string | null = null; // stringified length+first+last markers
+        // Track last tick for short-circuit (#4)
+        let lastTickForPaused = useTimelineStore.getState().timeline.currentTick;
+        // A flag that something changed while idle so we must render a frame
+        let needsFrameWhileIdle = true;
+
+        const wakeLoop = (why: string) => {
+            if (!loopActive) {
+                loopActive = true;
+                needsFrameWhileIdle = true;
+                raf = requestAnimationFrame(loop);
+            } else {
+                // If already active but paused-idle, ensure one more frame
+                needsFrameWhileIdle = true;
+            }
+        };
         const lastAppliedTickRef = { current: useTimelineStore.getState().timeline.currentTick };
         // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
         // We approximate current tick from existing store on mount.
@@ -185,6 +205,32 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
         const loop = () => {
             const state = useTimelineStore.getState();
+            // Optimization #1: Suspend RAF loop if paused & nothing changed
+            const isPaused = !state.transport.isPlaying;
+
+            // Apply memoized TimingManager configuration (#3)
+            try {
+                const tmCfg = getSharedTimingManager();
+                const bpm = state.timeline.globalBpm || 120;
+                let tempoMapVersion: string | null = null;
+                const map = state.timeline.masterTempoMap;
+                if (map && map.length) {
+                    const first = map[0];
+                    const last = map[map.length - 1];
+                    // Build a lightweight signature: length + first.time + last.time + first.bpm + last.bpm (if present)
+                    // TempoMapEntry assumed shape { time?: number; bpm?: number; ... }
+                    tempoMapVersion = `${map.length}:${first?.time ?? 0}:${last?.time ?? 0}:${first?.bpm ?? ''}:${last?.bpm ?? ''}`;
+                }
+                if (lastAppliedBpm !== bpm) {
+                    tmCfg.setBPM(bpm);
+                    lastAppliedBpm = bpm;
+                }
+                if (tempoMapVersion !== lastTempoMapVersion) {
+                    if (map && map.length) tmCfg.setTempoMap(map, 'seconds');
+                    else tmCfg.setTempoMap(undefined, 'seconds');
+                    lastTempoMapVersion = tempoMapVersion;
+                }
+            } catch { /* ignore timing manager errors */ }
             const vNow = visualizer.currentTime || 0; // seconds (visualizer still seconds-based internally)
             // Determine playback end (stop automatically when playhead passes explicit playback range end)
             try {
@@ -230,7 +276,18 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     /* ignore loop wrap errors */
                 }
             }
-            const next = transportCoordinator.updateFrame(performance.now());
+            let next: number | undefined | null = undefined;
+            if (!isPaused) {
+                next = transportCoordinator.updateFrame(performance.now());
+            } else {
+                // Optimization #4: short-circuit when paused and tick unchanged
+                const currentTickPaused = state.timeline.currentTick ?? 0;
+                if (currentTickPaused !== lastTickForPaused) {
+                    // allow reconciliation path to run so visuals follow scrub
+                    next = currentTickPaused;
+                    lastTickForPaused = currentTickPaused;
+                }
+            }
             if (typeof next === 'number') {
                 const storeTick = state.timeline.currentTick ?? 0;
                 if (next !== storeTick) {
@@ -238,7 +295,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     lastAppliedTickRef.current = next;
                     try {
                         const tmConv = getSharedTimingManager();
-                        tmConv.setBPM(state.timeline.globalBpm || 120);
+                        // BPM already memo-applied; only tempo map may need ensure (cheap guard)
                         const secFromTick = tmConv.beatsToSeconds(next / tmConv.ticksPerQuarter);
                         if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03) visualizer.seek?.(secFromTick);
                     } catch { /* ignore */ }
@@ -249,7 +306,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     transportCoordinator.seek(currentTickVal);
                     try {
                         const tmConv = getSharedTimingManager();
-                        tmConv.setBPM(state.timeline.globalBpm || 120);
+                        // BPM already set if changed
                         const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
                         if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) visualizer.seek?.(secFromTick);
                     } catch { /* noop */ }
@@ -259,13 +316,11 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
             // Throttled UI labels
             const nowTs = performance.now();
-            if (nowTs - lastUIUpdate > 80) {
+            if (nowTs - lastUIUpdate > UI_UPDATE_INTERVAL) {
                 // Canonical tick -> seconds conversion for display to avoid drift between visualizer internal clock & store tick.
                 try {
                     const stNow = useTimelineStore.getState();
                     const tmDisp = getSharedTimingManager();
-                    tmDisp.setBPM(stNow.timeline.globalBpm || 120);
-                    if (stNow.timeline.masterTempoMap) tmDisp.setTempoMap(stNow.timeline.masterTempoMap, 'seconds');
                     const tick = stNow.timeline.currentTick;
                     const sec = tmDisp.beatsToSeconds(tick / tmDisp.ticksPerQuarter);
                     const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
@@ -282,13 +337,55 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 } catch { /* ignore display calc errors */ }
                 lastUIUpdate = nowTs;
             }
+            // Decide whether to continue RAF
+            if (isPaused) {
+                // If paused and no pending visualizer invalidation or scrub, allow suspension
+                if (!needsFrameWhileIdle) {
+                    loopActive = false; // stop scheduling further frames; wakeLoop will restart
+                    raf = null;
+                    return; // suspend
+                }
+                // We consumed the needed frame
+                needsFrameWhileIdle = false;
+            }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
+
+        // Wake triggers
+        type SubState = { tick: number; playing: boolean; bpm: number; tempoMapLen: number };
+        let prevSub: SubState = {
+            tick: useTimelineStore.getState().timeline.currentTick,
+            playing: useTimelineStore.getState().transport.isPlaying,
+            bpm: useTimelineStore.getState().timeline.globalBpm,
+            tempoMapLen: useTimelineStore.getState().timeline.masterTempoMap?.length || 0,
+        };
+        const unsub = useTimelineStore.subscribe((s, prev) => {
+            const nextState: SubState = {
+                tick: s.timeline.currentTick,
+                playing: s.transport.isPlaying,
+                bpm: s.timeline.globalBpm,
+                tempoMapLen: s.timeline.masterTempoMap?.length || 0,
+            };
+            const p = prevSub;
+            if (nextState.playing && !p.playing) wakeLoop('play');
+            else if (!nextState.playing && p.playing) wakeLoop('pause');
+            else if (nextState.tick !== p.tick) wakeLoop('tick');
+            else if (nextState.bpm !== p.bpm) wakeLoop('bpm');
+            else if (nextState.tempoMapLen !== p.tempoMapLen) wakeLoop('tempoMap');
+            prevSub = nextState;
+        });
+        const visInvalidate = () => wakeLoop('visualizerInvalidate');
+        visualizer.canvas?.addEventListener('visualizer-update', visInvalidate);
+        const fontLoaded = () => wakeLoop('fontLoaded');
+        window.addEventListener('font-loaded', fontLoaded as EventListener);
         return () => {
-            cancelAnimationFrame(raf);
+            if (raf) cancelAnimationFrame(raf);
             window.removeEventListener('timeline-play-snapped', playSnapHandler as EventListener);
             if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
+            visualizer.canvas?.removeEventListener('visualizer-update', visInvalidate);
+            window.removeEventListener('font-loaded', fontLoaded as EventListener);
+            unsub?.();
         };
     }, [visualizer]);
 
