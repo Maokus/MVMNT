@@ -213,9 +213,12 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     // Cap to at most 960 bars previously caused scaling issues with mixed PPQ values; instead cap to 200 bars (~content heuristic)
     const maxBars = 200;
     const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
+    // Apply initial auto range and mark as user-defined so it will not be re-auto-adjusted on subsequent track edits.
+    // This matches the desired UX: first import defines an implicit start/end that behaves like an explicit user choice.
     set((prev: TimelineState) => ({
         playbackRange: { startTick: start, endTick: clippedEnd + oneBarTicks },
         timelineView: { startTick: Math.max(0, start - oneBarTicks), endTick: clippedEnd + oneBarTicks * 2 },
+        playbackRangeUserDefined: true,
     }));
 }
 
