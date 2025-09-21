@@ -244,7 +244,7 @@ export class TimingManager {
             const secondsPerBeat = this.getSecondsPerBeat();
             totalBeats = timeInSeconds / secondsPerBeat;
         }
-        const bar = Math.floor(totalBeats / this.beatsPerBar) + 1;
+        const bar = Math.floor(totalBeats / this.beatsPerBar);
         const beat = Math.floor(totalBeats % this.beatsPerBar) + 1;
         const tick = Math.floor((totalBeats % 1) * this.ticksPerQuarter);
         return { bar, beat, tick, totalBeats };

@@ -129,7 +129,7 @@ export class TimeDisplayElement extends SceneElement {
                 const beatsPerBar = this.timingManager.beatsPerBar;
                 const offsetBeats = offsetBars * beatsPerBar;
                 const offsetSeconds = this.timingManager.beatsToSeconds(offsetBeats);
-                displayTime = Math.max(0, targetTime + offsetSeconds);
+                displayTime = targetTime + offsetSeconds;
             } catch {
                 /* fail-safe: ignore offset if conversion fails */
             }
