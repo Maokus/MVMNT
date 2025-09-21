@@ -1,15 +1,6 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
 
-function _getSceneBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
-
 export interface ImportError {
     code?: string; // Provided in Phase 2 validation (fatal codes)
     message: string;
