@@ -149,6 +149,11 @@ export class VideoExporter {
                             onComplete(result.videoBlob);
                             return;
                         }
+                    } else {
+                        console.warn(
+                            'AVExporter not found on window – audio will be omitted from MP4 (video-only export). Ensure av-exporter bundle is imported.'
+                        );
+                        onProgress(0, 'Audio exporter unavailable; continuing with video-only export');
                     }
                 } catch (e) {
                     console.warn('AV exporter delegation failed, falling back to video-only path', e);

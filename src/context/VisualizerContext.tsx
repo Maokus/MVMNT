@@ -4,6 +4,8 @@ import { MIDIVisualizerCore } from '@core/visualizer-core.js';
 // @ts-ignore
 import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
 import { VideoExporter } from '@export/video-exporter.js';
+// Side-effect import: registers window.AVExporter so VideoExporter can delegate audio-inclusive exports.
+import '@export/av-exporter.js';
 import { TimingManager } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';

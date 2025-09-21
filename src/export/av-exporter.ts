@@ -25,8 +25,11 @@ import {
     Mp4OutputFormat,
     BufferTarget,
     CanvasSource,
+    AudioBufferSource,
     canEncodeVideo,
+    canEncodeAudio,
     getEncodableVideoCodecs,
+    getEncodableAudioCodecs,
 } from 'mediabunny';
 
 // Helper: convert absolute timeline render time to zero-based encoding timestamp to avoid leading gaps.
@@ -74,6 +77,7 @@ export class AVExporter {
     }
 
     async export(options: AVExportOptions): Promise<AVExportResult> {
+        console.log('[AVExporter] Starting export with options', options);
         if (this.isExporting) throw new Error('AV export already in progress');
         this.isExporting = true;
         const {
@@ -105,10 +109,14 @@ export class AVExporter {
             const snapshot = deterministicTiming ? createExportTimingSnapshot(tm) : undefined;
 
             // Prepare audio mix
-            let mixBlob: Blob | null = null;
+            let mixBlob: Blob | null = null; // separate WAV fallback / download
             let mixPeak: number | null = null;
             let mixDuration = (endTick - startTick) / ticksPerSecond;
+            // Keep reference to raw mixed AudioBuffer so we can feed it into mediabunny directly
+            let mixedAudioBuffer: AudioBuffer | null = null;
+            let mixedAudioChannels = 2;
             if (includeAudio) {
+                console.log('[AVExporter] Mixing audio for export range', startTick, 'to', endTick);
                 onProgress(3, 'Mixing audio...');
                 const s = useTimelineStore.getState();
                 const mixRes = await offlineMix({
@@ -123,7 +131,20 @@ export class AVExporter {
                 });
                 mixPeak = mixRes.peak;
                 mixDuration = mixRes.durationSeconds;
-                mixBlob = audioBufferToWavBlob(mixRes.buffer);
+                mixedAudioBuffer = mixRes.buffer;
+                mixedAudioChannels = mixRes.channels;
+                if (mixRes.buffer.length === 0 || mixDuration === 0) {
+                    console.warn(
+                        '[AVExporter] Mixed audio buffer is empty (no audible tracks or zero-duration range). Video will have no audio.'
+                    );
+                }
+                try {
+                    // Provide separate WAV blob for UI download / fallback even if we mux successfully.
+                    mixBlob = audioBufferToWavBlob(mixRes.buffer);
+                } catch (e) {
+                    console.warn('Failed to create WAV blob from mixed audio', e);
+                }
+                console.log('[AVExporter] Mixed audio buffer', mixRes.buffer, 'duration', mixDuration, 'peak', mixPeak);
             }
 
             // Derive frame count from duration vs fps
@@ -142,28 +163,67 @@ export class AVExporter {
             }
             const target = new BufferTarget();
             const output = new Output({ format: new Mp4OutputFormat(), target });
-            const canvasSource = new CanvasSource(this.canvas, { codec: codec as any, bitrate: bitrate as any });
+            // Validate bitrate: mediabunny expects a positive integer (bps) or a quality token. If invalid/undefined, omit so library uses its own default.
+            let videoSourceConfig: any = { codec: codec as any };
+            if (typeof bitrate === 'number' && Number.isFinite(bitrate) && bitrate > 0) {
+                // Round to integer just in case a float slipped through
+                videoSourceConfig.bitrate = Math.round(bitrate);
+            } else if (bitrate != null) {
+                console.warn('[AVExporter] Ignoring invalid bitrate value', bitrate, '– using library default.');
+            }
+            const canvasSource = new CanvasSource(this.canvas, videoSourceConfig);
             output.addVideoTrack(canvasSource);
 
-            // Try to add audio track if supported and we have audio
+            // Prepare audio track (correct mediabunny API using AudioBufferSource)
             let audioAdded = false;
-            if (includeAudio && mixBlob) {
+            let audioSource: AudioBufferSource | null = null;
+            if (includeAudio && mixedAudioBuffer) {
+                onProgress(6, 'Preparing audio track...');
                 try {
-                    // naive approach: create a simple AudioBuffer-like source if mediabunny exposes addAudioTrack
-                    // For forward compatibility we check existence
-                    // @ts-ignore
-                    if (typeof output.addAudioTrack === 'function') {
-                        // Convert WAV blob to ArrayBuffer -> PCM frames extraction delegated to mediabunny
-                        // @ts-ignore
-                        output.addAudioTrack(mixBlob, { sampleRate });
-                        audioAdded = true;
+                    // Choose preferred audio codec (attempt aac -> opus -> mp3 -> pcm-s16)
+                    let audioCodec: any = 'aac';
+                    const preferOrder = ['aac', 'opus', 'mp3', 'vorbis', 'flac', 'pcm-s16'];
+                    // Verify support for preferred codec; if not, ask mediabunny for available audio codecs
+                    const supportedPreferred = await canEncodeAudio?.(audioCodec as any).catch(() => false);
+                    if (!supportedPreferred) {
+                        try {
+                            const encodable = await (getEncodableAudioCodecs?.() as any);
+                            const match = preferOrder.find((c) => encodable?.includes?.(c));
+                            if (match) audioCodec = match;
+                        } catch {
+                            /* ignore */
+                        }
                     }
+                    const bitrateBps = 192_000; // sensible default for music
+                    audioSource = new AudioBufferSource({
+                        codec: audioCodec,
+                        numberOfChannels: mixedAudioChannels,
+                        sampleRate: mixedAudioBuffer.sampleRate,
+                        bitrate: bitrateBps,
+                    } as any);
+                    output.addAudioTrack(audioSource as any);
+                    audioAdded = true;
                 } catch (e) {
-                    console.warn('Audio muxing not supported; falling back to separate blobs', e);
+                    console.warn(
+                        'Failed to configure audio track – proceeding with video only (audio will be separate WAV)',
+                        e
+                    );
                 }
             }
 
             await output.start();
+
+            // Feed audio samples after output.start()
+            if (audioAdded && audioSource && mixedAudioBuffer) {
+                try {
+                    onProgress(9, 'Encoding audio...');
+                    await audioSource.add(mixedAudioBuffer);
+                    audioSource.close();
+                } catch (e) {
+                    console.warn('Failed while adding mixed audio buffer – audio will be omitted from container', e);
+                    audioAdded = false;
+                }
+            }
 
             onProgress(10, 'Rendering frames...');
             const exportStartSeconds = startTick / ticksPerSecond;
@@ -181,9 +241,9 @@ export class AVExporter {
             const raw = target.buffer;
             const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: 'video/mp4' }) : null;
 
-            let combinedBlob: Blob | undefined;
-            if (audioAdded && videoBlob) {
-                combinedBlob = videoBlob; // audio already inside
+            let combinedBlob: Blob | undefined = audioAdded ? videoBlob ?? undefined : undefined;
+            if (includeAudio && !audioAdded) {
+                console.warn('[AVExporter] Audio track not muxed into MP4. Providing separate WAV blob instead.');
             }
 
             // Compute reproducibility hash
