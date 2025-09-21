@@ -104,3 +104,35 @@ The Render / Export modal now includes a Filename field. Leave it blank to fall 
 -   PNG sequence exports: downloaded as a `.zip` (frames inside remain `frame_00000.png`, etc.). If you provide an extension other than `.zip`, it will still be normalized to `.zip`.
 
 Any disallowed characters are sanitized to underscores before download.
+
+### Time Display: Offset Bars Property
+
+The `TimeDisplayElement` supports an `offsetBars` property (default `0`) which shifts the _displayed_ musical (bar:beat:tick) and real (mm:ss:ms) time by a specified number of bars.
+
+Use cases:
+
+-   Start counting bars from a different reference (e.g. display pickup / pre-roll as negative or start main section at bar 001).
+-   Align the visual counter with an arrangement section when the underlying transport starts earlier.
+
+Behavior:
+
+-   Positive values move the shown time forward (e.g. `offsetBars: 2` makes real 0s display as bar 003).
+-   Negative values move the shown time backward, but real time never goes below 0 (display clamps at bar 001 / 00:00:000).
+-   Internal timing, transport, and other elements are unaffected; only the displayed labels change.
+
+Config schema example (JSON scene snippet):
+
+```json
+{
+    "type": "timeDisplay",
+    "id": "timeDisplay",
+    "bindings": {
+        "offsetBars": 2
+    }
+}
+```
+
+Edge cases:
+
+-   Large offsets are bounded (currently -512..512 in UI schema) to prevent accidental huge shifts.
+-   With tempo maps, the offset conversion uses the current timing manager for accurate seconds mapping.

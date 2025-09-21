@@ -45,6 +45,16 @@ export class TimeDisplayElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
+                            key: 'offsetBars',
+                            type: 'number',
+                            label: 'Offset Bars',
+                            default: 0,
+                            description: 'Shift the displayed musical + real time by this many bars (can be negative).',
+                            min: -512,
+                            max: 512,
+                            step: 1,
+                        },
+                        {
                             key: 'showProgress',
                             type: 'boolean',
                             label: 'Show Progress Bars',
@@ -109,11 +119,27 @@ export class TimeDisplayElement extends SceneElement {
         // const secondsPerBeat = this.timingManager.getSecondsPerBeat();
         // console.log(`TimeDisplay [${this.id}]: BPM=${bpm}, SecondsPerBeat=${secondsPerBeat.toFixed(4)}, Tempo=${this.timingManager.tempo}`);
 
-        // Get bar:beat:tick info
-        const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(targetTime);
+        // Apply offsetBars (display only). We convert the bar offset to seconds using current tempo context.
+        // This keeps internal timing intact while shifting only what is shown.
+        let displayTime = targetTime;
+        const offsetBars = Number(this.getProperty('offsetBars') || 0);
+        if (offsetBars !== 0) {
+            try {
+                // For tempo-mapped timelines, approximate by converting bars->beats->seconds via timing manager.
+                const beatsPerBar = this.timingManager.beatsPerBar;
+                const offsetBeats = offsetBars * beatsPerBar;
+                const offsetSeconds = this.timingManager.beatsToSeconds(offsetBeats);
+                displayTime = Math.max(0, targetTime + offsetSeconds);
+            } catch {
+                /* fail-safe: ignore offset if conversion fails */
+            }
+        }
+
+        // Get bar:beat:tick info (using displayTime)
+        const barBeatTick: BarBeatTick = this.timingManager.timeToBarBeatTick(displayTime);
 
         // Get minutes:seconds:milliseconds info
-        const totalMs = targetTime * 1000;
+        const totalMs = displayTime * 1000;
         const minutes = Math.floor(totalMs / 60000);
         const seconds = Math.floor((totalMs % 60000) / 1000);
         const milliseconds = Math.floor(totalMs % 1000);
