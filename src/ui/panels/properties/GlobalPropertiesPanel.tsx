@@ -11,6 +11,7 @@ interface ExportSettings {
     startTime?: number;
     endTime?: number;
     // padding removed
+    includeAudio?: boolean;
 }
 
 interface DebugSettings {

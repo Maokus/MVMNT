@@ -24,6 +24,7 @@ export interface ExportSettings {
     // Optional per-export (render modal) video settings. Kept here so override typing is easy.
     bitrate?: number; // target video bitrate (bps)
     qualityPreset?: 'low' | 'medium' | 'high';
+    includeAudio?: boolean; // whether to include audio when exporting MP4 (delegates to AV exporter). Default true.
 }
 
 export interface DebugSettings {
@@ -81,6 +82,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         fullDuration: true,
         startTime: 0,
         endTime: 0,
+        includeAudio: true,
     });
     const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
@@ -524,6 +526,29 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 const totalFrames = Math.ceil((clampedEnd - clampedStart) * settings.fps);
                 maxFrames = totalFrames; startFrame = Math.floor(clampedStart * settings.fps);
             }
+            // If including audio we prefer to delegate by providing tick range so VideoExporter can hand off to AVExporter.
+            let startTick: number | undefined;
+            let endTick: number | undefined;
+            if (settings.includeAudio) {
+                try {
+                    const st = useTimelineStore.getState();
+                    const tm = getSharedTimingManager();
+                    tm.setBPM(st.timeline.globalBpm || 120);
+                    if (st.timeline.masterTempoMap) tm.setTempoMap(st.timeline.masterTempoMap, 'seconds');
+                    // Determine tick range: use playbackRange if defined, else entire timeline view, else current duration
+                    const pr = st.playbackRange;
+                    if (pr && typeof pr.startTick === 'number' && typeof pr.endTick === 'number') {
+                        startTick = pr.startTick;
+                        endTick = pr.endTick;
+                    } else {
+                        // Approximate using duration seconds -> beats -> ticks
+                        const durationSec = visualizer.getCurrentDuration();
+                        const beats = tm.secondsToBeats ? tm.secondsToBeats(durationSec) : (durationSec * (st.timeline.globalBpm || 120)) / 60;
+                        endTick = Math.floor(beats * tm.ticksPerQuarter);
+                        startTick = 0;
+                    }
+                } catch { /* ignore tick derivation errors */ }
+            }
             await videoExporter.exportVideo({
                 fps: settings.fps,
                 width: settings.width,
@@ -533,6 +558,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 _startFrame: startFrame,
                 // Pass through new optional settings
                 bitrate: settings.bitrate,
+                qualityPreset: settings.qualityPreset,
+                includeAudio: settings.includeAudio,
+                startTick,
+                endTick,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),
             });
         } catch (e) {

@@ -15,6 +15,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [endTime, setEndTime] = useState<number>(exportSettings.endTime || 0);
     const [qualityPreset, setQualityPreset] = useState<'low' | 'medium' | 'high'>('high');
     const [bitrate, setBitrate] = useState<number | ''>('');
+    const [includeAudio, setIncludeAudio] = useState<boolean>(exportSettings.includeAudio !== false); // default true
     const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
@@ -25,13 +26,13 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     const beginExport = async () => {
         // Persist duration/range flags globally so future exports use them
-        setExportSettings((prev: any) => ({ ...prev, fullDuration: rangeMode, startTime, endTime }));
+        setExportSettings((prev: any) => ({ ...prev, fullDuration: rangeMode, startTime, endTime, includeAudio }));
         setIsExporting(true);
         try {
             if (format === 'png') {
                 await exportSequence({ fullDuration: rangeMode, startTime, endTime });
             } else {
-                await exportVideo({ fullDuration: rangeMode, startTime, endTime, bitrate: bitrate === '' ? undefined : bitrate, qualityPreset });
+                await exportVideo({ fullDuration: rangeMode, startTime, endTime, bitrate: bitrate === '' ? undefined : bitrate, qualityPreset, includeAudio });
             }
             onClose();
         } catch (e) {
@@ -81,6 +82,10 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             <label className="flex flex-col gap-1">Bitrate (bps)
                                 <input type="number" placeholder="(auto)" min={100000} step={100000} value={bitrate} onChange={e => setBitrate(e.target.value === '' ? '' : Number(e.target.value) || 0)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm" />
                                 <span className="text-[10px] opacity-60">Leave blank to use preset.</span>
+                            </label>
+                            <label className="flex items-center gap-2 col-span-2 mt-1 select-none">
+                                <input type="checkbox" checked={includeAudio} onChange={e => setIncludeAudio(e.target.checked)} />
+                                <span>Include Audio Track</span>
                             </label>
                         </>
                     )}
