@@ -341,22 +341,25 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const beatsToSec = (beats?: number) => (typeof beats === 'number' ? beatsToSeconds(tempoMapNow, beats, spbNow) : undefined);
     const startBeatsDerived = tickToBeats(startTick);
     const endBeatsDerived = tickToBeats(endTick);
-    const startSecDerived = beatsToSec(startBeatsDerived);
-    const endSecDerived = beatsToSec(endBeatsDerived);
-    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar));
+    // Bars (floating) derived from ticks (NOT seconds). Inputs are labeled in bars and should reflect bar positions.
+    const startBarsDerived = typeof startBeatsDerived === 'number' && beatsPerBar ? startBeatsDerived / beatsPerBar : 0;
+    const endBarsDerived = typeof endBeatsDerived === 'number' && beatsPerBar ? endBeatsDerived / beatsPerBar : 0;
+    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); // retained hidden BBT buffer
     const [playEndBBT, setPlayEndBBT] = useState<string>(() => formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar));
-    const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0)); // seconds secondary
-    const [playEndText, setPlayEndText] = useState<string>(() => String(endSecDerived ?? 0));
+    // UI numeric inputs now represent BAR positions directly (allowing fractional bars via step=0.01)
+    const [playStartText, setPlayStartText] = useState<string>(() => String(startBarsDerived ?? 0));
+    const [playEndText, setPlayEndText] = useState<string>(() => String(endBarsDerived ?? 0));
     useEffect(() => { setPlayStartBBT(formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); }, [startTick, ppqNow, beatsPerBar]);
     useEffect(() => { setPlayEndBBT(formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar)); }, [endTick, ppqNow, beatsPerBar]);
-    useEffect(() => { setPlayStartText(String(startSecDerived ?? 0)); }, [startSecDerived]);
-    useEffect(() => { setPlayEndText(String(endSecDerived ?? 0)); }, [endSecDerived]);
+    useEffect(() => { setPlayStartText(String(startBarsDerived ?? 0)); }, [startBarsDerived]);
+    useEffect(() => { setPlayEndText(String(endBarsDerived ?? 0)); }, [endBarsDerived]);
     const commitPlay = (_which: 'start' | 'end') => {
-        // Primary: parse BBT fields if changed; fallback to seconds inputs
+        // Primary: parse hidden BBT buffers if user ever edits them (currently not exposed in UI)
         const state = useTimelineStore.getState();
         const ppq = CANONICAL_PPQ;
+        const beatsPerBarNow = state.timeline.beatsPerBar || 4;
         const parseBBTOrUndefined = (text: string) => {
-            const val = parseBBT(text, ppq, state.timeline.beatsPerBar || 4);
+            const val = parseBBT(text, ppq, beatsPerBarNow);
             return typeof val === 'number' && val >= 0 ? val : undefined;
         };
         const sTickFromBBT = parseBBTOrUndefined(playStartBBT);
@@ -365,21 +368,17 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             setPlaybackRangeExplicitTicks(sTickFromBBT, eTickFromBBT);
             return;
         }
-        // Seconds fallback unchanged
-        const sVal = parseFloat(playStartText);
-        const eVal = parseFloat(playEndText);
-        const s = isFinite(sVal) ? sVal : undefined;
-        const e = isFinite(eVal) ? eVal : undefined;
-        if (s == null && e == null) {
+        // Fallback: interpret numeric input values as BAR positions (not seconds!) allowing fractional bars.
+        const sBarsVal = parseFloat(playStartText);
+        const eBarsVal = parseFloat(playEndText);
+        const sBars = isFinite(sBarsVal) ? sBarsVal : undefined;
+        const eBars = isFinite(eBarsVal) ? eBarsVal : undefined;
+        if (sBars == null && eBars == null) {
             setPlaybackRangeExplicitTicks(undefined, undefined);
             return;
         }
-        const spb = 60 / (state.timeline.globalBpm || 120);
-        const map = state.timeline.masterTempoMap;
-        const sBeats = typeof s === 'number' ? secondsToBeats(map, s, spb) : undefined;
-        const eBeats = typeof e === 'number' ? secondsToBeats(map, e, spb) : undefined;
-        const toTicks = (beats?: number) => (typeof beats === 'number' ? Math.round(beats * ppq) : undefined);
-        setPlaybackRangeExplicitTicks(toTicks(sBeats), toTicks(eBeats));
+        const barsToTicks = (bars?: number) => (typeof bars === 'number' ? Math.round(bars * beatsPerBarNow * ppq) : undefined);
+        setPlaybackRangeExplicitTicks(barsToTicks(sBars), barsToTicks(eBars));
     };
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
@@ -509,10 +508,10 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                         </div>
                         <div className='grid grid-cols-2 gap-2'>
                             <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (bars)
-                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
+                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
                             </label>
                             <label className="flex flex-col text-[11px] text-neutral-300">Scene End (bars)
-                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
+                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
                             </label>
                         </div>
                     </div>
