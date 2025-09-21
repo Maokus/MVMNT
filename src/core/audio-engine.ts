@@ -255,15 +255,38 @@ export class AudioEngine {
             const regionStart = track.regionStartTick ?? 0;
             const regionEnd = track.regionEndTick ?? cache.durationTicks;
             if (regionEnd <= regionStart) return;
-            // Compute where within the region we start based on playFromTick.
-            const relativeTick = playFromTick - track.offsetTicks; // tick position inside the clip (possibly negative or beyond region)
-            if (relativeTick >= regionEnd) return; // playback starts after clip end => silent
-            const clippedRelTick = Math.max(relativeTick, regionStart);
-            const offsetIntoRegionTicks = clippedRelTick - regionStart;
-            if (offsetIntoRegionTicks < 0 || offsetIntoRegionTicks >= regionEnd - regionStart) return; // outside
-            const offsetSeconds = offsetIntoRegionTicks / ticksPerSecond;
-            const remainingTicks = regionEnd - clippedRelTick;
-            const durationSeconds = remainingTicks / ticksPerSecond;
+            // Revised scheduling logic:
+            // Timeline alignment:
+            //   - Track base placement (tick where buffer tick 0 would align) = track.offsetTicks
+            //   - Trimmed region audible start on timeline = track.offsetTicks + regionStart
+            // If playFromTick precedes earliest audible tick, we schedule a FUTURE start (no premature audio).
+            const earliestAudibleTick = (track.offsetTicks || 0) + regionStart;
+            const regionDurationTicks = regionEnd - regionStart;
+            // Case 1: playback begins after region end -> nothing to schedule
+            if (playFromTick >= earliestAudibleTick + regionDurationTicks) return;
+
+            let whenTime = ctx.currentTime; // default immediate
+            let playbackBufferOffsetTicks = regionStart; // buffer tick position we start from
+            let playedDurationTicks: number; // how many ticks of buffer we will play
+
+            if (playFromTick < earliestAudibleTick) {
+                // Future start: delay until earliestAudibleTick
+                const delayTicks = earliestAudibleTick - playFromTick;
+                const delaySeconds = delayTicks / ticksPerSecond;
+                whenTime = ctx.currentTime + delaySeconds;
+                playbackBufferOffsetTicks = regionStart; // start of region inside buffer
+                playedDurationTicks = regionDurationTicks; // whole region (subject to buffer length clamp later)
+            } else {
+                // Inside region: compute offset inside trimmed region
+                const ticksIntoRegion = playFromTick - earliestAudibleTick; // 0 <= ... < regionDurationTicks (guarded by earlier return)
+                playbackBufferOffsetTicks = regionStart + ticksIntoRegion;
+                playedDurationTicks = regionDurationTicks - ticksIntoRegion;
+            }
+
+            const offsetSeconds = (playbackBufferOffsetTicks - regionStart) / ticksPerSecond; // relative offset within region used for gain ramp comment (legacy variable)
+            const bufferRegionStartSeconds = regionStart / ticksPerSecond;
+            const playbackBufferOffsetSeconds = playbackBufferOffsetTicks / ticksPerSecond;
+            const durationSeconds = playedDurationTicks / ticksPerSecond;
 
             const source = ctx.createBufferSource();
             source.buffer = buffer;
@@ -295,12 +318,11 @@ export class AudioEngine {
             }
             source.connect(gainNode).connect(ctx.destination);
             try {
-                // Start at buffer position: regionStart offset + offsetSeconds
-                const bufferRegionStartSeconds = regionStart / ticksPerSecond;
-                const playbackBufferOffset = bufferRegionStartSeconds + offsetSeconds;
-                const maxPlayable = buffer.duration - playbackBufferOffset;
+                // Start node; allow future whenTime if playback hasn't reached clip yet.
+                const maxPlayable = buffer.duration - playbackBufferOffsetSeconds;
                 const dur = Math.min(durationSeconds, maxPlayable);
-                source.start(ctx.currentTime, playbackBufferOffset, Math.max(0, dur));
+                if (dur <= 0) throw new Error('Non-positive duration');
+                source.start(whenTime, playbackBufferOffsetSeconds, Math.max(0, dur));
             } catch (err) {
                 console.warn('Failed to start audio source', err);
                 try {
@@ -318,7 +340,8 @@ export class AudioEngine {
             this.active.set(track.id, {
                 source,
                 gainNode,
-                startTick: playFromTick,
+                // startTick represents the timeline tick we aligned the source start to (earliest audible if in future, else playFromTick)
+                startTick: playFromTick < earliestAudibleTick ? earliestAudibleTick : playFromTick,
                 region: { startTick: regionStart, endTick: regionEnd },
             });
         });
