@@ -166,10 +166,12 @@ export class AVExporter {
             // Validate bitrate: mediabunny expects a positive integer (bps) or a quality token. If invalid/undefined, omit so library uses its own default.
             let videoSourceConfig: any = { codec: codec as any };
             if (typeof bitrate === 'number' && Number.isFinite(bitrate) && bitrate > 0) {
+                console.log('[AVExporter] Using video bitrate', bitrate);
                 // Round to integer just in case a float slipped through
                 videoSourceConfig.bitrate = Math.round(bitrate);
-            } else if (bitrate != null) {
-                console.warn('[AVExporter] Ignoring invalid bitrate value', bitrate, '– using library default.');
+            } else {
+                console.warn('[AVExporter] Ignoring invalid bitrate value', bitrate, '– using default value 100000');
+                videoSourceConfig.bitrate = 100000;
             }
             const canvasSource = new CanvasSource(this.canvas, videoSourceConfig);
             output.addVideoTrack(canvasSource);
