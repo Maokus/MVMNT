@@ -165,11 +165,18 @@ export class TransportCoordinator {
             } else {
                 const elapsed = ctx.currentTime - this.state.playbackStartAudioTime;
                 if (elapsed >= 0) {
-                    const secondsPerBeat = this.tm.getSecondsPerBeat(0);
+                    // Use precise float accumulation (no premature floor) then only truncate for emission comparison
+                    const secondsPerBeat = this.tm.getSecondsPerBeat(elapsed);
                     const beats = elapsed / secondsPerBeat;
                     const ticksDelta = beats * this.tm.ticksPerQuarter;
-                    const nextTick = Math.max(0, Math.floor(this.state.startTick + ticksDelta));
+                    const candidate = this.state.startTick + ticksDelta;
+                    // Truncate only for integer canonical tick; retain fractional error internally by not mutating startTick.
+                    const nextTick = Math.max(0, candidate | 0); // bitwise trunc faster & consistent
                     if (nextTick !== this.state.lastDerivedTick) {
+                        // Guard against retrograde due to floating rounding (should not happen but defensive)
+                        if (nextTick < this.state.lastDerivedTick) {
+                            return undefined;
+                        }
                         this.state.lastDerivedTick = nextTick;
                         this.emit();
                         try {

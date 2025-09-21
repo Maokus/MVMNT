@@ -231,25 +231,26 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             // Throttled UI labels
             const nowTs = performance.now();
             if (nowTs - lastUIUpdate > 80) {
-                const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-                // Display time relative to the current playback window start to match manual start/end UX
-                let rel = vNow;
+                // Canonical tick -> seconds conversion for display to avoid drift between visualizer internal clock & store tick.
                 try {
-                    const view = useTimelineStore.getState().timelineView as any;
-                    // startSec is injected by subscribe shim; use fallback when absent
-                    const startSec = typeof view.startSec === 'number' ? view.startSec : 0;
-                    rel = vNow - startSec;
-                } catch { /* ignore */ }
-                const format = (s: number) => {
-                    const sign = s < 0 ? '-' : '';
-                    const abs = Math.abs(s);
-                    const m = Math.floor(abs / 60);
-                    const sec = Math.floor(abs % 60);
-                    return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-                };
-                setCurrentTimeLabel(`${format(rel)} / ${format(total)}`);
-                setNumericCurrentTime(vNow);
-                setTotalDuration(total);
+                    const stNow = useTimelineStore.getState();
+                    const tmDisp = getSharedTimingManager();
+                    tmDisp.setBPM(stNow.timeline.globalBpm || 120);
+                    if (stNow.timeline.masterTempoMap) tmDisp.setTempoMap(stNow.timeline.masterTempoMap, 'seconds');
+                    const tick = stNow.timeline.currentTick;
+                    const sec = tmDisp.beatsToSeconds(tick / tmDisp.ticksPerQuarter);
+                    const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
+                    const format = (s: number) => {
+                        const sign = s < 0 ? '-' : '';
+                        const abs = Math.abs(s);
+                        const m = Math.floor(abs / 60);
+                        const secI = Math.floor(abs % 60);
+                        return `${sign}${m.toString().padStart(2, '0')}:${secI.toString().padStart(2, '0')}`;
+                    };
+                    setCurrentTimeLabel(`${format(sec)} / ${format(total)}`);
+                    setNumericCurrentTime(sec);
+                    setTotalDuration(total);
+                } catch { /* ignore display calc errors */ }
                 lastUIUpdate = nowTs;
             }
             raf = requestAnimationFrame(loop);
