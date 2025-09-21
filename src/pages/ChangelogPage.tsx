@@ -21,7 +21,8 @@ const ChangelogPage: React.FC = () => {
                     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
                         <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-                            <li>Audio track sync & export pipeline</li>
+                            <li>Video?</li>
+                            <li>Tracker style text elements</li>
                         </ul>
                     </section>
 

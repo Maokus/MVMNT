@@ -12,17 +12,15 @@ This document summarizes improvements applied during the comment/documentation c
 
 1. Export Service Abstraction
     - Introduce a `ExportService` (facade) that selects `VideoExporter` vs `AVExporter` vs future formats. This keeps UI components ignorant of per‑exporter option branching (bitrate heuristics, audio delegation, etc.).
-2. Audio Subsystem Modularization
-    - Group audio runtime pieces (`transport-coordinator`, scheduling, decoding, offline mix) under `src/audio/` with clear subfolders: `runtime/`, `offline/`, `graph/`, `types/` to reduce scattering across `core/` and `export/`.
-3. Typed Visualizer Interface
+2. Typed Visualizer Interface
     - Define a `VisualizerAdapter` interface capturing only the methods used by exporters (`renderAtTime`, `resize`, `getCurrentDuration`, `getSceneBuilder`, `getPlayRange`). Replace pervasive `any` usage to regain static safety and ease refactors.
-4. Error Taxonomy
+3. Error Taxonomy
     - Create domain error classes (`ExportError`, `AudioMixError`, `CodecSelectionError`) so callers can present user-facing guidance. Avoid overloading `Error` messages with structured data.
-5. Determinism Boundary
+4. Determinism Boundary
     - Encapsulate all logic that must be deterministic (tick <-> time mapping, mix, frame time iteration) in a package or namespace. Provide a test util that replays a saved snapshot and validates hash invariants.
-6. Configuration Centralization
+5. Configuration Centralization
     - Extract bitrate heuristics, codec preference arrays, normalization targets, and default sample rates into a single `config/mediaDefaults.ts`. This aids discoverability and tuning.
-7. Store Selectors Layer
+6. Store Selectors Layer
     - Create a `selectors/` directory with pure functions for commonly computed values (e.g., `selectTicksPerSecond`, `selectAudibleTracks`). Many ad‑hoc recalculations could be centralized and unit tested.
 
 ### 3. Code-Level Recommendations by Module

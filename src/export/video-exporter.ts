@@ -37,6 +37,8 @@ export interface VideoExportOptions {
     includeAudio?: boolean; // when true, delegate to AVExporter for combined audio+video if ticks resolvable
     startTick?: number; // optional explicit range (when includeAudio true & using AVExporter)
     endTick?: number;
+    // When true, prevents the exporter from initiating a browser download itself. Caller handles blob.
+    suppressDownload?: boolean;
     // Advanced A/V controls. Some combinations may not yet be supported by the underlying encoder build.
     // container: 'auto' selects MP4 today; placeholder for future WebM pipeline once available.
     container?: 'auto' | 'mp4' | 'webm';
@@ -96,6 +98,7 @@ export class VideoExporter {
             audioBitrate,
             audioSampleRate = 'auto',
             audioChannels = 2,
+            suppressDownload = false,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
@@ -163,18 +166,22 @@ export class VideoExporter {
                             onProgress: (p: number, text?: string) => onProgress(p, text),
                         });
                         if (result.combinedBlob) {
-                            this.downloadBlob(
-                                result.combinedBlob,
-                                `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_av.mp4`
-                            );
+                            if (!suppressDownload) {
+                                this.downloadBlob(
+                                    result.combinedBlob,
+                                    `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_av.mp4`
+                                );
+                            }
                             onComplete(result.combinedBlob);
                             return;
                         } else if (result.videoBlob) {
                             // fallback: deliver video only (separate audio returned separately if UI wants to prompt)
-                            this.downloadBlob(
-                                result.videoBlob,
-                                `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`
-                            );
+                            if (!suppressDownload) {
+                                this.downloadBlob(
+                                    result.videoBlob,
+                                    `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`
+                                );
+                            }
                             onComplete(result.videoBlob);
                             return;
                         }
@@ -286,7 +293,9 @@ export class VideoExporter {
             const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
             const videoBlob = new Blob([u8.buffer], { type: 'video/mp4' });
             onProgress(100, 'Video ready');
-            this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`);
+            if (!suppressDownload) {
+                this.downloadBlob(videoBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`);
+            }
             onComplete(videoBlob);
         } catch (err) {
             console.error('Video export failed', err);
