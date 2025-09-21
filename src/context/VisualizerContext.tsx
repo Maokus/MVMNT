@@ -9,7 +9,8 @@ import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
-import { PlaybackClock } from '@core/playback-clock';
+// (PlaybackClock now wrapped by TransportCoordinator; direct usage removed for Phase 0 integration.)
+import { getTransportCoordinator } from '@core/transport-coordinator';
 // Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
 
 export interface ExportSettings {
@@ -146,14 +147,10 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const stateAtStart = useTimelineStore.getState();
         // Derive starting tick from store (already dual-written)
         const startTick = stateAtStart.timeline.currentTick ?? 0;
-        const clock = new PlaybackClock({
-            timingManager: tm,
-            initialTick: startTick,
-            autoStartPaused: !stateAtStart.transport.isPlaying,
-        });
+        const transportCoordinator = getTransportCoordinator();
         const playSnapHandler = (e: any) => {
             if (!e?.detail?.tick) return;
-            try { clock.setTick(e.detail.tick); } catch { /* ignore */ }
+            try { transportCoordinator.seek(e.detail.tick); } catch { /* ignore */ }
         };
         window.addEventListener('timeline-play-snapped', playSnapHandler as EventListener);
 
@@ -175,7 +172,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                         visualizer.pause?.();
                         try { if (st.transport.isPlaying) st.pause(); } catch { /* ignore */ }
                         const startTick = pr.startTick ?? 0;
-                        clock.setTick(startTick);
+                        transportCoordinator.seek(startTick);
                         st.setCurrentTick(startTick, 'clock');
                         // Do not early-return; allow rest of loop to process paused state and schedule next frame.
                     }
@@ -197,52 +194,37 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                     const loopEndSec = tmLoop.beatsToSeconds(loopEndTick / tmLoop.ticksPerQuarter);
                     if (vNow >= loopEndSec - 1e-6) {
                         visualizer.seek?.(loopStartSec);
-                        clock.setTick(loopStartTick);
+                        transportCoordinator.seek(loopStartTick);
                         state.setCurrentTick(loopStartTick, 'clock');
                     }
                 } catch {
                     /* ignore loop wrap errors */
                 }
             }
-            // Manage pause/resume of playback clock.
-            if (!state.transport.isPlaying) {
-                if (!clock.isPaused) clock.pause(performance.now());
-            } else if (clock.isPaused) {
-                clock.resume(performance.now());
-            }
-            // Advance clock only when transport playing
-            if (state.transport.isPlaying) {
-                // CLOCK → STORE → VISUALIZER
+            const next = transportCoordinator.updateFrame(performance.now());
+            if (typeof next === 'number') {
                 const storeTick = state.timeline.currentTick ?? 0;
-                if (storeTick !== clock.currentTick) {
-                    clock.setTick(storeTick); // accept external seek while playing
-                }
-                const nextTick = clock.update(performance.now());
-                if (nextTick !== storeTick) {
-                    state.setCurrentTick(nextTick, 'clock');
-                    lastAppliedTickRef.current = nextTick;
-                    // Derive seconds and seek visualizer only if significant drift (visualizer still seconds-based)
+                if (next !== storeTick) {
+                    state.setCurrentTick(next, 'clock');
+                    lastAppliedTickRef.current = next;
                     try {
                         const tmConv = getSharedTimingManager();
                         tmConv.setBPM(state.timeline.globalBpm || 120);
-                        const secFromTick = tmConv.beatsToSeconds(nextTick / tmConv.ticksPerQuarter);
+                        const secFromTick = tmConv.beatsToSeconds(next / tmConv.ticksPerQuarter);
                         if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03) visualizer.seek?.(secFromTick);
                     } catch { /* ignore */ }
                 }
-            } else {
-                // PAUSED: USER (store tick) → CLOCK & VISUALIZER
+            } else if (!state.transport.isPlaying) {
                 const currentTickVal = state.timeline.currentTick ?? 0;
                 if (currentTickVal !== lastAppliedTickRef.current) {
+                    transportCoordinator.seek(currentTickVal);
                     try {
                         const tmConv = getSharedTimingManager();
                         tmConv.setBPM(state.timeline.globalBpm || 120);
                         const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
                         if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) visualizer.seek?.(secFromTick);
                     } catch { /* noop */ }
-                    clock.setTick(currentTickVal);
                     lastAppliedTickRef.current = currentTickVal;
-                } else {
-                    clock.setTick(currentTickVal); // keep internal fractional cleared
                 }
             }
 

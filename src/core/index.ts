@@ -51,3 +51,4 @@ export { FloatCurve, AnimMath } from '@animation/anim-math.js';
 // Timing/Timeline exports
 // ==========================================
 export * as Timing from '@core/timing/index';
+export * from '@core/transport-coordinator';
