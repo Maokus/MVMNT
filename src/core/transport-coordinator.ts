@@ -14,6 +14,7 @@
 import { PlaybackClock } from '@core/playback-clock';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { TimingManager } from '@core/timing';
+import { getAudioEngine, AudioEngine } from '@core/audio-engine';
 
 export interface TransportStateInternal {
     mode: 'idle' | 'playing' | 'paused';
@@ -29,6 +30,7 @@ interface AudioLike {
 
 export interface TransportCoordinatorConfig {
     getAudioContext?: () => AudioLike | undefined | null; // lazily provide (or fail) -> fallback to clock
+    audioEngine?: AudioEngine; // allow injection for tests
 }
 
 type Listener = (s: TransportStateInternal) => void;
@@ -93,10 +95,28 @@ export class TransportCoordinator {
         const tick = typeof fromTick === 'number' ? fromTick : this.state.lastDerivedTick;
         this.state.startTick = tick;
         this.state.lastDerivedTick = tick;
-        const ctx = this.cfg.getAudioContext?.();
+        // Attempt to initialize audio engine & context (Phase 2)
+        let ctx: AudioLike | undefined | null = undefined;
+        try {
+            ctx = this.cfg.getAudioContext?.();
+            if (!ctx) {
+                // Fallback: use shared audio engine if available (creates context lazily)
+                const eng = this.cfg.audioEngine ?? getAudioEngine();
+                if (eng.isReady()) ctx = eng.getContext();
+            }
+        } catch {
+            ctx = undefined;
+        }
         if (ctx) {
             this.state.playbackStartAudioTime = ctx.currentTime;
-            this.state.source = 'clock'; // will flip to 'audio' once Phase 2 implemented
+            this.state.source = 'audio';
+            // Start audio engine sources aligned to tick
+            try {
+                (this.cfg.audioEngine ?? getAudioEngine()).playTick(tick);
+            } catch {
+                // On failure remain in clock mode
+                this.state.source = 'clock';
+            }
         } else {
             this.state.source = 'clock';
         }
@@ -109,6 +129,10 @@ export class TransportCoordinator {
     pause() {
         if (this.state.mode === 'paused') return;
         this.clock.pause(performance.now());
+        // Stop audio sources but keep context (resume faster next play)
+        try {
+            (this.cfg.audioEngine ?? getAudioEngine()).stop();
+        } catch {}
         this.state.mode = 'paused';
         this.emit();
     }
@@ -118,13 +142,24 @@ export class TransportCoordinator {
         this.state.startTick = tick;
         this.state.lastDerivedTick = tick;
         this.clock.setTick(tick);
+        if (this.state.mode === 'playing' && this.state.source === 'audio') {
+            try {
+                (this.cfg.audioEngine ?? getAudioEngine()).seek(tick);
+            } catch {}
+        }
         this.emit();
     }
 
     updateFrame(nowPerfMs: number): number | undefined {
         if (this.state.mode !== 'playing') return undefined;
         if (this.state.source === 'audio') {
-            const ctx = this.cfg.getAudioContext?.();
+            let ctx = this.cfg.getAudioContext?.();
+            if (!ctx) {
+                try {
+                    const eng = this.cfg.audioEngine ?? getAudioEngine();
+                    if (eng.isReady()) ctx = eng.getContext();
+                } catch {}
+            }
             if (!ctx || this.state.playbackStartAudioTime == null) {
                 this.state.source = 'clock';
             } else {
@@ -137,6 +172,9 @@ export class TransportCoordinator {
                     if (nextTick !== this.state.lastDerivedTick) {
                         this.state.lastDerivedTick = nextTick;
                         this.emit();
+                        try {
+                            (this.cfg.audioEngine ?? getAudioEngine()).refresh(nextTick);
+                        } catch {}
                         return nextTick;
                     }
                     return undefined;
