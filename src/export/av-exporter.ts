@@ -26,6 +26,7 @@ import { computeReproHash, normalizeTracksForHash } from './repro-hash';
 import SimulatedClock from './simulated-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
+import { registerMp3Encoder } from '@mediabunny/mp3-encoder';
 import {
     Output,
     Mp4OutputFormat,
@@ -37,6 +38,18 @@ import {
     getEncodableVideoCodecs,
     getEncodableAudioCodecs,
 } from 'mediabunny';
+
+// Register MP3 encoder so that 'mp3' appears in encodable audio codecs and canEncodeAudio('mp3') succeeds.
+// Safe to call multiple times (registration function should be idempotent); wrapped in try/catch to avoid
+// breaking the module load if the optional dependency changes.
+try {
+    registerMp3Encoder();
+    // eslint-disable-next-line no-console
+    console.log('[AVExporter] MP3 encoder registered');
+} catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[AVExporter] Failed to register MP3 encoder', e);
+}
 
 // Helper: convert absolute timeline render time to zero-based encoding timestamp to avoid leading gaps.
 function toEncodeTimestamp(absSeconds: number, exportStartSeconds: number): number {
@@ -263,6 +276,7 @@ export class AVExporter {
                     let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'mp3';
                     const preferOrder = ['mp3', 'aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
                     const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
+                    console.log('[AVExporter] Audio codec', resolvedAudioCodec, 'supported=', supportedPreferred);
                     if (!supportedPreferred) {
                         try {
                             const encodable = await (getEncodableAudioCodecs?.() as any);

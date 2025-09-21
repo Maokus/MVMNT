@@ -5,6 +5,7 @@
     "private": true,
     "type": "module",
     "dependencies": {
+        "@mediabunny/mp3-encoder": "^1.18.0",
         "gifuct-js": "^2.1.2",
         "mediabunny": "^1.14.4",
         "react": "^19.1.1",

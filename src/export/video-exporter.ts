@@ -92,7 +92,6 @@ export class VideoExporter {
             includeAudio = false,
             startTick,
             endTick,
-            container = 'auto', // deprecated / ignored for now – exporter outputs mp4
             videoCodec = 'auto',
             videoBitrateMode = 'auto',
             videoBitrate,
@@ -157,7 +156,6 @@ export class VideoExporter {
                             includeAudio: true,
                             deterministicTiming,
                             bitrate, // legacy support
-                            container,
                             videoCodec,
                             videoBitrateMode,
                             videoBitrate,
