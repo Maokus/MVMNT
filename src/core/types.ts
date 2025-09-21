@@ -329,4 +329,9 @@ export interface TimeDisplayConfig extends BaseSceneElementConfig {
     color?: string;
     fontFamily?: string;
     format?: 'mm:ss' | 'hh:mm:ss' | 'seconds';
+    /**
+     * Shift the displayed musical and real time by this many bars (display only; underlying timing unaffected).
+     * Can be negative. Default 0.
+     */
+    offsetBars?: number;
 }

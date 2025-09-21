@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { beatsToTicks, CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 import TransportControls from '../TransportControls';
@@ -11,7 +11,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
-import { FaPlus, FaEllipsisV, FaUndo } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 
 const TimelinePanel: React.FC = () => {
@@ -20,8 +20,10 @@ const TimelinePanel: React.FC = () => {
     const order = useTimelineStore((s) => s.tracksOrder);
     const tracksMap = useTimelineStore((s) => s.tracks);
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
+    const addAudioTrack = useTimelineStore((s) => s.addAudioTrack);
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
+    const audioFileRef = useRef<HTMLInputElement | null>(null);
     // Scroll containers for sync
     const leftScrollRef = useRef<HTMLDivElement | null>(null);
     const rightScrollRef = useRef<HTMLDivElement | null>(null);
@@ -32,6 +34,26 @@ const TimelinePanel: React.FC = () => {
         if (!f) return;
         await addMidiTrack({ name: f.name.replace(/\.[^/.]+$/, ''), file: f });
         if (fileRef.current) fileRef.current.value = '';
+    };
+
+    const handleAddAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const lower = f.name.toLowerCase();
+        if (/(\.mid|\.midi)$/.test(lower)) {
+            alert('MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).');
+            if (audioFileRef.current) audioFileRef.current.value = '';
+            return;
+        }
+        // Basic file type filter; rely on accept attribute but double-check MIME starts with audio/
+        if (!f.type.startsWith('audio/')) {
+            alert('Unsupported file type. Please select an audio file.');
+            if (audioFileRef.current) audioFileRef.current.value = '';
+            return;
+        }
+        const name = f.name.replace(/\.[^/.]+$/, '');
+        await addAudioTrack({ name, file: f });
+        if (audioFileRef.current) audioFileRef.current.value = '';
     };
 
     // Optional: on mount, nudge visualizer play range to current ruler state (no-op when already synced)
@@ -167,11 +189,24 @@ const TimelinePanel: React.FC = () => {
             <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
-                    <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
-                        <FaPlus className="text-neutral-300" />
-                        <span>Add MIDI Track</span>
-                        <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
-                    </label>
+                    <div className="flex items-center gap-2">
+                        <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
+                            <FaPlus className="text-neutral-300" />
+                            <span>MIDI</span>
+                            <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
+                        </label>
+                        <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
+                            <FaPlus className="text-emerald-300" />
+                            <span>Audio</span>
+                            <input
+                                ref={audioFileRef}
+                                type="file"
+                                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
+                                className="hidden"
+                                onChange={handleAddAudio}
+                            />
+                        </label>
+                    </div>
                     <TimeIndicator />
                 </div>
                 {/* Center: transport buttons only */}
@@ -317,22 +352,25 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const beatsToSec = (beats?: number) => (typeof beats === 'number' ? beatsToSeconds(tempoMapNow, beats, spbNow) : undefined);
     const startBeatsDerived = tickToBeats(startTick);
     const endBeatsDerived = tickToBeats(endTick);
-    const startSecDerived = beatsToSec(startBeatsDerived);
-    const endSecDerived = beatsToSec(endBeatsDerived);
-    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar));
+    // Bars (floating) derived from ticks (NOT seconds). Inputs are labeled in bars and should reflect bar positions.
+    const startBarsDerived = typeof startBeatsDerived === 'number' && beatsPerBar ? startBeatsDerived / beatsPerBar : 0;
+    const endBarsDerived = typeof endBeatsDerived === 'number' && beatsPerBar ? endBeatsDerived / beatsPerBar : 0;
+    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); // retained hidden BBT buffer
     const [playEndBBT, setPlayEndBBT] = useState<string>(() => formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar));
-    const [playStartText, setPlayStartText] = useState<string>(() => String(startSecDerived ?? 0)); // seconds secondary
-    const [playEndText, setPlayEndText] = useState<string>(() => String(endSecDerived ?? 0));
+    // UI numeric inputs now represent BAR positions directly (allowing fractional bars via step=0.01)
+    const [playStartText, setPlayStartText] = useState<string>(() => String(startBarsDerived ?? 0));
+    const [playEndText, setPlayEndText] = useState<string>(() => String(endBarsDerived ?? 0));
     useEffect(() => { setPlayStartBBT(formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); }, [startTick, ppqNow, beatsPerBar]);
     useEffect(() => { setPlayEndBBT(formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar)); }, [endTick, ppqNow, beatsPerBar]);
-    useEffect(() => { setPlayStartText(String(startSecDerived ?? 0)); }, [startSecDerived]);
-    useEffect(() => { setPlayEndText(String(endSecDerived ?? 0)); }, [endSecDerived]);
+    useEffect(() => { setPlayStartText(String(startBarsDerived ?? 0)); }, [startBarsDerived]);
+    useEffect(() => { setPlayEndText(String(endBarsDerived ?? 0)); }, [endBarsDerived]);
     const commitPlay = (_which: 'start' | 'end') => {
-        // Primary: parse BBT fields if changed; fallback to seconds inputs
+        // Primary: parse hidden BBT buffers if user ever edits them (currently not exposed in UI)
         const state = useTimelineStore.getState();
         const ppq = CANONICAL_PPQ;
+        const beatsPerBarNow = state.timeline.beatsPerBar || 4;
         const parseBBTOrUndefined = (text: string) => {
-            const val = parseBBT(text, ppq, state.timeline.beatsPerBar || 4);
+            const val = parseBBT(text, ppq, beatsPerBarNow);
             return typeof val === 'number' && val >= 0 ? val : undefined;
         };
         const sTickFromBBT = parseBBTOrUndefined(playStartBBT);
@@ -341,21 +379,17 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             setPlaybackRangeExplicitTicks(sTickFromBBT, eTickFromBBT);
             return;
         }
-        // Seconds fallback unchanged
-        const sVal = parseFloat(playStartText);
-        const eVal = parseFloat(playEndText);
-        const s = isFinite(sVal) ? sVal : undefined;
-        const e = isFinite(eVal) ? eVal : undefined;
-        if (s == null && e == null) {
+        // Fallback: interpret numeric input values as BAR positions (not seconds!) allowing fractional bars.
+        const sBarsVal = parseFloat(playStartText);
+        const eBarsVal = parseFloat(playEndText);
+        const sBars = isFinite(sBarsVal) ? sBarsVal : undefined;
+        const eBars = isFinite(eBarsVal) ? eBarsVal : undefined;
+        if (sBars == null && eBars == null) {
             setPlaybackRangeExplicitTicks(undefined, undefined);
             return;
         }
-        const spb = 60 / (state.timeline.globalBpm || 120);
-        const map = state.timeline.masterTempoMap;
-        const sBeats = typeof s === 'number' ? secondsToBeats(map, s, spb) : undefined;
-        const eBeats = typeof e === 'number' ? secondsToBeats(map, e, spb) : undefined;
-        const toTicks = (beats?: number) => (typeof beats === 'number' ? Math.round(beats * ppq) : undefined);
-        setPlaybackRangeExplicitTicks(toTicks(sBeats), toTicks(eBeats));
+        const barsToTicks = (bars?: number) => (typeof bars === 'number' ? Math.round(bars * beatsPerBarNow * ppq) : undefined);
+        setPlaybackRangeExplicitTicks(barsToTicks(sBars), barsToTicks(eBars));
     };
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
@@ -450,16 +484,26 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     <span className="sr-only">Reset Zoom</span>
                 </button>
             </label>
+            {/* Quantize toggle (moved out of menu) */}
+            <button
+                aria-label={quantize === 'bar' ? 'Disable bar quantize' : 'Enable bar quantize'}
+                title={quantize === 'bar' ? 'Quantize: Bar (click to turn off)' : 'Quantize: Off (click to enable bar snapping)'}
+                onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${quantize === 'bar' ? 'bg-blue-600/70 text-white border-blue-400/70' : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'}`}
+            >
+                <FaMagnet />
+            </button>
             {/* Ellipsis menu trigger */}
             <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center">
                 <FaEllipsisV />
             </button>
             {menuOpen && (
                 <div role="menu" className="absolute right-0 bottom-full mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4 z-20" aria-label="Timeline options menu">
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Quantize moved to header button; keep informational label if desired (commented out) */}
+                    {/* <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Quantize (bars)</span>
-                        <button className={`px-2 py-1 rounded border border-neutral-700 ${quantize === 'bar' ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')} role="menuitemcheckbox" aria-checked={quantize === 'bar'}>Q</button>
-                    </div>
+                        <span className="text-neutral-400">Use the magnet icon in header</span>
+                    </div> */}
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Auto follow playhead</span>
                         <button className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setFollow && setFollow(!follow)} role="menuitemcheckbox" aria-checked={!!follow}>On</button>
@@ -485,14 +529,13 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                         </div>
                         <div className='grid grid-cols-2 gap-2'>
                             <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (bars)
-                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
+                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
                             </label>
                             <label className="flex flex-col text-[11px] text-neutral-300">Scene End (bars)
-                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
+                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
                             </label>
                         </div>
                     </div>
-                    {/* Debug Settings moved */}
                     <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
                         <h4 className="text-neutral-200 text-[12px] font-semibold">Debug</h4>
                         <label className="flex items-center gap-2 text-[12px] text-neutral-300">

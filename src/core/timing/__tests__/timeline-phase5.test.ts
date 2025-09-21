@@ -56,7 +56,7 @@ describe('Central note queries (store version)', () => {
             { type: 'noteOff', note: 60, velocity: 0, time: 1.2, tick: Math.round(1.2 * (PPQ * 2)), channel: 0 },
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
-        // Region: 0.5s..1.0s => in beats: 0.5s=1 beat (480 ticks) 1.0s=2 beats (960 ticks)
+        // Region: 0.5s..1.0s => at 120bpm that's 1..2 beats => ticks range CANONICAL_PPQ .. 2*CANONICAL_PPQ
         useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 2 * CANONICAL_PPQ);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [id], 0, 2);
         expect(notes.length).toBe(1);

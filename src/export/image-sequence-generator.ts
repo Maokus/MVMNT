@@ -23,6 +23,8 @@ interface GenerateSequenceOptions {
     width?: number;
     height?: number;
     sceneName?: string;
+    // Optional explicit filename (without extension or with .zip). If provided used for the zip download.
+    filename?: string;
     maxFrames?: number | null;
     onProgress?: (progress: number, text?: string) => void;
     onComplete?: (blob: Blob) => void;
@@ -55,6 +57,7 @@ export class ImageSequenceGenerator {
             width = 1500,
             height = 1500,
             sceneName = 'My Scene',
+            filename,
             maxFrames = null, // null = unlimited (full duration)
             onProgress = () => {},
             onComplete = () => {},
@@ -110,7 +113,9 @@ export class ImageSequenceGenerator {
             const zipBlob = await this.createZipFile(sceneName, onProgress);
 
             // Step 3: Download the ZIP
-            this.downloadImageSequence(zipBlob, `${sceneName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_sequence.zip`);
+            const base = (filename || `${sceneName}_sequence`).trim() || 'sequence';
+            const ensured = /\.zip$/i.test(base) ? base : `${base}.zip`;
+            this.downloadImageSequence(zipBlob, ensured.replace(/[^a-z0-9_.\-]/gi, '_'));
 
             // Restore original canvas size
             this.canvas.width = originalWidth;

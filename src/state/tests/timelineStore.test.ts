@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore, type TimelineTrack } from '../timelineStore';
 import { act } from '@testing-library/react';
 
@@ -15,7 +16,7 @@ describe('timelineStore (Phase 1)', () => {
             ],
             duration: 1,
             tempo: 500000,
-            ticksPerQuarter: 480,
+            ticksPerQuarter: CANONICAL_PPQ,
             timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
             trimmedTicks: 0,
         } as any;

@@ -91,6 +91,20 @@ Implications:
 
 -   Existing serialized data (if any) that persisted raw ticks will load consistently provided the same PPQ is used. A future migration layer could annotate stored PPQ to support importing sessions with different resolutions.
 
+### Canonical PPQ Normalization (2025-09)
+
+Earlier revisions mixed `480` and `960` PPQ across parsing, tests, and timeline calculations. This produced subtle scaling issues (e.g., bar length math, offset calculations) when assumptions about tick resolution diverged.
+
+Remediation steps:
+
+1. Centralized authority in `core/timing/ppq.ts` exporting a live binding `CANONICAL_PPQ` plus helper converters.
+2. Replaced all hard-coded PPQ literals (480 / 960) in production and test logic with `CANONICAL_PPQ` where they represented resolution (kept in external data matrices where they represent source file PPQ for normalization tests).
+3. Updated tests to derive expectations from `CANONICAL_PPQ` and adjusted comments.
+4. MIDI parser default now uses `CANONICAL_PPQ` to ensure immediate alignment of imported MIDI with internal tick domain.
+5. Added environment overrides (`VITE_CANONICAL_PPQ`, `TEST_CANONICAL_PPQ`) for experimentation.
+
+Guideline: New code must always import tick resolution from `@core/timing/ppq`; pull requests with raw `480`/`960` constants implying PPQ should be rejected.
+
 ## Future Enhancements
 
 -   Persist per-project PPQ and auto-migrate stored sessions with differing resolutions.
@@ -107,6 +121,27 @@ Implications:
 ---
 
 This document should be updated whenever domains move or new timing representations are introduced to prevent knowledge drift.
+
+### 2025-09 Audio Waveform Integration
+
+Audio track lanes now render a lightweight peak-based waveform preview. Implementation details:
+
+-   Component: `ui/components/AudioWaveform.tsx` renders a mono peak array (`peakData`) on a `<canvas>` with device‑pixel scaling.
+-   Integration point: Injected inside the clip rectangle in `TrackLanes.tsx` (`TrackRowBlock`) only when `track.type === 'audio'`.
+-   Data source: Peaks and duration ticks come from `state.timelineStore.audioCache[trackId|audioSourceId]`.
+-   Rendering strategy: Vertical line (min-max style) per horizontal pixel sampling precomputed absolute peak bins (cheap O(width)).
+-   Selection: Clip selection border is handled by existing track selection styling; a secondary yellow outline is drawn by the waveform component when the track is selected.
+-   Testing: Added `audioWaveform.integration.test.tsx` with jsdom stubs for `ResizeObserver` and `canvas.getContext` to assert the canvas mounts for an audio track.
+
+Performance Notes:
+
+-   Peak extraction occurs elsewhere (not in the rendering component); the waveform component is pure & re-renders only when peak data or selection changes.
+-   Canvas is scaled via `devicePixelRatio` to keep crisp lines without heavy overdraw.
+
+Future Enhancements:
+
+-   Stereo visualization (dual polarity) if peak arrays carry channel separation.
+-   Lazy/virtual rendering for extremely long clips (current approach is already efficient for typical lane widths).
 
 ### 2025-09 SceneBuilder Purity Refactor
 

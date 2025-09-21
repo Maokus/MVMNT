@@ -223,7 +223,7 @@ const TimelineRuler: React.FC = () => {
                     if (width / Math.max(1, bars.length) <= 24) return null;
                     return (
                         <text key={`lbl-${i}`} x={x + 4} y={16} fill="#ddd" fontSize={11}>
-                            {b.barIdx + 1}
+                            {b.barIdx}
                         </text>
                     );
                 })}

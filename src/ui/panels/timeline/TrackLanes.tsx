@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
+import AudioWaveform from '@ui/components/AudioWaveform';
 
 type Props = {
     trackIds: string[];
@@ -56,7 +57,15 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const setTrackOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
         const setTrackRegionTicks = useTimelineStore((s) => s.setTrackRegionTicks);
         const selectTracks = useTimelineStore((s) => s.selectTracks);
-        const midiCacheEntry = useTimelineStore((s) => s.midiCache[(s.tracks[trackId]?.midiSourceId) ?? trackId]);
+        const midiCacheEntry = useTimelineStore((s) => {
+            const t: any = s.tracks[trackId];
+            if (t && t.type === 'midi') {
+                return s.midiCache[t.midiSourceId ?? trackId];
+            }
+            return undefined;
+        });
+        const audioCacheEntry = useTimelineStore((s) => s.audioCache[trackId]);
+        const setTrackGain = useTimelineStore((s) => s.setTrackGain);
         const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
         const ppq = CANONICAL_PPQ; // unified PPQ
         const { view, toX } = useTickScale();
@@ -72,6 +81,12 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
 
         // Compute local clip extent from cached MIDI and optional region trimming
         const { localStartTick, localEndTick } = useMemo(() => {
+            if (track?.type === 'audio') {
+                let start = track.regionStartTick ?? 0;
+                let end = track.regionEndTick ?? audioCacheEntry?.durationTicks ?? 0;
+                if (end < start) end = start;
+                return { localStartTick: start, localEndTick: end };
+            }
             let start = 0;
             let end = 0;
             const notes = midiCacheEntry?.notesRaw || [];
@@ -84,7 +99,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             if (typeof track?.regionEndTick === 'number') end = Math.min(end, track.regionEndTick);
             if (end < start) end = start;
             return { localStartTick: start, localEndTick: end };
-        }, [midiCacheEntry, track?.regionStartTick, track?.regionEndTick, ppq]);
+        }, [midiCacheEntry, audioCacheEntry, track?.type, track?.regionStartTick, track?.regionEndTick, ppq]);
 
         const onPointerDown = (e: React.PointerEvent) => {
             if (!track) return;
@@ -157,7 +172,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
         const absStartTick = Math.max(0, offsetTick + localStartTick);
         const absEndTick = Math.max(absStartTick, offsetTick + localEndTick);
-        const visStart = view.startTick;
+        const visStart = view.startTick - 100;
         const visEnd = view.endTick;
         const clippedStartTick = Math.max(absStartTick, visStart);
         const clippedEndTick = Math.max(clippedStartTick, Math.min(absEndTick, visEnd));
@@ -209,62 +224,43 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 {/* Track clip rectangle (width reflects clip length) */}
                 {widthPx > 0 && (
                     <div
-                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
+                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
                         style={{ left: Math.max(0, leftX), width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
                     >
-                        {/* Edge indicators: jagged mask when clipped, solid when fully visible */}
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-stretch">
-                            {isClippedLeft ? (
-                                <div className="relative h-full w-3 overflow-hidden">
-                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
-                                        <defs>
-                                            <pattern id="zigL" width="4" height="8" patternUnits="userSpaceOnUse">
-                                                <path d="M0 0 L4 4 L0 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
-                                            </pattern>
-                                            <linearGradient id="fadeL" x1="0" x2="1" y1="0" y2="0">
-                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
-                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
-                                                <stop offset="100%" stopColor="transparent" />
-                                            </linearGradient>
-                                        </defs>
-                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeL)" />
-                                        <rect x="0" y="0" width="6" height="100" fill="url(#zigL)" />
-                                    </svg>
-                                </div>
-                            ) : (
-                                <div className="w-[3px] h-full bg-white/60" />
-                            )}
-                        </div>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch">
-                            {isClippedRight ? (
-                                <div className="relative h-full w-3 overflow-hidden">
-                                    <svg className="absolute inset-0" preserveAspectRatio="none" viewBox="0 0 10 100" aria-hidden>
-                                        <defs>
-                                            <pattern id="zigR" width="4" height="8" patternUnits="userSpaceOnUse">
-                                                <path d="M4 0 L0 4 L4 8 Z" fill="#1e3a8a" fillOpacity="0.55" />
-                                            </pattern>
-                                            <linearGradient id="fadeR" x1="1" x2="0" y1="0" y2="0">
-                                                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.85" />
-                                                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.35" />
-                                                <stop offset="100%" stopColor="transparent" />
-                                            </linearGradient>
-                                        </defs>
-                                        <rect x="0" y="0" width="10" height="100" fill="url(#fadeR)" />
-                                        <rect x="4" y="0" width="6" height="100" fill="url(#zigR)" />
-                                    </svg>
-                                </div>
-                            ) : (
-                                <div className="w-[3px] h-full bg-white/60" />
-                            )}
-                        </div>
-                        {track?.name}{' '}
-                        <span className="opacity-80">{label}</span>
-                        {(midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
-                            <span className="ml-2 text-[10px] opacity-70">No data</span>
+                        {/* Audio waveform background (only for audio tracks) */}
+                        {track?.type === 'audio' && (
+                            <div className="absolute inset-0 pointer-events-none opacity-70">
+                                <AudioWaveform
+                                    trackId={trackId}
+                                    height={Math.max(18, laneHeight * 0.6) - 4}
+                                    regionStartTickAbs={absStartTick}
+                                    regionEndTickAbs={absEndTick}
+                                    visibleStartTickAbs={clippedStartTick}
+                                    visibleEndTickAbs={clippedEndTick}
+                                />
+                            </div>
                         )}
+                        {/* Hard edge indicators: simple solid bars when clipped */}
+                        {isClippedLeft && (
+                            <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-red-400/70" />
+                        )}
+                        {isClippedRight && (
+                            <div className="pointer-events-none absolute inset-y-0 right-0 w-[2px] bg-red-400/70" />
+                        )}
+                        <div className="relative z-10 flex items-center gap-1">
+                            <span>{track?.name}</span>
+                            <span className="opacity-80">{label}</span>
+                            {track?.type === 'audio' ? (
+                                <span className="ml-1 text-[10px] opacity-80">{audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}</span>
+                            ) : (
+                                (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
+                                    <span className="ml-1 text-[10px] opacity-70">No data</span>
+                                )
+                            )}
+                        </div>
 
                         {/* Resize handles */}
                         <div
@@ -387,20 +383,31 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
         for (const id of trackIds) {
             const t = tracksMap[id];
             if (!t) continue;
-            const cacheKey = t.midiSourceId ?? id;
-            const cache = midiCache[cacheKey];
-            const notes = cache?.notesRaw || [];
-            if (notes.length === 0) continue;
-            const rawStart = notes.reduce((m, n) => Math.min(m, n.startBeat != null ? Math.round(n.startBeat * ppq) : m), Number.POSITIVE_INFINITY);
-            const rawEnd = notes.reduce((m, n) => Math.max(m, n.endBeat != null ? Math.round(n.endBeat * ppq) : m), 0);
-            const regionStart = typeof t.regionStartTick === 'number' ? Math.max(rawStart, t.regionStartTick) : rawStart;
-            const regionEnd = typeof t.regionEndTick === 'number' ? Math.min(rawEnd, t.regionEndTick) : rawEnd;
-            const absStart = Math.max(0, (t.offsetTicks || 0) + Math.max(0, regionStart));
-            const absEnd = Math.max(absStart, (t.offsetTicks || 0) + Math.max(0, regionEnd));
-            const clipL = toX(absStart, Math.max(1, width));
-            const clipR = toX(absEnd, Math.max(1, width));
-            const intersects = !(clipR < x1 || clipL > x2);
-            if (intersects) selected.push(id);
+            if (t.type === 'midi') {
+                const cacheKey = t.midiSourceId ?? id;
+                const cache = midiCache[cacheKey];
+                const notes = cache?.notesRaw || [];
+                if (notes.length === 0) continue;
+                const rawStart = notes.reduce((m, n) => Math.min(m, n.startBeat != null ? Math.round(n.startBeat * ppq) : m), Number.POSITIVE_INFINITY);
+                const rawEnd = notes.reduce((m, n) => Math.max(m, n.endBeat != null ? Math.round(n.endBeat * ppq) : m), 0);
+                const regionStart = typeof t.regionStartTick === 'number' ? Math.max(rawStart, t.regionStartTick) : rawStart;
+                const regionEnd = typeof t.regionEndTick === 'number' ? Math.min(rawEnd, t.regionEndTick) : rawEnd;
+                const absStart = Math.max(0, (t.offsetTicks || 0) + Math.max(0, regionStart));
+                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + Math.max(0, regionEnd));
+                const clipL = toX(absStart, Math.max(1, width));
+                const clipR = toX(absEnd, Math.max(1, width));
+                const intersects = !(clipR < x1 || clipL > x2);
+                if (intersects) selected.push(id);
+            } else if (t.type === 'audio') {
+                const regionStart = t.regionStartTick ?? 0;
+                const regionEnd = t.regionEndTick ?? (useTimelineStore.getState().audioCache[id]?.durationTicks || 0);
+                const absStart = Math.max(0, (t.offsetTicks || 0) + regionStart);
+                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + regionEnd);
+                const clipL = toX(absStart, Math.max(1, width));
+                const clipR = toX(absEnd, Math.max(1, width));
+                const intersects = !(clipR < x1 || clipL > x2);
+                if (intersects) selected.push(id);
+            }
         }
         if (Math.abs(x2 - x1) < 3) {
             // Tiny drag: clear selection

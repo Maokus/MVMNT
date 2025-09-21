@@ -21,10 +21,15 @@ const ChangelogPage: React.FC = () => {
                     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
                         <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-                            <li>Audio track sync & export pipeline</li>
+                            <li>Video?</li>
+                            <li>Tracker style text elements</li>
                         </ul>
                     </section>
 
+                    <ChangelogEntry version="0.13.0" date="19-09-25" notes={[
+                        'Added audio track support: playback, export, mixing',
+                        'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
+                    ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
                         'Improved undo stack reliability and snapshot creation',
                         'fixed various minor ui/ux issues (scrolling disabled, unreliable ',

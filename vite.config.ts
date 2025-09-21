@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
     // Use a dynamic base so the app can be hosted under a sub-path in production
     // Production target path: https://maok.us/playbox/projects/mvmnt/
     // Local dev remains at root '/'
-    base: mode === 'production' ? '/playbox/projects/mvmnt/' : '/',
+    base: mode === 'production' ? '/playbox/projects/mvmnt/' : mode === 'beta' ? '/playbox/projects/mvmnt_beta/' : '/',
     optimizeDeps: {
         exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
     },

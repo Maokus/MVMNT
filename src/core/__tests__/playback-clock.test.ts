@@ -21,7 +21,7 @@ describe('PlaybackClock basic tempo handling', () => {
         const tm = new TimingManager();
         tm.setBPM(120); // 2 beats per second
         const clock = new PlaybackClock({ timingManager: tm, initialTick: 0 });
-        const ppq = tm.ticksPerQuarter; // default canonical PPQ (480)
+        const ppq = tm.ticksPerQuarter; // default canonical PPQ (960)
         // 500ms -> 1 beat at 120 BPM (0.5s * 2 beats/sec)
         const steps = [
             { dtMs: 500 }, // ~1 beat

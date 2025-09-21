@@ -69,42 +69,6 @@ export class MIDIVisualizerCore {
         this._playRangeEndSec = e;
         if (changed) this.invalidateRender();
     }
-    play(): boolean {
-        const hasGlobalEvents = this.events.length > 0;
-        const hasElementEvents = this.getCurrentDuration() > 0;
-        if (!hasGlobalEvents && !hasElementEvents) {
-            // Ensure any stale playing flag is cleared
-            this.isPlaying = false;
-            return false;
-        }
-        this.isPlaying = true;
-        const bufferTime = 0.5;
-        this.startTime = performance.now() - (this.currentTime - bufferTime) * 1000;
-        this.animate();
-        return true;
-    }
-    pause() {
-        this.isPlaying = false;
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-    }
-    stop() {
-        this.isPlaying = false;
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-        // Start slightly negative so first frame appears at 0
-        if (this._playRangeStartSec != null) {
-            this.currentTime = this._playRangeStartSec - 0.5;
-        } else {
-            this.currentTime = -0.5;
-        }
-        this.startTime = 0;
-        this.invalidateRender();
-    }
     seek(time: number) {
         const bufferTime = 0.5;
         // Prefer clamping to user-defined playback range if available

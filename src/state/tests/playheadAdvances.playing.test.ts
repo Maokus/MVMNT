@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { TimingManager } from '@core/timing';
 import { PlaybackClock } from '@core/playback-clock';
@@ -23,6 +24,6 @@ describe('Playhead advances while playing', () => {
         // Simulate 500ms (approx 1 beat -> ticksPerQuarter ticks)
         clock.update(500);
         const tickAfter = clock.currentTick;
-        expect(tickAfter).toBeGreaterThan(10); // some advancement (PPQ default 480 -> expect ~480)
+        expect(tickAfter).toBeGreaterThan(10); // some advancement (expect roughly CANONICAL_PPQ over one second at 120bpm)
     });
 });

@@ -20,7 +20,7 @@ import { useUndo } from '@context/UndoContext';
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
-    const { showProgressOverlay, progressData, closeProgress } = useVisualizer() as any;
+    const { showProgressOverlay, progressData, closeProgress, exportKind } = useVisualizer() as any;
     const sceneRefreshTrigger = 0;
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsVisible, setSidePanelsVisible] = useState(true);
@@ -89,7 +89,7 @@ const MidiVisualizerInner: React.FC = () => {
                 )}
             </SceneSelectionProvider>
             {showProgressOverlay && (
-                <ExportProgressOverlay progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
+                <ExportProgressOverlay kind={exportKind} progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
             )}
             {showOnboarding && <OnboardingOverlay onClose={() => setShowOnboarding(false)} />}
 

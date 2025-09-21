@@ -5,10 +5,10 @@
 import '@testing-library/jest-dom/vitest';
 import { setCanonicalPPQ } from '@core/timing/ppq';
 
-// Canonical PPQ for tests: defaults to 480. Override with TEST_CANONICAL_PPQ to validate tick/beat conversions at other resolutions (e.g. 960).
+// Canonical PPQ for tests: defaults to 960. Override with TEST_CANONICAL_PPQ to validate tick/beat conversions at other resolutions (e.g. 960).
 (() => {
     const envVal = (import.meta as any).env?.TEST_CANONICAL_PPQ ?? process.env.TEST_CANONICAL_PPQ;
-    const desired = envVal ? Number(envVal) : 480;
+    const desired = envVal ? Number(envVal) : 960;
     if (Number.isFinite(desired) && desired > 0) {
         setCanonicalPPQ(desired);
     }

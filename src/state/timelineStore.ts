@@ -2,11 +2,13 @@ import create, { type StateCreator } from 'zustand';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
+import type { AudioTrack, AudioCacheEntry } from './audioTypes';
 import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from './timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { getSecondsPerBeat } from '@core/timing/tempo-utils';
 import { TimingManager } from '@core/timing';
+import { parseMIDIFileToData } from '@core/midi/midi-library';
 
 // Local helpers to avoid importing selectors (prevent circular deps)
 function _secondsToBarsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
@@ -64,7 +66,7 @@ export type TimelineState = {
         beatsPerBar: number; // global meter (constant for now)
         playheadAuthority?: 'tick' | 'seconds' | 'clock' | 'user'; // last domain that authored the playhead
     };
-    tracks: Record<string, TimelineTrack>;
+    tracks: Record<string, TimelineTrack | AudioTrack>;
     tracksOrder: string[];
     transport: {
         state?: 'idle' | 'playing' | 'paused' | 'seeking';
@@ -86,11 +88,18 @@ export type TimelineState = {
         string,
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     >;
+    audioCache: Record<string, AudioCacheEntry>;
     // UI preferences
     rowHeight: number; // track row height in px
 
     // Actions
     addMidiTrack: (input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) => Promise<string>;
+    addAudioTrack: (input: {
+        name: string;
+        file?: File;
+        buffer?: AudioBuffer;
+        offsetTicks?: number;
+    }) => Promise<string>;
     removeTrack: (id: string) => void;
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
     setTrackOffsetTicks: (id: string, offsetTicks: number) => void;
@@ -98,6 +107,7 @@ export type TimelineState = {
     setTrackEnabled: (id: string, enabled: boolean) => void;
     setTrackMute: (id: string, mute: boolean) => void;
     setTrackSolo: (id: string, solo: boolean) => void;
+    setTrackGain: (id: string, gain: number) => void; // audio only
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
@@ -122,6 +132,7 @@ export type TimelineState = {
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) => void;
+    ingestAudioToCache: (id: string, buffer: AudioBuffer) => void;
     clearAllTracks: () => void;
 };
 
@@ -134,14 +145,22 @@ function makeId(prefix: string = 'trk'): string {
 function computeContentEndTick(state: TimelineState): number {
     let max = 0;
     for (const id of state.tracksOrder) {
-        const t = state.tracks[id];
-        if (!t || t.type !== 'midi' || !t.enabled) continue;
-        const cacheKey = t.midiSourceId ?? id;
-        const cache = state.midiCache[cacheKey];
-        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-        for (const n of cache.notesRaw) {
-            const endTick = n.endTick + t.offsetTicks;
-            if (endTick > max) max = endTick;
+        const t = state.tracks[id] as any;
+        if (!t || !t.enabled) continue;
+        if (t.type === 'midi') {
+            const cacheKey = t.midiSourceId ?? id;
+            const cache = state.midiCache[cacheKey];
+            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+            for (const n of cache.notesRaw) {
+                const endTick = n.endTick + t.offsetTicks;
+                if (endTick > max) max = endTick;
+            }
+        } else if (t.type === 'audio') {
+            const cacheKey = t.audioSourceId ?? id;
+            const acache = state.audioCache[cacheKey];
+            if (!acache) continue;
+            const clipEnd = (t.regionEndTick ?? acache.durationTicks) + t.offsetTicks;
+            if (clipEnd > max) max = clipEnd;
         }
     }
     return max;
@@ -150,14 +169,23 @@ function computeContentEndTick(state: TimelineState): number {
 function computeContentStartTick(state: TimelineState): number {
     let min = Infinity;
     for (const id of state.tracksOrder) {
-        const t = state.tracks[id];
-        if (!t || t.type !== 'midi' || !t.enabled) continue;
-        const cacheKey = t.midiSourceId ?? id;
-        const cache = state.midiCache[cacheKey];
-        if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
-        for (const n of cache.notesRaw) {
-            const startTick = n.startTick + t.offsetTicks;
-            if (startTick < min) min = startTick;
+        const t = state.tracks[id] as any;
+        if (!t || !t.enabled) continue;
+        if (t.type === 'midi') {
+            const cacheKey = t.midiSourceId ?? id;
+            const cache = state.midiCache[cacheKey];
+            if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+            for (const n of cache.notesRaw) {
+                const startTick = n.startTick + t.offsetTicks;
+                if (startTick < min) min = startTick;
+            }
+        } else if (t.type === 'audio') {
+            const cacheKey = t.audioSourceId ?? id;
+            const acache = state.audioCache[cacheKey];
+            if (!acache) continue;
+            const regionStart = t.regionStartTick ?? 0;
+            const clipStart = regionStart + t.offsetTicks;
+            if (clipStart < min) min = clipStart;
         }
     }
     if (!isFinite(min)) return 0;
@@ -186,9 +214,12 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     // Cap to at most 960 bars previously caused scaling issues with mixed PPQ values; instead cap to 200 bars (~content heuristic)
     const maxBars = 200;
     const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
+    // Apply initial auto range and mark as user-defined so it will not be re-auto-adjusted on subsequent track edits.
+    // This matches the desired UX: first import defines an implicit start/end that behaves like an explicit user choice.
     set((prev: TimelineState) => ({
         playbackRange: { startTick: start, endTick: clippedEnd + oneBarTicks },
         timelineView: { startTick: Math.max(0, start - oneBarTicks), endTick: clippedEnd + oneBarTicks * 2 },
+        playbackRangeUserDefined: true,
     }));
 }
 
@@ -217,6 +248,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
     tracks: {},
     tracksOrder: [],
+    audioCache: {},
     transport: {
         state: 'idle',
         isPlaying: false,
@@ -272,8 +304,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 autoAdjustSceneRangeIfNeeded(get, set);
             } catch {}
         } else if (input.file) {
-            // Lazy parse using existing midi-library
-            const { parseMIDIFileToData } = await import('@core/midi/midi-library');
             const midiData = await parseMIDIFileToData(input.file);
             const ingested = buildNotesFromMIDI(midiData);
             get().ingestMidiToCache(id, ingested);
@@ -289,16 +319,73 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         } catch {}
         return id;
     },
+    async addAudioTrack(input: { name: string; file?: File; buffer?: AudioBuffer; offsetTicks?: number }) {
+        const id = makeId('aud');
+        const initialOffsetTicks = input.offsetTicks ?? 0;
+        const track: AudioTrack = {
+            id,
+            name: input.name || 'Audio Track',
+            type: 'audio',
+            enabled: true,
+            mute: false,
+            solo: false,
+            offsetTicks: initialOffsetTicks,
+            gain: 1,
+        };
+        set((s: TimelineState) => ({
+            tracks: { ...s.tracks, [id]: track },
+            tracksOrder: [...s.tracksOrder, id],
+        }));
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+
+        const ensureBuffer = async () => {
+            if (input.buffer) {
+                get().ingestAudioToCache(id, input.buffer);
+                return;
+            }
+            if (input.file) {
+                try {
+                    // Lazy decode using web audio
+                    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    const arrayBuf = await input.file.arrayBuffer();
+                    const decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
+                    get().ingestAudioToCache(id, decoded);
+                } catch (err) {
+                    console.warn('Audio decode failed', err);
+                }
+            }
+        };
+        ensureBuffer().then(() => {
+            try {
+                autoAdjustSceneRangeIfNeeded(get, set);
+            } catch {}
+            try {
+                window.dispatchEvent(new CustomEvent('timeline-track-added', { detail: { trackId: id } }));
+            } catch {}
+        });
+        return id;
+    },
 
     removeTrack(id: string) {
         set((s: TimelineState) => {
             const { [id]: _, ...rest } = s.tracks;
+            // Remove associated audio cache if audio track
+            let newAudioCache = s.audioCache;
+            const t: any = s.tracks[id];
+            if (t && t.type === 'audio') {
+                const cacheKey = t.audioSourceId || id;
+                const { [cacheKey]: __, ...cacheRest } = s.audioCache;
+                newAudioCache = cacheRest;
+            }
             return {
                 tracks: rest,
                 tracksOrder: s.tracksOrder.filter((t: string) => t !== id),
                 selection: {
                     selectedTrackIds: s.selection.selectedTrackIds.filter((t: string) => t !== id),
                 },
+                audioCache: newAudioCache,
             };
         });
         try {
@@ -331,7 +418,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => {
             const prev = s.tracks[id];
             if (!prev) return { tracks: s.tracks } as TimelineState;
-            const next: TimelineTrack = { ...prev, offsetTicks };
+            const next = { ...prev, offsetTicks } as typeof prev;
             return { tracks: { ...s.tracks, [id]: next } } as TimelineState;
         });
         try {
@@ -354,6 +441,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     setTrackSolo(id: string, solo: boolean) {
         set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], solo } } }));
+    },
+    setTrackGain(id: string, gain: number) {
+        const g = Math.max(0, Math.min(2, gain));
+        set((s: TimelineState) => {
+            const prev: any = s.tracks[id];
+            if (!prev || prev.type !== 'audio') return { tracks: s.tracks } as TimelineState;
+            return { tracks: { ...s.tracks, [id]: { ...prev, gain: g } } } as TimelineState;
+        });
     },
 
     setMasterTempoMap(map?: TempoMapEntry[]) {
@@ -387,6 +482,24 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             }
             // If a tempo map is present we keep its segment BPMs; only fallback bpm changes effect conversions when map empty.
             // Seconds no longer stored on notes; real-time updates occur via selectors.
+            // Recompute audioCache durationTicks so displayed beat length and clip width scale with BPM.
+            // Original audioBuffer duration (in seconds) is constant; ticksPerSecond = (bpm * ppq)/60.
+            try {
+                const ppq = _tmSingleton.ticksPerQuarter;
+                const ticksPerSecond = (v * ppq) / 60;
+                const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
+                for (const [id, entry] of Object.entries(next.audioCache)) {
+                    if (!entry || !entry.audioBuffer) {
+                        updatedAudio[id] = entry as any;
+                        continue;
+                    }
+                    const newDurationTicks = Math.round(entry.audioBuffer.duration * ticksPerSecond);
+                    updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
+                }
+                next.audioCache = updatedAudio;
+            } catch {
+                /* noop */
+            }
             return next;
         });
     },
@@ -542,6 +655,54 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
+    ingestAudioToCache(id: string, buffer: AudioBuffer) {
+        // Compute duration in ticks using shared timing manager
+        try {
+            const ticksPerQuarter = _tmSingleton.ticksPerQuarter; // PPQ
+            // Derive BPM from store timeline globalBpm (since TimingManager may not expose ticksPerSecond directly)
+            const bpm = get().timeline.globalBpm || 120;
+            const ticksPerSecond = (bpm * ticksPerQuarter) / 60;
+            const durationTicks = Math.round(buffer.duration * ticksPerSecond);
+            set((s: TimelineState) => ({
+                audioCache: {
+                    ...s.audioCache,
+                    [id]: {
+                        audioBuffer: buffer,
+                        durationTicks,
+                        sampleRate: buffer.sampleRate,
+                        channels: buffer.numberOfChannels,
+                        peakData: undefined, // filled async
+                    },
+                },
+                tracks: {
+                    ...s.tracks,
+                    [id]: { ...(s.tracks[id] as any), audioSourceId: id },
+                },
+            }));
+            // Kick off async peak extraction (non-blocking)
+            (async () => {
+                try {
+                    const { extractPeaksAsync } = await import('@core/waveform/peak-extractor');
+                    const res = await extractPeaksAsync(buffer, { binSize: 1024, maxBins: 5000 });
+                    set((s: TimelineState) => {
+                        const existing = s.audioCache[id];
+                        if (!existing || existing.peakData) return { audioCache: s.audioCache } as TimelineState;
+                        return {
+                            audioCache: {
+                                ...s.audioCache,
+                                [id]: { ...existing, peakData: res.peaks },
+                            },
+                        } as TimelineState;
+                    });
+                } catch (err) {
+                    // Peak extraction failure is non-fatal.
+                    // console.debug('Peak extraction skipped', err);
+                }
+            })();
+        } catch (err) {
+            console.warn('Failed to ingest audio buffer', err);
+        }
+    },
 
     clearAllTracks() {
         set((s: TimelineState) => ({
@@ -549,6 +710,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             tracksOrder: [],
             selection: { selectedTrackIds: [] },
             midiCache: {},
+            audioCache: {},
         }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);

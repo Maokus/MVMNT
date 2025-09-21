@@ -6,6 +6,7 @@ import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';
 import ChangelogPage from '@pages/ChangelogPage';
 import HomePage from '@pages/HomePage';
+import { TransportStatusDev } from '@ui/dev/TransportStatusDev';
 
 export function App() {
 
@@ -45,6 +46,7 @@ export function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
       </Routes>
+      <TransportStatusDev />
     </div>
   );
 }
