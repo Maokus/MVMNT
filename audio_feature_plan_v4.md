@@ -328,6 +328,7 @@ interface AudioEngine {
 2. Waveform generation:
     - Downsample peak extraction (e.g., 512 or 1024 sample bins) in a Web Worker.
     - Store `peakData` in `audioCacheEntry`.
+    - Have the waveforms be displayed in the track lane for audio tracks
 3. Adaptive lookahead: Monitor scheduling underruns → increase window up to 400ms; reduce to 150ms for low-latency needs.
 4. Peak normalization (optional toggle): Scan mixed buffer; if >0dBFS, apply uniform scaling (not limiting) before export.
 5. Memory management: Release detached AudioBuffers from deleted tracks.

@@ -120,4 +120,55 @@ describe('Offline mixer & reproducibility hash', () => {
         const h2 = await computeReproHash({ ...input });
         expect(h1).toBe(h2);
     });
+
+    it('resamples 44.1k source to 48k target correctly', async () => {
+        const srcRate = 44100;
+        const dstRate = 48000;
+        const seconds = 0.5; // short for test
+        const ticksPerSecond = (960 * 120) / 60; // BPM=120, PPQ=960
+        const buffer = makeTestAudioBuffer(seconds, srcRate, 1, 7); // mono source
+        const durationTicks = Math.round(buffer.duration * ticksPerSecond);
+        const track = {
+            id: 'resample1',
+            type: 'audio',
+            enabled: true,
+            mute: false,
+            solo: false,
+            offsetTicks: 0,
+            gain: 1,
+        } as any;
+        const audioCache = {
+            resample1: { audioBuffer: buffer, durationTicks, sampleRate: srcRate, channels: 1 },
+        } as any;
+        const res = await offlineMix({
+            tracks: { resample1: track },
+            tracksOrder: ['resample1'],
+            audioCache,
+            startTick: 0,
+            endTick: durationTicks,
+            ticksPerSecond,
+            sampleRate: dstRate,
+            channels: 2, // request stereo (mono should duplicate)
+        });
+        // Expect output length ~ seconds * dstRate
+        expect(res.buffer.sampleRate).toBe(dstRate);
+        const expectedLength = Math.ceil(seconds * dstRate);
+        expect(Math.abs(res.buffer.length - expectedLength)).toBeLessThanOrEqual(1);
+        // Check last 10 samples not all zero (ensures we filled tail, interpolation used)
+        const ch0 = res.buffer.getChannelData(0);
+        let nonZeroTail = false;
+        for (let i = ch0.length - 10; i < ch0.length; i++) {
+            if (ch0[i] !== 0) {
+                nonZeroTail = true;
+                break;
+            }
+        }
+        expect(nonZeroTail).toBe(true);
+        // Stereo duplication check (channel 1 matches channel 0 within small epsilon)
+        const ch1 = res.buffer.getChannelData(1);
+        for (let i = 0; i < 100; i++) {
+            // spot check first 100 samples
+            expect(Math.abs(ch0[i] - ch1[i])).toBeLessThan(1e-7);
+        }
+    });
 });

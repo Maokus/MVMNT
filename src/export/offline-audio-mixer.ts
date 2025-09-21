@@ -102,24 +102,66 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         const gain = track.mute ? 0 : track.gain ?? 1;
         if (gain <= 0) continue;
 
-        // Copy & sum
-        const copyFrameCount = Math.min(frameCount - writeStartFrame, Math.floor(overlapSecs * sampleRate));
+        // Copy & sum with resampling when needed.
+        // Resampling Rationale:
+        //   Previously we assumed all source buffers shared the export sample rate. Mixing a 44.1 kHz source into a
+        //   48 kHz destination (or vice versa) without resampling produces pitch & tempo shifts (speed mismatch) in
+        //   the rendered export. Here we perform per-sample linear interpolation when source.sampleRate != target.
+        // Determinism:
+        //   Linear interpolation is pure arithmetic (no platform DSP kernels) so given identical inputs we get
+        //   identical floating point results across runs and (barring JS engine differences in IEEE 754 ops) across
+        //   browsers. This preserves reproducibility hashing expectations.
+        // Quality:
+        //   Linear is adequate for offline preview/export for now; future upgrades could introduce windowed sinc or
+        //   polyphase filters for improved HF retention. We isolate logic here so that upgrade is localized.
+        // Performance:
+        //   Complexity O(N * channels). Typical export durations (< several minutes) with modest track counts keep
+        //   this acceptable. Fast path retained for equal sample rates.
+        const targetSampleRate = sampleRate;
+        const sourceSampleRate = buffer.sampleRate;
+        const copyFrameCount = Math.min(frameCount - writeStartFrame, Math.floor(overlapSecs * targetSampleRate));
         if (copyFrameCount <= 0) continue;
+
+        const rateRatio = sourceSampleRate / targetSampleRate; // how many source frames per one target frame
 
         for (let ch = 0; ch < channels; ch++) {
             const dest = mixChannels[ch];
-            // pick source channel (if mono replicate; else clamp index)
             const srcChIndex = ch < srcChannels ? ch : 0;
             const srcData = buffer.getChannelData(srcChIndex);
-            let srcIndex = sourceStartFrame;
-            for (let i = 0; i < copyFrameCount; i++) {
-                const destIndex = writeStartFrame + i;
-                if (destIndex >= frameCount) break;
-                const sample = (srcData[srcIndex++] || 0) * gain; // safe even if srcIndex beyond length
-                const mixed = dest[destIndex] + sample; // no soft clip; linear sum
-                dest[destIndex] = mixed;
-                const absVal = Math.abs(mixed);
-                if (absVal > globalPeak) globalPeak = absVal;
+
+            if (sourceSampleRate === targetSampleRate) {
+                // Fast path: 1:1 copy (no interpolation)
+                let srcIndex = sourceStartFrame;
+                for (let i = 0; i < copyFrameCount; i++) {
+                    const destIndex = writeStartFrame + i;
+                    if (destIndex >= frameCount) break;
+                    const sample = (srcData[srcIndex++] || 0) * gain;
+                    const mixed = dest[destIndex] + sample;
+                    dest[destIndex] = mixed;
+                    const absVal = Math.abs(mixed);
+                    if (absVal > globalPeak) globalPeak = absVal;
+                }
+            } else {
+                // Resampling path: linear interpolation.
+                // sourceStartFrame is integer frame offset in source.
+                // For each destination frame k (0..copyFrameCount-1):
+                //   sourcePosition = sourceStartFrame + k * rateRatio
+                //   sample = lerp(floorPos, ceilPos)
+                for (let i = 0; i < copyFrameCount; i++) {
+                    const destIndex = writeStartFrame + i;
+                    if (destIndex >= frameCount) break;
+                    const sourcePos = sourceStartFrame + i * rateRatio;
+                    const idxA = Math.floor(sourcePos);
+                    const idxB = idxA + 1;
+                    const frac = sourcePos - idxA;
+                    const a = srcData[idxA] || 0;
+                    const b = srcData[idxB] || 0;
+                    const interp = (a + (b - a) * frac) * gain;
+                    const mixed = dest[destIndex] + interp;
+                    dest[destIndex] = mixed;
+                    const absVal = Math.abs(mixed);
+                    if (absVal > globalPeak) globalPeak = absVal;
+                }
             }
         }
     }
