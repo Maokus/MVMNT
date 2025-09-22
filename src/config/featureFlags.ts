@@ -55,3 +55,13 @@ export const sceneParitySampleRate = Math.min(1, Math.max(0, normalizeNumber(sam
 
 const telemetryRaw = env.VITE_SCENE_PARITY_TELEMETRY ?? env.SCENE_PARITY_TELEMETRY;
 export const enableSceneParityTelemetry = normalizeBoolean(telemetryRaw, true);
+
+export const flags = [
+    sceneStoreUiRaw,
+    sceneStoreMacrosRaw,
+    dualWriteRaw,
+    runtimeAdapterRaw,
+    parityModeRaw,
+    sampleRateRaw,
+    telemetryRaw,
+];

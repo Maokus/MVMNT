@@ -3,7 +3,7 @@ import { useVisualizer } from './VisualizerContext';
 import { HybridSceneBuilder } from '@core/scene-builder';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneElements, useSceneSelection as useSceneSelectionStore, dispatchSceneCommand } from '@state/scene';
-import { enableSceneStoreUI } from '../config/featureFlags';
+import { enableSceneStoreUI, flags } from '../config/featureFlags';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -121,6 +121,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
             }
             setSceneBuilder(builder);
             console.log('Scene builder initialized in SceneSelectionContext:', builder);
+            console.log(flags);
         } catch (e: any) {
             console.error('Error initializing scene builder:', e);
             setError('Failed to initialize scene builder: ' + (e instanceof Error ? e.message : String(e)));
