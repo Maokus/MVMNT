@@ -120,6 +120,7 @@ export interface SceneStoreActions {
     clearScene: () => void;
     importScene: (payload: SceneImportPayload) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
+    setInteractionState: (patch: Partial<SceneInteractionState>) => void;
 }
 
 export interface SceneStoreState extends SceneStoreActions {
@@ -185,6 +186,29 @@ function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBin
         });
     }
     return byMacro;
+}
+
+function normalizeSelection(state: SceneStoreState, ids: string[] | null | undefined): string[] {
+    if (!ids || ids.length === 0) return [];
+    const next: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of ids) {
+        if (typeof raw !== 'string') continue;
+        if (!state.elements[raw]) continue;
+        if (seen.has(raw)) continue;
+        next.push(raw);
+        seen.add(raw);
+    }
+    return next;
+}
+
+function selectionEquals(a: string[], b: string[]): boolean {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
 }
 
 function bindingEquals(a: BindingState, b: BindingState): boolean {
@@ -545,6 +569,60 @@ const createSceneStoreState = (
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
         };
+    },
+
+    setInteractionState: (patch) => {
+        set((state) => {
+            const next: SceneInteractionState = { ...state.interaction };
+
+            if ('selectedElementIds' in patch) {
+                const normalized = normalizeSelection(state, patch.selectedElementIds ?? []);
+                if (!selectionEquals(normalized, next.selectedElementIds)) {
+                    next.selectedElementIds = normalized;
+                }
+            }
+
+            if ('hoveredElementId' in patch) {
+                const hovered = patch.hoveredElementId ?? null;
+                const resolved = hovered && state.elements[hovered] ? hovered : null;
+                if (resolved !== next.hoveredElementId) {
+                    next.hoveredElementId = resolved;
+                }
+            }
+
+            if ('editingElementId' in patch) {
+                const editing = patch.editingElementId ?? null;
+                const resolved = editing && state.elements[editing] ? editing : null;
+                if (resolved !== next.editingElementId) {
+                    next.editingElementId = resolved;
+                }
+            }
+
+            if ('clipboard' in patch) {
+                const clipboard = patch.clipboard ?? null;
+                const shouldUpdate =
+                    (!clipboard && next.clipboard !== null) ||
+                    (clipboard && (!next.clipboard || clipboard !== next.clipboard));
+                if (shouldUpdate) {
+                    next.clipboard = clipboard;
+                }
+            }
+
+            if (
+                next === state.interaction ||
+                (selectionEquals(next.selectedElementIds, state.interaction.selectedElementIds) &&
+                    next.hoveredElementId === state.interaction.hoveredElementId &&
+                    next.editingElementId === state.interaction.editingElementId &&
+                    next.clipboard === state.interaction.clipboard)
+            ) {
+                return state;
+            }
+
+            return {
+                ...state,
+                interaction: next,
+            };
+        });
     },
 });
 

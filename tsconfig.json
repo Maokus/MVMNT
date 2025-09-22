@@ -53,6 +53,9 @@
       "@workspace/*": [
         "workspace/*"
       ],
+      "@config/*": [
+        "config/*"
+      ],
       "@state/*": [
         "state/*"
       ],

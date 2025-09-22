@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { HybridSceneBuilder } from '@core/scene-builder';
+import { useSceneStore } from '@state/sceneStore';
+import { useSceneElements, useSceneSelection } from '@state/scene';
+import { enableSceneStoreUI } from '../config/featureFlags';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -40,11 +43,21 @@ interface SceneSelectionProviderProps {
 
 export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneSelectionProviderProps) {
     const { visualizer } = useVisualizer() as any;
-    const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+    const [legacySelectedElementId, setLegacySelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
+
+    const storeSelection = useSceneSelection();
+    const storeElements = useSceneElements();
+    const selectedElementId = enableSceneStoreUI ? storeSelection.primaryId : legacySelectedElementId;
+
+    useEffect(() => {
+        if (!enableSceneStoreUI) return;
+        const normalized = storeSelection.primaryId ?? null;
+        setLegacySelectedElementId(prev => (prev === normalized ? prev : normalized));
+    }, [storeSelection.primaryId]);
 
     // New state moved from useSceneElementPanel
     const [elements, setElements] = useState<any[]>([]);
@@ -69,6 +82,15 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
     const refreshElements = useCallback(() => {
         if (!sceneBuilder) return;
         try {
+            if (enableSceneStoreUI && storeElements.length > 0) {
+                const ordered = storeElements
+                    .map((entry) => sceneBuilder.getElement(entry.id))
+                    .filter((el): el is any => Boolean(el));
+                setElements(ordered);
+                setError(null);
+                return;
+            }
+
             const elementsList = sceneBuilder.elements || [];
             const sortedForDisplay = [...elementsList].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
             setElements(sortedForDisplay);
@@ -77,7 +99,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
             console.error('Error refreshing elements:', e);
             setError('Failed to refresh elements: ' + (e instanceof Error ? e.message : String(e)));
         }
-    }, [sceneBuilder]);
+    }, [sceneBuilder, storeElements]);
 
     // Initialize scene builder (moved from hook)
     useEffect(() => {
@@ -113,19 +135,33 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
     // (Moved below selectElement definition to avoid temporal dead zone)
 
     const selectElement = useCallback((elementId: string | null) => {
-        setSelectedElementId(elementId);
-        if (elementId && sceneBuilder) {
-            const element = sceneBuilder.getElement(elementId);
+        const normalized = elementId ?? null;
+        setLegacySelectedElementId(normalized);
+        if (enableSceneStoreUI) {
+            useSceneStore.getState().setInteractionState({ selectedElementIds: normalized ? [normalized] : [] });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!sceneBuilder) {
+            setSelectedElement(null);
+            setSelectedElementSchema(null);
+            updatePropertiesHeader(null);
+            return;
+        }
+
+        if (selectedElementId) {
+            const element = sceneBuilder.getElement(selectedElementId);
             const schema = sceneBuilder.sceneElementRegistry?.getSchema(element?.type);
-            setSelectedElement(element);
-            setSelectedElementSchema(schema);
-            updatePropertiesHeader(element);
+            setSelectedElement(element ?? null);
+            setSelectedElementSchema(schema ?? null);
+            updatePropertiesHeader(element ?? null);
         } else {
             setSelectedElement(null);
             setSelectedElementSchema(null);
             updatePropertiesHeader(null);
         }
-    }, [sceneBuilder, updatePropertiesHeader]);
+    }, [sceneBuilder, selectedElementId, updatePropertiesHeader]);
 
     // Listen for external scene-refresh events (e.g., load/save/clear/new scene actions)
     useEffect(() => {
@@ -336,7 +372,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
         }
         const success = sceneBuilder.updateElementId?.(oldId, newId);
         if (success) {
-            if (selectedElementId === oldId) setSelectedElementId(newId);
+            if (selectedElementId === oldId) selectElement(newId);
             refreshElements();
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             return true;
@@ -344,7 +380,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
             alert('Failed to update element ID. Please try again.');
             return false;
         }
-    }, [sceneBuilder, refreshElements, visualizer, selectedElementId]);
+    }, [sceneBuilder, refreshElements, visualizer, selectedElementId, selectElement]);
 
     // Scene Builder integration log (existing effect kept minimal)
     useEffect(() => {

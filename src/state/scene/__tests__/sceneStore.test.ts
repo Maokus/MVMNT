@@ -84,5 +84,36 @@ describe('sceneStore', () => {
         const macroAfter = selectors.selectMacroAssignments(store.getState());
         expect(macroAfter).toBe(macroInitial);
     });
-});
 
+    it('updates interaction state with normalized selection and guards missing elements', () => {
+        importFixture();
+
+        store.getState().setInteractionState({
+            selectedElementIds: ['title', 'missing', 'title', 'background'],
+        });
+
+        expect(store.getState().interaction.selectedElementIds).toEqual(['title', 'background']);
+
+        store.getState().setInteractionState({ hoveredElementId: 'background' });
+        expect(store.getState().interaction.hoveredElementId).toBe('background');
+
+        store.getState().setInteractionState({ hoveredElementId: 'does-not-exist' });
+        expect(store.getState().interaction.hoveredElementId).toBeNull();
+
+        store.getState().setInteractionState({ editingElementId: 'background' });
+        expect(store.getState().interaction.editingElementId).toBe('background');
+
+        store.getState().setInteractionState({ editingElementId: 'missing' });
+        expect(store.getState().interaction.editingElementId).toBeNull();
+    });
+
+    it('updates and clears clipboard interaction state', () => {
+        const payload = { exportedAt: 123, elementIds: ['foo'] } as const;
+        store.getState().setInteractionState({ clipboard: payload });
+
+        expect(store.getState().interaction.clipboard).toEqual(payload);
+
+        store.getState().setInteractionState({ clipboard: null });
+        expect(store.getState().interaction.clipboard).toBeNull();
+    });
+});
