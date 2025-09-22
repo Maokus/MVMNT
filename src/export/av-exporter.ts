@@ -272,9 +272,9 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    // Prefer mp3 by default now (UI default). 'auto' attempts mp3 → aac → opus.
-                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'mp3';
-                    const preferOrder = ['mp3', 'aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
+                    // Prefer aac by default now (UI default). 'auto' attempts aac → opus.
+                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'aac';
+                    const preferOrder = ['aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
                     const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
                     console.log('[AVExporter] Audio codec', resolvedAudioCodec, 'supported=', supportedPreferred);
                     if (!supportedPreferred) {

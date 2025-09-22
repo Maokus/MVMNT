@@ -102,7 +102,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         endTime: 0,
         includeAudio: true,
         videoCodec: 'h264',
-        audioCodec: 'mp3',
+        audioCodec: 'aac',
         videoBitrateMode: 'auto',
         audioSampleRate: 'auto',
         audioChannels: 2,

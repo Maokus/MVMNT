@@ -29,7 +29,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [videoBitrate, setVideoBitrate] = useState<number>(exportSettings.videoBitrate || 0);
     const [autoBitrateEstimate, setAutoBitrateEstimate] = useState<number | null>(null);
     // Audio advanced
-    const [audioCodec, setAudioCodec] = useState<string>(exportSettings.audioCodec || 'mp3'); // default to mp3
+    const [audioCodec, setAudioCodec] = useState<string>(exportSettings.audioCodec || 'aac'); // default to aac
     const [audioBitrate, setAudioBitrate] = useState<number>(exportSettings.audioBitrate || 192000);
     const [audioSampleRate, setAudioSampleRate] = useState<'auto' | 44100 | 48000>(exportSettings.audioSampleRate || 'auto');
     const [audioChannels, setAudioChannels] = useState<1 | 2>(exportSettings.audioChannels || 2);
@@ -240,11 +240,10 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <>
                                     <label className="flex flex-col gap-1">Audio Codec
                                         <select disabled={!capLoaded} value={audioCodec} onChange={e => setAudioCodec(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                            <option value="mp3">mp3 (Default)</option>
+                                            <option value="aac">AAC (Default)</option>
                                             <option value="auto">Auto</option>
                                             {audioCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
-                                        <span className="text-[10px] opacity-60">Auto prefers mp3 → aac → opus.</span>
                                     </label>
                                     <label className="flex flex-col gap-1">Audio Bitrate
                                         <input type="number" min={64000} max={512000} step={16000} value={audioBitrate} onChange={e => setAudioBitrate(Number(e.target.value) || 0)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm" />
