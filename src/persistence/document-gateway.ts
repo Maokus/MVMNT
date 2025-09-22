@@ -68,27 +68,6 @@ export const DocumentGateway = {
             }
         } catch {}
 
-        if (!elements.length) {
-            const sb = _getSceneBuilder();
-            if (sb && typeof sb.serializeScene === 'function') {
-                try {
-                    const serialized = sb.serializeScene();
-                    if (serialized?.elements) elements = serialized.elements.map((e: any) => ({ ...e }));
-                    if (serialized?.sceneSettings) {
-                        sceneSettings = { ...serialized.sceneSettings };
-                    }
-                    if (serialized?.macros) {
-                        macros = { ...serialized.macros };
-                    }
-                } catch {}
-            }
-            if (!macros) {
-                try {
-                    macros = globalMacroManager.exportMacros();
-                } catch {}
-            }
-        }
-
         if (sceneSettings) {
             for (const k of Object.keys(sceneSettings)) {
                 if (STRIP_SCENE_SETTINGS_KEYS.has(k)) delete sceneSettings[k];
@@ -155,19 +134,27 @@ export const DocumentGateway = {
         }
 
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
+        const sceneData = {
+            elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
+            sceneSettings: doc.scene?.sceneSettings,
+            macros: doc.scene?.macros,
+        };
+
         try {
-            if (doc.scene?.macros) {
-                try {
-                    globalMacroManager.importMacros(doc.scene.macros);
-                } catch {}
+            useSceneStore.getState().importScene(sceneData);
+        } catch {}
+
+        try {
+            if (sceneData.macros && sceneData.macros.macros) {
+                globalMacroManager.importMacros(sceneData.macros);
+            } else {
+                globalMacroManager.clearMacros();
             }
+        } catch {}
+
+        try {
             const sb = _getSceneBuilder();
             if (sb) {
-                const sceneData = {
-                    elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
-                    sceneSettings: doc.scene?.sceneSettings,
-                    macros: doc.scene?.macros,
-                };
                 if (sceneData.sceneSettings) {
                     try {
                         const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
@@ -183,12 +170,6 @@ export const DocumentGateway = {
                     }
                 }
                 dispatchSceneCommand(sb, { type: 'loadSerializedScene', payload: sceneData }, { source: 'DocumentGateway.apply' });
-            } else {
-                useSceneStore.getState().importScene({
-                    elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
-                    sceneSettings: doc.scene?.sceneSettings,
-                    macros: doc.scene?.macros,
-                });
             }
         } catch {}
 

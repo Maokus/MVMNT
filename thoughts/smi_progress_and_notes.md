@@ -41,3 +41,9 @@ Use this document to add progress and notes on the store migration implementatio
 - Undo instrumentation now wraps macro manager methods; regression added in `scene-middleware.integration.test.ts` to confirm snapshots capture macro and timeline state.
 - Randomized fuzz test `macroIndex.fuzz.test.ts` exercises bindings/macro churn and asserts inverse index correctness.
 - Manual reminder: enable `VITE_ENABLE_SCENE_STORE_MACROS` to exercise the store-backed macro UI; legacy path remains for safety toggles.
+
+## 2025-09-24 – Phase 6 persistence & templates
+- DocumentGateway now serializes exclusively from the scene store and hydrates it before optionally syncing the legacy builder; macros are restored even when no builder is present.
+- Scene templates emit pure data payloads, hydrate the store via `importScene`, and then reuse the command gateway for builder compatibility.
+- Regression coverage added for store-only hydration, legacy padding normalization, and template-driven exports (`npm test -- --run src/persistence/__tests__/persistence.phase0.scene-regression.test.ts`).
+- Follow-up: extend CLI smoke to cover template payload export once timeline normalization scripts land.
