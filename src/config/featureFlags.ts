@@ -21,11 +21,11 @@ function normalizeNumber(raw: unknown, fallback: number): number {
     return fallback;
 }
 
-const sceneStoreUiRaw = env.VITE_ENABLE_SCENE_STORE_UI ?? env.VITE_SCENE_STORE_UI ?? env.SCENE_STORE_UI;
+const sceneStoreUiRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_UI ?? env.VITE_SCENE_STORE_UI ?? env.SCENE_STORE_UI;
 
 export const enableSceneStoreUI = normalizeBoolean(sceneStoreUiRaw, false);
 
-const dualWriteRaw = env.VITE_ENABLE_SCENE_STORE_DUAL_WRITE ?? env.SCENE_STORE_DUAL_WRITE;
+const dualWriteRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_DUAL_WRITE ?? env.SCENE_STORE_DUAL_WRITE;
 export const enableSceneStoreDualWrite = normalizeBoolean(dualWriteRaw, true);
 
 export type SceneParityMode = 'strict' | 'monitor' | 'off';
@@ -35,7 +35,7 @@ function normalizeParityMode(raw: unknown): SceneParityMode {
         const value = raw.trim().toLowerCase();
         if (value === 'strict' || value === 'monitor' || value === 'off') return value;
     }
-    return (env?.DEV ? 'strict' : 'monitor');
+    return env?.DEV ? 'strict' : 'monitor';
 }
 
 const parityModeRaw = env.VITE_SCENE_PARITY_MODE ?? env.SCENE_PARITY_MODE;
