@@ -1,0 +1,88 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import { createSceneStore } from '@state/sceneStore';
+import { createSceneSelectors } from '@state/scene/selectors';
+
+type Store = ReturnType<typeof createSceneStore>;
+
+describe('sceneStore', () => {
+    let store: Store;
+
+    beforeEach(() => {
+        store = createSceneStore();
+    });
+
+    const importFixture = () => {
+        store.getState().importScene(fixture as any);
+    };
+
+    it('round-trips import/export for the phase 0 regression fixture', () => {
+        importFixture();
+        const exported = store.getState().exportSceneDraft();
+
+        expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
+        expect(exported.elements).toEqual(fixture.elements);
+        expect(exported.macros).toEqual(fixture.macros);
+    });
+
+    it('maintains macro assignment index when bindings change', () => {
+        importFixture();
+
+        expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
+            { elementId: 'title', propertyPath: 'color' },
+        ]);
+
+        store.getState().updateBindings('title', { color: { type: 'constant', value: '#ffffff' } });
+
+        expect(store.getState().bindings.byMacro['macro.color.primary']).toBeUndefined();
+
+        store.getState().updateBindings('title', { color: { type: 'macro', macroId: 'macro.color.primary' } });
+
+        expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
+            { elementId: 'title', propertyPath: 'color' },
+        ]);
+    });
+
+    it('duplicates elements with bindings and updates order', () => {
+        importFixture();
+
+        store.getState().duplicateElement('title', 'titleCopy');
+
+        const state = store.getState();
+        expect(state.order).toEqual(['title', 'titleCopy', 'background']);
+        expect(state.bindings.byMacro['macro.color.primary']).toEqual([
+            { elementId: 'title', propertyPath: 'color' },
+            { elementId: 'titleCopy', propertyPath: 'color' },
+        ]);
+    });
+
+    it('moves elements without mutating memoized selectors', () => {
+        importFixture();
+        const selectors = createSceneSelectors();
+
+        const beforeMove = selectors.selectOrderedElements(store.getState());
+        store.getState().moveElement('background', 0);
+        const afterMove = selectors.selectOrderedElements(store.getState());
+
+        expect(store.getState().order[0]).toBe('background');
+        expect(afterMove).not.toBe(beforeMove);
+        expect(afterMove[0].id).toBe('background');
+    });
+
+    it('keeps memoized selector references stable for unrelated updates', () => {
+        importFixture();
+        const selectors = createSceneSelectors();
+
+        const initial = selectors.selectOrderedElements(store.getState());
+        store.getState().updateSettings({ width: 2048 });
+        const afterSettings = selectors.selectOrderedElements(store.getState());
+
+        expect(afterSettings).toBe(initial);
+
+        const macroInitial = selectors.selectMacroAssignments(store.getState());
+        store.getState().updateSettings({ height: 1024 });
+        const macroAfter = selectors.selectMacroAssignments(store.getState());
+        expect(macroAfter).toBe(macroInitial);
+    });
+});
+

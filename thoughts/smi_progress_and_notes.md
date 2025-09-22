@@ -7,3 +7,10 @@ Use this document to add progress and notes on the store migration implementatio
 - Prototyped undo middleware reuse: instrumentation wraps builder mutations and undo/redo round-trips cleanly.
 - Mutation audit written (`docs/store-migration/phase0-builder-mutation-audit.md`) enumerating all direct builder writes.
 - Follow-ups: extend undo instrumentation for `updateElementId` and template resets; start plumbing command gateway for SceneSelection + menu flows.
+
+## 2025-02-21 – Phase 1 scaffolding in place
+- Implemented normalized `sceneStore` with actions for add/move/duplicate/remove, binding updates, and import/export parity (`src/state/sceneStore.ts`).
+- Added memoized selectors (`createSceneSelectors`) covering ordered elements and macro inverse index (`src/state/scene/selectors.ts`).
+- Documented architecture and slice responsibilities in `docs/architecture/scene-store.md`.
+- Tests: `npm test -- --run src/state/scene/__tests__/sceneStore.test.ts`.
+- Next: wire command gateway dual-write in Phase 2 and start replacing UI reads with selectors once command layer lands.
