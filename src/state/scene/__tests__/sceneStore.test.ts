@@ -132,4 +132,14 @@ describe('sceneStore', () => {
         expect(state.bindings.byMacro['macro.color.primary']).toBeUndefined();
         expect(state.bindings.byElement['title'].color).toEqual({ type: 'constant', value: '#ff3366' });
     });
+
+    it('keeps macro exportedAt stable across draft exports without mutations', () => {
+        store.getState().createMacro('macro.stability', { type: 'number', value: 1 });
+
+        const firstExport = store.getState().exportSceneDraft();
+        const secondExport = store.getState().exportSceneDraft();
+
+        expect(firstExport.macros?.exportedAt).toBeDefined();
+        expect(secondExport.macros?.exportedAt).toBe(firstExport.macros?.exportedAt);
+    });
 });

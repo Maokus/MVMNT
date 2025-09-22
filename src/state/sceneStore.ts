@@ -296,7 +296,9 @@ function buildMacroState(payload?: SceneSerializedMacros | null): SceneMacroStat
             options: cloneMacroOptions(macro?.options),
         };
     }
-    return { byId, allIds: macroIds, exportedAt: payload.exportedAt };
+    const hasMacros = macroIds.length > 0;
+    const exportedAt = hasMacros ? (typeof payload.exportedAt === 'number' ? payload.exportedAt : Date.now()) : undefined;
+    return { byId, allIds: macroIds, exportedAt };
 }
 
 function buildMacroPayload(state: SceneMacroState): SceneSerializedMacros | undefined {
@@ -306,10 +308,9 @@ function buildMacroPayload(state: SceneMacroState): SceneSerializedMacros | unde
         const macro = state.byId[id];
         if (macro) macros[id] = { ...macro };
     }
-    return {
-        macros,
-        exportedAt: state.exportedAt ?? Date.now(),
-    };
+    const payload: SceneSerializedMacros = { macros };
+    if (typeof state.exportedAt === 'number') payload.exportedAt = state.exportedAt;
+    return payload;
 }
 
 function cloneMacroOptions(source?: Macro['options']): Macro['options'] {
@@ -634,7 +635,7 @@ const createSceneStoreState = (
                 macros: {
                     byId: nextById,
                     allIds: nextAllIds,
-                    exportedAt: state.macros.exportedAt,
+                    exportedAt: now,
                 },
                 runtimeMeta: markDirty(state, 'updateMacros'),
             };
@@ -650,18 +651,20 @@ const createSceneStoreState = (
             }
             if (Object.is(macro.value, value)) return state;
 
+            const now = Date.now();
             const nextMacro: Macro = {
                 ...macro,
                 value,
-                lastModified: Date.now(),
+                lastModified: now,
             };
+            const nextExportedAt = typeof state.macros.exportedAt === 'number' ? state.macros.exportedAt : now;
 
             return {
                 ...state,
                 macros: {
                     byId: { ...state.macros.byId, [macroId]: nextMacro },
                     allIds: [...state.macros.allIds],
-                    exportedAt: state.macros.exportedAt,
+                    exportedAt: nextExportedAt,
                 },
                 runtimeMeta: markDirty(state, 'updateMacros'),
             };
@@ -703,6 +706,12 @@ const createSceneStoreState = (
 
             const { [macroId]: _removed, ...remainingMacros } = state.macros.byId;
             const nextAllIds = state.macros.allIds.filter((id) => id !== macroId);
+            const hasRemaining = nextAllIds.length > 0;
+            const nextExportedAt = hasRemaining
+                ? typeof state.macros.exportedAt === 'number'
+                    ? state.macros.exportedAt
+                    : Date.now()
+                : undefined;
 
             return {
                 ...state,
@@ -710,7 +719,7 @@ const createSceneStoreState = (
                 macros: {
                     byId: remainingMacros,
                     allIds: nextAllIds,
-                    exportedAt: state.macros.exportedAt,
+                    exportedAt: nextExportedAt,
                 },
                 runtimeMeta: markDirty(state, 'updateMacros'),
             };

@@ -1,0 +1,123 @@
+[scene parity] mismatch scene payload mismatch 
+Object { command: {…}, mismatch: {…} }
+​
+command: Object { type: "updateMacroValue", macroId: "asd", value: 2 }
+​​
+macroId: "asd"
+​​
+type: "updateMacroValue"
+​​
+value: 2
+​​
+<prototype>: Object { … }
+​
+mismatch: Object { mode: "strict", command: {…}, diffSummary: "scene payload mismatch", … }
+​​
+builderSnapshot: Object { version: "0.13.0", serializedAt: "2025-09-22T14:19:35.750Z", bindingSystemVersion: "1.1.0", … }
+​​​
+bindingSystemVersion: "1.1.0"
+​​​
+elements: Array [ {…} ]
+​​​​
+0: Object { id: "textOverlay_1758550762709", type: "textOverlay", visible: {…}, … }
+​​​​​
+anchorX: Object { type: "constant", value: 0.5 }
+​​​​​
+anchorY: Object { type: "constant", value: 0.5 }
+​​​​​
+color: Object { type: "constant", value: "#ffffff" }
+​​​​​
+elementOpacity: Object { type: "constant", value: 1 }
+​​​​​
+elementRotation: Object { type: "constant", value: 0 }
+​​​​​
+elementScaleX: Object { type: "constant", value: 1 }
+​​​​​
+elementScaleY: Object { type: "constant", value: 1 }
+​​​​​
+elementSkewX: Object { type: "constant", value: 0 }
+​​​​​
+elementSkewY: Object { type: "constant", value: 0 }
+​​​​​
+fontFamily: Object { type: "constant", value: "Inter" }
+​​​​​
+fontSize: Object { type: "constant", value: 36 }
+​​​​​
+id: "textOverlay_1758550762709"
+​​​​​
+index: 0
+​​​​​
+offsetX: Object { type: "macro", macroId: "asd" }
+​​​​​
+offsetY: Object { type: "constant", value: 0 }
+​​​​​
+text: Object { type: "constant", value: "Sample Text" }
+​​​​​
+type: "textOverlay"
+​​​​​
+visible: Object { type: "constant", value: true }
+​​​​​
+zIndex: Object { type: "constant", value: 0 }
+​​​​​
+<prototype>: Object { … }
+​​​​
+length: 1
+​​​​
+<prototype>: Array []
+​​​
+macros: Object { macros: {…}, exportedAt: 1758550775750 }
+​​​​
+exportedAt: 1758550775750
+​​​​
+macros: Object { asd: {…} }
+​​​​​
+asd: Object { name: "asd", type: "number", value: 2, … }
+​​​​​​
+createdAt: 1758550769192
+​​​​​​
+defaultValue: 20
+​​​​​​
+lastModified: 1758550775750
+​​​​​​
+name: "asd"
+​​​​​​
+options: Object {  }
+​​​​​​​
+<prototype>: Object { … }
+​​​​​​
+type: "number"
+​​​​​​
+value: 2
+​​​​​​
+<prototype>: Object { … }
+​​​​​
+<prototype>: Object { … }
+​​​​
+<prototype>: Object { … }
+​​​
+sceneSettings: Object { fps: 60, width: 1500, height: 1500, … }
+​​​
+serializedAt: "2025-09-22T14:19:35.750Z"
+​​​
+timeline: undefined
+​​​
+version: "0.13.0"
+​​​
+<prototype>: Object { … }
+​​
+command: Object { type: "updateMacroValue", macroId: "asd", value: 2 }
+​​
+debug: Object { scene: {…}, assignments: (1) […], registry: {…}, … }
+​​
+diffSummary: "scene payload mismatch"
+​​
+mode: "strict"
+​​
+storeSnapshot: Object { elements: (1) […], sceneSettings: {…}, macros: {…} }
+​​
+<prototype>: Object { … }
+​
+<prototype>: Object { … }
+ Stack: 
+    input unknown:0
+<anonymous code>:1:147461
