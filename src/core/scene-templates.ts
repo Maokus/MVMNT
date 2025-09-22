@@ -19,6 +19,7 @@ import {
 import { globalMacroManager } from '@bindings/macro-manager';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { useTimelineStore } from '@state/timelineStore';
+import { synchronizeSceneStoreFromBuilder } from '@state/scene';
 
 // Helper to (re)create default macros (mirrors private builder logic)
 function createDefaultMacros() {
@@ -275,6 +276,7 @@ export function resetToDefaultScene(visualizer: any) {
     try {
         useTimelineStore.getState().clearAllTracks();
     } catch {}
+    synchronizeSceneStoreFromBuilder(builder, { source: 'scene-templates.resetToDefaultScene' });
     const settings = builder.getSceneSettings();
     try {
         visualizer.canvas?.dispatchEvent(

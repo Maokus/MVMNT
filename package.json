@@ -40,7 +40,8 @@
         "preview": "vite preview",
         "test": "vitest",
         "test:watch": "vitest --watch",
-        "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --"
+        "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
+        "lint:scene": "node scripts/check-scene-builder-usage.mjs"
     },
     "browserslist": {
         "production": [

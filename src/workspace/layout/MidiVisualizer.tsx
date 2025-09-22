@@ -15,6 +15,7 @@ import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
 import { importScene } from '@persistence/index';
 import { createDefaultMIDIScene, createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
+import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
@@ -152,21 +153,25 @@ const TemplateInitializer: React.FC = () => {
                 }
             } else if (state.template) {
                 const tpl = state.template as string;
-                sceneBuilder.clearElements();
+                dispatchSceneCommand(sceneBuilder, { type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
                 switch (tpl) {
                     case 'blank':
-                        sceneBuilder.resetSceneSettings?.();
+                        // Clear scene already resets settings; nothing else required.
                         break;
                     case 'default':
                         createDefaultMIDIScene(sceneBuilder);
                         break;
                     case 'debug':
-                        try { createAllElementsDebugScene(sceneBuilder); }
-                        catch { createDebugScene(sceneBuilder); }
+                        try {
+                            createAllElementsDebugScene(sceneBuilder);
+                        } catch {
+                            createDebugScene(sceneBuilder);
+                        }
                         break;
                     default:
                         createDefaultMIDIScene(sceneBuilder);
                 }
+                synchronizeSceneStoreFromBuilder(sceneBuilder, { source: 'TemplateInitializer.template-sync' });
                 refreshSceneUI();
                 didChange = true;
             }

@@ -21,3 +21,9 @@ Use this document to add progress and notes on the store migration implementatio
 - Feature-flagged SceneSelectionContext now hydrates from the store when `VITE_ENABLE_SCENE_STORE_UI` is on while keeping builder parity for legacy mode.
 - Layer panel (`SceneElementPanel`) now reads elements/selection via selectors (`useSceneElements`, `useSceneSelection`) and falls back to context data when the flag is off.
 - Feature flag helper lives at `src/config/featureFlags.ts`; enable with `VITE_ENABLE_SCENE_STORE_UI=true` during local runs to exercise the store-backed flow.
+
+## 2025-02-23 – Phase 2 dual-write gateway
+- Implemented `dispatchSceneCommand` + `synchronizeSceneStoreFromBuilder` (`src/state/scene/commandGateway.ts`) to route builder mutations through the store with parity assertions + telemetry.
+- Updated store actions (`sceneStore.ts`) for element renames/macros, aligned `clearScene`, and wired SceneSelectionContext/MenuBar/VisualizerCore/DocumentGateway through the gateway.
+- Added parity feature flags, undo instrumentation for `updateElementId`/template resets, and tests covering the command gateway (`commandGateway.test.ts`).
+- New script `npm run lint:scene` enforces no direct `sceneBuilder` mutations outside sanctioned modules.

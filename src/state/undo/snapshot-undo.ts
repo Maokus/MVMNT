@@ -299,8 +299,11 @@ export function instrumentSceneBuilderForUndo(sb: any) {
         'moveElement',
         'duplicateElement',
         'clearElements',
+        'clearScene',
         'loadScene',
         'updateSceneSettings',
+        'updateElementId',
+        'resetSceneSettings',
     ].forEach((m) => wrap(sb, m));
     sb.__mvmntUndoInstrumented = true;
 }

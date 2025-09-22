@@ -1,6 +1,8 @@
 import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
+import { useSceneStore } from '@state/sceneStore';
+import { dispatchSceneCommand } from '@state/scene';
 
 // Lightweight runtime discovery of scene builder without creating an import cycle.
 function _getSceneBuilder(): any | null {
@@ -51,24 +53,47 @@ export const DocumentGateway = {
         // Scene + macros (best effort)
         let elements: any[] = [];
         let sceneSettings: any = undefined;
-        const sb = _getSceneBuilder();
-        if (sb && typeof sb.serializeScene === 'function') {
-            try {
-                const serialized = sb.serializeScene();
-                if (serialized?.elements) elements = serialized.elements.map((e: any) => ({ ...e }));
-                if (serialized?.sceneSettings) {
-                    sceneSettings = { ...serialized.sceneSettings };
-                    // Remove padding keys
-                    for (const k of Object.keys(sceneSettings)) {
-                        if (STRIP_SCENE_SETTINGS_KEYS.has(k)) delete sceneSettings[k];
-                    }
-                }
-            } catch {}
-        }
         let macros: any = undefined;
+
         try {
-            macros = globalMacroManager.exportMacros();
+            const snapshot = useSceneStore.getState().exportSceneDraft();
+            if (Array.isArray(snapshot.elements)) {
+                elements = snapshot.elements.map((el: any) => ({ ...el }));
+            }
+            if (snapshot.sceneSettings) {
+                sceneSettings = { ...snapshot.sceneSettings };
+            }
+            if (snapshot.macros) {
+                macros = { ...snapshot.macros };
+            }
         } catch {}
+
+        if (!elements.length) {
+            const sb = _getSceneBuilder();
+            if (sb && typeof sb.serializeScene === 'function') {
+                try {
+                    const serialized = sb.serializeScene();
+                    if (serialized?.elements) elements = serialized.elements.map((e: any) => ({ ...e }));
+                    if (serialized?.sceneSettings) {
+                        sceneSettings = { ...serialized.sceneSettings };
+                    }
+                    if (serialized?.macros) {
+                        macros = { ...serialized.macros };
+                    }
+                } catch {}
+            }
+            if (!macros) {
+                try {
+                    macros = globalMacroManager.exportMacros();
+                } catch {}
+            }
+        }
+
+        if (sceneSettings) {
+            for (const k of Object.keys(sceneSettings)) {
+                if (STRIP_SCENE_SETTINGS_KEYS.has(k)) delete sceneSettings[k];
+            }
+        }
 
         const doc: PersistentDocumentV1 = {
             timeline: timelineCore,
@@ -144,16 +169,12 @@ export const DocumentGateway = {
                     macros: doc.scene?.macros,
                 };
                 if (sceneData.sceneSettings) {
-                    // Previously we unconditionally applied sceneSettings. This caused restoring a snapshot
-                    // to revert BPM/meter to stale defaults embedded in the scene if the user changed tempo
-                    // after the scene was first created. We now only apply these if the timeline slice did NOT
-                    // already carry authoritative values (for imports from older documents that lacked them).
                     try {
                         const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
                         const api = useTimelineStore.getState();
                         const tl = api.timeline;
-                        const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120; // 120 is default
-                        const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4; // 4 default
+                        const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
+                        const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
                         if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
                         if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
                             api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
@@ -161,18 +182,13 @@ export const DocumentGateway = {
                         /* ignore */
                     }
                 }
-                if (typeof sb.loadScene === 'function') {
-                    sb.loadScene(sceneData);
-                } else if (sceneData.elements) {
-                    try {
-                        sb.clearElements?.();
-                    } catch {}
-                    for (const el of sceneData.elements) {
-                        try {
-                            sb.addElementFromRegistry?.(el.type, el);
-                        } catch {}
-                    }
-                }
+                dispatchSceneCommand(sb, { type: 'loadSerializedScene', payload: sceneData }, { source: 'DocumentGateway.apply' });
+            } else {
+                useSceneStore.getState().importScene({
+                    elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
+                    sceneSettings: doc.scene?.sceneSettings,
+                    macros: doc.scene?.macros,
+                });
             }
         } catch {}
 

@@ -65,8 +65,10 @@ export type SceneMutationSource =
     | 'moveElement'
     | 'duplicateElement'
     | 'removeElement'
+    | 'updateElementId'
     | 'updateBindings'
     | 'updateSettings'
+    | 'updateMacros'
     | 'clearScene'
     | 'importScene';
 
@@ -115,11 +117,13 @@ export interface SceneStoreActions {
     moveElement: (elementId: string, targetIndex: number) => void;
     duplicateElement: (sourceId: string, newId: string, opts?: { insertAfter?: boolean }) => void;
     removeElement: (elementId: string) => void;
+    updateElementId: (currentId: string, nextId: string) => void;
     updateSettings: (patch: Partial<SceneSettingsState>) => void;
     updateBindings: (elementId: string, patch: ElementBindingsPatch) => void;
     clearScene: () => void;
     importScene: (payload: SceneImportPayload) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
+    replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
 }
 
@@ -436,6 +440,51 @@ const createSceneStoreState = (
         });
     },
 
+    updateElementId: (currentId, nextId) => {
+        set((state) => {
+            if (!state.elements[currentId]) return state;
+            if (currentId === nextId) return state;
+            if (state.elements[nextId]) {
+                throw new Error(`SceneStore.updateElementId: element '${nextId}' already exists`);
+            }
+
+            const element = state.elements[currentId];
+            const updatedElement: SceneElementRecord = {
+                ...element,
+                id: nextId,
+            };
+
+            const { [currentId]: _existing, ...remainingElements } = state.elements;
+            const nextElements = { ...remainingElements, [nextId]: updatedElement };
+
+            const nextOrder = state.order.map((id) => (id === currentId ? nextId : id));
+
+            const existingBindings = state.bindings.byElement[currentId] ?? {};
+            const { [currentId]: _removedBindingState, ...remainingBindings } = state.bindings.byElement;
+            const nextByElement = { ...remainingBindings, [nextId]: existingBindings };
+            const nextBindings: SceneBindingsState = {
+                byElement: nextByElement,
+                byMacro: rebuildMacroIndex(nextByElement),
+            };
+
+            const nextInteraction: SceneInteractionState = {
+                ...state.interaction,
+                selectedElementIds: state.interaction.selectedElementIds.map((id) => (id === currentId ? nextId : id)),
+                hoveredElementId: state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
+                editingElementId: state.interaction.editingElementId === currentId ? nextId : state.interaction.editingElementId,
+            };
+
+            return {
+                ...state,
+                elements: nextElements,
+                order: nextOrder,
+                bindings: nextBindings,
+                interaction: nextInteraction,
+                runtimeMeta: markDirty(state, 'updateElementId'),
+            };
+        });
+    },
+
     updateSettings: (patch) => {
         set((state) => ({
             ...state,
@@ -491,9 +540,11 @@ const createSceneStoreState = (
     clearScene: () => {
         set((state) => ({
             ...state,
+            settings: { ...DEFAULT_SCENE_SETTINGS },
             elements: {},
             order: [],
             bindings: createEmptyBindingsState(),
+            macros: { byId: {}, allIds: [], exportedAt: undefined },
             interaction: createInitialInteractionState(),
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
@@ -569,6 +620,14 @@ const createSceneStoreState = (
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
         };
+    },
+
+    replaceMacros: (payload) => {
+        set((state) => ({
+            ...state,
+            macros: buildMacroState(payload),
+            runtimeMeta: markDirty(state, 'updateMacros'),
+        }));
     },
 
     setInteractionState: (patch) => {

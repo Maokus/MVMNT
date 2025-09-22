@@ -4,6 +4,7 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { createDefaultMIDIScene } from './scene-templates';
+import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -48,8 +49,14 @@ export class MIDIVisualizerCore {
         // Initialize with default template via scene-templates module
         try {
             createDefaultMIDIScene(this.sceneBuilder);
+            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.init' });
         } catch {
-            this.sceneBuilder.clearElements();
+            dispatchSceneCommand(
+                this.sceneBuilder,
+                { type: 'clearScene', clearMacros: true },
+                { source: 'MIDIVisualizerCore.initFallback', skipParity: true }
+            );
+            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.initFallback' });
         }
         (window as any).vis = this; // debug helper
     }
@@ -58,6 +65,7 @@ export class MIDIVisualizerCore {
         try {
             createDefaultMIDIScene(this.sceneBuilder);
             this.invalidateRender();
+            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.updateSceneElementTimingManager' });
         } catch {}
     }
     // Set the explicit playback range (in seconds) controlled by the external timeline/UI
@@ -105,7 +113,15 @@ export class MIDIVisualizerCore {
         for (const k of sceneKeys) if (k in settings) scenePartial[k] = settings[k];
         if (Object.keys(scenePartial).length) {
             const before = this.sceneBuilder.getSceneSettings();
-            const updated = this.sceneBuilder.updateSceneSettings(scenePartial);
+            const result = dispatchSceneCommand(
+                this.sceneBuilder,
+                { type: 'updateSceneSettings', patch: scenePartial },
+                { source: 'MIDIVisualizerCore.updateExportSettings' }
+            );
+            if (!result.success) {
+                console.warn('Failed to update scene settings', { scenePartial, error: result.error });
+            }
+            const updated = this.sceneBuilder.getSceneSettings();
             const fps = Math.max(1, (updated as any).fps || 60);
             this._rafMinIntervalMs = 1000 / fps;
             const widthChanged = 'width' in scenePartial && (before as any).width !== (updated as any).width;
@@ -510,19 +526,41 @@ export class MIDIVisualizerCore {
         return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
     }
     addSceneElement(type: string, config: any = {}) {
-        const element = this.sceneBuilder.addElementFromRegistry(type, config);
+        const elementId = typeof config?.id === 'string' && config.id.length ? config.id : `${type}_${Date.now()}`;
+        const payloadConfig = { ...config };
+        if (!payloadConfig.id) payloadConfig.id = elementId;
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'addElement', elementType: type, elementId, config: payloadConfig },
+            { source: 'MIDIVisualizerCore.addSceneElement' }
+        );
+        if (!result.success) {
+            console.warn('addSceneElement failed', { type, elementId, error: result.error });
+            return null;
+        }
+        const element = this.sceneBuilder.getElement(elementId);
         if (element) this.invalidateRender();
         return element;
     }
     removeSceneElement(elementId: string) {
-        const removed = this.sceneBuilder.removeElement(elementId);
-        if (removed) this.invalidateRender();
-        return removed;
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'removeElement', elementId },
+            { source: 'MIDIVisualizerCore.removeSceneElement' }
+        );
+        if (result.success) this.invalidateRender();
+        else console.warn('removeSceneElement failed', { elementId, error: result.error });
+        return result.success;
     }
     updateSceneElementConfig(elementId: string, config: any) {
-        const updated = this.sceneBuilder.updateElementConfig(elementId, config);
-        if (updated) this.invalidateRender();
-        return updated;
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'updateElementConfig', elementId, patch: config },
+            { source: 'MIDIVisualizerCore.updateSceneElementConfig' }
+        );
+        if (result.success) this.invalidateRender();
+        else console.warn('updateSceneElementConfig failed', { elementId, config, error: result.error });
+        return result.success;
     }
     getSceneElementConfig(elementId: string) {
         return this.sceneBuilder.getElementConfig(elementId);
@@ -553,24 +591,41 @@ export class MIDIVisualizerCore {
         return this.sceneBuilder.getElement(elementId);
     }
     setSceneElementVisibility(elementId: string, visible: boolean) {
-        const el: any = this.sceneBuilder.getElement(elementId);
-        if (el) {
-            el.setVisible(visible);
-            this.invalidateRender();
-        }
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'updateElementConfig', elementId, patch: { visible } },
+            { source: 'MIDIVisualizerCore.setSceneElementVisibility' }
+        );
+        if (result.success) this.invalidateRender();
     }
     setSceneElementZIndex(elementId: string, zIndex: number) {
-        const el: any = this.sceneBuilder.getElement(elementId);
-        if (el) {
-            el.setZIndex(zIndex);
-            this.invalidateRender();
-        }
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'updateElementConfig', elementId, patch: { zIndex } },
+            { source: 'MIDIVisualizerCore.setSceneElementZIndex' }
+        );
+        if (result.success) this.invalidateRender();
     }
     moveSceneElement(elementId: string, newIndex: number) {
-        if (this.sceneBuilder.moveElement(elementId, newIndex)) this.invalidateRender();
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'moveElement', elementId, targetIndex: newIndex },
+            { source: 'MIDIVisualizerCore.moveSceneElement' }
+        );
+        if (result.success) this.invalidateRender();
+        else console.warn('moveSceneElement failed', { elementId, newIndex, error: result.error });
     }
     duplicateSceneElement(sourceId: string, newId: string) {
-        const el = this.sceneBuilder.duplicateElement(sourceId, newId);
+        const result = dispatchSceneCommand(
+            this.sceneBuilder,
+            { type: 'duplicateElement', sourceId, newId },
+            { source: 'MIDIVisualizerCore.duplicateSceneElement' }
+        );
+        if (!result.success) {
+            console.warn('duplicateSceneElement failed', { sourceId, newId, error: result.error });
+            return null;
+        }
+        const el = this.sceneBuilder.getElement(newId);
         if (el) this.invalidateRender();
         return el;
     }
