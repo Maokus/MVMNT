@@ -1,7 +1,7 @@
 import React from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import FormInput from '@ui/form/inputs/FormInput';
-import FontInput from '@ui/form/inputs/FontInput';
+import FormInput from '@workspace/form/inputs/FormInput';
+import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { useTimelineStore } from '@state/timelineStore';

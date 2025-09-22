@@ -50,8 +50,8 @@
       "@persistence/*": [
         "persistence/*"
       ],
-      "@ui/*": [
-        "ui/*"
+      "@workspace/*": [
+        "workspace/*"
       ],
       "@state/*": [
         "state/*"

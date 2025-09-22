@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
-import AudioWaveform from '@ui/components/AudioWaveform';
+import AudioWaveform from '@workspace/components/AudioWaveform';
 
 type Props = {
     trackIds: string[];

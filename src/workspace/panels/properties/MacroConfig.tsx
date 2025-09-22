@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
-import FontInput from '@ui/form/inputs/FontInput';
-import MidiTrackSelect from '@ui/form/inputs/MidiTrackSelect';
+import FontInput from '@workspace/form/inputs/FontInput';
+import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
 
 interface MacroConfigProps {
     sceneBuilder?: any; // Will be set from outside

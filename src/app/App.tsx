@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 // Tailwind styles are loaded via index.tsx
-import MidiVisualizer from '@ui/layout/MidiVisualizer';
+import MidiVisualizer from '@workspace/layout/MidiVisualizer';
 import { Routes, Route } from 'react-router-dom';
 import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';
 import ChangelogPage from '@pages/ChangelogPage';
 import HomePage from '@pages/HomePage';
-import { TransportStatusDev } from '@ui/dev/TransportStatusDev';
+import { TransportStatusDev } from '@workspace/dev/TransportStatusDev';
 
 export function App() {
 
