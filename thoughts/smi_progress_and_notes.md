@@ -27,3 +27,10 @@ Use this document to add progress and notes on the store migration implementatio
 - Updated store actions (`sceneStore.ts`) for element renames/macros, aligned `clearScene`, and wired SceneSelectionContext/MenuBar/VisualizerCore/DocumentGateway through the gateway.
 - Added parity feature flags, undo instrumentation for `updateElementId`/template resets, and tests covering the command gateway (`commandGateway.test.ts`).
 - New script `npm run lint:scene` enforces no direct `sceneBuilder` mutations outside sanctioned modules.
+
+## 2025-09-22 – Phase 4 runtime adapter shakedown
+- Introduced `SceneRuntimeAdapter` (`src/state/scene/runtimeAdapter.ts`) to hydrate/cached `SceneElement` instances from the Zustand store with per-element revision tracking + diagnostics.
+- Wired `MIDIVisualizerCore` to prefer the adapter behind `VITE_ENABLE_SCENE_RUNTIME_ADAPTER`, with automatic fallback + disposal pathways to legacy builder rendering on failures.
+- Added `SceneRuntimeAdapter` coverage (`runtimeAdapter.test.ts`) verifying selective cache invalidation + order stability, and updated feature flags (`enableSceneRuntimeAdapter`).
+- Commands: `npm test -- --run src/state/scene/__tests__/runtimeAdapter.test.ts`, `npm run lint:scene`.
+- Follow-up: profile render FPS vs builder baseline and plumb telemetry hooks before enabling the runtime adapter in canary builds.

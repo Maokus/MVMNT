@@ -28,6 +28,10 @@ export const enableSceneStoreUI = normalizeBoolean(sceneStoreUiRaw, false);
 const dualWriteRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_DUAL_WRITE ?? env.SCENE_STORE_DUAL_WRITE;
 export const enableSceneStoreDualWrite = normalizeBoolean(dualWriteRaw, true);
 
+const runtimeAdapterRaw =
+    import.meta.env.VITE_ENABLE_SCENE_RUNTIME_ADAPTER ?? env.VITE_SCENE_RUNTIME_ADAPTER ?? env.SCENE_RUNTIME_ADAPTER;
+export const enableSceneRuntimeAdapter = normalizeBoolean(runtimeAdapterRaw, false);
+
 export type SceneParityMode = 'strict' | 'monitor' | 'off';
 
 function normalizeParityMode(raw: unknown): SceneParityMode {

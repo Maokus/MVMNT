@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import type { SceneElement } from '@core/scene/elements';
 import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { createDefaultMIDIScene } from './scene-templates';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
+import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder, SceneRuntimeAdapter } from '@state/scene';
+import { enableSceneRuntimeAdapter } from '@config/featureFlags';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -19,6 +21,7 @@ export class MIDIVisualizerCore {
     debugSettings: any = { showAnchorPoints: false };
     modularRenderer = new ModularRenderer();
     sceneBuilder = new HybridSceneBuilder();
+    runtimeAdapter: SceneRuntimeAdapter | null = null;
     private _needsRender = true;
     private _lastRenderTime = -1;
     private _lastRAFTime = 0;
@@ -57,6 +60,14 @@ export class MIDIVisualizerCore {
                 { source: 'MIDIVisualizerCore.initFallback', skipParity: true }
             );
             synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.initFallback' });
+        }
+        if (enableSceneRuntimeAdapter) {
+            try {
+                this.runtimeAdapter = new SceneRuntimeAdapter();
+            } catch (error) {
+                console.warn('[MIDIVisualizerCore] failed to initialize SceneRuntimeAdapter, falling back', error);
+                this.runtimeAdapter = null;
+            }
         }
         (window as any).vis = this; // debug helper
     }
@@ -212,9 +223,41 @@ export class MIDIVisualizerCore {
             });
         }
     }
+    private _disableRuntimeAdapter(reason: string, error?: unknown) {
+        if (!this.runtimeAdapter) return;
+        try {
+            console.warn(`[MIDIVisualizerCore] disabling SceneRuntimeAdapter: ${reason}`, error);
+        } catch {}
+        try {
+            this.runtimeAdapter.dispose();
+        } catch {}
+        this.runtimeAdapter = null;
+    }
+    private _getSceneElements(): SceneElement[] {
+        if (!this.runtimeAdapter) {
+            return [...this.sceneBuilder.elements];
+        }
+        try {
+            return this.runtimeAdapter.getElements();
+        } catch (error) {
+            this._disableRuntimeAdapter('getElements failed', error);
+            return [...this.sceneBuilder.elements];
+        }
+    }
+    private _buildSceneRenderObjects(config: any, targetTime: number) {
+        if (!this.runtimeAdapter) {
+            return this.sceneBuilder.buildScene(config, targetTime);
+        }
+        try {
+            return this.runtimeAdapter.buildScene(config, targetTime);
+        } catch (error) {
+            this._disableRuntimeAdapter('buildScene failed', error);
+            return this.sceneBuilder.buildScene(config, targetTime);
+        }
+    }
     renderAtTime(targetTime: number) {
         const config = this.getSceneConfig();
-        const renderObjects = this.sceneBuilder.buildScene(config, targetTime);
+        const renderObjects = this._buildSceneRenderObjects(config, targetTime);
         this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
         try {
             this._renderInteractionOverlays(targetTime, config);
@@ -257,11 +300,11 @@ export class MIDIVisualizerCore {
     }
     getRenderObjects(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
-        return this.sceneBuilder.buildScene(config, targetTime);
+        return this._buildSceneRenderObjects(config, targetTime);
     }
     renderWithCustomObjects(customRenderObjects: any[], targetTime = this.currentTime) {
         const config = this.getSceneConfig();
-        const base = this.sceneBuilder.buildScene(config, targetTime);
+        const base = this._buildSceneRenderObjects(config, targetTime);
         const all = [...base, ...customRenderObjects];
         this.modularRenderer.render(this.ctx, all, config, targetTime);
     }
@@ -305,7 +348,7 @@ export class MIDIVisualizerCore {
     }
     getElementBoundsAtTime(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
-        const elements = [...this.sceneBuilder.elements].filter((e: any) => e.visible);
+        const elements = this._getSceneElements().filter((e: any) => e.visible);
         elements.sort((a: any, b: any) => (a.zIndex || 0) - (b.zIndex || 0));
         const results: any[] = [];
         for (const el of elements) {
