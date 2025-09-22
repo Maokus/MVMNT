@@ -116,4 +116,20 @@ describe('sceneStore', () => {
         store.getState().setInteractionState({ clipboard: null });
         expect(store.getState().interaction.clipboard).toBeNull();
     });
+
+    it('creates, updates, and deletes macros while maintaining bindings', () => {
+        importFixture();
+
+        store.getState().createMacro('macro.test.dynamic', { type: 'number', value: 5, options: { min: 0, max: 10 } });
+        expect(store.getState().macros.byId['macro.test.dynamic']).toMatchObject({ value: 5, type: 'number' });
+
+        store.getState().updateMacroValue('macro.test.dynamic', 7);
+        expect(store.getState().macros.byId['macro.test.dynamic']?.value).toBe(7);
+
+        store.getState().deleteMacro('macro.color.primary');
+        const state = store.getState();
+        expect(state.macros.byId['macro.color.primary']).toBeUndefined();
+        expect(state.bindings.byMacro['macro.color.primary']).toBeUndefined();
+        expect(state.bindings.byElement['title'].color).toEqual({ type: 'constant', value: '#ff3366' });
+    });
 });

@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HybridSceneBuilder } from '@core/scene-builder';
-import { createSnapshotUndoController, instrumentSceneBuilderForUndo } from '@state/undo/snapshot-undo';
+import {
+    createSnapshotUndoController,
+    instrumentSceneBuilderForUndo,
+    instrumentTimelineStoreForUndo,
+} from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
 import { globalMacroManager } from '@bindings/macro-manager';
+import { dispatchSceneCommand } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
 
 function withFrozenNow<T>(fn: () => T, timestamp = 1700000000000): T {
     const originalNow = Date.now;
@@ -71,5 +77,59 @@ describe('Scene builder undo instrumentation', () => {
         undo.redo();
         await vi.runAllTimersAsync();
         expect(builder.getElement('undo-test')).toBeTruthy();
+    });
+
+    it('maintains undo history across macro edits and timeline changes', async () => {
+        const builder = new HybridSceneBuilder();
+        builder.clearElements();
+        (window as any).vis = { getSceneBuilder: () => builder };
+
+        const undo: any = withSilentConsole(() =>
+            withFrozenNow(() => createSnapshotUndoController(useTimelineStore, { debounceMs: 1 }))
+        );
+        instrumentSceneBuilderForUndo(builder);
+        instrumentTimelineStoreForUndo();
+
+        dispatchSceneCommand(
+            builder,
+            { type: 'createMacro', macroId: 'macro.undo', definition: { type: 'number', value: 1 } },
+            { source: 'undo-test:create', skipParity: true }
+        );
+        await vi.runAllTimersAsync();
+
+        const initialBpm = useTimelineStore.getState().timeline.globalBpm;
+
+        dispatchSceneCommand(
+            builder,
+            { type: 'updateMacroValue', macroId: 'macro.undo', value: 5 },
+            { source: 'undo-test:update-1', skipParity: true }
+        );
+        await vi.runAllTimersAsync();
+
+        useTimelineStore.getState().setGlobalBpm(138);
+        await vi.runAllTimersAsync();
+
+        const captureState = () => ({
+            macroValue: globalMacroManager.getMacro('macro.undo')?.value ?? null,
+            storeValue: useSceneStore.getState().macros.byId['macro.undo']?.value ?? null,
+            bpm: useTimelineStore.getState().timeline.globalBpm,
+        });
+
+        const finalState = captureState();
+        expect(finalState).toMatchObject({ macroValue: 5, storeValue: 5, bpm: 138 });
+
+        const stack = undo.debugStack();
+        const snapshotMacros = stack.entries.map((_, index) => {
+            const dump = undo.dump(index) as any;
+            const macros = dump?.scene?.macros?.macros ?? {};
+            const bpm = dump?.timeline?.globalBpm ?? initialBpm;
+            const macroValue = macros['macro.undo'] ? macros['macro.undo'].value : null;
+            return { macroValue, bpm };
+        });
+        expect(snapshotMacros.some((entry) => entry.macroValue === 5 && entry.bpm === 138)).toBe(true);
+        expect(stack.entries.length).toBeGreaterThanOrEqual(2);
+        expect(snapshotMacros.some((entry) => entry.macroValue === 5)).toBe(true);
+        expect(snapshotMacros[0].macroValue).toBeNull();
+        expect(snapshotMacros[0].bpm).toBe(initialBpm);
     });
 });

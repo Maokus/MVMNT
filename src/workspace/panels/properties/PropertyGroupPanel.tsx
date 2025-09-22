@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
 import FormInput from '@workspace/form/inputs/FormInput';
 import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { useTimelineStore } from '@state/timelineStore';
+import { enableSceneStoreMacros } from '@config/featureFlags';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -23,7 +24,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onMacroAssignment,
     onCollapseToggle
 }) => {
-    const { manager } = useMacros();
+    const { manager, macros: macroList } = useMacros();
+    const macrosSource = useMemo(
+        () => (enableSceneStoreMacros ? (macroList as any[]) : manager.getAllMacros()),
+        [macroList, manager, enableSceneStoreMacros]
+    );
+    const macroLookup = useMemo(() => new Map(
+        (macrosSource as any[]).map((macro: any) => [macro.name, macro])
+    ), [macrosSource]);
     const canAssignMacro = (propertyType: string) => {
         return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font', 'midiTrackRef'].includes(propertyType);
     };
@@ -40,19 +48,23 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     targetFileType = 'file-image';
                 }
             }
-            return manager.getAllMacros().filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
+            return (macrosSource as any[]).filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
         }
         if (propertyType === 'font') {
             // Only allow macros explicitly of type 'font'
-            return manager.getAllMacros().filter((macro: any) => macro.type === 'font');
+            return (macrosSource as any[]).filter((macro: any) => macro.type === 'font');
         }
-        return manager.getAllMacros().filter((macro: any) => macro.type === propertyType);
+        return (macrosSource as any[]).filter((macro: any) => macro.type === propertyType);
     };
 
     const renderInput = (property: PropertyDefinition) => {
         const value = values[property.key];
         const assignedMacro = macroAssignments[property.key];
-        const macroExists = assignedMacro ? !!manager.getMacro(assignedMacro) : false;
+        const macroExists = assignedMacro
+            ? enableSceneStoreMacros
+                ? macroLookup.has(assignedMacro)
+                : !!manager.getMacro(assignedMacro)
+            : false;
         const isAssignedToMacro = !!assignedMacro && macroExists;
 
         const commonProps = {
@@ -66,7 +78,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // If assigned to macro, get the macro value
         if (isAssignedToMacro && assignedMacro) {
-            const macro = manager.getMacro(assignedMacro);
+            const macro = enableSceneStoreMacros
+                ? macroLookup.get(assignedMacro)
+                : manager.getMacro(assignedMacro);
             if (macro) {
                 commonProps.value = macro.value;
             }

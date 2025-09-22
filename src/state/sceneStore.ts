@@ -95,6 +95,13 @@ export interface SceneSerializedMacros {
     exportedAt?: number;
 }
 
+export interface SceneMacroDefinition {
+    type: Macro['type'];
+    value: unknown;
+    defaultValue?: unknown;
+    options?: Macro['options'];
+}
+
 export interface SceneImportPayload {
     elements?: SceneSerializedElement[];
     sceneSettings?: Partial<SceneSettingsState> | null;
@@ -120,6 +127,9 @@ export interface SceneStoreActions {
     updateElementId: (currentId: string, nextId: string) => void;
     updateSettings: (patch: Partial<SceneSettingsState>) => void;
     updateBindings: (elementId: string, patch: ElementBindingsPatch) => void;
+    createMacro: (macroId: string, definition: SceneMacroDefinition) => void;
+    updateMacroValue: (macroId: string, value: unknown) => void;
+    deleteMacro: (macroId: string) => void;
     clearScene: () => void;
     importScene: (payload: SceneImportPayload) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
@@ -279,7 +289,13 @@ function buildMacroState(payload?: SceneSerializedMacros | null): SceneMacroStat
     if (!payload || !payload.macros) return { byId: {}, allIds: [], exportedAt: undefined };
     const macroIds = Object.keys(payload.macros);
     const byId: Record<string, Macro> = {};
-    for (const id of macroIds) byId[id] = { ...payload.macros[id] };
+    for (const id of macroIds) {
+        const macro = payload.macros[id];
+        byId[id] = {
+            ...macro,
+            options: cloneMacroOptions(macro?.options),
+        };
+    }
     return { byId, allIds: macroIds, exportedAt: payload.exportedAt };
 }
 
@@ -294,6 +310,54 @@ function buildMacroPayload(state: SceneMacroState): SceneSerializedMacros | unde
         macros,
         exportedAt: state.exportedAt ?? Date.now(),
     };
+}
+
+function cloneMacroOptions(source?: Macro['options']): Macro['options'] {
+    if (!source) return {} as Macro['options'];
+    const next: Macro['options'] = { ...source };
+    if (Array.isArray(source.selectOptions)) {
+        next.selectOptions = source.selectOptions.map((entry) => ({ ...entry }));
+    }
+    return next;
+}
+
+function validateMacroValue(type: Macro['type'], value: unknown, options: Macro['options'] = {} as Macro['options']): boolean {
+    switch (type) {
+        case 'number':
+            if (typeof value !== 'number' || Number.isNaN(value)) return false;
+            if (typeof options.min === 'number' && value < options.min) return false;
+            if (typeof options.max === 'number' && value > options.max) return false;
+            return true;
+        case 'string':
+            return typeof value === 'string';
+        case 'boolean':
+            return typeof value === 'boolean';
+        case 'color':
+            return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value);
+        case 'font':
+            if (typeof value !== 'string') return false;
+            if (value.trim() === '') return true;
+            const parts = value.split('|');
+            if (parts.length === 1) return true;
+            if (parts.length === 2) {
+                return /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]);
+            }
+            return false;
+        case 'select':
+            if (!Array.isArray(options.selectOptions) || options.selectOptions.length === 0) return true;
+            return options.selectOptions.some((opt) => opt.value === value);
+        case 'file':
+            if (value === null || value === undefined) return true;
+            if (typeof File === 'undefined') return true;
+            return value instanceof File;
+        case 'midiTrackRef':
+            if (value == null) return true;
+            if (typeof value === 'string') return true;
+            if (Array.isArray(value)) return value.every((entry) => typeof entry === 'string');
+            return false;
+        default:
+            return true;
+    }
 }
 
 function normalizeIndex(targetIndex: number, size: number): number {
@@ -533,6 +597,122 @@ const createSceneStoreState = (
                 ...state,
                 bindings: nextBindings,
                 runtimeMeta: markDirty(state, 'updateBindings'),
+            };
+        });
+    },
+
+    createMacro: (macroId, definition) => {
+        set((state) => {
+            const id = typeof macroId === 'string' ? macroId.trim() : '';
+            if (!id) throw new Error('SceneStore.createMacro: macroId is required');
+            if (state.macros.byId[id]) {
+                throw new Error(`SceneStore.createMacro: macro '${id}' already exists`);
+            }
+
+            const options = cloneMacroOptions(definition.options);
+            const defaultValue = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
+            if (!validateMacroValue(definition.type, definition.value, options)) {
+                throw new Error(`SceneStore.createMacro: invalid value for macro '${id}'`);
+            }
+
+            const now = Date.now();
+            const macro: Macro = {
+                name: id,
+                type: definition.type,
+                value: definition.value,
+                defaultValue,
+                options,
+                createdAt: now,
+                lastModified: now,
+            };
+
+            const nextById = { ...state.macros.byId, [id]: macro };
+            const nextAllIds = [...state.macros.allIds, id];
+
+            return {
+                ...state,
+                macros: {
+                    byId: nextById,
+                    allIds: nextAllIds,
+                    exportedAt: state.macros.exportedAt,
+                },
+                runtimeMeta: markDirty(state, 'updateMacros'),
+            };
+        });
+    },
+
+    updateMacroValue: (macroId, value) => {
+        set((state) => {
+            const macro = state.macros.byId[macroId];
+            if (!macro) return state;
+            if (!validateMacroValue(macro.type, value, macro.options)) {
+                throw new Error(`SceneStore.updateMacroValue: invalid value for macro '${macroId}'`);
+            }
+            if (Object.is(macro.value, value)) return state;
+
+            const nextMacro: Macro = {
+                ...macro,
+                value,
+                lastModified: Date.now(),
+            };
+
+            return {
+                ...state,
+                macros: {
+                    byId: { ...state.macros.byId, [macroId]: nextMacro },
+                    allIds: [...state.macros.allIds],
+                    exportedAt: state.macros.exportedAt,
+                },
+                runtimeMeta: markDirty(state, 'updateMacros'),
+            };
+        });
+    },
+
+    deleteMacro: (macroId) => {
+        set((state) => {
+            const macro = state.macros.byId[macroId];
+            if (!macro) return state;
+
+            const assignments = state.bindings.byMacro[macroId] ?? [];
+            const nextByElement: Record<string, ElementBindings> = { ...state.bindings.byElement };
+            const mutatedIds = new Set<string>();
+
+            for (const assignment of assignments) {
+                const current = nextByElement[assignment.elementId];
+                if (!current) continue;
+                if (!mutatedIds.has(assignment.elementId)) {
+                    nextByElement[assignment.elementId] = { ...current };
+                    mutatedIds.add(assignment.elementId);
+                }
+                const bindings = nextByElement[assignment.elementId];
+                const binding = bindings[assignment.propertyPath];
+                if (binding && binding.type === 'macro' && binding.macroId === macroId) {
+                    bindings[assignment.propertyPath] = { type: 'constant', value: macro.value };
+                }
+            }
+
+            const bindingsState: SceneBindingsState = mutatedIds.size
+                ? {
+                      byElement: nextByElement,
+                      byMacro: rebuildMacroIndex(nextByElement),
+                  }
+                : {
+                      byElement: state.bindings.byElement,
+                      byMacro: rebuildMacroIndex(state.bindings.byElement),
+                  };
+
+            const { [macroId]: _removed, ...remainingMacros } = state.macros.byId;
+            const nextAllIds = state.macros.allIds.filter((id) => id !== macroId);
+
+            return {
+                ...state,
+                bindings: bindingsState,
+                macros: {
+                    byId: remainingMacros,
+                    allIds: nextAllIds,
+                    exportedAt: state.macros.exportedAt,
+                },
+                runtimeMeta: markDirty(state, 'updateMacros'),
             };
         });
     },

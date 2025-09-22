@@ -7,6 +7,7 @@ import {
     type ElementBindings,
     type ElementBindingsPatch,
     type SceneImportPayload,
+    type SceneMacroDefinition,
     type SceneSerializedElement,
     type SceneSerializedMacros,
     type SceneStoreComputedExport,
@@ -67,6 +68,24 @@ export type SceneCommand =
     | {
           type: 'loadSerializedScene';
           payload: SceneImportPayload;
+      }
+    | {
+          type: 'createMacro';
+          macroId: string;
+          definition: SceneMacroDefinition;
+      }
+    | {
+          type: 'updateMacroValue';
+          macroId: string;
+          value: unknown;
+      }
+    | {
+          type: 'deleteMacro';
+          macroId: string;
+      }
+    | {
+          type: 'importMacros';
+          payload: SceneSerializedMacros;
       };
 
 export interface SceneCommandOptions {
@@ -202,6 +221,22 @@ function runBuilderMutation(builder: HybridSceneBuilder, command: SceneCommand):
             return { ok: true };
         case 'loadSerializedScene':
             return { ok: !!builder.loadScene(command.payload) };
+        case 'createMacro': {
+            const { macroId, definition } = command;
+            const initial = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
+            const created = globalMacroManager.createMacro(macroId, definition.type, initial, definition.options ?? {});
+            if (!created) return { ok: false, message: `Failed to create macro '${macroId}'` };
+            if (!Object.is(initial, definition.value)) {
+                globalMacroManager.updateMacroValue(macroId, definition.value);
+            }
+            return { ok: true };
+        }
+        case 'updateMacroValue':
+            return { ok: globalMacroManager.updateMacroValue(command.macroId, command.value) };
+        case 'deleteMacro':
+            return { ok: globalMacroManager.deleteMacro(command.macroId) };
+        case 'importMacros':
+            return { ok: globalMacroManager.importMacros(command.payload) };
         default:
             return { ok: false, message: 'Unsupported command type' };
     }
@@ -366,6 +401,18 @@ function applyStoreMutation(
             store.importScene(command.payload);
             break;
         }
+        case 'createMacro':
+            store.createMacro(command.macroId, command.definition);
+            break;
+        case 'updateMacroValue':
+            store.updateMacroValue(command.macroId, command.value);
+            break;
+        case 'deleteMacro':
+            store.deleteMacro(command.macroId);
+            break;
+        case 'importMacros':
+            store.replaceMacros(command.payload);
+            break;
         default:
             break;
     }

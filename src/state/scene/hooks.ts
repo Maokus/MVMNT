@@ -3,6 +3,7 @@ import { shallow } from 'zustand/shallow';
 import { sceneSelectors } from './selectors';
 import { useSceneStore } from '@state/sceneStore';
 import type { ElementBindings, SceneInteractionState, SceneStoreState } from '@state/sceneStore';
+import type { Macro } from '@bindings/macro-manager';
 
 export interface SceneElementListItem {
     id: string;
@@ -62,6 +63,25 @@ export function useSceneSelection(): SceneSelectionView {
 
 export function useMacroAssignments() {
     return useSceneStore(sceneSelectors.selectMacroAssignments, shallow);
+}
+
+function cloneMacroOptions(options?: Macro['options']): Macro['options'] {
+    if (!options) return {} as Macro['options'];
+    const next: Macro['options'] = { ...options };
+    if (Array.isArray(options.selectOptions)) {
+        next.selectOptions = options.selectOptions.map((opt) => ({ ...opt }));
+    }
+    return next;
+}
+
+export function useSceneMacros(): Macro[] {
+    const macroState = useSceneStore((state) => state.macros, (a, b) => a === b);
+    return useMemo(() =>
+        macroState.allIds
+            .map((id) => macroState.byId[id])
+            .filter((macro): macro is Macro => Boolean(macro))
+            .map((macro) => ({ ...macro, options: cloneMacroOptions(macro.options) })),
+    [macroState]);
 }
 
 export function useInteractionState(): SceneInteractionState {

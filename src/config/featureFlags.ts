@@ -25,6 +25,10 @@ const sceneStoreUiRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_UI ?? env.VITE_S
 
 export const enableSceneStoreUI = normalizeBoolean(sceneStoreUiRaw, false);
 
+const sceneStoreMacrosRaw =
+    import.meta.env.VITE_ENABLE_SCENE_STORE_MACROS ?? env.VITE_SCENE_STORE_MACROS ?? env.SCENE_STORE_MACROS;
+export const enableSceneStoreMacros = normalizeBoolean(sceneStoreMacrosRaw, enableSceneStoreUI);
+
 const dualWriteRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_DUAL_WRITE ?? env.SCENE_STORE_DUAL_WRITE;
 export const enableSceneStoreDualWrite = normalizeBoolean(dualWriteRaw, true);
 

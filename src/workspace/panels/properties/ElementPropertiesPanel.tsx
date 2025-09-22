@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import { EnhancedConfigSchema } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
+import { enableSceneStoreMacros } from '@config/featureFlags';
 
 interface ElementPropertiesPanelProps {
     element: any; // Required - element must be selected
@@ -29,11 +30,17 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
     // Macro context
-    const { assignListener, manager } = useMacros();
+    const { assignListener, manager, macros: macroList } = useMacros();
+    const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
 
     // Handle macro changes
     const handleMacroChange = useCallback((eventType: string, data: any) => {
         if (!element) return;
+
+        if (eventType === 'macroStoreUpdated') {
+            setMacroListenerKey(prev => prev + 1);
+            return;
+        }
 
         if (eventType === 'macroValueChanged') {
             // Update element property via change callback
@@ -116,7 +123,12 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     if (binding && binding.type === 'macro') {
                         const macroId = binding.getMacroId ? binding.getMacroId() : null;
                         // Only treat as assigned if the macro actually exists. If not, auto-unbind to recover.
-                        if (macroId && manager?.getMacro(macroId)) {
+                        const macroExists = macroId
+                            ? enableSceneStoreMacros
+                                ? macroLookup.has(macroId)
+                                : !!manager?.getMacro(macroId)
+                            : false;
+                        if (macroId && macroExists) {
                             macroBindings[property.key] = macroId;
                         } else if (macroId && typeof element.unbindFromMacro === 'function') {
                             try {

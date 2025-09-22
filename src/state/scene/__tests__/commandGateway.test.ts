@@ -100,4 +100,33 @@ describe('scene command gateway', () => {
         expect(store.order).toEqual(['sync-test']);
         expect(store.bindings.byElement['sync-test'].text).toEqual({ type: 'constant', value: 'Sync' });
     });
+
+    it('routes macro commands through the gateway and keeps store/macros in sync', () => {
+        const createResult = dispatchSceneCommand(
+            builder,
+            { type: 'createMacro', macroId: 'macro.test', definition: { type: 'number', value: 4 } },
+            { source: 'test:macro-create', skipParity: true }
+        );
+        expect(createResult.success).toBe(true);
+        expect(globalMacroManager.getMacro('macro.test')?.value).toBe(4);
+        expect(useSceneStore.getState().macros.byId['macro.test']?.value).toBe(4);
+
+        const updateResult = dispatchSceneCommand(
+            builder,
+            { type: 'updateMacroValue', macroId: 'macro.test', value: 9 },
+            { source: 'test:macro-update', skipParity: true }
+        );
+        expect(updateResult.success).toBe(true);
+        expect(globalMacroManager.getMacro('macro.test')?.value).toBe(9);
+        expect(useSceneStore.getState().macros.byId['macro.test']?.value).toBe(9);
+
+        const deleteResult = dispatchSceneCommand(
+            builder,
+            { type: 'deleteMacro', macroId: 'macro.test' },
+            { source: 'test:macro-delete', skipParity: true }
+        );
+        expect(deleteResult.success).toBe(true);
+        expect(globalMacroManager.getMacro('macro.test')).toBeNull();
+        expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
+    });
 });

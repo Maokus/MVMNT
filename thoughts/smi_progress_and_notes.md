@@ -34,3 +34,10 @@ Use this document to add progress and notes on the store migration implementatio
 - Added `SceneRuntimeAdapter` coverage (`runtimeAdapter.test.ts`) verifying selective cache invalidation + order stability, and updated feature flags (`enableSceneRuntimeAdapter`).
 - Commands: `npm test -- --run src/state/scene/__tests__/runtimeAdapter.test.ts`, `npm run lint:scene`.
 - Follow-up: profile render FPS vs builder baseline and plumb telemetry hooks before enabling the runtime adapter in canary builds.
+
+## 2025-09-23 – Phase 5 macro consolidation & undo
+- Scene macros now live in the store: added `createMacro`, `updateMacroValue`, and `deleteMacro` actions plus selectors/hooks so UI pulls from Zustand when `VITE_ENABLE_SCENE_STORE_MACROS` (defaults to `VITE_ENABLE_SCENE_STORE_UI`).
+- `MacroContext`, property panels, and macro config dispatch through the command gateway which dual-writes builder + store and respects feature flags; fallbacks keep legacy manager functional if builder unavailable.
+- Undo instrumentation now wraps macro manager methods; regression added in `scene-middleware.integration.test.ts` to confirm snapshots capture macro and timeline state.
+- Randomized fuzz test `macroIndex.fuzz.test.ts` exercises bindings/macro churn and asserts inverse index correctness.
+- Manual reminder: enable `VITE_ENABLE_SCENE_STORE_MACROS` to exercise the store-backed macro UI; legacy path remains for safety toggles.

@@ -1,6 +1,7 @@
 import { serializeStable } from '@persistence/stable-stringify';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '@persistence/document-gateway';
+import { globalMacroManager } from '@bindings/macro-manager';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -305,6 +306,13 @@ export function instrumentSceneBuilderForUndo(sb: any) {
         'updateElementId',
         'resetSceneSettings',
     ].forEach((m) => wrap(sb, m));
+    const macroManager: any = globalMacroManager as any;
+    if (macroManager && !macroManager.__mvmntUndoInstrumented) {
+        ['createMacro', 'updateMacroValue', 'deleteMacro', 'importMacros', 'clearMacros'].forEach((method) =>
+            wrap(macroManager, method)
+        );
+        macroManager.__mvmntUndoInstrumented = true;
+    }
     sb.__mvmntUndoInstrumented = true;
 }
 

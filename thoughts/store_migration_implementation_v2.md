@@ -58,11 +58,11 @@
 -   Decision log updated confirming `sceneStore.ts` location and middleware compatibility (or capturing follow-up work).
 
 #### Phase 0 status update – 2025-02-20
-- Snapshot helper available under `src/state/scene/snapshotBuilder.ts` with edge macro fixture (`src/persistence/__fixtures__/phase0/scene.edge-macros.json`) and parity tests (see `src/state/scene/__tests__`).
-- Builder mutation inventory captured in `docs/store-migration/phase0-builder-mutation-audit.md`; lint/static follow-up scheduled for Phase 1.
-- Undo middleware compatibility verified via `scene-middleware.integration.test.ts`; instrumentation gaps (`updateElementId`, template resets) queued for Phase 2.
-- DocumentGateway regression suite added (`persistence.phase0.scene-regression.test.ts`) to guard import/export while store lands.
 
+-   Snapshot helper available under `src/state/scene/snapshotBuilder.ts` with edge macro fixture (`src/persistence/__fixtures__/phase0/scene.edge-macros.json`) and parity tests (see `src/state/scene/__tests__`).
+-   Builder mutation inventory captured in `docs/store-migration/phase0-builder-mutation-audit.md`; lint/static follow-up scheduled for Phase 1.
+-   Undo middleware compatibility verified via `scene-middleware.integration.test.ts`; instrumentation gaps (`updateElementId`, template resets) queued for Phase 2.
+-   DocumentGateway regression suite added (`persistence.phase0.scene-regression.test.ts`) to guard import/export while store lands.
 
 ### Phase 1 – Scene Store Scaffolding & Data Modeling
 
@@ -148,6 +148,8 @@
 -   Macro inverse index remains consistent after random operation fuzzing (test harness using fixtures).
 -   Timeline coordination documented and validated with at least one integration scenario (e.g., scene duration change via macro).
 
+_Status 2025-09-23_: ✅ `scene-middleware.integration.test.ts` covers macro + timeline undo/redo, `macroIndex.fuzz.test.ts` stress-tests the inverse index, and documentation + notes updated with macro store enablement details.
+
 ### Phase 6 – Persistence & Template Refactor
 
 **Key Activities**
@@ -167,16 +169,16 @@
 
 **Key Activities**
 
--   Remove or deprecate remaining `HybridSceneBuilder` logic, leaving only thin compatibility shims behind feature flags.
+-   Remove remaining `HybridSceneBuilder` logic, leaving only thin compatibility shims behind feature flags.
 -   Delete dual-write scaffolding and parity assertions after sustained green metrics; switch production flag to store-only mode.
--   Update architecture docs, onboarding guides, and ADRs to reflect the new single source of truth.
--   Host knowledge-transfer session and publish migration checklist for downstream teams.
+-   Update architecture docs, and ADRs to reflect the new single source of truth.
+-   Make recommendations on code structure and clean up code, removing any references to the implementation roadmap in documentation or comments.
+-   Ensure new functionality is stable, then remove feature flags and feature flag handling (make the new processes the default without any flags)
 
 **Acceptance Criteria**
 
 -   Builder code marked deprecated or removed with no runtime consumers.
 -   Feature flags toggled to make store the only code path; rollback switch documented (if any) and verified.
--   Documentation reviewed/approved by tech leads; knowledge-transfer materials published.
 -   Final performance and regression benchmarks signed off.
 
 ## Cross-Cutting Workstreams
