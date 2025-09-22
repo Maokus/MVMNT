@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import { createSnapshotUndoController } from '@persistence/undo/snapshot-undo';
+import { createSnapshotUndoController } from '@state/undo/snapshot-undo';
 import { DocumentGateway } from '@persistence/document-gateway';
 
 function flush(ms = 30) {

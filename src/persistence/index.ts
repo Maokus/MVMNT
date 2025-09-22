@@ -16,11 +16,11 @@
 
 export { exportScene } from './export';
 export { importScene } from './import';
-export { createSnapshotUndoController } from './undo/snapshot-undo';
+export { createSnapshotUndoController } from '../state/undo/snapshot-undo';
 
 // Feature flags removed; persistence always enabled.
 
 // Re-export placeholder types to stabilize import paths for early adopters & tests.
 export type { ExportSceneResult } from './export';
 export type { ImportSceneResult } from './import';
-export type { UndoController, CreateSnapshotUndoOptions } from './undo/snapshot-undo';
+export type { UndoController, CreateSnapshotUndoOptions } from '../state/undo/snapshot-undo';

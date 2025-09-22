@@ -1,5 +1,5 @@
 import React from 'react';
-import { getTransportCoordinator } from '@core/transport-coordinator';
+import { getTransportCoordinator } from '@audio/transport-coordinator';
 
 export const TransportStatusDev: React.FC = () => {
     if (process.env.NODE_ENV === 'production') return null;

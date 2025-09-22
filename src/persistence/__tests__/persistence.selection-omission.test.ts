@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { exportScene } from '@persistence/export';
-import { createSnapshotUndoController } from '@persistence/undo/snapshot-undo';
+import { createSnapshotUndoController } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
-import { instrumentTimelineStoreForUndo } from '@persistence/undo/snapshot-undo';
+import { instrumentTimelineStoreForUndo } from '@state/undo/snapshot-undo';
 
 // Enable feature flag by faking environment if needed (tests assume flag on)
 

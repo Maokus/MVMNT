@@ -12,7 +12,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 // PlaybackClock now wrapped by TransportCoordinator; direct usage removed in favor of a unified transport API.
-import { getTransportCoordinator } from '@core/transport-coordinator';
+import { getTransportCoordinator } from '@audio/transport-coordinator';
 // Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
 
 export interface ExportSettings {

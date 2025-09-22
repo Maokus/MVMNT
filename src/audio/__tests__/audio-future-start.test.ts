@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import { AudioEngine } from '@core/audio-engine';
-import { TransportCoordinator } from '@core/transport-coordinator';
+import { AudioEngine } from '@audio/audio-engine';
+import { TransportCoordinator } from '@audio/transport-coordinator';
 
 function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channels = 1): AudioBuffer {
     const frameCount = Math.floor(durationSeconds * sampleRate);

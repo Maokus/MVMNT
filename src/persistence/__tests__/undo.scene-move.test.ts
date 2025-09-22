@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createSnapshotUndoController } from '@persistence/undo/snapshot-undo';
+import { createSnapshotUndoController } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
 import { globalMacroManager } from '@bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from '@persistence/undo/snapshot-undo';
+import { instrumentSceneBuilderForUndo } from '@state/undo/snapshot-undo';
 
 class FakeSceneBuilder {
     elements: any[] = [];

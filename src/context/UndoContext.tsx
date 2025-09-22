@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createSnapshotUndoController } from '@persistence/index';
-import { instrumentTimelineStoreForUndo } from '@persistence/undo/snapshot-undo';
+import { instrumentTimelineStoreForUndo } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface UndoContextValue {

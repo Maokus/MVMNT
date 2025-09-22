@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TransportCoordinator } from '@core/transport-coordinator';
+import { TransportCoordinator } from '@audio/transport-coordinator';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 
 describe('TransportCoordinator regression: no backward tick or large jumps', () => {

@@ -1,12 +1,10 @@
 import create, { type StateCreator } from 'zustand';
-import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
-import type { AudioTrack, AudioCacheEntry } from './audioTypes';
-import { buildNotesFromMIDI } from '../core/midi/midi-ingest';
-import type { TempoMapEntry, NoteRaw } from './timelineTypes';
+import type { AudioTrack, AudioCacheEntry } from '@state/audioTypes';
+import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
+import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
-import { getSecondsPerBeat } from '@core/timing/tempo-utils';
 import { TimingManager } from '@core/timing';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 
@@ -717,7 +715,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             // Kick off async peak extraction (non-blocking)
             (async () => {
                 try {
-                    const { extractPeaksAsync } = await import('@core/waveform/peak-extractor');
+                    const { extractPeaksAsync } = await import('@audio/waveform/peak-extractor');
                     const res = await extractPeaksAsync(buffer, { binSize: 1024, maxBins: 5000 });
                     set((s: TimelineState) => {
                         const existing = s.audioCache[id];

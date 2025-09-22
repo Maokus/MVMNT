@@ -1,16 +1,6 @@
-import { serializeStable } from '../stable-stringify';
-import { useTimelineStore } from '../../state/timelineStore';
-import { globalMacroManager } from '../../bindings/macro-manager';
-import { DocumentGateway } from '../document-gateway';
-
-function _getSceneBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
+import { serializeStable } from '@persistence/stable-stringify';
+import { useTimelineStore } from '@state/timelineStore';
+import { DocumentGateway } from '@persistence/document-gateway';
 
 export interface UndoController {
     canUndo(): boolean;

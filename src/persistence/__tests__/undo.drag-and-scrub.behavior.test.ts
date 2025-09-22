@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import { createSnapshotUndoController, instrumentSceneBuilderForUndo } from '@persistence/undo/snapshot-undo';
+import { createSnapshotUndoController, instrumentSceneBuilderForUndo } from '@state/undo/snapshot-undo';
 import { globalMacroManager } from '@bindings/macro-manager';
 
 class DragSceneBuilder {

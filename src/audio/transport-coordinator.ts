@@ -11,10 +11,10 @@
 // - Expose subscription for dev overlay / tests
 // - Remain side-effect free: caller updates global store with returned tick.
 
-import { PlaybackClock } from '@core/playback-clock';
+import { PlaybackClock } from '@core/timing/playback-clock';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { TimingManager } from '@core/timing';
-import { getAudioEngine, AudioEngine } from '@core/audio-engine';
+import { getAudioEngine, AudioEngine } from '@audio/audio-engine';
 
 export interface TransportStateInternal {
     mode: 'idle' | 'playing' | 'paused';

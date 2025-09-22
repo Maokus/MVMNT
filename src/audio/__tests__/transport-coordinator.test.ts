@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TransportCoordinator } from '@core/transport-coordinator';
+import { TransportCoordinator } from '@audio/transport-coordinator';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 
 function advance(tc: TransportCoordinator, steps: number[], startMs = 0) {

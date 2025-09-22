@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PlaybackClock } from '@core/playback-clock';
+import { PlaybackClock } from '@core/timing/playback-clock';
 import { TimingManager } from '@core/timing';
 
 // Simple fake performance timeline progression helper

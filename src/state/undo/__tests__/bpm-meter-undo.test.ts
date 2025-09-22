@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createSnapshotUndoController } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
-import { instrumentTimelineStoreForUndo } from '@persistence/undo/snapshot-undo';
+import { instrumentTimelineStoreForUndo } from '@state/undo/snapshot-undo';
 
 // Utility to flush timers
 function flush(ms = 25) {

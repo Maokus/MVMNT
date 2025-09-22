@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { TimingManager } from '@core/timing';
-import { PlaybackClock } from '@core/playback-clock';
+import { PlaybackClock } from '@core/timing/playback-clock';
 
 // This test validates that when transport is marked playing, advancing the playback clock
 // results in increasing timeline.currentTick (authoritative tick domain).

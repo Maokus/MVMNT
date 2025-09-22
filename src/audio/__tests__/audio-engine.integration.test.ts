@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { TransportCoordinator } from '@core/transport-coordinator';
+import { TransportCoordinator } from '@audio/transport-coordinator';
 import { useTimelineStore } from '@state/timelineStore';
-import { AudioEngine } from '@core/audio-engine';
+import { AudioEngine } from '@audio/audio-engine';
 
 class MockAudioContext {
     public currentTime = 0;
