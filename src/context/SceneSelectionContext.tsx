@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useVisualizer } from './VisualizerContext';
 import { HybridSceneBuilder } from '@core/scene-builder';
 import { useSceneStore } from '@state/sceneStore';
-import { useSceneElements, useSceneSelection, dispatchSceneCommand } from '@state/scene';
+import { useSceneElements, useSceneSelection as useSceneSelectionStore, dispatchSceneCommand } from '@state/scene';
 import { enableSceneStoreUI } from '../config/featureFlags';
 
 interface SceneSelectionState {
@@ -49,7 +49,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
 
-    const storeSelection = useSceneSelection();
+    const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
     const selectedElementId = enableSceneStoreUI ? storeSelection.primaryId : legacySelectedElementId;
 
