@@ -29,6 +29,15 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const macros = enableStoreMacros ? storeMacros : legacyMacros;
 
+    useEffect(() => {
+        if (!visualizer || typeof visualizer.invalidateRender !== 'function') return;
+        try {
+            visualizer.invalidateRender();
+        } catch (err) {
+            console.warn('[MacroContext] Failed to invalidate visualizer after macro change', err);
+        }
+    }, [visualizer, macros]);
+
     const getSceneBuilder = useCallback(() => {
         if (!visualizer) return null;
         try {
