@@ -17,6 +17,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
+    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
 
     // Handle clicks outside scene menu to close it
     useEffect(() => {
@@ -57,7 +58,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
             <div className="menu-section quick-actions" style={{ gap: 12 }}>
                 <h3 style={{ marginRight: 0 }}>
                     <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
-                        MVMNT v{((import.meta as any).env?.VITE_VERSION)}
+                        MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
                     </Link>
                 </h3>
                 <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
