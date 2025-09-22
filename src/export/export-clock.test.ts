@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { SimulatedClock } from './simulated-clock';
+import { ExportClock } from './export-clock';
 
 describe('SimulatedClock', () => {
     it('produces deterministic times with playRangeStart (no padding)', () => {
         const fps = 30;
         const playRangeStartSec = 12.0; // start at 12s
         const startFrame = 10; // export starting from frame 10
-        const clock = new SimulatedClock({ fps, playRangeStartSec, startFrame });
+        const clock = new ExportClock({ fps, playRangeStartSec, startFrame });
 
         const expected0 = playRangeStartSec + startFrame / fps;
         expect(clock.timeForFrame(0)).toBeCloseTo(expected0, 10);

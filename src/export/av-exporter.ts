@@ -23,7 +23,7 @@
  */
 import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
-import SimulatedClock from './simulated-clock';
+import ExportClock from './export-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { registerMp3Encoder } from '@mediabunny/mp3-encoder';
@@ -205,7 +205,7 @@ export class AVExporter {
                 }
             }
             const totalFrames = Math.ceil(videoDurationSeconds * fps);
-            const clock = new SimulatedClock({ fps, timingSnapshot: snapshot as any });
+            const clock = new ExportClock({ fps, timingSnapshot: snapshot as any });
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');

@@ -6,7 +6,7 @@ import {
     snapshotSecondsToTicks,
     snapshotTicksToSeconds,
 } from '@export/export-timing-snapshot';
-import SimulatedClock from '@export/simulated-clock';
+import ExportClock from '@export/export-clock';
 
 describe('ExportTimingSnapshot', () => {
     it('roundtrip seconds->ticks->seconds stable fixed tempo', () => {
@@ -26,7 +26,7 @@ describe('ExportTimingSnapshot', () => {
         tm.setBPM(100);
         tm.setTicksPerQuarter(CANONICAL_PPQ);
         const snap = createExportTimingSnapshot(tm);
-        const clock = new SimulatedClock({ fps: 60, timingSnapshot: snap });
+        const clock = new ExportClock({ fps: 60, timingSnapshot: snap });
         const frameTicksBefore = Array.from({ length: 10 }, (_, i) => clock.ticksForFrame(i));
         // Change live BPM (should not affect snapshot-based mapping)
         tm.setBPM(200);

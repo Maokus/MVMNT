@@ -3,7 +3,7 @@
 // hardware accelerated (WebCodecs) encoding directly in the browser.
 // The public API is intentionally kept the same so existing callers keep working.
 
-import SimulatedClock from '@export/simulated-clock';
+import ExportClock from '@export/export-clock';
 import { buildExportFilename } from '@utils/filename';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
@@ -263,7 +263,7 @@ export class VideoExporter {
                 }
             }
 
-            const clock = new SimulatedClock({
+            const clock = new ExportClock({
                 fps,
                 playRangeStartSec: playRangeStart,
                 startFrame: _startFrame,

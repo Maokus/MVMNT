@@ -4,21 +4,21 @@
 import type { ExportTimingSnapshot } from './export-timing-snapshot';
 import { snapshotSecondsToTicks, snapshotTicksToSeconds } from './export-timing-snapshot';
 
-export interface SimulatedClockOptions {
+export interface ExportClockOptions {
     fps: number; // frames per second
     playRangeStartSec?: number; // optional play range start (seconds)
     startFrame?: number; // internal start frame offset for partial exports
     timingSnapshot?: ExportTimingSnapshot; // optional deterministic timing snapshot
 }
 
-export class SimulatedClock {
+export class ExportClock {
     private fps: number;
     private frameInterval: number;
     private playStart: number; // defaults to 0 (full scene)
     private startFrame: number;
     private snapshot: ExportTimingSnapshot | null;
 
-    constructor(opts: SimulatedClockOptions) {
+    constructor(opts: ExportClockOptions) {
         this.fps = opts.fps;
         this.frameInterval = 1 / this.fps;
         this.playStart = opts.playRangeStartSec ?? 0;
@@ -56,4 +56,4 @@ export class SimulatedClock {
     }
 }
 
-export default SimulatedClock;
+export default ExportClock;

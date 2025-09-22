@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import SimulatedClock from '../simulated-clock';
+import ExportClock from '../export-clock';
 
 // Mirror computeEncodeTimestamp logic from video-exporter (kept minimal for test stability)
 function computeEncodeTimestamp(renderTime: number, playRangeStartSec: number) {
@@ -12,7 +12,7 @@ describe('Video Export timestamp normalization', () => {
         const fps = 60;
         const playStart = 4; // seconds
         const frames = 5;
-        const clock = new SimulatedClock({ fps, playRangeStartSec: playStart });
+        const clock = new ExportClock({ fps, playRangeStartSec: playStart });
         const times: number[] = [];
         for (let i = 0; i < frames; i++) {
             const renderTime = clock.timeForFrame(i);
