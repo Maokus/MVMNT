@@ -23,4 +23,4 @@ export interface AudioCacheEntry {
     peakData?: Float32Array; // optional waveform peak bins for UI rendering
 }
 
-export type AnyTrack = AudioTrack | import('./timelineStore').TimelineTrack; // existing midi timeline track
+export type AnyTrack = AudioTrack | import('@state/timelineStore').TimelineTrack; // existing midi timeline track

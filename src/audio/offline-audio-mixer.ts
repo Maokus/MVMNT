@@ -18,7 +18,7 @@
  *    graph scheduling differences.
  *  - Resampling uses pure arithmetic (linear interpolation) ensuring cross‑run stability.
  */
-import type { AudioTrack, AudioCacheEntry } from '@state/audioTypes';
+import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
 
 declare global {
     interface Window {

@@ -35,7 +35,7 @@
 // - refresh() currently minimal; future granular scheduling will populate lookahead logic here.
 
 import { useTimelineStore } from '@state/timelineStore';
-import type { AudioTrack } from '@state/audioTypes';
+import type { AudioTrack } from '@audio/audioTypes';
 
 interface ActiveTrackNode {
     source: AudioBufferSourceNode;

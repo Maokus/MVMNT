@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offlineMix } from '@export/offline-audio-mixer';
+import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from '@export/repro-hash';
 
 function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channels = 2, seed = 1): AudioBuffer {

@@ -11,8 +11,6 @@
  *  - Non‑audio tracks reduced to minimal shape (id, type, offset) to avoid future accidental drift.
  */
 
-import type { AudioTrack } from '@state/audioTypes';
-
 export interface ReproHashInput {
     version: string;
     tempoBPM: number;

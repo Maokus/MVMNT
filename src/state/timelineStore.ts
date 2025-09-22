@@ -1,7 +1,7 @@
 import create, { type StateCreator } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
-import type { AudioTrack, AudioCacheEntry } from '@state/audioTypes';
+import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';

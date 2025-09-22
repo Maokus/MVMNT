@@ -21,7 +21,7 @@
  *  - Canvas rendering assumed synchronous & side‑effect free for a given render time.
  *  - No adaptive chunk flushing: entire result buffered in memory (sufficient for short / mid‑length exports).
  */
-import { offlineMix } from './offline-audio-mixer';
+import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
 import SimulatedClock from './simulated-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
