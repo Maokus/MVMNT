@@ -25,9 +25,9 @@
 ## Assumptions & Verification Strategy
 
 -   **Store module location** → Place the slice under `src/state/sceneStore.ts`. _Status_: Confirmed in follow-up responses. _Action_: Codify in ADR/update contribution guide during Phase 1.
--   **Command/middleware extensibility** → Existing snapshot middleware can host scene transactions. _Verification_: Phase 0 spike to validate compatibility; add test harness that reuses the shared middleware. _Mitigation_: If gaps arise, extend middleware in Phase 2 before dual-write activation.
--   **Builder mutation entry points are centralized** → Must be proven before rollout. _Verification_: Phase 0 code search (including extensions/plugins) and Phase 1 static linting to flag stragglers; document findings. _Mitigation_: Build adapters or shims for any outliers before enabling parity checks.
--   **Legacy documents remain compatible with normalized schema** → _Verification_: Phase 0 regression fixtures + Phase 6 migration tests that round-trip representative documents. _Mitigation_: Ship backfill transforms guarded by semantic versioning.
+-   **Command/middleware extensibility** → Existing snapshot middleware can host scene transactions. _Status_: Verified via Phase 0 undo integration tests; `instrumentSceneBuilderForUndo` covers builder mutations without regressions. _Follow-up_: Extend instrumentation to cover `updateElementId` and template resets before dual-write activation in Phase 2.
+-   **Builder mutation entry points are centralized** → Phase 0 audit (see `docs/store-migration/phase0-builder-mutation-audit.md`) inventories all production mutation surfaces. _Status_: Inventory complete; Phase 1 will add lint/static analysis to catch regressions. _Mitigation_: Build adapters or shims for any outliers before enabling parity checks.
+-   **Legacy documents remain compatible with normalized schema** → _Status_: Baseline export/import regression fixture captured in `src/persistence/__fixtures__/phase0/scene.edge-macros.json`. _Follow-up_: Phase 6 expands coverage with legacy document round-trips and normalization transforms. _Mitigation_: Ship backfill transforms guarded by semantic versioning.
 -   **Production parity checks are acceptable** → _Status_: Mandated in follow-up responses. _Action_: Phase 2 work includes performance budget definition, sampling/telemetry plan, and feature flag safety valve.
 
 ## Guiding Principles
@@ -57,6 +57,13 @@
 -   Regression test suite green in CI; fixtures stored for future diffs.
 -   Decision log updated confirming `sceneStore.ts` location and middleware compatibility (or capturing follow-up work).
 
+#### Phase 0 status update – 2025-02-20
+- Snapshot helper available under `src/state/scene/snapshotBuilder.ts` with edge macro fixture (`src/persistence/__fixtures__/phase0/scene.edge-macros.json`) and parity tests (see `src/state/scene/__tests__`).
+- Builder mutation inventory captured in `docs/store-migration/phase0-builder-mutation-audit.md`; lint/static follow-up scheduled for Phase 1.
+- Undo middleware compatibility verified via `scene-middleware.integration.test.ts`; instrumentation gaps (`updateElementId`, template resets) queued for Phase 2.
+- DocumentGateway regression suite added (`persistence.phase0.scene-regression.test.ts`) to guard import/export while store lands.
+
+
 ### Phase 1 – Scene Store Scaffolding & Data Modeling
 
 **Key Activities**
@@ -81,6 +88,7 @@
 -   Introduce a command gateway (`dispatchSceneCommand`) wrapping builder mutators and exposing typed command payloads.
 -   Wrap all identified builder mutation entry points from Phase 0 with dual-write logic (legacy builder mutation + store action dispatch).
 -   Implement parity assertion leveraging snapshot helper; reuse existing snapshot middleware to batch undo transactions.
+-   Extend undo instrumentation to cover Phase 0 gaps (`updateElementId`, template resets) and validate via scene gateway tests.
 -   Build production-safe parity execution: sampling knobs, telemetry events, failure logging, and a feature flag for emergency disable.
 -   Add ESLint rule/codemod to block direct builder mutations outside the gateway; fix offenders.
 
