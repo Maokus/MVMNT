@@ -4,6 +4,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 // We use optional chaining; if unavailable we gracefully degrade.
 // @ts-ignore
 import { canEncodeVideo, getEncodableVideoCodecs, canEncodeAudio, getEncodableAudioCodecs } from 'mediabunny';
+import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -89,6 +90,13 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         })();
         return () => { mounted = false; };
     }, []);
+
+    // Prefetch MP3 encoder chunk when user selects mp3 to reduce latency at export time.
+    useEffect(() => {
+        if (audioCodec === 'mp3') {
+            ensureMp3EncoderRegistered();
+        }
+    }, [audioCodec]);
 
     // Recompute auto bitrate estimate when deps change or on mount
     useEffect(() => {

@@ -26,7 +26,6 @@ import { computeReproHash, normalizeTracksForHash } from './repro-hash';
 import ExportClock from './export-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
-import { registerMp3Encoder } from '@mediabunny/mp3-encoder';
 import {
     Output,
     Mp4OutputFormat,
@@ -38,18 +37,10 @@ import {
     getEncodableVideoCodecs,
     getEncodableAudioCodecs,
 } from 'mediabunny';
+import { ensureMp3EncoderRegistered } from './mp3-encoder-loader';
 
-// Register MP3 encoder so that 'mp3' appears in encodable audio codecs and canEncodeAudio('mp3') succeeds.
-// Safe to call multiple times (registration function should be idempotent); wrapped in try/catch to avoid
-// breaking the module load if the optional dependency changes.
-try {
-    registerMp3Encoder();
-    // eslint-disable-next-line no-console
-    console.log('[AVExporter] MP3 encoder registered');
-} catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[AVExporter] Failed to register MP3 encoder', e);
-}
+// NOTE: MP3 encoder registration has been moved to a lazy path (`ensureMp3EncoderRegistered`) to avoid
+// loading the WASM + encoder code during initial app load. See `mp3-encoder-loader.ts`.
 
 // Helper: convert absolute timeline render time to zero-based encoding timestamp to avoid leading gaps.
 function toEncodeTimestamp(absSeconds: number, exportStartSeconds: number): number {
@@ -282,9 +273,18 @@ export class AVExporter {
                             const encodable = await (getEncodableAudioCodecs?.() as any);
                             const match = preferOrder.find((c) => encodable?.includes?.(c));
                             if (match) resolvedAudioCodec = match;
+                            // If user explicitly requested mp3 or auto fallback includes it, attempt registration lazily
+                            if (audioCodec === 'mp3' || encodable?.includes?.('mp3')) {
+                                await ensureMp3EncoderRegistered();
+                            }
                         } catch {
                             /* ignore */
                         }
+                    }
+                    // If user explicitly selected mp3 (even if reported unsupported initially), attempt lazy registration before constructing source.
+                    if (audioCodec === 'mp3') {
+                        await ensureMp3EncoderRegistered();
+                        resolvedAudioCodec = 'mp3';
                     }
                     // Choose sample rate
                     const resolvedSampleRate =
