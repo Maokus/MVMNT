@@ -27,7 +27,7 @@ function makeTestAudioBuffer(durationSeconds: number, sampleRate = 48000, channe
     } as unknown as AudioBuffer;
 }
 
-describe('Audio Track Phase 1', () => {
+describe('Audio Track', () => {
     it('adds audio track and computes durationTicks', async () => {
         const bpm = useTimelineStore.getState().timeline.globalBpm;
         const ppq = sharedTimingManager.ticksPerQuarter;

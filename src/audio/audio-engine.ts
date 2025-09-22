@@ -32,7 +32,7 @@
 // - Gain/mute/solo updates mutate GainNode in-place with small smoothing constants.
 // - Solo state change triggers a lightweight full reschedule (seek at lastPlayheadTick) to update audible set.
 // - No attempt (yet) to keep phase continuity across seeks; acceptable for discrete clip playback use cases.
-// - refresh() is a no-op placeholder; future granular scheduling will populate lookahead logic here.
+// - refresh() currently minimal; future granular scheduling will populate lookahead logic here.
 
 import { useTimelineStore } from '@state/timelineStore';
 import type { AudioTrack } from '@state/audioTypes';
@@ -55,12 +55,6 @@ export class AudioEngine {
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
     private unsub?: () => void;
     // Adaptive lookahead scaffolding (currently passive; future scheduling granularity may use this)
-    private adaptive = {
-        min: 0.15,
-        max: 0.4,
-        recentUnderruns: 0,
-        windowChecks: 0,
-    };
 
     constructor(cfg: AudioEngineConfig = {}) {
         this.cfg = { lookaheadSeconds: cfg.lookaheadSeconds ?? 0.2 };
@@ -182,38 +176,8 @@ export class AudioEngine {
     }
 
     /** For future incremental scheduling; currently ensures any missing sources are started. */
-    refresh(currentTick: number) {
-        // Adaptive lookahead placeholder: increment window checks and periodically adjust.
-        // In current whole-buffer model we cannot detect real underruns; hook left for future granular scheduling.
-        this.adaptive.windowChecks++;
-        if (this.adaptive.windowChecks % 300 === 0) {
-            // Every ~300 frames (~5s at 60fps) decay underrun counter
-            this.adaptive.recentUnderruns = Math.max(0, this.adaptive.recentUnderruns - 1);
-            this.recomputeLookahead();
-        }
-    }
-
-    /** External hook (future) to report scheduling underrun */
-    reportUnderrun() {
-        this.adaptive.recentUnderruns++;
-        this.recomputeLookahead();
-    }
-
-    private recomputeLookahead() {
-        const severity = this.adaptive.recentUnderruns;
-        // Map severity 0..10 -> lookahead range min..max
-        const clamped = Math.min(10, Math.max(0, severity));
-        const span = this.adaptive.max - this.adaptive.min;
-        const next = this.adaptive.min + (span * clamped) / 10;
-        if (Math.abs(this.cfg.lookaheadSeconds - next) > 0.005) {
-            this.cfg.lookaheadSeconds = next;
-            // Dev-only debug event
-            try {
-                window.dispatchEvent(
-                    new CustomEvent('audio-lookahead-adjusted', { detail: { lookahead: next, severity } })
-                );
-            } catch {}
-        }
+    refresh(_currentTick: number) {
+        // no-op placeholder (previous adaptive lookahead scaffolding removed as unused)
     }
 
     /** Test / debug helper (non-production critical) */

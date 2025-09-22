@@ -45,7 +45,7 @@ function makeState(partial?: Partial<TimelineState>): TimelineState {
     };
 }
 
-describe('Phase 2 transport additions', () => {
+describe('Transport transport additions', () => {
     it('has defaults for rate and quantize', () => {
         const s = makeState();
         expect(s.transport.rate).toBe(1);

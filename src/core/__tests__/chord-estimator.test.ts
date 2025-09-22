@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChordPB } from '../chord-estimator';
+// Updated path after refactor: chord estimator lives under midi/music-theory.
+import { estimateChordPB } from '@core/midi/music-theory/chord-estimator';
 
 function makeChroma(indices: number[]): Float32Array {
     const v = new Float32Array(12);

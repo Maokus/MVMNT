@@ -1,6 +1,6 @@
 /**
  * Feature flag utilities for persistence system.
- * Phase 0: Only SERIALIZATION_V1 is recognized.
+ * Supported flags (initial minimal set): Only SERIALIZATION_V1 is recognized.
  */
 
 export const FEATURE_FLAGS = {
@@ -11,7 +11,7 @@ export type FeatureFlagName = keyof typeof FEATURE_FLAGS;
 
 function readRawFlag(envKey: string): string | undefined {
     // Vite exposes import.meta.env
-    // Cast to any to avoid needing a global type augmentation for Phase 0.
+    // Cast to any to avoid needing a global type augmentation at this stage.
     const env: any = (import.meta as any).env || {};
     return env[envKey];
 }

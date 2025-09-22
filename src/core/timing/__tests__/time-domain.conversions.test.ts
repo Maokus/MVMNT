@@ -7,7 +7,7 @@ function approx(a: number, b: number, eps = 1e-9) {
     expect(Math.abs(a - b)).toBeLessThan(eps);
 }
 
-describe('Time Domain Conversions (Phase 1)', () => {
+describe('Time Domain Conversions', () => {
     // Basic tick<->beat symmetry is covered by TimingManager tests elsewhere.
 
     it('fixed tempo ticks<->seconds round trip', () => {

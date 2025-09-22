@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { exportScene, importScene, createSnapshotUndoController } from '../';
 
-// These tests assert only Phase 0 placeholder semantics; they will be superseded / expanded in Phase 1.
+// These tests assert initial placeholder semantics; they will be superseded / expanded later.
 
-describe('Persistence Phase 0 Skeleton', () => {
+describe('Persistence skeleton', () => {
     it('exportScene returns success result', () => {
         const result = exportScene();
         expect(result.ok).toBe(true);

@@ -7,7 +7,7 @@ function getState() {
     return useTimelineStore.getState();
 }
 
-describe('timelineStore (Phase 1)', () => {
+describe('timelineStore', () => {
     it('adds a MIDI track and ingests provided MIDI data', async () => {
         const midi = {
             events: [

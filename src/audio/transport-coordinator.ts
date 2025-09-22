@@ -1,7 +1,7 @@
-// TransportCoordinator - Phase 0 foundation.
-// Provides dual-mode (future audio vs clock) tick derivation. For Phase 0 we only
-// have clock fallback; audio path is scaffolded so later AudioEngine integration
-// can flip the source without changing consumers.
+// TransportCoordinator
+// Dual-mode (audio vs. clock) tick derivation. Initially may operate purely in clock
+// mode; audio path is scaffolded so later AudioEngine integration can flip the
+// source without changing consumers.
 //
 // Responsibilities:
 // - Mirror timeline store play/pause/seek state

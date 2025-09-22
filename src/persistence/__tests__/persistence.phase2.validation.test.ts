@@ -10,7 +10,7 @@ function makeValidEnvelope() {
     return JSON.parse(exp.json);
 }
 
-describe('Persistence Phase 2 Validation', () => {
+describe('Persistence validation extended', () => {
     it('detects missing metadata object', () => {
         const env = makeValidEnvelope();
         delete env.metadata;

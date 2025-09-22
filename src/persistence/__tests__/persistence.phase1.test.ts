@@ -4,7 +4,7 @@ import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
 
-describe('Persistence Phase 1', () => {
+describe('Persistence', () => {
     test('Stable stringify deterministic for object key order', () => {
         const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
         const s1 = serializeStable(a);

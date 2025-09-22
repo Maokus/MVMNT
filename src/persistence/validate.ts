@@ -1,8 +1,8 @@
 /**
- * Phase 2 Validation – Expanded structural checks & error codes.
+ * Validation – Expanded structural checks & error codes.
  *
  * Adds:
- *  - Error code taxonomy (fatal only in Phase 2)
+ *  - Error code taxonomy (fatal subset)
  *  - Type assertions for timeline numeric fields (if present)
  *  - Track objects basic shape validation (id/name/type)
  *  - Range checks for rowHeight (if present) & globalBpm > 0
@@ -143,7 +143,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                 }
             }
         }
-        // Numeric range checks (non-fatal design but still fatal in Phase 2)
+        // Numeric range checks (non-fatal design but still enforced here)
         if (tl.timeline && typeof tl.timeline === 'object') {
             if (typeof tl.timeline.globalBpm === 'number' && !(tl.timeline.globalBpm > 0)) {
                 errors.push(err('ERR_GLOBAL_BPM_RANGE', 'globalBpm must be > 0', 'timeline.timeline.globalBpm'));

@@ -14,7 +14,7 @@ function mkTrack(id: string, patch: Partial<CompileTrack> = {}): CompileTrack {
     } as CompileTrack;
 }
 
-describe('compileWindow (Phase 3)', () => {
+describe('compileWindow', () => {
     it('schedules noteOn/off within window with offset applied', () => {
         const tracks: CompileTrack[] = [mkTrack('t1', { midiSourceId: 't1', offsetSec: 1 })];
         const midiCache: CompileMidiCache = {

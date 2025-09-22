@@ -51,9 +51,9 @@ Deliver full audio track support (import, timeline positioning, playback, export
 7. `WaveformProcessor` (Phase 5) – Generates peak arrays for waveform display (worker/off‑main thread).
 8. `MediabunnyExportAdapter` – Wraps Mediabunny `Output` creation, adds tracks, feeds audio & video, finalizes MP4.
 
-## 6. Phase Breakdown
+## 6. Implementation Breakdown
 
-### Phase 0 – Foundations & Transport Abstractions
+### Foundations & Transport Abstractions
 
 **Objectives**: Introduce `TransportCoordinator` with dual mode behavior without breaking existing consumers.
 
@@ -103,7 +103,7 @@ Deliver full audio track support (import, timeline positioning, playback, export
 -   Automated test: Simulate playback for N seconds by mocking audio time; assert derived ticks within tolerance.
 -   Negative test: Force context creation rejection; ensure mode stays 'paused'/'idle' without exceptions.
 
-### Phase 1 – Data Model & Store Extensions
+### Data Model & Store Extensions
 
 **Objectives**: Extend timeline state with audio track & cache entries while preserving existing track logic.
 
@@ -170,7 +170,7 @@ interface AudioCacheEntry {
 -   Property-based: Random durations vs ticksToSeconds round-trip within precision.
 -   Manual: UI shows clip at expected width when zoom changes.
 
-### Phase 2 – Audio-Driven Real-Time Playback Engine
+### Audio-Driven Real-Time Playback Engine
 
 **Objectives**: Implement decoding, scheduling & playback such that audio remains authoritative when playing.
 
@@ -228,7 +228,7 @@ interface AudioEngine {
 -   Profiling: Instrument scheduler to log lookahead coverage; ensure never < 50% of target window.
 -   Manual: Introduce rapid seeks; confirm no residual audio from previous position.
 
-### Phase 3 – UI & Interaction Integration
+### UI & Interaction Integration
 
 **Objectives**: Full user interaction for audio clips (drag, select, gain, mute/solo) & transport feedback.
 
@@ -261,7 +261,7 @@ interface AudioEngine {
 -   Unit test: Solo combination matrix (multiple solos) yields correct audible set.
 -   Manual: Adjust gain while holding keyframe visual playback; no stutter.
 
-### Phase 4 – Deterministic Export Pipeline (MP4 via Mediabunny)
+### Deterministic Export Pipeline (MP4 via Mediabunny)
 
 **Objectives**: Produce synchronized audio + video MP4 file deterministically with reproducibility hash.
 
@@ -318,7 +318,7 @@ interface AudioEngine {
 -   Manual: Visual overlay frame index vs audible cues inspection.
 -   Hash test: Persisted hash recorded; re-run export matches.
 
-### Phase 5 – Optimization, Waveforms & Quality Enhancements
+### Optimization, Waveforms & Quality Enhancements
 
 **Objectives**: Improve UX, audio polish, performance resilience.
 
@@ -346,7 +346,7 @@ interface AudioEngine {
 -   Performance profiling: Worker message timings & main thread blocking measured.
 -   Stress test: Introduce 100ms UI stalls; confirm no audible gaps.
 
-### Phase 6 – Testing, Instrumentation & Documentation
+### Testing, Instrumentation & Documentation
 
 **Objectives**: Comprehensive automated coverage, regression protection, user & developer documentation.
 
@@ -440,17 +440,17 @@ Process:
 6. UX polish: Waveforms (Phase 5) present, no click artifacts, accessible controls.
 7. Documentation: Updated architecture + user guide + troubleshooting.
 
-## 11. Phase Sequencing & Estimated Durations
+## 11. Sequencing & Estimated Durations
 
-| Phase | Duration (dev days) | Primary Outputs                                  |
-| ----- | ------------------- | ------------------------------------------------ |
-| 0     | 2–3                 | TransportCoordinator & dual-mode tick derivation |
-| 1     | 2–3                 | Data model & cache actions                       |
-| 2     | 5–7                 | AudioEngine + Scheduler + seek handling          |
-| 3     | 3–5                 | UI controls & interactions                       |
-| 4     | 8–11                | Offline mix + frame export + Mediabunny MP4      |
-| 5     | 4–6                 | Waveforms, micro-fades, adaptive lookahead       |
-| 6     | 3–5                 | Tests, docs, instrumentation                     |
+| Segment          | Duration (dev days) | Primary Outputs                                  |
+| ---------------- | ------------------- | ------------------------------------------------ |
+| Foundations      | 2–3                 | TransportCoordinator & dual-mode tick derivation |
+| Data Model       | 2–3                 | Audio model & cache actions                      |
+| Playback Engine  | 5–7                 | AudioEngine + Scheduler + seek handling          |
+| UI / Interaction | 3–5                 | UI controls & interactions                       |
+| Export Pipeline  | 8–11                | Offline mix + frame export + Mediabunny MP4      |
+| Optimization     | 4–6                 | Waveforms, micro-fades, adaptive lookahead       |
+| Testing & Docs   | 3–5                 | Tests, docs, instrumentation                     |
 
 Total: 27–40 dev days.
 

@@ -13,7 +13,7 @@ function advance(tc: TransportCoordinator, steps: number[], startMs = 0) {
     return ticks;
 }
 
-describe('TransportCoordinator Phase 0 (clock fallback)', () => {
+describe('TransportCoordinator clock fallback', () => {
     it('advances ticks over time while playing (clock source)', () => {
         const api = useTimelineStore.getState();
         api.setCurrentTick(0, 'user');

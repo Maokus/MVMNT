@@ -14,7 +14,7 @@ function _getSceneBuilder(): any | null {
     return null;
 }
 
-// --- Types (Phase 1 minimal envelope) ---
+// --- Types (initial minimal envelope) ---
 export interface SceneMetadata {
     id: string;
     name: string;

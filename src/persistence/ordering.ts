@@ -1,5 +1,5 @@
 /**
- * Canonical element ordering (Phase 1 implementation).
+ * Canonical element ordering implementation.
  * Sort priority: (z ASC, type ASC, id ASC). Missing values are treated as follows:
  *  - z: missing -> +Infinity (pushes unspecified z to end preserving relative order via stable sort fallback)
  *  - type: missing -> '' (empty string sorts before named types, but z dominates earlier)
