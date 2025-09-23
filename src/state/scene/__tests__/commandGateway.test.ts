@@ -129,4 +129,51 @@ describe('scene command gateway', () => {
         expect(globalMacroManager.getMacro('macro.test')).toBeNull();
         expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
     });
+
+    it('keeps parity when macro values change after assignment', () => {
+        dispatchSceneCommand(
+            builder,
+            { type: 'createMacro', macroId: 'macro.assign', definition: { type: 'number', value: 0 } },
+            { source: 'test:macro-setup', skipParity: true }
+        );
+
+        dispatchSceneCommand(
+            builder,
+            {
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'with-macro',
+                config: {
+                    id: 'with-macro',
+                    offsetX: { type: 'constant', value: 0 },
+                },
+            },
+            { source: 'test:add-element', skipParity: true }
+        );
+
+        const builderElement: any = builder.getElement('with-macro');
+        expect(builderElement).toBeTruthy();
+        builderElement.bindToMacro('offsetX', 'macro.assign');
+
+        const mismatchResult = dispatchSceneCommand(
+            builder,
+            { type: 'updateMacroValue', macroId: 'macro.assign', value: 21 },
+            { source: 'test:update-macro-mismatch', forceParity: true, sampleOverride: 1 }
+        );
+        expect(mismatchResult.success).toBe(false);
+        expect(mismatchResult.parityMismatch).not.toBeNull();
+
+        useSceneStore.getState().updateBindings('with-macro', {
+            offsetX: { type: 'macro', macroId: 'macro.assign' },
+        });
+
+        const updateResult = dispatchSceneCommand(
+            builder,
+            { type: 'updateMacroValue', macroId: 'macro.assign', value: 42 },
+            { source: 'test:update-macro', forceParity: true, sampleOverride: 1 }
+        );
+
+        expect(updateResult.success).toBe(true);
+        expect(updateResult.parityMismatch).toBeNull();
+    });
 });
