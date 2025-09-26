@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
-import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
 
@@ -46,9 +45,6 @@ export class MIDIVisualizerCore {
         this._setupImageLoadedListener();
         this.sceneBuilder.createDefaultMIDIScene();
         (window as any).vis = this; // debug helper
-    }
-    updateSceneElementTimingManager() {
-        this.sceneBuilder.createDefaultMIDIScene();
     }
     // Set the explicit playback range (in seconds) controlled by the external timeline/UI
     setPlayRange(startSec?: number | null, endSec?: number | null) {
@@ -270,16 +266,6 @@ export class MIDIVisualizerCore {
     }
     getIsPlaying() {
         return this.isPlaying;
-    }
-    getRenderObjects(targetTime = this.currentTime) {
-        const config = this.getSceneConfig();
-        return this.sceneBuilder.buildScene(config, targetTime);
-    }
-    renderWithCustomObjects(customRenderObjects: any[], targetTime = this.currentTime) {
-        const config = this.getSceneConfig();
-        const base = this.sceneBuilder.buildScene(config, targetTime);
-        const all = [...base, ...customRenderObjects];
-        this.modularRenderer.render(this.ctx, all, config, targetTime);
     }
     getSceneConfig() {
         const themeColors = {
@@ -535,33 +521,6 @@ export class MIDIVisualizerCore {
         });
         return handles;
     }
-    getModularRenderer() {
-        return this.modularRenderer;
-    }
-    getAvailableSceneElementTypes() {
-        return Promise.resolve(sceneElementRegistry.getElementTypeInfo());
-    }
-    addSceneElement(type: string, config: any = {}) {
-        const element = this.sceneBuilder.addElementFromRegistry(type, config);
-        if (element) this.invalidateRender();
-        return element;
-    }
-    removeSceneElement(elementId: string) {
-        const removed = this.sceneBuilder.removeElement(elementId);
-        if (removed) this.invalidateRender();
-        return removed;
-    }
-    updateSceneElementConfig(elementId: string, config: any) {
-        const updated = this.sceneBuilder.updateElementConfig(elementId, config);
-        if (updated) this.invalidateRender();
-        return updated;
-    }
-    getSceneElementConfig(elementId: string) {
-        return this.sceneBuilder.getElementConfig(elementId);
-    }
-    getSceneElements() {
-        return this.sceneBuilder.getAllElements();
-    }
     exportSceneConfig() {
         return this.sceneBuilder.serializeScene();
     }
@@ -688,30 +647,5 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this._pendingRenderRAF);
             this._pendingRenderRAF = null;
         }
-    }
-    getSceneElement(elementId: string) {
-        return this.sceneBuilder.getElement(elementId);
-    }
-    setSceneElementVisibility(elementId: string, visible: boolean) {
-        const el: any = this.sceneBuilder.getElement(elementId);
-        if (el) {
-            el.setVisible(visible);
-            this.invalidateRender();
-        }
-    }
-    setSceneElementZIndex(elementId: string, zIndex: number) {
-        const el: any = this.sceneBuilder.getElement(elementId);
-        if (el) {
-            el.setZIndex(zIndex);
-            this.invalidateRender();
-        }
-    }
-    moveSceneElement(elementId: string, newIndex: number) {
-        if (this.sceneBuilder.moveElement(elementId, newIndex)) this.invalidateRender();
-    }
-    duplicateSceneElement(sourceId: string, newId: string) {
-        const el = this.sceneBuilder.duplicateElement(sourceId, newId);
-        if (el) this.invalidateRender();
-        return el;
     }
 }
