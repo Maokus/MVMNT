@@ -9,7 +9,7 @@ const PreviewPanel: React.FC = () => {
     const ctx = useVisualizer();
     const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
-    const { selectElement, sceneBuilder, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
+    const { selectElement, updateElementConfig, incrementPropertyPanelRefresh } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
@@ -51,14 +51,16 @@ const PreviewPanel: React.FC = () => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
-    const handlerDeps = React.useMemo(() => ({
-        canvasRef,
-        visualizer: visualizerInstance,
-        sceneBuilder,
-        selectElement,
-        updateElementConfig,
-        incrementPropertyPanelRefresh
-    }), [canvasRef, visualizerInstance, sceneBuilder, selectElement, updateElementConfig, incrementPropertyPanelRefresh]);
+    const handlerDeps = React.useMemo(
+        () => ({
+            canvasRef,
+            visualizer: visualizerInstance,
+            selectElement,
+            updateElementConfig,
+            incrementPropertyPanelRefresh
+        }),
+        [canvasRef, visualizerInstance, selectElement, updateElementConfig, incrementPropertyPanelRefresh]
+    );
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => onCanvasMouseDown(e, handlerDeps);
     const handleCanvasMouseMove = (e: React.MouseEvent) => onCanvasMouseMove(e, handlerDeps);

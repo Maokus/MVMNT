@@ -16,9 +16,8 @@ import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from
 export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
-    sceneBuilder?: any;
     selectElement: (id: string | null) => void;
-    updateElementConfig?: (id: string, cfg: any) => void;
+    updateElementConfig: (id: string, cfg: any) => void;
     incrementPropertyPanelRefresh: () => void;
 }
 
@@ -108,12 +107,11 @@ function updateMoveDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     const constrained = computeConstrainedMoveDelta(dx, dy, meta.origRotation || 0, shiftKey);
     const newX = meta.origOffsetX + constrained.dx;
     const newY = meta.origOffsetY + constrained.dy;
-    sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
-    updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+    updateElementConfig(elId, { offsetX: newX, offsetY: newY });
 }
 
 function updateScaleDrag(
@@ -125,7 +123,6 @@ function updateScaleDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder } = deps;
     if (!meta.bounds) return;
     const r = computeScaledTransform(
         x,
@@ -154,8 +151,7 @@ function updateScaleDrag(
             offsetX: r.newOffsetX,
             offsetY: r.newOffsetY,
         };
-        sceneBuilder?.updateElementConfig?.(elId, cfg);
-        deps.updateElementConfig?.(elId, cfg);
+        deps.updateElementConfig(elId, cfg);
     }
 }
 
@@ -168,7 +164,7 @@ function updateAnchorDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     if (!meta.bounds || !meta.baseBounds) return;
     const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
         x,
@@ -188,8 +184,7 @@ function updateAnchorDrag(
         shiftKey
     );
     const cfg = { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY };
-    sceneBuilder?.updateElementConfig?.(elId, cfg);
-    updateElementConfig?.(elId, cfg);
+    updateElementConfig(elId, cfg);
 }
 
 function updateRotateDrag(
@@ -201,11 +196,10 @@ function updateRotateDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     if (!meta.bounds) return;
     const newRotationDeg = computeRotation(x, y, meta, shiftKey);
-    sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotationDeg });
-    updateElementConfig?.(elId, { elementRotation: newRotationDeg });
+    updateElementConfig(elId, { elementRotation: newRotationDeg });
 }
 
 function processDrag(vis: any, x: number, y: number, shiftKey: boolean, deps: InteractionDeps) {

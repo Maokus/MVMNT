@@ -15,6 +15,26 @@ npm i
 npm run start
 ```
 
+### Verifying local builds
+
+Running the build or test suites requires the platform-specific Rollup binary that Vite depends on. The dependency
+`@rollup/rollup-linux-x64-gnu` is already listed in `devDependencies`, but some npm installs that skip optional packages will
+omit it and cause `npm run build` to fail with "Missing optional dependency @rollup/rollup-linux-x64-gnu".
+
+To make sure the binary is present before running the build or Vitest:
+
+1. Install dependencies without disabling optional packages:
+   ```bash
+   npm install
+   ```
+2. Run the build and tests:
+   ```bash
+   npm run build
+   npm run test -- --run
+   ```
+
+If you previously installed with `--no-optional`, rerun `npm install` so the Rollup binary is restored.
+
 ### Custom sceneElements
 
 Elements are the things you see and can move around. They are located in `src/core/scene/elements`. They inherit from `SceneElement` in `base.ts`.
