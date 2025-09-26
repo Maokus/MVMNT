@@ -28,6 +28,12 @@ export interface SceneSettings {
     beatsPerBar?: number; // global meter
 }
 
+/**
+ * @deprecated The scene store is the authoritative source of truth for scene data.
+ * HybridSceneBuilder remains only as a compatibility shim for legacy pathways while
+ * the runtime is finalized. New code should operate on the Zustand scene store
+ * directly through the command gateway utilities.
+ */
 export class HybridSceneBuilder {
     elements: SceneElement[] = [];
     elementRegistry = new Map<string, SceneElement>();

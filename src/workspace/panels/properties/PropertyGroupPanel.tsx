@@ -5,7 +5,6 @@ import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { useTimelineStore } from '@state/timelineStore';
-import { enableSceneStoreMacros } from '@config/featureFlags';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -25,13 +24,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onCollapseToggle
 }) => {
     const { manager, macros: macroList } = useMacros();
-    const macrosSource = useMemo(
-        () => (enableSceneStoreMacros ? (macroList as any[]) : manager.getAllMacros()),
-        [macroList, manager, enableSceneStoreMacros]
+    const macrosSource = useMemo(() => (macroList as any[]), [macroList]);
+    const macroLookup = useMemo(
+        () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
+        [macrosSource]
     );
-    const macroLookup = useMemo(() => new Map(
-        (macrosSource as any[]).map((macro: any) => [macro.name, macro])
-    ), [macrosSource]);
     const canAssignMacro = (propertyType: string) => {
         return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font', 'midiTrackRef'].includes(propertyType);
     };
@@ -60,11 +57,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     const renderInput = (property: PropertyDefinition) => {
         const value = values[property.key];
         const assignedMacro = macroAssignments[property.key];
-        const macroExists = assignedMacro
-            ? enableSceneStoreMacros
-                ? macroLookup.has(assignedMacro)
-                : !!manager.getMacro(assignedMacro)
-            : false;
+        const macroExists = assignedMacro ? macroLookup.has(assignedMacro) : false;
         const isAssignedToMacro = !!assignedMacro && macroExists;
 
         const commonProps = {
@@ -78,9 +71,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // If assigned to macro, get the macro value
         if (isAssignedToMacro && assignedMacro) {
-            const macro = enableSceneStoreMacros
-                ? macroLookup.get(assignedMacro)
-                : manager.getMacro(assignedMacro);
+            const macro = macroLookup.get(assignedMacro) ?? manager.getMacro?.(assignedMacro);
             if (macro) {
                 commonProps.value = macro.value;
             }
