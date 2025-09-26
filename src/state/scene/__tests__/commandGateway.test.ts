@@ -89,6 +89,27 @@ describe('scene command gateway', () => {
         expect(store.elements['element-3']).toBeUndefined();
     });
 
+    it('applies commands when no builder is provided', () => {
+        const result = dispatchSceneCommand(
+            null,
+            {
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'store-only',
+                config: { id: 'store-only', text: { type: 'constant', value: 'Store Only' } },
+            },
+            { source: 'test:no-builder', skipParity: true }
+        );
+
+        expect(result.success).toBe(true);
+        const store = useSceneStore.getState();
+        expect(store.order).toContain('store-only');
+        expect(store.bindings.byElement['store-only'].text).toEqual({
+            type: 'constant',
+            value: 'Store Only',
+        });
+    });
+
     it('synchronizes store from existing builder snapshot', () => {
         builder.clearScene();
         globalMacroManager.clearMacros();

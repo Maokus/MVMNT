@@ -2,6 +2,7 @@ import { serializeStable } from '@persistence/stable-stringify';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { globalMacroManager } from '@bindings/macro-manager';
+import { useSceneStore } from '@state/sceneStore';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -279,42 +280,70 @@ export function createSnapshotUndoController(_store: unknown, opts: CreateSnapsh
     return ctrl;
 }
 
-// Helper to instrument a scene builder so that element/macro mutations trigger undo snapshots.
-export function instrumentSceneBuilderForUndo(sb: any) {
-    if (!sb || sb.__mvmntUndoInstrumented) return;
+// Instrument scene store actions so undo snapshots capture mutations promptly.
+export function instrumentSceneStoreForUndo() {
     const undo: any = (window as any).__mvmntUndo;
     if (!undo || typeof undo.markDirty !== 'function') return;
-    const wrap = (obj: any, method: string) => {
-        if (typeof obj[method] !== 'function') return;
-        const orig = obj[method].bind(obj);
-        obj[method] = function (...args: any[]) {
-            const r = orig(...args);
-            undo.markDirty();
-            return r;
+    if ((useSceneStore as any).__mvmntUndoInstrumented) return;
+    const api: any = useSceneStore.getState();
+    const wrap = (name: string) => {
+        const orig = api[name];
+        if (typeof orig !== 'function') return;
+        if (orig.__mvmntUndoWrapped) return;
+        const wrapped = (...args: any[]) => {
+            const result = orig(...args);
+            try {
+                if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
+                    return result;
+                }
+                undo.markDirty();
+            } catch {
+                /* ignore */
+            }
+            return result;
         };
+        wrapped.__mvmntUndoWrapped = true;
+        api[name] = wrapped;
     };
+
     [
         'addElement',
-        'addElementFromRegistry',
-        'removeElement',
-        'updateElementConfig',
         'moveElement',
         'duplicateElement',
-        'clearElements',
-        'clearScene',
-        'loadScene',
-        'updateSceneSettings',
+        'removeElement',
         'updateElementId',
-        'resetSceneSettings',
-    ].forEach((m) => wrap(sb, m));
+        'updateSettings',
+        'updateBindings',
+        'createMacro',
+        'updateMacroValue',
+        'deleteMacro',
+        'clearScene',
+        'importScene',
+        'replaceMacros',
+    ].forEach(wrap);
+
     const macroManager: any = globalMacroManager as any;
     if (macroManager && !macroManager.__mvmntUndoInstrumented) {
-        ['createMacro', 'updateMacroValue', 'deleteMacro', 'importMacros', 'clearMacros'].forEach((method) =>
-            wrap(macroManager, method)
-        );
+        ['createMacro', 'updateMacroValue', 'deleteMacro', 'importMacros', 'clearMacros'].forEach((method) => {
+            const orig = macroManager[method];
+            if (typeof orig !== 'function' || orig.__mvmntUndoWrapped) return;
+            const wrapped = (...args: any[]) => {
+                const result = orig.apply(macroManager, args);
+                try {
+                    if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
+                        return result;
+                    }
+                    undo.markDirty();
+                } catch {}
+                return result;
+            };
+            wrapped.__mvmntUndoWrapped = true;
+            macroManager[method] = wrapped;
+        });
         macroManager.__mvmntUndoInstrumented = true;
     }
-    sb.__mvmntUndoInstrumented = true;
+
+    (useSceneStore as any).__mvmntUndoInstrumented = true;
 }
 
 // Instrument timeline store actions so that meaningful mutations capture snapshots immediately

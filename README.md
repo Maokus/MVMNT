@@ -77,14 +77,16 @@ This should add the animation such that it will be selectable from `/animation-t
 `localStorage.removeItem("mvmnt_onboarded_v1")` re-enables onboarding modal
 
 ```
-window.__mvmntDebug.getTimingState()
-window.__mvmntDebug.setGlobalBpm(140)
-window.__mvmntDebug.setBeatsPerBar(3)
-window.__mvmntDebug.setCurrentTick(960 * 4) // seek to bar 2 (PPQ 960 example)
-window.__mvmntDebug.s2b(10) -> beats
-window.__mvmntDebug.b2s(32) -> seconds
-window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
-window.__mvmntDebug.getBeatGrid(0, 30)
+window.mvmntTools.scene.dispatch(
+  {
+    type: 'updateElementConfig',
+    elementId: 'background',
+    patch: { offsetX: 120 },
+  },
+  { source: 'console tweak' }
+);
+
+patch: { offsetX: { type: 'macro', macroId: 'beat-shift' } }
 ```
 
 ### Recent Export Fixes (Audio Feature Branch)

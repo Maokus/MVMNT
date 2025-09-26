@@ -149,7 +149,7 @@ export interface SceneStoreState extends SceneStoreActions {
 
 const SCENE_SCHEMA_VERSION = 1;
 
-const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
+export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     fps: 60,
     width: 1500,
     height: 1500,
@@ -232,7 +232,7 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     return false;
 }
 
-function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
+export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
     for (const [key, value] of Object.entries(raw)) {
         if (key === 'id' || key === 'type' || key === 'index') continue;

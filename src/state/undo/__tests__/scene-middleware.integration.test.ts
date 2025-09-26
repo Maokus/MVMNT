@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HybridSceneBuilder } from '@core/scene-builder';
 import {
     createSnapshotUndoController,
-    instrumentSceneBuilderForUndo,
+    instrumentSceneStoreForUndo,
     instrumentTimelineStoreForUndo,
 } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
@@ -30,7 +30,7 @@ function withSilentConsole<T>(fn: () => T): T {
     }
 }
 
-describe('Scene builder undo instrumentation', () => {
+describe('Scene store undo instrumentation', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         globalMacroManager.clearMacros();
@@ -52,7 +52,7 @@ describe('Scene builder undo instrumentation', () => {
         delete (window as any).__mvmntUndo;
     });
 
-    it('captures builder mutations and replays them via undo/redo', async () => {
+    it('captures store mutations and replays them via undo/redo', async () => {
         const builder = new HybridSceneBuilder();
         builder.clearElements();
         (window as any).vis = { getSceneBuilder: () => builder };
@@ -60,9 +60,18 @@ describe('Scene builder undo instrumentation', () => {
         const undo: any = withSilentConsole(() =>
             withFrozenNow(() => createSnapshotUndoController(useTimelineStore, { debounceMs: 1 }))
         );
-        instrumentSceneBuilderForUndo(builder);
+        instrumentSceneStoreForUndo();
 
-        builder.addElementFromRegistry('textOverlay', { id: 'undo-test', text: 'Phase 0' });
+        dispatchSceneCommand(
+            builder,
+            {
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'undo-test',
+                config: { id: 'undo-test', text: { type: 'constant', value: 'Phase 0' } },
+            },
+            { source: 'undo-test:add', skipParity: true }
+        );
         await vi.runAllTimersAsync();
 
         expect(undo.canUndo()).toBe(true);
@@ -71,12 +80,12 @@ describe('Scene builder undo instrumentation', () => {
 
         undo.undo();
         await vi.runAllTimersAsync();
-        expect(builder.getElement('undo-test')).toBeFalsy();
+        expect(useSceneStore.getState().elements['undo-test']).toBeUndefined();
         expect(undo.canRedo()).toBe(true);
 
         undo.redo();
         await vi.runAllTimersAsync();
-        expect(builder.getElement('undo-test')).toBeTruthy();
+        expect(useSceneStore.getState().elements['undo-test']).toBeTruthy();
     });
 
     it('maintains undo history across macro edits and timeline changes', async () => {
@@ -87,7 +96,7 @@ describe('Scene builder undo instrumentation', () => {
         const undo: any = withSilentConsole(() =>
             withFrozenNow(() => createSnapshotUndoController(useTimelineStore, { debounceMs: 1 }))
         );
-        instrumentSceneBuilderForUndo(builder);
+        instrumentSceneStoreForUndo();
         instrumentTimelineStoreForUndo();
 
         dispatchSceneCommand(

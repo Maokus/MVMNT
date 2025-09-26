@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import { createSnapshotUndoController, instrumentSceneBuilderForUndo } from '@state/undo/snapshot-undo';
+import { createSnapshotUndoController, instrumentSceneStoreForUndo } from '@state/undo/snapshot-undo';
 import { globalMacroManager } from '@bindings/macro-manager';
+import { dispatchSceneCommand } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
 
 class DragSceneBuilder {
     elements: any[] = [];
@@ -50,21 +52,41 @@ declare global {
 describe('Undo - drag pushes snapshot; scrub does not', () => {
     beforeEach(() => {
         globalMacroManager.clearMacros();
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
         const sb = new DragSceneBuilder();
-        sb.addElement('textOverlay', 'el1', { offsetX: 10, offsetY: 20 });
         (globalThis as any).window = (globalThis as any).window || {};
         (window as any).vis = { getSceneBuilder: () => sb };
-        instrumentSceneBuilderForUndo(sb);
         createSnapshotUndoController(useTimelineStore, { debounceMs: 5, maxDepth: 10 });
+        instrumentSceneStoreForUndo();
+        dispatchSceneCommand(
+            sb as any,
+            {
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'el1',
+                config: { id: 'el1', offsetX: { type: 'constant', value: 10 }, offsetY: { type: 'constant', value: 20 } },
+            },
+            { source: 'undo.drag:init', skipParity: true }
+        );
     });
 
     it('element position drag creates undo snapshot', async () => {
         const undo: any = (window as any).__mvmntUndo;
         const sb = (window as any).vis.getSceneBuilder();
         const initial = sb.serializeScene().elements[0];
-        sb.updateElementConfig('el1', { offsetX: 100, offsetY: 200 });
-        // mark dirty like finalizeDrag would
-        undo.markDirty();
+        dispatchSceneCommand(
+            (window as any).vis.getSceneBuilder(),
+            {
+                type: 'updateElementConfig',
+                elementId: 'el1',
+                patch: {
+                    offsetX: { type: 'constant', value: 100 },
+                    offsetY: { type: 'constant', value: 200 },
+                },
+            },
+            { source: 'undo.drag:update', skipParity: true }
+        );
         await new Promise((r) => setTimeout(r, 15));
         expect(undo.canUndo()).toBe(true);
         undo.undo();

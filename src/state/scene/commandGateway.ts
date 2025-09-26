@@ -3,16 +3,18 @@ import { globalMacroManager } from '@bindings/macro-manager';
 import { serializeStable } from '@persistence/stable-stringify';
 import type { Macro } from '@bindings/macro-manager';
 import {
+    DEFAULT_SCENE_SETTINGS,
     useSceneStore,
-    type ElementBindings,
+    type BindingState,
     type ElementBindingsPatch,
     type SceneImportPayload,
     type SceneMacroDefinition,
-    type SceneSerializedElement,
     type SceneSerializedMacros,
+    type SceneSettingsState,
     type SceneStoreComputedExport,
     type SceneStoreState,
 } from '@state/sceneStore';
+import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { snapshotBuilder } from './snapshotBuilder';
 import {
     enableSceneStoreDualWrite,
@@ -124,32 +126,25 @@ interface BuilderMutationResult {
     message?: string;
 }
 
-function toElementBindings(serialized: SceneSerializedElement): ElementBindings {
-    const bindings: ElementBindings = {};
-    for (const [key, value] of Object.entries(serialized)) {
-        if (key === 'id' || key === 'type' || key === 'index') continue;
-        if (!value || typeof value !== 'object') continue;
-        const candidate = value as any;
-        if (candidate.type === 'constant') {
-            bindings[key] = { type: 'constant', value: candidate.value };
-        } else if (candidate.type === 'macro' && typeof candidate.macroId === 'string') {
-            bindings[key] = { type: 'macro', macroId: candidate.macroId };
+function normalizeBindingValue(value: unknown): BindingState {
+    if (value && typeof value === 'object') {
+        const payload = value as any;
+        if (payload.type === 'macro' && typeof payload.macroId === 'string') {
+            return { type: 'macro', macroId: payload.macroId };
+        }
+        if (payload.type === 'constant' && 'value' in payload) {
+            return { type: 'constant', value: payload.value };
         }
     }
-    return bindings;
+    return { type: 'constant', value };
 }
 
-function buildBindingsPatch(target: ElementBindings, previous: ElementBindings): ElementBindingsPatch {
-    const patch: ElementBindingsPatch = {};
-    for (const [key, binding] of Object.entries(target)) {
-        patch[key] = binding;
+function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBindingsPatch {
+    const next: ElementBindingsPatch = {};
+    for (const [property, value] of Object.entries(patch)) {
+        next[property] = normalizeBindingValue(value);
     }
-    for (const key of Object.keys(previous)) {
-        if (!(key in target)) {
-            patch[key] = null;
-        }
-    }
-    return patch;
+    return next;
 }
 
 function createMacroPayload(state: SceneStoreState): SceneSerializedMacros | undefined {
@@ -165,12 +160,6 @@ function createMacroPayload(state: SceneStoreState): SceneSerializedMacros | und
     };
 }
 
-function macrosDiffer(a: SceneSerializedMacros | undefined, b: SceneSerializedMacros | undefined | null): boolean {
-    const left = a ? serializeStable(a) : 'undefined';
-    const right = b ? serializeStable(b) : 'undefined';
-    return left !== right;
-}
-
 function normalizeMacrosPayload(source: SceneSerializedMacros | undefined | null): SceneSerializedMacros | undefined {
     if (!source || !source.macros) return undefined;
     const ids = Object.keys(source.macros);
@@ -182,15 +171,6 @@ function normalizeMacrosPayload(source: SceneSerializedMacros | undefined | null
         }, {}),
         exportedAt: source.exportedAt,
     };
-}
-
-function syncMacrosFromSnapshot(store: SceneStoreState, snapshot: BuilderSceneSnapshot | null) {
-    if (!snapshot) return;
-    const nextMacros = snapshot.macros ?? undefined;
-    const current = createMacroPayload(store);
-    if (macrosDiffer(current, nextMacros)) {
-        store.replaceMacros(nextMacros);
-    }
 }
 
 function runBuilderMutation(builder: HybridSceneBuilder, command: SceneCommand): BuilderMutationResult {
@@ -327,82 +307,52 @@ function checkParity(
     return { checked: true, mismatch };
 }
 
-function applyStoreMutation(
-    store: SceneStoreState,
-    command: SceneCommand,
-    snapshotProvider: () => BuilderSceneSnapshot
-) {
+function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
     switch (command.type) {
         case 'addElement': {
-            const snapshot = snapshotProvider();
-            const index = snapshot.elements.findIndex((el) => el.id === command.elementId);
-            if (index === -1) {
-                throw new Error(`Scene command addElement: element '${command.elementId}' missing in builder snapshot`);
-            }
-            const serialized = snapshot.elements[index];
-            store.addElement({
-                id: serialized.id,
-                type: serialized.type,
-                index,
-                bindings: toElementBindings(serialized),
+            const input = createSceneElementInputFromSchema({
+                id: command.elementId,
+                type: command.elementType,
+                config: command.config ?? {},
                 createdBy: command.elementType,
             });
+            store.addElement(input);
             break;
         }
         case 'removeElement':
             store.removeElement(command.elementId);
             break;
         case 'updateElementConfig': {
-            const snapshot = snapshotProvider();
-            const serialized = snapshot.elements.find((el) => el.id === command.elementId);
-            if (!serialized) {
-                throw new Error(
-                    `Scene command updateElementConfig: element '${command.elementId}' missing after mutation`
-                );
-            }
-            const state = useSceneStore.getState();
-            const previous = state.bindings.byElement[command.elementId] ?? {};
-            const patch = buildBindingsPatch(toElementBindings(serialized), previous);
+            const patch = buildBindingsPatchFromConfig(command.patch);
             store.updateBindings(command.elementId, patch);
             break;
         }
-        case 'moveElement': {
-            const snapshot = snapshotProvider();
-            const index = snapshot.elements.findIndex((el) => el.id === command.elementId);
-            if (index >= 0) {
-                store.moveElement(command.elementId, index);
-            }
+        case 'moveElement':
+            store.moveElement(command.elementId, command.targetIndex);
             break;
-        }
-        case 'duplicateElement': {
-            store.duplicateElement(command.sourceId, command.newId, { insertAfter: command.insertAfter ?? false });
-            const snapshot = snapshotProvider();
-            const targetIndex = snapshot.elements.findIndex((el) => el.id === command.newId);
-            if (targetIndex >= 0) {
-                store.moveElement(command.newId, targetIndex);
-            }
+        case 'duplicateElement':
+            store.duplicateElement(command.sourceId, command.newId, { insertAfter: command.insertAfter ?? true });
             break;
-        }
         case 'updateElementId':
             store.updateElementId(command.currentId, command.nextId);
             break;
-        case 'clearScene':
+        case 'clearScene': {
+            const previousMacros = command.clearMacros === false ? createMacroPayload(store) : undefined;
             store.clearScene();
-            break;
-        case 'resetSceneSettings': {
-            const snapshot = snapshotProvider();
-            store.updateSettings(snapshot.sceneSettings);
-            break;
-        }
-        case 'updateSceneSettings': {
-            const snapshot = snapshotProvider();
-            store.updateSettings(snapshot.sceneSettings);
+            if (command.clearMacros === false && previousMacros) {
+                store.replaceMacros(previousMacros);
+            }
             break;
         }
-        case 'loadSerializedScene': {
+        case 'resetSceneSettings':
+            store.updateSettings(DEFAULT_SCENE_SETTINGS);
+            break;
+        case 'updateSceneSettings':
+            store.updateSettings(command.patch as Partial<SceneSettingsState>);
+            break;
+        case 'loadSerializedScene':
             store.importScene(command.payload);
             break;
-        }
         case 'createMacro':
             store.createMacro(command.macroId, command.definition);
             break;
@@ -420,15 +370,70 @@ function applyStoreMutation(
     }
 }
 
+function applyLegacySideEffects(store: SceneStoreState, command: SceneCommand) {
+    switch (command.type) {
+        case 'clearScene': {
+            if (command.clearMacros === false) {
+                const macros = createMacroPayload(store);
+                if (macros) {
+                    globalMacroManager.importMacros(macros);
+                } else {
+                    globalMacroManager.clearMacros();
+                }
+            } else {
+                globalMacroManager.clearMacros();
+            }
+            break;
+        }
+        case 'loadSerializedScene': {
+            const snapshot = createMacroPayload(store);
+            if (snapshot) {
+                globalMacroManager.importMacros(snapshot);
+            } else {
+                globalMacroManager.clearMacros();
+            }
+            break;
+        }
+        case 'createMacro': {
+            const { macroId, definition } = command;
+            const options = definition.options ?? {};
+            const initial = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
+            const created = globalMacroManager.createMacro(macroId, definition.type, initial, options);
+            if (created && !Object.is(initial, definition.value)) {
+                globalMacroManager.updateMacroValue(macroId, definition.value);
+            }
+            break;
+        }
+        case 'updateMacroValue':
+            globalMacroManager.updateMacroValue(command.macroId, command.value);
+            break;
+        case 'deleteMacro':
+            globalMacroManager.deleteMacro(command.macroId);
+            break;
+        case 'importMacros': {
+            const payload = command.payload;
+            if (payload && payload.macros && Object.keys(payload.macros).length > 0) {
+                globalMacroManager.importMacros(payload);
+            } else {
+                globalMacroManager.clearMacros();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 export function dispatchSceneCommand(
-    builder: HybridSceneBuilder,
+    builder: HybridSceneBuilder | null | undefined,
     command: SceneCommand,
     options?: SceneCommandOptions
 ): SceneCommandResult {
     const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    let mutationResult: BuilderMutationResult;
+    const store = useSceneStore.getState();
+
     try {
-        mutationResult = runBuilderMutation(builder, command);
+        applyStoreCommand(store, command);
     } catch (error) {
         const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
         const err = error instanceof Error ? error : new Error(String(error));
@@ -441,33 +446,43 @@ export function dispatchSceneCommand(
         };
     }
 
-    if (!mutationResult.ok) {
-        const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
-        return {
-            success: false,
-            durationMs,
-            command,
-            parityChecked: false,
-            error: mutationResult.message ? new Error(mutationResult.message) : undefined,
-        };
+    try {
+        applyLegacySideEffects(store, command);
+    } catch (error) {
+        console.warn('[scene command] legacy side effects failed', error);
     }
 
-    let builderSnapshot: BuilderSceneSnapshot | null = null;
-    const snapshotProvider = () => {
-        if (!builderSnapshot) {
-            builderSnapshot = builder.serializeScene();
-        }
-        return builderSnapshot;
-    };
-
     let parityChecked = false;
-    let parityMismatch: SceneParityMismatch | null | undefined;
+    let parityMismatch: SceneParityMismatch | null | undefined = null;
 
-    if (enableSceneStoreDualWrite) {
-        const store = useSceneStore.getState();
-        applyStoreMutation(store, command, snapshotProvider);
-        const snapshot = snapshotProvider();
-        syncMacrosFromSnapshot(store, snapshot);
+    if (builder && enableSceneStoreDualWrite) {
+        let mutationResult: BuilderMutationResult;
+        try {
+            mutationResult = runBuilderMutation(builder, command);
+        } catch (error) {
+            const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
+            const err = error instanceof Error ? error : new Error(String(error));
+            return {
+                success: false,
+                durationMs,
+                command,
+                parityChecked: false,
+                error: err,
+            };
+        }
+
+        if (!mutationResult.ok) {
+            const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
+            return {
+                success: false,
+                durationMs,
+                command,
+                parityChecked: false,
+                error: mutationResult.message ? new Error(mutationResult.message) : undefined,
+            };
+        }
+
+        const snapshot = builder.serializeScene();
         const parity = checkParity(builder, snapshot, command, options);
         parityChecked = parity.checked;
         parityMismatch = parity.mismatch;
@@ -508,6 +523,11 @@ export function synchronizeSceneStoreFromBuilder(
         sceneSettings: snapshot.sceneSettings,
         macros: snapshot.macros,
     });
+    try {
+        applyLegacySideEffects(store, { type: 'loadSerializedScene', payload: snapshot });
+    } catch (error) {
+        console.warn('[scene sync] legacy side effects failed', error);
+    }
     const parity = checkParity(builder, snapshot, { type: 'loadSerializedScene', payload: snapshot }, options);
     const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
     if (parity.mismatch && sceneParityMode === 'strict' && !options?.skipParity) {
