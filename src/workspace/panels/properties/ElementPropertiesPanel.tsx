@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import PropertyGroupPanel from './PropertyGroupPanel';
 import { EnhancedConfigSchema } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
-import { enableSceneStoreDualWrite, enableSceneStoreMacros } from '@config/featureFlags';
 import { useSceneStore } from '@state/sceneStore';
 import { ConstantBinding, MacroBinding } from '@bindings/property-bindings';
 
@@ -125,11 +124,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     if (binding && binding.type === 'macro') {
                         const macroId = binding.getMacroId ? binding.getMacroId() : null;
                         // Only treat as assigned if the macro actually exists. If not, auto-unbind to recover.
-                        const macroExists = macroId
-                            ? enableSceneStoreMacros
-                                ? macroLookup.has(macroId)
-                                : !!manager?.getMacro(macroId)
-                            : false;
+                        const macroExists = macroId ? macroLookup.has(macroId) || !!manager?.getMacro?.(macroId) : false;
                         if (macroId && macroExists) {
                             macroBindings[property.key] = macroId;
                         } else if (macroId && typeof element.unbindFromMacro === 'function') {
@@ -199,35 +194,33 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 console.log(`Unbound property '${propertyKey}' from macro using property binding system`);
             }
 
-            if (enableSceneStoreDualWrite) {
-                try {
-                    const store = useSceneStore.getState();
-                    const binding = element.getBinding(propertyKey);
-                    if (!binding) {
-                        store.updateBindings(elementId, { [propertyKey]: null });
-                    } else if (binding instanceof MacroBinding) {
+            try {
+                const store = useSceneStore.getState();
+                const binding = element.getBinding(propertyKey);
+                if (!binding) {
+                    store.updateBindings(elementId, { [propertyKey]: null });
+                } else if (binding instanceof MacroBinding) {
+                    store.updateBindings(elementId, {
+                        [propertyKey]: { type: 'macro', macroId: binding.getMacroId() },
+                    });
+                } else if (binding instanceof ConstantBinding) {
+                    store.updateBindings(elementId, {
+                        [propertyKey]: { type: 'constant', value: binding.getValue() },
+                    });
+                } else {
+                    const serialized = binding.serialize();
+                    if (serialized.type === 'macro' && serialized.macroId) {
                         store.updateBindings(elementId, {
-                            [propertyKey]: { type: 'macro', macroId: binding.getMacroId() },
+                            [propertyKey]: { type: 'macro', macroId: serialized.macroId },
                         });
-                    } else if (binding instanceof ConstantBinding) {
+                    } else if (serialized.type === 'constant') {
                         store.updateBindings(elementId, {
-                            [propertyKey]: { type: 'constant', value: binding.getValue() },
+                            [propertyKey]: { type: 'constant', value: serialized.value },
                         });
-                    } else {
-                        const serialized = binding.serialize();
-                        if (serialized.type === 'macro' && serialized.macroId) {
-                            store.updateBindings(elementId, {
-                                [propertyKey]: { type: 'macro', macroId: serialized.macroId },
-                            });
-                        } else if (serialized.type === 'constant') {
-                            store.updateBindings(elementId, {
-                                [propertyKey]: { type: 'constant', value: serialized.value },
-                            });
-                        }
                     }
-                } catch (err) {
-                    console.warn('[ElementPropertiesPanel] Failed to sync macro binding with store', err);
                 }
+            } catch (err) {
+                console.warn('[ElementPropertiesPanel] Failed to sync macro binding with store', err);
             }
         } else {
             console.warn(`[handleMacroAssignment] Element ${elementId} does not support the new property binding system`);

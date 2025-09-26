@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useCallback } from 'react';
 // @ts-ignore
 import { globalMacroManager, MacroType } from '@bindings/macro-manager';
 import { useVisualizer } from './VisualizerContext';
 import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder, useSceneMacros } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
-import { enableSceneStoreMacros } from '@config/featureFlags';
 
 interface MacroContextValue {
     manager: any;
@@ -23,11 +22,7 @@ const MacroContext = createContext<MacroContextValue | undefined>(undefined);
 export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { visualizer } = useVisualizer() as any;
     const storeMacros = useSceneMacros();
-    const [legacyMacros, setLegacyMacros] = useState<any[]>(() => globalMacroManager.getAllMacros());
-
-    const enableStoreMacros = enableSceneStoreMacros;
-
-    const macros = enableStoreMacros ? storeMacros : legacyMacros;
+    const macros = storeMacros;
 
     useEffect(() => {
         if (!visualizer || typeof visualizer.invalidateRender !== 'function') return;
@@ -48,22 +43,11 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [visualizer]);
 
     const refresh = useCallback(() => {
-        if (enableStoreMacros) {
-            const builder = getSceneBuilder();
-            if (builder) {
-                synchronizeSceneStoreFromBuilder(builder, { source: 'MacroContext.refresh', skipParity: true });
-            }
-        } else {
-            setLegacyMacros(globalMacroManager.getAllMacros());
+        const builder = getSceneBuilder();
+        if (builder) {
+            synchronizeSceneStoreFromBuilder(builder, { source: 'MacroContext.refresh', skipParity: true });
         }
-    }, [enableStoreMacros, getSceneBuilder]);
-
-    useEffect(() => {
-        if (enableStoreMacros) return;
-        const listener = () => setLegacyMacros(globalMacroManager.getAllMacros());
-        globalMacroManager.addListener(listener);
-        return () => globalMacroManager.removeListener(listener);
-    }, [enableStoreMacros]);
+    }, [getSceneBuilder]);
 
     const runCommand = useCallback(
         (command: SceneCommand, source: string) => {
@@ -82,75 +66,56 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const create = useCallback(
         (name: string, type: MacroType, value: any, options?: any) => {
-            if (enableStoreMacros) {
-                const success = runCommand({ type: 'createMacro', macroId: name, definition: { type, value, options } }, 'MacroContext.create');
-                if (!success && !getSceneBuilder()) {
-                    useSceneStore.getState().createMacro(name, { type, value, options });
-                    globalMacroManager.createMacro(name, type as MacroType, value, options);
-                    return true;
-                }
-                return success;
+            const success = runCommand(
+                { type: 'createMacro', macroId: name, definition: { type, value, options } },
+                'MacroContext.create'
+            );
+            if (!success && !getSceneBuilder()) {
+                useSceneStore.getState().createMacro(name, { type, value, options });
+                globalMacroManager.createMacro(name, type as MacroType, value, options);
+                return true;
             }
-            const ok = globalMacroManager.createMacro(name, type as MacroType, value, options);
-            if (ok) setLegacyMacros(globalMacroManager.getAllMacros());
-            return ok;
+            return success;
         },
-        [enableStoreMacros, runCommand, getSceneBuilder]
+        [runCommand, getSceneBuilder]
     );
 
     const updateValue = useCallback(
         (name: string, value: any) => {
-            if (enableStoreMacros) {
-                const success = runCommand({ type: 'updateMacroValue', macroId: name, value }, 'MacroContext.updateValue');
-                if (!success && !getSceneBuilder()) {
-                    useSceneStore.getState().updateMacroValue(name, value);
-                    globalMacroManager.updateMacroValue(name, value);
-                    return true;
-                }
-                return success;
+            const success = runCommand({ type: 'updateMacroValue', macroId: name, value }, 'MacroContext.updateValue');
+            if (!success && !getSceneBuilder()) {
+                useSceneStore.getState().updateMacroValue(name, value);
+                globalMacroManager.updateMacroValue(name, value);
+                return true;
             }
-            const ok = globalMacroManager.updateMacroValue(name, value);
-            if (ok) setLegacyMacros(globalMacroManager.getAllMacros());
-            return ok;
+            return success;
         },
-        [enableStoreMacros, runCommand, getSceneBuilder]
+        [runCommand, getSceneBuilder]
     );
 
     const del = useCallback(
         (name: string) => {
-            if (enableStoreMacros) {
-                const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
-                if (!success && !getSceneBuilder()) {
-                    useSceneStore.getState().deleteMacro(name);
-                    globalMacroManager.deleteMacro(name);
-                }
-            } else {
+            const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
+            if (!success && !getSceneBuilder()) {
+                useSceneStore.getState().deleteMacro(name);
                 globalMacroManager.deleteMacro(name);
-                setLegacyMacros(globalMacroManager.getAllMacros());
             }
         },
-        [enableStoreMacros, runCommand, getSceneBuilder]
+        [runCommand, getSceneBuilder]
     );
 
     const get = useCallback((name: string) => {
-        if (enableStoreMacros) {
-            return useSceneStore.getState().macros.byId[name] ?? null;
-        }
-        return globalMacroManager.getMacro(name);
-    }, [enableStoreMacros]);
+        return useSceneStore.getState().macros.byId[name] ?? null;
+    }, []);
 
     const assignListener = useCallback((listener: (eventType: string, data: any) => void) => {
-        if (enableStoreMacros) {
-            const unsubscribe = useSceneStore.subscribe(
-                (state) => listener('macroStoreUpdated', state.macros),
-                (state) => state.macros,
-                (a, b) => a === b
-            );
-            return unsubscribe;
-        }
-        globalMacroManager.addListener(listener);
-        return () => globalMacroManager.removeListener(listener);
-    }, [enableStoreMacros]);
+        const unsubscribe = useSceneStore.subscribe(
+            (state) => listener('macroStoreUpdated', state.macros),
+            (state) => state.macros,
+            (a, b) => a === b
+        );
+        return unsubscribe;
+    }, []);
 
     return (
         <MacroContext.Provider value={{ manager: globalMacroManager, macros, refresh, create, updateValue, delete: del, get, assignListener }}>

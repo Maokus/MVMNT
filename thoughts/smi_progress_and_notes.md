@@ -47,3 +47,15 @@ Use this document to add progress and notes on the store migration implementatio
 - Scene templates emit pure data payloads, hydrate the store via `importScene`, and then reuse the command gateway for builder compatibility.
 - Regression coverage added for store-only hydration, legacy padding normalization, and template-driven exports (`npm test -- --run src/persistence/__tests__/persistence.phase0.scene-regression.test.ts`).
 - Follow-up: extend CLI smoke to cover template payload export once timeline normalization scripts land.
+
+## 2025-09-25 – Phase 7 kickoff & verification sweep
+- Added `storeMigration.acceptance.test.tsx` to codify the acceptance criteria for phases 1-6 in a single suite and keep regressions visible.
+- Defaulted `VITE_ENABLE_SCENE_STORE_UI`/`MACROS` to `true` so the store-backed flows are the standard path; env vars remain as a rollback hatch if needed.
+- Marked `HybridSceneBuilder` as deprecated in-place to signal remaining legacy usage that still needs to be unwound.
+- Next: collapse dual-write mode once store-only command payloads exist, then delete feature flag plumbing entirely.
+
+## 2025-09-26 – Phase 7 cleanup sprint
+- Removed the store UI/macro feature flags and made the Zustand selectors the sole data source for selection panels, macro tooling, and property editors.
+- Updated `MacroContext`, `MacroConfig`, and the element property panels to read/write macro assignments directly through the store while still mirroring updates into `globalMacroManager` for runtime compatibility.
+- Simplified `SceneSelectionContext` and the scene element panel so interaction state always flows through `useSceneSelection`, eliminating the legacy selection mirror state.
+- Authored the "Store Migration Briefing" note for legacy engineers summarizing the entire migration and documenting where element bindings now live.

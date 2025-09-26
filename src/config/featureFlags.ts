@@ -21,14 +21,6 @@ function normalizeNumber(raw: unknown, fallback: number): number {
     return fallback;
 }
 
-const sceneStoreUiRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_UI ?? env.VITE_SCENE_STORE_UI ?? env.SCENE_STORE_UI;
-
-export const enableSceneStoreUI = normalizeBoolean(sceneStoreUiRaw, false);
-
-const sceneStoreMacrosRaw =
-    import.meta.env.VITE_ENABLE_SCENE_STORE_MACROS ?? env.VITE_SCENE_STORE_MACROS ?? env.SCENE_STORE_MACROS;
-export const enableSceneStoreMacros = normalizeBoolean(sceneStoreMacrosRaw, enableSceneStoreUI);
-
 const dualWriteRaw = import.meta.env.VITE_ENABLE_SCENE_STORE_DUAL_WRITE ?? env.SCENE_STORE_DUAL_WRITE;
 export const enableSceneStoreDualWrite = normalizeBoolean(dualWriteRaw, true);
 
@@ -56,12 +48,4 @@ export const sceneParitySampleRate = Math.min(1, Math.max(0, normalizeNumber(sam
 const telemetryRaw = env.VITE_SCENE_PARITY_TELEMETRY ?? env.SCENE_PARITY_TELEMETRY;
 export const enableSceneParityTelemetry = normalizeBoolean(telemetryRaw, true);
 
-export const flags = [
-    sceneStoreUiRaw,
-    sceneStoreMacrosRaw,
-    dualWriteRaw,
-    runtimeAdapterRaw,
-    parityModeRaw,
-    sampleRateRaw,
-    telemetryRaw,
-];
+export const flags = [dualWriteRaw, runtimeAdapterRaw, parityModeRaw, sampleRateRaw, telemetryRaw];

@@ -3,7 +3,6 @@ import { useVisualizer } from './VisualizerContext';
 import { HybridSceneBuilder } from '@core/scene-builder';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneElements, useSceneSelection as useSceneSelectionStore, dispatchSceneCommand } from '@state/scene';
-import { enableSceneStoreUI, flags } from '../config/featureFlags';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -43,7 +42,6 @@ interface SceneSelectionProviderProps {
 
 export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneSelectionProviderProps) {
     const { visualizer } = useVisualizer() as any;
-    const [legacySelectedElementId, setLegacySelectedElementId] = useState<string | null>(null);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -51,13 +49,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
 
     const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
-    const selectedElementId = enableSceneStoreUI ? storeSelection.primaryId : legacySelectedElementId;
-
-    useEffect(() => {
-        if (!enableSceneStoreUI) return;
-        const normalized = storeSelection.primaryId ?? null;
-        setLegacySelectedElementId(prev => (prev === normalized ? prev : normalized));
-    }, [storeSelection.primaryId]);
+    const selectedElementId = storeSelection.primaryId;
 
     // New state moved from useSceneElementPanel
     const [elements, setElements] = useState<any[]>([]);
@@ -82,7 +74,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
     const refreshElements = useCallback(() => {
         if (!sceneBuilder) return;
         try {
-            if (enableSceneStoreUI && storeElements.length > 0) {
+            if (storeElements.length > 0) {
                 const ordered = storeElements
                     .map((entry) => sceneBuilder.getElement(entry.id))
                     .filter((el): el is any => Boolean(el));
@@ -121,7 +113,6 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
             }
             setSceneBuilder(builder);
             console.log('Scene builder initialized in SceneSelectionContext:', builder);
-            console.log(flags);
         } catch (e: any) {
             console.error('Error initializing scene builder:', e);
             setError('Failed to initialize scene builder: ' + (e instanceof Error ? e.message : String(e)));
@@ -137,10 +128,7 @@ export function SceneSelectionProvider({ children, sceneRefreshTrigger }: SceneS
 
     const selectElement = useCallback((elementId: string | null) => {
         const normalized = elementId ?? null;
-        setLegacySelectedElementId(normalized);
-        if (enableSceneStoreUI) {
-            useSceneStore.getState().setInteractionState({ selectedElementIds: normalized ? [normalized] : [] });
-        }
+        useSceneStore.getState().setInteractionState({ selectedElementIds: normalized ? [normalized] : [] });
     }, []);
 
     useEffect(() => {

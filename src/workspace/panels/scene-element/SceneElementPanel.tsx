@@ -2,7 +2,6 @@ import React from 'react';
 import ElementList from './ElementList';
 import { useSceneSelection as useSceneSelectionContext } from '@context/SceneSelectionContext';
 import { useSceneElements, useSceneSelection as useSceneSelectionStore } from '@state/scene';
-import { enableSceneStoreUI } from '@config/featureFlags';
 
 interface SceneEditorProps {
     refreshTrigger?: number; // Add refresh trigger
@@ -26,8 +25,8 @@ const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
     const selectionView = useSceneSelectionStore();
     const storeElements = useSceneElements();
 
-    const selectedElementId = enableSceneStoreUI ? selectionView.primaryId : contextSelectedElementId;
-    const elements = enableSceneStoreUI && storeElements.length > 0 ? storeElements : legacyElements;
+    const selectedElementId = selectionView.primaryId ?? contextSelectedElementId;
+    const elements = storeElements.length > 0 ? storeElements : legacyElements;
 
     // If external refreshTrigger prop changes, force refresh
     React.useEffect(() => {
