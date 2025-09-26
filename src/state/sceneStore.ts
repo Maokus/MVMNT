@@ -258,9 +258,10 @@ function serializeElement(
         index,
     };
     for (const [key, binding] of Object.entries(bindings)) {
-        serialized[key] = binding.type === 'constant'
-            ? ({ type: 'constant', value: binding.value } satisfies PropertyBindingData)
-            : ({ type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData);
+        serialized[key] =
+            binding.type === 'constant'
+                ? ({ type: 'constant', value: binding.value } satisfies PropertyBindingData)
+                : ({ type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData);
     }
     return serialized;
 }
@@ -297,7 +298,11 @@ function buildMacroState(payload?: SceneSerializedMacros | null): SceneMacroStat
         };
     }
     const hasMacros = macroIds.length > 0;
-    const exportedAt = hasMacros ? (typeof payload.exportedAt === 'number' ? payload.exportedAt : Date.now()) : undefined;
+    const exportedAt = hasMacros
+        ? typeof payload.exportedAt === 'number'
+            ? payload.exportedAt
+            : Date.now()
+        : undefined;
     return { byId, allIds: macroIds, exportedAt };
 }
 
@@ -322,7 +327,11 @@ function cloneMacroOptions(source?: Macro['options']): Macro['options'] {
     return next;
 }
 
-function validateMacroValue(type: Macro['type'], value: unknown, options: Macro['options'] = {} as Macro['options']): boolean {
+function validateMacroValue(
+    type: Macro['type'],
+    value: unknown,
+    options: Macro['options'] = {} as Macro['options']
+): boolean {
     switch (type) {
         case 'number':
             if (typeof value !== 'number' || Number.isNaN(value)) return false;
@@ -386,7 +395,8 @@ const createSceneStoreState = (
     addElement: (input) => {
         set((state) => {
             if (!input.id) throw new Error('SceneStore.addElement: id is required');
-            if (state.elements[input.id]) throw new Error(`SceneStore.addElement: element '${input.id}' already exists`);
+            if (state.elements[input.id])
+                throw new Error(`SceneStore.addElement: element '${input.id}' already exists`);
 
             const element: SceneElementRecord = {
                 id: input.id,
@@ -439,8 +449,10 @@ const createSceneStoreState = (
 
     duplicateElement: (sourceId, newId, opts) => {
         set((state) => {
-            if (!state.elements[sourceId]) throw new Error(`SceneStore.duplicateElement: source '${sourceId}' not found`);
-            if (state.elements[newId]) throw new Error(`SceneStore.duplicateElement: element '${newId}' already exists`);
+            if (!state.elements[sourceId])
+                throw new Error(`SceneStore.duplicateElement: source '${sourceId}' not found`);
+            if (state.elements[newId])
+                throw new Error(`SceneStore.duplicateElement: element '${newId}' already exists`);
 
             const source = state.elements[sourceId];
             const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {});
@@ -497,8 +509,10 @@ const createSceneStoreState = (
                 interaction: {
                     ...state.interaction,
                     selectedElementIds: state.interaction.selectedElementIds.filter((id) => id !== elementId),
-                    hoveredElementId: state.interaction.hoveredElementId === elementId ? null : state.interaction.hoveredElementId,
-                    editingElementId: state.interaction.editingElementId === elementId ? null : state.interaction.editingElementId,
+                    hoveredElementId:
+                        state.interaction.hoveredElementId === elementId ? null : state.interaction.hoveredElementId,
+                    editingElementId:
+                        state.interaction.editingElementId === elementId ? null : state.interaction.editingElementId,
                 },
                 runtimeMeta: markDirty(state, 'removeElement'),
             };
@@ -535,8 +549,10 @@ const createSceneStoreState = (
             const nextInteraction: SceneInteractionState = {
                 ...state.interaction,
                 selectedElementIds: state.interaction.selectedElementIds.map((id) => (id === currentId ? nextId : id)),
-                hoveredElementId: state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
-                editingElementId: state.interaction.editingElementId === currentId ? nextId : state.interaction.editingElementId,
+                hoveredElementId:
+                    state.interaction.hoveredElementId === currentId ? nextId : state.interaction.hoveredElementId,
+                editingElementId:
+                    state.interaction.editingElementId === currentId ? nextId : state.interaction.editingElementId,
             };
 
             return {
@@ -575,9 +591,10 @@ const createSceneStoreState = (
                     continue;
                 }
 
-                const normalized = binding.type === 'constant'
-                    ? ({ type: 'constant', value: binding.value } as BindingState)
-                    : ({ type: 'macro', macroId: binding.macroId } as BindingState);
+                const normalized =
+                    binding.type === 'constant'
+                        ? ({ type: 'constant', value: binding.value } as BindingState)
+                        : ({ type: 'macro', macroId: binding.macroId } as BindingState);
 
                 const current = nextBindingsForElement[key];
                 if (!current || !bindingEquals(current, normalized)) {

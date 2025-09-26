@@ -356,7 +356,9 @@ function applyStoreMutation(
             const snapshot = snapshotProvider();
             const serialized = snapshot.elements.find((el) => el.id === command.elementId);
             if (!serialized) {
-                throw new Error(`Scene command updateElementConfig: element '${command.elementId}' missing after mutation`);
+                throw new Error(
+                    `Scene command updateElementConfig: element '${command.elementId}' missing after mutation`
+                );
             }
             const state = useSceneStore.getState();
             const previous = state.bindings.byElement[command.elementId] ?? {};
