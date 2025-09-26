@@ -69,7 +69,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [visualizer, setVisualizer] = useState<any | null>(null);
     const [imageSequenceGenerator, setImageSequenceGenerator] = useState<any | null>(null);
     const [videoExporter, setVideoExporter] = useState<VideoExporter | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
     const [currentTimeLabel, setCurrentTimeLabel] = useState('00:00 / 00:00');
     const [numericCurrentTime, setNumericCurrentTime] = useState(0);
     const [totalDuration, setTotalDuration] = useState(0);
@@ -371,11 +370,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!visualizer) return;
         // Toggle visualizer play/pause to match store
         if (tIsPlaying && !visualizer.isPlaying) {
-            const started = visualizer.play?.();
-            setIsPlaying(started && !!visualizer.isPlaying);
+            visualizer.play?.();
         } else if (!tIsPlaying && visualizer.isPlaying) {
             visualizer.pause?.();
-            setIsPlaying(false);
         }
     }, [visualizer, tIsPlaying]);
 
@@ -450,25 +447,25 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     const stop = useCallback(() => {
         if (!visualizer) return;
-        visualizer.stop();
-        setIsPlaying(false);
+        const state = useTimelineStore.getState();
+        state.pause();
+        const targetTick =
+            (state.playbackRange?.startTick ?? state.timelineView?.startTick ?? state.timeline.currentTick ?? 0) || 0;
+        state.setCurrentTick(targetTick, 'user');
+        visualizer.stop?.();
     }, [visualizer]);
 
     const stepForward = useCallback(() => { visualizer?.stepForward?.(); }, [visualizer]);
     const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
     const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
     const seekPercent = useCallback((percent: number) => {
-        if (!visualizer) return;
         const st = useTimelineStore.getState();
         const { startTick, endTick } = st.timelineView;
-        const tm = getSharedTimingManager();
-        tm.setBPM(st.timeline.globalBpm || 120);
-        const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
-        const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
-        const range = Math.max(0.001, endSec - startSec);
-        const target = startSec + Math.max(0, Math.min(1, percent)) * range;
-        visualizer.seek?.(target);
-    }, [visualizer]);
+        const normalized = Math.max(0, Math.min(1, percent));
+        const span = Math.max(1, endTick - startTick);
+        const targetTick = startTick + normalized * span;
+        st.setCurrentTick(Math.max(0, Math.round(targetTick)), 'user');
+    }, []);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;
@@ -549,7 +546,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const value: VisualizerContextValue = {
         canvasRef,
         visualizer,
-        isPlaying,
+        isPlaying: tIsPlaying,
         currentTimeLabel,
         numericCurrentTime,
         totalDuration,
