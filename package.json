@@ -17,7 +17,6 @@
         "zustand": "^4.5.7"
     },
     "devDependencies": {
-        "@rollup/rollup-linux-x64-gnu": "^4.52.1",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^16.1.0",
