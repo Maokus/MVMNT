@@ -65,3 +65,39 @@ The goal is a triangular flow: UI commands mutate the store, the adapter produce
 - Replace persistence pipelines with store-based import/export flows and run regression suites to confirm parity.
 - Document new extension points and contribution guidelines so future features hook into the store-first runtime correctly.
 
+## Migration Execution Plan
+
+### Runtime Adapter Roadmap
+1. **Adapter hardening (Week 1):**
+   - Finish parity instrumentation inside `SceneRuntimeAdapter`, logging hydration failures and mismatched signatures.
+   - Add metrics hooks so parity errors can be surfaced in devtools and analytics dashboards.
+2. **Core integration scaffolding (Week 2):**
+   - Wrap the adapter in a lightweight provider that exposes `getRenderableSceneGraph()`, `getDiagnostics()`, and `subscribe()` APIs.
+   - Build a compatibility shim that lets the legacy `HybridSceneBuilder` continue to hydrate while the adapter feeds parity snapshots (feature-flagged).
+3. **`MIDIVisualizerCore` adoption (Weeks 3-4):**
+   - Create adapter-backed constructors that inject the provider instead of directly instantiating `HybridSceneBuilder`.
+   - Update render loop, timing, and persistence pathways to query adapter APIs; remove direct builder reads/writes.
+   - Migrate unit/integration tests to mock the adapter contracts, ensuring coverage for diagnostics propagation and scene serialization.
+4. **Runtime-only validation (Week 5):**
+   - Run performance benchmarks to compare adapter-backed rendering with legacy builder paths and tune caching thresholds.
+   - Capture telemetry on hydration churn to validate selector granularity and macro binding updates.
+
+### UI Migration Milestones
+1. **Selector-first panels (Week 1):**
+   - Update panel hooks (scene element list, macro manager, timeline) to consume the Zustand selectors exclusively.
+   - Remove legacy fallbacks that read `sceneBuilder.elements`, replacing them with selector-driven derived data.
+2. **Command-only tooling (Week 2):**
+   - Audit devtools and window tooling (`registerWindowTools`) to ensure all mutations go through `dispatchSceneCommand`.
+   - Add parity-aware logging to highlight any remaining direct builder mutations invoked from the console.
+3. **Context consolidation (Weeks 3-4):**
+   - Collapse `SceneSelectionContext` into a selector-based provider that forwards only store state and command helpers.
+   - Update canvas/preview interactions to rely on store-backed callbacks (no builder mutations) and gate builder reads behind feature flags.
+4. **UX verification & cleanup (Week 5):**
+   - Run manual QA flows (element CRUD, macro editing, undo/redo) against the selector-driven UI.
+   - Delete deprecated builder utilities and update documentation to reflect the new data flow for contributors.
+
+### Dependencies & Risk Mitigation
+- Maintain dual-write parity assertions throughout the rollout to prevent regressions; enable strict mode in CI before removing fallbacks.
+- Stage the `MIDIVisualizerCore` integration behind a feature flag to allow incremental rollout and quick rollback.
+- Coordinate persistence pipeline changes with adapter adoption so export/import paths always operate on normalized store payloads.
+
