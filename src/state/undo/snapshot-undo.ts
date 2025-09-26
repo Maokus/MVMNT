@@ -295,6 +295,7 @@ export function instrumentSceneBuilderForUndo(sb: any) {
     };
     [
         'addElement',
+        'addElementFromRegistry',
         'removeElement',
         'updateElementConfig',
         'moveElement',

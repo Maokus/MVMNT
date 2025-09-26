@@ -55,6 +55,7 @@ export const DocumentGateway = {
         let sceneSettings: any = undefined;
         let macros: any = undefined;
 
+        let fallback: any = null;
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
             if (Array.isArray(snapshot.elements)) {
@@ -67,6 +68,46 @@ export const DocumentGateway = {
                 macros = { ...snapshot.macros };
             }
         } catch {}
+
+        const needsElementFallback = !Array.isArray(elements) || elements.length === 0;
+        const needsSettingsFallback = !sceneSettings || Object.keys(sceneSettings).length === 0;
+        const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
+
+        if (needsElementFallback || needsSettingsFallback || !hasMacros) {
+            try {
+                const builder = _getSceneBuilder();
+                if (builder && typeof builder.serializeScene === 'function') {
+                    fallback = builder.serializeScene();
+                }
+            } catch {}
+        }
+
+        if (needsElementFallback && Array.isArray(fallback?.elements) && fallback.elements.length > 0) {
+            elements = fallback.elements.map((el: any) => ({ ...el }));
+        }
+
+        if (needsSettingsFallback && fallback?.sceneSettings) {
+            sceneSettings = { ...fallback.sceneSettings };
+        }
+
+        if (!hasMacros) {
+            if (fallback?.macros && fallback.macros.macros && Object.keys(fallback.macros.macros).length > 0) {
+                macros = {
+                    macros: { ...fallback.macros.macros },
+                    exportedAt: fallback.macros.exportedAt,
+                };
+            } else {
+                try {
+                    const exported = globalMacroManager.exportMacros?.();
+                    if (exported && exported.macros && Object.keys(exported.macros).length > 0) {
+                        macros = {
+                            macros: { ...exported.macros },
+                            exportedAt: exported.exportedAt,
+                        };
+                    }
+                } catch {}
+            }
+        }
 
         if (sceneSettings) {
             for (const k of Object.keys(sceneSettings)) {
