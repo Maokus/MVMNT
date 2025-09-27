@@ -2,7 +2,6 @@ import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
 import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
-import { dispatchSceneCommand } from '@state/scene';
 
 // Lightweight runtime discovery of scene builder without creating an import cycle.
 function _getSceneBuilder(): any | null {
@@ -193,26 +192,20 @@ export const DocumentGateway = {
             }
         } catch {}
 
-        try {
-            const sb = _getSceneBuilder();
-            if (sb) {
-                if (sceneData.sceneSettings) {
-                    try {
-                        const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
-                        const api = useTimelineStore.getState();
-                        const tl = api.timeline;
-                        const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
-                        const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
-                        if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
-                        if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
-                            api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
-                    } catch {
-                        /* ignore */
-                    }
-                }
-                dispatchSceneCommand(sb, { type: 'loadSerializedScene', payload: sceneData }, { source: 'DocumentGateway.apply' });
+        if (sceneData.sceneSettings) {
+            try {
+                const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
+                const api = useTimelineStore.getState();
+                const tl = api.timeline;
+                const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
+                const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
+                if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
+                if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
+                    api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
+            } catch {
+                /* ignore */
             }
-        } catch {}
+        }
 
         // Ephemeral replay (undo only): restore currentTick & optionally transport/view.
         if (doc.__ephemeral) {

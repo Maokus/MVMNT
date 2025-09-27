@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { exportScene, importScene } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneStore } from '@state/sceneStore';
 import { globalMacroManager } from '@bindings/macro-manager';
 
 // Minimal fake scene builder injection
@@ -70,8 +71,8 @@ describe('Scene element + macro persistence', () => {
         const json = (exp as any).json;
         const imp = importScene(json);
         expect(imp.ok).toBe(true);
-        const sb2 = (window as any).vis.getSceneBuilder();
-        expect(sb2.serializeScene().elements.length).toBe(1);
+        const exported = useSceneStore.getState().exportSceneDraft();
+        expect(exported.elements.length).toBe(1);
         // macro value restored to export snapshot
         expect(globalMacroManager.getMacro('m1')?.value).toBe(5);
     });

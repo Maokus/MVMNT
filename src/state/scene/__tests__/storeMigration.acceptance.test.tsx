@@ -3,7 +3,6 @@ import { renderHook, act } from '@testing-library/react';
 import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
 import { createSceneStore, useSceneStore } from '@state/sceneStore';
 import { createSceneSelectors } from '@state/scene/selectors';
-import { HybridSceneBuilder } from '@core/scene-builder';
 import {
     dispatchSceneCommand,
     SceneRuntimeAdapter,
@@ -74,26 +73,18 @@ describe('store migration acceptance criteria', () => {
     });
 
     describe('phase 2 – dual-write gateway', () => {
-        it('routes mutations through the gateway and performs parity checks', () => {
-            const builder = new HybridSceneBuilder();
-            builder.clearScene();
-
-            const result = dispatchSceneCommand(
-                builder,
-                {
-                    type: 'addElement',
-                    elementType: 'textOverlay',
-                    elementId: 'phase-2-element',
-                    config: {
-                        id: 'phase-2-element',
-                        text: { type: 'constant', value: 'Phase 2' },
-                    },
+        it('routes mutations through the gateway and updates the store', () => {
+            const result = dispatchSceneCommand({
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'phase-2-element',
+                config: {
+                    id: 'phase-2-element',
+                    text: { type: 'constant', value: 'Phase 2' },
                 },
-                { source: 'phase-2-test', forceParity: true, sampleOverride: 1 }
-            );
+            });
 
             expect(result.success).toBe(true);
-            expect(result.parityChecked).toBe(true);
 
             const state = useSceneStore.getState();
             expect(state.order).toContain('phase-2-element');

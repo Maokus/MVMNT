@@ -9,6 +9,7 @@ import '@export/av-exporter.js';
 import { TimingManager } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneStore } from '@state/sceneStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
 // PlaybackClock now wrapped by TransportCoordinator; direct usage removed in favor of a unified transport API.
@@ -146,15 +147,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             try { /* no-op */ } catch { }
             // Sync initial fps/width/height from scene builder settings
             try {
-                const s = vis.getSceneBuilder()?.getSceneSettings?.();
-                if (s) {
-                    setExportSettings((prev) => ({
-                        ...prev,
-                        fps: s.fps ?? prev.fps,
-                        width: s.width ?? prev.width,
-                        height: s.height ?? prev.height,
-                    }));
-                }
+                const settings = useSceneStore.getState().settings;
+                setExportSettings((prev) => ({
+                    ...prev,
+                    fps: settings.fps ?? prev.fps,
+                    width: settings.width ?? prev.width,
+                    height: settings.height ?? prev.height,
+                }));
             } catch { }
         }
     }, [visualizer]);
@@ -394,7 +393,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     // Apply export settings size changes
     useEffect(() => {
         if (!visualizer || !canvasRef.current) return;
-        const sceneSettings = visualizer.getSceneBuilder?.().getSceneSettings?.() || {};
+        const sceneSettings = useSceneStore.getState().settings;
         if (
             sceneSettings.fps !== exportSettings.fps ||
             sceneSettings.width !== exportSettings.width ||

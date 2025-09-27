@@ -28,11 +28,10 @@ function resolveBuilder(): any | null {
 
 function runSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult | null {
     const builder = resolveBuilder();
-    if (!builder) {
-        console.warn('[mvmntTools] No scene builder available to dispatch command', command);
-        return null;
+    if (builder) {
+        return dispatchSceneCommand(builder, command, options);
     }
-    return dispatchSceneCommand(builder, command, options);
+    return dispatchSceneCommand(command, options);
 }
 
 function syncStoreFromBuilder(options?: SceneCommandOptions): SceneCommandResult | null {

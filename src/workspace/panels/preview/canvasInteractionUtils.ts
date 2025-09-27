@@ -11,12 +11,12 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import { useSceneStore } from '@state/sceneStore';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
-    sceneBuilder?: any;
     selectElement: (id: string | null) => void;
     updateElementConfig?: (id: string, cfg: any) => void;
     incrementPropertyPanelRefresh: () => void;
@@ -298,11 +298,8 @@ export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
 
     if (isDouble && afterSelected) {
         try {
-            // Obtain element from scene builder if available
-            const sb = deps.sceneBuilder;
-            const el = sb?.getElement?.(afterSelected) || null;
-            // Heuristic: treat as text-editable if it has a 'text' binding/property
-            const hasTextProperty = !!(el && typeof el.getBinding === 'function' && el.getBinding('text'));
+            const bindings = useSceneStore.getState().bindings.byElement[afterSelected] ?? {};
+            const hasTextProperty = Object.prototype.hasOwnProperty.call(bindings, 'text');
             if (hasTextProperty) {
                 // Prevent initiating a drag after double-click
                 vis.setInteractionState({ draggingElementId: null, activeHandle: null });

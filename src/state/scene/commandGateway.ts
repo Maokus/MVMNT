@@ -1,7 +1,5 @@
-import { HybridSceneBuilder } from '@core/scene-builder';
-import { globalMacroManager } from '@bindings/macro-manager';
-import { serializeStable } from '@persistence/stable-stringify';
-import type { Macro } from '@bindings/macro-manager';
+import type { HybridSceneBuilder } from '@core/scene-builder';
+import { globalMacroManager, type Macro } from '@bindings/macro-manager';
 import {
     DEFAULT_SCENE_SETTINGS,
     useSceneStore,
@@ -11,18 +9,9 @@ import {
     type SceneMacroDefinition,
     type SceneSerializedMacros,
     type SceneSettingsState,
-    type SceneStoreComputedExport,
     type SceneStoreState,
 } from '@state/sceneStore';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
-import { snapshotBuilder } from './snapshotBuilder';
-import {
-    enableSceneStoreDualWrite,
-    enableSceneParityTelemetry,
-    sceneParityMode,
-    sceneParitySampleRate,
-    type SceneParityMode,
-} from '@config/featureFlags';
 
 export type SceneCommand =
     | {
@@ -93,33 +82,14 @@ export type SceneCommand =
 export interface SceneCommandOptions {
     /** Human friendly source string for logging / telemetry */
     source?: string;
-    /** Skip parity assertion even if the global mode is strict */
-    skipParity?: boolean;
-    /** Force parity assertion regardless of sampling */
-    forceParity?: boolean;
-    /** Override sample rate for tests */
-    sampleOverride?: number;
 }
 
 export interface SceneCommandResult {
     success: boolean;
     durationMs: number;
     command: SceneCommand;
-    parityChecked: boolean;
-    parityMismatch?: SceneParityMismatch | null;
     error?: Error;
 }
-
-export interface SceneParityMismatch {
-    mode: SceneParityMode;
-    command: SceneCommand;
-    storeSnapshot: SceneStoreComputedExport;
-    builderSnapshot: BuilderSceneSnapshot;
-    diffSummary: string;
-    debug?: ReturnType<typeof snapshotBuilder>;
-}
-
-type BuilderSceneSnapshot = ReturnType<HybridSceneBuilder['serializeScene']>;
 
 interface BuilderMutationResult {
     ok: boolean;
@@ -160,151 +130,52 @@ function createMacroPayload(state: SceneStoreState): SceneSerializedMacros | und
     };
 }
 
-function normalizeMacrosPayload(source: SceneSerializedMacros | undefined | null): SceneSerializedMacros | undefined {
-    if (!source || !source.macros) return undefined;
-    const ids = Object.keys(source.macros);
-    if (ids.length === 0) return undefined;
-    return {
-        macros: ids.reduce<Record<string, Macro>>((acc, id) => {
-            acc[id] = { ...source.macros![id] };
-            return acc;
-        }, {}),
-        exportedAt: source.exportedAt,
-    };
+function importOrClearMacros(payload: SceneSerializedMacros | undefined | null) {
+    if (payload && payload.macros && Object.keys(payload.macros).length > 0) {
+        globalMacroManager.importMacros(payload);
+    } else {
+        globalMacroManager.clearMacros();
+    }
 }
 
-function runBuilderMutation(builder: HybridSceneBuilder, command: SceneCommand): BuilderMutationResult {
+function applyMacroSideEffects(store: SceneStoreState, command: SceneCommand) {
     switch (command.type) {
-        case 'addElement':
-            return { ok: !!builder.addElement(command.elementType, command.elementId, command.config ?? {}) };
-        case 'removeElement':
-            return { ok: !!builder.removeElement(command.elementId) };
-        case 'updateElementConfig':
-            return { ok: !!builder.updateElementConfig(command.elementId, command.patch) };
-        case 'moveElement':
-            return { ok: !!builder.moveElement(command.elementId, command.targetIndex) };
-        case 'duplicateElement':
-            return { ok: !!builder.duplicateElement(command.sourceId, command.newId) };
-        case 'updateElementId':
-            return { ok: !!builder.updateElementId(command.currentId, command.nextId) };
-        case 'clearScene':
-            builder.clearScene();
-            if (command.clearMacros !== false) {
+        case 'clearScene': {
+            if (command.clearMacros === false) {
+                const snapshot = createMacroPayload(store);
+                importOrClearMacros(snapshot ?? null);
+            } else {
                 globalMacroManager.clearMacros();
             }
-            return { ok: true };
-        case 'resetSceneSettings':
-            builder.resetSceneSettings();
-            return { ok: true };
-        case 'updateSceneSettings':
-            builder.updateSceneSettings(command.patch);
-            return { ok: true };
-        case 'loadSerializedScene':
-            return { ok: !!builder.loadScene(command.payload) };
+            break;
+        }
+        case 'loadSerializedScene': {
+            const snapshot = createMacroPayload(store);
+            importOrClearMacros(snapshot ?? null);
+            break;
+        }
         case 'createMacro': {
             const { macroId, definition } = command;
+            const options = definition.options ?? {};
             const initial = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
-            const created = globalMacroManager.createMacro(macroId, definition.type, initial, definition.options ?? {});
-            if (!created) return { ok: false, message: `Failed to create macro '${macroId}'` };
-            if (!Object.is(initial, definition.value)) {
+            const created = globalMacroManager.createMacro(macroId, definition.type, initial, options);
+            if (created && !Object.is(initial, definition.value)) {
                 globalMacroManager.updateMacroValue(macroId, definition.value);
             }
-            return { ok: true };
+            break;
         }
         case 'updateMacroValue':
-            return { ok: globalMacroManager.updateMacroValue(command.macroId, command.value) };
+            globalMacroManager.updateMacroValue(command.macroId, command.value);
+            break;
         case 'deleteMacro':
-            return { ok: globalMacroManager.deleteMacro(command.macroId) };
+            globalMacroManager.deleteMacro(command.macroId);
+            break;
         case 'importMacros':
-            return { ok: globalMacroManager.importMacros(command.payload) };
+            importOrClearMacros(command.payload);
+            break;
         default:
-            return { ok: false, message: 'Unsupported command type' };
+            break;
     }
-}
-
-function shouldRunParity(options: SceneCommandOptions | undefined): boolean {
-    if (options?.skipParity) return false;
-    if (sceneParityMode === 'off') return false;
-    if (sceneParityMode === 'strict') return true;
-    const rate = options?.forceParity ? 1 : options?.sampleOverride ?? sceneParitySampleRate;
-    if (rate <= 0) return false;
-    if (rate >= 1) return true;
-    return Math.random() < rate;
-}
-
-function summarizeDiff(builderSnapshot: SceneStoreComputedExport, storeSnapshot: SceneStoreComputedExport): string {
-    const builderIds = new Set(builderSnapshot.elements.map((el) => el.id));
-    const storeIds = new Set(storeSnapshot.elements.map((el) => el.id));
-    const missingInStore = Array.from(builderIds).filter((id) => !storeIds.has(id));
-    const missingInBuilder = Array.from(storeIds).filter((id) => !builderIds.has(id));
-    const parts: string[] = [];
-    if (missingInStore.length) parts.push(`builder-only=[${missingInStore.join(', ')}]`);
-    if (missingInBuilder.length) parts.push(`store-only=[${missingInBuilder.join(', ')}]`);
-    const builderSettings = serializeStable(builderSnapshot.sceneSettings);
-    const storeSettings = serializeStable(storeSnapshot.sceneSettings);
-    if (builderSettings !== storeSettings) parts.push('settings-mismatch');
-    const builderHash = serializeStable({ elements: builderSnapshot.elements }).slice(0, 120);
-    const storeHash = serializeStable({ elements: storeSnapshot.elements }).slice(0, 120);
-    if (builderHash !== storeHash) parts.push('elements-differ');
-    return parts.length ? parts.join('; ') : 'scene payload mismatch';
-}
-
-function emitParityTelemetry(mismatch: SceneParityMismatch) {
-    if (!enableSceneParityTelemetry) return;
-    try {
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-                new CustomEvent('scene-parity-mismatch', {
-                    detail: {
-                        mode: mismatch.mode,
-                        command: mismatch.command,
-                        diff: mismatch.diffSummary,
-                    },
-                })
-            );
-        }
-    } catch (err) {
-        console.warn('[scene parity] telemetry dispatch failed', err);
-    }
-}
-
-function checkParity(
-    builder: HybridSceneBuilder,
-    builderSnapshot: BuilderSceneSnapshot,
-    command: SceneCommand,
-    options: SceneCommandOptions | undefined
-): { checked: boolean; mismatch?: SceneParityMismatch } {
-    const shouldCheck = shouldRunParity(options);
-    if (!shouldCheck) {
-        return { checked: false };
-    }
-    const storeSnapshot = useSceneStore.getState().exportSceneDraft();
-    const normalizedBuilder: SceneStoreComputedExport = {
-        elements: builderSnapshot.elements.map((el, index) => ({ ...el, index: el.index ?? index })),
-        sceneSettings: { ...builderSnapshot.sceneSettings },
-        macros: normalizeMacrosPayload(builderSnapshot.macros as SceneSerializedMacros | undefined),
-    };
-    const normalizedStore: SceneStoreComputedExport = {
-        elements: storeSnapshot.elements.map((el, index) => ({ ...el, index: el.index ?? index })),
-        sceneSettings: { ...storeSnapshot.sceneSettings },
-        macros: normalizeMacrosPayload(storeSnapshot.macros),
-    };
-    const builderJSON = serializeStable(normalizedBuilder);
-    const storeJSON = serializeStable(normalizedStore);
-    if (builderJSON === storeJSON) {
-        return { checked: true };
-    }
-    const mismatch: SceneParityMismatch = {
-        mode: sceneParityMode,
-        command,
-        diffSummary: summarizeDiff(normalizedBuilder, normalizedStore),
-        storeSnapshot: normalizedStore,
-        builderSnapshot,
-        debug: snapshotBuilder(builder),
-    };
-    console.error('[scene parity] mismatch', mismatch.diffSummary, { command, mismatch });
-    emitParityTelemetry(mismatch);
-    return { checked: true, mismatch };
 }
 
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
@@ -370,183 +241,152 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
     }
 }
 
-function applyLegacySideEffects(store: SceneStoreState, command: SceneCommand) {
+function now() {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function runBuilderMutation(builder: HybridSceneBuilder, command: SceneCommand): BuilderMutationResult {
     switch (command.type) {
-        case 'clearScene': {
-            if (command.clearMacros === false) {
-                const macros = createMacroPayload(store);
-                if (macros) {
-                    globalMacroManager.importMacros(macros);
-                } else {
-                    globalMacroManager.clearMacros();
-                }
-            } else {
-                globalMacroManager.clearMacros();
-            }
-            break;
-        }
-        case 'loadSerializedScene': {
-            const snapshot = createMacroPayload(store);
-            if (snapshot) {
-                globalMacroManager.importMacros(snapshot);
-            } else {
-                globalMacroManager.clearMacros();
-            }
-            break;
-        }
-        case 'createMacro': {
-            const { macroId, definition } = command;
-            const options = definition.options ?? {};
-            const initial = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
-            const created = globalMacroManager.createMacro(macroId, definition.type, initial, options);
-            if (created && !Object.is(initial, definition.value)) {
-                globalMacroManager.updateMacroValue(macroId, definition.value);
-            }
-            break;
-        }
+        case 'addElement':
+            return { ok: !!builder.addElement(command.elementType, command.elementId, command.config ?? {}) };
+        case 'removeElement':
+            return { ok: !!builder.removeElement(command.elementId) };
+        case 'updateElementConfig':
+            return { ok: !!builder.updateElementConfig(command.elementId, command.patch) };
+        case 'moveElement':
+            return { ok: !!builder.moveElement(command.elementId, command.targetIndex) };
+        case 'duplicateElement':
+            return { ok: !!builder.duplicateElement(command.sourceId, command.newId) };
+        case 'updateElementId':
+            return { ok: !!builder.updateElementId(command.currentId, command.nextId) };
+        case 'clearScene':
+            builder.clearScene();
+            if (command.clearMacros !== false) globalMacroManager.clearMacros();
+            return { ok: true };
+        case 'resetSceneSettings':
+            builder.resetSceneSettings?.();
+            return { ok: true };
+        case 'updateSceneSettings':
+            builder.updateSceneSettings?.(command.patch);
+            return { ok: true };
+        case 'loadSerializedScene':
+            return { ok: !!builder.loadScene(command.payload) };
+        case 'createMacro':
         case 'updateMacroValue':
-            globalMacroManager.updateMacroValue(command.macroId, command.value);
-            break;
         case 'deleteMacro':
-            globalMacroManager.deleteMacro(command.macroId);
-            break;
-        case 'importMacros': {
-            const payload = command.payload;
-            if (payload && payload.macros && Object.keys(payload.macros).length > 0) {
-                globalMacroManager.importMacros(payload);
-            } else {
-                globalMacroManager.clearMacros();
-            }
-            break;
-        }
+        case 'importMacros':
+            // Macros are synchronized via the global macro manager side effects.
+            return { ok: true };
         default:
-            break;
+            return { ok: true };
     }
+}
+
+function coerceArgs(
+    builderOrCommand: HybridSceneBuilder | SceneCommand | null | undefined,
+    maybeCommand?: SceneCommand | SceneCommandOptions,
+    _maybeOptions?: SceneCommandOptions
+): { builder: HybridSceneBuilder | null | undefined; command: SceneCommand } {
+    if (builderOrCommand && typeof builderOrCommand === 'object' && 'type' in builderOrCommand) {
+        return {
+            builder: null,
+            command: builderOrCommand as SceneCommand,
+        };
+    }
+    return {
+        builder: builderOrCommand as HybridSceneBuilder | null | undefined,
+        command: (maybeCommand as SceneCommand) ?? ({} as SceneCommand),
+    };
 }
 
 export function dispatchSceneCommand(
     builder: HybridSceneBuilder | null | undefined,
     command: SceneCommand,
     options?: SceneCommandOptions
+): SceneCommandResult;
+export function dispatchSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult;
+export function dispatchSceneCommand(
+    builderOrCommand: HybridSceneBuilder | SceneCommand | null | undefined,
+    maybeCommand?: SceneCommand | SceneCommandOptions,
+    maybeOptions?: SceneCommandOptions
 ): SceneCommandResult {
-    const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const { builder, command } = coerceArgs(builderOrCommand, maybeCommand, maybeOptions);
+    const start = now();
     const store = useSceneStore.getState();
 
     try {
         applyStoreCommand(store, command);
     } catch (error) {
-        const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
         const err = error instanceof Error ? error : new Error(String(error));
         return {
             success: false,
-            durationMs,
+            durationMs: now() - start,
             command,
-            parityChecked: false,
             error: err,
         };
     }
 
     try {
-        applyLegacySideEffects(store, command);
+        applyMacroSideEffects(store, command);
     } catch (error) {
-        console.warn('[scene command] legacy side effects failed', error);
+        console.warn('[scene command] macro side effects failed', error);
     }
 
-    let parityChecked = false;
-    let parityMismatch: SceneParityMismatch | null | undefined = null;
-
-    if (builder && enableSceneStoreDualWrite) {
-        let mutationResult: BuilderMutationResult;
+    if (builder) {
         try {
-            mutationResult = runBuilderMutation(builder, command);
+            const result = runBuilderMutation(builder, command);
+            if (!result.ok) {
+                return {
+                    success: false,
+                    durationMs: now() - start,
+                    command,
+                    error: result.message ? new Error(result.message) : undefined,
+                };
+            }
         } catch (error) {
-            const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
             const err = error instanceof Error ? error : new Error(String(error));
             return {
                 success: false,
-                durationMs,
+                durationMs: now() - start,
                 command,
-                parityChecked: false,
                 error: err,
-            };
-        }
-
-        if (!mutationResult.ok) {
-            const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
-            return {
-                success: false,
-                durationMs,
-                command,
-                parityChecked: false,
-                error: mutationResult.message ? new Error(mutationResult.message) : undefined,
-            };
-        }
-
-        const snapshot = builder.serializeScene();
-        const parity = checkParity(builder, snapshot, command, options);
-        parityChecked = parity.checked;
-        parityMismatch = parity.mismatch;
-        if (parityMismatch && sceneParityMode === 'strict' && !options?.skipParity) {
-            const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
-            const error = new Error(`Scene parity mismatch (${parityMismatch.diffSummary})`);
-            error.name = 'SceneParityError';
-            return {
-                success: false,
-                durationMs,
-                command,
-                parityChecked,
-                parityMismatch,
-                error,
             };
         }
     }
 
-    const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
     return {
         success: true,
-        durationMs,
+        durationMs: now() - start,
         command,
-        parityChecked,
-        parityMismatch: parityMismatch ?? null,
     };
 }
 
 export function synchronizeSceneStoreFromBuilder(
     builder: HybridSceneBuilder,
-    options?: SceneCommandOptions
+    _options?: SceneCommandOptions
 ): SceneCommandResult {
-    const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const snapshot = builder.serializeScene();
-    const store = useSceneStore.getState();
-    store.importScene({
-        elements: snapshot.elements,
-        sceneSettings: snapshot.sceneSettings,
-        macros: snapshot.macros,
-    });
+    const start = now();
     try {
-        applyLegacySideEffects(store, { type: 'loadSerializedScene', payload: snapshot });
+        const snapshot = builder.serializeScene();
+        const store = useSceneStore.getState();
+        store.importScene({
+            elements: snapshot.elements,
+            sceneSettings: snapshot.sceneSettings,
+            macros: snapshot.macros,
+        });
+        applyMacroSideEffects(store, { type: 'loadSerializedScene', payload: snapshot });
+        return {
+            success: true,
+            durationMs: now() - start,
+            command: { type: 'loadSerializedScene', payload: snapshot },
+        };
     } catch (error) {
-        console.warn('[scene sync] legacy side effects failed', error);
-    }
-    const parity = checkParity(builder, snapshot, { type: 'loadSerializedScene', payload: snapshot }, options);
-    const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
-    if (parity.mismatch && sceneParityMode === 'strict' && !options?.skipParity) {
-        const error = new Error(`Scene parity mismatch (${parity.mismatch.diffSummary})`);
-        error.name = 'SceneParityError';
+        const err = error instanceof Error ? error : new Error(String(error));
         return {
             success: false,
-            durationMs,
-            command: { type: 'loadSerializedScene', payload: snapshot },
-            parityChecked: parity.checked,
-            parityMismatch: parity.mismatch,
-            error,
+            durationMs: now() - start,
+            command: { type: 'loadSerializedScene', payload: { elements: [], sceneSettings: null, macros: null } },
+            error: err,
         };
     }
-    return {
-        success: true,
-        durationMs,
-        command: { type: 'loadSerializedScene', payload: snapshot },
-        parityChecked: parity.checked,
-        parityMismatch: parity.mismatch ?? null,
-    };
 }

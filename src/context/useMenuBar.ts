@@ -4,6 +4,7 @@ import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
+import { useSceneStore } from '@state/sceneStore';
 
 interface UseMenuBarProps {
     visualizer: any;
@@ -107,17 +108,7 @@ export const useMenuBar = ({
     };
 
     const clearScene = () => {
-        if (!visualizer) {
-            console.log('Clear scene functionality: visualizer not available');
-            return;
-        }
-        const sceneBuilder = visualizer.getSceneBuilder();
-        if (!sceneBuilder) {
-            console.log('Clear scene functionality: scene builder not available');
-            return;
-        }
         const result = dispatchSceneCommand(
-            sceneBuilder,
             { type: 'clearScene', clearMacros: true },
             { source: 'useMenuBar.clearScene' }
         );
@@ -126,14 +117,12 @@ export const useMenuBar = ({
             return;
         }
         try {
-            const settings = sceneBuilder.getSceneSettings();
-            visualizer.canvas?.dispatchEvent(
+            const settings = useSceneStore.getState().settings;
+            visualizer?.canvas?.dispatchEvent(
                 new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
             );
         } catch {}
-        if (visualizer.invalidateRender) {
-            visualizer.invalidateRender();
-        }
+        visualizer?.invalidateRender?.();
         if (onSceneRefresh) {
             onSceneRefresh();
         }
@@ -155,22 +144,19 @@ export const useMenuBar = ({
             } catch {
                 // Fallback minimal default if template fails
                 try {
-                    createDefaultMIDIScene(visualizer.getSceneBuilder());
+                    createDefaultMIDIScene(null);
                 } catch {}
             }
 
             // Reset scene settings to defaults and notify contexts about the reset
-            const sceneBuilder = visualizer.getSceneBuilder();
             try {
-                const settings = sceneBuilder.getSceneSettings();
-                visualizer.canvas?.dispatchEvent(
+                const settings = useSceneStore.getState().settings;
+                visualizer?.canvas?.dispatchEvent(
                     new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
                 );
             } catch {}
 
-            if (visualizer.invalidateRender) {
-                visualizer.invalidateRender();
-            }
+            visualizer?.invalidateRender?.();
 
             // Trigger refresh of UI components
             if (onSceneRefresh) {

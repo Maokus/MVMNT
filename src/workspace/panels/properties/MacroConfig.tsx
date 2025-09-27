@@ -6,7 +6,6 @@ import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
-    sceneBuilder?: any; // Will be set from outside
     visualizer?: any; // Add visualizer prop to trigger rerenders
 }
 
@@ -29,7 +28,7 @@ interface MacroAssignment {
     propertyPath: string;
 }
 
-const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {
+const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
     const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
     const storeAssignments = useMacroAssignments();
     const assignmentMap = useMemo(() => {

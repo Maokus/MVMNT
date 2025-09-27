@@ -4,9 +4,7 @@ import { PropertiesPanel } from '@workspace/panels/properties';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
 
-interface SidePanelsProps {
-    sceneRefreshTrigger?: number;
-}
+interface SidePanelsProps {}
 
 // Internal component that uses the context
 const SidePanelsInternal: React.FC = () => {
@@ -21,7 +19,6 @@ const SidePanelsInternal: React.FC = () => {
         selectedElementId,
         selectedElement,
         selectedElementSchema,
-        refreshTrigger,
         propertyPanelRefresh,
         clearSelection,
         updateElementConfig,
@@ -111,7 +108,7 @@ const SidePanelsInternal: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                    <SceneElementPanel refreshTrigger={refreshTrigger} />
+                    <SceneElementPanel />
                 </div>
             </div>
 
@@ -145,7 +142,7 @@ const SidePanelsInternal: React.FC = () => {
 };
 
 // Main component (provider now lives higher in tree)
-const SidePanels: React.FC<SidePanelsProps> = ({ sceneRefreshTrigger }) => {
+const SidePanels: React.FC<SidePanelsProps> = () => {
     return <SidePanelsInternal />;
 };
 

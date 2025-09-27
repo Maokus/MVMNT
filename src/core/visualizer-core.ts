@@ -6,7 +6,6 @@ import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { createDefaultMIDIScene } from './scene-templates';
 import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder, SceneRuntimeAdapter } from '@state/scene';
-import { enableSceneRuntimeAdapter } from '@config/featureFlags';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -61,13 +60,11 @@ export class MIDIVisualizerCore {
             );
             synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.initFallback' });
         }
-        if (enableSceneRuntimeAdapter) {
-            try {
-                this.runtimeAdapter = new SceneRuntimeAdapter();
-            } catch (error) {
-                console.warn('[MIDIVisualizerCore] failed to initialize SceneRuntimeAdapter, falling back', error);
-                this.runtimeAdapter = null;
-            }
+        try {
+            this.runtimeAdapter = new SceneRuntimeAdapter();
+        } catch (error) {
+            console.warn('[MIDIVisualizerCore] failed to initialize SceneRuntimeAdapter, falling back', error);
+            this.runtimeAdapter = null;
         }
         (window as any).vis = this; // debug helper
     }

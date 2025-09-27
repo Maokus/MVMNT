@@ -3,9 +3,7 @@ import { DocumentGateway } from '@persistence/document-gateway';
 import { useTimelineStore } from '@state/timelineStore';
 import { buildEdgeMacroScene } from '@state/scene/fixtures/edgeMacroScene';
 import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
-import { snapshotBuilder } from '@state/scene/snapshotBuilder';
 import { globalMacroManager } from '@bindings/macro-manager';
-import { HybridSceneBuilder } from '@core/scene-builder';
 import { useSceneStore } from '@state/sceneStore';
 
 const FIXED_TIMESTAMP = 1700000000000;
@@ -96,34 +94,6 @@ describe('DocumentGateway scene regression (Phase 0)', () => {
         const doc = DocumentGateway.build();
         expect(doc.scene.sceneSettings?.prePadding).toBeUndefined();
         expect(doc.scene.sceneSettings?.postPadding).toBeUndefined();
-    });
-
-    it('rehydrates builder + macros from the stored fixture', () => {
-        const builder = new HybridSceneBuilder();
-        builder.clearElements();
-        (window as any).vis = { getSceneBuilder: () => builder };
-
-        const state = useTimelineStore.getState();
-        const doc = {
-            timeline: {
-                ...state.timeline,
-                globalBpm: 120,
-                beatsPerBar: 4,
-                masterTempoMap: [],
-            },
-            tracks: {},
-            tracksOrder: [],
-            playbackRange: null,
-            playbackRangeUserDefined: false,
-            rowHeight: state.rowHeight,
-            midiCache: {},
-            scene: fixture,
-        } as const;
-
-        withSilentConsole(() => DocumentGateway.apply(doc as any));
-
-        const snapshot = withFrozenNow(() => snapshotBuilder(builder));
-        expect(snapshot.scene).toEqual(fixture);
     });
 
     it('hydrates the store and macro manager when no builder is available', () => {

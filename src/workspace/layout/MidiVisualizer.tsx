@@ -15,14 +15,13 @@ import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
 import { importScene } from '@persistence/index';
 import { createDefaultMIDIScene, createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
+import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
     const { showProgressOverlay, progressData, closeProgress, exportKind } = useVisualizer() as any;
-    const sceneRefreshTrigger = 0;
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsVisible, setSidePanelsVisible] = useState(true);
     const [timelineVisible, setTimelineVisible] = useState(true);
@@ -78,10 +77,10 @@ const MidiVisualizerInner: React.FC = () => {
                 sidePanelsVisible={sidePanelsVisible}
                 timelineVisible={timelineVisible}
             />
-            <SceneSelectionProvider sceneRefreshTrigger={sceneRefreshTrigger}>
+            <SceneSelectionProvider>
                 <div className="main-workspace">
                     <PreviewPanel />
-                    {sidePanelsVisible && <SidePanels sceneRefreshTrigger={sceneRefreshTrigger} />}
+                    {sidePanelsVisible && <SidePanels />}
                 </div>
                 {timelineVisible && (
                     <div className="timeline-container">
@@ -128,8 +127,6 @@ const TemplateInitializer: React.FC = () => {
         const state: any = location.state || {};
         let didChange = false;
         try {
-            const sceneBuilder = visualizer.getSceneBuilder?.();
-            if (!sceneBuilder) return;
             if (state.importScene) {
                 const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
                 if (payload) {
@@ -153,25 +150,24 @@ const TemplateInitializer: React.FC = () => {
                 }
             } else if (state.template) {
                 const tpl = state.template as string;
-                dispatchSceneCommand(sceneBuilder, { type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
+                dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
                 switch (tpl) {
                     case 'blank':
                         // Clear scene already resets settings; nothing else required.
                         break;
                     case 'default':
-                        createDefaultMIDIScene(sceneBuilder);
+                        createDefaultMIDIScene(null);
                         break;
                     case 'debug':
                         try {
-                            createAllElementsDebugScene(sceneBuilder);
+                            createAllElementsDebugScene(null);
                         } catch {
-                            createDebugScene(sceneBuilder);
+                            createDebugScene(null);
                         }
                         break;
                     default:
-                        createDefaultMIDIScene(sceneBuilder);
+                        createDefaultMIDIScene(null);
                 }
-                synchronizeSceneStoreFromBuilder(sceneBuilder, { source: 'TemplateInitializer.template-sync' });
                 refreshSceneUI();
                 didChange = true;
             }

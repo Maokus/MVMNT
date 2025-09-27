@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useCallback } from 'react'
 // @ts-ignore
 import { globalMacroManager, MacroType } from '@bindings/macro-manager';
 import { useVisualizer } from './VisualizerContext';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder, useSceneMacros } from '@state/scene';
+import { dispatchSceneCommand, useSceneMacros } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 
@@ -33,36 +33,18 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [visualizer, macros]);
 
-    const getSceneBuilder = useCallback(() => {
-        if (!visualizer) return null;
-        try {
-            return visualizer.getSceneBuilder?.() ?? null;
-        } catch {
-            return null;
-        }
-    }, [visualizer]);
-
     const refresh = useCallback(() => {
-        const builder = getSceneBuilder();
-        if (builder) {
-            synchronizeSceneStoreFromBuilder(builder, { source: 'MacroContext.refresh', skipParity: true });
-        }
-    }, [getSceneBuilder]);
+        // Store-first implementation keeps macros synchronized via command side-effects.
+        // The refresh hook remains for compatibility but no longer performs work.
+    }, []);
 
-    const runCommand = useCallback(
-        (command: SceneCommand, source: string) => {
-            const builder = getSceneBuilder();
-            if (builder) {
-                const result = dispatchSceneCommand(builder, command, { source, forceParity: false, skipParity: false });
-                if (!result.success) {
-                    console.warn(`[MacroContext] Command failed (${source})`, result.error);
-                }
-                return result.success;
-            }
-            return false;
-        },
-        [getSceneBuilder]
-    );
+    const runCommand = useCallback((command: SceneCommand, source: string) => {
+        const result = dispatchSceneCommand(command, { source });
+        if (!result.success) {
+            console.warn(`[MacroContext] Command failed (${source})`, result.error);
+        }
+        return result.success;
+    }, []);
 
     const create = useCallback(
         (name: string, type: MacroType, value: any, options?: any) => {
@@ -70,38 +52,24 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 { type: 'createMacro', macroId: name, definition: { type, value, options } },
                 'MacroContext.create'
             );
-            if (!success && !getSceneBuilder()) {
-                useSceneStore.getState().createMacro(name, { type, value, options });
-                globalMacroManager.createMacro(name, type as MacroType, value, options);
-                return true;
-            }
             return success;
         },
-        [runCommand, getSceneBuilder]
+        [runCommand]
     );
 
     const updateValue = useCallback(
         (name: string, value: any) => {
             const success = runCommand({ type: 'updateMacroValue', macroId: name, value }, 'MacroContext.updateValue');
-            if (!success && !getSceneBuilder()) {
-                useSceneStore.getState().updateMacroValue(name, value);
-                globalMacroManager.updateMacroValue(name, value);
-                return true;
-            }
             return success;
         },
-        [runCommand, getSceneBuilder]
+        [runCommand]
     );
 
     const del = useCallback(
         (name: string) => {
             const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
-            if (!success && !getSceneBuilder()) {
-                useSceneStore.getState().deleteMacro(name);
-                globalMacroManager.deleteMacro(name);
-            }
         },
-        [runCommand, getSceneBuilder]
+        [runCommand]
     );
 
     const get = useCallback((name: string) => {
