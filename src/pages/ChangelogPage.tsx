@@ -14,7 +14,7 @@ const ChangelogPage: React.FC = () => {
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Changelog</h1>
                         <p className="mt-3 text-neutral-400 text-sm">Recent updates for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.</p>
                     </div>
-                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Workspace</Link>
+                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Edit Mode</Link>
                 </div>
 
                 <div className="space-y-10">

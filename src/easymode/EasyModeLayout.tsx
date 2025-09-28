@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
 import { TimelinePanel } from '@workspace/panels/timeline';
@@ -10,6 +10,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import logo from '@assets/Logo_Transparent.png';
+import { useMacros } from '@context/MacroContext';
 
 interface TemplateDefinition {
     id: string;
@@ -59,11 +60,61 @@ const EasyModeLayout: React.FC = () => {
     const displaySceneName = sceneName?.trim() ? sceneName : 'Untitled Scene';
     const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
 
-    const midiTrackCount = useTimelineStore(
-        useCallback((state) => state.tracksOrder.filter((id) => state.tracks[id]?.type === 'midi').length, [])
+    const midiTrackIds = useTimelineStore(
+        useCallback((state) => state.tracksOrder.filter((id) => state.tracks[id]?.type === 'midi'), [])
     );
-    const audioTrackCount = useTimelineStore(
-        useCallback((state) => state.tracksOrder.filter((id) => state.tracks[id]?.type === 'audio').length, [])
+    const midiTrackCount = midiTrackIds.length;
+    const addMidiTrack = useTimelineStore((state) => state.addMidiTrack);
+
+    const uploadInputRef = useRef<HTMLInputElement | null>(null);
+    const { macros: macroList, updateValue } = useMacros();
+    const midiMacros = useMemo(() => {
+        return (macroList as any[]).filter((macro) => macro?.type === 'midiTrackRef');
+    }, [macroList]);
+    const previousMidiCountRef = useRef(midiTrackCount);
+
+    useEffect(() => {
+        const previousCount = previousMidiCountRef.current;
+        if (previousCount === 0 && midiTrackIds.length > 0 && midiMacros.length > 0) {
+            const targetTrackId = midiTrackIds[0];
+            midiMacros.forEach((macro: any) => {
+                if (!macro?.name) return;
+                const allowsMultiple = Boolean(macro?.options?.allowMultiple) || Array.isArray(macro?.value);
+                const currentValue = macro.value;
+                const nextValue = allowsMultiple ? [targetTrackId] : targetTrackId;
+                if (allowsMultiple) {
+                    const asArray = Array.isArray(currentValue) ? currentValue : [];
+                    if (asArray.length === 1 && asArray[0] === targetTrackId) {
+                        return;
+                    }
+                } else if (currentValue === targetTrackId) {
+                    return;
+                }
+                try {
+                    updateValue(macro.name, nextValue);
+                } catch (error) {
+                    console.warn('Failed to assign MIDI track macro', macro.name, error);
+                }
+            });
+        }
+        previousMidiCountRef.current = midiTrackIds.length;
+    }, [midiTrackIds, midiMacros, updateValue]);
+
+    const handlePlaceholderButtonClick = useCallback(() => {
+        uploadInputRef.current?.click();
+    }, []);
+
+    const handlePlaceholderFileChange = useCallback(
+        async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const trackName = file.name.replace(/\.[^/.]+$/, '');
+            await addMidiTrack({ name: trackName, file });
+            if (event.target) {
+                event.target.value = '';
+            }
+        },
+        [addMidiTrack]
     );
 
     const handleImportScene = useCallback(() => {
@@ -120,13 +171,13 @@ const EasyModeLayout: React.FC = () => {
                             </Link>
                         </h3>
                         <span className="rounded-full border border-neutral-700/80 bg-neutral-800/80 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-neutral-300">
-                            Easy Mode
+                            Template Mode
                         </span>
                         <Link
                             to="/workspace"
                             className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
                         >
-                            Open Workspace
+                            Open Edit Mode
                         </Link>
                     </div>
                     <div className="flex min-w-[240px] flex-1 flex-wrap items-center justify-center gap-3 text-[11px] text-neutral-300 md:justify-center">
@@ -178,7 +229,29 @@ const EasyModeLayout: React.FC = () => {
                         <PreviewPanel interactive={false} />
                     </div>
                     <div className="timeline-container h-[280px] border-t border-neutral-800">
-                        <TimelinePanel />
+                        {midiTrackCount === 0 ? (
+                            <div className="flex h-full flex-col items-center justify-center gap-4 bg-neutral-900/60 px-6 text-center">
+                                <p className="max-w-lg text-sm text-neutral-300">
+                                    Upload a MIDI file to start customizing this template. Your timeline and macros will automatically connect once the file is added.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handlePlaceholderButtonClick}
+                                    className="rounded-lg bg-emerald-600 px-8 py-4 text-lg font-semibold text-white shadow transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-neutral-900"
+                                >
+                                    Upload Midi
+                                </button>
+                                <input
+                                    ref={uploadInputRef}
+                                    type="file"
+                                    accept=".mid,.midi"
+                                    className="hidden"
+                                    onChange={handlePlaceholderFileChange}
+                                />
+                            </div>
+                        ) : (
+                            <TimelinePanel />
+                        )}
                     </div>
                 </div>
                 {macrosVisible && (
