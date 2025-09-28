@@ -1,60 +1,37 @@
 # Scene Store Architecture
 
-The scene store (`src/state/sceneStore.ts`) provides a normalized Zustand slice that replaces direct `HybridSceneBuilder` mutations. It centralizes scene data, maintains macro bindings, and exposes import/export helpers that operate entirely on serializable data.
+The scene store (`src/state/sceneStore.ts`) is the canonical source of truth for scene structure, property bindings, macros, interaction state, and persistence metadata. All UI panels, command surfaces, and runtime adapters read and write through this normalized Zustand slice instead of mutating `HybridSceneBuilder` directly.
 
-## Top-Level State
-
+## State Layout
 | Slice | Purpose |
 | --- | --- |
-| `settings` | Authoritative scene dimensions & tempo (`SceneSettingsState`). |
+| `settings` | Authoritative scene dimensions, tempo, and global flags (`SceneSettingsState`). |
 | `elements` | Map of element metadata (`SceneElementRecord`) keyed by id. |
-| `order` | Stable element ordering array used by runtime/layout. |
-| `bindings` | Normalized property bindings per element plus a macro inverse index. |
-| `macros` | Snapshot of global macros (`SceneMacroState`) with insertion order. |
+| `order` | Stable element ordering array that drives rendering and export. |
+| `bindings` | Normalized property bindings per element plus an inverse macro index. |
+| `macros` | Macro definitions and insertion order used by the macro tooling. |
 | `interaction` | UI-facing interaction state (selection, hover, clipboard placeholders). |
 | `runtimeMeta` | Mutation bookkeeping (schema version, dirty flags, hydration timestamps). |
 
-`SceneMutationSource` tags every mutating action so telemetry/undo layers can attribute changes once middleware is wired up in later phases.
+Mutation helpers tag every change with a `SceneMutationSource` so undo middleware, telemetry, and command instrumentation can attribute updates as the command gateway runs.
 
-## Property Bindings & Macro Indexing
+## Actions & Command Gateway
+All scene mutations run through the command gateway (`dispatchSceneCommand`). The gateway applies store mutations first, mirrors updates into legacy compatibility layers (builder + `globalMacroManager`), and asserts parity. Representative actions:
 
-- `ElementBindings` capture each property as either a constant or macro reference.
-- `rebuildMacroIndex` produces `byMacro`, an inverse map of macro id → assignments. It runs after every mutation to guarantee consistency for parity checks and later telemetry.
-- Helpers (`cloneBinding`, `deserializeElementBindings`, `serializeElement`) keep bindings immutable and serialize back to `PropertyBindingData` without invoking the builder.
+- `addElement`, `duplicateElement`, `removeElement`, `moveElement` keep `elements`, `order`, and bindings synchronized.
+- `updateBindings` patches element bindings and rebuilds the inverse macro index.
+- `updateSettings` merges scene settings while preserving memoized selector stability.
+- `clearScene`, `importScene`, and `exportSceneDraft` manage persistence using normalized store data only.
 
-## Actions
+Undo middleware instruments the gateway so history replay stays in lockstep with the store. As we eliminate legacy dependencies the gateway will transition to store-only payloads.
 
-The store currently ships with:
+## Selectors & Hooks
+`src/state/scene/selectors.ts` exposes memoized selectors (`createSceneSelectors`) that power UI hooks (`useSceneElements`, `useSceneSelection`, macro selectors, etc.). These selectors compose ordered element views, macro assignments, and settings snapshots while keeping references stable across unrelated updates. Components import hooks from `@state/scene` to stay decoupled from underlying Zustand plumbing.
 
-- `addElement`, `duplicateElement`, `removeElement`, `moveElement` — manage `elements`, `order`, and binding maps while keeping macro assignments synchronized.
-- `updateBindings` — applies partial binding patches and refreshes the inverse index.
-- `updateSettings` — merges into `settings` while preserving memoized selector stability.
-- `clearScene` — wipes elements/order/bindings but leaves macros for future reuse.
-- `importScene` / `exportSceneDraft` — round-trip the Phase 0 fixture shape using store data only (fulfilling the Phase 1 acceptance criteria).
+## Runtime & Persistence Integration
+- `SceneRuntimeAdapter` subscribes to the store, hydrates runtime element instances, and invalidates caches based on per-element revision counters.
+- `DocumentGateway` serializes from the store and hydrates it before optionally syncing the legacy builder for backward compatibility.
+- Acceptance, fuzz, and regression suites cover command parity, macro churn, runtime hydration, and persistence round-trips so store-backed flows remain safe.
 
-Every mutation funnels through `markDirty` so `runtimeMeta.persistentDirty` reflects unsaved work and captures the last mutation source/timestamp.
-
-## Selectors
-
-`src/state/scene/selectors.ts` exports `createSceneSelectors`, which builds memoized selectors per consumer:
-
-- `selectOrderedElements` returns the ordered element views (id, type, bindings) and keeps references stable when unrelated slices change.
-- `selectMacroAssignments` exposes the macro inverse index as a sorted list for telemetry or inspection.
-- `selectElementById` and `selectSceneSettings` provide convenience accessors.
-
-A shared `sceneSelectors` instance is exported for components that do not need isolated caches, while tests can instantiate their own selectors to control memoization boundaries.
-
-## Import/Export Flow
-
-`importScene` accepts the builder-style serialized payload (match to `scene.edge-macros.json`) and constructs state with fully normalized bindings. `exportSceneDraft` walks the store order and emits the same shape, including sequential `index` values and macro packages, so persistence and undo systems can operate without `HybridSceneBuilder` involvement.
-
-## Testing
-
-`src/state/scene/__tests__/sceneStore.test.ts` covers:
-
-- Phase 0 fixture round-trip via store import/export.
-- Macro index consistency when bindings mutate.
-- Duplication and reordering flows.
-- Selector memoization stability under unrelated updates.
-
-Run with `npm test -- --run src/state/scene/__tests__/sceneStore.test.ts` for a quick verification pass.
+## Compatibility & Remaining Cleanup
+The legacy builder remains only as a mirror updated by the command gateway to support straggling consumers. Next steps focus on delivering store-native element creation/schema helpers, removing the `globalMacroManager` mirror, and deleting the builder once runtime, undo, and telemetry no longer reference it. Until then, parity assertions and linting guard against reintroducing direct builder mutations.
