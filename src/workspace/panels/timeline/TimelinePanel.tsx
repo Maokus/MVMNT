@@ -241,7 +241,7 @@ const TimelinePanel: React.FC = () => {
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
-        <div className="timeline-panel flex h-full flex-col overflow-hidden" role="region" aria-label="Timeline panel">
+        <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
             <div className="timeline-header grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                 {/* Left: Add track */}

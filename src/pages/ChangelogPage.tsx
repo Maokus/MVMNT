@@ -32,6 +32,7 @@ const ChangelogPage: React.FC = () => {
                         'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
                         'Reworked entire document store system for improved reliability and modularity',
                         'Allowed panel dragging and resizing',
+                        'Added easy mode',
                         'midi track visual aid'
                     ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
