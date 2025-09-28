@@ -198,15 +198,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
         const absStartTick = Math.max(0, offsetTick + localStartTick);
         const absEndTick = Math.max(absStartTick, offsetTick + localEndTick);
-        const viewStart = view.startTick;
-        const viewEnd = view.endTick;
-        const clippedStartTick = Math.max(absStartTick, viewStart);
-        const clippedEndTick = Math.max(clippedStartTick, Math.min(absEndTick, viewEnd));
-        const leftX = toX(clippedStartTick, laneWidth);
-        const rightX = toX(clippedEndTick, laneWidth);
+        const leftX = toX(absStartTick, laneWidth);
+        const rightX = toX(absEndTick, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
-        const isClippedLeft = absStartTick < viewStart;
-        const isClippedRight = absEndTick > viewEnd;
         const offsetBeats = useMemo(() => {
             if (!track) return 0;
             return (dragTick != null ? dragTick : (track.offsetTicks || 0)) / ppq;
@@ -235,12 +229,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 return `${barIdx}|${beatInBar}`;
             };
             const snapInfo = `Snap: ${quantize === 'bar' ? 'Bar' : 'Off'} (hold Alt to bypass)`;
-            const clipInfo: string[] = [];
-            if (absStartRealTick < viewStart) clipInfo.push('Start clipped by view');
-            if (absEndRealTick > viewEnd) clipInfo.push('End clipped by view');
-            const clipLine = clipInfo.length ? `\n${clipInfo.join('; ')}` : '';
-            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})${clipLine}`;
-        }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, viewStart, viewEnd, ppq]);
+            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
+        }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
         return (
             <div className="relative h-full"
@@ -251,7 +241,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 {widthPx > 0 && (
                     <div
                         className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                        style={{ left: Math.max(0, leftX), width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
+                        style={{ left: leftX, width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
@@ -264,25 +254,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                     height={Math.max(18, laneHeight * 0.6) - 4}
                                     regionStartTickAbs={absStartTick}
                                     regionEndTickAbs={absEndTick}
-                                    visibleStartTickAbs={clippedStartTick}
-                                    visibleEndTickAbs={clippedEndTick}
                                 />
                             </div>
-                        )}
-                        {/* Clip overflow tails to hint at continuation beyond the current view */}
-                        {isClippedLeft && (
-                            <div
-                                className="pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-blue-300/50 blur-[1px]"
-                                style={{ left: -14, width: 18, height: Math.max(12, (laneHeight * 0.6) - 4) }}
-                                aria-hidden
-                            />
-                        )}
-                        {isClippedRight && (
-                            <div
-                                className="pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-blue-300/50 blur-[1px]"
-                                style={{ right: -14, width: 18, height: Math.max(12, (laneHeight * 0.6) - 4) }}
-                                aria-hidden
-                            />
                         )}
                         <div className="relative z-10 flex items-center gap-1">
                             <span>{track?.name}</span>

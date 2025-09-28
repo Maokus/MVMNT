@@ -100,6 +100,8 @@ export function buildEdgeMacroScene(): SceneFixtureResult {
             text: { type: 'constant', value: 'Phase 0' },
             color: { type: 'macro', macroId: 'macro.color.primary' },
             fontSize: { type: 'macro', macroId: 'macro.fontSize' },
+            offsetX: { type: 'constant', value: 0 },
+            offsetY: { type: 'constant', value: 0 },
         },
     });
 

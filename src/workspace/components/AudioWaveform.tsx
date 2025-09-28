@@ -42,6 +42,26 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         };
     });
 
+    const safeOffsetTicks = typeof offsetTicks === 'number' ? offsetTicks : 0;
+    const fallbackRegionStart = typeof regionStartTick === 'number' ? regionStartTick : 0;
+    const fallbackRegionEnd = typeof regionEndTick === 'number' ? regionEndTick : fallbackRegionStart + Math.max(durationTicks, 0);
+
+    const effectiveRegionStart = typeof regionStartTickAbs === 'number'
+        ? Math.max(0, regionStartTickAbs - safeOffsetTicks)
+        : fallbackRegionStart;
+
+    const effectiveRegionEnd = typeof regionEndTickAbs === 'number'
+        ? Math.max(effectiveRegionStart, regionEndTickAbs - safeOffsetTicks)
+        : Math.max(effectiveRegionStart, fallbackRegionEnd);
+
+    const effectiveVisibleStart = typeof visibleStartTickAbs === 'number'
+        ? Math.max(effectiveRegionStart, Math.min(visibleStartTickAbs - safeOffsetTicks, effectiveRegionEnd))
+        : effectiveRegionStart;
+
+    const effectiveVisibleEnd = typeof visibleEndTickAbs === 'number'
+        ? Math.max(effectiveVisibleStart, Math.min(visibleEndTickAbs - safeOffsetTicks, effectiveRegionEnd))
+        : effectiveRegionEnd;
+
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -58,7 +78,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             ctx.fillStyle = background;
             ctx.fillRect(0, 0, w, h);
         }
-        if (!peaks || peaks.length === 0 || durationTicks <= 0) {
+        if (!peaks || peaks.length === 0 || effectiveRegionEnd <= effectiveRegionStart) {
             ctx.fillStyle = '#999';
             ctx.font = '10px sans-serif';
             ctx.fillText('Loading waveform…', 4, h / 2);
@@ -72,18 +92,13 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const bins = peaks.length;
         // Determine mapping from visible slice to peak bins.
         // Region = trimmed portion of the underlying buffer (regionStartTick .. regionEndTick) relative to buffer start.
-        const absRegionStart = typeof regionStartTickAbs === 'number' ? regionStartTickAbs : (offsetTicks + regionStartTick);
-        const absRegionEnd = typeof regionEndTickAbs === 'number' ? regionEndTickAbs : (offsetTicks + regionEndTick);
-        const absVisibleStart = typeof visibleStartTickAbs === 'number' ? visibleStartTickAbs : absRegionStart;
-        const absVisibleEnd = typeof visibleEndTickAbs === 'number' ? visibleEndTickAbs : absRegionEnd;
-
-        const regionDurationTicks = Math.max(1, absRegionEnd - absRegionStart);
+        const regionDurationTicks = Math.max(1, effectiveRegionEnd - effectiveRegionStart);
         // Clamp visible window inside region
-        const visStartClamped = Math.max(absRegionStart, Math.min(absVisibleStart, absRegionEnd));
-        const visEndClamped = Math.max(visStartClamped, Math.min(absVisibleEnd, absRegionEnd));
+        const visStartClamped = Math.max(effectiveRegionStart, Math.min(effectiveVisibleStart, effectiveRegionEnd));
+        const visEndClamped = Math.max(visStartClamped, Math.min(effectiveVisibleEnd, effectiveRegionEnd));
         const visibleDurationTicks = Math.max(1, visEndClamped - visStartClamped);
-        const startFrac = (visStartClamped - absRegionStart) / regionDurationTicks;
-        const endFrac = (visEndClamped - absRegionStart) / regionDurationTicks;
+        const startFrac = (visStartClamped - effectiveRegionStart) / regionDurationTicks;
+        const endFrac = (visEndClamped - effectiveRegionStart) / regionDurationTicks;
         const startBin = Math.max(0, Math.min(bins - 1, Math.floor(startFrac * bins)));
         const endBin = Math.max(startBin + 1, Math.min(bins, Math.floor(endFrac * bins)));
         const sliceBins = endBin - startBin;
@@ -102,7 +117,18 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             ctx.lineWidth = 2;
             ctx.strokeRect(1, 1, w - 2, h - 2);
         }
-    }, [peaks, height, color, background, selected, offsetTicks, durationTicks, regionStartTickAbs, regionEndTickAbs, visibleStartTickAbs, visibleEndTickAbs, regionStartTick, regionEndTick]);
+    }, [
+        peaks,
+        height,
+        color,
+        background,
+        selected,
+        durationTicks,
+        effectiveRegionStart,
+        effectiveRegionEnd,
+        effectiveVisibleStart,
+        effectiveVisibleEnd,
+    ]);
 
     return <canvas ref={canvasRef} style={{ width: '100%', height: `${height}px`, display: 'block' }} data-track={trackId} />;
 };
