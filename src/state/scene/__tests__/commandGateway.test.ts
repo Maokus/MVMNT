@@ -5,7 +5,7 @@ import {
     clearSceneCommandListeners,
     type SceneCommandTelemetryEvent,
 } from '@state/scene';
-import { createDefaultMIDIScene } from '@core/scene-templates';
+import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
 
 function resetState() {
@@ -147,8 +147,9 @@ describe('scene command gateway', () => {
         expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
     });
 
-    it('hydrates default scene macros into the scene store', () => {
-        createDefaultMIDIScene();
+    it('hydrates default scene macros into the scene store', async () => {
+        const loaded = await loadDefaultScene('commandGateway.test');
+        expect(loaded).toBe(true);
         const sceneMacros = useSceneStore.getState().macros.byId;
         expect(sceneMacros['midiTrack']).toBeDefined();
         expect(sceneMacros['noteAnimation']).toBeDefined();

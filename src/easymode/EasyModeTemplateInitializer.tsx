@@ -5,7 +5,8 @@ import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
-import { createAllElementsDebugScene, createDefaultMIDIScene, createDebugScene } from '@core/scene-templates';
+import { createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
+import { loadDefaultScene } from '@core/default-scene-loader';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
@@ -57,7 +58,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
                         case 'blank':
                             break;
                         case 'default':
-                            createDefaultMIDIScene();
+                            await loadDefaultScene('EasyModeTemplateInitializer.default');
                             break;
                         case 'debug':
                             try {
@@ -67,7 +68,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
                             }
                             break;
                         default:
-                            createDefaultMIDIScene();
+                            await loadDefaultScene('EasyModeTemplateInitializer.fallback');
                     }
                     refreshSceneUI();
                     didChange = true;

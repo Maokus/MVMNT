@@ -14,7 +14,8 @@ import { MacroProvider } from '@context/MacroContext';
 import OnboardingOverlay from './OnboardingOverlay';
 import RenderModal from './RenderModal';
 import { importScene } from '@persistence/index';
-import { createDefaultMIDIScene, createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
+import { createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
+import { loadDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
@@ -303,7 +304,7 @@ const TemplateInitializer: React.FC = () => {
                         case 'blank':
                             break;
                         case 'default':
-                            createDefaultMIDIScene();
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.default');
                             break;
                         case 'debug':
                             try {
@@ -313,7 +314,7 @@ const TemplateInitializer: React.FC = () => {
                             }
                             break;
                         default:
-                            createDefaultMIDIScene();
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.fallback');
                     }
                     refreshSceneUI();
                     didChange = true;

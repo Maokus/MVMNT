@@ -1,4 +1,4 @@
-import { createDefaultMIDIScene, resetToDefaultScene } from '@core/scene-templates';
+import { loadDefaultScene, resetToDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
@@ -134,25 +134,25 @@ export const useMenuBar = ({
     };
 
     const createNewDefaultScene = () => {
-        if (visualizer) {
-            // Generate a new scene name using the scene name generator
-            const newSceneName = SceneNameGenerator.generate();
+        if (!visualizer) {
+            console.log('New default scene functionality: visualizer not available');
+            return;
+        }
 
-            // Update scene name first
+        void (async () => {
+            const newSceneName = SceneNameGenerator.generate();
             onSceneNameChange(newSceneName);
 
-            // Reset to default scene
-            // Use centralized template reset (handles track clearing & events)
+            let resetSucceeded = false;
             try {
-                resetToDefaultScene(visualizer);
-            } catch {
-                // Fallback minimal default if template fails
-                try {
-                    createDefaultMIDIScene();
-                } catch {}
+                resetSucceeded = await resetToDefaultScene(visualizer);
+            } catch (error) {
+                console.warn('Failed to reset to default scene, attempting fallback import', error);
+            }
+            if (!resetSucceeded) {
+                await loadDefaultScene('useMenuBar.createNewDefaultScene.fallback');
             }
 
-            // Reset scene settings to defaults and notify contexts about the reset
             try {
                 const settings = useSceneStore.getState().settings;
                 visualizer?.canvas?.dispatchEvent(
@@ -160,17 +160,16 @@ export const useMenuBar = ({
                 );
             } catch {}
 
-            visualizer?.invalidateRender?.();
+            try {
+                visualizer?.invalidateRender?.();
+            } catch {}
 
-            // Trigger refresh of UI components
             if (onSceneRefresh) {
                 onSceneRefresh();
             }
 
             console.log(`New default scene created with name: ${newSceneName}`);
-        } else {
-            console.log('New default scene functionality: visualizer not available');
-        }
+        })();
     };
 
     return {

@@ -9,6 +9,7 @@ import {
 } from './audio-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 export interface SceneMetadata {
     id: string;
@@ -16,6 +17,7 @@ export interface SceneMetadata {
     createdAt: string;
     modifiedAt: string;
     format: 'scene';
+    description?: string;
 }
 
 export interface SceneExportEnvelopeV2 {
@@ -115,16 +117,35 @@ export async function exportScene(
     const storage: AssetStorageMode = options.storage || 'inline-json';
     const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
+    const metadataStore = (() => {
+        try {
+            return useSceneMetadataStore.getState();
+        } catch {
+            return null;
+        }
+    })();
+    const currentMetadata = metadataStore?.metadata;
 
     const now = new Date().toISOString();
-    const resolvedName = sceneNameOverride?.trim() || state.timeline.name || 'Untitled Scene';
+    const overrideName = sceneNameOverride?.trim();
+    const fallbackName = (currentMetadata?.name?.trim() || state.timeline.name || '').trim();
+    const resolvedName = overrideName && overrideName.length ? overrideName : fallbackName || 'Untitled Scene';
+    const resolvedId = (currentMetadata?.id?.trim() || state.timeline.id || '').trim() || 'scene_1';
     const metadata: SceneMetadata = {
-        id: state.timeline.id || 'scene_1',
+        id: resolvedId,
         name: resolvedName,
-        createdAt: now,
+        createdAt: currentMetadata?.createdAt || now,
         modifiedAt: now,
         format: 'scene',
     };
+    const description = currentMetadata?.description?.trim();
+    if (description) {
+        metadata.description = description;
+    }
+
+    if (metadataStore) {
+        metadataStore.setMetadata({ name: resolvedName, id: resolvedId, modifiedAt: now });
+    }
 
     const collectResult = await collectAudioAssets({
         mode: storage,

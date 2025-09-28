@@ -3,6 +3,7 @@ import { FaTimes } from 'react-icons/fa';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 interface SceneSettingsModalProps {
     onClose: () => void;
@@ -20,6 +21,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const setPlaybackRangeExplicitTicks = useTimelineStore((s) => s.setPlaybackRangeExplicitTicks);
 
+    const metadata = useSceneMetadataStore((state) => state.metadata);
+    const setMetadataName = useSceneMetadataStore((state) => state.setName);
+    const setMetadataId = useSceneMetadataStore((state) => state.setId);
+    const setMetadataDescription = useSceneMetadataStore((state) => state.setDescription);
+
     const startTick = playbackRange?.startTick ?? view.startTick;
     const endTick = playbackRange?.endTick ?? view.endTick;
     const startBars = useMemo(() => {
@@ -36,12 +42,18 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [localFps, setLocalFps] = useState<string>(() => String(exportSettings.fps));
     const [localStartBars, setLocalStartBars] = useState<string>(() => String(startBars ?? 0));
     const [localEndBars, setLocalEndBars] = useState<string>(() => String(endBars ?? 0));
+    const [localSceneName, setLocalSceneName] = useState<string>(() => metadata.name);
+    const [localSceneId, setLocalSceneId] = useState<string>(() => metadata.id);
+    const [localDescription, setLocalDescription] = useState<string>(() => metadata.description ?? '');
 
     useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
     useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
     useEffect(() => { setLocalFps(String(exportSettings.fps)); }, [exportSettings.fps]);
     useEffect(() => { setLocalStartBars(String(Number.isFinite(startBars) ? startBars : 0)); }, [startBars]);
     useEffect(() => { setLocalEndBars(String(Number.isFinite(endBars) ? endBars : 0)); }, [endBars]);
+    useEffect(() => { setLocalSceneName(metadata.name); }, [metadata.name]);
+    useEffect(() => { setLocalSceneId(metadata.id); }, [metadata.id]);
+    useEffect(() => { setLocalDescription(metadata.description ?? ''); }, [metadata.description]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -59,6 +71,28 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         if (key === 'width') setLocalWidth(String(next));
         if (key === 'height') setLocalHeight(String(next));
         if (key === 'fps') setLocalFps(String(next));
+    };
+
+    const commitSceneName = () => {
+        const trimmed = localSceneName.trim();
+        if (!trimmed) {
+            setLocalSceneName(metadata.name);
+            return;
+        }
+        setMetadataName(trimmed);
+    };
+
+    const commitSceneId = () => {
+        const trimmed = localSceneId.trim();
+        if (!trimmed) {
+            setLocalSceneId(metadata.id);
+            return;
+        }
+        setMetadataId(trimmed);
+    };
+
+    const commitDescription = () => {
+        setMetadataDescription(localDescription);
     };
 
     const commitSceneRange = () => {
@@ -82,6 +116,17 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         e.stopPropagation();
     };
 
+    const formatTimestamp = (value: string) => {
+        if (!value) return '—';
+        try {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleString();
+        } catch {
+            return value;
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[9800] flex items-center justify-center" role="dialog" aria-modal="true">
             <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
@@ -101,6 +146,61 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 <p className="m-0 mb-4 text-[13px] text-neutral-400">
                     Adjust render dimensions, playback range, and debug tools for the current scene.
                 </p>
+                <div className="mb-4 flex flex-col gap-3">
+                    <h3 className="m-0 text-[13px] font-semibold text-white">Scene Metadata</h3>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Scene Name
+                        <input
+                            type="text"
+                            value={localSceneName}
+                            onChange={(e) => setLocalSceneName(e.target.value)}
+                            onBlur={commitSceneName}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    commitSceneName();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                }
+                            }}
+                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Scene ID
+                        <input
+                            type="text"
+                            value={localSceneId}
+                            onChange={(e) => setLocalSceneId(e.target.value)}
+                            onBlur={commitSceneId}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    commitSceneId();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                }
+                            }}
+                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Description
+                        <textarea
+                            value={localDescription}
+                            onChange={(e) => setLocalDescription(e.target.value)}
+                            onBlur={commitDescription}
+                            rows={3}
+                            className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 text-[11px] text-neutral-400">
+                        <div>
+                            <span className="block uppercase tracking-wide text-neutral-500">Created</span>
+                            <span className="block text-neutral-300">{formatTimestamp(metadata.createdAt)}</span>
+                        </div>
+                        <div>
+                            <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
+                            <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
+                        </div>
+                    </div>
+                </div>
                 <div className="grid grid-cols-3 gap-3 mb-4">
                     <label className="flex flex-col gap-1 text-[12px]">
                         Width
