@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
@@ -371,7 +371,27 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     };
 
     const rowHeight = useTimelineStore((s) => s.rowHeight);
-    const lanesHeight = Math.max(rowHeight * Math.max(1, trackIds.length), 120);
+    const lanesHeight = trackIds.length > 0
+        ? rowHeight * Math.max(1, trackIds.length)
+        : Math.max(120, rowHeight);
+    const [containerHeight, setContainerHeight] = useState(0);
+    useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const update = () => {
+            const rect = el.getBoundingClientRect();
+            setContainerHeight(Math.max(0, Math.round(rect.height)));
+        };
+        update();
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => update());
+            observer.observe(el);
+            return () => observer.disconnect();
+        }
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+    }, []);
+    const effectiveHeight = Math.max(lanesHeight, containerHeight);
     const playheadX = toX(currentTick, Math.max(1, width));
 
     // Compute display pad to extend beyond view for readability (keep in sync with useTimeScale)
@@ -464,10 +484,10 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             onPointerDown={onBackgroundPointerDown}
             onPointerMove={onBackgroundPointerMove}
             onPointerUp={onBackgroundPointerUp}
-            style={{ height: lanesHeight, width: '100%' }}
+            style={{ minHeight: lanesHeight, height: '100%', width: '100%' }}
         >
             {/* Grid */}
-            <GridLines width={width} height={lanesHeight} startTick={dispStart} endTick={dispEnd} />
+            <GridLines width={width} height={effectiveHeight} startTick={dispStart} endTick={dispEnd} />
 
             {/* Hover snapped line for DnD and dragging */}
             {hoverX != null && (
