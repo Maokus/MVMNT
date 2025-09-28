@@ -2,7 +2,7 @@ import { serializeStable } from '@persistence/stable-stringify';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { useSceneStore } from '@state/sceneStore';
-import { getLegacyMacroManager, ensureMacroSync } from '@state/scene/macroSyncService';
+import { ensureMacroSync } from '@state/scene/macroSyncService';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -322,27 +322,6 @@ export function instrumentSceneStoreForUndo() {
         'importScene',
         'replaceMacros',
     ].forEach(wrap);
-
-    const macroManager: any = getLegacyMacroManager() as any;
-    if (macroManager && !macroManager.__mvmntUndoInstrumented) {
-        ['createMacro', 'updateMacroValue', 'deleteMacro', 'importMacros', 'clearMacros'].forEach((method) => {
-            const orig = macroManager[method];
-            if (typeof orig !== 'function' || orig.__mvmntUndoWrapped) return;
-            const wrapped = (...args: any[]) => {
-                const result = orig.apply(macroManager, args);
-                try {
-                    if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
-                        return result;
-                    }
-                    undo.markDirty();
-                } catch {}
-                return result;
-            };
-            wrapped.__mvmntUndoWrapped = true;
-            macroManager[method] = wrapped;
-        });
-        macroManager.__mvmntUndoInstrumented = true;
-    }
 
     (useSceneStore as any).__mvmntUndoInstrumented = true;
 }

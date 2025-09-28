@@ -1,4 +1,3 @@
-import { globalMacroManager } from '@bindings/macro-manager';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 
@@ -33,7 +32,6 @@ function suppressConsole<T>(fn: () => T): T {
 }
 
 export function buildEdgeMacroScene(): SceneFixtureResult {
-    globalMacroManager.clearMacros();
     const store = useSceneStore.getState();
     store.clearScene();
     store.replaceMacros(null);

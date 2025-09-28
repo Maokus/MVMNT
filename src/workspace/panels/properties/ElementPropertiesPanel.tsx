@@ -47,7 +47,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [groupCollapseState, setGroupCollapseState] = useState<Record<string, boolean>>({});
     const [macroListenerKey, setMacroListenerKey] = useState(0);
 
-    const { assignListener, manager, macros: macroList } = useMacros();
+    const { assignListener, macros: macroList } = useMacros();
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
@@ -80,7 +80,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 const binding = bindingsMemo[property.key];
                 if (binding?.type === 'macro') {
                     nextAssignments[property.key] = binding.macroId;
-                    const macro = macroLookup.get(binding.macroId) ?? manager?.getMacro?.(binding.macroId);
+                    const macro = macroLookup.get(binding.macroId);
                     if (macro) {
                         nextValues[property.key] = macro.value;
                     } else {
@@ -110,7 +110,15 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             }
             return prev;
         });
-    }, [schema, bindingsMemo, macroLookup, manager, macroListenerKey, elementId, elementType, refreshToken]);
+    }, [
+        schema,
+        bindingsMemo,
+        macroLookup,
+        macroListenerKey,
+        elementId,
+        elementType,
+        refreshToken,
+    ]);
 
     const handleValueChange = useCallback(
         (key: string, value: any) => {

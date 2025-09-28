@@ -1,15 +1,14 @@
-import React, { createContext, useContext, useEffect, useCallback, useMemo } from 'react';
-import { MacroType, type MacroManager, type Macro } from '@bindings/macro-manager';
+import React, { createContext, useContext, useEffect, useCallback } from 'react';
+import type { MacroType, Macro } from '@state/scene/macros';
 import { useVisualizer } from './VisualizerContext';
 import { dispatchSceneCommand, useSceneMacros } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
-import { ensureMacroSync, getLegacyMacroManager } from '@state/scene/macroSyncService';
+import { ensureMacroSync } from '@state/scene/macroSyncService';
 
 type MacroList = ReturnType<typeof useSceneMacros>;
 
 interface MacroContextValue {
-    manager: MacroManager;
     macros: MacroList;
     refresh: () => void;
     create: (name: string, type: MacroType, value: any, options?: any) => boolean;
@@ -25,9 +24,8 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { visualizer } = useVisualizer() as any;
     const storeMacros = useSceneMacros();
     const macros = storeMacros;
-    const manager = useMemo(() => {
+    useEffect(() => {
         ensureMacroSync();
-        return getLegacyMacroManager();
     }, []);
 
     useEffect(() => {
@@ -92,7 +90,7 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     return (
-        <MacroContext.Provider value={{ manager, macros, refresh, create, updateValue, delete: del, get, assignListener }}>
+        <MacroContext.Provider value={{ macros, refresh, create, updateValue, delete: del, get, assignListener }}>
             {children}
         </MacroContext.Provider>
     );

@@ -23,7 +23,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onMacroAssignment,
     onCollapseToggle
 }) => {
-    const { manager, macros: macroList } = useMacros();
+    const { macros: macroList } = useMacros();
     const macrosSource = useMemo(() => (macroList as any[]), [macroList]);
     const macroLookup = useMemo(
         () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
@@ -71,7 +71,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         // If assigned to macro, get the macro value
         if (isAssignedToMacro && assignedMacro) {
-            const macro = macroLookup.get(assignedMacro) ?? manager.getMacro?.(assignedMacro);
+            const macro = macroLookup.get(assignedMacro);
             if (macro) {
                 commonProps.value = macro.value;
             }

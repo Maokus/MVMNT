@@ -1,4 +1,4 @@
-import { globalMacroManager, type Macro, type MacroManager } from '@bindings/macro-manager';
+import type { Macro } from '@state/scene/macros';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneMacroState, SceneSerializedMacros } from '@state/sceneStore';
 
@@ -36,15 +36,6 @@ function buildSerializedPayload(state: SceneMacroState): SceneSerializedMacros |
         macros,
         exportedAt: state.exportedAt ?? Date.now(),
     };
-}
-
-function mirrorLegacyManager(state: SceneMacroState) {
-    const payload = buildSerializedPayload(state);
-    if (!payload) {
-        globalMacroManager.clearMacros();
-        return;
-    }
-    globalMacroManager.importMacros(payload);
 }
 
 function emit(event: MacroEvent) {
@@ -92,14 +83,12 @@ function diffAndEmit(next: SceneMacroState, prev: SceneMacroState | null) {
 function ensureSubscription() {
     if (unsubscribeFromStore) return;
     currentSnapshot = cloneMacroState(useSceneStore.getState().macros);
-    mirrorLegacyManager(currentSnapshot);
 
     unsubscribeFromStore = useSceneStore.subscribe(
         (state) => state.macros,
         (next) => {
             const prev = currentSnapshot;
             currentSnapshot = cloneMacroState(next);
-            mirrorLegacyManager(next);
             diffAndEmit(next, prev);
         },
         { equalityFn: Object.is }
@@ -139,11 +128,6 @@ export function updateMacroValue(macroId: string, value: unknown) {
     ensureSubscription();
     const store = useSceneStore.getState();
     store.updateMacroValue(macroId, value);
-}
-
-export function getLegacyMacroManager(): MacroManager {
-    ensureSubscription();
-    return globalMacroManager;
 }
 
 export function getMacroSnapshot(): SceneSerializedMacros | null {

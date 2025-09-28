@@ -11,7 +11,6 @@ import {
     useMacroAssignments,
 } from '@state/scene';
 import { DocumentGateway } from '@persistence/document-gateway';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { useTimelineStore } from '@state/timelineStore';
 
 function resetTimelineStore() {
@@ -33,17 +32,17 @@ function resetTimelineStore() {
 
 describe('store migration acceptance criteria', () => {
     beforeEach(() => {
-        globalMacroManager.clearMacros();
         act(() => {
             useSceneStore.getState().clearScene();
+            useSceneStore.getState().replaceMacros(null);
         });
         resetTimelineStore();
     });
 
     afterEach(() => {
-        globalMacroManager.clearMacros();
         act(() => {
             useSceneStore.getState().clearScene();
+            useSceneStore.getState().replaceMacros(null);
         });
         resetTimelineStore();
     });
@@ -177,7 +176,6 @@ describe('store migration acceptance criteria', () => {
         });
 
         it('applies documents into the store without a builder instance', () => {
-            globalMacroManager.clearMacros();
             useSceneStore.getState().clearScene();
 
             const doc = {

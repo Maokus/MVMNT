@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand';
-import type { Macro } from '@bindings/macro-manager';
+import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 
 export type BindingState = ConstantBindingState | MacroBindingState;

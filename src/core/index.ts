@@ -6,8 +6,6 @@
 export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
 export { NoteEvent } from '@core/midi/note-event';
 export { ImageSequenceGenerator } from '@export/image-sequence-generator';
-export { MacroManager, globalMacroManager } from '@bindings/macro-manager';
-
 // ==========================================
 // Property Binding System Exports
 // ==========================================

@@ -7,7 +7,7 @@ import { getAnimationSelectOptions } from '@animation/note-animations';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene';
 import type { SceneImportPayload, SceneSerializedElement, SceneSerializedMacros } from '@state/sceneStore';
-import type { Macro } from '@bindings/macro-manager';
+import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 

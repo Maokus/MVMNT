@@ -3,7 +3,7 @@ import { shallow } from 'zustand/shallow';
 import { sceneSelectors } from './selectors';
 import { useSceneStore } from '@state/sceneStore';
 import type { ElementBindings, SceneInteractionState, SceneStoreState } from '@state/sceneStore';
-import type { Macro } from '@bindings/macro-manager';
+import type { Macro } from '@state/scene/macros';
 
 export interface SceneElementListItem {
     id: string;

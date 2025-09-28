@@ -5,7 +5,6 @@ import {
     instrumentTimelineStoreForUndo,
 } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 
@@ -32,7 +31,8 @@ function withSilentConsole<T>(fn: () => T): T {
 describe('Scene store undo instrumentation', () => {
     beforeEach(() => {
         vi.useFakeTimers();
-        globalMacroManager.clearMacros();
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
         useTimelineStore.setState((state: any) => ({
             ...state,
             tracks: {},
@@ -46,7 +46,8 @@ describe('Scene store undo instrumentation', () => {
 
     afterEach(() => {
         vi.useRealTimers();
-        globalMacroManager.clearMacros();
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
         delete (window as any).vis;
         delete (window as any).__mvmntUndo;
     });
@@ -107,13 +108,12 @@ describe('Scene store undo instrumentation', () => {
         await vi.runAllTimersAsync();
 
         const captureState = () => ({
-            macroValue: globalMacroManager.getMacro('macro.undo')?.value ?? null,
-            storeValue: useSceneStore.getState().macros.byId['macro.undo']?.value ?? null,
+            macroValue: useSceneStore.getState().macros.byId['macro.undo']?.value ?? null,
             bpm: useTimelineStore.getState().timeline.globalBpm,
         });
 
         const finalState = captureState();
-        expect(finalState).toMatchObject({ macroValue: 5, storeValue: 5, bpm: 138 });
+        expect(finalState).toMatchObject({ macroValue: 5, bpm: 138 });
 
         const stack = undo.debugStack();
         const snapshotMacros = stack.entries.map((_: unknown, index: number) => {

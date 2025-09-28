@@ -2,10 +2,8 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { dispatchSceneCommand } from '@state/scene';
 import { createDefaultMIDIScene } from '@core/scene-templates';
 import { useSceneStore } from '@state/sceneStore';
-import { globalMacroManager } from '@bindings/macro-manager';
 
 function resetState() {
-    globalMacroManager.clearMacros();
     useSceneStore.getState().clearScene();
     useSceneStore.getState().replaceMacros(null);
 }
@@ -98,29 +96,25 @@ describe('scene command gateway', () => {
             { type: 'createMacro', macroId: 'macro.test', definition: { type: 'number', value: 4 } },
         );
         expect(createResult.success).toBe(true);
-        expect(globalMacroManager.getMacro('macro.test')?.value).toBe(4);
         expect(useSceneStore.getState().macros.byId['macro.test']?.value).toBe(4);
 
         const updateResult = dispatchSceneCommand(
             { type: 'updateMacroValue', macroId: 'macro.test', value: 9 },
         );
         expect(updateResult.success).toBe(true);
-        expect(globalMacroManager.getMacro('macro.test')?.value).toBe(9);
         expect(useSceneStore.getState().macros.byId['macro.test']?.value).toBe(9);
 
         const deleteResult = dispatchSceneCommand(
             { type: 'deleteMacro', macroId: 'macro.test' },
         );
         expect(deleteResult.success).toBe(true);
-        expect(globalMacroManager.getMacro('macro.test')).toBeNull();
         expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
     });
 
-    it('hydrates default scene macros into the global manager', () => {
+    it('hydrates default scene macros into the scene store', () => {
         createDefaultMIDIScene();
         const sceneMacros = useSceneStore.getState().macros.byId;
         expect(sceneMacros['midiTrack']).toBeDefined();
-        expect(globalMacroManager.getMacro('midiTrack')).not.toBeNull();
-        expect(globalMacroManager.getMacro('noteAnimation')).not.toBeNull();
+        expect(sceneMacros['noteAnimation']).toBeDefined();
     });
 });

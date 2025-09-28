@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { exportScene, importScene } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { dispatchSceneCommand } from '@state/scene';
 
 describe('Scene element + macro persistence', () => {
@@ -10,7 +9,6 @@ describe('Scene element + macro persistence', () => {
         useTimelineStore.setState((s: any) => ({ ...s, tracks: {}, tracksOrder: [], midiCache: {} }));
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
-        globalMacroManager.clearMacros();
         dispatchSceneCommand({
             type: 'createMacro',
             macroId: 'm1',
@@ -46,11 +44,10 @@ describe('Scene element + macro persistence', () => {
 
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
-        globalMacroManager.clearMacros();
         const imp = importScene(json);
         expect(imp.ok).toBe(true);
         const exported = useSceneStore.getState().exportSceneDraft();
         expect(exported.elements.length).toBe(1);
-        expect(globalMacroManager.getMacro('m1')?.value).toBe(5);
+        expect(useSceneStore.getState().macros.byId['m1']?.value).toBe(5);
     });
 });

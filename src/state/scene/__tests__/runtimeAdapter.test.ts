@@ -1,6 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { createSceneStore } from '@state/sceneStore';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 
@@ -9,7 +8,6 @@ describe('SceneRuntimeAdapter', () => {
     let adapter: SceneRuntimeAdapter;
 
     beforeEach(() => {
-        globalMacroManager.clearMacros();
         store = createSceneStore();
         store.getState().importScene(fixture as any);
         adapter = new SceneRuntimeAdapter({ store });
@@ -17,7 +15,6 @@ describe('SceneRuntimeAdapter', () => {
 
     afterEach(() => {
         adapter.dispose();
-        globalMacroManager.clearMacros();
     });
 
     it('initializes runtime elements respecting store order', () => {

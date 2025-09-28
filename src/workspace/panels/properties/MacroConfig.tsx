@@ -54,7 +54,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
         accept: '.mid,.midi'
     });
 
-    // Update macros when globalMacroManager changes
+    // Update macros when the store-backed macro list changes
     const updateMacros = useCallback(() => {
         const allMacros = contextMacros as any;
         setMacros(allMacros);

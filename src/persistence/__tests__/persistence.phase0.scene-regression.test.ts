@@ -3,7 +3,6 @@ import { DocumentGateway } from '@persistence/document-gateway';
 import { useTimelineStore } from '@state/timelineStore';
 import { buildEdgeMacroScene } from '@state/scene/fixtures/edgeMacroScene';
 import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { useSceneStore } from '@state/sceneStore';
 
 const FIXED_TIMESTAMP = 1700000000000;
@@ -37,8 +36,8 @@ function withSilentConsole<T>(fn: () => T): T {
 
 describe('DocumentGateway scene regression (Phase 0)', () => {
     beforeEach(() => {
-        globalMacroManager.clearMacros();
         useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
         useTimelineStore.setState((state: any) => ({
             ...state,
             tracks: {},
@@ -57,7 +56,8 @@ describe('DocumentGateway scene regression (Phase 0)', () => {
     });
 
     afterEach(() => {
-        globalMacroManager.clearMacros();
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().replaceMacros(null);
         delete (window as any).vis;
         delete (window as any).visualizer;
     });
@@ -121,6 +121,6 @@ describe('DocumentGateway scene regression (Phase 0)', () => {
         expect(exported.elements).toEqual(fixture.elements);
         expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
         expect(exported.macros).toEqual(fixture.macros);
-        expect(globalMacroManager.getMacro('macro.color.primary')).not.toBeNull();
+        expect(useSceneStore.getState().macros.byId['macro.color.primary']).toBeDefined();
     });
 });
