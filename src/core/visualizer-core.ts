@@ -2,10 +2,11 @@
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
-import { HybridSceneBuilder } from './scene-builder';
 import { CANONICAL_PPQ } from './timing/ppq';
 import { createDefaultMIDIScene } from './scene-templates';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder, SceneRuntimeAdapter } from '@state/scene';
+import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -19,7 +20,6 @@ export class MIDIVisualizerCore {
     exportSettings: any = { fullDuration: true };
     debugSettings: any = { showAnchorPoints: false };
     modularRenderer = new ModularRenderer();
-    sceneBuilder = new HybridSceneBuilder();
     runtimeAdapter: SceneRuntimeAdapter | null = null;
     private _needsRender = true;
     private _lastRenderTime = -1;
@@ -48,17 +48,13 @@ export class MIDIVisualizerCore {
         if (!ctx) throw new Error('Could not get 2D context from canvas');
         this.ctx = ctx;
         this._setupImageLoadedListener();
-        // Initialize with default template via scene-templates module
         try {
-            createDefaultMIDIScene(this.sceneBuilder);
-            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.init' });
-        } catch {
-            dispatchSceneCommand(
-                this.sceneBuilder,
-                { type: 'clearScene', clearMacros: true },
-                { source: 'MIDIVisualizerCore.initFallback', skipParity: true }
-            );
-            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.initFallback' });
+            const state = useSceneStore.getState();
+            if (!state.order.length) {
+                createDefaultMIDIScene();
+            }
+        } catch (error) {
+            console.warn('[MIDIVisualizerCore] failed to initialize default scene', error);
         }
         try {
             this.runtimeAdapter = new SceneRuntimeAdapter();
@@ -69,11 +65,9 @@ export class MIDIVisualizerCore {
         (window as any).vis = this; // debug helper
     }
     updateSceneElementTimingManager() {
-        // Maintain previous behavior: rebuild default scene (template abstraction)
         try {
-            createDefaultMIDIScene(this.sceneBuilder);
+            createDefaultMIDIScene();
             this.invalidateRender();
-            synchronizeSceneStoreFromBuilder(this.sceneBuilder, { source: 'MIDIVisualizerCore.updateSceneElementTimingManager' });
         } catch {}
     }
     // Set the explicit playback range (in seconds) controlled by the external timeline/UI
@@ -109,10 +103,8 @@ export class MIDIVisualizerCore {
         ) {
             return this._playRangeEndSec - this._playRangeStartSec;
         }
-        // Fallback: use scene builder computed max when no explicit range is set
-        const maxDuration = this.sceneBuilder.getMaxDuration();
+        const maxDuration = this._computeSceneDuration();
         const base = maxDuration > 0 ? maxDuration : this.duration;
-        // Padding removed; duration equals base element/timeline driven duration
         return base;
     }
     updateExportSettings(settings: any) {
@@ -120,22 +112,22 @@ export class MIDIVisualizerCore {
         const scenePartial: any = {};
         for (const k of sceneKeys) if (k in settings) scenePartial[k] = settings[k];
         if (Object.keys(scenePartial).length) {
-            const before = this.sceneBuilder.getSceneSettings();
+            const before = useSceneStore.getState().settings;
             const result = dispatchSceneCommand(
-                this.sceneBuilder,
                 { type: 'updateSceneSettings', patch: scenePartial },
                 { source: 'MIDIVisualizerCore.updateExportSettings' }
             );
             if (!result.success) {
                 console.warn('Failed to update scene settings', { scenePartial, error: result.error });
             }
-            const updated = this.sceneBuilder.getSceneSettings();
-            const fps = Math.max(1, (updated as any).fps || 60);
+            const updated = useSceneStore.getState().settings;
+            const fps = Math.max(1, updated.fps ?? 60);
             this._rafMinIntervalMs = 1000 / fps;
-            const widthChanged = 'width' in scenePartial && (before as any).width !== (updated as any).width;
-            const heightChanged = 'height' in scenePartial && (before as any).height !== (updated as any).height;
-            if ((widthChanged || heightChanged) && (updated as any).width && (updated as any).height)
-                this.resize((updated as any).width, (updated as any).height);
+            const widthChanged = 'width' in scenePartial && before.width !== updated.width;
+            const heightChanged = 'height' in scenePartial && before.height !== updated.height;
+            if ((widthChanged || heightChanged) && updated.width && updated.height) {
+                this.resize(updated.width, updated.height);
+            }
         }
         const remaining = { ...settings };
         sceneKeys.forEach((k) => delete remaining[k]);
@@ -143,7 +135,8 @@ export class MIDIVisualizerCore {
         this.invalidateRender();
     }
     getExportSettings() {
-        return { ...this.sceneBuilder.getSceneSettings(), ...this.exportSettings };
+        const settings = useSceneStore.getState().settings;
+        return { ...settings, ...this.exportSettings };
     }
     updateDebugSettings(settings: any) {
         this.debugSettings = { ...this.debugSettings, ...settings };
@@ -153,14 +146,14 @@ export class MIDIVisualizerCore {
         return { ...this.debugSettings };
     }
     stepForward() {
-        const frameRate = this.sceneBuilder.getSceneSettings().fps;
+        const frameRate = useSceneStore.getState().settings.fps;
         const step = 1 / frameRate;
         const end = this._playRangeEndSec ?? this.currentTime + step;
         const newTime = Math.min(this.currentTime + step, end);
         this.seek(newTime);
     }
     stepBackward() {
-        const frameRate = this.sceneBuilder.getSceneSettings().fps;
+        const frameRate = useSceneStore.getState().settings.fps;
         const step = 1 / frameRate;
         const minTime = this._playRangeStartSec != null ? this._playRangeStartSec : -0.5;
         const newTime = Math.max(this.currentTime - step, minTime);
@@ -232,24 +225,62 @@ export class MIDIVisualizerCore {
     }
     private _getSceneElements(): SceneElement[] {
         if (!this.runtimeAdapter) {
-            return [...this.sceneBuilder.elements];
+            return [];
         }
         try {
             return this.runtimeAdapter.getElements();
         } catch (error) {
             this._disableRuntimeAdapter('getElements failed', error);
-            return [...this.sceneBuilder.elements];
+            return [];
         }
     }
     private _buildSceneRenderObjects(config: any, targetTime: number) {
         if (!this.runtimeAdapter) {
-            return this.sceneBuilder.buildScene(config, targetTime);
+            return [];
         }
         try {
             return this.runtimeAdapter.buildScene(config, targetTime);
         } catch (error) {
             this._disableRuntimeAdapter('buildScene failed', error);
-            return this.sceneBuilder.buildScene(config, targetTime);
+            return [];
+        }
+    }
+    private _computeSceneDuration(): number {
+        try {
+            const elements = this.runtimeAdapter ? this.runtimeAdapter.getElements() : [];
+            let max = 0;
+            for (const el of elements) {
+                const dur = (el as any).midiManager?.getDuration?.();
+                if (typeof dur === 'number' && dur > max) max = dur;
+            }
+            const state: any = useTimelineStore.getState();
+            const tm = getSharedTimingManager();
+            const bpm = state.timeline?.globalBpm || 120;
+            tm.setBPM(bpm);
+            if (state.timeline?.masterTempoMap) tm.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            for (const id of state.tracksOrder || []) {
+                const track = state.tracks?.[id];
+                if (!track || track.type !== 'midi' || !track.enabled) continue;
+                const cache = state.midiCache?.[track.midiSourceId ?? id];
+                if (!cache || !cache.notesRaw || cache.notesRaw.length === 0) continue;
+                const regionStartTick = track.regionStartTick ?? 0;
+                const regionEndTick = track.regionEndTick ?? Number.POSITIVE_INFINITY;
+                let maxEndTick = 0;
+                for (const note of cache.notesRaw) {
+                    if (note.endTick <= regionStartTick || note.startTick >= regionEndTick) continue;
+                    const clippedEnd = Math.min(note.endTick, regionEndTick);
+                    if (clippedEnd > maxEndTick) maxEndTick = clippedEnd;
+                }
+                const trackEndTick = maxEndTick + (track.offsetTicks ?? 0);
+                if (trackEndTick <= 0) continue;
+                const endBeats = trackEndTick / tm.ticksPerQuarter;
+                const endSec = tm.beatsToSeconds(endBeats);
+                if (endSec > max) max = endSec;
+            }
+            return max;
+        } catch (error) {
+            console.warn('[MIDIVisualizerCore] failed to compute scene duration', error);
+            return this.duration;
         }
     }
     renderAtTime(targetTime: number) {
@@ -327,7 +358,8 @@ export class MIDIVisualizerCore {
         };
     }
     getSceneBuilder() {
-        return this.sceneBuilder;
+        console.warn('[MIDIVisualizerCore] HybridSceneBuilder has been removed; no builder instance is available.');
+        return null;
     }
     getPlayRange(): { startSec: number | null; endSec: number | null } {
         return { startSec: this._playRangeStartSec, endSec: this._playRangeEndSec };
@@ -570,7 +602,6 @@ export class MIDIVisualizerCore {
         const payloadConfig = { ...config };
         if (!payloadConfig.id) payloadConfig.id = elementId;
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'addElement', elementType: type, elementId, config: payloadConfig },
             { source: 'MIDIVisualizerCore.addSceneElement' }
         );
@@ -578,13 +609,15 @@ export class MIDIVisualizerCore {
             console.warn('addSceneElement failed', { type, elementId, error: result.error });
             return null;
         }
-        const element = this.sceneBuilder.getElement(elementId);
-        if (element) this.invalidateRender();
-        return element;
+        this.invalidateRender();
+        try {
+            return this.runtimeAdapter?.getElements().find((el) => el.id === elementId) ?? null;
+        } catch {
+            return null;
+        }
     }
     removeSceneElement(elementId: string) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'removeElement', elementId },
             { source: 'MIDIVisualizerCore.removeSceneElement' }
         );
@@ -594,7 +627,6 @@ export class MIDIVisualizerCore {
     }
     updateSceneElementConfig(elementId: string, config: any) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'updateElementConfig', elementId, patch: config },
             { source: 'MIDIVisualizerCore.updateSceneElementConfig' }
         );
@@ -603,13 +635,29 @@ export class MIDIVisualizerCore {
         return result.success;
     }
     getSceneElementConfig(elementId: string) {
-        return this.sceneBuilder.getElementConfig(elementId);
+        const state = useSceneStore.getState();
+        const element = state.elements[elementId];
+        if (!element) return null;
+        const bindings = state.bindings.byElement[elementId] ?? {};
+        const config: Record<string, unknown> = { id: elementId, type: element.type };
+        for (const [key, binding] of Object.entries(bindings)) {
+            if (binding.type === 'macro') {
+                config[key] = { type: 'macro', macroId: binding.macroId };
+            } else {
+                config[key] = binding.value;
+            }
+        }
+        return config;
     }
     getSceneElements() {
-        return this.sceneBuilder.getAllElements();
+        try {
+            return this.runtimeAdapter?.getElements() ?? [];
+        } catch {
+            return [];
+        }
     }
     exportSceneConfig() {
-        return this.sceneBuilder.serializeScene();
+        return useSceneStore.getState().exportSceneDraft();
     }
     cleanup() {
         if (this._handleImageLoaded) document.removeEventListener('imageLoaded', this._handleImageLoaded);
@@ -628,11 +676,14 @@ export class MIDIVisualizerCore {
         }
     }
     getSceneElement(elementId: string) {
-        return this.sceneBuilder.getElement(elementId);
+        try {
+            return this.runtimeAdapter?.getElements().find((el) => el.id === elementId) ?? null;
+        } catch {
+            return null;
+        }
     }
     setSceneElementVisibility(elementId: string, visible: boolean) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'updateElementConfig', elementId, patch: { visible } },
             { source: 'MIDIVisualizerCore.setSceneElementVisibility' }
         );
@@ -640,7 +691,6 @@ export class MIDIVisualizerCore {
     }
     setSceneElementZIndex(elementId: string, zIndex: number) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'updateElementConfig', elementId, patch: { zIndex } },
             { source: 'MIDIVisualizerCore.setSceneElementZIndex' }
         );
@@ -648,7 +698,6 @@ export class MIDIVisualizerCore {
     }
     moveSceneElement(elementId: string, newIndex: number) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'moveElement', elementId, targetIndex: newIndex },
             { source: 'MIDIVisualizerCore.moveSceneElement' }
         );
@@ -657,7 +706,6 @@ export class MIDIVisualizerCore {
     }
     duplicateSceneElement(sourceId: string, newId: string) {
         const result = dispatchSceneCommand(
-            this.sceneBuilder,
             { type: 'duplicateElement', sourceId, newId },
             { source: 'MIDIVisualizerCore.duplicateSceneElement' }
         );
@@ -665,8 +713,11 @@ export class MIDIVisualizerCore {
             console.warn('duplicateSceneElement failed', { sourceId, newId, error: result.error });
             return null;
         }
-        const el = this.sceneBuilder.getElement(newId);
-        if (el) this.invalidateRender();
-        return el;
+        this.invalidateRender();
+        try {
+            return this.runtimeAdapter?.getElements().find((el) => el.id === newId) ?? null;
+        } catch {
+            return null;
+        }
     }
 }

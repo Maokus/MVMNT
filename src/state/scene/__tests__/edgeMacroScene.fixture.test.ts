@@ -14,6 +14,6 @@ describe('edge macro scene fixture parity', () => {
 
     it('reproduces the stored fixture snapshot', () => {
         const { snapshot } = buildEdgeMacroScene();
-        expect(snapshot.scene).toEqual(fixture);
+        expect(snapshot).toEqual(fixture);
     });
 });

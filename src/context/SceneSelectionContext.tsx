@@ -1,18 +1,23 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { useVisualizer } from './VisualizerContext';
-import type { HybridSceneBuilder } from '@core/scene-builder';
-import { useSceneStore, type BindingState } from '@state/sceneStore';
-import { useSceneElements, useSceneSelection as useSceneSelectionStore, dispatchSceneCommand } from '@state/scene';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { useSceneStore, type BindingState, type ElementBindings } from '@state/sceneStore';
+import {
+    useSceneElements,
+    useSceneSelection as useSceneSelectionStore,
+    useSceneElementRecord,
+    dispatchSceneCommand,
+} from '@state/scene';
 import type { SceneCommand } from '@state/scene';
+import { shallow } from 'zustand/shallow';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
-    selectedElement: any;
+    selectedElement: SelectedElementView | null;
     selectedElementSchema: any;
     propertyPanelRefresh: number; // increments to force property panel value refresh without full element identity change
     visualizer: any;
     elements: any[];
-    sceneBuilder: HybridSceneBuilder | null;
 }
 
 interface SceneSelectionActions {
@@ -32,6 +37,12 @@ interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionA
 
 const SceneSelectionContext = createContext<SceneSelectionContextType | undefined>(undefined);
 
+interface SelectedElementView {
+    id: string;
+    type: string;
+    bindings: ElementBindings;
+}
+
 function readNumericBinding(binding: BindingState | undefined): number | null {
     if (!binding) return null;
     if (binding.type === 'constant') {
@@ -46,7 +57,6 @@ interface SceneSelectionProviderProps {
 
 export function SceneSelectionProvider({ children }: SceneSelectionProviderProps) {
     const { visualizer } = useVisualizer() as any;
-    const [selectedElement, setSelectedElement] = useState<any>(null);
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
 
@@ -54,9 +64,23 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const storeElements = useSceneElements();
     const selectedElementId = storeSelection.primaryId;
 
-    // New state moved from useSceneElementPanel
-    const [sceneBuilder, setSceneBuilder] = useState<HybridSceneBuilder | null>(null);
-    const builderRef = useRef<HybridSceneBuilder | null>(null);
+    const selectedRecord = useSceneElementRecord(selectedElementId);
+    const selectedBindings = useSceneStore(
+        useCallback(
+            (state) => (selectedElementId ? state.bindings.byElement[selectedElementId] ?? {} : {}),
+            [selectedElementId]
+        ),
+        shallow
+    );
+
+    const selectedElement = useMemo<SelectedElementView | null>(() => {
+        if (!selectedRecord) return null;
+        return {
+            id: selectedRecord.id,
+            type: selectedRecord.type,
+            bindings: selectedBindings,
+        };
+    }, [selectedRecord, selectedBindings]);
 
     const updatePropertiesHeader = useCallback((element: any) => {
         const propertiesHeader = document.getElementById('propertiesHeader');
@@ -72,32 +96,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         }
     }, []);
 
-    // Initialize scene builder (moved from hook)
-    useEffect(() => {
-        if (!visualizer) {
-            setSceneBuilder(null);
-            builderRef.current = null;
-            return;
-        }
-        try {
-            if (typeof visualizer.getSceneBuilder !== 'function') {
-                setSceneBuilder(null);
-                builderRef.current = null;
-                return;
-            }
-            const builder = visualizer.getSceneBuilder();
-            setSceneBuilder(builder ?? null);
-            builderRef.current = builder ?? null;
-            if (builder) {
-                console.log('Scene builder initialized in SceneSelectionContext:', builder);
-            }
-        } catch (e: any) {
-            console.error('Error initializing scene builder:', e);
-            setSceneBuilder(null);
-            builderRef.current = null;
-        }
-    }, [visualizer]);
-
     // (Moved below selectElement definition to avoid temporal dead zone)
 
     const selectElement = useCallback((elementId: string | null) => {
@@ -106,37 +104,24 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     }, []);
 
     useEffect(() => {
-        if (!sceneBuilder) {
-            setSelectedElement(null);
-            setSelectedElementSchema(null);
-            updatePropertiesHeader(null);
-            return;
-        }
-
-        if (selectedElementId) {
-            const element = sceneBuilder.getElement(selectedElementId);
-            const schema = sceneBuilder.sceneElementRegistry?.getSchema(element?.type);
-            setSelectedElement(element ?? null);
+        if (selectedElement) {
+            const schema = sceneElementRegistry.getSchema(selectedElement.type);
             setSelectedElementSchema(schema ?? null);
-            updatePropertiesHeader(element ?? null);
+            updatePropertiesHeader({ id: selectedElement.id });
         } else {
-            setSelectedElement(null);
             setSelectedElementSchema(null);
             updatePropertiesHeader(null);
         }
-    }, [sceneBuilder, selectedElementId, updatePropertiesHeader]);
+    }, [selectedElement, updatePropertiesHeader]);
 
     // Listen for external scene-refresh events (e.g., load/save/clear/new scene actions)
     useEffect(() => {
         const handler = () => {
-            if (selectedElementId && !builderRef.current?.getElement(selectedElementId)) {
-                selectElement(null);
-            }
             setPropertyPanelRefresh((prev) => prev + 1);
         };
         window.addEventListener('scene-refresh', handler);
         return () => window.removeEventListener('scene-refresh', handler);
-    }, [selectedElementId, selectElement]);
+    }, []);
 
     // Sync selection state down into the visualizer interaction state (single source of truth = React)
     useEffect(() => {
@@ -158,10 +143,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const runSceneCommand = useCallback(
         (command: SceneCommand, source: string) => {
-            const builder = builderRef.current;
-            const result = builder
-                ? dispatchSceneCommand(builder, command, { source })
-                : dispatchSceneCommand(command, { source });
+            const result = dispatchSceneCommand(command, { source });
             if (!result.success) {
                 console.warn(`[SceneSelectionContext] Command failed (${source})`, {
                     command,
@@ -183,12 +165,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             );
             if (!ok) return;
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
-            if (builderRef.current && selectedElementId === elementId) {
-                try {
-                    const updated = builderRef.current.getElement(elementId);
-                    if (updated) setSelectedElement(updated);
-                } catch {}
-            }
             setPropertyPanelRefresh((prev) => prev + 1);
         },
         [runSceneCommand, visualizer, selectedElementId]
@@ -329,13 +305,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         [runSceneCommand, visualizer, selectedElementId, selectElement]
     );
 
-    // Scene Builder integration log (existing effect kept minimal)
-    useEffect(() => {
-        if (sceneBuilder) {
-            console.log('Scene builder integrated with React context');
-        }
-    }, [sceneBuilder]);
-
     const contextValue: SceneSelectionContextType = {
         selectedElementId,
         selectedElement,
@@ -343,7 +312,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         propertyPanelRefresh,
         visualizer,
         elements: storeElements,
-        sceneBuilder,
         selectElement,
         clearSelection,
         updateElementConfig,

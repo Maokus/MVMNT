@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HybridSceneBuilder } from '@core/scene-builder';
 import {
     createSnapshotUndoController,
     instrumentSceneStoreForUndo,
@@ -53,24 +52,19 @@ describe('Scene store undo instrumentation', () => {
     });
 
     it('captures store mutations and replays them via undo/redo', async () => {
-        const builder = new HybridSceneBuilder();
-        builder.clearElements();
-        (window as any).vis = { getSceneBuilder: () => builder };
-
         const undo: any = withSilentConsole(() =>
             withFrozenNow(() => createSnapshotUndoController(useTimelineStore, { debounceMs: 1 }))
         );
         instrumentSceneStoreForUndo();
 
         dispatchSceneCommand(
-            builder,
             {
                 type: 'addElement',
                 elementType: 'textOverlay',
                 elementId: 'undo-test',
                 config: { id: 'undo-test', text: { type: 'constant', value: 'Phase 0' } },
             },
-            { source: 'undo-test:add', skipParity: true }
+            { source: 'undo-test:add' }
         );
         await vi.runAllTimersAsync();
 
@@ -89,10 +83,6 @@ describe('Scene store undo instrumentation', () => {
     });
 
     it('maintains undo history across macro edits and timeline changes', async () => {
-        const builder = new HybridSceneBuilder();
-        builder.clearElements();
-        (window as any).vis = { getSceneBuilder: () => builder };
-
         const undo: any = withSilentConsole(() =>
             withFrozenNow(() => createSnapshotUndoController(useTimelineStore, { debounceMs: 1 }))
         );
@@ -100,18 +90,16 @@ describe('Scene store undo instrumentation', () => {
         instrumentTimelineStoreForUndo();
 
         dispatchSceneCommand(
-            builder,
             { type: 'createMacro', macroId: 'macro.undo', definition: { type: 'number', value: 1 } },
-            { source: 'undo-test:create', skipParity: true }
+            { source: 'undo-test:create' }
         );
         await vi.runAllTimersAsync();
 
         const initialBpm = useTimelineStore.getState().timeline.globalBpm;
 
         dispatchSceneCommand(
-            builder,
             { type: 'updateMacroValue', macroId: 'macro.undo', value: 5 },
-            { source: 'undo-test:update-1', skipParity: true }
+            { source: 'undo-test:update-1' }
         );
         await vi.runAllTimersAsync();
 

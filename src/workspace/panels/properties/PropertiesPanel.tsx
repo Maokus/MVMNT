@@ -2,9 +2,16 @@ import React from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
+import type { ElementBindings } from '@state/sceneStore';
+
+interface SelectedElementProps {
+    id: string;
+    type: string;
+    bindings: ElementBindings;
+}
 
 interface PropertiesPanelProps {
-    element?: any;
+    element?: SelectedElementProps | null;
     schema?: any;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
     onExport: (exportSettings: any) => void;
@@ -24,8 +31,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     if (element && schema) {
         return (
             <ElementPropertiesPanel
-                element={element}
+                elementId={element.id}
+                elementType={element.type}
                 schema={schema}
+                bindings={element.bindings}
                 onConfigChange={onConfigChange}
             />
         );

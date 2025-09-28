@@ -1,14 +1,13 @@
 /* Scene Templates Module
- * Templates now emit serializable payloads that hydrate the scene store first and
- * optionally synchronize a provided HybridSceneBuilder via the command gateway.
+ * Templates now emit serializable payloads that hydrate the scene store via the
+ * store-driven command gateway.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { HybridSceneBuilder } from './scene-builder';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene';
-import { useSceneStore, type SceneImportPayload, type SceneSerializedElement, type SceneSerializedMacros } from '@state/sceneStore';
-import { globalMacroManager, type Macro } from '@bindings/macro-manager';
+import type { SceneImportPayload, SceneSerializedElement, SceneSerializedMacros } from '@state/sceneStore';
+import type { Macro } from '@bindings/macro-manager';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
@@ -44,21 +43,6 @@ function createElement(
         }
     }
     return element;
-}
-
-function cloneMacros(source?: SceneSerializedMacros | null): SceneSerializedMacros | undefined {
-    if (!source || !source.macros) return undefined;
-    const cloned: SceneSerializedMacros = {
-        macros: Object.entries(source.macros).reduce<Record<string, Macro>>((acc, [id, macro]) => {
-            acc[id] = { ...macro, options: macro?.options ? { ...macro.options } : {} };
-            if (acc[id].options?.selectOptions) {
-                acc[id].options.selectOptions = [...(macro.options?.selectOptions ?? [])].map((entry) => ({ ...entry }));
-            }
-            return acc;
-        }, {}),
-    };
-    if (typeof source.exportedAt === 'number') cloned.exportedAt = source.exportedAt;
-    return cloned;
 }
 
 function buildDefaultMacros(): SceneSerializedMacros {
@@ -201,24 +185,8 @@ function buildDefaultElements(): SceneSerializedElement[] {
     ];
 }
 
-function applySceneTemplate(
-    payload: SceneImportPayload,
-    builder: HybridSceneBuilder | null | undefined,
-    source: string
-): SceneImportPayload {
-    const sceneStore = useSceneStore.getState();
-    sceneStore.importScene(payload);
-
-    const macros = cloneMacros(payload.macros);
-    try {
-        if (macros) globalMacroManager.importMacros(macros);
-        else globalMacroManager.clearMacros();
-    } catch {}
-
-    if (builder) {
-        dispatchSceneCommand(builder, { type: 'loadSerializedScene', payload }, { source, skipParity: true });
-    }
-
+function applySceneTemplate(payload: SceneImportPayload, source: string): SceneImportPayload {
+    dispatchSceneCommand({ type: 'loadSerializedScene', payload }, { source });
     return payload;
 }
 
@@ -231,12 +199,12 @@ function createDefaultScenePayload(): SceneImportPayload {
     };
 }
 
-export function createDefaultMIDIScene(builder?: HybridSceneBuilder | null): SceneImportPayload {
+export function createDefaultMIDIScene(): SceneImportPayload {
     const payload = createDefaultScenePayload();
-    return applySceneTemplate(payload, builder ?? null, 'scene-templates.createDefaultMIDIScene');
+    return applySceneTemplate(payload, 'scene-templates.createDefaultMIDIScene');
 }
 
-export function createDebugScene(builder?: HybridSceneBuilder | null): SceneImportPayload {
+export function createDebugScene(): SceneImportPayload {
     const payload = createDefaultScenePayload();
     const debugIndex = payload.elements.length;
     payload.elements = [
@@ -249,10 +217,10 @@ export function createDebugScene(builder?: HybridSceneBuilder | null): SceneImpo
             offsetY: 10,
         }),
     ];
-    return applySceneTemplate(payload, builder ?? null, 'scene-templates.createDebugScene');
+    return applySceneTemplate(payload, 'scene-templates.createDebugScene');
 }
 
-export function createAllElementsDebugScene(builder?: HybridSceneBuilder | null): SceneImportPayload {
+export function createAllElementsDebugScene(): SceneImportPayload {
     const macros = buildDefaultMacros();
     const elements: SceneSerializedElement[] = [
         createElement('background', 'background', 0, {
@@ -321,10 +289,10 @@ export function createAllElementsDebugScene(builder?: HybridSceneBuilder | null)
         macros,
     };
 
-    return applySceneTemplate(payload, builder ?? null, 'scene-templates.createAllElementsDebugScene');
+    return applySceneTemplate(payload, 'scene-templates.createAllElementsDebugScene');
 }
 
-export function createTestScene(builder?: HybridSceneBuilder | null): SceneImportPayload {
+export function createTestScene(): SceneImportPayload {
     const macros = buildDefaultMacros();
     const elements: SceneSerializedElement[] = [
         createElement('background', 'background', 0, { visible: true, zIndex: 0, anchorX: 0, anchorY: 0, offsetX: 0, offsetY: 0 }),
@@ -365,13 +333,12 @@ export function createTestScene(builder?: HybridSceneBuilder | null): SceneImpor
         macros,
     };
 
-    return applySceneTemplate(payload, builder ?? null, 'scene-templates.createTestScene');
+    return applySceneTemplate(payload, 'scene-templates.createTestScene');
 }
 
 // Resets scene to default + clears timeline tracks (moved from visualizer-core.resetToDefaultScene)
 export function resetToDefaultScene(visualizer: any) {
-    const builder: HybridSceneBuilder | null = visualizer.getSceneBuilder?.() ?? null;
-    const payload = createDefaultMIDIScene(builder);
+    const payload = createDefaultMIDIScene();
     try {
         useTimelineStore.getState().clearAllTracks();
     } catch {}

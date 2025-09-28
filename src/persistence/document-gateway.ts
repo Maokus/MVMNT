@@ -3,16 +3,6 @@ import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 
-// Lightweight runtime discovery of scene builder without creating an import cycle.
-function _getSceneBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
-
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
 
@@ -54,7 +44,6 @@ export const DocumentGateway = {
         let sceneSettings: any = undefined;
         let macros: any = undefined;
 
-        let fallback: any = null;
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
             if (Array.isArray(snapshot.elements)) {
@@ -68,44 +57,17 @@ export const DocumentGateway = {
             }
         } catch {}
 
-        const needsElementFallback = !Array.isArray(elements) || elements.length === 0;
-        const needsSettingsFallback = !sceneSettings || Object.keys(sceneSettings).length === 0;
         const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
-
-        if (needsElementFallback || needsSettingsFallback || !hasMacros) {
+        if (!hasMacros) {
             try {
-                const builder = _getSceneBuilder();
-                if (builder && typeof builder.serializeScene === 'function') {
-                    fallback = builder.serializeScene();
+                const exported = globalMacroManager.exportMacros?.();
+                if (exported && exported.macros && Object.keys(exported.macros).length > 0) {
+                    macros = {
+                        macros: { ...exported.macros },
+                        exportedAt: exported.exportedAt,
+                    };
                 }
             } catch {}
-        }
-
-        if (needsElementFallback && Array.isArray(fallback?.elements) && fallback.elements.length > 0) {
-            elements = fallback.elements.map((el: any) => ({ ...el }));
-        }
-
-        if (needsSettingsFallback && fallback?.sceneSettings) {
-            sceneSettings = { ...fallback.sceneSettings };
-        }
-
-        if (!hasMacros) {
-            if (fallback?.macros && fallback.macros.macros && Object.keys(fallback.macros.macros).length > 0) {
-                macros = {
-                    macros: { ...fallback.macros.macros },
-                    exportedAt: fallback.macros.exportedAt,
-                };
-            } else {
-                try {
-                    const exported = globalMacroManager.exportMacros?.();
-                    if (exported && exported.macros && Object.keys(exported.macros).length > 0) {
-                        macros = {
-                            macros: { ...exported.macros },
-                            exportedAt: exported.exportedAt,
-                        };
-                    }
-                } catch {}
-            }
         }
 
         if (sceneSettings) {

@@ -1,4 +1,3 @@
-import type { HybridSceneBuilder } from '@core/scene-builder';
 import { globalMacroManager, type Macro } from '@bindings/macro-manager';
 import {
     DEFAULT_SCENE_SETTINGS,
@@ -89,11 +88,6 @@ export interface SceneCommandResult {
     durationMs: number;
     command: SceneCommand;
     error?: Error;
-}
-
-interface BuilderMutationResult {
-    ok: boolean;
-    message?: string;
 }
 
 function normalizeBindingValue(value: unknown): BindingState {
@@ -245,72 +239,7 @@ function now() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-function runBuilderMutation(builder: HybridSceneBuilder, command: SceneCommand): BuilderMutationResult {
-    switch (command.type) {
-        case 'addElement':
-            return { ok: !!builder.addElement(command.elementType, command.elementId, command.config ?? {}) };
-        case 'removeElement':
-            return { ok: !!builder.removeElement(command.elementId) };
-        case 'updateElementConfig':
-            return { ok: !!builder.updateElementConfig(command.elementId, command.patch) };
-        case 'moveElement':
-            return { ok: !!builder.moveElement(command.elementId, command.targetIndex) };
-        case 'duplicateElement':
-            return { ok: !!builder.duplicateElement(command.sourceId, command.newId) };
-        case 'updateElementId':
-            return { ok: !!builder.updateElementId(command.currentId, command.nextId) };
-        case 'clearScene':
-            builder.clearScene();
-            if (command.clearMacros !== false) globalMacroManager.clearMacros();
-            return { ok: true };
-        case 'resetSceneSettings':
-            builder.resetSceneSettings?.();
-            return { ok: true };
-        case 'updateSceneSettings':
-            builder.updateSceneSettings?.(command.patch);
-            return { ok: true };
-        case 'loadSerializedScene':
-            return { ok: !!builder.loadScene(command.payload) };
-        case 'createMacro':
-        case 'updateMacroValue':
-        case 'deleteMacro':
-        case 'importMacros':
-            // Macros are synchronized via the global macro manager side effects.
-            return { ok: true };
-        default:
-            return { ok: true };
-    }
-}
-
-function coerceArgs(
-    builderOrCommand: HybridSceneBuilder | SceneCommand | null | undefined,
-    maybeCommand?: SceneCommand | SceneCommandOptions,
-    _maybeOptions?: SceneCommandOptions
-): { builder: HybridSceneBuilder | null | undefined; command: SceneCommand } {
-    if (builderOrCommand && typeof builderOrCommand === 'object' && 'type' in builderOrCommand) {
-        return {
-            builder: null,
-            command: builderOrCommand as SceneCommand,
-        };
-    }
-    return {
-        builder: builderOrCommand as HybridSceneBuilder | null | undefined,
-        command: (maybeCommand as SceneCommand) ?? ({} as SceneCommand),
-    };
-}
-
-export function dispatchSceneCommand(
-    builder: HybridSceneBuilder | null | undefined,
-    command: SceneCommand,
-    options?: SceneCommandOptions
-): SceneCommandResult;
-export function dispatchSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult;
-export function dispatchSceneCommand(
-    builderOrCommand: HybridSceneBuilder | SceneCommand | null | undefined,
-    maybeCommand?: SceneCommand | SceneCommandOptions,
-    maybeOptions?: SceneCommandOptions
-): SceneCommandResult {
-    const { builder, command } = coerceArgs(builderOrCommand, maybeCommand, maybeOptions);
+export function dispatchSceneCommand(command: SceneCommand, _options?: SceneCommandOptions): SceneCommandResult {
     const start = now();
     const store = useSceneStore.getState();
 
@@ -332,61 +261,9 @@ export function dispatchSceneCommand(
         console.warn('[scene command] macro side effects failed', error);
     }
 
-    if (builder) {
-        try {
-            const result = runBuilderMutation(builder, command);
-            if (!result.ok) {
-                return {
-                    success: false,
-                    durationMs: now() - start,
-                    command,
-                    error: result.message ? new Error(result.message) : undefined,
-                };
-            }
-        } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            return {
-                success: false,
-                durationMs: now() - start,
-                command,
-                error: err,
-            };
-        }
-    }
-
     return {
         success: true,
         durationMs: now() - start,
         command,
     };
-}
-
-export function synchronizeSceneStoreFromBuilder(
-    builder: HybridSceneBuilder,
-    _options?: SceneCommandOptions
-): SceneCommandResult {
-    const start = now();
-    try {
-        const snapshot = builder.serializeScene();
-        const store = useSceneStore.getState();
-        store.importScene({
-            elements: snapshot.elements,
-            sceneSettings: snapshot.sceneSettings,
-            macros: snapshot.macros,
-        });
-        applyMacroSideEffects(store, { type: 'loadSerializedScene', payload: snapshot });
-        return {
-            success: true,
-            durationMs: now() - start,
-            command: { type: 'loadSerializedScene', payload: snapshot },
-        };
-    } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        return {
-            success: false,
-            durationMs: now() - start,
-            command: { type: 'loadSerializedScene', payload: { elements: [], sceneSettings: null, macros: null } },
-            error: err,
-        };
-    }
 }

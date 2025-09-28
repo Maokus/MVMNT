@@ -1,6 +1,5 @@
 import { describe, beforeEach, it, expect } from 'vitest';
-import { HybridSceneBuilder } from '@core/scene-builder';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { globalMacroManager } from '@bindings/macro-manager';
 
@@ -91,19 +90,6 @@ describe('scene command gateway', () => {
             type: 'constant',
             value: 'Store Only',
         });
-    });
-
-    it('synchronizes store from existing builder snapshot', () => {
-        const builder = new HybridSceneBuilder();
-        builder.clearScene();
-        globalMacroManager.clearMacros();
-        builder.addElementFromRegistry('textOverlay', { id: 'sync-test', text: { type: 'constant', value: 'Sync' } });
-
-        const syncResult = synchronizeSceneStoreFromBuilder(builder, { source: 'test:sync' });
-        expect(syncResult.success).toBe(true);
-        const store = useSceneStore.getState();
-        expect(store.order).toEqual(['sync-test']);
-        expect(store.bindings.byElement['sync-test'].text).toEqual({ type: 'constant', value: 'Sync' });
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {

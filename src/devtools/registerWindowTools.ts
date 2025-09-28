@@ -1,5 +1,5 @@
 import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene/commandGateway';
-import { dispatchSceneCommand, synchronizeSceneStoreFromBuilder } from '@state/scene';
+import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { exportScene, importScene } from '@persistence/index';
@@ -17,30 +17,8 @@ import {
     getBeatGrid,
 } from '@core/timing/debug-tools';
 
-function resolveBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis?.getSceneBuilder) return vis.getSceneBuilder();
-        if (vis?.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
-
 function runSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult | null {
-    const builder = resolveBuilder();
-    if (builder) {
-        return dispatchSceneCommand(builder, command, options);
-    }
     return dispatchSceneCommand(command, options);
-}
-
-function syncStoreFromBuilder(options?: SceneCommandOptions): SceneCommandResult | null {
-    const builder = resolveBuilder();
-    if (!builder) {
-        console.warn('[mvmntTools] No scene builder available to synchronize store');
-        return null;
-    }
-    return synchronizeSceneStoreFromBuilder(builder, options);
 }
 
 function normalizeImportPayload(payload: unknown): string | null {
@@ -74,7 +52,6 @@ const sceneTools = {
     getState: () => useSceneStore.getState(),
     exportDraft: () => useSceneStore.getState().exportSceneDraft(),
     dispatch: runSceneCommand,
-    syncFromBuilder: syncStoreFromBuilder,
 };
 
 const timelineTools = {

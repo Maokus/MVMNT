@@ -63,15 +63,13 @@ describe('DocumentGateway scene regression (Phase 0)', () => {
     });
 
     it('exports the edge macro scene snapshot via DocumentGateway.build', () => {
-        const { builder, snapshot } = buildEdgeMacroScene();
+        const { snapshot } = buildEdgeMacroScene();
         withFrozenNow(() => {
-            useSceneStore.getState().importScene(snapshot.scene);
+            useSceneStore.getState().importScene(snapshot);
         });
-        // Provide builder handle so legacy consumers remain intact even though build no longer depends on it.
-        (window as any).vis = { getSceneBuilder: () => builder };
 
         const doc = withFrozenNow(() => DocumentGateway.build());
-        expect(doc.scene).toEqual(snapshot.scene);
+        expect(doc.scene).toEqual(snapshot);
     });
 
     it('strips legacy padding keys from scene settings when exporting', () => {

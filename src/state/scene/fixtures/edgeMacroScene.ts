@@ -1,12 +1,11 @@
-import { HybridSceneBuilder } from '@core/scene-builder';
 import { globalMacroManager } from '@bindings/macro-manager';
-import { snapshotBuilder, type SceneBuilderSnapshot } from '@state/scene/snapshotBuilder';
+import { dispatchSceneCommand } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
 
 const FIXED_TIMESTAMP = 1700000000000;
 
-type BuilderFactoryResult = {
-    builder: HybridSceneBuilder;
-    snapshot: SceneBuilderSnapshot;
+type SceneFixtureResult = {
+    snapshot: ReturnType<typeof exportSceneSnapshot>;
 };
 
 function withFrozenNow<T>(fn: () => T): T {
@@ -19,6 +18,10 @@ function withFrozenNow<T>(fn: () => T): T {
     }
 }
 
+function exportSceneSnapshot() {
+    return useSceneStore.getState().exportSceneDraft();
+}
+
 function suppressConsole<T>(fn: () => T): T {
     const originalLog = console.log;
     console.log = () => {};
@@ -29,41 +32,89 @@ function suppressConsole<T>(fn: () => T): T {
     }
 }
 
-export function buildEdgeMacroScene(): BuilderFactoryResult {
+export function buildEdgeMacroScene(): SceneFixtureResult {
     globalMacroManager.clearMacros();
-    const builder = new HybridSceneBuilder();
-    builder.clearElements();
+    const store = useSceneStore.getState();
+    store.clearScene();
+    store.replaceMacros(null);
 
     withFrozenNow(() => {
-        globalMacroManager.createMacro('macro.color.primary', 'color', '#ff3366');
-        globalMacroManager.createMacro('macro.fontSize', 'number', 42, { min: 12, max: 96, step: 2 });
-        globalMacroManager.createMacro('macro.color.background', 'color', '#0f1114');
-        globalMacroManager.createMacro('macro.select.theme', 'select', 'bold', {
-            selectOptions: [
-                { value: 'bold', label: 'Bold' },
-                { value: 'minimal', label: 'Minimal' },
-                { value: 'retro', label: 'Retro' },
-            ],
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.color.primary',
+            definition: { type: 'color', value: '#ff3366' },
         });
-        globalMacroManager.createMacro('macro.asset.cover', 'file-image', '', { accept: 'image/*' });
-        globalMacroManager.createMacro('macro.midi.track', 'midiTrackRef', [], {});
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.fontSize',
+            definition: { type: 'number', value: 42, options: { min: 12, max: 96, step: 2 } },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.color.background',
+            definition: { type: 'color', value: '#0f1114' },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.select.theme',
+            definition: {
+                type: 'select',
+                value: 'bold',
+                options: {
+                    selectOptions: [
+                        { value: 'bold', label: 'Bold' },
+                        { value: 'minimal', label: 'Minimal' },
+                        { value: 'retro', label: 'Retro' },
+                    ],
+                },
+            },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.asset.cover',
+            definition: { type: 'file-image', value: '', options: { accept: 'image/*' } },
+        });
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'macro.midi.track',
+            definition: { type: 'midiTrackRef', value: [] },
+        });
         suppressConsole(() => {
-            globalMacroManager.updateMacroValue('macro.asset.cover', 'assets/covers/default.png');
-            globalMacroManager.updateMacroValue('macro.midi.track', ['track-1']);
+            dispatchSceneCommand({
+                type: 'updateMacroValue',
+                macroId: 'macro.asset.cover',
+                value: 'assets/covers/default.png',
+            });
+            dispatchSceneCommand({
+                type: 'updateMacroValue',
+                macroId: 'macro.midi.track',
+                value: ['track-1'],
+            });
         });
     });
 
-    const text = builder.addElementFromRegistry('textOverlay', { id: 'title', text: 'Phase 0' });
-    if (!text) throw new Error('Failed to create textOverlay element');
-    const textEl: any = builder.getElement('title');
-    textEl.bindToMacro('color', 'macro.color.primary');
-    textEl.bindToMacro('fontSize', 'macro.fontSize');
+    dispatchSceneCommand({
+        type: 'addElement',
+        elementType: 'textOverlay',
+        elementId: 'title',
+        config: {
+            id: 'title',
+            text: { type: 'constant', value: 'Phase 0' },
+            color: { type: 'macro', macroId: 'macro.color.primary' },
+            fontSize: { type: 'macro', macroId: 'macro.fontSize' },
+        },
+    });
 
-    const bg = builder.addElementFromRegistry('background', { id: 'background' });
-    if (!bg) throw new Error('Failed to create background element');
-    const bgEl: any = builder.getElement('background');
-    bgEl.bindToMacro('backgroundColor', 'macro.color.background');
+    dispatchSceneCommand({
+        type: 'addElement',
+        elementType: 'background',
+        elementId: 'background',
+        config: {
+            id: 'background',
+            backgroundColor: { type: 'macro', macroId: 'macro.color.background' },
+        },
+    });
 
-    const snapshot = withFrozenNow(() => snapshotBuilder(builder));
-    return { builder, snapshot };
+    const snapshot = withFrozenNow(() => exportSceneSnapshot());
+    return { snapshot };
 }
