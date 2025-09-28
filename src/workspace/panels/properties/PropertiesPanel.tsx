@@ -13,6 +13,7 @@ interface SelectedElementProps {
 interface PropertiesPanelProps {
     element?: SelectedElementProps | null;
     schema?: any;
+    refreshToken?: number;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
     onExport: (exportSettings: any) => void;
     exportStatus: string;
@@ -24,7 +25,7 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
-    const { element, schema, onConfigChange } = props;
+    const { element, schema, onConfigChange, refreshToken = 0 } = props;
     const { visualizer } = useSceneSelection();
 
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
@@ -36,6 +37,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
                 schema={schema}
                 bindings={element.bindings}
                 onConfigChange={onConfigChange}
+                refreshToken={refreshToken}
             />
         );
     }
@@ -43,6 +45,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     return (
         <GlobalPropertiesPanel
             visualizer={visualizer}
+            refreshToken={refreshToken}
             onExport={props.onExport}
             exportStatus={props.exportStatus}
             canExport={props.canExport}

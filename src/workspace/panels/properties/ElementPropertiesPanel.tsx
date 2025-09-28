@@ -10,6 +10,7 @@ interface ElementPropertiesPanelProps {
     schema: EnhancedConfigSchema | null;
     bindings: ElementBindings;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
+    refreshToken?: number;
 }
 
 interface PropertyValues {
@@ -36,8 +37,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     schema,
     bindings,
     onConfigChange,
+    refreshToken = 0,
 }) => {
-    const [enhancedSchema, setEnhancedSchema] = useState<EnhancedConfigSchema | null>(null);
+    const [enhancedSchema, setEnhancedSchema] = useState<EnhancedConfigSchema | null>(
+        () => (schema as EnhancedConfigSchema) ?? null
+    );
     const [propertyValues, setPropertyValues] = useState<PropertyValues>({});
     const [macroAssignments, setMacroAssignments] = useState<MacroAssignments>({});
     const [groupCollapseState, setGroupCollapseState] = useState<Record<string, boolean>>({});
@@ -46,7 +50,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const { assignListener, manager, macros: macroList } = useMacros();
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
 
-    const bindingsMemo = useMemo(() => bindings ?? {}, [bindings]);
+    const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
     const handleMacroStoreUpdate = useCallback(() => {
         setMacroListenerKey((prev) => prev + 1);
@@ -106,7 +110,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             }
             return prev;
         });
-    }, [schema, bindingsMemo, macroLookup, manager, macroListenerKey, elementId, elementType]);
+    }, [schema, bindingsMemo, macroLookup, manager, macroListenerKey, elementId, elementType, refreshToken]);
 
     const handleValueChange = useCallback(
         (key: string, value: any) => {
@@ -147,14 +151,14 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     if (!enhancedSchema) {
         return (
-            <div className="element-properties-panel empty">
+            <div className="element-properties-panel ae-style empty">
                 <p className="text-sm opacity-70">No configurable properties available for this element.</p>
             </div>
         );
     }
 
     return (
-        <div className="element-properties-panel">
+        <div className="element-properties-panel ae-style">
             {enhancedSchema.groups.map((group) => (
                 <PropertyGroupPanel
                     key={group.id}

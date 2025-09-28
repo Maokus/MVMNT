@@ -21,6 +21,7 @@ interface DebugSettings {
 interface GlobalPropertiesPanelProps {
     // Macro-related props
     visualizer?: any;
+    refreshToken?: number;
 
     // Export-related props
     onExport: (exportSettings: ExportSettings) => void;
