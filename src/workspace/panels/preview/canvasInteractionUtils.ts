@@ -11,6 +11,8 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import { applyRSK, clampSignedScale } from '@math/numeric';
+import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
@@ -40,6 +42,24 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         rec
     );
     const el = rec?.element;
+    const baseBounds = rec?.baseBounds || null;
+    const geometry: GeometryInfo | null =
+        geom && typeof geom === 'object' && (geom as any).widthVec ? (geom as GeometryInfo) : null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const corners = geometry?.corners ?? null;
+    const centerWorld = corners
+        ? {
+              x: (corners.TL.x + corners.TR.x + corners.BR.x + corners.BL.x) / 4,
+              y: (corners.TL.y + corners.TR.y + corners.BR.y + corners.BL.y) / 4,
+          }
+        : rec?.bounds
+        ? {
+              x: (rec.bounds.x || 0) + (rec.bounds.width || 0) / 2,
+              y: (rec.bounds.y || 0) + (rec.bounds.height || 0) / 2,
+          }
+        : null;
+    const centerLocal = baseBounds
+        ? { x: baseBounds.x + baseBounds.width / 2, y: baseBounds.y + baseBounds.height / 2 }
+        : null;
     vis._dragMeta = {
         mode: handleHit.type,
         startX: x,
@@ -57,11 +77,13 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         origAnchorY: el?.getProperty('anchorY') ?? 0.5,
         bounds: rec?.bounds,
         corners: rec?.corners || null,
-        baseBounds: rec?.baseBounds || null,
-        geom,
+        baseBounds,
+        geom: geometry,
         fixedWorldPoint,
         fixedLocalPoint,
         dragLocalPoint,
+        centerWorld,
+        centerLocal,
     };
 }
 
@@ -116,6 +138,62 @@ function updateMoveDrag(
     updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
 }
 
+function computeCenterLockedScale(meta: any, x: number, y: number, shiftKey: boolean) {
+    if (!meta.centerWorld || !meta.centerLocal || !meta.dragLocalPoint || !meta.baseBounds) return null;
+    const centerWorld = meta.centerWorld;
+    const desiredVec = { x: x - centerWorld.x, y: y - centerWorld.y };
+    const dragVecLocal = {
+        x: meta.dragLocalPoint.x - meta.centerLocal.x,
+        y: meta.dragLocalPoint.y - meta.centerLocal.y,
+    };
+    if (Math.abs(dragVecLocal.x) < 1e-6 && Math.abs(dragVecLocal.y) < 1e-6) return null;
+    const kx = Math.tan(meta.origSkewX || 0);
+    const ky = Math.tan(meta.origSkewY || 0);
+    const kxVy = dragVecLocal.x + kx * dragVecLocal.y;
+    const kyVx = ky * dragVecLocal.x + dragVecLocal.y;
+    const cos = Math.cos(meta.origRotation || 0);
+    const sin = Math.sin(meta.origRotation || 0);
+    const a = cos * kxVy;
+    const b = -sin * kyVx;
+    const c = sin * kxVy;
+    const d = cos * kyVx;
+    const det = a * d - b * c;
+    if (!isFinite(det) || Math.abs(det) < 1e-6) return null;
+    let newScaleX = (desiredVec.x * d - desiredVec.y * b) / det;
+    let newScaleY = (-desiredVec.x * c + desiredVec.y * a) / det;
+    newScaleX = clampSignedScale(newScaleX);
+    newScaleY = clampSignedScale(newScaleY);
+    if (shiftKey) {
+        const ratioX = newScaleX / (meta.origScaleX || 1);
+        const ratioY = newScaleY / (meta.origScaleY || 1);
+        let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
+        if (!isFinite(factor) || Math.abs(factor) <= 0) factor = 1;
+        newScaleX = clampSignedScale((meta.origScaleX || 1) * factor);
+        newScaleY = clampSignedScale((meta.origScaleY || 1) * factor);
+    }
+    const baseBounds = meta.baseBounds;
+    const anchorLocal = {
+        x: baseBounds.x + baseBounds.width * (meta.origAnchorX ?? 0.5),
+        y: baseBounds.y + baseBounds.height * (meta.origAnchorY ?? 0.5),
+    };
+    const deltaLocal = {
+        x: meta.centerLocal.x - anchorLocal.x,
+        y: meta.centerLocal.y - anchorLocal.y,
+    };
+    const anchorOffset = applyRSK(
+        deltaLocal.x,
+        deltaLocal.y,
+        meta.origRotation || 0,
+        meta.origSkewX || 0,
+        meta.origSkewY || 0,
+        newScaleX,
+        newScaleY
+    );
+    const newOffsetX = centerWorld.x - anchorOffset.x;
+    const newOffsetY = centerWorld.y - anchorOffset.y;
+    return { newScaleX, newScaleY, newOffsetX, newOffsetY };
+}
+
 function updateScaleDrag(
     meta: any,
     vis: any,
@@ -123,10 +201,20 @@ function updateScaleDrag(
     x: number,
     y: number,
     shiftKey: boolean,
+    altKey: boolean,
     deps: InteractionDeps
 ) {
     const { updateElementConfig } = deps;
     if (!meta.bounds) return;
+    const isCornerHandle =
+        meta.mode === 'scale-ne' || meta.mode === 'scale-nw' || meta.mode === 'scale-se' || meta.mode === 'scale-sw';
+    if (altKey && isCornerHandle) {
+        const centered = computeCenterLockedScale(meta, x, y, shiftKey);
+        if (centered) {
+            updateElementConfig?.(elId, centered);
+            return;
+        }
+    }
     const r = computeScaledTransform(
         x,
         y,
@@ -205,7 +293,7 @@ function updateRotateDrag(
     updateElementConfig?.(elId, { elementRotation: newRotationDeg });
 }
 
-function processDrag(vis: any, x: number, y: number, shiftKey: boolean, deps: InteractionDeps) {
+function processDrag(vis: any, x: number, y: number, shiftKey: boolean, altKey: boolean, deps: InteractionDeps) {
     if (!(vis._interactionState?.draggingElementId && vis._dragMeta)) return false;
     const meta = vis._dragMeta;
     const elId = vis._interactionState.draggingElementId;
@@ -216,7 +304,7 @@ function processDrag(vis: any, x: number, y: number, shiftKey: boolean, deps: In
             updateMoveDrag(meta, vis, elId, dx, dy, shiftKey, deps);
             break;
         case meta.mode?.startsWith('scale') && !!meta.bounds:
-            updateScaleDrag(meta, vis, elId, x, y, shiftKey, deps);
+            updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, deps);
             break;
         case meta.mode === 'anchor' && !!meta.bounds:
             updateAnchorDrag(meta, vis, elId, x, y, shiftKey, deps);
@@ -355,7 +443,7 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
     const { x, y } = getWorldPoint(canvas, e.clientX, e.clientY);
-    if (processDrag(vis, x, y, e.shiftKey, deps)) return;
+    if (processDrag(vis, x, y, e.shiftKey, e.altKey ?? false, deps)) return;
     updateHover(vis, x, y);
 }
 

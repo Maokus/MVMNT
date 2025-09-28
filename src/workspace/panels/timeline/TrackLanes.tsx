@@ -123,6 +123,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const localEndTick = regionEnd ?? dataEndTick;
 
         const onPointerDown = (e: React.PointerEvent) => {
+            if (e.button !== 0) return;
             if (!track) return;
             // Begin dragging the track block
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -198,6 +199,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
 
         // Resizer handlers
         const onResizeDown = (e: React.PointerEvent, which: 'left' | 'right') => {
+            if (e.button !== 0) return;
             e.stopPropagation();
             if (!track) return;
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
