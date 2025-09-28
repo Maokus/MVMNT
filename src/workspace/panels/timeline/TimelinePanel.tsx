@@ -349,8 +349,8 @@ const TimeIndicator: React.FC = () => {
         <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
             <span>{formatTickAsBBT(currentTick, ticksPerQuarter, beatsPerBar)}</span>
             <span className="hidden sm:inline">({fmt(seconds)})</span>
-            <span className="hidden sm:inline">beats: {beatsFloat.toFixed(2)}</span>
-            <span className="hidden sm:inline">bars: {barsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline whitespace-nowrap">beats: {beatsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline whitespace-nowrap">bars: {barsFloat.toFixed(2)}</span>
         </div>
     );
 };
