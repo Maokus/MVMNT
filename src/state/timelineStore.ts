@@ -1,7 +1,7 @@
 import { create, type StateCreator } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
-import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
+import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { TimingManager } from '@core/timing';
@@ -114,7 +114,11 @@ export type TimelineState = {
         id: string,
         data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) => void;
-    ingestAudioToCache: (id: string, buffer: AudioBuffer) => void;
+    ingestAudioToCache: (
+        id: string,
+        buffer: AudioBuffer,
+        options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }
+    ) => void;
     clearAllTracks: () => void;
 };
 
@@ -343,8 +347,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     // Lazy decode using web audio
                     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
                     const arrayBuf = await input.file.arrayBuffer();
+                    const bytes = new Uint8Array(arrayBuf);
                     const decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
-                    get().ingestAudioToCache(id, decoded);
+                    const originalFile: AudioCacheOriginalFile = {
+                        name: input.file.name,
+                        mimeType: input.file.type || 'application/octet-stream',
+                        bytes,
+                        byteLength: bytes.byteLength,
+                    };
+                    get().ingestAudioToCache(id, decoded, { originalFile });
                 } catch (err) {
                     console.warn('Audio decode failed', err);
                 }
@@ -690,7 +701,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
-    ingestAudioToCache(id: string, buffer: AudioBuffer) {
+    ingestAudioToCache(id: string, buffer: AudioBuffer, options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }) {
         // Compute duration in ticks using shared timing manager
         try {
             const state = get();
@@ -703,7 +714,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         durationTicks,
                         sampleRate: buffer.sampleRate,
                         channels: buffer.numberOfChannels,
-                        peakData: undefined, // filled async
+                        durationSeconds: buffer.duration,
+                        durationSamples: buffer.length,
+                        originalFile: options?.originalFile,
+                        waveform: options?.waveform,
                     },
                 },
                 tracks: {
@@ -718,11 +732,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     const res = await extractPeaksAsync(buffer, { binSize: 1024, maxBins: 5000 });
                     set((s: TimelineState) => {
                         const existing = s.audioCache[id];
-                        if (!existing || existing.peakData) return { audioCache: s.audioCache } as TimelineState;
+                        if (!existing || existing.waveform?.channelPeaks) {
+                            return { audioCache: s.audioCache } as TimelineState;
+                        }
+                        const waveform: AudioCacheWaveform = {
+                            version: 1,
+                            channelPeaks: res.peaks,
+                            sampleStep: res.binSize ?? Math.max(1, Math.floor(buffer.length / res.peaks.length) || 1),
+                        };
                         return {
                             audioCache: {
                                 ...s.audioCache,
-                                [id]: { ...existing, peakData: res.peaks },
+                                [id]: { ...existing, waveform },
                             },
                         } as TimelineState;
                     });

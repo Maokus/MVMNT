@@ -56,7 +56,16 @@ describe('Offline mixer & reproducibility hash', () => {
             offsetTicks: 0,
             gain: 1,
         } as any;
-        const audioCache = { a1: { audioBuffer: bufferA, durationTicks, sampleRate, channels: 2 } as any };
+        const audioCache = {
+            a1: {
+                audioBuffer: bufferA,
+                durationTicks,
+                durationSeconds: bufferA.duration,
+                durationSamples: bufferA.length,
+                sampleRate,
+                channels: 2,
+            } as any,
+        };
         const tracks = { a1: track };
         const order = ['a1'];
         const res1 = await offlineMix({
@@ -138,7 +147,14 @@ describe('Offline mixer & reproducibility hash', () => {
             gain: 1,
         } as any;
         const audioCache = {
-            resample1: { audioBuffer: buffer, durationTicks, sampleRate: srcRate, channels: 1 },
+            resample1: {
+                audioBuffer: buffer,
+                durationTicks,
+                durationSeconds: buffer.duration,
+                durationSamples: buffer.length,
+                sampleRate: srcRate,
+                channels: 1,
+            },
         } as any;
         const res = await offlineMix({
             tracks: { resample1: track },

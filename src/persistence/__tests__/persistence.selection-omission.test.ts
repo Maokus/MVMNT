@@ -21,7 +21,7 @@ describe('Persistence - selection omission & undo triggers', () => {
     it('exported scene does not contain selection field', async () => {
         // Add a track (selection may change during usage but we ignore it)
         await useTimelineStore.getState().addMidiTrack({ name: 'Track 1' });
-        const result = exportScene();
+        const result = await exportScene();
         if (!result.ok) throw new Error('export failed or disabled');
         const json = result.json;
         expect(json.includes('selection')).toBe(false);

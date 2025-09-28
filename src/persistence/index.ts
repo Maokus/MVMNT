@@ -6,7 +6,7 @@
  * implemented deterministic export/import plus snapshot-based undo ring.
  *
  * Current Guarantees:
- *  - `exportScene()` returns a deterministic JSON envelope (never throws on well-formed state).
+ *  - `exportScene()` returns a deterministic envelope (inline JSON or packaged ZIP) wrapped in a Promise.
  *  - `importScene()` performs parsing + structural validation; returns structured result (error paths do not throw).
  *  - `createSnapshotUndoController()` provides debounced state capture with size & depth limits.
  *

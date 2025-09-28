@@ -121,8 +121,8 @@ const EasyModeLayout: React.FC = () => {
         loadScene();
     }, [loadScene]);
 
-    const handleApplyTemplate = useCallback((template: TemplateDefinition) => {
-        const result = importScene(template.content);
+    const handleApplyTemplate = useCallback(async (template: TemplateDefinition) => {
+        const result = await importScene(template.content);
         if (!result.ok) {
             const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
             alert(`Failed to load template: ${message}`);

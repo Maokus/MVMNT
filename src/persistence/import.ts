@@ -1,8 +1,12 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
+import type { SceneExportEnvelopeV2 } from './export';
+import { base64ToUint8Array } from '@utils/base64';
+import { sha256Hex } from '@utils/hash/sha256';
+import { unzipSync } from 'fflate';
 
 export interface ImportError {
-    code?: string; // Provided in Phase 2 validation (fatal codes)
+    code?: string;
     message: string;
     path?: string;
 }
@@ -18,30 +22,86 @@ export interface ImportResultFailureEnabled {
     errors: ImportError[];
     warnings: { message: string }[];
 }
-export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
 
-export function importScene(json: string): ImportSceneResult {
-    let parsed: any;
+export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
+export type ImportSceneInput = string | ArrayBuffer | Uint8Array | Blob;
+
+interface ParsedArtifact {
+    envelope: any;
+    warnings: { message: string }[];
+    assetPayloads: Map<string, Uint8Array>;
+}
+
+function decodeText(data: Uint8Array): string {
+    if (typeof TextDecoder !== 'undefined') {
+        return new TextDecoder().decode(data);
+    }
+    let result = '';
+    for (let i = 0; i < data.length; i++) result += String.fromCharCode(data[i]);
+    return result;
+}
+
+async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
+    if (typeof input === 'string') {
+        try {
+            const env = JSON.parse(input);
+            return { envelope: env, warnings: [], assetPayloads: new Map() };
+        } catch (error: any) {
+            return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
+        }
+    }
+
+    let bytes: Uint8Array | null = null;
+    if (input instanceof ArrayBuffer) {
+        bytes = new Uint8Array(input);
+    } else if (input instanceof Uint8Array) {
+        bytes = input;
+    } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
+        bytes = new Uint8Array(await input.arrayBuffer());
+    }
+
+    if (!bytes) {
+        return { error: { code: 'ERR_INPUT_TYPE', message: 'Unsupported import input' } };
+    }
+
+    // ZIP signature PK\x03\x04
+    if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+        const zip = unzipSync(bytes, { consume: true });
+        const docBytes = zip['document.json'];
+        if (!docBytes) {
+            return { error: { code: 'ERR_ZIP_DOCUMENT', message: 'Scene package missing document.json' } };
+        }
+        let envelope: any;
+        try {
+            envelope = JSON.parse(decodeText(docBytes));
+        } catch (error: any) {
+            return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid document.json: ' + error.message } };
+        }
+        const assetPayloads = new Map<string, Uint8Array>();
+        for (const path of Object.keys(zip)) {
+            if (!path.startsWith('assets/audio/')) continue;
+            const parts = path.split('/');
+            if (parts.length < 3) continue;
+            const assetId = parts[2];
+            if (!assetPayloads.has(assetId)) {
+                assetPayloads.set(assetId, zip[path]);
+            }
+        }
+        return { envelope, warnings: [], assetPayloads };
+    }
+
     try {
-        parsed = JSON.parse(json);
-    } catch (e: any) {
-        return {
-            ok: false,
-            errors: [{ code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + e.message }],
-            warnings: [],
-        };
+        const text = decodeText(bytes);
+        const env = JSON.parse(text);
+        return { envelope: env, warnings: [], assetPayloads: new Map() };
+    } catch (error: any) {
+        return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
     }
-    const validation = validateSceneEnvelope(parsed);
-    if (!validation.ok) {
-        return {
-            ok: false,
-            errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
-            warnings: validation.warnings.map((w) => ({ message: w.message })),
-        };
-    }
-    // Build gateway-shaped document from envelope (dropping now-unsupported fields)
-    const tl = parsed.timeline || {};
-    const doc = {
+}
+
+function buildDocumentShape(envelope: any) {
+    const tl = envelope.timeline || {};
+    return {
         timeline: tl.timeline,
         tracks: tl.tracks,
         tracksOrder: tl.tracksOrder || [],
@@ -49,23 +109,169 @@ export function importScene(json: string): ImportSceneResult {
         playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
         rowHeight: tl.rowHeight,
         midiCache: tl.midiCache || {},
-        scene: { ...parsed.scene },
+        scene: { ...envelope.scene },
     };
-    // NOTE: legacy exports may contain a `selection` field; this is now intentionally ignored
-    // as selection is ephemeral UI state and should not be persisted.
-    // Apply via gateway (ignores currentTick/transport/view & strips padding keys internally)
+}
+
+async function createAudioBufferFromAsset(
+    record: any,
+    bytes: Uint8Array
+): Promise<AudioBuffer | { [key: string]: any }> {
+    const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
+    const sampleRate = record.sampleRate || 44100;
+    const channels = Math.max(1, record.channels || 1);
+    if (typeof window !== 'undefined' && typeof (window as any).AudioContext === 'function') {
+        try {
+            const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+            const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+            ctx.close?.();
+            return buffer;
+        } catch {
+            /* fall through */
+        }
+    }
+    if (typeof AudioBuffer === 'function') {
+        try {
+            return new AudioBuffer({ length, numberOfChannels: channels, sampleRate });
+        } catch {
+            /* ignore */
+        }
+    }
+    const channelData: Float32Array[] = [];
+    for (let c = 0; c < channels; c++) channelData.push(new Float32Array(length));
+    return {
+        length,
+        duration: record.durationSeconds,
+        sampleRate,
+        numberOfChannels: channels,
+        getChannelData: (channel: number) => channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
+    };
+}
+
+function buildWaveform(record: any | undefined) {
+    if (!record) return undefined;
+    return {
+        version: 1 as const,
+        channelPeaks: new Float32Array(record.channelPeaks ?? []),
+        sampleStep: record.sampleStep ?? 1,
+    };
+}
+
+async function hydrateAudioAssets(
+    envelope: SceneExportEnvelopeV2,
+    assetPayloads: Map<string, Uint8Array>
+): Promise<string[]> {
+    const warnings: string[] = [];
+    const audioById = envelope.assets?.audio?.byId || {};
+    const waveforms = envelope.assets?.waveforms?.byAudioId || {};
+    const audioIdMap = Object.keys(envelope.references?.audioIdMap || {}).length
+        ? envelope.references!.audioIdMap!
+        : Object.keys(audioById).reduce((acc: Record<string, string>, id) => {
+              acc[id] = id;
+              return acc;
+          }, {});
+    const { useTimelineStore } = (await import('../state/timelineStore')) as typeof import('../state/timelineStore');
+    const ingest = useTimelineStore.getState().ingestAudioToCache;
+
+    const assetData = new Map<string, { record: any; bytes: Uint8Array }>();
+    for (const [assetId, record] of Object.entries(audioById)) {
+        let bytes: Uint8Array | undefined;
+        if (record.dataBase64) {
+            try {
+                bytes = base64ToUint8Array(record.dataBase64);
+            } catch {
+                warnings.push(`Failed to decode base64 for asset ${assetId}`);
+                continue;
+            }
+        } else if (assetPayloads.has(assetId)) {
+            bytes = assetPayloads.get(assetId)!;
+        }
+        if (!bytes) {
+            warnings.push(`Missing audio payload for asset ${assetId}`);
+            continue;
+        }
+        if (record.byteLength && bytes.byteLength !== record.byteLength) {
+            warnings.push(
+                `Byte length mismatch for asset ${assetId} (expected ${record.byteLength}, got ${bytes.byteLength})`
+            );
+        }
+        try {
+            const hash = await sha256Hex(bytes);
+            if (record.hash && hash !== record.hash) warnings.push(`Hash mismatch for asset ${assetId}`);
+        } catch {
+            warnings.push(`Failed to hash asset ${assetId}`);
+        }
+        assetData.set(assetId, { record, bytes });
+    }
+
+    const consumed = new Set<string>();
+    for (const [originalId, assetId] of Object.entries(audioIdMap)) {
+        if (consumed.has(originalId)) continue;
+        const payload = assetData.get(assetId);
+        if (!payload) {
+            warnings.push(`Referenced asset ${assetId} missing for audio ${originalId}`);
+            continue;
+        }
+        const waveform = buildWaveform(waveforms[assetId]);
+        const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
+        const originalFile = {
+            name: payload.record.filename,
+            mimeType: payload.record.mimeType,
+            bytes: payload.bytes,
+            byteLength: payload.bytes.byteLength,
+            hash: payload.record.hash,
+        };
+        try {
+            ingest(originalId, buffer, { originalFile, waveform });
+        } catch (error) {
+            warnings.push(`Failed to ingest audio ${originalId}: ${(error as Error).message}`);
+        }
+        consumed.add(originalId);
+    }
+
+    return warnings;
+}
+
+export async function importScene(input: ImportSceneInput): Promise<ImportSceneResult> {
+    const parsed = await parseArtifact(input);
+    if ('error' in parsed) {
+        return { ok: false, errors: [parsed.error], warnings: [] };
+    }
+
+    const { envelope, warnings: artifactWarnings, assetPayloads } = parsed;
+    const validation = validateSceneEnvelope(envelope);
+    if (!validation.ok) {
+        return {
+            ok: false,
+            errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
+            warnings: [...artifactWarnings, ...validation.warnings.map((w) => ({ message: w.message }))],
+        };
+    }
+
+    const doc = buildDocumentShape(envelope);
     DocumentGateway.apply(doc as any);
-    // After applying, propagate metadata.name to timeline name if present so that other parts of app (e.g., timeline UI) reflect loaded scene name.
+
+    let hydrationWarnings: string[] = [];
+    if (envelope.schemaVersion === 2 && envelope.assets) {
+        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, assetPayloads);
+    }
+
     try {
-        if (parsed?.metadata?.name) {
+        if (envelope?.metadata?.name) {
             const { useTimelineStore } = require('../state/timelineStore');
             useTimelineStore.setState((prev: any) => ({
                 ...prev,
-                timeline: { ...prev.timeline, name: parsed.metadata.name },
+                timeline: { ...prev.timeline, name: envelope.metadata.name },
             }));
         }
     } catch {
-        /* non-fatal */
+        /* ignore */
     }
-    return { ok: true, errors: [], warnings: validation.warnings };
+
+    const warnings = [
+        ...artifactWarnings,
+        ...validation.warnings.map((w) => ({ message: w.message })),
+        ...hydrationWarnings.map((message) => ({ message })),
+    ];
+    return { ok: true, errors: [], warnings };
 }

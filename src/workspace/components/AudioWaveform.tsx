@@ -14,8 +14,8 @@ interface AudioWaveformProps {
     visibleEndTickAbs?: number;
 }
 
-// Lightweight canvas waveform renderer using peakData (mono absolute peaks) from audioCache.
-// Assumes peakData extracted asynchronously; will re-render when cache changes via subscription.
+// Lightweight canvas waveform renderer using waveform peak data (mono absolute peaks) from audioCache.
+// Assumes waveform extracted asynchronously; will re-render when cache changes via subscription.
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     trackId,
     height = 40,
@@ -50,7 +50,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const cacheKey = t.audioSourceId || trackId;
         const cache = s.audioCache[cacheKey];
         return {
-            peaks: cache?.peakData,
+            peaks: cache?.waveform?.channelPeaks,
             selected: s.selection.selectedTrackIds.includes(trackId),
             offsetTicks: t.offsetTicks,
             durationTicks: (t.regionEndTick ?? cache?.durationTicks ?? 0) - (t.regionStartTick ?? 0),

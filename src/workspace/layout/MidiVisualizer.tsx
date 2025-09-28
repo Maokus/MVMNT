@@ -272,12 +272,14 @@ const TemplateInitializer: React.FC = () => {
         if (!visualizer) return;
         const state: any = location.state || {};
         let didChange = false;
-        try {
-            if (state.importScene) {
-                const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
-                if (payload) {
-                    try {
-                        const result = importScene(payload);
+
+        const run = async () => {
+            try {
+                if (state.importScene) {
+                    const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                    if (payload) {
+                        try {
+                            const result = await importScene(payload);
                         if (!result.ok) {
                             console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
                         } else {
@@ -289,41 +291,43 @@ const TemplateInitializer: React.FC = () => {
                             refreshSceneUI();
                             didChange = true;
                         }
-                    } catch (e) {
-                        console.error('Failed to import scene payload from HomePage', e);
-                    }
-                    sessionStorage.removeItem('mvmnt_import_scene_payload');
-                }
-            } else if (state.template) {
-                const tpl = state.template as string;
-                dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
-                switch (tpl) {
-                    case 'blank':
-                        // Clear scene already resets settings; nothing else required.
-                        break;
-                    case 'default':
-                        createDefaultMIDIScene();
-                        break;
-                    case 'debug':
-                        try {
-                            createAllElementsDebugScene();
-                        } catch {
-                            createDebugScene();
+                        } catch (e) {
+                            console.error('Failed to import scene payload from HomePage', e);
                         }
-                        break;
-                    default:
-                        createDefaultMIDIScene();
+                        sessionStorage.removeItem('mvmnt_import_scene_payload');
+                    }
+                } else if (state.template) {
+                    const tpl = state.template as string;
+                    dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
+                    switch (tpl) {
+                        case 'blank':
+                            break;
+                        case 'default':
+                            createDefaultMIDIScene();
+                            break;
+                        case 'debug':
+                            try {
+                                createAllElementsDebugScene();
+                            } catch {
+                                createDebugScene();
+                            }
+                            break;
+                        default:
+                            createDefaultMIDIScene();
+                    }
+                    refreshSceneUI();
+                    didChange = true;
                 }
-                refreshSceneUI();
-                didChange = true;
+                if (didChange) {
+                    visualizer.invalidateRender?.();
+                    navigate('/workspace', { replace: true });
+                }
+            } catch (e) {
+                console.error('Template initialization error', e);
             }
-            if (didChange) {
-                visualizer.invalidateRender?.();
-                navigate('/workspace', { replace: true });
-            }
-        } catch (e) {
-            console.error('Template initialization error', e);
-        }
+        };
+
+        run();
     }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
     return null;
 };

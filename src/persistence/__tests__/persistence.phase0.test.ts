@@ -4,18 +4,18 @@ import { exportScene, importScene, createSnapshotUndoController } from '../';
 // These tests assert initial placeholder semantics; they will be superseded / expanded later.
 
 describe('Persistence skeleton', () => {
-    it('exportScene returns success result', () => {
-        const result = exportScene();
+    it('exportScene returns success result', async () => {
+        const result = await exportScene();
         expect(result.ok).toBe(true);
         if (result.ok) {
             expect(result.envelope.format).toBe('mvmnt.scene');
         }
     });
 
-    it('importScene round trip succeeds for a generated export', () => {
-        const exp = exportScene();
+    it('importScene round trip succeeds for a generated export', async () => {
+        const exp = await exportScene();
         expect(exp.ok).toBe(true);
-        const res = importScene(exp.ok ? exp.json : '{}');
+        const res = await importScene(exp.ok ? exp.json : '{}');
         expect(res.ok).toBe(true);
     });
 

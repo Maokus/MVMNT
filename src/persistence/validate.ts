@@ -27,7 +27,9 @@ export type ValidationErrorCode =
     | 'ERR_TRACK_SHAPE'
     | 'ERR_TIMELINE_NUMERIC'
     | 'ERR_ROW_HEIGHT_RANGE'
-    | 'ERR_GLOBAL_BPM_RANGE';
+    | 'ERR_GLOBAL_BPM_RANGE'
+    | 'ERR_ASSETS_MISSING'
+    | 'ERR_AUDIO_ASSET_SHAPE';
 
 export interface ValidationError {
     code: ValidationErrorCode;
@@ -57,7 +59,8 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         return { ok: false, errors: [err('ERR_ROOT_TYPE', 'Root must be an object')], warnings };
     }
     const root: any = data;
-    if (root.schemaVersion !== 1) {
+    const schemaVersion = root.schemaVersion;
+    if (schemaVersion !== 1 && schemaVersion !== 2) {
         errors.push(err('ERR_SCHEMA_VERSION', 'Unsupported schemaVersion', 'schemaVersion'));
     }
     if (root.format !== 'mvmnt.scene') {
@@ -151,6 +154,32 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             if (typeof tl.rowHeight === 'number') {
                 if (tl.rowHeight < 8 || tl.rowHeight > 400) {
                     errors.push(err('ERR_ROW_HEIGHT_RANGE', 'rowHeight out of expected range', 'timeline.rowHeight'));
+                }
+            }
+        }
+    }
+
+    if (schemaVersion === 2) {
+        if (!root.assets || typeof root.assets !== 'object') {
+            errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
+        } else {
+            const storage = root.assets.storage;
+            if (storage !== 'inline-json' && storage !== 'zip-package') {
+                errors.push(err('ERR_ASSETS_MISSING', 'Invalid assets.storage value', 'assets.storage'));
+            }
+            const audio = root.assets.audio;
+            if (!audio || typeof audio !== 'object' || typeof audio.byId !== 'object') {
+                errors.push(err('ERR_AUDIO_ASSET_SHAPE', 'assets.audio.byId must be object', 'assets.audio.byId'));
+            } else {
+                for (const [id, record] of Object.entries(audio.byId)) {
+                    if (!record || typeof record !== 'object') {
+                        errors.push(err('ERR_AUDIO_ASSET_SHAPE', 'Invalid audio asset record', `assets.audio.byId.${id}`));
+                        break;
+                    }
+                    if (typeof (record as any).hash !== 'string' || typeof (record as any).mimeType !== 'string') {
+                        errors.push(err('ERR_AUDIO_ASSET_SHAPE', 'Audio asset missing hash or mimeType', `assets.audio.byId.${id}`));
+                        break;
+                    }
                 }
             }
         }

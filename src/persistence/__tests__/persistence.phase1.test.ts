@@ -23,13 +23,13 @@ describe('Persistence', () => {
         expect(sorted.map((e) => e.id)).toEqual(['a', 'b', 'c', 'd']);
     });
 
-    test('Export -> Import -> Export round-trip stable ignoring modifiedAt', () => {
-        const first = exportScene();
+    test('Export -> Import -> Export round-trip stable ignoring modifiedAt', async () => {
+        const first = await exportScene();
         expect(first.ok).toBe(true);
         const json1 = first.ok ? first.json : '';
-        const imp = importScene(json1);
+        const imp = await importScene(json1);
         expect(imp.ok).toBe(true);
-        const second = exportScene();
+        const second = await exportScene();
         if (!second.ok) throw new Error('Second export failed');
         const env1 = JSON.parse(json1);
         const env2 = JSON.parse(second.json);

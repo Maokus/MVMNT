@@ -16,14 +16,14 @@ describe('Scene element + macro persistence', () => {
         });
     });
 
-    it('exports elements and macros', () => {
+    it('exports elements and macros', async () => {
         dispatchSceneCommand({
             type: 'addElement',
             elementType: 'textOverlay',
             elementId: 'el1',
             config: { id: 'el1', text: { type: 'constant', value: 'Hello' }, zIndex: { type: 'constant', value: 1 } },
         });
-        const res = exportScene();
+        const res = await exportScene();
         expect(res.ok).toBe(true);
         if (res.ok) {
             expect(res.envelope.scene.elements.length).toBe(1);
@@ -31,20 +31,20 @@ describe('Scene element + macro persistence', () => {
         }
     });
 
-    it('imports elements and macros', () => {
+    it('imports elements and macros', async () => {
         dispatchSceneCommand({
             type: 'addElement',
             elementType: 'textOverlay',
             elementId: 'el1',
             config: { id: 'el1', text: { type: 'constant', value: 'Hello' }, zIndex: { type: 'constant', value: 1 } },
         });
-        const exp = exportScene();
+        const exp = await exportScene();
         expect(exp.ok).toBe(true);
         const json = (exp as any).json;
 
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
-        const imp = importScene(json);
+        const imp = await importScene(json);
         expect(imp.ok).toBe(true);
         const exported = useSceneStore.getState().exportSceneDraft();
         expect(exported.elements.length).toBe(1);
