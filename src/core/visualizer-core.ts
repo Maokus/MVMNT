@@ -3,7 +3,7 @@ import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
 import { CANONICAL_PPQ } from './timing/ppq';
-import { createDefaultMIDIScene } from './scene-templates';
+import { loadDefaultScene } from './default-scene-loader';
 import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
@@ -51,7 +51,11 @@ export class MIDIVisualizerCore {
         try {
             const state = useSceneStore.getState();
             if (!state.order.length) {
-                createDefaultMIDIScene();
+                void loadDefaultScene('MIDIVisualizerCore.constructor').then(() => {
+                    try {
+                        this.invalidateRender();
+                    } catch {}
+                });
             }
         } catch (error) {
             console.warn('[MIDIVisualizerCore] failed to initialize default scene', error);
@@ -65,10 +69,11 @@ export class MIDIVisualizerCore {
         (window as any).vis = this; // debug helper
     }
     updateSceneElementTimingManager() {
-        try {
-            createDefaultMIDIScene();
-            this.invalidateRender();
-        } catch {}
+        void loadDefaultScene('MIDIVisualizerCore.updateSceneElementTimingManager').then((loaded) => {
+            if (loaded) {
+                this.invalidateRender();
+            }
+        });
     }
     // Set the explicit playback range (in seconds) controlled by the external timeline/UI
     setPlayRange(startSec?: number | null, endSec?: number | null) {

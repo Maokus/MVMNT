@@ -110,6 +110,7 @@ function buildDocumentShape(envelope: any) {
         rowHeight: tl.rowHeight,
         midiCache: tl.midiCache || {},
         scene: { ...envelope.scene },
+        metadata: envelope.metadata,
     };
 }
 
@@ -254,18 +255,6 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     let hydrationWarnings: string[] = [];
     if (envelope.schemaVersion === 2 && envelope.assets) {
         hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, assetPayloads);
-    }
-
-    try {
-        if (envelope?.metadata?.name) {
-            const { useTimelineStore } = require('../state/timelineStore');
-            useTimelineStore.setState((prev: any) => ({
-                ...prev,
-                timeline: { ...prev.timeline, name: envelope.metadata.name },
-            }));
-        }
-    } catch {
-        /* ignore */
     }
 
     const warnings = [

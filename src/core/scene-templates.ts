@@ -4,7 +4,6 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getAnimationSelectOptions } from '@animation/note-animations';
-import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene';
 import type { SceneImportPayload, SceneSerializedElement, SceneSerializedMacros } from '@state/sceneStore';
 import type { Macro } from '@state/scene/macros';
@@ -199,11 +198,6 @@ function createDefaultScenePayload(): SceneImportPayload {
     };
 }
 
-export function createDefaultMIDIScene(): SceneImportPayload {
-    const payload = createDefaultScenePayload();
-    return applySceneTemplate(payload, 'scene-templates.createDefaultMIDIScene');
-}
-
 export function createDebugScene(): SceneImportPayload {
     const payload = createDefaultScenePayload();
     const baseElements = payload.elements ?? [];
@@ -337,16 +331,3 @@ export function createTestScene(): SceneImportPayload {
     return applySceneTemplate(payload, 'scene-templates.createTestScene');
 }
 
-// Resets scene to default + clears timeline tracks (moved from visualizer-core.resetToDefaultScene)
-export function resetToDefaultScene(visualizer: any) {
-    const payload = createDefaultMIDIScene();
-    try {
-        useTimelineStore.getState().clearAllTracks();
-    } catch {}
-    try {
-        visualizer.canvas?.dispatchEvent(
-            new CustomEvent('scene-imported', { detail: { exportSettings: { ...payload.sceneSettings } } })
-        );
-    } catch {}
-    visualizer.invalidateRender?.();
-}

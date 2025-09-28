@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
-import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 interface SceneContextValue {
     sceneName: string;
@@ -18,7 +18,8 @@ const SceneContext = createContext<SceneContextValue | undefined>(undefined);
 
 export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { visualizer } = useVisualizer();
-    const [sceneName, setSceneName] = useState<string>(() => SceneNameGenerator.generate());
+    const sceneName = useSceneMetadataStore((state) => state.metadata.name);
+    const setSceneName = useSceneMetadataStore((state) => state.setName);
 
     useEffect(() => {
         try {
@@ -28,9 +29,12 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         }
     }, [sceneName]);
 
-    const updateSceneName = useCallback((name: string) => {
-        setSceneName(name);
-    }, []);
+    const updateSceneName = useCallback(
+        (name: string) => {
+            setSceneName(name);
+        },
+        [setSceneName]
+    );
 
     // Bump the store runtime metadata to notify all components about scene changes
     const refreshSceneUI = useCallback(() => {
