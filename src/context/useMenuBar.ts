@@ -1,4 +1,3 @@
-import { globalMacroManager } from '@bindings/macro-manager';
 import { createDefaultMIDIScene, resetToDefaultScene } from '@core/scene-templates';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
