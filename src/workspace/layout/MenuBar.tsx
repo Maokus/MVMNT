@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
-import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV } from 'react-icons/fa';
+import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
+import SceneSettingsModal from './SceneSettingsModal';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -13,6 +14,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
     const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
 
     // Handle clicks outside scene menu to close it
@@ -50,6 +52,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const handleNew = () => { createNewDefaultScene(); setShowSceneMenu(false); };
 
     return (
+        <>
         <div className="menu-bar">
             <div className="menu-section quick-actions" style={{ gap: 12 }}>
                 <h3 style={{ marginRight: 0 }}>
@@ -119,6 +122,15 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <FaPen />
                     </button>
 
+                    <button
+                        className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"
+                        onClick={() => { setShowSettingsModal(true); setShowSceneMenu(false); }}
+                        title="Scene settings"
+                        aria-label="Scene settings"
+                        type="button"
+                    >
+                        <FaCog />
+                    </button>
                     <div className="relative" ref={sceneMenuRef}>
                         <button
                             className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
@@ -156,6 +168,8 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                 </Link>
             </div>
         </div>
+        {showSettingsModal && <SceneSettingsModal onClose={() => setShowSettingsModal(false)} />}
+        </>
     );
 };
 
