@@ -12,6 +12,7 @@ import {
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
 import { useSceneStore } from '@state/sceneStore';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
@@ -267,7 +268,9 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
 
 // ----- Exported top-level handlers -----
 
-export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
+type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
+
+export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
@@ -347,7 +350,7 @@ export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
     }
 }
 
-export function onCanvasMouseMove(e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
@@ -356,15 +359,19 @@ export function onCanvasMouseMove(e: React.MouseEvent, deps: InteractionDeps) {
     updateHover(vis, x, y);
 }
 
-export function onCanvasMouseUp(_e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseUp(_e: CanvasMouseEvent, deps: InteractionDeps) {
     const { visualizer: vis } = deps;
     if (!vis) return;
     finalizeDrag(vis, deps);
 }
 
-export function onCanvasMouseLeave(_e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) {
     const { visualizer: vis } = deps;
     if (!vis) return;
+    if (vis._interactionState?.draggingElementId) {
+        vis.setInteractionState({ hoverElementId: null, activeHandle: null });
+        return;
+    }
     finalizeDrag(vis, deps);
     vis.setInteractionState({ hoverElementId: null, activeHandle: null });
 }

@@ -13,12 +13,16 @@ function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const ppq = CANONICAL_PPQ; // unified PPQ
-    return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean) => {
-        if (altKey) return Math.max(0, Math.round(candidateTick));
+    return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean, allowNegative = false) => {
+        const clamp = (val: number) => {
+            const rounded = Math.round(val);
+            return allowNegative ? rounded : Math.max(0, rounded);
+        };
+        if (altKey) return clamp(candidateTick);
         const should = forceSnap || quantize === 'bar';
-        if (!should) return Math.max(0, Math.round(candidateTick));
+        if (!should) return clamp(candidateTick);
         const ticksPerBar = bpb * ppq;
-        return Math.max(0, Math.round(candidateTick / ticksPerBar) * ticksPerBar);
+        return clamp(Math.round(candidateTick / ticksPerBar) * ticksPerBar);
     }, [quantize, bpb, ppq]);
 }
 
@@ -126,6 +130,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setDidMove(false);
             onHoverSnapX(null);
         };
+        const allowNegativeOffset = track?.type === 'audio';
+
         const onPointerMove = (e: React.PointerEvent) => {
             if (resizing) {
                 const dx = e.clientX - resizing.startX;
@@ -164,8 +170,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             if (!dragging || !startRef.current) return;
             const dx = e.clientX - startRef.current.startX;
             const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-            const cand = Math.max(0, startRef.current.baseOffsetTick + deltaTicks);
-            const snapped = snapTicks(cand, e.altKey, false);
+            const altActive = !!(e.altKey || startRef.current.alt);
+            const candidate = startRef.current.baseOffsetTick + deltaTicks;
+            const snapped = snapTicks(candidate, altActive, false, allowNegativeOffset);
             setDragTick(snapped);
             onHoverSnapX(toX(snapped, laneWidth));
             if (Math.abs(dx) > 2) setDidMove(true);
@@ -178,8 +185,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             }
             if (!dragging) return;
             setDragging(false);
-            const finalTick = Math.max(0, dragTick != null ? dragTick : (track?.offsetTicks || 0));
-            setTrackOffsetTicks(trackId, finalTick);
+            const fallback = track?.offsetTicks ?? 0;
+            const finalTick = dragTick != null ? dragTick : fallback;
+            const clampedFinal = allowNegativeOffset ? finalTick : Math.max(0, finalTick);
+            setTrackOffsetTicks(trackId, clampedFinal);
             setDragTick(null);
             onHoverSnapX(null);
             // Click selection when not moved
@@ -196,8 +205,12 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setResizing({ type: which, startX: e.clientX, baseStart, baseEnd, alt: !!e.altKey });
         };
         const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
-        const absStartTick = Math.max(0, offsetTick + localStartTick);
-        const absEndTick = Math.max(absStartTick, offsetTick + localEndTick);
+        const rawAbsStart = offsetTick + localStartTick;
+        const rawAbsEnd = offsetTick + localEndTick;
+        const absStartTick = allowNegativeOffset ? rawAbsStart : Math.max(0, rawAbsStart);
+        const absEndTick = allowNegativeOffset
+            ? Math.max(rawAbsStart, rawAbsEnd)
+            : Math.max(absStartTick, Math.max(0, rawAbsEnd));
         const leftX = toX(absStartTick, laneWidth);
         const rightX = toX(absEndTick, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
@@ -206,27 +219,33 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return (dragTick != null ? dragTick : (track.offsetTicks || 0)) / ppq;
         }, [track, dragTick, ppq]);
         const beatsPerBar = Math.max(1, bpb);
-        const wholeBeats = Math.floor(offsetBeats + 1e-9);
+        const offsetBeatsAbs = Math.abs(offsetBeats);
+        const wholeBeats = Math.floor(offsetBeatsAbs + 1e-9);
         const barsDisplay = Math.floor(wholeBeats / beatsPerBar);
         const beatInBarDisplay = (wholeBeats % beatsPerBar) + 1; // 1-based beat index like DAWs
-        const label = `+${barsDisplay}|${beatInBarDisplay}`;
+        const sign = offsetBeats < 0 ? '-' : '+';
+        const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
         const tooltip = useMemo(() => {
             const st = useTimelineStore.getState();
             const bpm = st.timeline.globalBpm || 120;
             const secPerBeat = 60 / bpm;
             const ticksToSec = (t: number) => (t / ppq) * secPerBeat;
-            const absStartRealTick = Math.max(0, offsetTick + localStartTick);
-            const absEndRealTick = Math.max(absStartRealTick, offsetTick + localEndTick);
+            const absStartRealTick = allowNegativeOffset ? rawAbsStart : Math.max(0, rawAbsStart);
+            const absEndRealTick = allowNegativeOffset
+                ? Math.max(rawAbsStart, rawAbsEnd)
+                : Math.max(absStartRealTick, Math.max(0, rawAbsEnd));
             const absStartSec = ticksToSec(absStartRealTick);
             const absEndSec = ticksToSec(absEndRealTick);
             const barsStart = absStartRealTick / (ppq * bpb);
             const barsEnd = absEndRealTick / (ppq * bpb);
             const fmt = (s: number) => `${s.toFixed(2)}s`;
             const fmtBar = (b: number) => {
-                const bb = Math.max(0, b);
-                const barIdx = Math.floor(bb) + 1;
-                const beatInBar = Math.floor((bb % 1) * (bpb || 4)) + 1;
-                return `${barIdx}|${beatInBar}`;
+                const negative = b < 0;
+                const abs = Math.abs(b);
+                const barIdx = Math.floor(abs) + 1;
+                const beatInBar = Math.floor((abs % 1) * (bpb || 4)) + 1;
+                const prefix = negative ? '-' : '';
+                return `${prefix}${barIdx}|${beatInBar}`;
             };
             const snapInfo = `Snap: ${quantize === 'bar' ? 'Bar' : 'Off'} (hold Alt to bypass)`;
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;

@@ -37,6 +37,7 @@ const TimelineRuler: React.FC = () => {
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
     const seekTick = useTimelineStore((s) => s.seekTick);
     const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
+    const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const snapTicks = useSnapTicks();
 
     // Resize handling
@@ -147,6 +148,33 @@ const TimelineRuler: React.FC = () => {
         }
     };
 
+    const autoPanWhileSeeking = useCallback(
+        (x: number) => {
+            if (!containerRef.current) return;
+            const edgePadding = Math.min(80, Math.max(16, width * 0.1));
+            if (edgePadding <= 0) return;
+            const viewState = useTimelineStore.getState().timelineView;
+            const range = Math.max(1, viewState.endTick - viewState.startTick);
+            let direction = 0;
+            let overflow = 0;
+            if (x < edgePadding) {
+                direction = -1;
+                overflow = edgePadding - x;
+            } else if (x > width - edgePadding) {
+                direction = 1;
+                overflow = x - (width - edgePadding);
+            }
+            if (direction === 0 || overflow <= 0) return;
+            const intensity = Math.min(1, overflow / edgePadding);
+            const baseShift = Math.max(1, Math.round(range * 0.02));
+            const shift = Math.max(1, Math.round(baseShift * intensity));
+            const newStart = viewState.startTick + direction * shift;
+            const newEnd = viewState.endTick + direction * shift;
+            setTimelineViewTicks(newStart, newEnd);
+        },
+        [setTimelineViewTicks, width]
+    );
+
     const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!dragState.current) return;
         // Handle drag scrubbing when type === 'seek' and not near braces
@@ -154,6 +182,7 @@ const TimelineRuler: React.FC = () => {
             if (!containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
+            autoPanWhileSeeking(x);
             const cand = toTick(x, width);
             const snapped = snapTicks(cand, { altKey: e.altKey, forceBar: e.shiftKey });
             setCurrentTick(snapped);

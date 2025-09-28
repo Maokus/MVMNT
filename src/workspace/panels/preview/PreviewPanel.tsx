@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 // (Former inline math-related logic moved to canvasInteractionUtils)
@@ -51,7 +51,7 @@ const PreviewPanel: React.FC = () => {
 
     // Thin wrapper handlers delegating to extracted utilities
     const visualizerInstance = (ctx as any).visualizer;
-    const handlerDeps = React.useMemo(() => ({
+    const handlerDeps = useMemo(() => ({
         canvasRef,
         visualizer: visualizerInstance,
         selectElement,
@@ -59,9 +59,45 @@ const PreviewPanel: React.FC = () => {
         incrementPropertyPanelRefresh
     }), [canvasRef, visualizerInstance, selectElement, updateElementConfig, incrementPropertyPanelRefresh]);
 
-    const handleCanvasMouseDown = (e: React.MouseEvent) => onCanvasMouseDown(e, handlerDeps);
+    const depsRef = useRef(handlerDeps);
+    depsRef.current = handlerDeps;
+
+    const draggingRef = useRef(false);
+
+    const handleCanvasMouseMoveWindow = useCallback((event: MouseEvent) => {
+        if (!draggingRef.current) return;
+        onCanvasMouseMove(event, depsRef.current);
+    }, []);
+
+    const handleCanvasMouseUpWindow = useCallback((event: MouseEvent) => {
+        if (!draggingRef.current) return;
+        draggingRef.current = false;
+        onCanvasMouseUp(event, depsRef.current);
+        window.removeEventListener('mousemove', handleCanvasMouseMoveWindow);
+        window.removeEventListener('mouseup', handleCanvasMouseUpWindow);
+    }, [handleCanvasMouseMoveWindow]);
+
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('mousemove', handleCanvasMouseMoveWindow);
+            window.removeEventListener('mouseup', handleCanvasMouseUpWindow);
+        };
+    }, [handleCanvasMouseMoveWindow, handleCanvasMouseUpWindow]);
+
+    const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        draggingRef.current = true;
+        window.addEventListener('mousemove', handleCanvasMouseMoveWindow);
+        window.addEventListener('mouseup', handleCanvasMouseUpWindow);
+        onCanvasMouseDown(e, handlerDeps);
+    };
+
     const handleCanvasMouseMove = (e: React.MouseEvent) => onCanvasMouseMove(e, handlerDeps);
-    const handleCanvasMouseUp = (e: React.MouseEvent) => onCanvasMouseUp(e, handlerDeps);
+    const handleCanvasMouseUp = (e: React.MouseEvent) => {
+        draggingRef.current = false;
+        window.removeEventListener('mousemove', handleCanvasMouseMoveWindow);
+        window.removeEventListener('mouseup', handleCanvasMouseUpWindow);
+        onCanvasMouseUp(e, handlerDeps);
+    };
     const handleCanvasMouseLeave = (e: React.MouseEvent) => onCanvasMouseLeave(e, handlerDeps);
 
     return (
