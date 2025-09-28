@@ -30,12 +30,14 @@ const ChangelogPage: React.FC = () => {
                         'Added audio track support: playback, export, mixing',
                         'Various ui/ux improvments',
                         'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
-                        'Reworked entire document store system for improved reliability and modularity'
+                        'Reworked entire document store system for improved reliability and modularity',
+                        'Allowed panel dragging and resizing',
+                        'midi track visual aid'
                     ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
                         'Improved undo stack reliability and snapshot creation',
                         'fixed various minor ui/ux issues (scrolling disabled, unreliable ',
-                        'Developed trauma from trying to improve the ctrl z feature',
+                        'Developed ptsd from trying to improve the ctrl z feature',
                     ]} />
 
                     <ChangelogEntry version="0.12.0" date="12-09-25" notes={[

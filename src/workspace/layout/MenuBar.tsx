@@ -75,6 +75,21 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
                         }}
                         title="Show onboarding / help"
                     >help</button>
+                    <Link
+                        to="/easymode"
+                        style={{
+                            textDecoration: 'none',
+                            color: '#e0f2f1',
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.6), rgba(6, 182, 212, 0.4))',
+                            border: '1px solid rgba(45, 212, 191, 0.6)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em'
+                        }}
+                        title="Open simplified easy mode"
+                    >easy mode</Link>
                     <Link to="/about" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>about</Link>
                     <Link to="/changelog" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>changelog</Link>
                 </nav>

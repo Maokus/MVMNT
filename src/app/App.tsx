@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 // Tailwind styles are loaded via index.tsx
 import MidiVisualizer from '@workspace/layout/MidiVisualizer';
+import EasyModePage from '../easymode/EasyModePage';
 import { Routes, Route } from 'react-router-dom';
 import AnimationTestPage from '@pages/AnimationTestPage';
 import AboutPage from '@pages/AboutPage';
@@ -42,6 +43,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/workspace" element={<MidiVisualizer />} />
+        <Route path="/easymode" element={<EasyModePage />} />
         <Route path="/animation-test" element={<AnimationTestPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/changelog" element={<ChangelogPage />} />
