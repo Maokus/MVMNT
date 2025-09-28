@@ -89,16 +89,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
-                            key: 'pianoWidth',
-                            type: 'number',
-                            label: 'Piano Width',
-                            default: 0,
-                            min: 80,
-                            max: 300,
-                            step: 10,
-                            description: 'Width of the piano keys section in pixels',
-                        },
-                        {
                             key: 'rollWidth',
                             type: 'number',
                             label: 'Roll Width',
@@ -146,6 +136,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         { key: 'showPiano', type: 'boolean', label: 'Show Piano', default: false },
+                        {
+                            key: 'pianoWidth',
+                            type: 'number',
+                            label: 'Piano Width',
+                            default: 0,
+                            min: 80,
+                            max: 300,
+                            step: 10,
+                            description: 'Width of the piano keys section in pixels',
+                        },
                         { key: 'whiteKeyColor', type: 'color', label: 'White Key Color', default: '#f0f0f0' },
                         { key: 'blackKeyColor', type: 'color', label: 'Black Key Color', default: '#555555' },
                         {

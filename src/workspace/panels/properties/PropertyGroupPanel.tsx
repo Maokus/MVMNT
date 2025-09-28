@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
 import FormInput from '@workspace/form/inputs/FormInput';
 import FontInput from '@workspace/form/inputs/FontInput';
@@ -96,26 +96,131 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         return inputEl;
     };
 
+    const MacroAssignmentControl: React.FC<{
+        propertyKey: string;
+        assignedMacro?: string;
+        isAssigned: boolean;
+        macros: any[];
+        onAssign: (macroName: string) => void;
+    }> = ({ propertyKey, assignedMacro, isAssigned, macros, onAssign }) => {
+        const [isOpen, setIsOpen] = useState(false);
+        const triggerRef = useRef<HTMLButtonElement | null>(null);
+        const menuRef = useRef<HTMLDivElement | null>(null);
+
+        useEffect(() => {
+            if (!isOpen) return;
+
+            const handleClickOutside = (event: MouseEvent) => {
+                if (
+                    menuRef.current &&
+                    !menuRef.current.contains(event.target as Node) &&
+                    triggerRef.current &&
+                    !triggerRef.current.contains(event.target as Node)
+                ) {
+                    setIsOpen(false);
+                }
+            };
+
+            const handleKeyDown = (event: KeyboardEvent) => {
+                if (event.key === 'Escape') {
+                    setIsOpen(false);
+                }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('keydown', handleKeyDown);
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+                document.removeEventListener('keydown', handleKeyDown);
+            };
+        }, [isOpen]);
+
+        const handleAssign = (macroName: string) => {
+            onAssign(macroName);
+            setIsOpen(false);
+        };
+
+        const assignedMacroExists = isAssigned && assignedMacro ? true : false;
+        const displayLabel = (() => {
+            if (assignedMacroExists && assignedMacro) {
+                return `🎵 ${assignedMacro}`;
+            }
+            if (assignedMacro && !assignedMacroExists) {
+                return `⚠️ ${assignedMacro}`;
+            }
+            return '🔗 Assign Macro';
+        })();
+
+        const hasMacros = macros.length > 0;
+        const canRemove = !!assignedMacro;
+        const isDisabled = !hasMacros && !assignedMacro;
+
+        return (
+            <div className="ae-macro-assignment">
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    className={`ae-macro-trigger ${assignedMacroExists ? 'assigned' : ''} ${isDisabled ? 'disabled' : ''
+                        }`}
+                    disabled={isDisabled}
+                    onClick={() => setIsOpen((prev) => !prev)}
+                    title={assignedMacroExists ? 'Bound to macro' : hasMacros ? 'Link this property to a macro' : 'No macros available'}
+                >
+                    <span className="ae-macro-label-text">{displayLabel}</span>
+                    {(hasMacros || assignedMacro) && <span className="ae-macro-caret">▼</span>}
+                </button>
+                {isOpen && (
+                    <div ref={menuRef} className="ae-macro-menu">
+                        <div className="ae-macro-options">
+                            {hasMacros ? (
+                                macros.map((macro: any) => (
+                                    <button
+                                        key={`${propertyKey}-${macro.name}`}
+                                        type="button"
+                                        className="ae-macro-option"
+                                        onClick={() => handleAssign(macro.name)}
+                                    >
+                                        {macro.name}
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="ae-macro-empty">No macros available</div>
+                            )}
+                            {canRemove && (
+                                <>
+                                    <div className="ae-macro-divider" />
+                                    <button
+                                        type="button"
+                                        className="ae-macro-option danger"
+                                        onClick={() => handleAssign('')}
+                                    >
+                                        Remove Macro
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderMacroDropdown = (property: PropertyDefinition) => {
         if (!canAssignMacro(property.type)) return null;
 
         const macros = getMacroOptions(property.type, property);
         const currentAssignment = macroAssignments[property.key];
+        const isAssigned = !!currentAssignment && macroLookup.has(currentAssignment);
 
         return (
-            <select
-                className="ae-macro-assignment"
-                title="Assign to macro"
-                value={currentAssignment || ''}
-                onChange={(e) => onMacroAssignment(property.key, e.target.value)}
-            >
-                <option value="">No macro</option>
-                {macros.map((macro: any) => (
-                    <option key={macro.name} value={macro.name}>
-                        {macro.name}
-                    </option>
-                ))}
-            </select>
+            <MacroAssignmentControl
+                propertyKey={property.key}
+                assignedMacro={currentAssignment}
+                isAssigned={isAssigned}
+                macros={macros}
+                onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
+            />
         );
     };
 
