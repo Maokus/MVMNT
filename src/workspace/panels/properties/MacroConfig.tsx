@@ -7,6 +7,7 @@ import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
     visualizer?: any; // Add visualizer prop to trigger rerenders
+    showAddButton?: boolean;
 }
 
 interface Macro {
@@ -28,7 +29,7 @@ interface MacroAssignment {
     propertyPath: string;
 }
 
-const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
+const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = true }) => {
     const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
     const storeAssignments = useMacroAssignments();
     const assignmentMap = useMemo(() => {
@@ -417,16 +418,24 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
         );
     };
 
+    useEffect(() => {
+        if (!showAddButton) {
+            setShowCreateDialog(false);
+        }
+    }, [showAddButton]);
+
     return (
         <div className="macro-config">
             <div className="macro-header">
                 <h4 className="flex items-center gap-2">Macros</h4>
-                <button
-                    className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
-                    onClick={() => setShowCreateDialog(true)}
-                >
-                    <FaPlus /> <span>Add Macro</span>
-                </button>
+                {showAddButton && (
+                    <button
+                        className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
+                        onClick={() => setShowCreateDialog(true)}
+                    >
+                        <FaPlus /> <span>Add Macro</span>
+                    </button>
+                )}
             </div>
 
             <div className="macro-list">
@@ -439,7 +448,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
                 )}
             </div>
 
-            {showCreateDialog && (
+            {showCreateDialog && showAddButton && (
                 <div className="macro-create-dialog">
                     <div className="dialog-content">
                         <h4>Create New Macro</h4>

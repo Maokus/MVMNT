@@ -86,10 +86,18 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         const w = canvas.clientWidth;
-        const h = canvas.height = height; // ensure internal height matches prop
-        canvas.width = w * window.devicePixelRatio;
-        canvas.height = h * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        if (w <= 0) return;
+        const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+        const maxDimension = 16384; // guard against browsers throwing when exceeding internal canvas size
+        const scaleX = Math.min(pixelRatio, maxDimension / Math.max(1, w));
+        const internalWidth = Math.max(1, Math.floor(w * scaleX));
+        const h = height;
+        const scaleY = Math.min(pixelRatio, maxDimension / Math.max(1, h));
+        const internalHeight = Math.max(1, Math.floor(h * scaleY));
+        canvas.width = internalWidth;
+        canvas.height = internalHeight;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(scaleX, scaleY);
 
         ctx.clearRect(0, 0, w, h);
         if (background && background !== 'transparent') {

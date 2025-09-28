@@ -43,7 +43,10 @@ const HomePage: React.FC = () => {
                     <p><span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</span><span>v{((import.meta as any).env?.VITE_VERSION)}</span></p>
                     <p className="mt-4 text-neutral-400 text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
                     <div className="mt-6 flex flex-wrap gap-4">
-                        <button onClick={handleLoadFile} className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition font-medium text-sm">Load Scene (.json)</button>
+                        <Link to="/workspace" className="px-5 py-2.5 rounded bg-emerald-600 text-sm font-medium text-white transition hover:bg-emerald-500">Open Edit Mode</Link>
+                        <Link to="/easymode" className="px-5 py-2.5 rounded bg-yellow-600 text-sm font-medium text-white transition hover:bg-yellow-500">
+                            Open Template Mode
+                        </Link>
 
                         <Link to="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</Link>
                         <Link to="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</Link>

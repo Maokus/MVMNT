@@ -14,7 +14,7 @@ const ChangelogPage: React.FC = () => {
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Changelog</h1>
                         <p className="mt-3 text-neutral-400 text-sm">Recent updates for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.</p>
                     </div>
-                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Workspace</Link>
+                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Edit Mode</Link>
                 </div>
 
                 <div className="space-y-10">
@@ -30,12 +30,15 @@ const ChangelogPage: React.FC = () => {
                         'Added audio track support: playback, export, mixing',
                         'Various ui/ux improvments',
                         'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
-                        'Reworked entire document store system for improved reliability and modularity'
+                        'Reworked entire document store system for improved reliability and modularity',
+                        'Allowed panel dragging and resizing',
+                        'Added easy mode',
+                        'midi track visual aid'
                     ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
                         'Improved undo stack reliability and snapshot creation',
                         'fixed various minor ui/ux issues (scrolling disabled, unreliable ',
-                        'Developed trauma from trying to improve the ctrl z feature',
+                        'Developed ptsd from trying to improve the ctrl z feature',
                     ]} />
 
                     <ChangelogEntry version="0.12.0" date="12-09-25" notes={[

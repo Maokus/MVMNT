@@ -24,15 +24,17 @@ const SIDE_MIN_WIDTH = 320;
 const SIDE_MAX_WIDTH = 720;
 const PREVIEW_MIN_WIDTH = 520;
 const SIDE_HANDLE_WIDTH = 6;
+const SIDE_COLLAPSE_THRESHOLD = 120;
 const TIMELINE_MIN_HEIGHT = 160;
 const TIMELINE_HANDLE_HEIGHT = 8;
+const TIMELINE_COLLAPSE_THRESHOLD = 120;
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
     const { showProgressOverlay, progressData, closeProgress, exportKind } = useVisualizer() as any;
     const [showOnboarding, setShowOnboarding] = useState(false);
-    const [sidePanelsVisible, setSidePanelsVisible] = useState(true);
-    const [timelineVisible, setTimelineVisible] = useState(true);
+    const [sidePanelsCollapsed, setSidePanelsCollapsed] = useState(false);
+    const [timelineCollapsed, setTimelineCollapsed] = useState(false);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
     const [showRenderModal, setShowRenderModal] = useState(false);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -109,28 +111,18 @@ const MidiVisualizerInner: React.FC = () => {
         return undefined;
     }, [getTimelineBounds]);
 
-    useEffect(() => {
-        if (!sidePanelsVisible) return;
-        const container = workspaceRef.current;
-        if (!container) return;
-        const width = container.getBoundingClientRect().width;
-        const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, width - PREVIEW_MIN_WIDTH));
-        setSidePanelWidth((prev) => clampNumber(prev, SIDE_MIN_WIDTH, maxCandidate));
-    }, [sidePanelsVisible]);
-
     const proceedSmallScreen = () => {
         try { localStorage.setItem('mvmnt_small_screen_override_v1', '1'); } catch { }
         setShowSmallScreenWarning(false);
     };
 
     const handleSideResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!sidePanelsVisible) return;
         const container = workspaceRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
         sideResizeRef.current = {
             startX: e.clientX,
-            startWidth: sidePanelWidth,
+            startWidth: sidePanelsCollapsed ? 0 : sidePanelWidth,
             containerWidth: rect.width,
         };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -139,12 +131,18 @@ const MidiVisualizerInner: React.FC = () => {
 
     const handleSideResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
         const state = sideResizeRef.current;
-        if (!state || !sidePanelsVisible) return;
+        if (!state) return;
         const containerWidth = workspaceRef.current?.getBoundingClientRect().width ?? state.containerWidth;
-        const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, containerWidth - PREVIEW_MIN_WIDTH));
+        const maxExpanded = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, containerWidth - PREVIEW_MIN_WIDTH));
+        const maxForRaw = Math.max(0, containerWidth - PREVIEW_MIN_WIDTH);
         const delta = e.clientX - state.startX;
-        const next = clampNumber(state.startWidth - delta, SIDE_MIN_WIDTH, maxCandidate);
-        setSidePanelWidth(next);
+        const rawNext = clampNumber(state.startWidth - delta, 0, maxForRaw);
+        if (rawNext <= SIDE_COLLAPSE_THRESHOLD) {
+            setSidePanelsCollapsed(true);
+        } else {
+            setSidePanelsCollapsed(false);
+            setSidePanelWidth(clampNumber(rawNext, SIDE_MIN_WIDTH, maxExpanded));
+        }
     };
 
     const handleSideResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -154,19 +152,23 @@ const MidiVisualizerInner: React.FC = () => {
     };
 
     const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!timelineVisible) return;
-        timelineResizeRef.current = { startY: e.clientY, startHeight: timelineHeight };
+        timelineResizeRef.current = { startY: e.clientY, startHeight: timelineCollapsed ? 0 : timelineHeight };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         e.preventDefault();
     };
 
     const handleTimelineResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
         const state = timelineResizeRef.current;
-        if (!state || !timelineVisible) return;
+        if (!state) return;
         const bounds = getTimelineBounds();
         const delta = e.clientY - state.startY;
-        const next = clampNumber(state.startHeight - delta, bounds.min, bounds.max);
-        setTimelineHeight(next);
+        const rawNext = clampNumber(state.startHeight - delta, 0, bounds.max);
+        if (rawNext <= TIMELINE_COLLAPSE_THRESHOLD) {
+            setTimelineCollapsed(true);
+        } else {
+            setTimelineCollapsed(false);
+            setTimelineHeight(clampNumber(rawNext, bounds.min, bounds.max));
+        }
     };
 
     const handleTimelineResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -186,56 +188,50 @@ const MidiVisualizerInner: React.FC = () => {
         <div className="app-container">
             <MenuBar
                 onHelp={() => setShowOnboarding(true)}
-                onToggleSidePanels={() => setSidePanelsVisible(v => !v)}
-                onToggleTimeline={() => setTimelineVisible(v => !v)}
-                sidePanelsVisible={sidePanelsVisible}
-                timelineVisible={timelineVisible}
             />
             <SceneSelectionProvider>
                 <div className="main-workspace" ref={workspaceRef}>
                     <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
                         <PreviewPanel />
                     </div>
-                    {sidePanelsVisible && (
-                        <>
-                            <div
-                                className="relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 hover:bg-sky-500/30 transition-colors"
-                                style={{ width: SIDE_HANDLE_WIDTH }}
-                                onPointerDown={handleSideResizeDown}
-                                onPointerMove={handleSideResizeMove}
-                                onPointerUp={handleSideResizeUp}
-                                onPointerCancel={handleSideResizeUp}
-                                role="separator"
-                                aria-orientation="vertical"
-                                aria-label="Resize side panels"
-                            >
-                                <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
-                            </div>
-                            <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
-                                <SidePanels />
-                            </div>
-                        </>
+                    <div
+                        className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                        style={{ width: SIDE_HANDLE_WIDTH }}
+                        onPointerDown={handleSideResizeDown}
+                        onPointerMove={handleSideResizeMove}
+                        onPointerUp={handleSideResizeUp}
+                        onPointerCancel={handleSideResizeUp}
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize side panels"
+                        aria-expanded={!sidePanelsCollapsed}
+                    >
+                        <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                    </div>
+                    {!sidePanelsCollapsed && (
+                        <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
+                            <SidePanels />
+                        </div>
                     )}
                 </div>
-                {timelineVisible && (
-                    <>
-                        <div
-                            className="relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 hover:bg-sky-500/30 transition-colors"
-                            style={{ height: TIMELINE_HANDLE_HEIGHT }}
-                            onPointerDown={handleTimelineResizeDown}
-                            onPointerMove={handleTimelineResizeMove}
-                            onPointerUp={handleTimelineResizeUp}
-                            onPointerCancel={handleTimelineResizeUp}
-                            role="separator"
-                            aria-orientation="horizontal"
-                            aria-label="Resize timeline"
-                        >
-                            <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
-                        </div>
-                        <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
-                            <TimelinePanel />
-                        </div>
-                    </>
+                <div
+                    className={`relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                    style={{ height: TIMELINE_HANDLE_HEIGHT }}
+                    onPointerDown={handleTimelineResizeDown}
+                    onPointerMove={handleTimelineResizeMove}
+                    onPointerUp={handleTimelineResizeUp}
+                    onPointerCancel={handleTimelineResizeUp}
+                    role="separator"
+                    aria-orientation="horizontal"
+                    aria-label="Resize timeline"
+                    aria-expanded={!timelineCollapsed}
+                >
+                    <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                </div>
+                {!timelineCollapsed && (
+                    <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
+                        <TimelinePanel />
+                    </div>
                 )}
             </SceneSelectionProvider>
             {showProgressOverlay && (

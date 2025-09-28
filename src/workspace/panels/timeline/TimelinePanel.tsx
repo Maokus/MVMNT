@@ -9,9 +9,9 @@ import TimelineRuler from './TimelineRuler';
 import { RULER_HEIGHT } from './constants';
 import { useVisualizer } from '@context/VisualizerContext';
 // Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
-import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
+import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
-import { beatsToSeconds, secondsToBeats } from '@core/timing/tempo-utils';
+import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 
@@ -241,9 +241,9 @@ const TimelinePanel: React.FC = () => {
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
-        <div className="timeline-panel flex h-full flex-col overflow-hidden" role="region" aria-label="Timeline panel">
+        <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-            <div className="timeline-header grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
+            <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -349,19 +349,17 @@ const TimeIndicator: React.FC = () => {
         <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
             <span>{formatTickAsBBT(currentTick, ticksPerQuarter, beatsPerBar)}</span>
             <span className="hidden sm:inline">({fmt(seconds)})</span>
-            <span className="hidden sm:inline">beats: {beatsFloat.toFixed(2)}</span>
-            <span className="hidden sm:inline">bars: {barsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline whitespace-nowrap">beats: {beatsFloat.toFixed(2)}</span>
+            <span className="hidden sm:inline whitespace-nowrap">bars: {barsFloat.toFixed(2)}</span>
         </div>
     );
 };
 
 // Right-side header controls: zoom slider, play start/end inputs, quantize toggle, follow
 const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean) => void }> = ({ follow, setFollow }) => {
-    const { exportSettings, setExportSettings, debugSettings, setDebugSettings } = useVisualizer();
     const view = useTimelineStore((s) => s.timelineView);
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
-    const setPlaybackRangeExplicitTicks = useTimelineStore((s) => s.setPlaybackRangeExplicitTicks);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
     // Global timing state
@@ -397,58 +395,6 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const [zoomVal, setZoomVal] = useState<number>(() => sliderFromRange(range));
     useEffect(() => { setZoomVal(sliderFromRange(range)); }, [range]);
 
-    // Local input buffers for play range so typing isn't overridden; commit on blur or Enter
-    // Reordered to present musical domain (BBT) first, with seconds as secondary representation.
-    const stateNow = useTimelineStore.getState();
-    const tempoMapNow = stateNow.timeline.masterTempoMap;
-    const spbNow = 60 / (stateNow.timeline.globalBpm || 120);
-    const ppqNow = CANONICAL_PPQ;
-    const startTick = (playbackRange as any)?.startTick ?? (view as any).startTick;
-    const endTick = (playbackRange as any)?.endTick ?? (view as any).endTick;
-    const tickToBeats = (tick?: number) => (typeof tick === 'number' ? tick / ppqNow : undefined);
-    const beatsToSec = (beats?: number) => (typeof beats === 'number' ? beatsToSeconds(tempoMapNow, beats, spbNow) : undefined);
-    const startBeatsDerived = tickToBeats(startTick);
-    const endBeatsDerived = tickToBeats(endTick);
-    // Bars (floating) derived from ticks (NOT seconds). Inputs are labeled in bars and should reflect bar positions.
-    const startBarsDerived = typeof startBeatsDerived === 'number' && beatsPerBar ? startBeatsDerived / beatsPerBar : 0;
-    const endBarsDerived = typeof endBeatsDerived === 'number' && beatsPerBar ? endBeatsDerived / beatsPerBar : 0;
-    const [playStartBBT, setPlayStartBBT] = useState<string>(() => formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); // retained hidden BBT buffer
-    const [playEndBBT, setPlayEndBBT] = useState<string>(() => formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar));
-    // UI numeric inputs now represent BAR positions directly (allowing fractional bars via step=0.01)
-    const [playStartText, setPlayStartText] = useState<string>(() => String(startBarsDerived ?? 0));
-    const [playEndText, setPlayEndText] = useState<string>(() => String(endBarsDerived ?? 0));
-    useEffect(() => { setPlayStartBBT(formatTickAsBBT(startTick ?? 0, ppqNow, beatsPerBar)); }, [startTick, ppqNow, beatsPerBar]);
-    useEffect(() => { setPlayEndBBT(formatTickAsBBT(endTick ?? 0, ppqNow, beatsPerBar)); }, [endTick, ppqNow, beatsPerBar]);
-    useEffect(() => { setPlayStartText(String(startBarsDerived ?? 0)); }, [startBarsDerived]);
-    useEffect(() => { setPlayEndText(String(endBarsDerived ?? 0)); }, [endBarsDerived]);
-    const commitPlay = (_which: 'start' | 'end') => {
-        // Primary: parse hidden BBT buffers if user ever edits them (currently not exposed in UI)
-        const state = useTimelineStore.getState();
-        const ppq = CANONICAL_PPQ;
-        const beatsPerBarNow = state.timeline.beatsPerBar || 4;
-        const parseBBTOrUndefined = (text: string) => {
-            const val = parseBBT(text, ppq, beatsPerBarNow);
-            return typeof val === 'number' && val >= 0 ? val : undefined;
-        };
-        const sTickFromBBT = parseBBTOrUndefined(playStartBBT);
-        const eTickFromBBT = parseBBTOrUndefined(playEndBBT);
-        if (sTickFromBBT != null || eTickFromBBT != null) {
-            setPlaybackRangeExplicitTicks(sTickFromBBT, eTickFromBBT);
-            return;
-        }
-        // Fallback: interpret numeric input values as BAR positions (not seconds!) allowing fractional bars.
-        const sBarsVal = parseFloat(playStartText);
-        const eBarsVal = parseFloat(playEndText);
-        const sBars = isFinite(sBarsVal) ? sBarsVal : undefined;
-        const eBars = isFinite(eBarsVal) ? eBarsVal : undefined;
-        if (sBars == null && eBars == null) {
-            setPlaybackRangeExplicitTicks(undefined, undefined);
-            return;
-        }
-        const barsToTicks = (bars?: number) => (typeof bars === 'number' ? Math.round(bars * beatsPerBarNow * ppq) : undefined);
-        setPlaybackRangeExplicitTicks(barsToTicks(sBars), barsToTicks(eBars));
-    };
-
     // Local editable buffers so typing isn't instantly overwritten by store updates
     const [localTempo, setLocalTempo] = useState<string>('');
     const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
@@ -467,24 +413,6 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         setLocalBeatsPerBar(String(value));
     };
 
-    // Local buffer for scene settings so typing doesn't spam context updates
-    const [localFps, setLocalFps] = useState<string>(() => String(exportSettings.fps));
-    const [localWidth, setLocalWidth] = useState<string>(() => String(exportSettings.width));
-    const [localHeight, setLocalHeight] = useState<string>(() => String(exportSettings.height));
-    useEffect(() => { setLocalFps(String(exportSettings.fps)); }, [exportSettings.fps]);
-    useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
-    useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
-    const commitSceneSetting = (key: 'fps' | 'width' | 'height') => {
-        let valStr = key === 'fps' ? localFps : key === 'width' ? localWidth : localHeight;
-        let v = parseInt(valStr, 10);
-        if (!Number.isFinite(v) || v <= 0) {
-            v = (exportSettings as any)[key];
-        }
-        setExportSettings((prev) => ({ ...prev, [key]: v }));
-        if (key === 'fps') setLocalFps(String(v));
-        if (key === 'width') setLocalWidth(String(v));
-        if (key === 'height') setLocalHeight(String(v));
-    };
     return (
         <div className="flex items-center gap-3 text-[12px] relative" ref={menuRef}>
             {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
@@ -555,51 +483,25 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                 <FaEllipsisV />
             </button>
             {menuOpen && (
-                <div role="menu" className="absolute right-0 bottom-full mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4 z-20" aria-label="Timeline options menu">
-                    {/* Quantize moved to header button; keep informational label if desired (commented out) */}
-                    {/* <div className="flex items-center justify-between gap-2">
-                        <span className="text-neutral-300">Quantize (bars)</span>
-                        <span className="text-neutral-400">Use the magnet icon in header</span>
-                    </div> */}
+                <div
+                    role="menu"
+                    className="absolute right-0 top-full z-[60] mt-1 w-64 rounded border border-neutral-700 bg-neutral-900/95 p-3 shadow-lg flex flex-col gap-3"
+                    aria-label="Timeline options menu"
+                >
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Auto follow playhead</span>
-                        <button className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`} onClick={() => setFollow && setFollow(!follow)} role="menuitemcheckbox" aria-checked={!!follow}>On</button>
+                        <button
+                            className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
+                            onClick={() => setFollow && setFollow(!follow)}
+                            role="menuitemcheckbox"
+                            aria-checked={!!follow}
+                        >
+                            {follow ? 'On' : 'Off'}
+                        </button>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <label className="text-neutral-300 text-[12px] flex items-center gap-1">Scene Start
-                        </label>
-                        <p className="text-[11px] text-neutral-500 leading-snug">Scene range defines playback start/end boundaries. Playback stops at end unless looping.</p>
-                    </div>
-                    {/* Scene Settings moved from GlobalPropertiesPanel */}
-                    <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
-                        <h4 className="text-neutral-200 text-[12px] font-semibold">Scene Settings</h4>
-                        <div className="grid grid-cols-3 gap-2">
-                            <label className="flex flex-col text-[11px] text-neutral-300">Width
-                                <input className="number-input w-full" type="number" min={16} max={8192} value={localWidth} onChange={(e) => setLocalWidth(e.target.value)} onBlur={() => commitSceneSetting('width')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('width'); (e.currentTarget as any).blur?.(); } }} />
-                            </label>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Height
-                                <input className="number-input w-full" type="number" min={16} max={8192} value={localHeight} onChange={(e) => setLocalHeight(e.target.value)} onBlur={() => commitSceneSetting('height')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('height'); (e.currentTarget as any).blur?.(); } }} />
-                            </label>
-                            <label className="flex flex-col text-[11px] text-neutral-300">FPS
-                                <input className="number-input w-full" type="number" min={1} max={240} value={localFps} onChange={(e) => setLocalFps(e.target.value)} onBlur={() => commitSceneSetting('fps')} onKeyDown={(e) => { if (e.key === 'Enter') { commitSceneSetting('fps'); (e.currentTarget as any).blur?.(); } }} />
-                            </label>
-                        </div>
-                        <div className='grid grid-cols-2 gap-2'>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene Start (bars)
-                                <input aria-label="Scene start (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playStartText} onChange={(e) => setPlayStartText(e.target.value)} onBlur={() => commitPlay('start')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('start'); }} />
-                            </label>
-                            <label className="flex flex-col text-[11px] text-neutral-300">Scene End (bars)
-                                <input aria-label="Scene end (bars)" className="number-input w-full" type="number" min={0} step={0.01} value={playEndText} onChange={(e) => setPlayEndText(e.target.value)} onBlur={() => commitPlay('end')} onKeyDown={(e) => { if (e.key === 'Enter') commitPlay('end'); }} />
-                            </label>
-                        </div>
-                    </div>
-                    <div className="flex flex-col gap-2 border-t border-neutral-700 pt-2">
-                        <h4 className="text-neutral-200 text-[12px] font-semibold">Debug</h4>
-                        <label className="flex items-center gap-2 text-[12px] text-neutral-300">
-                            <input type="checkbox" checked={debugSettings.showAnchorPoints} onChange={(e) => setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))} />
-                            Show Anchor Points
-                        </label>
-                    </div>
+                    <p className="m-0 text-[11px] leading-snug text-neutral-500">
+                        Scene dimensions and debug tools have moved to the scene settings modal next to the scene name.
+                    </p>
                 </div>
             )}
         </div>
