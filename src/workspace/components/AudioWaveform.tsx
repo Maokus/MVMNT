@@ -27,9 +27,26 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     visibleEndTickAbs,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const { peaks, selected, offsetTicks, durationTicks, regionStartTick, regionEndTick } = useTimelineStore((s) => {
+    const {
+        peaks,
+        selected,
+        offsetTicks,
+        durationTicks,
+        regionStartTick,
+        regionEndTick,
+        sourceDurationTicks,
+    } = useTimelineStore((s) => {
         const t: any = s.tracks[trackId];
-        if (!t || t.type !== 'audio') return { peaks: undefined, selected: false, offsetTicks: 0, durationTicks: 0, regionStartTick: 0, regionEndTick: 0 };
+        if (!t || t.type !== 'audio')
+            return {
+                peaks: undefined,
+                selected: false,
+                offsetTicks: 0,
+                durationTicks: 0,
+                regionStartTick: 0,
+                regionEndTick: 0,
+                sourceDurationTicks: 0,
+            };
         const cacheKey = t.audioSourceId || trackId;
         const cache = s.audioCache[cacheKey];
         return {
@@ -39,6 +56,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
             durationTicks: (t.regionEndTick ?? cache?.durationTicks ?? 0) - (t.regionStartTick ?? 0),
             regionStartTick: t.regionStartTick ?? 0,
             regionEndTick: t.regionEndTick ?? cache?.durationTicks ?? 0,
+            sourceDurationTicks: cache?.durationTicks ?? 0,
         };
     });
 
@@ -92,13 +110,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const bins = peaks.length;
         // Determine mapping from visible slice to peak bins.
         // Region = trimmed portion of the underlying buffer (regionStartTick .. regionEndTick) relative to buffer start.
-        const regionDurationTicks = Math.max(1, effectiveRegionEnd - effectiveRegionStart);
+        const totalDurationTicks = Math.max(
+            1,
+            sourceDurationTicks > 0 ? sourceDurationTicks : Math.max(effectiveRegionEnd, durationTicks + effectiveRegionStart),
+        );
         // Clamp visible window inside region
         const visStartClamped = Math.max(effectiveRegionStart, Math.min(effectiveVisibleStart, effectiveRegionEnd));
         const visEndClamped = Math.max(visStartClamped, Math.min(effectiveVisibleEnd, effectiveRegionEnd));
-        const visibleDurationTicks = Math.max(1, visEndClamped - visStartClamped);
-        const startFrac = (visStartClamped - effectiveRegionStart) / regionDurationTicks;
-        const endFrac = (visEndClamped - effectiveRegionStart) / regionDurationTicks;
+        const startFrac = Math.max(0, Math.min(1, visStartClamped / totalDurationTicks));
+        const endFrac = Math.max(startFrac, Math.min(1, visEndClamped / totalDurationTicks));
         const startBin = Math.max(0, Math.min(bins - 1, Math.floor(startFrac * bins)));
         const endBin = Math.max(startBin + 1, Math.min(bins, Math.floor(endFrac * bins)));
         const sliceBins = endBin - startBin;
@@ -128,6 +148,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         effectiveRegionEnd,
         effectiveVisibleStart,
         effectiveVisibleEnd,
+        sourceDurationTicks,
     ]);
 
     return <canvas ref={canvasRef} style={{ width: '100%', height: `${height}px`, display: 'block' }} data-track={trackId} />;

@@ -81,18 +81,16 @@ function diffAndEmit(next: SceneMacroState, prev: SceneMacroState | null) {
 }
 
 function ensureSubscription() {
-    if (unsubscribeFromStore) return;
+    if (unsubscribeFromStore) {
+        return;
+    }
     currentSnapshot = cloneMacroState(useSceneStore.getState().macros);
 
-    unsubscribeFromStore = useSceneStore.subscribe(
-        (state) => state.macros,
-        (next) => {
-            const prev = currentSnapshot;
-            currentSnapshot = cloneMacroState(next);
-            diffAndEmit(next, prev);
-        },
-        { equalityFn: Object.is }
-    );
+    unsubscribeFromStore = useSceneStore.subscribe((state, prev) => {
+        const prevSnapshot = currentSnapshot ?? cloneMacroState(prev?.macros ?? state.macros);
+        currentSnapshot = cloneMacroState(state.macros);
+        diffAndEmit(state.macros, prevSnapshot);
+    });
 }
 
 export function ensureMacroSync() {
