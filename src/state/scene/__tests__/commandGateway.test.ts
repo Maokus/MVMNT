@@ -1,5 +1,10 @@
-import { describe, beforeEach, it, expect } from 'vitest';
-import { dispatchSceneCommand } from '@state/scene';
+import { describe, beforeEach, afterEach, it, expect } from 'vitest';
+import {
+    dispatchSceneCommand,
+    registerSceneCommandListener,
+    clearSceneCommandListeners,
+    type SceneCommandTelemetryEvent,
+} from '@state/scene';
 import { createDefaultMIDIScene } from '@core/scene-templates';
 import { useSceneStore } from '@state/sceneStore';
 
@@ -11,6 +16,10 @@ function resetState() {
 describe('scene command gateway', () => {
     beforeEach(() => {
         resetState();
+    });
+
+    afterEach(() => {
+        clearSceneCommandListeners();
     });
 
     it('adds elements via command and updates store bindings', () => {
@@ -72,7 +81,7 @@ describe('scene command gateway', () => {
         expect(store.elements['element-3']).toBeUndefined();
     });
 
-    it('applies commands when no builder is provided', () => {
+    it('applies commands when running in store-only mode', () => {
         const result = dispatchSceneCommand(
             {
                 type: 'addElement',
@@ -89,6 +98,33 @@ describe('scene command gateway', () => {
             type: 'constant',
             value: 'Store Only',
         });
+    });
+
+    it('emits telemetry for store-only command execution', () => {
+        const events: SceneCommandTelemetryEvent[] = [];
+        const unregister = registerSceneCommandListener((event) => {
+            events.push(event);
+        });
+
+        const result = dispatchSceneCommand(
+            {
+                type: 'addElement',
+                elementType: 'textOverlay',
+                elementId: 'telemetry-element',
+            },
+            { source: 'test-suite' },
+        );
+
+        unregister();
+
+        expect(result.success).toBe(true);
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({
+            success: true,
+            command: { type: 'addElement', elementId: 'telemetry-element' },
+            source: 'test-suite',
+        });
+        expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {

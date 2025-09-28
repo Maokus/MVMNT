@@ -48,7 +48,7 @@ describe('store migration acceptance criteria', () => {
     });
 
     describe('phase 1 – store scaffolding', () => {
-        it('imports and exports the regression fixture without builder help', () => {
+        it('imports and exports the regression fixture in store-only mode', () => {
             const store = createSceneStore();
             store.getState().importScene(fixture as any);
 
@@ -168,14 +168,14 @@ describe('store migration acceptance criteria', () => {
     });
 
     describe('phase 6 – persistence refactor', () => {
-        it('builds documents from the store even when no builder is registered', () => {
+        it('builds documents from the store without legacy globals', () => {
             useSceneStore.getState().importScene(fixture as any);
             const doc = DocumentGateway.build();
             expect(doc.scene.elements).toEqual(fixture.elements);
             expect(doc.scene.sceneSettings).toEqual(fixture.sceneSettings);
         });
 
-        it('applies documents into the store without a builder instance', () => {
+        it('applies documents into the store with only the Zustand gateway', () => {
             useSceneStore.getState().clearScene();
 
             const doc = {

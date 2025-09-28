@@ -94,7 +94,7 @@ describe('DocumentGateway scene regression (Phase 0)', () => {
         expect(doc.scene.sceneSettings?.postPadding).toBeUndefined();
     });
 
-    it('hydrates the store and macro manager when no builder is available', () => {
+    it('hydrates the store and macro manager without relying on legacy globals', () => {
         delete (window as any).vis;
         delete (window as any).visualizer;
 

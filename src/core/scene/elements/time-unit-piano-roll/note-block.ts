@@ -66,7 +66,7 @@ export class NoteBlock extends NoteEvent {
                     ? Math.max(0, opts.endTick - opts.startTick)
                     : undefined);
         }
-        // Segment-specific id initially identical to base id; base id may be reassigned by builder
+        // Segment-specific id initially identical to base id; downstream normalization may reassign the base id
         this.noteId = NoteBlock.fastHashToHex(
             note,
             channel,

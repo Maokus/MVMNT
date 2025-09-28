@@ -12,6 +12,7 @@ import {
 } from '@state/sceneStore';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
+import { emitSceneCommandTelemetry } from './sceneTelemetry';
 
 export type SceneCommand =
     | {
@@ -213,26 +214,28 @@ function now() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-export function dispatchSceneCommand(command: SceneCommand, _options?: SceneCommandOptions): SceneCommandResult {
+export function dispatchSceneCommand(command: SceneCommand, options?: SceneCommandOptions): SceneCommandResult {
     const start = now();
     ensureMacroSync();
     const store = useSceneStore.getState();
 
+    let result: SceneCommandResult;
     try {
         applyStoreCommand(store, command);
+        result = {
+            success: true,
+            durationMs: now() - start,
+            command,
+        };
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        return {
+        result = {
             success: false,
             durationMs: now() - start,
             command,
             error: err,
         };
     }
-
-    return {
-        success: true,
-        durationMs: now() - start,
-        command,
-    };
+    emitSceneCommandTelemetry(result, options);
+    return result;
 }

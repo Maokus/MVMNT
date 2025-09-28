@@ -214,7 +214,7 @@ class SnapshotUndoController extends DisabledUndoController {
 
     // (Suppression helpers removed)
 
-    /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
+    /** Force a snapshot capture on next tick (used by devtools/store instrumentation). */
     markDirty() {
         if (this.restoring) return; // ignore while restoring
         this.scheduleCapture();
@@ -266,7 +266,7 @@ export interface CreateSnapshotUndoOptions {
 
 export function createSnapshotUndoController(_store: unknown, opts: CreateSnapshotUndoOptions = {}): UndoController {
     const ctrl = new SnapshotUndoController(opts);
-    // Expose globally for scene builder instrumentation
+    // Expose globally for store instrumentation and devtools helpers
     try {
         (window as any).__mvmntUndo = ctrl;
         // Convenience helpers for quick debugging in devtools.

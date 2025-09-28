@@ -52,7 +52,7 @@ export class TextOverlayElement extends SceneElement {
 }
 ```
 
-two important functions are defined: `getConfigSchema` tells the ui how to render controls. `_buildRenderObjects` is called by the scene builder, and returns an array of RenderObjects.
+two important functions are defined: `getConfigSchema` tells the ui how to render controls. `_buildRenderObjects` is invoked by the scene runtime after the Zustand store resolves element configuration and returns an array of RenderObjects.
 
 In `_buildRenderObjects`, the controls defined in `getConfigSchema` are accessed through **bindings**. You don't need to know how these work, only that you can access these settings through `this.getProperty('id')`.
 
@@ -70,7 +70,7 @@ This should add the animation such that it will be selectable from `/animation-t
 
 ### Debug stuff
 
-`vis.sceneBuilder.getElementsByType("timeUnitPianoRoll")[0].midiManager.timingManager.setTempoMap([{time:0, bpm:100}, {time:3, bpm:200}])` run in the console in the default scene adds a tempo map to the time unit piano roll.
+`window.mvmntTools.timeline.setMasterTempoMap([{ time: 0, bpm: 100 }, { time: 3, bpm: 200 }])` run in the console in the default scene adds a tempo map to the time unit piano roll via the store-driven timeline adapter.
 
 `localStorage.setItem("VIS_DEBUG",1)` enables debug logging.
 

@@ -4,7 +4,7 @@
 Logical domains keep responsibilities isolated:
 
 - **animation/** – Stateless animation primitives and note animation implementations.
-- **core/** – Runtime engine logic (scene runtime adapter, rendering, timing, playback clock, resource management). Legacy `HybridSceneBuilder` survives only as a compatibility shim fed by the command gateway.
+- **core/** – Runtime engine logic (scene runtime adapter, rendering, timing, playback clock, resource management).
 - **state/** – Zustand stores, selectors, and middleware. Hosts the canonical timeline and scene stores plus command/undo infrastructure.
 - **ui/** – React component layer (panels, property editors, layout) that consumes state selectors/hooks and dispatches scene/timeline commands.
 - **math/** – Generic math, geometry, and numeric helpers.
@@ -15,8 +15,8 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 
 ## Canonical Time & Scene Authority
 - Tick-based timeline (`timelineStore`) remains the source of truth for transport, tempo, and note scheduling. Seconds/beats are derived through shared timing utilities when needed.
-- `sceneStore` holds all scene elements, bindings, macros, interaction state, and persistence metadata. UI components and runtime adapters read from this store instead of touching the builder directly.
-- The command gateway (`dispatchSceneCommand`) is the only sanctioned mutation entry point for scene data. It applies store mutations, mirrors to compatibility shims, and feeds undo/telemetry instrumentation.
+- `sceneStore` holds all scene elements, bindings, macros, interaction state, and persistence metadata. UI components and runtime adapters read from this store instead of mutating legacy globals.
+- The command gateway (`dispatchSceneCommand`) is the only sanctioned mutation entry point for scene data. It applies store mutations and feeds undo/telemetry instrumentation for observability.
 - Undo middleware spans both timeline and scene domains so transactions remain atomic across stores when commands mutate multiple slices.
 
 ## Data Flow
@@ -35,7 +35,7 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 ## State & Selector Guidelines
 - Prefer hooks/selectors exported from `@state/*` barrels to keep components agnostic of store wiring.
 - Derived data (seconds, view models, macro assignments) must come from selectors rather than ad-hoc computation inside components.
-- Lint rules and tests guard against direct `HybridSceneBuilder` mutations outside the command gateway.
+- Lint rules and tests guard against bypassing `dispatchSceneCommand` when mutating scene state.
 
 ## Error & Logging Strategy
 - Non-fatal warnings use `debug-log.ts` gating (dev builds) to reduce production noise.
@@ -44,9 +44,9 @@ Music theory helpers and MIDI parsing live under `core/midi/` alongside the play
 ## Testing Approach
 - Unit tests cover timing conversions, store reducers/actions, selector memoization, and runtime adapter helpers.
 - Integration tests validate command gateway parity, persistence import/export, and runtime hydration.
-- Fuzz/acceptance suites exercise macro churn, undo replay, and builder compatibility to guard the migration.
+- Fuzz/acceptance suites exercise macro churn, undo replay, and store-only import/export paths to guard the migration.
 
 ## Future Cleanup
-- Remove the remaining builder/macro manager mirrors once runtime, undo, and persistence paths operate purely on store data.
-- Expand telemetry and profiling around the store-only runtime to catch regressions before deleting compatibility code.
+- Harden store telemetry dashboards and alerts to surface command failures quickly.
 - Continue tightening lint/test coverage to stop regressions that bypass the command gateway or normalize store invariants.
+- Keep onboarding materials current so new contributors land directly in the store-first workflow.
