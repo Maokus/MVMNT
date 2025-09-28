@@ -9,3 +9,5 @@ npm run test
 npm run build
 npm run lint
 ```
+
+If any of these commands throws an error because of a missing optional rollup native dependency, run `npm install`, then `npm run test` again.
