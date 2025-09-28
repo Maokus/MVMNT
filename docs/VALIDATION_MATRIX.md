@@ -46,7 +46,3 @@ interface ValidationResult {
 ## Future (Phase 6) Preview
 
 Warnings will adopt `{ code, message, path }` shape for advisory recoverable issues (unknown element types, stale references, minor range deviations) without aborting import.
-
----
-
-Generated as part of Phase 2 implementation (see improved_serialization_plan_v4.md).
