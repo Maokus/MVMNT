@@ -6,13 +6,9 @@ import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV } from 'reac
 
 interface MenuBarProps {
     onHelp?: () => void;
-    onToggleSidePanels?: () => void;
-    onToggleTimeline?: () => void;
-    sidePanelsVisible?: boolean;
-    timelineVisible?: boolean;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleTimeline, sidePanelsVisible, timelineVisible }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
     const [showSceneMenu, setShowSceneMenu] = useState(false);
@@ -62,6 +58,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
                     </Link>
                 </h3>
                 <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
+                    <Link to="/" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>home</Link>
                     <button
                         type="button"
                         onClick={() => onHelp?.()}
@@ -85,13 +82,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
                             background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.6), rgba(6, 182, 212, 0.4))',
                             border: '1px solid rgba(45, 212, 191, 0.6)',
                             fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em'
                         }}
                         title="Open simplified easy mode"
-                    >easy mode</Link>
-                    <Link to="/about" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>about</Link>
-                    <Link to="/changelog" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>changelog</Link>
+                    >Open Easy Mode</Link>
                 </nav>
             </div>
 
@@ -152,18 +145,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onToggleSidePanels, onToggleT
             </div>
             <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 <div className="flex items-center gap-2 mr-2">
-                    <button
-                        type="button"
-                        onClick={onToggleSidePanels}
-                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
-                        title="Show/Hide side panels"
-                    >{sidePanelsVisible ? 'Hide Side' : 'Show Side'}</button>
-                    <button
-                        type="button"
-                        onClick={onToggleTimeline}
-                        className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-neutral-700 border-neutral-600 text-neutral-100 hover:bg-neutral-600 hover:border-neutral-500"
-                        title="Show/Hide timeline panel"
-                    >{timelineVisible ? 'Hide Timeline' : 'Show Timeline'}</button>
                     <button
                         type="button"
                         onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}

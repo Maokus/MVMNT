@@ -45,6 +45,10 @@ const HomePage: React.FC = () => {
                     <div className="mt-6 flex flex-wrap gap-4">
                         <button onClick={handleLoadFile} className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 transition font-medium text-sm">Load Scene (.json)</button>
 
+                        <Link to="/easymode" className="px-5 py-2.5 rounded bg-emerald-600 text-sm font-medium text-white transition hover:bg-emerald-500">
+                            Open Easy Mode
+                        </Link>
+
                         <Link to="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</Link>
                         <Link to="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</Link>
                         <Link to="https://maok.us/discord" target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded bg-[#5865F2] hover:brightness-110 text-sm font-medium">Discord</Link>

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "format": "mvmnt.scene",
+  "metadata": {
+    "id": "template-cosmic-trails",
+    "name": "Cosmic Trails",
+    "description": "High-energy neon streaks and bold typography for upbeat scenes."
+  },
+  "scene": {
+    "elements": [],
+    "sceneSettings": {
+      "backgroundColor": "#020313"
+    }
+  },
+  "timeline": {
+    "timeline": {
+      "id": "timeline",
+      "name": "Cosmic Trails",
+      "globalBpm": 140,
+      "beatsPerBar": 4,
+      "lengthTicks": 1920
+    },
+    "tracks": {},
+    "tracksOrder": [],
+    "rowHeight": 72,
+    "midiCache": {}
+  }
+}

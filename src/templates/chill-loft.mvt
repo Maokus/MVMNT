@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "format": "mvmnt.scene",
+  "metadata": {
+    "id": "template-chill-loft",
+    "name": "Chill Loft",
+    "description": "Minimal lines and muted colors designed for downtempo pieces."
+  },
+  "scene": {
+    "elements": [],
+    "sceneSettings": {
+      "backgroundColor": "#10141f"
+    }
+  },
+  "timeline": {
+    "timeline": {
+      "id": "timeline",
+      "name": "Chill Loft",
+      "globalBpm": 90,
+      "beatsPerBar": 4,
+      "lengthTicks": 1920
+    },
+    "tracks": {},
+    "tracksOrder": [],
+    "rowHeight": 60,
+    "midiCache": {}
+  }
+}

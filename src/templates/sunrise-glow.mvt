@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "format": "mvmnt.scene",
+  "metadata": {
+    "id": "template-sunrise-glow",
+    "name": "Sunrise Glow",
+    "description": "Warm gradients and soft camera motion for mellow tracks."
+  },
+  "scene": {
+    "elements": [],
+    "sceneSettings": {
+      "backgroundColor": "#0b0e1a"
+    }
+  },
+  "timeline": {
+    "timeline": {
+      "id": "timeline",
+      "name": "Sunrise Glow",
+      "globalBpm": 120,
+      "beatsPerBar": 4,
+      "lengthTicks": 1920
+    },
+    "tracks": {},
+    "tracksOrder": [],
+    "rowHeight": 64,
+    "midiCache": {}
+  }
+}
