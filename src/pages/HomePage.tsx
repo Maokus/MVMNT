@@ -55,18 +55,6 @@ const HomePage: React.FC = () => {
                     </div>
                 </div>
 
-                <section>
-                    <h2 className="text-xl font-semibold mb-4 text-neutral-300">New File</h2>
-                    <div className="flex flex-col gap-1">
-                        <TemplateCard title="Blank" desc="Empty workspace – start from scratch." onClick={() => handleOpenTemplate('blank')} />
-                        <TemplateCard
-                            title="Default"
-                            desc="Starter scene with piano roll, HUD overlays, and macros bound."
-                            onClick={() => handleOpenTemplate('default')}
-                        />
-                        <TemplateCard title="Debug" desc="Every scene element placed for exploration." onClick={() => handleOpenTemplate('debug')} />
-                    </div>
-                </section>
             </div>
         </div>
     );
