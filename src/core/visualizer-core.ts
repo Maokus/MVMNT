@@ -357,10 +357,6 @@ export class MIDIVisualizerCore {
             ...themeColors,
         };
     }
-    getSceneBuilder() {
-        console.warn('[MIDIVisualizerCore] HybridSceneBuilder has been removed; no builder instance is available.');
-        return null;
-    }
     getPlayRange(): { startSec: number | null; endSec: number | null } {
         return { startSec: this._playRangeStartSec, endSec: this._playRangeEndSec };
     }

@@ -1,4 +1,4 @@
-import create, { type StateCreator } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';

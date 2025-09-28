@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { SceneNameGenerator } from '@core/scene-name-generator';
+import { useSceneStore } from '@state/sceneStore';
 
 interface SceneContextValue {
     sceneName: string;
@@ -19,10 +20,14 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { visualizer } = useVisualizer();
     const [sceneName, setSceneName] = useState<string>(() => SceneNameGenerator.generate());
 
-    // Dispatch window events to notify all components about scene changes
+    // Bump the store runtime metadata to notify all components about scene changes
     const refreshSceneUI = useCallback(() => {
-        // Dispatch scene-refresh event for SceneSelectionContext to pick up
-        window.dispatchEvent(new CustomEvent('scene-refresh'));
+        useSceneStore.setState((prev) => ({
+            runtimeMeta: {
+                ...prev.runtimeMeta,
+                lastMutatedAt: Date.now(),
+            },
+        }));
     }, []);
 
     const menuBarActions = useMenuBar({

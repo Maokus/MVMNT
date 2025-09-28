@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { useSceneStore, type BindingState, type ElementBindings } from '@state/sceneStore';
@@ -114,14 +114,32 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         }
     }, [selectedElement, updatePropertiesHeader]);
 
-    // Listen for external scene-refresh events (e.g., load/save/clear/new scene actions)
+    const runtimeMeta = useSceneStore(
+        useCallback(
+            (state) => ({
+                lastMutatedAt: state.runtimeMeta.lastMutatedAt,
+                lastHydratedAt: state.runtimeMeta.lastHydratedAt,
+            }),
+            []
+        ),
+        shallow
+    );
+    const lastRuntimeMetaRef = useRef<typeof runtimeMeta | null>(runtimeMeta);
+
     useEffect(() => {
-        const handler = () => {
+        const previous = lastRuntimeMetaRef.current;
+        const hasPrevious = !!previous;
+        const changed =
+            !previous ||
+            previous.lastMutatedAt !== runtimeMeta.lastMutatedAt ||
+            previous.lastHydratedAt !== runtimeMeta.lastHydratedAt;
+        if (changed && hasPrevious) {
             setPropertyPanelRefresh((prev) => prev + 1);
-        };
-        window.addEventListener('scene-refresh', handler);
-        return () => window.removeEventListener('scene-refresh', handler);
-    }, []);
+        }
+        if (!previous || changed) {
+            lastRuntimeMetaRef.current = runtimeMeta;
+        }
+    }, [runtimeMeta]);
 
     // Sync selection state down into the visualizer interaction state (single source of truth = React)
     useEffect(() => {
