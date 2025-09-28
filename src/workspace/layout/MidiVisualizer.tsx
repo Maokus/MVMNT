@@ -165,7 +165,7 @@ const MidiVisualizerInner: React.FC = () => {
         if (!state || !timelineVisible) return;
         const bounds = getTimelineBounds();
         const delta = e.clientY - state.startY;
-        const next = clampNumber(state.startHeight + delta, bounds.min, bounds.max);
+        const next = clampNumber(state.startHeight - delta, bounds.min, bounds.max);
         setTimelineHeight(next);
     };
 
@@ -193,7 +193,7 @@ const MidiVisualizerInner: React.FC = () => {
             />
             <SceneSelectionProvider>
                 <div className="main-workspace" ref={workspaceRef}>
-                    <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col">
+                    <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
                         <PreviewPanel />
                     </div>
                     {sidePanelsVisible && (

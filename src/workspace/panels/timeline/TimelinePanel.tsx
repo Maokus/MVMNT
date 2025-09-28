@@ -243,7 +243,7 @@ const TimelinePanel: React.FC = () => {
             <div className="timeline-body flex items-stretch gap-0">
                 {/* Left: Track list */}
                 <div
-                    className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800"
+                    className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800 min-h-0"
                     ref={leftScrollRef}
                     onScroll={onLeftScroll}
                 >
