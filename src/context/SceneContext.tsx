@@ -49,11 +49,39 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         onSceneRefresh: refreshSceneUI
     });
 
+    const { saveScene, loadScene } = menuBarActions;
+
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            if (!(event.ctrlKey || event.metaKey)) return;
+            const key = event.key.toLowerCase();
+            if (key !== 's' && key !== 'o') return;
+            const target = event.target as HTMLElement | null;
+            const tag = target?.tagName;
+            const isEditable = !!(
+                target &&
+                (target.isContentEditable ||
+                    tag === 'INPUT' ||
+                    tag === 'TEXTAREA' ||
+                    target.getAttribute?.('role') === 'textbox')
+            );
+            if (isEditable) return;
+            event.preventDefault();
+            if (key === 's') {
+                saveScene();
+            } else if (key === 'o') {
+                loadScene();
+            }
+        };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
+    }, [loadScene, saveScene]);
+
     const value: SceneContextValue = {
         sceneName,
         setSceneName: updateSceneName,
-        saveScene: menuBarActions.saveScene,
-        loadScene: menuBarActions.loadScene,
+        saveScene,
+        loadScene,
         clearScene: menuBarActions.clearScene,
         createNewDefaultScene: menuBarActions.createNewDefaultScene,
         refreshSceneUI

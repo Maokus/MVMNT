@@ -175,7 +175,7 @@ const EasyModeLayout: React.FC = () => {
             <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="flex-1 overflow-hidden border-b border-neutral-800">
-                        <PreviewPanel />
+                        <PreviewPanel interactive={false} />
                     </div>
                     <div className="timeline-container h-[280px] border-t border-neutral-800">
                         <TimelinePanel />

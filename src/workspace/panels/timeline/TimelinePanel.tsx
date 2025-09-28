@@ -243,7 +243,7 @@ const TimelinePanel: React.FC = () => {
     return (
         <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-            <div className="timeline-header grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
+            <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -555,7 +555,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                 <FaEllipsisV />
             </button>
             {menuOpen && (
-                <div role="menu" className="absolute right-0 bottom-full mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4 z-20" aria-label="Timeline options menu">
+                <div role="menu" className="absolute right-0 bottom-full z-[60] mb-1 w-80 rounded border border-neutral-700 bg-neutral-900/95 shadow-lg p-3 flex flex-col gap-4" aria-label="Timeline options menu">
                     {/* Quantize moved to header button; keep informational label if desired (commented out) */}
                     {/* <div className="flex items-center justify-between gap-2">
                         <span className="text-neutral-300">Quantize (bars)</span>

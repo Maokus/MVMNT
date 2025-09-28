@@ -5,7 +5,11 @@ import { useSceneSelection } from '@context/SceneSelectionContext';
 import { onCanvasMouseDown, onCanvasMouseMove, onCanvasMouseUp, onCanvasMouseLeave } from './canvasInteractionUtils';
 import { useTimelineStore } from '@state/timelineStore';
 
-const PreviewPanel: React.FC = () => {
+interface PreviewPanelProps {
+    interactive?: boolean;
+}
+
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const ctx = useVisualizer();
     const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
@@ -113,12 +117,13 @@ const PreviewPanel: React.FC = () => {
                         width: `${displaySize.w}px`,
                         height: `${displaySize.h}px`,
                         maxWidth: '100%',
-                        maxHeight: '100%'
+                        maxHeight: '100%',
+                        pointerEvents: interactive ? 'auto' : 'none'
                     }}
-                    onMouseDown={handleCanvasMouseDown}
-                    onMouseMove={handleCanvasMouseMove}
-                    onMouseUp={handleCanvasMouseUp}
-                    onMouseLeave={handleCanvasMouseLeave}
+                    onMouseDown={interactive ? handleCanvasMouseDown : undefined}
+                    onMouseMove={interactive ? handleCanvasMouseMove : undefined}
+                    onMouseUp={interactive ? handleCanvasMouseUp : undefined}
+                    onMouseLeave={interactive ? handleCanvasMouseLeave : undefined}
                 ></canvas>
             </div>
 
