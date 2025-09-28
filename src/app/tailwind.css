@@ -398,7 +398,7 @@
     }
     /* .macro-add-btn removed; migrated to inline classes */
     .macro-list {
-        @apply border rounded max-h-[200px] overflow-y-auto;
+        @apply border rounded overflow-y-auto;
         background-color: var(--twc-panel);
         border-color: var(--twc-border);
     }
