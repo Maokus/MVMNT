@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/form/inputs/FontInput';
 import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
+import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
-    sceneBuilder?: any; // Will be set from outside
     visualizer?: any; // Add visualizer prop to trigger rerenders
 }
 
@@ -28,8 +28,18 @@ interface MacroAssignment {
     propertyPath: string;
 }
 
-const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) => {
+const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer }) => {
     const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
+    const storeAssignments = useMacroAssignments();
+    const assignmentMap = useMemo(() => {
+        const map = new Map<string, MacroAssignment[]>();
+        for (const entry of storeAssignments) {
+            const list = map.get(entry.macroId) ?? [];
+            list.push({ elementId: entry.elementId, propertyPath: entry.propertyPath });
+            map.set(entry.macroId, list);
+        }
+        return map;
+    }, [storeAssignments]);
     const [macros, setMacros] = useState<Macro[]>(contextMacros as any);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
@@ -44,7 +54,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
         accept: '.mid,.midi'
     });
 
-    // Update macros when globalMacroManager changes
+    // Update macros when the store-backed macro list changes
     const updateMacros = useCallback(() => {
         const allMacros = contextMacros as any;
         setMacros(allMacros);
@@ -205,7 +215,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     };
 
     const handleShowAssignmentDialog = (macroName: string) => {
-        const assignments = sceneBuilder ? sceneBuilder.getAllMacroAssignments(macroName) : [];
+        const assignments = assignmentMap.get(macroName) ?? [];
         if (assignments.length === 0) {
             alert(`Macro "${macroName}" has no assignments.\n\nTo assign this macro to element properties, you'll need to select an element and look for the macro assignment options in the property editor.`);
         } else {
@@ -368,7 +378,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ sceneBuilder, visualizer }) =
     };
 
     const renderMacroItem = (macro: Macro) => {
-        const assignments = sceneBuilder ? sceneBuilder.getAllMacroAssignments(macro.name) : [];
+        const assignments = assignmentMap.get(macro.name) ?? [];
 
         return (
             <div key={macro.name} className="macro-item" data-macro={macro.name}>

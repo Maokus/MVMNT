@@ -4,5 +4,6 @@
 declare global {
     interface Window {
         // Add any future global window extensions here
+        mvmntTools?: import('../devtools/registerWindowTools').MvmntDevTools;
     }
 }

@@ -4,9 +4,16 @@ import { PropertiesPanel } from '@workspace/panels/properties';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
 
-interface SidePanelsProps {
-    sceneRefreshTrigger?: number;
-}
+interface SidePanelsProps {}
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const RESIZER_THICKNESS = 6;
+const VERTICAL_MIN_TOP = 160;
+const VERTICAL_MIN_BOTTOM = 220;
+const HORIZONTAL_MIN_LEFT = 260;
+const HORIZONTAL_MIN_RIGHT = 280;
+
+const getLayoutFromWidth = (width: number) => (width >= 768 && width < 1280 ? 'horizontal' : 'vertical');
 
 // Internal component that uses the context
 const SidePanelsInternal: React.FC = () => {
@@ -15,13 +22,114 @@ const SidePanelsInternal: React.FC = () => {
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
     const addElementDropdownRef = useRef<HTMLDivElement>(null);
+    const [layout, setLayout] = useState<'vertical' | 'horizontal'>(() => {
+        if (typeof window === 'undefined') return 'vertical';
+        return getLayoutFromWidth(window.innerWidth);
+    });
+    const [verticalSize, setVerticalSize] = useState(260);
+    const [horizontalSize, setHorizontalSize] = useState(360);
+    const [containerRect, setContainerRect] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+    const resizeStateRef = useRef<null | { orientation: 'vertical' | 'horizontal'; startCoord: number; startSize: number }>(null);
+
+    useEffect(() => {
+        const updateLayout = () => {
+            if (typeof window === 'undefined') return;
+            setLayout(getLayoutFromWidth(window.innerWidth));
+        };
+        updateLayout();
+        window.addEventListener('resize', updateLayout);
+        return () => window.removeEventListener('resize', updateLayout);
+    }, []);
+
+    useEffect(() => {
+        const node = sidePanelsRef.current;
+        if (!node || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (entry) {
+                const { width, height } = entry.contentRect;
+                setContainerRect({ width, height });
+            }
+        });
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!sidePanelsRef.current) return;
+        const availableHeight = Math.max(1, containerRect.height - RESIZER_THICKNESS);
+        const availableWidth = Math.max(1, containerRect.width - RESIZER_THICKNESS);
+        if (layout === 'vertical') {
+            const maxPrimary = Math.max(VERTICAL_MIN_TOP, availableHeight - VERTICAL_MIN_BOTTOM);
+            setVerticalSize((prev) => clamp(prev, VERTICAL_MIN_TOP, maxPrimary));
+        } else {
+            const maxPrimary = Math.max(HORIZONTAL_MIN_LEFT, availableWidth - HORIZONTAL_MIN_RIGHT);
+            setHorizontalSize((prev) => clamp(prev, HORIZONTAL_MIN_LEFT, maxPrimary));
+        }
+    }, [containerRect.height, containerRect.width, layout]);
+
+    const availableHeight = Math.max(1, containerRect.height - RESIZER_THICKNESS);
+    const availableWidth = Math.max(1, containerRect.width - RESIZER_THICKNESS);
+    const effectiveVertical = clamp(verticalSize, VERTICAL_MIN_TOP, Math.max(VERTICAL_MIN_TOP, availableHeight - VERTICAL_MIN_BOTTOM));
+    const effectiveHorizontal = clamp(horizontalSize, HORIZONTAL_MIN_LEFT, Math.max(HORIZONTAL_MIN_LEFT, availableWidth - HORIZONTAL_MIN_RIGHT));
+    const primarySize = layout === 'vertical' ? effectiveVertical : effectiveHorizontal;
+
+    const gridStyle: React.CSSProperties = layout === 'vertical'
+        ? {
+            display: 'grid',
+            gridTemplateRows: `${Math.round(primarySize)}px ${RESIZER_THICKNESS}px 1fr`,
+            gridTemplateColumns: '1fr',
+            height: '100%',
+        }
+        : {
+            display: 'grid',
+            gridTemplateColumns: `${Math.round(primarySize)}px ${RESIZER_THICKNESS}px 1fr`,
+            gridTemplateRows: '1fr',
+            height: '100%',
+        };
+
+    const handleDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!sidePanelsRef.current) return;
+        const orientation = layout;
+        resizeStateRef.current = {
+            orientation,
+            startCoord: orientation === 'vertical' ? e.clientY : e.clientX,
+            startSize: primarySize,
+        };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        e.preventDefault();
+    };
+
+    const handleDividerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const state = resizeStateRef.current;
+        if (!state || !sidePanelsRef.current) return;
+        const rect = sidePanelsRef.current.getBoundingClientRect();
+        if (state.orientation === 'vertical') {
+            const available = Math.max(1, rect.height - RESIZER_THICKNESS);
+            const maxPrimary = Math.max(VERTICAL_MIN_TOP, available - VERTICAL_MIN_BOTTOM);
+            const delta = e.clientY - state.startCoord;
+            const next = clamp(state.startSize + delta, VERTICAL_MIN_TOP, maxPrimary);
+            setVerticalSize(next);
+        } else {
+            const available = Math.max(1, rect.width - RESIZER_THICKNESS);
+            const maxPrimary = Math.max(HORIZONTAL_MIN_LEFT, available - HORIZONTAL_MIN_RIGHT);
+            const delta = e.clientX - state.startCoord;
+            const next = clamp(state.startSize + delta, HORIZONTAL_MIN_LEFT, maxPrimary);
+            setHorizontalSize(next);
+        }
+    };
+
+    const handleDividerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!resizeStateRef.current) return;
+        resizeStateRef.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+    };
 
     // Use the scene selection context
     const {
         selectedElementId,
         selectedElement,
         selectedElementSchema,
-        refreshTrigger,
         propertyPanelRefresh,
         clearSelection,
         updateElementConfig,
@@ -86,11 +194,15 @@ const SidePanelsInternal: React.FC = () => {
 
     return (
         <div
-            className="flex-1 flex min-w-[320px] min-h-0 flex-col h-[50vh] md:flex-row md:h-[40vh] xl:flex-col xl:h-auto"
+            className="relative flex-1 min-h-0 min-w-[320px]"
             ref={sidePanelsRef}
+            style={gridStyle}
         >
             {/* Layer Panel */}
-            <div className="flex-1 flex flex-col min-h-0 border-b max-h-[250px] bg-panel border-border md:border-b-0 md:border-r md:max-h-none xl:border-r-0 xl:border-b xl:max-h-[250px]">
+            <div
+                className="flex flex-col min-h-0 bg-panel border-border"
+                style={layout === 'vertical' ? { gridRow: '1 / 2', gridColumn: '1 / 2' } : { gridRow: '1 / 2', gridColumn: '1 / 2' }}
+            >
                 <div className="border-b px-4 py-2 shrink-0 flex justify-between items-center relative bg-menubar border-border">
                     <h3 className="text-[13px] font-semibold text-neutral-300 m-0">📚 Elements</h3>
                     <div style={{ position: 'relative' }} ref={addElementDropdownRef}>
@@ -111,23 +223,43 @@ const SidePanelsInternal: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                    <SceneElementPanel refreshTrigger={refreshTrigger} />
+                    <SceneElementPanel />
                 </div>
             </div>
 
+            {/* Divider */}
+            <div
+                className={`relative bg-neutral-900/70 border-neutral-800 transition-colors duration-150 ${layout === 'vertical' ? 'w-full h-full cursor-row-resize border-t border-b hover:bg-sky-500/30' : 'h-full w-full cursor-col-resize border-l border-r hover:bg-sky-500/30'}`}
+                style={layout === 'vertical' ? { gridRow: '2 / 3', gridColumn: '1 / 2' } : { gridRow: '1 / 2', gridColumn: '2 / 3' }}
+                onPointerDown={handleDividerPointerDown}
+                onPointerMove={handleDividerPointerMove}
+                onPointerUp={handleDividerPointerUp}
+                onPointerCancel={handleDividerPointerUp}
+                role="separator"
+                aria-orientation={layout === 'vertical' ? 'horizontal' : 'vertical'}
+                aria-label="Resize panels"
+            >
+                <div
+                    className={`${layout === 'vertical'
+                        ? 'absolute left-1/2 top-1/2 h-[2px] w-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80'
+                        : 'absolute left-1/2 top-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80'}`}
+                />
+            </div>
+
             {/* Properties Panel */}
-            <div className="flex-1 flex flex-col min-h-0 bg-panel">
+            <div
+                className="flex flex-col min-h-0 bg-panel border-border"
+                style={layout === 'vertical' ? { gridRow: '3 / 4', gridColumn: '1 / 2' } : { gridRow: '1 / 2', gridColumn: '3 / 4' }}
+            >
                 <div className="border-b px-4 py-2 shrink-0 flex justify-between items-center relative bg-menubar border-border">
                     <h3 id="propertiesHeader" className="text-[13px] font-semibold text-neutral-300 m-0">⚙️ Properties</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4">
-
-                    {/* Properties panel (shows global props when no element selected, element props when selected) */}
                     <div className="properties-config" id="propertiesConfig">
                         <PropertiesPanel
-                            key={(selectedElementId || 'global') + ':' + propertyPanelRefresh}
                             element={selectedElement}
                             schema={selectedElementSchema || undefined}
+                            refreshToken={propertyPanelRefresh}
                             onConfigChange={updateElementConfig}
                             onExport={exportSequence}
                             exportStatus={exportStatus}
@@ -145,7 +277,7 @@ const SidePanelsInternal: React.FC = () => {
 };
 
 // Main component (provider now lives higher in tree)
-const SidePanels: React.FC<SidePanelsProps> = ({ sceneRefreshTrigger }) => {
+const SidePanels: React.FC<SidePanelsProps> = () => {
     return <SidePanelsInternal />;
 };
 

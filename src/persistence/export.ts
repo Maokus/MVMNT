@@ -2,18 +2,6 @@ import { serializeStable } from './stable-stringify';
 import { useTimelineStore } from '../state/timelineStore';
 import { DocumentGateway } from './document-gateway';
 
-// Attempt to access a global scene builder (visualizer) if present. This avoids a hard dependency cycle.
-function _getSceneBuilder(): any | null {
-    try {
-        // Typical location via visualizer core debug handle
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        // Fallback: some code may expose sceneBuilder directly
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
-
 // --- Types (initial minimal envelope) ---
 export interface SceneMetadata {
     id: string;

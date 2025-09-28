@@ -59,7 +59,7 @@ export class ModularRenderer {
 
     renderFrameSequence(
         canvas: HTMLCanvasElement,
-        sceneBuilder: any,
+        resolveRenderObjects: (time: number) => RenderObject[],
         config: any,
         startTime: number,
         endTime: number,
@@ -72,7 +72,7 @@ export class ModularRenderer {
             frameCanvas.width = canvas.width;
             frameCanvas.height = canvas.height;
             const frameCtx = frameCanvas.getContext('2d')!;
-            const renderObjects = sceneBuilder.buildScene({ ...config, canvas: frameCanvas }, t);
+            const renderObjects = resolveRenderObjects(t);
             this.render(frameCtx, renderObjects, { ...config, canvas: frameCanvas }, t);
             frames.push({ time: t, dataURL: frameCanvas.toDataURL() });
         }

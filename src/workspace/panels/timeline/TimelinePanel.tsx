@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { beatsToTicks, CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
@@ -6,6 +6,7 @@ import TransportControls from '../TransportControls';
 import TrackList from './TrackList';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
+import { RULER_HEIGHT } from './constants';
 import { useVisualizer } from '@context/VisualizerContext';
 // Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
 import { formatTickAsBBT, parseBBT } from '@core/timing/time-domain';
@@ -28,6 +29,40 @@ const TimelinePanel: React.FC = () => {
     const leftScrollRef = useRef<HTMLDivElement | null>(null);
     const rightScrollRef = useRef<HTMLDivElement | null>(null);
     const isSyncingRef = useRef(false);
+    const timelineBodyRef = useRef<HTMLDivElement | null>(null);
+    const [bodyHeight, setBodyHeight] = useState(0);
+    const rowHeight = useTimelineStore((s) => s.rowHeight);
+    const setRowHeight = useTimelineStore((s) => s.setRowHeight);
+    const trackCount = trackIds.length;
+
+    useLayoutEffect(() => {
+        const el = timelineBodyRef.current;
+        if (!el) return;
+        const update = () => {
+            const rect = el.getBoundingClientRect();
+            setBodyHeight(Math.max(0, Math.round(rect.height)));
+        };
+        update();
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => update());
+            observer.observe(el);
+            return () => observer.disconnect();
+        }
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+    }, []);
+
+    useEffect(() => {
+        if (!trackCount) return;
+        if (bodyHeight <= RULER_HEIGHT) return;
+        const usable = bodyHeight - RULER_HEIGHT;
+        if (usable <= 0) return;
+        const desired = usable / trackCount;
+        const clamped = Math.max(16, Math.min(160, desired));
+        if (Math.abs(clamped - rowHeight) > 0.5) {
+            setRowHeight(clamped);
+        }
+    }, [bodyHeight, trackCount, rowHeight, setRowHeight]);
 
     const handleAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -206,9 +241,9 @@ const TimelinePanel: React.FC = () => {
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
-        <div className="timeline-panel" role="region" aria-label="Timeline panel">
+        <div className="timeline-panel flex h-full flex-col overflow-hidden" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-            <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
+            <div className="timeline-header grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                 {/* Left: Add track */}
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -240,10 +275,10 @@ const TimelinePanel: React.FC = () => {
                     <HeaderRightControls follow={follow} setFollow={setFollow} />
                 </div>
             </div>
-            <div className="timeline-body flex items-stretch gap-0">
+            <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
                 {/* Left: Track list */}
                 <div
-                    className="tracklist-container w-60 shrink-0 overflow-y-auto border-r border-neutral-800"
+                    className="tracklist-container min-h-0 h-full w-60 shrink-0 overflow-y-auto border-r border-neutral-800"
                     ref={leftScrollRef}
                     onScroll={onLeftScroll}
                 >
@@ -251,10 +286,10 @@ const TimelinePanel: React.FC = () => {
                 </div>
 
                 {/* Right: Ruler stacked above lanes */}
-                <div className="flex-1 min-w-0 min-h-0">
+                <div className="min-h-0 min-w-0 flex-1">
                     {/* Single scroll container to keep ruler sticky and horizontal-scrollable together with lanes */}
                     <div
-                        className="relative w-full h-full overflow-auto "
+                        className="relative h-full w-full overflow-auto"
                         ref={rightScrollRef}
                         onScroll={onRightScroll}
                         onWheel={onRightWheel}

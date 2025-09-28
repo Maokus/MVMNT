@@ -21,6 +21,7 @@ interface DebugSettings {
 interface GlobalPropertiesPanelProps {
     // Macro-related props
     visualizer?: any;
+    refreshToken?: number;
 
     // Export-related props
     onExport: (exportSettings: ExportSettings) => void;
@@ -38,7 +39,6 @@ interface GlobalPropertiesPanelProps {
 const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
     const ctx = useVisualizer();
     const visualizer = props.visualizer || ctx.visualizer;
-    const sceneBuilder = visualizer?.getSceneBuilder?.();
     const onExport = props.onExport;
     // @ts-ignore optional video export function if provided via props or context (not typed yet)
     const onExportVideo = props.onExportVideo || (ctx as any).exportVideo;
@@ -103,10 +103,7 @@ const GlobalPropertiesPanel: React.FC<GlobalPropertiesPanelProps> = (props) => {
                 <div className="settings-grid">
                     {/* Global Macros Section */}
                     <div className="setting-group">
-                        <MacroConfig
-                            sceneBuilder={visualizer?.getSceneBuilder()}
-                            visualizer={visualizer}
-                        />
+                        <MacroConfig visualizer={visualizer} />
                     </div>
                 </div>
             </div>

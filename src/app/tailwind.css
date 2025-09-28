@@ -63,19 +63,16 @@
     /* Scene menu mappings removed; using inline utilities in MenuBar */
 
     .main-workspace {
-        @apply flex flex-1 min-h-0;
+        @apply flex flex-1 min-h-0 overflow-hidden;
     }
     /* Bottom timeline dock */
     .timeline-container {
-        @apply border-t shrink-0;
+        @apply shrink-0 flex flex-col overflow-hidden;
         background-color: var(--twc-background);
         border-color: var(--twc-border);
     }
     .timeline-panel {
-        @apply flex flex-col;
-        height: 220px;
-        min-height: 160px;
-        max-height: 40vh;
+        @apply flex flex-col h-full min-h-[160px];
     }
     .timeline-header {
         @apply border-b px-3 py-1.5;
@@ -99,7 +96,10 @@
         color: #9a9a9a;
     }
     .timeline-body {
-        @apply flex min-h-0 overflow-auto;
+        @apply flex flex-1 min-h-0 overflow-hidden;
+    }
+    .tracklist-container {
+        @apply h-full;
     }
     .track-list {
         @apply flex-1;
@@ -134,12 +134,12 @@
         opacity: 0.9;
     }
     .preview-panel {
-        @apply flex-[2] border-r flex flex-col min-w-0;
+        @apply flex-[2] border-r flex flex-col min-w-0 h-full;
         background-color: var(--twc-panel);
         border-color: var(--twc-border);
     }
     .canvas-container {
-        @apply flex-1 flex items-center justify-center p-5 min-h-0 max-w-full max-h-full;
+        @apply flex-1 flex items-center justify-center p-5 min-h-0 max-w-full max-h-full w-full h-full overflow-hidden;
     }
     #canvas {
         @apply border rounded bg-black shadow-lg block;

@@ -52,7 +52,7 @@ export class TextOverlayElement extends SceneElement {
 }
 ```
 
-two important functions are defined: `getConfigSchema` tells the ui how to render controls. `_buildRenderObjects` is called by the scene builder, and returns an array of RenderObjects.
+two important functions are defined: `getConfigSchema` tells the ui how to render controls. `_buildRenderObjects` is invoked by the scene runtime after the Zustand store resolves element configuration and returns an array of RenderObjects.
 
 In `_buildRenderObjects`, the controls defined in `getConfigSchema` are accessed through **bindings**. You don't need to know how these work, only that you can access these settings through `this.getProperty('id')`.
 
@@ -70,21 +70,23 @@ This should add the animation such that it will be selectable from `/animation-t
 
 ### Debug stuff
 
-`vis.sceneBuilder.getElementsByType("timeUnitPianoRoll")[0].midiManager.timingManager.setTempoMap([{time:0, bpm:100}, {time:3, bpm:200}])` run in the console in the default scene adds a tempo map to the time unit piano roll.
+`window.mvmntTools.timeline.setMasterTempoMap([{ time: 0, bpm: 100 }, { time: 3, bpm: 200 }])` run in the console in the default scene adds a tempo map to the time unit piano roll via the store-driven timeline adapter.
 
 `localStorage.setItem("VIS_DEBUG",1)` enables debug logging.
 
 `localStorage.removeItem("mvmnt_onboarded_v1")` re-enables onboarding modal
 
 ```
-window.__mvmntDebug.getTimingState()
-window.__mvmntDebug.setGlobalBpm(140)
-window.__mvmntDebug.setBeatsPerBar(3)
-window.__mvmntDebug.setCurrentTick(960 * 4) // seek to bar 2 (PPQ 960 example)
-window.__mvmntDebug.s2b(10) -> beats
-window.__mvmntDebug.b2s(32) -> seconds
-window.__mvmntDebug.s2bars(10) / window.__mvmntDebug.bars2s(8)
-window.__mvmntDebug.getBeatGrid(0, 30)
+window.mvmntTools.scene.dispatch(
+  {
+    type: 'updateElementConfig',
+    elementId: 'background',
+    patch: { offsetX: 120 },
+  },
+  { source: 'console tweak' }
+);
+
+patch: { offsetX: { type: 'macro', macroId: 'beat-shift' } }
 ```
 
 ### Recent Export Fixes (Audio Feature Branch)

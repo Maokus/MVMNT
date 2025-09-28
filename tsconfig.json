@@ -50,8 +50,14 @@
       "@persistence/*": [
         "persistence/*"
       ],
+      "@devtools/*": [
+        "devtools/*"
+      ],
       "@workspace/*": [
         "workspace/*"
+      ],
+      "@config/*": [
+        "config/*"
       ],
       "@state/*": [
         "state/*"

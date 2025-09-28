@@ -64,10 +64,3 @@ export interface DynamicConfigEditor {
     generateConfigUI(element: any): SceneConfig;
     updateElementConfig(element: any, changes: { [key: string]: any }): void;
 }
-
-export interface SceneBuilder {
-    createElement(type: string, config?: any): any;
-    removeElement(elementId: string): boolean;
-    updateElement(elementId: string, changes: any): boolean;
-    getElementList(): any[];
-}

@@ -5,8 +5,6 @@ import { createSnapshotUndoController } from '@state/undo/snapshot-undo';
 import { useTimelineStore } from '@state/timelineStore';
 import { instrumentTimelineStoreForUndo } from '@state/undo/snapshot-undo';
 
-// Enable feature flag by faking environment if needed (tests assume flag on)
-
 describe('Persistence - selection omission & undo triggers', () => {
     beforeEach(() => {
         // Reset store to initial state

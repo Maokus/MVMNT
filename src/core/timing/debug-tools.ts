@@ -70,27 +70,6 @@ export function getBeatGrid(startSec: number, endSec: number) {
 }
 
 // Attach to window for quick dev usage
-declare global {
-    interface Window {
-        __mvmntDebug?: any;
-    }
-}
-
-if (typeof window !== 'undefined') {
-    (window as any).__mvmntDebug = {
-        getTimingState,
-        setGlobalBpm,
-        setBeatsPerBar,
-        setMasterTempoMap,
-        setCurrentTick,
-        s2b,
-        b2s,
-        s2bars,
-        bars2s,
-        getBeatGrid,
-    };
-}
-
 export default {
     getTimingState,
     setGlobalBpm,

@@ -2,10 +2,18 @@ import React from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
+import type { ElementBindings } from '@state/sceneStore';
+
+interface SelectedElementProps {
+    id: string;
+    type: string;
+    bindings: ElementBindings;
+}
 
 interface PropertiesPanelProps {
-    element?: any;
+    element?: SelectedElementProps | null;
     schema?: any;
+    refreshToken?: number;
     onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
     onExport: (exportSettings: any) => void;
     exportStatus: string;
@@ -17,16 +25,19 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
-    const { element, schema, onConfigChange } = props;
+    const { element, schema, onConfigChange, refreshToken = 0 } = props;
     const { visualizer } = useSceneSelection();
 
     // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
     if (element && schema) {
         return (
             <ElementPropertiesPanel
-                element={element}
+                elementId={element.id}
+                elementType={element.type}
                 schema={schema}
+                bindings={element.bindings}
                 onConfigChange={onConfigChange}
+                refreshToken={refreshToken}
             />
         );
     }
@@ -34,6 +45,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     return (
         <GlobalPropertiesPanel
             visualizer={visualizer}
+            refreshToken={refreshToken}
             onExport={props.onExport}
             exportStatus={props.exportStatus}
             canExport={props.canExport}

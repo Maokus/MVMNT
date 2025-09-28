@@ -1,8 +1,9 @@
-import { globalMacroManager } from '@bindings/macro-manager';
 import { createDefaultMIDIScene, resetToDefaultScene } from '@core/scene-templates';
+import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
+import { useSceneStore } from '@state/sceneStore';
 
 interface UseMenuBarProps {
     visualizer: any;
@@ -106,36 +107,25 @@ export const useMenuBar = ({
     };
 
     const clearScene = () => {
-        if (visualizer) {
-            const sceneBuilder = visualizer.getSceneBuilder();
-            if (sceneBuilder) {
-                sceneBuilder.clearElements();
-                globalMacroManager.clearMacros();
-                // Reset scene settings to defaults and notify contexts
-                if (sceneBuilder.resetSceneSettings) {
-                    const settings = sceneBuilder.resetSceneSettings();
-                    try {
-                        visualizer.canvas?.dispatchEvent(
-                            new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
-                        );
-                    } catch {}
-                }
-                if (visualizer.invalidateRender) {
-                    visualizer.invalidateRender();
-                }
-
-                // Trigger refresh of UI components
-                if (onSceneRefresh) {
-                    onSceneRefresh();
-                }
-
-                console.log('Scene cleared - all elements removed');
-            } else {
-                console.log('Clear scene functionality: scene builder not available');
-            }
-        } else {
-            console.log('Clear scene functionality: visualizer not available');
+        const result = dispatchSceneCommand(
+            { type: 'clearScene', clearMacros: true },
+            { source: 'useMenuBar.clearScene' }
+        );
+        if (!result.success) {
+            console.warn('Failed to clear scene', result.error);
+            return;
         }
+        try {
+            const settings = useSceneStore.getState().settings;
+            visualizer?.canvas?.dispatchEvent(
+                new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
+            );
+        } catch {}
+        visualizer?.invalidateRender?.();
+        if (onSceneRefresh) {
+            onSceneRefresh();
+        }
+        console.log('Scene cleared - all elements removed');
     };
 
     const createNewDefaultScene = () => {
@@ -153,22 +143,19 @@ export const useMenuBar = ({
             } catch {
                 // Fallback minimal default if template fails
                 try {
-                    createDefaultMIDIScene(visualizer.getSceneBuilder());
+                    createDefaultMIDIScene();
                 } catch {}
             }
 
             // Reset scene settings to defaults and notify contexts about the reset
-            const sceneBuilder = visualizer.getSceneBuilder();
             try {
-                const settings = sceneBuilder.getSceneSettings();
-                visualizer.canvas?.dispatchEvent(
+                const settings = useSceneStore.getState().settings;
+                visualizer?.canvas?.dispatchEvent(
                     new CustomEvent('scene-imported', { detail: { exportSettings: { ...settings } } })
                 );
             } catch {}
 
-            if (visualizer.invalidateRender) {
-                visualizer.invalidateRender();
-            }
+            visualizer?.invalidateRender?.();
 
             // Trigger refresh of UI components
             if (onSceneRefresh) {

@@ -5,7 +5,7 @@ declare module 'zustand' {
         api?: unknown
     ) => T;
 
-    const create: <T>(init: StateCreator<T>) => {
+    export function create<T>(init: StateCreator<T>): {
         getState: () => T;
         setState: (partial: Partial<T> | ((state: T) => Partial<T>), replace?: boolean) => void;
         subscribe: (listener: (state: T, prevState: T) => void) => () => void;

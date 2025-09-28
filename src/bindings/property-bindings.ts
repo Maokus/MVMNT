@@ -6,7 +6,7 @@
  * serialization and macro management without the need for a separate assignments system.
  */
 
-import { globalMacroManager } from './macro-manager';
+import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
 
 export type BindingType = 'constant' | 'macro';
 
@@ -107,7 +107,7 @@ export class MacroBinding<T = any> extends PropertyBinding<T> {
     }
 
     getValue(): T {
-        const macro = globalMacroManager.getMacro(this.macroId);
+        const macro = getMacroById(this.macroId);
         if (!macro) {
             console.warn(`Macro '${this.macroId}' not found, returning undefined`);
             return undefined as T;
@@ -116,7 +116,7 @@ export class MacroBinding<T = any> extends PropertyBinding<T> {
     }
 
     setValue(value: T): void {
-        globalMacroManager.updateMacroValue(this.macroId, value);
+        updateMacroValue(this.macroId, value);
     }
 
     getMacroId(): string {

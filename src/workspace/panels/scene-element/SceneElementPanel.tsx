@@ -1,52 +1,18 @@
 import React from 'react';
 import ElementList from './ElementList';
-import { useSceneSelection } from '@context/SceneSelectionContext';
+import { useSceneSelection as useSceneSelectionContext } from '@context/SceneSelectionContext';
 
-interface SceneEditorProps {
-    refreshTrigger?: number; // Add refresh trigger
-}
-
-const SceneElementPanel: React.FC<SceneEditorProps> = ({ refreshTrigger }) => {
+const SceneElementPanel: React.FC = () => {
     const {
         selectedElementId,
         selectElement,
         elements,
-        sceneBuilder,
-        error,
         toggleElementVisibility,
         moveElement,
         duplicateElement,
         deleteElement,
         updateElementId,
-        refreshElements
-    } = useSceneSelection();
-
-    // If external refreshTrigger prop changes, force refresh
-    React.useEffect(() => {
-        if (refreshTrigger !== undefined) refreshElements();
-    }, [refreshTrigger, refreshElements]);
-
-    if (error) {
-        return (
-            <div className="scene-editor error">
-                <div className="error-message">
-                    <h4>⚠️ Scene Editor Error</h4>
-                    <p>{error}</p>
-                    <p>Make sure the visualizer is properly initialized.</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!sceneBuilder) {
-        return (
-            <div className="scene-editor loading">
-                <div className="loading-message">
-                    <p>🔄 Initializing scene editor...</p>
-                </div>
-            </div>
-        );
-    }
+    } = useSceneSelectionContext();
 
     return (
         <div className="scene-editor">

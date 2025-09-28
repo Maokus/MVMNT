@@ -1,6 +1,8 @@
 import { serializeStable } from '@persistence/stable-stringify';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '@persistence/document-gateway';
+import { useSceneStore } from '@state/sceneStore';
+import { ensureMacroSync } from '@state/scene/macroSyncService';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -212,7 +214,7 @@ class SnapshotUndoController extends DisabledUndoController {
 
     // (Suppression helpers removed)
 
-    /** Force a snapshot capture on next tick (used by scene builder instrumentation). */
+    /** Force a snapshot capture on next tick (used by devtools/store instrumentation). */
     markDirty() {
         if (this.restoring) return; // ignore while restoring
         this.scheduleCapture();
@@ -264,7 +266,7 @@ export interface CreateSnapshotUndoOptions {
 
 export function createSnapshotUndoController(_store: unknown, opts: CreateSnapshotUndoOptions = {}): UndoController {
     const ctrl = new SnapshotUndoController(opts);
-    // Expose globally for scene builder instrumentation
+    // Expose globally for store instrumentation and devtools helpers
     try {
         (window as any).__mvmntUndo = ctrl;
         // Convenience helpers for quick debugging in devtools.
@@ -278,31 +280,50 @@ export function createSnapshotUndoController(_store: unknown, opts: CreateSnapsh
     return ctrl;
 }
 
-// Helper to instrument a scene builder so that element/macro mutations trigger undo snapshots.
-export function instrumentSceneBuilderForUndo(sb: any) {
-    if (!sb || sb.__mvmntUndoInstrumented) return;
+// Instrument scene store actions so undo snapshots capture mutations promptly.
+export function instrumentSceneStoreForUndo() {
+    ensureMacroSync();
     const undo: any = (window as any).__mvmntUndo;
     if (!undo || typeof undo.markDirty !== 'function') return;
-    const wrap = (obj: any, method: string) => {
-        if (typeof obj[method] !== 'function') return;
-        const orig = obj[method].bind(obj);
-        obj[method] = function (...args: any[]) {
-            const r = orig(...args);
-            undo.markDirty();
-            return r;
+    if ((useSceneStore as any).__mvmntUndoInstrumented) return;
+    const api: any = useSceneStore.getState();
+    const wrap = (name: string) => {
+        const orig = api[name];
+        if (typeof orig !== 'function') return;
+        if (orig.__mvmntUndoWrapped) return;
+        const wrapped = (...args: any[]) => {
+            const result = orig(...args);
+            try {
+                if (typeof undo.isRestoring === 'function' && undo.isRestoring()) {
+                    return result;
+                }
+                undo.markDirty();
+            } catch {
+                /* ignore */
+            }
+            return result;
         };
+        wrapped.__mvmntUndoWrapped = true;
+        api[name] = wrapped;
     };
+
     [
         'addElement',
-        'removeElement',
-        'updateElementConfig',
         'moveElement',
         'duplicateElement',
-        'clearElements',
-        'loadScene',
-        'updateSceneSettings',
-    ].forEach((m) => wrap(sb, m));
-    sb.__mvmntUndoInstrumented = true;
+        'removeElement',
+        'updateElementId',
+        'updateSettings',
+        'updateBindings',
+        'createMacro',
+        'updateMacroValue',
+        'deleteMacro',
+        'clearScene',
+        'importScene',
+        'replaceMacros',
+    ].forEach(wrap);
+
+    (useSceneStore as any).__mvmntUndoInstrumented = true;
 }
 
 // Instrument timeline store actions so that meaningful mutations capture snapshots immediately

@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
+import MidiNotePreview from '@workspace/components/MidiNotePreview';
 
 type Props = {
     trackIds: string[];
@@ -13,12 +14,16 @@ function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const ppq = CANONICAL_PPQ; // unified PPQ
-    return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean) => {
-        if (altKey) return Math.max(0, Math.round(candidateTick));
+    return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean, allowNegative = false) => {
+        const clamp = (val: number) => {
+            const rounded = Math.round(val);
+            return allowNegative ? rounded : Math.max(0, rounded);
+        };
+        if (altKey) return clamp(candidateTick);
         const should = forceSnap || quantize === 'bar';
-        if (!should) return Math.max(0, Math.round(candidateTick));
+        if (!should) return clamp(candidateTick);
         const ticksPerBar = bpb * ppq;
-        return Math.max(0, Math.round(candidateTick / ticksPerBar) * ticksPerBar);
+        return clamp(Math.round(candidateTick / ticksPerBar) * ticksPerBar);
     }, [quantize, bpb, ppq]);
 }
 
@@ -80,26 +85,42 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const quantize = useTimelineStore((s) => s.transport.quantize);
 
         // Compute local clip extent from cached MIDI and optional region trimming
-        const { localStartTick, localEndTick } = useMemo(() => {
-            if (track?.type === 'audio') {
-                let start = track.regionStartTick ?? 0;
-                let end = track.regionEndTick ?? audioCacheEntry?.durationTicks ?? 0;
-                if (end < start) end = start;
-                return { localStartTick: start, localEndTick: end };
+        const { dataStartTick, dataEndTick } = useMemo(() => {
+            if (!track) return { dataStartTick: 0, dataEndTick: 0 };
+            if (track.type === 'audio') {
+                const duration = audioCacheEntry?.durationTicks ?? 0;
+                const safeDuration = Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : 0;
+                return { dataStartTick: 0, dataEndTick: safeDuration };
             }
-            let start = 0;
-            let end = 0;
             const notes = midiCacheEntry?.notesRaw || [];
-            if (notes.length > 0) {
-                start = notes.reduce((m, n) => Math.min(m, n.startBeat != null ? Math.round(n.startBeat * ppq) : m), Number.POSITIVE_INFINITY);
-                if (!isFinite(start)) start = 0;
-                end = notes.reduce((m, n) => Math.max(m, n.endBeat != null ? Math.round(n.endBeat * ppq) : m), 0);
+            if (!notes.length) return { dataStartTick: 0, dataEndTick: 0 };
+            let minTick = Number.POSITIVE_INFINITY;
+            let maxTick = 0;
+            for (const note of notes) {
+                if (typeof note.startTick === 'number' && note.startTick < minTick) minTick = note.startTick;
+                if (typeof note.endTick === 'number' && note.endTick > maxTick) maxTick = note.endTick;
             }
-            if (typeof track?.regionStartTick === 'number') start = Math.max(start, track.regionStartTick);
-            if (typeof track?.regionEndTick === 'number') end = Math.min(end, track.regionEndTick);
-            if (end < start) end = start;
-            return { localStartTick: start, localEndTick: end };
-        }, [midiCacheEntry, audioCacheEntry, track?.type, track?.regionStartTick, track?.regionEndTick, ppq]);
+            if (!isFinite(minTick)) minTick = 0;
+            if (maxTick < minTick) maxTick = minTick;
+            const safeStart = Math.max(0, Math.round(minTick));
+            const safeEnd = Math.max(safeStart, Math.round(maxTick));
+            return { dataStartTick: safeStart, dataEndTick: safeEnd };
+        }, [track, midiCacheEntry, audioCacheEntry]);
+
+        const regionStart = useMemo(() => {
+            if (typeof track?.regionStartTick !== 'number') return undefined;
+            const clamped = Math.min(Math.max(Math.round(track.regionStartTick), dataStartTick), dataEndTick);
+            return clamped;
+        }, [track?.regionStartTick, dataStartTick, dataEndTick]);
+
+        const regionEnd = useMemo(() => {
+            if (typeof track?.regionEndTick !== 'number') return undefined;
+            const clamped = Math.min(Math.max(Math.round(track.regionEndTick), dataStartTick), dataEndTick);
+            return Math.max(clamped, regionStart ?? dataStartTick);
+        }, [track?.regionEndTick, dataStartTick, dataEndTick, regionStart]);
+
+        const localStartTick = regionStart ?? dataStartTick;
+        const localEndTick = regionEnd ?? dataEndTick;
 
         const onPointerDown = (e: React.PointerEvent) => {
             if (!track) return;
@@ -110,27 +131,39 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setDidMove(false);
             onHoverSnapX(null);
         };
+        const allowNegativeOffset = track?.type === 'audio';
+
         const onPointerMove = (e: React.PointerEvent) => {
             if (resizing) {
                 const dx = e.clientX - resizing.startX;
                 const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-                const candidateAbs = Math.max(0, (track?.offsetTicks || 0) + (resizing.type === 'left' ? resizing.baseStart : resizing.baseEnd) + deltaTicks);
+                const baseLocal = resizing.type === 'left' ? resizing.baseStart : resizing.baseEnd;
+                const candidateAbs = Math.max(0, (track?.offsetTicks || 0) + baseLocal + deltaTicks);
                 const snappedAbs = snapTicks(candidateAbs, e.altKey, false);
                 const absOffset = track?.offsetTicks || 0;
-                const notes = midiCacheEntry?.notesRaw || [];
-                const rawMin = notes.length ? notes.reduce((m, n) => Math.min(m, n.startBeat != null ? Math.round(n.startBeat * ppq) : m), Number.POSITIVE_INFINITY) : 0;
-                const rawMax = notes.length ? notes.reduce((m, n) => Math.max(m, n.endBeat != null ? Math.round(n.endBeat * ppq) : m), 0) : 0;
-                const minAbs = absOffset + Math.max(0, rawMin);
-                const maxAbs = absOffset + Math.max(minAbs, rawMax);
+                const minAbs = absOffset + dataStartTick;
+                const maxAbs = absOffset + dataEndTick;
                 const clampedAbs = Math.min(Math.max(snappedAbs, minAbs), maxAbs);
-                const newLocal = Math.max(0, clampedAbs - absOffset);
+                const newLocal = Math.max(dataStartTick, Math.min(clampedAbs - absOffset, dataEndTick));
+                const currentRegionStart = regionStart;
+                const currentRegionEnd = regionEnd;
+                const prevStart = currentRegionStart != null ? Math.round(currentRegionStart) : undefined;
+                const prevEnd = currentRegionEnd != null ? Math.round(currentRegionEnd) : undefined;
                 if (resizing.type === 'left') {
-                    const newStart = Math.min(newLocal, (track?.regionEndTick ?? localEndTick));
-                    setTrackRegionTicks(trackId, newStart, track?.regionEndTick);
+                    const endBoundary = currentRegionEnd ?? dataEndTick;
+                    const limited = Math.min(newLocal, endBoundary);
+                    const nextStart = limited <= dataStartTick ? undefined : Math.round(limited);
+                    if (nextStart !== prevStart) {
+                        setTrackRegionTicks(trackId, nextStart, prevEnd);
+                    }
                 } else {
-                    const minRight = (track?.regionStartTick ?? localStartTick) + 1;
-                    const newEnd = Math.max(newLocal, minRight);
-                    setTrackRegionTicks(trackId, track?.regionStartTick, newEnd);
+                    const startBoundary = currentRegionStart ?? dataStartTick;
+                    const enforced = Math.max(newLocal, startBoundary + 1);
+                    const limited = Math.min(enforced, dataEndTick);
+                    const nextEnd = limited >= dataEndTick ? undefined : Math.round(limited);
+                    if (nextEnd !== prevEnd) {
+                        setTrackRegionTicks(trackId, prevStart, nextEnd);
+                    }
                 }
                 setDidMove(true);
                 return;
@@ -138,8 +171,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             if (!dragging || !startRef.current) return;
             const dx = e.clientX - startRef.current.startX;
             const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-            const cand = Math.max(0, startRef.current.baseOffsetTick + deltaTicks);
-            const snapped = snapTicks(cand, e.altKey, false);
+            const altActive = !!(e.altKey || startRef.current.alt);
+            const candidate = startRef.current.baseOffsetTick + deltaTicks;
+            const snapped = snapTicks(candidate, altActive, false, allowNegativeOffset);
             setDragTick(snapped);
             onHoverSnapX(toX(snapped, laneWidth));
             if (Math.abs(dx) > 2) setDidMove(true);
@@ -152,8 +186,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             }
             if (!dragging) return;
             setDragging(false);
-            const finalTick = Math.max(0, dragTick != null ? dragTick : (track?.offsetTicks || 0));
-            setTrackOffsetTicks(trackId, finalTick);
+            const fallback = track?.offsetTicks ?? 0;
+            const finalTick = dragTick != null ? dragTick : fallback;
+            const clampedFinal = allowNegativeOffset ? finalTick : Math.max(0, finalTick);
+            setTrackOffsetTicks(trackId, clampedFinal);
             setDragTick(null);
             onHoverSnapX(null);
             // Click selection when not moved
@@ -170,51 +206,52 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setResizing({ type: which, startX: e.clientX, baseStart, baseEnd, alt: !!e.altKey });
         };
         const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
-        const absStartTick = Math.max(0, offsetTick + localStartTick);
-        const absEndTick = Math.max(absStartTick, offsetTick + localEndTick);
-        const visStart = view.startTick - 100;
-        const visEnd = view.endTick;
-        const clippedStartTick = Math.max(absStartTick, visStart);
-        const clippedEndTick = Math.max(clippedStartTick, Math.min(absEndTick, visEnd));
-        const leftX = toX(clippedStartTick, laneWidth);
-        const rightX = toX(clippedEndTick, laneWidth);
+        const rawAbsStart = offsetTick + localStartTick;
+        const rawAbsEnd = offsetTick + localEndTick;
+        const absStartTick = allowNegativeOffset ? rawAbsStart : Math.max(0, rawAbsStart);
+        const absEndTick = allowNegativeOffset
+            ? Math.max(rawAbsStart, rawAbsEnd)
+            : Math.max(absStartTick, Math.max(0, rawAbsEnd));
+        const leftX = toX(absStartTick, laneWidth);
+        const rightX = toX(absEndTick, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
-        const isClippedLeft = absStartTick < visStart;
-        const isClippedRight = absEndTick > visEnd;
+        const clipHeight = Math.max(18, laneHeight * 0.6);
         const offsetBeats = useMemo(() => {
             if (!track) return 0;
             return (dragTick != null ? dragTick : (track.offsetTicks || 0)) / ppq;
         }, [track, dragTick, ppq]);
         const beatsPerBar = Math.max(1, bpb);
-        const wholeBeats = Math.floor(offsetBeats + 1e-9);
+        const offsetBeatsAbs = Math.abs(offsetBeats);
+        const wholeBeats = Math.floor(offsetBeatsAbs + 1e-9);
         const barsDisplay = Math.floor(wholeBeats / beatsPerBar);
         const beatInBarDisplay = (wholeBeats % beatsPerBar) + 1; // 1-based beat index like DAWs
-        const label = `+${barsDisplay}|${beatInBarDisplay}`;
+        const sign = offsetBeats < 0 ? '-' : '+';
+        const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
         const tooltip = useMemo(() => {
             const st = useTimelineStore.getState();
             const bpm = st.timeline.globalBpm || 120;
             const secPerBeat = 60 / bpm;
             const ticksToSec = (t: number) => (t / ppq) * secPerBeat;
-            const absStartRealTick = Math.max(0, offsetTick + localStartTick);
-            const absEndRealTick = Math.max(absStartRealTick, offsetTick + localEndTick);
+            const absStartRealTick = allowNegativeOffset ? rawAbsStart : Math.max(0, rawAbsStart);
+            const absEndRealTick = allowNegativeOffset
+                ? Math.max(rawAbsStart, rawAbsEnd)
+                : Math.max(absStartRealTick, Math.max(0, rawAbsEnd));
             const absStartSec = ticksToSec(absStartRealTick);
             const absEndSec = ticksToSec(absEndRealTick);
             const barsStart = absStartRealTick / (ppq * bpb);
             const barsEnd = absEndRealTick / (ppq * bpb);
             const fmt = (s: number) => `${s.toFixed(2)}s`;
             const fmtBar = (b: number) => {
-                const bb = Math.max(0, b);
-                const barIdx = Math.floor(bb) + 1;
-                const beatInBar = Math.floor((bb % 1) * (bpb || 4)) + 1;
-                return `${barIdx}|${beatInBar}`;
+                const negative = b < 0;
+                const abs = Math.abs(b);
+                const barIdx = Math.floor(abs) + 1;
+                const beatInBar = Math.floor((abs % 1) * (bpb || 4)) + 1;
+                const prefix = negative ? '-' : '';
+                return `${prefix}${barIdx}|${beatInBar}`;
             };
             const snapInfo = `Snap: ${quantize === 'bar' ? 'Bar' : 'Off'} (hold Alt to bypass)`;
-            const clipInfo: string[] = [];
-            if (absStartRealTick < visStart) clipInfo.push('Start clipped by view');
-            if (absEndRealTick > visEnd) clipInfo.push('End clipped by view');
-            const clipLine = clipInfo.length ? `\n${clipInfo.join('; ')}` : '';
-            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})${clipLine}`;
-        }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, visStart, visEnd, ppq]);
+            return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
+        }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
         return (
             <div className="relative h-full"
@@ -225,7 +262,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 {widthPx > 0 && (
                     <div
                         className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                        style={{ left: Math.max(0, leftX), width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
+                        style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
@@ -235,20 +272,19 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             <div className="absolute inset-0 pointer-events-none opacity-70">
                                 <AudioWaveform
                                     trackId={trackId}
-                                    height={Math.max(18, laneHeight * 0.6) - 4}
+                                    height={clipHeight - 4}
                                     regionStartTickAbs={absStartTick}
                                     regionEndTickAbs={absEndTick}
-                                    visibleStartTickAbs={clippedStartTick}
-                                    visibleEndTickAbs={clippedEndTick}
                                 />
                             </div>
                         )}
-                        {/* Hard edge indicators: simple solid bars when clipped */}
-                        {isClippedLeft && (
-                            <div className="pointer-events-none absolute inset-y-0 left-0 w-[2px] bg-red-400/70" />
-                        )}
-                        {isClippedRight && (
-                            <div className="pointer-events-none absolute inset-y-0 right-0 w-[2px] bg-red-400/70" />
+                        {track?.type === 'midi' && (
+                            <MidiNotePreview
+                                notes={midiCacheEntry?.notesRaw ?? []}
+                                visibleStartTick={localStartTick}
+                                visibleEndTick={localEndTick}
+                                height={clipHeight - 4}
+                            />
                         )}
                         <div className="relative z-10 flex items-center gap-1">
                             <span>{track?.name}</span>
@@ -335,7 +371,27 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     };
 
     const rowHeight = useTimelineStore((s) => s.rowHeight);
-    const lanesHeight = Math.max(rowHeight * Math.max(1, trackIds.length), 120);
+    const lanesHeight = trackIds.length > 0
+        ? rowHeight * Math.max(1, trackIds.length)
+        : Math.max(120, rowHeight);
+    const [containerHeight, setContainerHeight] = useState(0);
+    useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const update = () => {
+            const rect = el.getBoundingClientRect();
+            setContainerHeight(Math.max(0, Math.round(rect.height)));
+        };
+        update();
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => update());
+            observer.observe(el);
+            return () => observer.disconnect();
+        }
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+    }, []);
+    const effectiveHeight = Math.max(lanesHeight, containerHeight);
     const playheadX = toX(currentTick, Math.max(1, width));
 
     // Compute display pad to extend beyond view for readability (keep in sync with useTimeScale)
@@ -428,10 +484,10 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             onPointerDown={onBackgroundPointerDown}
             onPointerMove={onBackgroundPointerMove}
             onPointerUp={onBackgroundPointerUp}
-            style={{ height: lanesHeight, width: '100%' }}
+            style={{ minHeight: lanesHeight, height: '100%', width: '100%' }}
         >
             {/* Grid */}
-            <GridLines width={width} height={lanesHeight} startTick={dispStart} endTick={dispEnd} />
+            <GridLines width={width} height={effectiveHeight} startTick={dispStart} endTick={dispEnd} />
 
             {/* Hover snapped line for DnD and dragging */}
             {hoverX != null && (

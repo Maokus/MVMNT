@@ -11,12 +11,13 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import { useSceneStore } from '@state/sceneStore';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
 export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
-    sceneBuilder?: any;
     selectElement: (id: string | null) => void;
     updateElementConfig?: (id: string, cfg: any) => void;
     incrementPropertyPanelRefresh: () => void;
@@ -108,11 +109,10 @@ function updateMoveDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     const constrained = computeConstrainedMoveDelta(dx, dy, meta.origRotation || 0, shiftKey);
     const newX = meta.origOffsetX + constrained.dx;
     const newY = meta.origOffsetY + constrained.dy;
-    sceneBuilder?.updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
     updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
 }
 
@@ -125,7 +125,7 @@ function updateScaleDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder } = deps;
+    const { updateElementConfig } = deps;
     if (!meta.bounds) return;
     const r = computeScaledTransform(
         x,
@@ -154,8 +154,7 @@ function updateScaleDrag(
             offsetX: r.newOffsetX,
             offsetY: r.newOffsetY,
         };
-        sceneBuilder?.updateElementConfig?.(elId, cfg);
-        deps.updateElementConfig?.(elId, cfg);
+        updateElementConfig?.(elId, cfg);
     }
 }
 
@@ -168,7 +167,7 @@ function updateAnchorDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     if (!meta.bounds || !meta.baseBounds) return;
     const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
         x,
@@ -188,7 +187,6 @@ function updateAnchorDrag(
         shiftKey
     );
     const cfg = { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY };
-    sceneBuilder?.updateElementConfig?.(elId, cfg);
     updateElementConfig?.(elId, cfg);
 }
 
@@ -201,10 +199,9 @@ function updateRotateDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { sceneBuilder, updateElementConfig } = deps;
+    const { updateElementConfig } = deps;
     if (!meta.bounds) return;
     const newRotationDeg = computeRotation(x, y, meta, shiftKey);
-    sceneBuilder?.updateElementConfig?.(elId, { elementRotation: newRotationDeg });
     updateElementConfig?.(elId, { elementRotation: newRotationDeg });
 }
 
@@ -271,7 +268,9 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
 
 // ----- Exported top-level handlers -----
 
-export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
+type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
+
+export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
@@ -302,11 +301,8 @@ export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
 
     if (isDouble && afterSelected) {
         try {
-            // Obtain element from scene builder if available
-            const sb = deps.sceneBuilder;
-            const el = sb?.getElement?.(afterSelected) || null;
-            // Heuristic: treat as text-editable if it has a 'text' binding/property
-            const hasTextProperty = !!(el && typeof el.getBinding === 'function' && el.getBinding('text'));
+            const bindings = useSceneStore.getState().bindings.byElement[afterSelected] ?? {};
+            const hasTextProperty = Object.prototype.hasOwnProperty.call(bindings, 'text');
             if (hasTextProperty) {
                 // Prevent initiating a drag after double-click
                 vis.setInteractionState({ draggingElementId: null, activeHandle: null });
@@ -354,7 +350,7 @@ export function onCanvasMouseDown(e: React.MouseEvent, deps: InteractionDeps) {
     }
 }
 
-export function onCanvasMouseMove(e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
@@ -363,15 +359,19 @@ export function onCanvasMouseMove(e: React.MouseEvent, deps: InteractionDeps) {
     updateHover(vis, x, y);
 }
 
-export function onCanvasMouseUp(_e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseUp(_e: CanvasMouseEvent, deps: InteractionDeps) {
     const { visualizer: vis } = deps;
     if (!vis) return;
     finalizeDrag(vis, deps);
 }
 
-export function onCanvasMouseLeave(_e: React.MouseEvent, deps: InteractionDeps) {
+export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) {
     const { visualizer: vis } = deps;
     if (!vis) return;
+    if (vis._interactionState?.draggingElementId) {
+        vis.setInteractionState({ hoverElementId: null, activeHandle: null });
+        return;
+    }
     finalizeDrag(vis, deps);
     vis.setInteractionState({ hoverElementId: null, activeHandle: null });
 }

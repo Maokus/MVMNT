@@ -8,16 +8,30 @@
 // The function is idempotent and safe to call multiple times; subsequent calls
 // resolve immediately after the first successful registration.
 
+const MP3_ENCODER_MODULE_ID = '@mediabunny/mp3-encoder';
+
 let mp3RegistrationPromise: Promise<void> | null = null;
 let mp3Registered = false;
+
+async function loadMp3EncoderModule() {
+    try {
+        const moduleId = MP3_ENCODER_MODULE_ID;
+        const importer: (specifier: string) => Promise<any> = (specifier) =>
+            import(/* @vite-ignore */ specifier);
+        return await importer(moduleId);
+    } catch (error) {
+        const fallback = await import('./mp3-encoder-optional-fallback');
+        fallback.reportMissingEncoder(error);
+        return fallback;
+    }
+}
 
 export function ensureMp3EncoderRegistered(): Promise<void> {
     if (mp3Registered) return Promise.resolve();
     if (mp3RegistrationPromise) return mp3RegistrationPromise;
     mp3RegistrationPromise = (async () => {
         try {
-            // Dynamic import – hint to bundler to create a separate chunk.
-            const mod = await import(/* webpackChunkName: "mp3-encoder" */ '@mediabunny/mp3-encoder');
+            const mod = await loadMp3EncoderModule();
             if (mod?.registerMp3Encoder) {
                 mod.registerMp3Encoder();
                 mp3Registered = true;

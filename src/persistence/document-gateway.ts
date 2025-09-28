@@ -1,16 +1,7 @@
 import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
-import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
-
-// Lightweight runtime discovery of scene builder without creating an import cycle.
-function _getSceneBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
+import { useSceneStore } from '@state/sceneStore';
+import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -51,24 +42,31 @@ export const DocumentGateway = {
         // Scene + macros (best effort)
         let elements: any[] = [];
         let sceneSettings: any = undefined;
-        const sb = _getSceneBuilder();
-        if (sb && typeof sb.serializeScene === 'function') {
-            try {
-                const serialized = sb.serializeScene();
-                if (serialized?.elements) elements = serialized.elements.map((e: any) => ({ ...e }));
-                if (serialized?.sceneSettings) {
-                    sceneSettings = { ...serialized.sceneSettings };
-                    // Remove padding keys
-                    for (const k of Object.keys(sceneSettings)) {
-                        if (STRIP_SCENE_SETTINGS_KEYS.has(k)) delete sceneSettings[k];
-                    }
-                }
-            } catch {}
-        }
         let macros: any = undefined;
+
         try {
-            macros = globalMacroManager.exportMacros();
+            const snapshot = useSceneStore.getState().exportSceneDraft();
+            if (Array.isArray(snapshot.elements)) {
+                elements = snapshot.elements.map((el: any) => ({ ...el }));
+            }
+            if (snapshot.sceneSettings) {
+                sceneSettings = { ...snapshot.sceneSettings };
+            }
+            if (snapshot.macros) {
+                macros = { ...snapshot.macros };
+            }
         } catch {}
+
+        const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
+        if (!hasMacros) {
+            macros = getMacroSnapshot() ?? undefined;
+        }
+
+        if (sceneSettings) {
+            for (const k of Object.keys(sceneSettings)) {
+                if (STRIP_SCENE_SETTINGS_KEYS.has(k)) delete sceneSettings[k];
+            }
+        }
 
         const doc: PersistentDocumentV1 = {
             timeline: timelineCore,
@@ -130,51 +128,34 @@ export const DocumentGateway = {
         }
 
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
+        const sceneData = {
+            elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
+            sceneSettings: doc.scene?.sceneSettings,
+            macros: doc.scene?.macros,
+        };
+
         try {
-            if (doc.scene?.macros) {
-                try {
-                    globalMacroManager.importMacros(doc.scene.macros);
-                } catch {}
-            }
-            const sb = _getSceneBuilder();
-            if (sb) {
-                const sceneData = {
-                    elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
-                    sceneSettings: doc.scene?.sceneSettings,
-                    macros: doc.scene?.macros,
-                };
-                if (sceneData.sceneSettings) {
-                    // Previously we unconditionally applied sceneSettings. This caused restoring a snapshot
-                    // to revert BPM/meter to stale defaults embedded in the scene if the user changed tempo
-                    // after the scene was first created. We now only apply these if the timeline slice did NOT
-                    // already carry authoritative values (for imports from older documents that lacked them).
-                    try {
-                        const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
-                        const api = useTimelineStore.getState();
-                        const tl = api.timeline;
-                        const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120; // 120 is default
-                        const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4; // 4 default
-                        if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
-                        if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
-                            api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
-                    } catch {
-                        /* ignore */
-                    }
-                }
-                if (typeof sb.loadScene === 'function') {
-                    sb.loadScene(sceneData);
-                } else if (sceneData.elements) {
-                    try {
-                        sb.clearElements?.();
-                    } catch {}
-                    for (const el of sceneData.elements) {
-                        try {
-                            sb.addElementFromRegistry?.(el.type, el);
-                        } catch {}
-                    }
-                }
-            }
+            useSceneStore.getState().importScene(sceneData);
         } catch {}
+
+        try {
+            replaceMacrosFromSnapshot(sceneData.macros);
+        } catch {}
+
+        if (sceneData.sceneSettings) {
+            try {
+                const { tempo, beatsPerBar } = sceneData.sceneSettings as any;
+                const api = useTimelineStore.getState();
+                const tl = api.timeline;
+                const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
+                const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
+                if (typeof tempo === 'number' && !haveTimelineBpm) api.setGlobalBpm(Math.max(1, tempo));
+                if (typeof beatsPerBar === 'number' && !haveTimelineMeter)
+                    api.setBeatsPerBar(Math.max(1, Math.floor(beatsPerBar)));
+            } catch {
+                /* ignore */
+            }
+        }
 
         // Ephemeral replay (undo only): restore currentTick & optionally transport/view.
         if (doc.__ephemeral) {
