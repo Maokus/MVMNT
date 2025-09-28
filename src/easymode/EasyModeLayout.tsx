@@ -86,13 +86,6 @@ const EasyModeLayout: React.FC = () => {
                     </button>
                     <button
                         type="button"
-                        onClick={() => setMacrosVisible((value) => !value)}
-                        className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1 font-semibold text-neutral-200 transition-colors hover:border-neutral-500 hover:bg-neutral-800"
-                    >
-                        {macrosVisible ? 'Hide Macros' : 'Show Macros'}
-                    </button>
-                    <button
-                        type="button"
                         onClick={handleExportVideo}
                         className="rounded border border-emerald-500 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
                     >
