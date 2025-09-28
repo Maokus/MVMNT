@@ -1,7 +1,6 @@
 import { create, type StateCreator } from 'zustand';
 import type { Macro } from '@bindings/macro-manager';
 import type { PropertyBindingData } from '@bindings/property-bindings';
-import type { SceneSettings } from '@core/scene-builder';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -24,7 +23,7 @@ export interface MacroBindingAssignment {
 
 export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
 
-export interface SceneSettingsState extends SceneSettings {}
+export interface SceneSettingsState {}
 
 export interface SceneElementRecord {
     id: string;

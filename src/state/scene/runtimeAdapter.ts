@@ -115,9 +115,7 @@ export class SceneRuntimeAdapter {
     }
 
     getElements(): SceneElement[] {
-        return this.orderedIds
-            .map((id) => this.cache.get(id)?.element)
-            .filter((el): el is SceneElement => Boolean(el));
+        return this.orderedIds.map((id) => this.cache.get(id)?.element).filter((el): el is SceneElement => Boolean(el));
     }
 
     buildScene(config: any, targetTime: number): RenderObject[] {
@@ -280,4 +278,3 @@ export class SceneRuntimeAdapter {
         }
     }
 }
-
