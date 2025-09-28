@@ -45,8 +45,8 @@
         "preview": "vite preview",
         "test": "vitest",
         "test:watch": "vitest --watch",
+        "lint": "npx tsc --noEmit",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
-        "lint:scene": "node scripts/check-scene-builder-usage.mjs",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional"
     },
     "browserslist": {

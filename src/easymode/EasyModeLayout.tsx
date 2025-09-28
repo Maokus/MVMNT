@@ -51,7 +51,7 @@ const EasyModeLayout: React.FC = () => {
     }, [midiTrackCount, audioTrackCount]);
 
     return (
-        <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
+        <div className="flex h-screen flex-col bg-neutral-800 text-neutral-100">
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
                     <div className="flex items-center gap-2">
@@ -118,17 +118,7 @@ const EasyModeLayout: React.FC = () => {
                 </div>
                 {macrosVisible && (
                     <aside className="flex w-full flex-col border-t border-neutral-800 bg-neutral-900/50 lg:w-80 lg:border-l lg:border-t-0">
-                        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-200">
-                            <span>Macros</span>
-                            <button
-                                type="button"
-                                onClick={() => setMacrosVisible(false)}
-                                className="text-xs font-medium text-neutral-400 hover:text-neutral-200"
-                            >
-                                Close
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto px-4 pb-6">
+                        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-2">
                             <MacroConfig visualizer={visualizer} />
                         </div>
                     </aside>
