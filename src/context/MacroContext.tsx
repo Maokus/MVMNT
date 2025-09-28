@@ -1,19 +1,21 @@
-import React, { createContext, useContext, useEffect, useCallback } from 'react';
-// @ts-ignore
-import { globalMacroManager, MacroType } from '@bindings/macro-manager';
+import React, { createContext, useContext, useEffect, useCallback, useMemo } from 'react';
+import { MacroType, type MacroManager, type Macro } from '@bindings/macro-manager';
 import { useVisualizer } from './VisualizerContext';
 import { dispatchSceneCommand, useSceneMacros } from '@state/scene';
 import type { SceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
+import { ensureMacroSync, getLegacyMacroManager } from '@state/scene/macroSyncService';
+
+type MacroList = ReturnType<typeof useSceneMacros>;
 
 interface MacroContextValue {
-    manager: any;
-    macros: any[];
+    manager: MacroManager;
+    macros: MacroList;
     refresh: () => void;
     create: (name: string, type: MacroType, value: any, options?: any) => boolean;
     updateValue: (name: string, value: any) => boolean;
     delete: (name: string) => void;
-    get: (name: string) => any;
+    get: (name: string) => Macro | null;
     assignListener: (listener: (eventType: string, data: any) => void) => () => void;
 }
 
@@ -23,6 +25,10 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { visualizer } = useVisualizer() as any;
     const storeMacros = useSceneMacros();
     const macros = storeMacros;
+    const manager = useMemo(() => {
+        ensureMacroSync();
+        return getLegacyMacroManager();
+    }, []);
 
     useEffect(() => {
         if (!visualizer || typeof visualizer.invalidateRender !== 'function') return;
@@ -72,7 +78,7 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         [runCommand]
     );
 
-    const get = useCallback((name: string) => {
+    const get = useCallback((name: string): Macro | null => {
         return useSceneStore.getState().macros.byId[name] ?? null;
     }, []);
 
@@ -86,7 +92,7 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     return (
-        <MacroContext.Provider value={{ manager: globalMacroManager, macros, refresh, create, updateValue, delete: del, get, assignListener }}>
+        <MacroContext.Provider value={{ manager, macros, refresh, create, updateValue, delete: del, get, assignListener }}>
             {children}
         </MacroContext.Provider>
     );

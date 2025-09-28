@@ -1,54 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-// @ts-ignore
-import { MIDIVisualizerCore } from '@core/visualizer-core.js';
-// @ts-ignore
-import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
-import { VideoExporter } from '@export/video-exporter.js';
-// Side-effect import: registers window.AVExporter so VideoExporter can delegate audio-inclusive exports.
-import '@export/av-exporter.js';
-import { TimingManager } from '@core/timing';
+import type { VideoExporter } from '@export/video-exporter.js';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
-// PlaybackClock now wrapped by TransportCoordinator; direct usage removed in favor of a unified transport API.
-import { getTransportCoordinator } from '@audio/transport-coordinator';
-// Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
-
-export interface ExportSettings {
-    fps: number;
-    width: number;
-    height: number;
-    fullDuration: boolean;
-    startTime: number;
-    endTime: number;
-    // Optional user-specified base filename (without extension). Defaults to current scene name when not provided.
-    filename?: string;
-    // (Padding removed from system)
-    // Optional per-export (render modal) video settings. Kept here so override typing is easy.
-    bitrate?: number; // target video bitrate (bps)
-    qualityPreset?: 'low' | 'medium' | 'high';
-    includeAudio?: boolean; // whether to include audio when exporting MP4 (delegates to AV exporter). Default true.
-    // Advanced export settings (A/V codecs & container negotiation)
-    // container deprecated (always mp4 currently)
-    container?: 'auto' | 'mp4' | 'webm';
-    videoCodec?: string; // 'h264' (alias of avc) default; 'auto' tries h264 then fallback
-    videoBitrateMode?: 'auto' | 'manual';
-    videoBitrate?: number; // manual video bitrate (bps) when mode == manual (supersedes legacy bitrate field)
-    audioCodec?: string; // 'auto' | codec id (aac, opus, vorbis, etc.)
-    audioBitrate?: number; // bps
-    audioSampleRate?: 'auto' | 44100 | 48000;
-    audioChannels?: 1 | 2;
-}
-
-export interface DebugSettings {
-    showAnchorPoints: boolean;
-}
-
-interface ProgressData { progress: number; text: string; }
-
-type ExportKind = 'png' | 'video' | null;
+import type { ProgressData } from './visualizer/types';
+import { ExportKind, ExportSettings, DebugSettings } from './visualizer/types';
+import { useVisualizerBootstrap } from './visualizer/useVisualizerBootstrap';
+import { useRenderLoop } from './visualizer/useRenderLoop';
+import { useTransportBridge } from './visualizer/useTransportBridge';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -117,278 +78,28 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const [sceneNameState, setSceneNameState] = useState<string>('scene');
     // TimelineService removed: all track/timeline operations flow through Zustand store.
 
-    // Listen for scene name changes broadcast by SceneContext
-    useEffect(() => {
-        const handler = (e: any) => {
-            if (e?.detail?.sceneName) {
-                sceneNameRef.current = e.detail.sceneName;
-                setSceneNameState(e.detail.sceneName);
-            }
-        };
-        window.addEventListener('scene-name-changed', handler as EventListener);
-        return () => window.removeEventListener('scene-name-changed', handler as EventListener);
-    }, []);
+    useVisualizerBootstrap({
+        canvasRef,
+        visualizer,
+        setVisualizer,
+        setImageSequenceGenerator,
+        setVideoExporter,
+        setExportSettings,
+        sceneNameRef,
+        setSceneNameState,
+    });
 
-    // Initialize visualizer
-    useEffect(() => {
-        if (canvasRef.current && !visualizer) {
-            const vis = new MIDIVisualizerCore(canvasRef.current);
-            // Do not tie visualizer play range to initial timeline view; view should not constrain playback.
-            vis.render();
-            setVisualizer(vis);
-            const gen = new ImageSequenceGenerator(canvasRef.current, vis);
-            setImageSequenceGenerator(gen);
-            const vid = new VideoExporter(canvasRef.current, vis);
-            setVideoExporter(vid);
-            (window as any).debugVisualizer = vis;
-            // Global timeline service removed; non-React consumers should use store adapters instead.
-            // Removed auto-binding of first timeline track to piano roll to avoid confusion
-            // (Explicit user selection now required.)
-            try { /* no-op */ } catch { }
-            // Sync initial fps/width/height from scene builder settings
-            try {
-                const settings = useSceneStore.getState().settings;
-                setExportSettings((prev) => ({
-                    ...prev,
-                    fps: settings.fps ?? prev.fps,
-                    width: settings.width ?? prev.width,
-                    height: settings.height ?? prev.height,
-                }));
-            } catch { }
-        }
-    }, [visualizer]);
+    useRenderLoop({ visualizer, setCurrentTimeLabel, setNumericCurrentTime, setTotalDuration });
+
+    const { playPause, stop, stepForward, stepBackward, forceRender, seekPercent } = useTransportBridge({
+        visualizer,
+        setIsPlaying,
+    });
 
     // (Removed duplicate view sync; see effect near bottom that also clamps current time)
 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
-
-    // Animation / time update loop — drives tick-domain playhead. Seconds are derived for any UI that needs them.
-    // NOTE (2025-09): Updated paused-state sync so manual tick scrubs (ruler drag while paused) immediately seek the
-    // visualizer instead of being reverted by the seconds->tick mirror. We track the last applied tick to detect user driven changes.
-    useEffect(() => {
-        if (!visualizer) return;
-        let raf: number | null = null;
-        let loopActive = true; // whether we are currently running RAF frames
-        let lastUIUpdate = 0;
-        const UI_UPDATE_INTERVAL = 150; // ms (throttled per Optimization #2)
-        // Memoization for TimingManager config (#3)
-        let lastAppliedBpm: number | null = null;
-        let lastTempoMapVersion: string | null = null; // stringified length+first+last markers
-        // Track last tick for short-circuit (#4)
-        let lastTickForPaused = useTimelineStore.getState().timeline.currentTick;
-        // A flag that something changed while idle so we must render a frame
-        let needsFrameWhileIdle = true;
-
-        const wakeLoop = (why: string) => {
-            if (!loopActive) {
-                loopActive = true;
-                needsFrameWhileIdle = true;
-                raf = requestAnimationFrame(loop);
-            } else {
-                // If already active but paused-idle, ensure one more frame
-                needsFrameWhileIdle = true;
-            }
-        };
-        const lastAppliedTickRef = { current: useTimelineStore.getState().timeline.currentTick };
-        // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
-        // We approximate current tick from existing store on mount.
-        const tm = getSharedTimingManager();
-        const stateAtStart = useTimelineStore.getState();
-        // Derive starting tick from store (already dual-written)
-        const startTick = stateAtStart.timeline.currentTick ?? 0;
-        const transportCoordinator = getTransportCoordinator();
-        const playSnapHandler = (e: any) => {
-            if (!e?.detail?.tick) return;
-            try { transportCoordinator.seek(e.detail.tick); } catch { /* ignore */ }
-        };
-        window.addEventListener('timeline-play-snapped', playSnapHandler as EventListener);
-
-        const loop = () => {
-            const state = useTimelineStore.getState();
-            // Optimization #1: Suspend RAF loop if paused & nothing changed
-            const isPaused = !state.transport.isPlaying;
-
-            // Apply memoized TimingManager configuration (#3)
-            try {
-                const tmCfg = getSharedTimingManager();
-                const bpm = state.timeline.globalBpm || 120;
-                let tempoMapVersion: string | null = null;
-                const map = state.timeline.masterTempoMap;
-                if (map && map.length) {
-                    const first = map[0];
-                    const last = map[map.length - 1];
-                    // Build a lightweight signature: length + first.time + last.time + first.bpm + last.bpm (if present)
-                    // TempoMapEntry assumed shape { time?: number; bpm?: number; ... }
-                    tempoMapVersion = `${map.length}:${first?.time ?? 0}:${last?.time ?? 0}:${first?.bpm ?? ''}:${last?.bpm ?? ''}`;
-                }
-                if (lastAppliedBpm !== bpm) {
-                    tmCfg.setBPM(bpm);
-                    lastAppliedBpm = bpm;
-                }
-                if (tempoMapVersion !== lastTempoMapVersion) {
-                    if (map && map.length) tmCfg.setTempoMap(map, 'seconds');
-                    else tmCfg.setTempoMap(undefined, 'seconds');
-                    lastTempoMapVersion = tempoMapVersion;
-                }
-            } catch { /* ignore timing manager errors */ }
-            const vNow = visualizer.currentTime || 0; // seconds (visualizer still seconds-based internally)
-            // Determine playback end (stop automatically when playhead passes explicit playback range end)
-            try {
-                const st = useTimelineStore.getState();
-                const pr = st.playbackRange;
-                if (pr?.endTick != null) {
-                    // Convert authoritative tick to seconds for comparison (approx using TimingManager)
-                    const tmApprox = getSharedTimingManager();
-                    tmApprox.setBPM(st.timeline.globalBpm || 120);
-                    const endBeats = pr.endTick / tmApprox.ticksPerQuarter;
-                    const endSec = tmApprox.beatsToSeconds(endBeats);
-                    if (vNow >= endSec) {
-                        // Auto-stop behavior: pause visualizer & transport, reset playhead to start (loop-like) without killing RAF loop.
-                        visualizer.pause?.();
-                        try { if (st.transport.isPlaying) st.pause(); } catch { /* ignore */ }
-                        const startTick = pr.startTick ?? 0;
-                        transportCoordinator.seek(startTick);
-                        st.setCurrentTick(startTick, 'clock');
-                        // Do not early-return; allow rest of loop to process paused state and schedule next frame.
-                    }
-                }
-            } catch { }
-            // Loop handling (tick domain): if loop active and visualizer time passes loop end, wrap to loop start.
-            const { loopEnabled, loopStartTick, loopEndTick } = state.transport;
-            if (
-                loopEnabled &&
-                typeof loopStartTick === 'number' &&
-                typeof loopEndTick === 'number' &&
-                loopEndTick > loopStartTick
-            ) {
-                try {
-                    const tmLoop = getSharedTimingManager();
-                    tmLoop.setBPM(state.timeline.globalBpm || 120);
-                    if (state.timeline.masterTempoMap) tmLoop.setTempoMap(state.timeline.masterTempoMap, 'seconds');
-                    const loopStartSec = tmLoop.beatsToSeconds(loopStartTick / tmLoop.ticksPerQuarter);
-                    const loopEndSec = tmLoop.beatsToSeconds(loopEndTick / tmLoop.ticksPerQuarter);
-                    if (vNow >= loopEndSec - 1e-6) {
-                        visualizer.seek?.(loopStartSec);
-                        transportCoordinator.seek(loopStartTick);
-                        state.setCurrentTick(loopStartTick, 'clock');
-                    }
-                } catch {
-                    /* ignore loop wrap errors */
-                }
-            }
-            let next: number | undefined | null = undefined;
-            if (!isPaused) {
-                next = transportCoordinator.updateFrame(performance.now());
-            } else {
-                // Optimization #4: short-circuit when paused and tick unchanged
-                const currentTickPaused = state.timeline.currentTick ?? 0;
-                if (currentTickPaused !== lastTickForPaused) {
-                    // allow reconciliation path to run so visuals follow scrub
-                    next = currentTickPaused;
-                    lastTickForPaused = currentTickPaused;
-                }
-            }
-            if (typeof next === 'number') {
-                const storeTick = state.timeline.currentTick ?? 0;
-                if (next !== storeTick) {
-                    state.setCurrentTick(next, 'clock');
-                    lastAppliedTickRef.current = next;
-                    try {
-                        const tmConv = getSharedTimingManager();
-                        // BPM already memo-applied; only tempo map may need ensure (cheap guard)
-                        const secFromTick = tmConv.beatsToSeconds(next / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03) visualizer.seek?.(secFromTick);
-                    } catch { /* ignore */ }
-                }
-            } else if (!state.transport.isPlaying) {
-                const currentTickVal = state.timeline.currentTick ?? 0;
-                if (currentTickVal !== lastAppliedTickRef.current) {
-                    transportCoordinator.seek(currentTickVal);
-                    try {
-                        const tmConv = getSharedTimingManager();
-                        // BPM already set if changed
-                        const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) visualizer.seek?.(secFromTick);
-                    } catch { /* noop */ }
-                    lastAppliedTickRef.current = currentTickVal;
-                }
-            }
-
-            // Throttled UI labels
-            const nowTs = performance.now();
-            if (nowTs - lastUIUpdate > UI_UPDATE_INTERVAL) {
-                // Canonical tick -> seconds conversion for display to avoid drift between visualizer internal clock & store tick.
-                try {
-                    const stNow = useTimelineStore.getState();
-                    const tmDisp = getSharedTimingManager();
-                    const tick = stNow.timeline.currentTick;
-                    const sec = tmDisp.beatsToSeconds(tick / tmDisp.ticksPerQuarter);
-                    const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-                    const format = (s: number) => {
-                        const sign = s < 0 ? '-' : '';
-                        const abs = Math.abs(s);
-                        const m = Math.floor(abs / 60);
-                        const secI = Math.floor(abs % 60);
-                        return `${sign}${m.toString().padStart(2, '0')}:${secI.toString().padStart(2, '0')}`;
-                    };
-                    setCurrentTimeLabel(`${format(sec)} / ${format(total)}`);
-                    setNumericCurrentTime(sec);
-                    setTotalDuration(total);
-                } catch { /* ignore display calc errors */ }
-                lastUIUpdate = nowTs;
-            }
-            // Decide whether to continue RAF
-            if (isPaused) {
-                // If paused and no pending visualizer invalidation or scrub, allow suspension
-                if (!needsFrameWhileIdle) {
-                    loopActive = false; // stop scheduling further frames; wakeLoop will restart
-                    raf = null;
-                    return; // suspend
-                }
-                // We consumed the needed frame
-                needsFrameWhileIdle = false;
-            }
-            raf = requestAnimationFrame(loop);
-        };
-        raf = requestAnimationFrame(loop);
-
-        // Wake triggers
-        type SubState = { tick: number; playing: boolean; bpm: number; tempoMapLen: number };
-        let prevSub: SubState = {
-            tick: useTimelineStore.getState().timeline.currentTick,
-            playing: useTimelineStore.getState().transport.isPlaying,
-            bpm: useTimelineStore.getState().timeline.globalBpm,
-            tempoMapLen: useTimelineStore.getState().timeline.masterTempoMap?.length || 0,
-        };
-        const unsub = useTimelineStore.subscribe((s, prev) => {
-            const nextState: SubState = {
-                tick: s.timeline.currentTick,
-                playing: s.transport.isPlaying,
-                bpm: s.timeline.globalBpm,
-                tempoMapLen: s.timeline.masterTempoMap?.length || 0,
-            };
-            const p = prevSub;
-            if (nextState.playing && !p.playing) wakeLoop('play');
-            else if (!nextState.playing && p.playing) wakeLoop('pause');
-            else if (nextState.tick !== p.tick) wakeLoop('tick');
-            else if (nextState.bpm !== p.bpm) wakeLoop('bpm');
-            else if (nextState.tempoMapLen !== p.tempoMapLen) wakeLoop('tempoMap');
-            prevSub = nextState;
-        });
-        const visInvalidate = () => wakeLoop('visualizerInvalidate');
-        visualizer.canvas?.addEventListener('visualizer-update', visInvalidate);
-        const fontLoaded = () => wakeLoop('fontLoaded');
-        window.addEventListener('font-loaded', fontLoaded as EventListener);
-        return () => {
-            if (raf) cancelAnimationFrame(raf);
-            window.removeEventListener('timeline-play-snapped', playSnapHandler as EventListener);
-            if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
-            visualizer.canvas?.removeEventListener('visualizer-update', visInvalidate);
-            window.removeEventListener('font-loaded', fontLoaded as EventListener);
-            unsub?.();
-        };
-    }, [visualizer]);
 
     // Apply export settings size changes
     useEffect(() => {
@@ -438,81 +149,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         window.addEventListener('font-loaded', handler as EventListener);
         return () => window.removeEventListener('font-loaded', handler as EventListener);
     }, [visualizer]);
-
-    const playPause = useCallback(() => {
-        // Delegate play/pause to global timeline store so UI stays in sync
-        const { togglePlay } = useTimelineStore.getState();
-        togglePlay();
-    }, []);
-
-    // Global spacebar shortcut for play/pause
-    // Requirements:
-    // - Always toggle transport with Space while in workspace (this provider only mounts there)
-    // - Prevent default behavior that re-opens or re-focuses dropdown <select> elements
-    // - Still allow entering spaces inside genuine text-editing fields (text inputs, textareas, contentEditable)
-    useEffect(() => {
-        const handleKey = (e: KeyboardEvent) => {
-            if (e.code === 'Space' || e.key === ' ') {
-                const target = e.target as HTMLElement | null;
-                const tag = target?.tagName;
-                // Determine if the focused element is a text-editing control where the user reasonably expects a space character
-                let isEditing = false;
-                if (target) {
-                    if (target.isContentEditable) {
-                        isEditing = true;
-                    } else if (tag === 'TEXTAREA') {
-                        isEditing = true;
-                    } else if (tag === 'INPUT') {
-                        const type = (target as HTMLInputElement).type;
-                        const textLike = ['text', 'search', 'url', 'tel', 'email', 'password'];
-                        if (textLike.includes(type)) isEditing = true;
-                    }
-                }
-                // If it's a pure text editing field, do NOT hijack space.
-                if (isEditing) return;
-                // For everything else (including SELECT, number inputs, buttons, etc.) we treat space as transport toggle.
-                // This prevents reopening of dropdown menus after interaction.
-                e.preventDefault();
-                try {
-                    const { togglePlay } = useTimelineStore.getState();
-                    togglePlay();
-                } catch { /* ignore */ }
-            }
-        };
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, []);
-
-    // Sync visualizer playback with global timeline store transport
-    const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
-    // Use derived seconds selector instead of removed currentTimeSec
-    const tCurrent = useTimelineStore((s) => {
-        const spb = 60 / (s.timeline.globalBpm || 120);
-        const beats = s.timeline.currentTick / getSharedTimingManager().ticksPerQuarter;
-        return getSharedTimingManager().beatsToSeconds(beats); // TimingManager already accounts for tempo map
-    });
-    useEffect(() => {
-        if (!visualizer) return;
-        // Toggle visualizer play/pause to match store
-        if (tIsPlaying && !visualizer.isPlaying) {
-            const started = visualizer.play?.();
-            setIsPlaying(started && !!visualizer.isPlaying);
-        } else if (!tIsPlaying && visualizer.isPlaying) {
-            visualizer.pause?.();
-            setIsPlaying(false);
-        }
-    }, [visualizer, tIsPlaying]);
-
-    // Seek visualizer when store time changes (scrub) and update play range when view window changes
-    useEffect(() => {
-        if (!visualizer) return;
-        const vTime = visualizer.currentTime || 0;
-        // Only push from store to visualizer on explicit scrubs (big changes),
-        // small drift is handled by the mirroring loop above.
-        if (typeof tCurrent === 'number' && Math.abs(vTime - tCurrent) > 0.05) {
-            visualizer.seek?.(tCurrent);
-        }
-    }, [visualizer, tCurrent]);
 
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
@@ -571,28 +207,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             didAutoFitRef.current = true;
         }
     }, [totalDuration, tView.startTick, tView.endTick, setTimelineViewTicks, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRangeTicks]);
-
-    const stop = useCallback(() => {
-        if (!visualizer) return;
-        visualizer.stop();
-        setIsPlaying(false);
-    }, [visualizer]);
-
-    const stepForward = useCallback(() => { visualizer?.stepForward?.(); }, [visualizer]);
-    const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
-    const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
-    const seekPercent = useCallback((percent: number) => {
-        if (!visualizer) return;
-        const st = useTimelineStore.getState();
-        const { startTick, endTick } = st.timelineView;
-        const tm = getSharedTimingManager();
-        tm.setBPM(st.timeline.globalBpm || 120);
-        const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
-        const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
-        const range = Math.max(0.001, endSec - startSec);
-        const target = startSec + Math.max(0, Math.min(1, percent)) * range;
-        visualizer.seek?.(target);
-    }, [visualizer]);
 
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;

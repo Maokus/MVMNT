@@ -1,4 +1,3 @@
-import { globalMacroManager, type Macro } from '@bindings/macro-manager';
 import {
     DEFAULT_SCENE_SETTINGS,
     useSceneStore,
@@ -11,6 +10,7 @@ import {
     type SceneStoreState,
 } from '@state/sceneStore';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
+import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 
 export type SceneCommand =
     | {
@@ -111,71 +111,6 @@ function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBi
     return next;
 }
 
-function createMacroPayload(state: SceneStoreState): SceneSerializedMacros | undefined {
-    if (state.macros.allIds.length === 0) return undefined;
-    const macros: Record<string, Macro> = {};
-    for (const id of state.macros.allIds) {
-        const macro = state.macros.byId[id];
-        if (macro) macros[id] = { ...macro };
-    }
-    return {
-        macros,
-        exportedAt: state.macros.exportedAt,
-    };
-}
-
-function importOrClearMacros(payload: SceneSerializedMacros | undefined | null) {
-    if (payload && payload.macros && Object.keys(payload.macros).length > 0) {
-        const normalized = {
-            macros: payload.macros,
-            exportedAt: payload.exportedAt ?? Date.now(),
-        } satisfies Parameters<(typeof globalMacroManager)['importMacros']>[0];
-        globalMacroManager.importMacros(normalized);
-    } else {
-        globalMacroManager.clearMacros();
-    }
-}
-
-function applyMacroSideEffects(store: SceneStoreState, command: SceneCommand) {
-    switch (command.type) {
-        case 'clearScene': {
-            if (command.clearMacros === false) {
-                const snapshot = createMacroPayload(store);
-                importOrClearMacros(snapshot ?? null);
-            } else {
-                globalMacroManager.clearMacros();
-            }
-            break;
-        }
-        case 'loadSerializedScene': {
-            const snapshot = createMacroPayload(store);
-            importOrClearMacros(snapshot ?? null);
-            break;
-        }
-        case 'createMacro': {
-            const { macroId, definition } = command;
-            const options = definition.options ?? {};
-            const initial = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
-            const created = globalMacroManager.createMacro(macroId, definition.type, initial, options);
-            if (created && !Object.is(initial, definition.value)) {
-                globalMacroManager.updateMacroValue(macroId, definition.value);
-            }
-            break;
-        }
-        case 'updateMacroValue':
-            globalMacroManager.updateMacroValue(command.macroId, command.value);
-            break;
-        case 'deleteMacro':
-            globalMacroManager.deleteMacro(command.macroId);
-            break;
-        case 'importMacros':
-            importOrClearMacros(command.payload);
-            break;
-        default:
-            break;
-    }
-}
-
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
     switch (command.type) {
         case 'addElement': {
@@ -206,7 +141,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             store.updateElementId(command.currentId, command.nextId);
             break;
         case 'clearScene': {
-            const previousMacros = command.clearMacros === false ? createMacroPayload(store) : undefined;
+            const previousMacros = command.clearMacros === false ? getMacroSnapshot() ?? undefined : undefined;
             store.clearScene();
             if (command.clearMacros === false && previousMacros) {
                 store.replaceMacros(previousMacros);
@@ -232,7 +167,7 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             store.deleteMacro(command.macroId);
             break;
         case 'importMacros':
-            store.replaceMacros(command.payload);
+            replaceMacrosFromSnapshot(command.payload);
             break;
         default:
             break;
@@ -245,6 +180,7 @@ function now() {
 
 export function dispatchSceneCommand(command: SceneCommand, _options?: SceneCommandOptions): SceneCommandResult {
     const start = now();
+    ensureMacroSync();
     const store = useSceneStore.getState();
 
     try {
@@ -257,13 +193,6 @@ export function dispatchSceneCommand(command: SceneCommand, _options?: SceneComm
             command,
             error: err,
         };
-    }
-
-    try {
-        const latest = useSceneStore.getState();
-        applyMacroSideEffects(latest, command);
-    } catch (error) {
-        console.warn('[scene command] macro side effects failed', error);
     }
 
     return {

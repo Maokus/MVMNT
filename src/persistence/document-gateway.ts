@@ -1,7 +1,7 @@
 import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
-import { globalMacroManager } from '../bindings/macro-manager';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
+import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -59,15 +59,7 @@ export const DocumentGateway = {
 
         const hasMacros = !!macros && !!macros.macros && Object.keys(macros.macros).length > 0;
         if (!hasMacros) {
-            try {
-                const exported = globalMacroManager.exportMacros?.();
-                if (exported && exported.macros && Object.keys(exported.macros).length > 0) {
-                    macros = {
-                        macros: { ...exported.macros },
-                        exportedAt: exported.exportedAt,
-                    };
-                }
-            } catch {}
+            macros = getMacroSnapshot() ?? undefined;
         }
 
         if (sceneSettings) {
@@ -147,11 +139,7 @@ export const DocumentGateway = {
         } catch {}
 
         try {
-            if (sceneData.macros && sceneData.macros.macros) {
-                globalMacroManager.importMacros(sceneData.macros);
-            } else {
-                globalMacroManager.clearMacros();
-            }
+            replaceMacrosFromSnapshot(sceneData.macros);
         } catch {}
 
         if (sceneData.sceneSettings) {

@@ -1,8 +1,8 @@
 import { serializeStable } from '@persistence/stable-stringify';
 import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from '@persistence/document-gateway';
-import { globalMacroManager } from '@bindings/macro-manager';
 import { useSceneStore } from '@state/sceneStore';
+import { getLegacyMacroManager, ensureMacroSync } from '@state/scene/macroSyncService';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -282,6 +282,7 @@ export function createSnapshotUndoController(_store: unknown, opts: CreateSnapsh
 
 // Instrument scene store actions so undo snapshots capture mutations promptly.
 export function instrumentSceneStoreForUndo() {
+    ensureMacroSync();
     const undo: any = (window as any).__mvmntUndo;
     if (!undo || typeof undo.markDirty !== 'function') return;
     if ((useSceneStore as any).__mvmntUndoInstrumented) return;
@@ -322,7 +323,7 @@ export function instrumentSceneStoreForUndo() {
         'replaceMacros',
     ].forEach(wrap);
 
-    const macroManager: any = globalMacroManager as any;
+    const macroManager: any = getLegacyMacroManager() as any;
     if (macroManager && !macroManager.__mvmntUndoInstrumented) {
         ['createMacro', 'updateMacroValue', 'deleteMacro', 'importMacros', 'clearMacros'].forEach((method) => {
             const orig = macroManager[method];

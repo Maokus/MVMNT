@@ -4,37 +4,20 @@ import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
-import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { TimingManager } from '@core/timing';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
-
-// Local helpers to avoid importing selectors (prevent circular deps)
-function _secondsToBarsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
-    const tl: any = state?.timeline || {};
-    const bpb = tl.beatsPerBar || 4;
-    const spbFallback = 60 / (tl.globalBpm || 120);
-    const beats = secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
-    return beats / bpb;
-}
-function _barsToSecondsLocal(state: Partial<TimelineState> | undefined, bars: number): number {
-    const tl: any = state?.timeline || {};
-    const bpb = tl.beatsPerBar || 4;
-    const spbFallback = 60 / (tl.globalBpm || 120);
-    const beats = bars * bpb;
-    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
-}
-
-// Local helpers for beats<->seconds using current timeline tempo context
-function _secondsToBeatsLocal(state: Partial<TimelineState> | undefined, seconds: number): number {
-    const tl: any = state?.timeline || {};
-    const spbFallback = 60 / (tl.globalBpm || 120);
-    return secondsToBeats(tl.masterTempoMap, seconds, spbFallback);
-}
-function _beatsToSecondsLocal(state: Partial<TimelineState> | undefined, beats: number): number {
-    const tl: any = state?.timeline || {};
-    const spbFallback = 60 / (tl.globalBpm || 120);
-    return beatsToSeconds(tl.masterTempoMap, beats, spbFallback);
-}
+import {
+    createTimingContext,
+    secondsToTicks as timingSecondsToTicks,
+    ticksToSeconds as timingTicksToSeconds,
+    secondsToBeatsContext,
+    beatsToSecondsContext,
+    secondsToBars,
+    barsToSeconds,
+    beatsToTicks,
+    ticksToBeats,
+    type TimelineTimingContext,
+} from './timelineTime';
 
 // Timeline base types
 // Types are now in timelineTypes.ts
@@ -209,7 +192,8 @@ function autoAdjustSceneRangeIfNeeded(get: () => TimelineState, set: (fn: any) =
     const same = Math.abs((current.startTick ?? -1) - start) < 1 && Math.abs((current.endTick ?? -1) - end) < 1;
     if (same) return;
     const oneBarBeats = s.timeline.beatsPerBar;
-    const oneBarTicks = _beatsToTicks(oneBarBeats);
+    const timing = contextFromState(s);
+    const oneBarTicks = Math.round(beatsToTicks(timing, oneBarBeats));
     // Cap to at most 960 bars previously caused scaling issues with mixed PPQ values; instead cap to 200 bars (~content heuristic)
     const maxBars = 200;
     const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
@@ -229,11 +213,21 @@ export function getSharedTimingManager() {
     return _tmSingleton;
 }
 export { _tmSingleton as sharedTimingManager }; // named export for direct import convenience
-function _beatsToTicks(beats: number): number {
-    return Math.round(beats * _tmSingleton.ticksPerQuarter);
-}
-function _ticksToBeats(ticks: number): number {
-    return ticks / _tmSingleton.ticksPerQuarter;
+
+const DEFAULT_TIMING_CONTEXT: TimelineTimingContext = createTimingContext(
+    { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
+    _tmSingleton.ticksPerQuarter
+);
+
+function contextFromState(state: TimelineState): TimelineTimingContext {
+    return createTimingContext(
+        {
+            globalBpm: state.timeline.globalBpm,
+            beatsPerBar: state.timeline.beatsPerBar,
+            masterTempoMap: state.timeline.masterTempoMap,
+        },
+        _tmSingleton.ticksPerQuarter
+    );
 }
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
@@ -255,12 +249,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         rate: 1.0,
         // Quantize enabled by default (bar snapping)
         quantize: 'bar',
-        loopStartTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 2)), // initial value derived from seconds helper
-        loopEndTick: _beatsToTicks(_secondsToBeatsLocal(undefined, 5)),
+        loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
+        loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
     },
     selection: { selectedTrackIds: [] },
     midiCache: {},
-    timelineView: { startTick: 0, endTick: _beatsToTicks(120) },
+    timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
     playbackRange: undefined,
     playbackRangeUserDefined: false,
     rowHeight: 30,
@@ -518,15 +512,21 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             // Recompute audioCache durationTicks so displayed beat length and clip width scale with BPM.
             // Original audioBuffer duration (in seconds) is constant; ticksPerSecond = (bpm * ppq)/60.
             try {
-                const ppq = _tmSingleton.ticksPerQuarter;
-                const ticksPerSecond = (v * ppq) / 60;
+                const timing = createTimingContext(
+                    {
+                        globalBpm: v,
+                        beatsPerBar: s.timeline.beatsPerBar,
+                        masterTempoMap: s.timeline.masterTempoMap,
+                    },
+                    _tmSingleton.ticksPerQuarter
+                );
                 const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
                 for (const [id, entry] of Object.entries(next.audioCache)) {
                     if (!entry || !entry.audioBuffer) {
                         updatedAudio[id] = entry as any;
                         continue;
                     }
-                    const newDurationTicks = Math.round(entry.audioBuffer.duration * ticksPerSecond);
+                    const newDurationTicks = Math.round(timingSecondsToTicks(timing, entry.audioBuffer.duration));
                     updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
                 }
                 next.audioCache = updatedAudio;
@@ -579,7 +579,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             let curTick = s.timeline.currentTick;
             const wasPlaying = s.transport.isPlaying;
             if (!wasPlaying && s.transport.quantize === 'bar') {
-                const ticksPerBar = _beatsToTicks(s.timeline.beatsPerBar);
+                const ticksPerBar = Math.max(
+                    1,
+                    Math.round(beatsToTicks(contextFromState(s), s.timeline.beatsPerBar))
+                );
                 // Use floor so we never jump the playhead forward past the user's chosen position;
                 // this eliminates the visible half-bar forward jump experienced with Math.round.
                 const snapped = Math.floor(curTick / ticksPerBar) * ticksPerBar;
@@ -671,12 +674,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ) {
         // Update cache; convert beat-based canonical timing to seconds according to current tempo context
         set((s: TimelineState) => {
-            const spbFallback = 60 / (s.timeline.globalBpm || 120);
-            const map = s.timeline.masterTempoMap;
+            const timing = contextFromState(s);
             const notes = data.notesRaw.map((n) => {
                 if (n.startBeat !== undefined && n.endBeat !== undefined) {
-                    const startSec = beatsToSeconds(map, n.startBeat, spbFallback);
-                    const endSec = beatsToSeconds(map, n.endBeat, spbFallback);
+                    const startSec = beatsToSecondsContext(timing, n.startBeat);
+                    const endSec = beatsToSecondsContext(timing, n.endBeat);
                     return { ...n, startTime: startSec, endTime: endSec, duration: Math.max(0, endSec - startSec) };
                 }
                 return n;
@@ -691,11 +693,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ingestAudioToCache(id: string, buffer: AudioBuffer) {
         // Compute duration in ticks using shared timing manager
         try {
-            const ticksPerQuarter = _tmSingleton.ticksPerQuarter; // PPQ
-            // Derive BPM from store timeline globalBpm (since TimingManager may not expose ticksPerSecond directly)
-            const bpm = get().timeline.globalBpm || 120;
-            const ticksPerSecond = (bpm * ticksPerQuarter) / 60;
-            const durationTicks = Math.round(buffer.duration * ticksPerSecond);
+            const state = get();
+            const durationTicks = Math.round(timingSecondsToTicks(contextFromState(state), buffer.duration));
             set((s: TimelineState) => ({
                 audioCache: {
                     ...s.audioCache,
