@@ -9,6 +9,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
+import logo from '@assets/Logo_Transparent.png';
 
 interface TemplateDefinition {
     id: string;
@@ -56,6 +57,7 @@ const EasyModeLayout: React.FC = () => {
     const templates = useMemo(() => EASY_MODE_TEMPLATES, []);
     const hasTemplates = templates.length > 0;
     const displaySceneName = sceneName?.trim() ? sceneName : 'Untitled Scene';
+    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
 
     const midiTrackCount = useTimelineStore(
         useCallback((state) => state.tracksOrder.filter((id) => state.tracks[id]?.type === 'midi').length, [])
@@ -108,25 +110,30 @@ const EasyModeLayout: React.FC = () => {
     }, [exportVideo, sceneName]);
 
     return (
-        <div className="flex h-screen flex-col bg-neutral-900 text-neutral-100">
-            <header className="border-b border-neutral-800 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-                <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-4 px-4 py-2 text-xs">
+        <div className="flex h-screen flex-col bg-neutral-800 text-neutral-100">
+            <header style={{ 'backgroundColor': 'var(--twc-menubar)' }} className="border-b border-neutral-600 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)] h-[48px]">
+                <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-4 px-4 py-0 text-xs">
                     <div className="flex items-center gap-3 text-sm font-medium">
-                        <Link
-                            to="/"
-                            className="text-base font-semibold text-white transition-colors hover:text-sky-300"
-                        >
-                            MVMNT
-                        </Link>
+                        <h3 style={{ marginRight: 0 }}>
+                            <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
+                                MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
+                            </Link>
+                        </h3>
                         <span className="rounded-full border border-neutral-700/80 bg-neutral-800/80 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-neutral-300">
                             Easy Mode
                         </span>
+                        <Link
+                            to="/workspace"
+                            className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
+                        >
+                            Open Workspace
+                        </Link>
                     </div>
                     <div className="flex min-w-[240px] flex-1 flex-wrap items-center justify-center gap-3 text-[11px] text-neutral-300 md:justify-center">
                         <div className="flex items-center gap-2 text-neutral-200">
                             <span className="uppercase tracking-wide text-neutral-500">Scene</span>
                             <span
-                                className="max-w-[220px] truncate rounded border border-neutral-700 bg-[color:var(--twc-control)] px-3 py-1 text-sm font-medium text-neutral-100"
+                                className="max-w-[220px] truncate rounded px-3 py-1 text-sm font-medium text-neutral-100"
                                 title={displaySceneName}
                                 aria-label="Scene name"
                             >
@@ -138,7 +145,7 @@ const EasyModeLayout: React.FC = () => {
                         <button
                             type="button"
                             onClick={handleOpenTemplates}
-                            className="inline-flex items-center justify-center gap-1 rounded border border-indigo-500/70 bg-indigo-600/20 px-3 py-1 text-indigo-100 transition-colors hover:bg-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
                             disabled={!hasTemplates}
                         >
                             Browse Templates
@@ -157,11 +164,9 @@ const EasyModeLayout: React.FC = () => {
                         >
                             Export Video
                         </button>
-                        <Link
-                            to="/workspace"
-                            className="inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
-                        >
-                            Open Workspace
+
+                        <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
+                            <img width="50" src={logo} style={{ cursor: 'pointer', marginTop: "-1px" }} />
                         </Link>
                     </div>
                 </div>
@@ -172,12 +177,12 @@ const EasyModeLayout: React.FC = () => {
                     <div className="flex-1 overflow-hidden border-b border-neutral-800">
                         <PreviewPanel />
                     </div>
-                    <div className="timeline-container h-[320px] border-t border-neutral-800">
+                    <div className="timeline-container h-[280px] border-t border-neutral-800">
                         <TimelinePanel />
                     </div>
                 </div>
                 {macrosVisible && (
-                    <aside className="flex w-full flex-col border-t border-neutral-800 bg-neutral-900/50 lg:w-80 lg:border-l lg:border-t-0">
+                    <aside className="flex w-full flex-col border-t border-neutral-800 bg-neutral-900/50 lg:w-[25rem] lg:border-l lg:border-t-0">
                         <div className="flex-1 overflow-y-auto px-4 pb-6 pt-2">
                             <MacroConfig visualizer={visualizer} showAddButton={false} />
                         </div>

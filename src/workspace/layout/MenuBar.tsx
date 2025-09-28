@@ -76,11 +76,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         to="/easymode"
                         style={{
                             textDecoration: 'none',
-                            color: '#e0f2f1',
+                            color: '#ffffff',
                             padding: '4px 8px',
                             borderRadius: 4,
-                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.6), rgba(6, 182, 212, 0.4))',
-                            border: '1px solid rgba(45, 212, 191, 0.6)',
+                            border: '1px solid rgba(191, 191, 191, 0.6)',
                             fontWeight: 600,
                         }}
                         title="Open simplified easy mode"
