@@ -67,15 +67,12 @@
     }
     /* Bottom timeline dock */
     .timeline-container {
-        @apply border-t shrink-0;
+        @apply shrink-0;
         background-color: var(--twc-background);
         border-color: var(--twc-border);
     }
     .timeline-panel {
-        @apply flex flex-col;
-        height: 220px;
-        min-height: 160px;
-        max-height: 40vh;
+        @apply flex flex-col min-h-[160px];
     }
     .timeline-header {
         @apply border-b px-3 py-1.5;

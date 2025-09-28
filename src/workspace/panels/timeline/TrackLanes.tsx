@@ -3,6 +3,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
+import MidiNotePreview from '@workspace/components/MidiNotePreview';
 
 type Props = {
     trackIds: string[];
@@ -214,6 +215,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const leftX = toX(absStartTick, laneWidth);
         const rightX = toX(absEndTick, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
+        const clipHeight = Math.max(18, laneHeight * 0.6);
         const offsetBeats = useMemo(() => {
             if (!track) return 0;
             return (dragTick != null ? dragTick : (track.offsetTicks || 0)) / ppq;
@@ -259,8 +261,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 {/* Track clip rectangle (width reflects clip length) */}
                 {widthPx > 0 && (
                     <div
-                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                        style={{ left: leftX, width: Math.max(8, widthPx), height: Math.max(18, laneHeight * 0.6) }}
+                        className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
+                        style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
@@ -270,11 +272,19 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             <div className="absolute inset-0 pointer-events-none opacity-70">
                                 <AudioWaveform
                                     trackId={trackId}
-                                    height={Math.max(18, laneHeight * 0.6) - 4}
+                                    height={clipHeight - 4}
                                     regionStartTickAbs={absStartTick}
                                     regionEndTickAbs={absEndTick}
                                 />
                             </div>
+                        )}
+                        {track?.type === 'midi' && (
+                            <MidiNotePreview
+                                notes={midiCacheEntry?.notesRaw ?? []}
+                                visibleStartTick={localStartTick}
+                                visibleEndTick={localEndTick}
+                                height={clipHeight - 4}
+                            />
                         )}
                         <div className="relative z-10 flex items-center gap-1">
                             <span>{track?.name}</span>

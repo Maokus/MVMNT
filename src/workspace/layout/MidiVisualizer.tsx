@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
@@ -19,6 +19,14 @@ import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
+const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const SIDE_MIN_WIDTH = 320;
+const SIDE_MAX_WIDTH = 720;
+const PREVIEW_MIN_WIDTH = 520;
+const SIDE_HANDLE_WIDTH = 6;
+const TIMELINE_MIN_HEIGHT = 160;
+const TIMELINE_HANDLE_HEIGHT = 8;
+
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
     const { showProgressOverlay, progressData, closeProgress, exportKind } = useVisualizer() as any;
@@ -27,6 +35,33 @@ const MidiVisualizerInner: React.FC = () => {
     const [timelineVisible, setTimelineVisible] = useState(true);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
     const [showRenderModal, setShowRenderModal] = useState(false);
+    const workspaceRef = useRef<HTMLDivElement | null>(null);
+    const sideResizeRef = useRef<null | { startX: number; startWidth: number; containerWidth: number }>(null);
+    const timelineResizeRef = useRef<null | { startY: number; startHeight: number }>(null);
+    const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+        if (typeof window === 'undefined') return 360;
+        const approx = Math.round(window.innerWidth * 0.28);
+        const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, window.innerWidth - PREVIEW_MIN_WIDTH));
+        return clampNumber(approx, SIDE_MIN_WIDTH, maxCandidate);
+    });
+    const [timelineHeight, setTimelineHeight] = useState(() => {
+        if (typeof window === 'undefined') return 240;
+        const approx = Math.round(window.innerHeight * 0.25);
+        const maxCandidate = Math.max(TIMELINE_MIN_HEIGHT, Math.round(window.innerHeight * 0.65));
+        return clampNumber(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
+    });
+
+    const getTimelineBounds = useCallback(() => {
+        if (typeof window === 'undefined') {
+            return { min: TIMELINE_MIN_HEIGHT, max: TIMELINE_MIN_HEIGHT * 3 };
+        }
+        const viewport = window.innerHeight || 900;
+        const ideal = Math.round(viewport * 0.65);
+        const lowerBound = TIMELINE_MIN_HEIGHT + 60;
+        const upperBound = Math.max(lowerBound, viewport - 160);
+        const max = clampNumber(ideal, lowerBound, upperBound);
+        return { min: TIMELINE_MIN_HEIGHT, max: Math.max(TIMELINE_MIN_HEIGHT, max) };
+    }, []);
 
     // Detect first visit via localStorage; show onboarding once
     useEffect(() => {
@@ -56,9 +91,88 @@ const MidiVisualizerInner: React.FC = () => {
         return () => window.removeEventListener('resize', check);
     }, []);
 
+    useEffect(() => {
+        const handleResize = () => {
+            const bounds = getTimelineBounds();
+            setTimelineHeight((prev) => clampNumber(prev, bounds.min, bounds.max));
+            const container = workspaceRef.current;
+            if (!container) return;
+            const width = container.getBoundingClientRect().width;
+            const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, width - PREVIEW_MIN_WIDTH));
+            setSidePanelWidth((prev) => clampNumber(prev, SIDE_MIN_WIDTH, maxCandidate));
+        };
+        handleResize();
+        if (typeof window !== 'undefined') {
+            window.addEventListener('resize', handleResize);
+            return () => window.removeEventListener('resize', handleResize);
+        }
+        return undefined;
+    }, [getTimelineBounds]);
+
+    useEffect(() => {
+        if (!sidePanelsVisible) return;
+        const container = workspaceRef.current;
+        if (!container) return;
+        const width = container.getBoundingClientRect().width;
+        const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, width - PREVIEW_MIN_WIDTH));
+        setSidePanelWidth((prev) => clampNumber(prev, SIDE_MIN_WIDTH, maxCandidate));
+    }, [sidePanelsVisible]);
+
     const proceedSmallScreen = () => {
         try { localStorage.setItem('mvmnt_small_screen_override_v1', '1'); } catch { }
         setShowSmallScreenWarning(false);
+    };
+
+    const handleSideResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!sidePanelsVisible) return;
+        const container = workspaceRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        sideResizeRef.current = {
+            startX: e.clientX,
+            startWidth: sidePanelWidth,
+            containerWidth: rect.width,
+        };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        e.preventDefault();
+    };
+
+    const handleSideResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const state = sideResizeRef.current;
+        if (!state || !sidePanelsVisible) return;
+        const containerWidth = workspaceRef.current?.getBoundingClientRect().width ?? state.containerWidth;
+        const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, containerWidth - PREVIEW_MIN_WIDTH));
+        const delta = e.clientX - state.startX;
+        const next = clampNumber(state.startWidth - delta, SIDE_MIN_WIDTH, maxCandidate);
+        setSidePanelWidth(next);
+    };
+
+    const handleSideResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!sideResizeRef.current) return;
+        sideResizeRef.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+    };
+
+    const handleTimelineResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!timelineVisible) return;
+        timelineResizeRef.current = { startY: e.clientY, startHeight: timelineHeight };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        e.preventDefault();
+    };
+
+    const handleTimelineResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const state = timelineResizeRef.current;
+        if (!state || !timelineVisible) return;
+        const bounds = getTimelineBounds();
+        const delta = e.clientY - state.startY;
+        const next = clampNumber(state.startHeight + delta, bounds.min, bounds.max);
+        setTimelineHeight(next);
+    };
+
+    const handleTimelineResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!timelineResizeRef.current) return;
+        timelineResizeRef.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
     };
 
     // Listen for render modal open events
@@ -78,14 +192,50 @@ const MidiVisualizerInner: React.FC = () => {
                 timelineVisible={timelineVisible}
             />
             <SceneSelectionProvider>
-                <div className="main-workspace">
-                    <PreviewPanel />
-                    {sidePanelsVisible && <SidePanels />}
+                <div className="main-workspace" ref={workspaceRef}>
+                    <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col">
+                        <PreviewPanel />
+                    </div>
+                    {sidePanelsVisible && (
+                        <>
+                            <div
+                                className="relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 hover:bg-sky-500/30 transition-colors"
+                                style={{ width: SIDE_HANDLE_WIDTH }}
+                                onPointerDown={handleSideResizeDown}
+                                onPointerMove={handleSideResizeMove}
+                                onPointerUp={handleSideResizeUp}
+                                onPointerCancel={handleSideResizeUp}
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label="Resize side panels"
+                            >
+                                <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                            </div>
+                            <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
+                                <SidePanels />
+                            </div>
+                        </>
+                    )}
                 </div>
                 {timelineVisible && (
-                    <div className="timeline-container">
-                        <TimelinePanel />
-                    </div>
+                    <>
+                        <div
+                            className="relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 hover:bg-sky-500/30 transition-colors"
+                            style={{ height: TIMELINE_HANDLE_HEIGHT }}
+                            onPointerDown={handleTimelineResizeDown}
+                            onPointerMove={handleTimelineResizeMove}
+                            onPointerUp={handleTimelineResizeUp}
+                            onPointerCancel={handleTimelineResizeUp}
+                            role="separator"
+                            aria-orientation="horizontal"
+                            aria-label="Resize timeline"
+                        >
+                            <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                        </div>
+                        <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
+                            <TimelinePanel />
+                        </div>
+                    </>
                 )}
             </SceneSelectionProvider>
             {showProgressOverlay && (

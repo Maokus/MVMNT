@@ -206,7 +206,7 @@ const TimelinePanel: React.FC = () => {
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
-        <div className="timeline-panel" role="region" aria-label="Timeline panel">
+        <div className="timeline-panel" role="region" aria-label="Timeline panel" style={{ height: '100%' }}>
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
             <div className="timeline-header grid grid-cols-3 items-center px-2 py-1 bg-neutral-900/40 border-b border-neutral-800">
                 {/* Left: Add track */}
