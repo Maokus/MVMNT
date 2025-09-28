@@ -1,5 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { dispatchSceneCommand } from '@state/scene';
+import { createDefaultMIDIScene } from '@core/scene-templates';
 import { useSceneStore } from '@state/sceneStore';
 import { globalMacroManager } from '@bindings/macro-manager';
 
@@ -113,5 +114,13 @@ describe('scene command gateway', () => {
         expect(deleteResult.success).toBe(true);
         expect(globalMacroManager.getMacro('macro.test')).toBeNull();
         expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
+    });
+
+    it('hydrates default scene macros into the global manager', () => {
+        createDefaultMIDIScene();
+        const sceneMacros = useSceneStore.getState().macros.byId;
+        expect(sceneMacros['midiTrack']).toBeDefined();
+        expect(globalMacroManager.getMacro('midiTrack')).not.toBeNull();
+        expect(globalMacroManager.getMacro('noteAnimation')).not.toBeNull();
     });
 });

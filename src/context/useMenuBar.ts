@@ -144,7 +144,7 @@ export const useMenuBar = ({
             } catch {
                 // Fallback minimal default if template fails
                 try {
-                    createDefaultMIDIScene(null);
+                    createDefaultMIDIScene();
                 } catch {}
             }
 

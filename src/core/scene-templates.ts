@@ -206,9 +206,10 @@ export function createDefaultMIDIScene(): SceneImportPayload {
 
 export function createDebugScene(): SceneImportPayload {
     const payload = createDefaultScenePayload();
-    const debugIndex = payload.elements.length;
-    payload.elements = [
-        ...payload.elements,
+    const baseElements = payload.elements ?? [];
+    const debugIndex = baseElements.length;
+    const elements: SceneSerializedElement[] = [
+        ...baseElements,
         createElement('debugOverlay', 'debug', debugIndex, {
             zIndex: 1000,
             anchorX: 0,
@@ -217,7 +218,7 @@ export function createDebugScene(): SceneImportPayload {
             offsetY: 10,
         }),
     ];
-    return applySceneTemplate(payload, 'scene-templates.createDebugScene');
+    return applySceneTemplate({ ...payload, elements }, 'scene-templates.createDebugScene');
 }
 
 export function createAllElementsDebugScene(): SceneImportPayload {

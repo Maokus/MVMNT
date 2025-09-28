@@ -144,7 +144,7 @@ export function getNotesNearTimeUnit(
     bars: number = 1
 ): NoteQueryResult[] {
     const track = state.tracks[trackId];
-    if (!track) return [];
+    if (!track || track.type !== 'midi') return [];
     const bpb = state.timeline.beatsPerBar || 4;
     const map = state.timeline.masterTempoMap;
     const spb = getSecondsPerBeatFallback(state);

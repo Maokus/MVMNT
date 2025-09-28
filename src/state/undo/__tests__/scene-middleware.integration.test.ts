@@ -116,16 +116,16 @@ describe('Scene store undo instrumentation', () => {
         expect(finalState).toMatchObject({ macroValue: 5, storeValue: 5, bpm: 138 });
 
         const stack = undo.debugStack();
-        const snapshotMacros = stack.entries.map((_, index) => {
+        const snapshotMacros = stack.entries.map((_: unknown, index: number) => {
             const dump = undo.dump(index) as any;
             const macros = dump?.scene?.macros?.macros ?? {};
             const bpm = dump?.timeline?.globalBpm ?? initialBpm;
             const macroValue = macros['macro.undo'] ? macros['macro.undo'].value : null;
             return { macroValue, bpm };
         });
-        expect(snapshotMacros.some((entry) => entry.macroValue === 5 && entry.bpm === 138)).toBe(true);
+        expect(snapshotMacros.some((entry: { macroValue: number | null; bpm: number }) => entry.macroValue === 5 && entry.bpm === 138)).toBe(true);
         expect(stack.entries.length).toBeGreaterThanOrEqual(2);
-        expect(snapshotMacros.some((entry) => entry.macroValue === 5)).toBe(true);
+        expect(snapshotMacros.some((entry: { macroValue: number | null }) => entry.macroValue === 5)).toBe(true);
         expect(snapshotMacros[0].macroValue).toBeNull();
         expect(snapshotMacros[0].bpm).toBe(initialBpm);
     });

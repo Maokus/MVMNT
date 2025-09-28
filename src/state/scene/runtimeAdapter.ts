@@ -10,9 +10,8 @@ import {
     type SceneSettingsState,
     type SceneStoreState,
 } from '@state/sceneStore';
-import type { StoreApi, UseBoundStore } from 'zustand';
 
-type SceneStoreBinding = UseBoundStore<StoreApi<SceneStoreState>>;
+type SceneStoreBinding = typeof useSceneStore;
 
 interface RuntimeElementEntry {
     element: SceneElement;
@@ -81,7 +80,7 @@ export class SceneRuntimeAdapter {
         this.settings = { ...initialState.settings };
         this.orderedIds = [...initialState.order];
         this.bootstrap(initialState);
-        this.unsubscribe = this.store.subscribe((next, prev) => {
+        this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
         });
     }

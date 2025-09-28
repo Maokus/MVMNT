@@ -126,7 +126,11 @@ function createMacroPayload(state: SceneStoreState): SceneSerializedMacros | und
 
 function importOrClearMacros(payload: SceneSerializedMacros | undefined | null) {
     if (payload && payload.macros && Object.keys(payload.macros).length > 0) {
-        globalMacroManager.importMacros(payload);
+        const normalized = {
+            macros: payload.macros,
+            exportedAt: payload.exportedAt ?? Date.now(),
+        } satisfies Parameters<(typeof globalMacroManager)['importMacros']>[0];
+        globalMacroManager.importMacros(normalized);
     } else {
         globalMacroManager.clearMacros();
     }
@@ -256,7 +260,8 @@ export function dispatchSceneCommand(command: SceneCommand, _options?: SceneComm
     }
 
     try {
-        applyMacroSideEffects(store, command);
+        const latest = useSceneStore.getState();
+        applyMacroSideEffects(latest, command);
     } catch (error) {
         console.warn('[scene command] macro side effects failed', error);
     }

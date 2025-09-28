@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import type { SceneClipboard } from '@state/sceneStore';
 import { createSceneSelectors } from '@state/scene/selectors';
 
 type Store = ReturnType<typeof createSceneStore>;
@@ -108,7 +109,7 @@ describe('sceneStore', () => {
     });
 
     it('updates and clears clipboard interaction state', () => {
-        const payload = { exportedAt: 123, elementIds: ['foo'] } as const;
+        const payload: SceneClipboard = { exportedAt: 123, elementIds: ['foo'] };
         store.getState().setInteractionState({ clipboard: payload });
 
         expect(store.getState().interaction.clipboard).toEqual(payload);

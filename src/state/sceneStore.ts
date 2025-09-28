@@ -23,7 +23,14 @@ export interface MacroBindingAssignment {
 
 export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
 
-export interface SceneSettingsState {}
+export interface SceneSettingsState {
+    fps: number;
+    width: number;
+    height: number;
+    tempo: number;
+    beatsPerBar: number;
+    [key: string]: unknown;
+}
 
 export interface SceneElementRecord {
     id: string;

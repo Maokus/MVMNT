@@ -77,11 +77,11 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     const assignListener = useCallback((listener: (eventType: string, data: any) => void) => {
-        const unsubscribe = useSceneStore.subscribe(
-            (state) => listener('macroStoreUpdated', state.macros),
-            (state) => state.macros,
-            (a, b) => a === b
-        );
+        const unsubscribe = useSceneStore.subscribe((state, prev) => {
+            if (state.macros !== prev.macros) {
+                listener('macroStoreUpdated', state.macros);
+            }
+        });
         return unsubscribe;
     }, []);
 

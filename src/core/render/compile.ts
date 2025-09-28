@@ -1,4 +1,5 @@
 import type { TempoMapEntry } from '@core/timing/types';
+import type { NoteRaw } from '@state/timelineTypes';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 
@@ -18,18 +19,7 @@ export interface CompileTrack {
 export interface CompileMidiCacheEntry {
     ticksPerQuarter: number;
     tempoMap?: TempoMapEntry[];
-    notesRaw: Array<{
-        note: number;
-        channel: number;
-        startTime: number; // seconds (fallback if ticks/beats missing)
-        endTime: number; // seconds (fallback)
-        duration: number; // seconds (fallback)
-        startTick?: number;
-        endTick?: number;
-        startBeat?: number;
-        endBeat?: number;
-        velocity?: number;
-    }>;
+    notesRaw: NoteRaw[];
 }
 
 export type CompileMidiCache = Record<string, CompileMidiCacheEntry | undefined>;
@@ -102,24 +92,11 @@ export function compileWindow(args: CompileWindowArgs): ScheduleBatch {
 
         for (const n of cache.notesRaw) {
             // Prefer beats (from ticks or explicit), fallback to provided seconds
-            const startBeat = n.startBeat ?? (typeof n.startTick === 'number' ? n.startTick / tpq : undefined);
-            const endBeat = n.endBeat ?? (typeof n.endTick === 'number' ? n.endTick / tpq : undefined);
+            const startBeat = n.startBeat ?? n.startTick / tpq;
+            const endBeat = n.endBeat ?? n.endTick / tpq;
 
-            let startSec: number;
-            let endSec: number;
-            if (typeof startBeat === 'number' && typeof endBeat === 'number') {
-                startSec = beatsToSeconds(mapToUse, startBeat, fallbackSPB);
-                endSec = beatsToSeconds(mapToUse, endBeat, fallbackSPB);
-            } else if (typeof startBeat === 'number') {
-                startSec = beatsToSeconds(mapToUse, startBeat, fallbackSPB);
-                // infer end by duration seconds if available
-                const dur = Math.max(0, n.duration ?? 0);
-                endSec = startSec + dur;
-            } else {
-                // Fallback: trust given seconds
-                startSec = n.startTime;
-                endSec = n.endTime ?? n.startTime + Math.max(0, n.duration ?? 0);
-            }
+            let startSec = beatsToSeconds(mapToUse, startBeat, fallbackSPB);
+            let endSec = beatsToSeconds(mapToUse, endBeat, fallbackSPB);
 
             // Apply per-track timeline offset
             startSec += t.offsetSec;

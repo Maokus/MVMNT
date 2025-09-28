@@ -156,17 +156,17 @@ const TemplateInitializer: React.FC = () => {
                         // Clear scene already resets settings; nothing else required.
                         break;
                     case 'default':
-                        createDefaultMIDIScene(null);
+                        createDefaultMIDIScene();
                         break;
                     case 'debug':
                         try {
-                            createAllElementsDebugScene(null);
+                            createAllElementsDebugScene();
                         } catch {
-                            createDebugScene(null);
+                            createDebugScene();
                         }
                         break;
                     default:
-                        createDefaultMIDIScene(null);
+                        createDefaultMIDIScene();
                 }
                 refreshSceneUI();
                 didChange = true;

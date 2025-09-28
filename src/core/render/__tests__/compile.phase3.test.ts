@@ -20,7 +20,17 @@ describe('compileWindow', () => {
         const midiCache: CompileMidiCache = {
             t1: {
                 ticksPerQuarter: CANONICAL_PPQ,
-                notesRaw: [{ note: 60, channel: 0, startTime: 0.0, endTime: 0.5, duration: 0.5 }],
+                notesRaw: [
+                    {
+                        note: 60,
+                        channel: 0,
+                        startTick: 0,
+                        endTick: CANONICAL_PPQ,
+                        durationTicks: CANONICAL_PPQ,
+                        startBeat: 0,
+                        endBeat: 1,
+                    },
+                ],
             },
         };
         const res = compileWindow({
@@ -43,7 +53,17 @@ describe('compileWindow', () => {
         const midiCache: CompileMidiCache = {
             t1: {
                 ticksPerQuarter: CANONICAL_PPQ,
-                notesRaw: [{ note: 60, channel: 0, startTime: 0.2, endTime: 0.8, duration: 0.6 }],
+                notesRaw: [
+                    {
+                        note: 60,
+                        channel: 0,
+                        startTick: Math.round(0.4 * CANONICAL_PPQ),
+                        endTick: Math.round(1.6 * CANONICAL_PPQ),
+                        durationTicks: Math.round(1.2 * CANONICAL_PPQ),
+                        startBeat: 0.4,
+                        endBeat: 1.6,
+                    },
+                ],
             },
         };
         const res = compileWindow({ tracks, midiCache, nowSec: 0, lookAheadSec: 2, bpm: 120, beatsPerBar: 4 });
@@ -59,11 +79,31 @@ describe('compileWindow', () => {
         const midiCache: CompileMidiCache = {
             t1: {
                 ticksPerQuarter: CANONICAL_PPQ,
-                notesRaw: [{ note: 60, channel: 0, startTime: 0, endTime: 1, duration: 1 }],
+                notesRaw: [
+                    {
+                        note: 60,
+                        channel: 0,
+                        startTick: 0,
+                        endTick: 2 * CANONICAL_PPQ,
+                        durationTicks: 2 * CANONICAL_PPQ,
+                        startBeat: 0,
+                        endBeat: 2,
+                    },
+                ],
             },
             t2: {
                 ticksPerQuarter: CANONICAL_PPQ,
-                notesRaw: [{ note: 61, channel: 0, startTime: 0, endTime: 1, duration: 1 }],
+                notesRaw: [
+                    {
+                        note: 61,
+                        channel: 0,
+                        startTick: 0,
+                        endTick: 2 * CANONICAL_PPQ,
+                        durationTicks: 2 * CANONICAL_PPQ,
+                        startBeat: 0,
+                        endBeat: 2,
+                    },
+                ],
             },
         };
         const res = compileWindow({ tracks, midiCache, nowSec: 0, lookAheadSec: 1, bpm: 120, beatsPerBar: 4 });
@@ -79,7 +119,17 @@ describe('compileWindow', () => {
             t1: {
                 ticksPerQuarter: CANONICAL_PPQ,
                 tempoMap: map,
-                notesRaw: [{ note: 60, channel: 0, startBeat: 2, endBeat: 3, startTime: 0, endTime: 0, duration: 0 }],
+                notesRaw: [
+                    {
+                        note: 60,
+                        channel: 0,
+                        startTick: 2 * CANONICAL_PPQ,
+                        endTick: 3 * CANONICAL_PPQ,
+                        durationTicks: CANONICAL_PPQ,
+                        startBeat: 2,
+                        endBeat: 3,
+                    },
+                ],
             },
         };
         const res = compileWindow({ tracks, midiCache, nowSec: 0, lookAheadSec: 5, bpm: 100, beatsPerBar: 4 });
