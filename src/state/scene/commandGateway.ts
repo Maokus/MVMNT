@@ -2,6 +2,7 @@ import {
     DEFAULT_SCENE_SETTINGS,
     useSceneStore,
     type BindingState,
+    type ElementBindings,
     type ElementBindingsPatch,
     type SceneImportPayload,
     type SceneMacroDefinition,
@@ -111,6 +112,36 @@ function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBi
     return next;
 }
 
+function readConstantNumber(binding: BindingState | undefined): number | null {
+    if (!binding || binding.type !== 'constant') return null;
+    const value = typeof binding.value === 'number' ? binding.value : Number(binding.value);
+    return Number.isFinite(value) ? value : null;
+}
+
+function maybeCenterAxis(
+    axis: 'X' | 'Y',
+    options: {
+        config?: Record<string, unknown>;
+        bindings: ElementBindings;
+        sceneSize: number | undefined;
+    }
+): void {
+    const { config = {}, bindings, sceneSize } = options;
+    if (!Number.isFinite(sceneSize) || sceneSize == null) return;
+    const offsetKey = `offset${axis}` as const;
+    const anchorKey = `anchor${axis}` as const;
+    if (Object.prototype.hasOwnProperty.call(config, offsetKey)) return;
+    const offsetBinding = bindings[offsetKey];
+    if (offsetBinding?.type === 'macro') return;
+    const currentOffset = readConstantNumber(offsetBinding) ?? 0;
+    if (currentOffset !== 0) return;
+    const anchorBinding = bindings[anchorKey];
+    const anchor = readConstantNumber(anchorBinding);
+    const anchorValue = anchor == null ? 0.5 : anchor;
+    if (Math.abs(anchorValue - 0.5) > 1e-4) return;
+    bindings[offsetKey] = { type: 'constant', value: sceneSize / 2 };
+}
+
 function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
     switch (command.type) {
         case 'addElement': {
@@ -120,7 +151,11 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 config: command.config ?? {},
                 createdBy: command.elementType,
             });
-            store.addElement(input);
+            const bindings = { ...(input.bindings ?? {}) } as ElementBindings;
+            const settings = store.settings;
+            maybeCenterAxis('X', { config: command.config, bindings, sceneSize: settings.width });
+            maybeCenterAxis('Y', { config: command.config, bindings, sceneSize: settings.height });
+            store.addElement({ ...input, bindings });
             break;
         }
         case 'removeElement':

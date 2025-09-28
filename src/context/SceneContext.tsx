@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { SceneNameGenerator } from '@core/scene-name-generator';
@@ -20,6 +20,18 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { visualizer } = useVisualizer();
     const [sceneName, setSceneName] = useState<string>(() => SceneNameGenerator.generate());
 
+    useEffect(() => {
+        try {
+            window.dispatchEvent(new CustomEvent('scene-name-changed', { detail: { sceneName } }));
+        } catch {
+            /* no-op in non-browser environments */
+        }
+    }, [sceneName]);
+
+    const updateSceneName = useCallback((name: string) => {
+        setSceneName(name);
+    }, []);
+
     // Bump the store runtime metadata to notify all components about scene changes
     const refreshSceneUI = useCallback(() => {
         useSceneStore.setState((prev) => ({
@@ -33,13 +45,13 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const menuBarActions = useMenuBar({
         visualizer,
         sceneName,
-        onSceneNameChange: setSceneName,
+        onSceneNameChange: updateSceneName,
         onSceneRefresh: refreshSceneUI
     });
 
     const value: SceneContextValue = {
         sceneName,
-        setSceneName,
+        setSceneName: updateSceneName,
         saveScene: menuBarActions.saveScene,
         loadScene: menuBarActions.loadScene,
         clearScene: menuBarActions.clearScene,
