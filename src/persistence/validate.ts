@@ -37,7 +37,7 @@ export interface ValidationError {
     path?: string;
 }
 export interface ValidationWarning {
-    code: string; // reserved for Phase 6 advisory tier
+    code: string; // reserved for advisory tier expansion
     message: string;
     path?: string;
 }

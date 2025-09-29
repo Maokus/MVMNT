@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
-import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 

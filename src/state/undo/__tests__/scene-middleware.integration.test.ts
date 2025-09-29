@@ -63,7 +63,7 @@ describe('Scene store undo instrumentation', () => {
                 type: 'addElement',
                 elementType: 'textOverlay',
                 elementId: 'undo-test',
-                config: { id: 'undo-test', text: { type: 'constant', value: 'Phase 0' } },
+                config: { id: 'undo-test', text: { type: 'constant', value: 'Baseline Scene' } },
             },
             { source: 'undo-test:add' }
         );

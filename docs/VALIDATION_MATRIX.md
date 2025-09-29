@@ -1,6 +1,8 @@
-# Validation Matrix – Phase 2
+# Validation Matrix – Import Guard
 
-Phase 2 introduces a fatal-only error code taxonomy. All errors abort import (no store mutation). Warnings remain empty (advisory tier deferred to Phase 6).
+The validator enforces a fatal-only error code taxonomy. Any fatal error aborts import before store
+mutation so corrupted scenes cannot reach runtime. Advisory warnings are planned but intentionally
+deferred until the fatal path is fully covered.
 
 | Code                       | Fatal | Condition                                 | Path Example                | Notes                                       |
 | -------------------------- | ----- | ----------------------------------------- | --------------------------- | ------------------------------------------- |
@@ -24,7 +26,7 @@ Phase 2 introduces a fatal-only error code taxonomy. All errors abort import (no
 | ERR_ROW_HEIGHT_RANGE       | yes   | `rowHeight` outside [8,400] when present  | timeline.rowHeight          | UI range guard                              |
 | ERR_JSON_PARSE             | yes   | JSON.parse failed                         | (parse)                     | Raised in `importScene` pre-validation      |
 
-## Result Object (Phase 2)
+## Result Object
 
 ```ts
 interface ValidationError {
@@ -43,6 +45,6 @@ interface ValidationResult {
 
 `importScene(json)` aborts (no store mutation) when `ok === false` after validation. Errors are projected into the import result with the same `code` & `message`.
 
-## Future (Phase 6) Preview
+## Planned Warning Tier
 
-Warnings will adopt `{ code, message, path }` shape for advisory recoverable issues (unknown element types, stale references, minor range deviations) without aborting import.
+Warnings will adopt `{ code, message, path }` shape for advisory recoverable issues (unknown element types, stale references, minor range deviations) without aborting import once the taxonomy is expanded beyond fatal errors.

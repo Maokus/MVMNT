@@ -2,8 +2,8 @@
  * Persistence / Serialization Public API
  * -------------------------------------------------
  * Unified entry points for scene export/import and snapshot undo management.
- * The historical phased roadmap comments have been removed; current behavior reflects the
- * implemented deterministic export/import plus snapshot-based undo ring.
+ * Documentation reflects the live implementation: deterministic export/import and the
+ * snapshot-based undo ring described in the docs.
  *
  * Current Guarantees:
  *  - `exportScene()` returns a deterministic envelope (inline JSON or packaged ZIP) wrapped in a Promise.
