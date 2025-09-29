@@ -80,7 +80,7 @@ const undoTools = {
 
 const persistenceTools = {
     exportScene,
-    importScene: (payload: unknown): ImportSceneResult => {
+    importScene: async (payload: unknown): Promise<ImportSceneResult> => {
         const normalized = normalizeImportPayload(payload);
         if (!normalized) {
             return { ok: false, errors: [{ message: 'Invalid payload' }], warnings: [] };
