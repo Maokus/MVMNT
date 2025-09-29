@@ -5,6 +5,17 @@ import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
 
+function toArrayBuffer(view: Uint8Array): ArrayBuffer {
+    const buffer = view.buffer as ArrayBuffer;
+    if (view.byteOffset === 0 && view.byteLength === buffer.byteLength) {
+        return buffer;
+    }
+    if (typeof buffer.slice === 'function') {
+        return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    }
+    return view.slice().buffer as ArrayBuffer;
+}
+
 interface UseMenuBarProps {
     visualizer: any;
     sceneName: string;
@@ -45,7 +56,7 @@ export const useMenuBar = ({
             const exportBlob =
                 blob ||
                 (mode === 'zip-package'
-                    ? new Blob([res.zip], { type: 'application/zip' })
+                    ? new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' })
                     : new Blob([res.json], { type: 'application/json' }));
             const extension = mode === 'zip-package' ? '.mvmntpkg' : '.mvt';
             const url = URL.createObjectURL(exportBlob);

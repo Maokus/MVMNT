@@ -66,7 +66,7 @@ export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
     envelope: SceneExportEnvelopeV2;
-    zip: Uint8Array;
+    zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
 
@@ -86,10 +86,28 @@ function buildCompatibilityWarnings(messages: string[]): { warnings: { message: 
     return { warnings: messages.map((message) => ({ message })) };
 }
 
+function normalizeBlobPart(part: BlobPart): BlobPart {
+    if (ArrayBuffer.isView(part)) {
+        const view = part as ArrayBufferView;
+        const buffer = view.buffer as ArrayBuffer;
+        if (view.byteOffset === 0 && view.byteLength === buffer.byteLength) {
+            return buffer;
+        }
+        if (typeof buffer.slice === 'function') {
+            return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+        }
+        const copy = new Uint8Array(view.byteLength);
+        copy.set(new Uint8Array(buffer, view.byteOffset, view.byteLength));
+        return copy.buffer;
+    }
+    return part;
+}
+
 function createBlob(parts: BlobPart[], type: string): Blob | undefined {
     if (typeof Blob === 'undefined') return undefined;
     try {
-        return new Blob(parts, { type });
+        const normalized = parts.map((part) => normalizeBlobPart(part));
+        return new Blob(normalized, { type });
     } catch {
         return undefined;
     }
@@ -98,7 +116,7 @@ function createBlob(parts: BlobPart[], type: string): Blob | undefined {
 function buildZip(
     envelope: SceneExportEnvelopeV2,
     assets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
     files['document.json'] = strToU8(docJson, true);
@@ -107,7 +125,7 @@ function buildZip(
         const path = `assets/audio/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
-    return zipSync(files, { level: 6 });
+    return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
 }
 
 export async function exportScene(

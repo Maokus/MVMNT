@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { exportScene, importScene, createSnapshotUndoController } from '../';
+import type { ExportSceneResult, ExportSceneResultInline } from '../export';
+
+function requireInline(result: ExportSceneResult): ExportSceneResultInline {
+    if (!result.ok || result.mode !== 'inline-json') {
+        throw new Error('Expected inline-json export result');
+    }
+    return result;
+}
 
 // These tests assert initial placeholder semantics; they will be superseded / expanded later.
 
@@ -13,9 +21,9 @@ describe('Persistence skeleton', () => {
     });
 
     it('importScene round trip succeeds for a generated export', async () => {
-        const exp = await exportScene();
+        const exp = requireInline(await exportScene());
         expect(exp.ok).toBe(true);
-        const res = await importScene(exp.ok ? exp.json : '{}');
+        const res = await importScene(exp.json);
         expect(res.ok).toBe(true);
     });
 

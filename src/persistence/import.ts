@@ -66,7 +66,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
 
     // ZIP signature PK\x03\x04
     if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
-        const zip = unzipSync(bytes, { consume: true });
+        const zip = unzipSync(bytes);
         const docBytes = zip['document.json'];
         if (!docBytes) {
             return { error: { code: 'ERR_ZIP_DOCUMENT', message: 'Scene package missing document.json' } };
@@ -114,10 +114,7 @@ function buildDocumentShape(envelope: any) {
     };
 }
 
-async function createAudioBufferFromAsset(
-    record: any,
-    bytes: Uint8Array
-): Promise<AudioBuffer | { [key: string]: any }> {
+async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
     const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
     const sampleRate = record.sampleRate || 44100;
     const channels = Math.max(1, record.channels || 1);
@@ -140,13 +137,24 @@ async function createAudioBufferFromAsset(
     }
     const channelData: Float32Array[] = [];
     for (let c = 0; c < channels; c++) channelData.push(new Float32Array(length));
-    return {
+    const durationSeconds = typeof record.durationSeconds === 'number' ? record.durationSeconds : length / sampleRate;
+    const fallback: AudioBuffer = {
         length,
-        duration: record.durationSeconds,
+        duration: durationSeconds,
         sampleRate,
         numberOfChannels: channels,
-        getChannelData: (channel: number) => channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
-    };
+        copyFromChannel: (destination: Float32Array, channelNumber: number, startInChannel = 0) => {
+            const source = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
+            destination.set(source.subarray(startInChannel, startInChannel + destination.length));
+        },
+        copyToChannel: (source: Float32Array, channelNumber: number, startInChannel = 0) => {
+            const target = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
+            target.set(source, startInChannel);
+        },
+        getChannelData: (channel: number) =>
+            channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
+    } as unknown as AudioBuffer;
+    return fallback;
 }
 
 function buildWaveform(record: any | undefined) {

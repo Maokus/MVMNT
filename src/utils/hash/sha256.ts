@@ -10,6 +10,16 @@ function isBlob(value: unknown): value is Blob {
     return typeof Blob !== 'undefined' && value instanceof Blob;
 }
 
+function normalizeChunk(chunk: unknown): Uint8Array | null {
+    if (chunk instanceof Uint8Array) return chunk;
+    if (ArrayBuffer.isView(chunk)) {
+        const view = chunk as ArrayBufferView;
+        return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    }
+    if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
+    return null;
+}
+
 async function* toAsyncIterable(source: HashSource): AsyncIterable<Uint8Array> {
     if (source instanceof Uint8Array) {
         yield source;
@@ -33,8 +43,8 @@ async function* toAsyncIterable(source: HashSource): AsyncIterable<Uint8Array> {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
-                        const chunk = value instanceof Uint8Array ? value : new Uint8Array(value.buffer);
-                        yield chunk;
+                        const chunk = normalizeChunk(value);
+                        if (chunk) yield chunk;
                     }
                 }
             } finally {
@@ -47,18 +57,16 @@ async function* toAsyncIterable(source: HashSource): AsyncIterable<Uint8Array> {
         return;
     }
     if (typeof (source as any)[Symbol.asyncIterator] === 'function') {
-        for await (const chunk of source as AsyncIterable<Uint8Array>) {
-            if (chunk instanceof Uint8Array) yield chunk;
-            else if (ArrayBuffer.isView(chunk)) yield new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-            else if (chunk instanceof ArrayBuffer) yield new Uint8Array(chunk);
+        for await (const chunk of source as AsyncIterable<unknown>) {
+            const normalized = normalizeChunk(chunk);
+            if (normalized) yield normalized;
         }
         return;
     }
     if (typeof (source as any)[Symbol.iterator] === 'function') {
-        for (const chunk of source as Iterable<Uint8Array>) {
-            if (chunk instanceof Uint8Array) yield chunk;
-            else if (ArrayBuffer.isView(chunk)) yield new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-            else if (chunk instanceof ArrayBuffer) yield new Uint8Array(chunk);
+        for (const chunk of source as Iterable<unknown>) {
+            const normalized = normalizeChunk(chunk);
+            if (normalized) yield normalized;
         }
         return;
     }

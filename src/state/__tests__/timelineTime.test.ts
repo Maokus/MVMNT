@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { createTimingContext, secondsToTicks, ticksToSeconds } from '../timelineTime';
 import type { TempoMapEntry } from '@state/timelineTypes';
 
