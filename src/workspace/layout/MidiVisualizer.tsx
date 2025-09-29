@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
@@ -6,19 +6,28 @@ import SidePanels from './SidePanels';
 import { TimelinePanel } from '@workspace/panels/timeline';
 import SmallScreenWarning from './SmallScreenWarning';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
-import ExportProgressOverlay from './ExportProgressOverlay';
+const ExportProgressOverlay = React.lazy(() => import('./ExportProgressOverlay'));
 import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
 import { SceneProvider } from '@context/SceneContext';
 import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
-import OnboardingOverlay from './OnboardingOverlay';
-import RenderModal from './RenderModal';
+const OnboardingOverlay = React.lazy(() => import('./OnboardingOverlay'));
+const RenderModal = React.lazy(() => import('./RenderModal'));
 import { importScene } from '@persistence/index';
-import { createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
+
+type DebugTemplateModule = typeof import('@core/scene-templates');
+let debugTemplatesModulePromise: Promise<DebugTemplateModule> | null = null;
+
+const loadDebugTemplates = async (): Promise<DebugTemplateModule> => {
+    if (!debugTemplatesModulePromise) {
+        debugTemplatesModulePromise = import('@core/scene-templates');
+    }
+    return debugTemplatesModulePromise;
+};
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -236,12 +245,27 @@ const MidiVisualizerInner: React.FC = () => {
                 )}
             </SceneSelectionProvider>
             {showProgressOverlay && (
-                <ExportProgressOverlay kind={exportKind} progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
+                <Suspense fallback={null}>
+                    <ExportProgressOverlay
+                        kind={exportKind}
+                        progress={progressData.progress}
+                        text={progressData.text}
+                        onClose={closeProgress}
+                    />
+                </Suspense>
             )}
-            {showOnboarding && <OnboardingOverlay onClose={() => setShowOnboarding(false)} />}
+            {showOnboarding && (
+                <Suspense fallback={null}>
+                    <OnboardingOverlay onClose={() => setShowOnboarding(false)} />
+                </Suspense>
+            )}
 
             {showSmallScreenWarning && (<SmallScreenWarning onProceed={proceedSmallScreen} />)}
-            {showRenderModal && <RenderModal onClose={() => setShowRenderModal(false)} />}
+            {showRenderModal && (
+                <Suspense fallback={null}>
+                    <RenderModal onClose={() => setShowRenderModal(false)} />
+                </Suspense>
+            )}
         </div>
     );
 };
@@ -308,9 +332,14 @@ const TemplateInitializer: React.FC = () => {
                             break;
                         case 'debug':
                             try {
-                                createAllElementsDebugScene();
-                            } catch {
-                                createDebugScene();
+                                const { createAllElementsDebugScene, createDebugScene } = await loadDebugTemplates();
+                                if (typeof createAllElementsDebugScene === 'function') {
+                                    createAllElementsDebugScene();
+                                } else if (typeof createDebugScene === 'function') {
+                                    createDebugScene();
+                                }
+                            } catch (error) {
+                                console.error('Failed to load debug scene templates', error);
                             }
                             break;
                         default:
