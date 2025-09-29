@@ -5,8 +5,17 @@ import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
-import { createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
 import { loadDefaultScene } from '@core/default-scene-loader';
+
+type DebugTemplateModule = typeof import('@core/scene-templates');
+let debugTemplatesModulePromise: Promise<DebugTemplateModule> | null = null;
+
+const loadDebugTemplates = async (): Promise<DebugTemplateModule> => {
+    if (!debugTemplatesModulePromise) {
+        debugTemplatesModulePromise = import('@core/scene-templates');
+    }
+    return debugTemplatesModulePromise;
+};
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
@@ -62,9 +71,14 @@ const EasyModeTemplateInitializer: React.FC = () => {
                             break;
                         case 'debug':
                             try {
-                                createAllElementsDebugScene();
-                            } catch {
-                                createDebugScene();
+                                const { createAllElementsDebugScene, createDebugScene } = await loadDebugTemplates();
+                                if (typeof createAllElementsDebugScene === 'function') {
+                                    createAllElementsDebugScene();
+                                } else if (typeof createDebugScene === 'function') {
+                                    createDebugScene();
+                                }
+                            } catch (error) {
+                                console.error('Failed to load debug scene templates', error);
                             }
                             break;
                         default:
