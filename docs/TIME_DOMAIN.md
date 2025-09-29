@@ -1,6 +1,7 @@
-# Time Domain Architecture (Post-Migration Phase 8)
+# Time Domain Architecture
 
-Authoritative domain: **ticks** (integer). Seconds are a _derived_ presentation & scheduling view computed through the shared `TimingManager` using the tempo map + global BPM fallback.
+Authoritative domain: **ticks** (integer). Seconds are a _derived_ presentation & scheduling view
+computed through the shared `TimingManager` using the tempo map + global BPM fallback.
 
 ## Canonical Concepts
 
@@ -106,10 +107,10 @@ Removed functions / fields (BREAKING):
 -   `setTrackOffset(seconds)` / `offsetSec`, `offsetBeats`
 -   `currentTimeSec` playhead mirror
 
-## Migration Notes
+## Operational Notes
 
--   All earlier transitional tests referencing seconds should be updated or removed.
--   Debug tooling now exposes `window.__mvmntDebug.setCurrentTick(tick)` only.
+-   Legacy tests that depended on seconds-based helpers should be updated to use the tick utilities described above.
+-   Debug tooling exposes `window.__mvmntDebug.setCurrentTick(tick)` for programmatic seeking; prefer it over any deprecated second-based helpers.
 
 ## Future Extensions
 
@@ -146,4 +147,4 @@ const startSec = tm.ticksToSeconds(note.startTick + track.offsetTicks);
 
 ---
 
-Last updated: Phase 8 migration.
+Last reviewed: 2025-02-14.

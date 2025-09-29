@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 
 describe('sceneStore macro inverse index fuzz', () => {

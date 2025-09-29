@@ -1,6 +1,6 @@
 # MVMNT
 
-MVMNT (pronounced Movement) is a React-based MIDI visualization application for creating social media videos from MIDI files.
+MVMNT (pronounced *movement*) is a React-based MIDI visualization application for creating polished social media videos from MIDI files. The project ships with a store-first architecture, deterministic export pipeline, and tooling to design custom animations without leaving the browser.
 
 ### Scene Files (.mvt)
 
@@ -15,9 +15,23 @@ MVMNT is released under the GNU Affero General Public License v3.0 (AGPL-3.0). I
 ```
 git clone https://github.com/Maokus/MVMNT.git
 cd MVMNT
-npm i
-npm run start
+npm install
+npm run dev
 ```
+
+The development server runs on Vite with hot module replacement. If optional Rollup native dependencies fail to compile on your platform, rerun `npm install` so npm can choose a compatible fallback build.
+
+### Validation
+
+Before opening a pull request, run the full verification suite:
+
+```
+npm run test
+npm run build
+npm run lint
+```
+
+If `npm run test` fails because of missing optional binaries, rerun `npm install` and execute the tests again.
 
 ### Custom sceneElements
 
@@ -58,7 +72,7 @@ In `_buildRenderObjects`, the controls defined in `getConfigSchema` are accessed
 
 ### Custom piano roll animations
 
-The /animation-test is a page made to help design animations for the time unit piano roll. These animations can be found in `src/animation/note-animations`
+The `/animation-test` route helps design animations for the time unit piano roll. These animations live in `src/animation/note-animations`.
 To make a new animation:
 
 1. Create a new filename
@@ -66,7 +80,7 @@ To make a new animation:
 3. Rename the class
 4. Uncomment registerAnimation at the bottom and fill in the details
 
-This should add the animation such that it will be selectable from `/animation-test` and in the main app!
+This registers the animation so it appears in `/animation-test` and the main app.
 
 ### Debug stuff
 
@@ -106,6 +120,13 @@ The Render / Export modal now includes a Filename field. Leave it blank to fall 
 -   PNG sequence exports: downloaded as a `.zip` (frames inside remain `frame_00000.png`, etc.). If you provide an extension other than `.zip`, it will still be normalized to `.zip`.
 
 Any disallowed characters are sanitized to underscores before download.
+
+### Further Reading
+
+-   `docs/ARCHITECTURE.md` – subsystem boundaries and data flow.
+-   `docs/SCENE_STORE.md` – canonical store structure and mutation patterns.
+-   `docs/TIME_DOMAIN.md` – tick-first timing architecture and helper APIs.
+-   `docs/VALIDATION_MATRIX.md` – import guard taxonomy.
 
 ### Time Display: Offset Bars Property
 

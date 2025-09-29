@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore, useSceneStore } from '@state/sceneStore';
 import { createSceneSelectors } from '@state/scene/selectors';
 import {
@@ -47,7 +47,7 @@ describe('store migration acceptance criteria', () => {
         resetTimelineStore();
     });
 
-    describe('phase 1 – store scaffolding', () => {
+    describe('store scaffolding behavior', () => {
         it('imports and exports the regression fixture in store-only mode', () => {
             const store = createSceneStore();
             store.getState().importScene(fixture as any);
@@ -71,30 +71,30 @@ describe('store migration acceptance criteria', () => {
         });
     });
 
-    describe('phase 2 – dual-write gateway', () => {
+    describe('command gateway integration', () => {
         it('routes mutations through the gateway and updates the store', () => {
             const result = dispatchSceneCommand({
                 type: 'addElement',
                 elementType: 'textOverlay',
-                elementId: 'phase-2-element',
+                elementId: 'gateway-element',
                 config: {
-                    id: 'phase-2-element',
-                    text: { type: 'constant', value: 'Phase 2' },
+                    id: 'gateway-element',
+                    text: { type: 'constant', value: 'Gateway Element' },
                 },
             });
 
             expect(result.success).toBe(true);
 
             const state = useSceneStore.getState();
-            expect(state.order).toContain('phase-2-element');
-            expect(state.bindings.byElement['phase-2-element'].text).toEqual({
+            expect(state.order).toContain('gateway-element');
+            expect(state.bindings.byElement['gateway-element'].text).toEqual({
                 type: 'constant',
-                value: 'Phase 2',
+                value: 'Gateway Element',
             });
         });
     });
 
-    describe('phase 3 – store-first UI hooks', () => {
+    describe('store-first UI hooks', () => {
         beforeEach(() => {
             act(() => {
                 useSceneStore.getState().importScene(fixture as any);
@@ -128,7 +128,7 @@ describe('store migration acceptance criteria', () => {
         });
     });
 
-    describe('phase 4 – runtime adapter', () => {
+    describe('runtime adapter hydration', () => {
         it('hydrates elements from the store and tracks cache versions', () => {
             const store = createSceneStore();
             store.getState().importScene(fixture as any);
@@ -147,7 +147,7 @@ describe('store migration acceptance criteria', () => {
         });
     });
 
-    describe('phase 5 – macro consolidation & undo', () => {
+    describe('macro consolidation & undo wiring', () => {
         it('keeps macro inverse index synchronized after edits', () => {
             const store = createSceneStore();
             store.getState().importScene(fixture as any);
@@ -167,7 +167,7 @@ describe('store migration acceptance criteria', () => {
         });
     });
 
-    describe('phase 6 – persistence refactor', () => {
+    describe('persistence gateway parity', () => {
         it('builds documents from the store without legacy globals', () => {
             useSceneStore.getState().importScene(fixture as any);
             const doc = DocumentGateway.build();

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import type { SceneClipboard } from '@state/sceneStore';
 import { createSceneSelectors } from '@state/scene/selectors';
@@ -17,7 +17,7 @@ describe('sceneStore', () => {
         store.getState().importScene(fixture as any);
     };
 
-    it('round-trips import/export for the phase 0 regression fixture', () => {
+    it('round-trips import/export for the baseline regression fixture', () => {
         importFixture();
         const exported = store.getState().exportSceneDraft();
 
