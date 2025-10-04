@@ -11,7 +11,6 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
-import { applyRSK, clampSignedScale } from '@math/numeric';
 import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { MouseEvent as ReactMouseEvent } from 'react';
@@ -138,62 +137,6 @@ function updateMoveDrag(
     updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
 }
 
-function computeCenterLockedScale(meta: any, x: number, y: number, shiftKey: boolean) {
-    if (!meta.centerWorld || !meta.centerLocal || !meta.dragLocalPoint || !meta.baseBounds) return null;
-    const centerWorld = meta.centerWorld;
-    const desiredVec = { x: x - centerWorld.x, y: y - centerWorld.y };
-    const dragVecLocal = {
-        x: meta.dragLocalPoint.x - meta.centerLocal.x,
-        y: meta.dragLocalPoint.y - meta.centerLocal.y,
-    };
-    if (Math.abs(dragVecLocal.x) < 1e-6 && Math.abs(dragVecLocal.y) < 1e-6) return null;
-    const kx = Math.tan(meta.origSkewX || 0);
-    const ky = Math.tan(meta.origSkewY || 0);
-    const kxVy = dragVecLocal.x + kx * dragVecLocal.y;
-    const kyVx = ky * dragVecLocal.x + dragVecLocal.y;
-    const cos = Math.cos(meta.origRotation || 0);
-    const sin = Math.sin(meta.origRotation || 0);
-    const a = cos * kxVy;
-    const b = -sin * kyVx;
-    const c = sin * kxVy;
-    const d = cos * kyVx;
-    const det = a * d - b * c;
-    if (!isFinite(det) || Math.abs(det) < 1e-6) return null;
-    let newScaleX = (desiredVec.x * d - desiredVec.y * b) / det;
-    let newScaleY = (-desiredVec.x * c + desiredVec.y * a) / det;
-    newScaleX = clampSignedScale(newScaleX);
-    newScaleY = clampSignedScale(newScaleY);
-    if (shiftKey) {
-        const ratioX = newScaleX / (meta.origScaleX || 1);
-        const ratioY = newScaleY / (meta.origScaleY || 1);
-        let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
-        if (!isFinite(factor) || Math.abs(factor) <= 0) factor = 1;
-        newScaleX = clampSignedScale((meta.origScaleX || 1) * factor);
-        newScaleY = clampSignedScale((meta.origScaleY || 1) * factor);
-    }
-    const baseBounds = meta.baseBounds;
-    const anchorLocal = {
-        x: baseBounds.x + baseBounds.width * (meta.origAnchorX ?? 0.5),
-        y: baseBounds.y + baseBounds.height * (meta.origAnchorY ?? 0.5),
-    };
-    const deltaLocal = {
-        x: meta.centerLocal.x - anchorLocal.x,
-        y: meta.centerLocal.y - anchorLocal.y,
-    };
-    const anchorOffset = applyRSK(
-        deltaLocal.x,
-        deltaLocal.y,
-        meta.origRotation || 0,
-        meta.origSkewX || 0,
-        meta.origSkewY || 0,
-        newScaleX,
-        newScaleY
-    );
-    const newOffsetX = centerWorld.x - anchorOffset.x;
-    const newOffsetY = centerWorld.y - anchorOffset.y;
-    return { newScaleX, newScaleY, newOffsetX, newOffsetY };
-}
-
 function updateScaleDrag(
     meta: any,
     vis: any,
@@ -206,15 +149,6 @@ function updateScaleDrag(
 ) {
     const { updateElementConfig } = deps;
     if (!meta.bounds) return;
-    const isCornerHandle =
-        meta.mode === 'scale-ne' || meta.mode === 'scale-nw' || meta.mode === 'scale-se' || meta.mode === 'scale-sw';
-    if (altKey && isCornerHandle) {
-        const centered = computeCenterLockedScale(meta, x, y, shiftKey);
-        if (centered) {
-            updateElementConfig?.(elId, centered);
-            return;
-        }
-    }
     const r = computeScaledTransform(
         x,
         y,
@@ -226,6 +160,8 @@ function updateScaleDrag(
             fixedWorldPoint: meta.fixedWorldPoint,
             fixedLocalPoint: meta.fixedLocalPoint,
             dragLocalPoint: meta.dragLocalPoint,
+            centerWorldPoint: meta.centerWorld,
+            centerLocalPoint: meta.centerLocal,
             geom: meta.geom,
             origRotation: meta.origRotation,
             origSkewX: meta.origSkewX,
@@ -233,7 +169,12 @@ function updateScaleDrag(
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
         },
-        shiftKey
+        shiftKey,
+        altKey &&
+            (meta.mode === 'scale-ne' ||
+                meta.mode === 'scale-nw' ||
+                meta.mode === 'scale-se' ||
+                meta.mode === 'scale-sw')
     );
     if (r) {
         const cfg = {

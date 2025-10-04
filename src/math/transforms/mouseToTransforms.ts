@@ -123,7 +123,8 @@ export function computeScaledTransform(
     mouseX: number,
     mouseY: number,
     p: ScaleComputationParams,
-    shiftKey: boolean
+    shiftKey: boolean,
+    altKey = false
 ): ScaleResult | null {
     const {
         geom,
@@ -132,6 +133,9 @@ export function computeScaledTransform(
         origScaleY,
         baseBounds,
         fixedWorldPoint,
+        dragLocalPoint,
+        centerWorldPoint,
+        centerLocalPoint,
         origRotation,
         origSkewX,
         origSkewY,
@@ -139,6 +143,64 @@ export function computeScaledTransform(
         origAnchorY,
     } = p;
     if (!geom || !fixedWorldPoint || !baseBounds) return null;
+    if (
+        altKey &&
+        centerWorldPoint &&
+        centerLocalPoint &&
+        dragLocalPoint &&
+        (Math.abs(dragLocalPoint.x - centerLocalPoint.x) > 1e-6 ||
+            Math.abs(dragLocalPoint.y - centerLocalPoint.y) > 1e-6)
+    ) {
+        const desiredVec = { x: mouseX - centerWorldPoint.x, y: mouseY - centerWorldPoint.y };
+        const dragVecLocal = {
+            x: dragLocalPoint.x - centerLocalPoint.x,
+            y: dragLocalPoint.y - centerLocalPoint.y,
+        };
+        const kx = Math.tan(origSkewX || 0);
+        const ky = Math.tan(origSkewY || 0);
+        const kxVy = dragVecLocal.x + kx * dragVecLocal.y;
+        const kyVx = ky * dragVecLocal.x + dragVecLocal.y;
+        const { cos, sin } = sincos(origRotation || 0);
+        const a = cos * kxVy;
+        const b = -sin * kyVx;
+        const c = sin * kxVy;
+        const d = cos * kyVx;
+        const detCenter = a * d - b * c;
+        if (isFinite(detCenter) && Math.abs(detCenter) >= 1e-6) {
+            let newScaleX = (desiredVec.x * d - desiredVec.y * b) / detCenter;
+            let newScaleY = (-desiredVec.x * c + desiredVec.y * a) / detCenter;
+            newScaleX = clampSignedScale(newScaleX);
+            newScaleY = clampSignedScale(newScaleY);
+            if (shiftKey) {
+                const ratioX = newScaleX / (origScaleX || 1);
+                const ratioY = newScaleY / (origScaleY || 1);
+                let factor = Math.abs(ratioX - 1) > Math.abs(ratioY - 1) ? ratioX : ratioY;
+                if (!isFinite(factor) || Math.abs(factor) <= 0) factor = 1;
+                newScaleX = clampSignedScale((origScaleX || 1) * factor);
+                newScaleY = clampSignedScale((origScaleY || 1) * factor);
+            }
+            const anchorLocal = {
+                x: baseBounds.x + baseBounds.width * (origAnchorX ?? 0.5),
+                y: baseBounds.y + baseBounds.height * (origAnchorY ?? 0.5),
+            };
+            const deltaLocal = {
+                x: centerLocalPoint.x - anchorLocal.x,
+                y: centerLocalPoint.y - anchorLocal.y,
+            };
+            const anchorOffset = applyRSK(
+                deltaLocal.x,
+                deltaLocal.y,
+                origRotation || 0,
+                origSkewX || 0,
+                origSkewY || 0,
+                newScaleX,
+                newScaleY
+            );
+            const newOffsetX = centerWorldPoint.x - anchorOffset.x;
+            const newOffsetY = centerWorldPoint.y - anchorOffset.y;
+            return { newScaleX, newScaleY, newOffsetX, newOffsetY };
+        }
+    }
     const { widthVec, heightVec } = geom;
     const { x: wvx, y: wvy } = widthVec;
     const { x: hvx, y: hvy } = heightVec;
