@@ -7,16 +7,6 @@ import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
 
-type DebugTemplateModule = typeof import('@core/scene-templates');
-let debugTemplatesModulePromise: Promise<DebugTemplateModule> | null = null;
-
-const loadDebugTemplates = async (): Promise<DebugTemplateModule> => {
-    if (!debugTemplatesModulePromise) {
-        debugTemplatesModulePromise = import('@core/scene-templates');
-    }
-    return debugTemplatesModulePromise;
-};
-
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
     const { setSceneName, refreshSceneUI } = useScene();
@@ -70,16 +60,8 @@ const EasyModeTemplateInitializer: React.FC = () => {
                             await loadDefaultScene('EasyModeTemplateInitializer.default');
                             break;
                         case 'debug':
-                            try {
-                                const { createAllElementsDebugScene, createDebugScene } = await loadDebugTemplates();
-                                if (typeof createAllElementsDebugScene === 'function') {
-                                    createAllElementsDebugScene();
-                                } else if (typeof createDebugScene === 'function') {
-                                    createDebugScene();
-                                }
-                            } catch (error) {
-                                console.error('Failed to load debug scene templates', error);
-                            }
+                            console.warn('Debug template is no longer available; loading default scene instead.');
+                            await loadDefaultScene('EasyModeTemplateInitializer.debugFallback');
                             break;
                         default:
                             await loadDefaultScene('EasyModeTemplateInitializer.fallback');

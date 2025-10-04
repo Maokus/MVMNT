@@ -19,16 +19,6 @@ import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 
-type DebugTemplateModule = typeof import('@core/scene-templates');
-let debugTemplatesModulePromise: Promise<DebugTemplateModule> | null = null;
-
-const loadDebugTemplates = async (): Promise<DebugTemplateModule> => {
-    if (!debugTemplatesModulePromise) {
-        debugTemplatesModulePromise = import('@core/scene-templates');
-    }
-    return debugTemplatesModulePromise;
-};
-
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
 const SIDE_MAX_WIDTH = 720;
@@ -331,16 +321,8 @@ const TemplateInitializer: React.FC = () => {
                             await loadDefaultScene('MidiVisualizer.TemplateInitializer.default');
                             break;
                         case 'debug':
-                            try {
-                                const { createAllElementsDebugScene, createDebugScene } = await loadDebugTemplates();
-                                if (typeof createAllElementsDebugScene === 'function') {
-                                    createAllElementsDebugScene();
-                                } else if (typeof createDebugScene === 'function') {
-                                    createDebugScene();
-                                }
-                            } catch (error) {
-                                console.error('Failed to load debug scene templates', error);
-                            }
+                            console.warn('Debug template is no longer available; loading default scene instead.');
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.debugFallback');
                             break;
                         default:
                             await loadDefaultScene('MidiVisualizer.TemplateInitializer.fallback');
