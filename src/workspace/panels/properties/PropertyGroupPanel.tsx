@@ -5,6 +5,7 @@ import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { useTimelineStore } from '@state/timelineStore';
+import { FaLink } from 'react-icons/fa';
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
@@ -23,7 +24,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onMacroAssignment,
     onCollapseToggle
 }) => {
-    const { macros: macroList } = useMacros();
+    const { macros: macroList, create: createMacro } = useMacros();
     const macrosSource = useMemo(() => (macroList as any[]), [macroList]);
     const macroLookup = useMemo(
         () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
@@ -98,11 +99,13 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
     const MacroAssignmentControl: React.FC<{
         propertyKey: string;
+        property: PropertyDefinition;
+        currentValue: any;
         assignedMacro?: string;
         isAssigned: boolean;
         macros: any[];
         onAssign: (macroName: string) => void;
-    }> = ({ propertyKey, assignedMacro, isAssigned, macros, onAssign }) => {
+    }> = ({ propertyKey, property, currentValue, assignedMacro, isAssigned, macros, onAssign }) => {
         const [isOpen, setIsOpen] = useState(false);
         const triggerRef = useRef<HTMLButtonElement | null>(null);
         const menuRef = useRef<HTMLDivElement | null>(null);
@@ -154,25 +157,102 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const hasMacros = macros.length > 0;
         const canRemove = !!assignedMacro;
-        const isDisabled = !hasMacros && !assignedMacro;
+
+        // Generate a unique macro name derived from the property label/key
+        const generateMacroName = () => {
+            const baseSource = property.label || property.key || 'Macro';
+            const base = baseSource
+                .replace(/[^a-zA-Z0-9]+/g, ' ')
+                .trim()
+                .split(/\s+/)
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join('') || 'Macro';
+            let candidate = base;
+            let i = 1;
+            while (macroLookup.has(candidate)) {
+                candidate = base + i;
+                i++;
+            }
+            return candidate;
+        };
+
+        const mapPropertyToMacroType = (prop: PropertyDefinition): { type: string; options: any; value: any } => {
+            let macroType: string = prop.type;
+            if (macroType === 'range') macroType = 'number';
+            if (macroType === 'file') {
+                if (prop.accept) {
+                    if (/(\.mid|\.midi)/i.test(prop.accept)) macroType = 'file-midi';
+                    else if (/image/i.test(prop.accept)) macroType = 'file-image';
+                }
+            }
+            let value = currentValue;
+            if (value === undefined) value = prop.default;
+            const options: any = {};
+            switch (macroType) {
+                case 'number':
+                    if (typeof value !== 'number') value = typeof value === 'string' ? parseFloat(value) || 0 : 0;
+                    break;
+                case 'select':
+                    if (prop.options) options.selectOptions = prop.options;
+                    break;
+                case 'file':
+                case 'file-midi':
+                case 'file-image':
+                    if (prop.accept) options.accept = prop.accept;
+                    // file-type macros default to null if not an actual File object
+                    if (value && typeof value !== 'object') value = null;
+                    break;
+                case 'boolean':
+                    value = !!value;
+                    break;
+                case 'font':
+                    if (typeof value !== 'string' || !value) value = 'Arial|400';
+                    break;
+                case 'midiTrackRef':
+                    if (prop.allowMultiple !== undefined) options.allowMultiple = prop.allowMultiple;
+                    if (value == null) value = null;
+                    break;
+                default:
+                    // string, color, etc.
+                    if (value == null) value = '';
+            }
+            return { type: macroType, options, value };
+        };
+
+        const createAndAssignNewMacro = () => {
+            const name = generateMacroName();
+            const { type, options, value } = mapPropertyToMacroType(property);
+            const success = createMacro(name, type as any, value, options);
+            if (success) {
+                onAssign(name);
+            } else {
+                console.warn('[PropertyGroupPanel] Failed to auto-create macro', { name, type, value });
+            }
+        };
 
         return (
             <div className="ae-macro-assignment">
                 <button
                     ref={triggerRef}
                     type="button"
-                    className={`ae-macro-trigger ${assignedMacroExists ? 'assigned' : ''} ${isDisabled ? 'disabled' : ''
-                        }`}
-                    disabled={isDisabled}
-                    onClick={() => setIsOpen((prev) => !prev)}
-                    title={assignedMacroExists ? 'Bound to macro' : hasMacros ? 'Link this property to a macro' : 'No macros available'}
+                    className={`ae-macro-trigger ${assignedMacroExists ? 'assigned' : ''}`}
+                    onClick={() => {
+                        if (!hasMacros && !assignedMacro) {
+                            // Auto-create and assign
+                            createAndAssignNewMacro();
+                        } else {
+                            setIsOpen((prev) => !prev);
+                        }
+                    }}
+                    title={'assign to macro'}
                 >
-                    <span className="ae-macro-label-text">{displayLabel}</span>
+                    <span className="ae-macro-label-text">{assignedMacro ? displayLabel : <FaLink />}</span>
                     {(hasMacros || assignedMacro) && <span className="ae-macro-caret">▼</span>}
                 </button>
                 {isOpen && (
                     <div ref={menuRef} className="ae-macro-menu">
                         <div className="ae-macro-options">
+                            {hasMacros && <div className="ae-macro-divider" />}
                             {hasMacros ? (
                                 macros.map((macro: any) => (
                                     <button
@@ -199,6 +279,16 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                                     </button>
                                 </>
                             )}
+                            <button
+                                type="button"
+                                className="ae-macro-option"
+                                onClick={() => {
+                                    createAndAssignNewMacro();
+                                    setIsOpen(false);
+                                }}
+                            >
+                                + Assign to New Macro
+                            </button>
                         </div>
                     </div>
                 )}
@@ -216,6 +306,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         return (
             <MacroAssignmentControl
                 propertyKey={property.key}
+                property={property}
+                currentValue={values[property.key]}
                 assignedMacro={currentAssignment}
                 isAssigned={isAssigned}
                 macros={macros}
