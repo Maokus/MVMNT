@@ -165,6 +165,9 @@ const EasyModeLayout: React.FC = () => {
             <header style={{ 'backgroundColor': 'var(--twc-menubar)' }} className="border-b border-neutral-600 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)] h-[48px]">
                 <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-4 px-4 py-0 text-xs">
                     <div className="flex items-center gap-3 text-sm font-medium">
+                        <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
+                            <img width="50" src={logo} style={{ cursor: 'pointer', marginTop: "-1px" }} />
+                        </Link>
                         <h3 style={{ marginRight: 0 }}>
                             <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
                                 MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
@@ -216,9 +219,6 @@ const EasyModeLayout: React.FC = () => {
                             Export Video
                         </button>
 
-                        <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
-                            <img width="50" src={logo} style={{ cursor: 'pointer', marginTop: "-1px" }} />
-                        </Link>
                     </div>
                 </div>
             </header>

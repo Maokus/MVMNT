@@ -146,61 +146,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                 <p className="m-0 mb-4 text-[13px] text-neutral-400">
                     Adjust render dimensions, playback range, and debug tools for the current scene.
                 </p>
-                <div className="mb-4 flex flex-col gap-3">
-                    <h3 className="m-0 text-[13px] font-semibold text-white">Scene Metadata</h3>
-                    <label className="flex flex-col gap-1 text-[12px]">
-                        Scene Name
-                        <input
-                            type="text"
-                            value={localSceneName}
-                            onChange={(e) => setLocalSceneName(e.target.value)}
-                            onBlur={commitSceneName}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    commitSceneName();
-                                    (e.currentTarget as HTMLInputElement).blur();
-                                }
-                            }}
-                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                        />
-                    </label>
-                    <label className="flex flex-col gap-1 text-[12px]">
-                        Scene ID
-                        <input
-                            type="text"
-                            value={localSceneId}
-                            onChange={(e) => setLocalSceneId(e.target.value)}
-                            onBlur={commitSceneId}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    commitSceneId();
-                                    (e.currentTarget as HTMLInputElement).blur();
-                                }
-                            }}
-                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                        />
-                    </label>
-                    <label className="flex flex-col gap-1 text-[12px]">
-                        Description
-                        <textarea
-                            value={localDescription}
-                            onChange={(e) => setLocalDescription(e.target.value)}
-                            onBlur={commitDescription}
-                            rows={3}
-                            className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                        />
-                    </label>
-                    <div className="grid grid-cols-2 gap-3 text-[11px] text-neutral-400">
-                        <div>
-                            <span className="block uppercase tracking-wide text-neutral-500">Created</span>
-                            <span className="block text-neutral-300">{formatTimestamp(metadata.createdAt)}</span>
-                        </div>
-                        <div>
-                            <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
-                            <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
-                        </div>
-                    </div>
-                </div>
+
                 <div className="grid grid-cols-3 gap-3 mb-4">
                     <label className="flex flex-col gap-1 text-[12px]">
                         Width
@@ -269,6 +215,61 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             className="number-input w-full"
                         />
                     </label>
+                </div>
+                <div className="mb-4 flex flex-col gap-3">
+                    <h3 className="m-0 text-[13px] font-semibold text-white">Scene Metadata</h3>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Scene Name
+                        <input
+                            type="text"
+                            value={localSceneName}
+                            onChange={(e) => setLocalSceneName(e.target.value)}
+                            onBlur={commitSceneName}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    commitSceneName();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                }
+                            }}
+                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Scene ID
+                        <input
+                            type="text"
+                            value={localSceneId}
+                            onChange={(e) => setLocalSceneId(e.target.value)}
+                            onBlur={commitSceneId}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    commitSceneId();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                }
+                            }}
+                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Description
+                        <textarea
+                            value={localDescription}
+                            onChange={(e) => setLocalDescription(e.target.value)}
+                            onBlur={commitDescription}
+                            rows={3}
+                            className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 text-[11px] text-neutral-400">
+                        <div>
+                            <span className="block uppercase tracking-wide text-neutral-500">Created</span>
+                            <span className="block text-neutral-300">{formatTimestamp(metadata.createdAt)}</span>
+                        </div>
+                        <div>
+                            <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
+                            <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
+                        </div>
+                    </div>
                 </div>
                 <div className="flex flex-col gap-2 border-t border-neutral-700 pt-3">
                     <h3 className="m-0 text-[13px] font-semibold text-white">Debug</h3>
