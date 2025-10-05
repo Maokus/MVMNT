@@ -7,6 +7,8 @@ import { useMacros } from '@context/MacroContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { FaLink } from 'react-icons/fa';
 
+const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
+
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
     values: { [key: string]: any };
@@ -185,8 +187,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return candidate;
         };
 
-        const mapPropertyToMacroType = (prop: PropertyDefinition): { type: string; options: any; value: any } => {
-            let macroType: string = prop.type;
+    const mapPropertyToMacroType = (prop: PropertyDefinition): { type: string; options: any; value: any } => {
+        let macroType: string = prop.type;
             if (macroType === 'range') macroType = 'number';
             if (macroType === 'file') {
                 if (prop.accept) {
@@ -194,12 +196,15 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     else if (/image/i.test(prop.accept)) macroType = 'file-image';
                 }
             }
-            let value = currentValue;
-            if (value === undefined) value = prop.default;
+        let value = currentValue;
+        if (value === undefined) value = prop.default;
             const options: any = {};
             switch (macroType) {
                 case 'number':
                     if (typeof value !== 'number') value = typeof value === 'string' ? parseFloat(value) || 0 : 0;
+                    if (ANGLE_PROPERTIES.has(prop.key) && typeof value === 'number') {
+                        value = value * (Math.PI / 180);
+                    }
                     break;
                 case 'select':
                     if (prop.options) options.selectOptions = prop.options;

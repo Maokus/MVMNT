@@ -28,11 +28,26 @@ interface MacroAssignments {
 }
 
 const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
+const RAD_TO_DEG = 180 / Math.PI;
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_DISPLAY_THRESHOLD = Math.PI * 2 + 1e-6; // treat small magnitudes as radians
+
+function isAngleProperty(propertyKey: string): boolean {
+    return ANGLE_PROPERTIES.has(propertyKey);
+}
+
+function normalizeAngleForDisplay(value: number): number {
+    if (!Number.isFinite(value)) return value;
+    if (Math.abs(value) <= RAD_DISPLAY_THRESHOLD) {
+        return value * RAD_TO_DEG;
+    }
+    return value;
+}
 
 function normalizeConstantValue(propertyKey: string, value: unknown) {
     if (value == null) return value;
-    if (ANGLE_PROPERTIES.has(propertyKey) && typeof value === 'number') {
-        return value;
+    if (isAngleProperty(propertyKey) && typeof value === 'number') {
+        return normalizeAngleForDisplay(value);
     }
     return value;
 }
@@ -88,14 +103,19 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     nextAssignments[property.key] = binding.macroId;
                     const macro = macroLookup.get(binding.macroId);
                     if (macro) {
-                        nextValues[property.key] = macro.value;
+                        const macroValue = macro.value;
+                        if (isAngleProperty(property.key) && typeof macroValue === 'number') {
+                            nextValues[property.key] = normalizeAngleForDisplay(macroValue);
+                        } else {
+                            nextValues[property.key] = macroValue;
+                        }
                     } else {
-                        nextValues[property.key] = property.default;
+                        nextValues[property.key] = normalizeConstantValue(property.key, property.default);
                     }
                 } else if (binding?.type === 'constant') {
                     nextValues[property.key] = normalizeConstantValue(property.key, binding.value ?? property.default);
                 } else {
-                    nextValues[property.key] = property.default;
+                    nextValues[property.key] = normalizeConstantValue(property.key, property.default);
                 }
             });
         });
@@ -143,7 +163,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                             Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, key),
                     };
                 }
-                onConfigChange(elementId, { [key]: value }, options);
+                let nextValue = value;
+                if (isAngleProperty(key) && typeof value === 'number') {
+                    nextValue = value * DEG_TO_RAD;
+                }
+                onConfigChange(elementId, { [key]: nextValue }, options);
             }
         },
         [elementId, onConfigChange]
@@ -164,7 +188,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 });
                 const currentValue = propertyValues[propertyKey];
                 if (onConfigChange) {
-                    onConfigChange(elementId, { [propertyKey]: currentValue });
+                    let nextValue = currentValue;
+                    if (isAngleProperty(propertyKey) && typeof currentValue === 'number') {
+                        nextValue = currentValue * DEG_TO_RAD;
+                    }
+                    onConfigChange(elementId, { [propertyKey]: nextValue });
                 }
             }
             setMacroListenerKey((prev) => prev + 1);

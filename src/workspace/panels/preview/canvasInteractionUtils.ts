@@ -322,8 +322,8 @@ function updateRotateDrag(
     deps: InteractionDeps
 ) {
     if (!meta.bounds) return [];
-    const newRotationDeg = computeRotation(x, y, meta, shiftKey);
-    applyDragUpdate(meta, elId, { elementRotation: newRotationDeg }, deps);
+    const newRotationRad = computeRotation(x, y, meta, shiftKey);
+    applyDragUpdate(meta, elId, { elementRotation: newRotationRad }, deps);
     return [];
 }
 

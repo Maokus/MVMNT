@@ -87,7 +87,10 @@ export function computeAnchorAdjustment(mouseX: number, mouseY: number, p: Ancho
 
 // Rotation computation extracted from interactionMath.ts
 
-/** Compute rotation (degrees) based on mouse position & original anchor metadata. */
+/** Compute rotation (radians) based on mouse position & original anchor metadata. */
+const ROTATION_SNAP_INCREMENT_DEG = 15;
+const ROTATION_SNAP_INCREMENT_RAD = (ROTATION_SNAP_INCREMENT_DEG * Math.PI) / 180;
+
 export function computeRotation(mouseX: number, mouseY: number, p: any, shiftKey: boolean): number {
     // eslint-disable-line @typescript-eslint/no-explicit-any
     let centerX = p.bounds.x + p.bounds.width * p.origAnchorX;
@@ -111,11 +114,9 @@ export function computeRotation(mouseX: number, mouseY: number, p: any, shiftKey
     const deltaRad = currentAngleRad - startAngleRad;
     let newRotationRad = (p.origRotation || 0) + deltaRad;
     if (shiftKey) {
-        const deg = (newRotationRad * 180) / Math.PI;
-        const snappedDeg = Math.round(deg / 15) * 15;
-        newRotationRad = (snappedDeg * Math.PI) / 180;
+        newRotationRad = Math.round(newRotationRad / ROTATION_SNAP_INCREMENT_RAD) * ROTATION_SNAP_INCREMENT_RAD;
     }
-    return (newRotationRad * 180) / Math.PI;
+    return newRotationRad;
 }
 
 /** Compute new scale (and resulting offset) given a drag on a scale handle. */

@@ -11,6 +11,8 @@ import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 import { debugLog } from '@utils/debug-log';
 
+const DEFAULT_ROLL_WIDTH = 800;
+
 export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
@@ -92,9 +94,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             key: 'rollWidth',
                             type: 'number',
                             label: 'Roll Width',
-                            default: 800,
-                            min: 200,
-                            max: 2000,
+                            default: DEFAULT_ROLL_WIDTH,
                             step: 50,
                             description: 'Width of the roll section in pixels (auto-calculated if empty)',
                         },
@@ -625,6 +625,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const showPiano = this.getProperty<boolean>('showPiano'); // Keep this declaration
         const pianoWidth = showPiano ? this.getProperty<number>('pianoWidth') : 0; // Keep this declaration
         const rollWidth = this.getProperty<number>('rollWidth');
+        const effectiveRollWidth = rollWidth ?? DEFAULT_ROLL_WIDTH;
         const showNoteGrid = this.getProperty<boolean>('showNoteGrid');
         const showNoteLabels = this.getProperty<boolean>('showNoteLabels');
         const showNotes = this.getProperty<boolean>('showNotes');
@@ -694,7 +695,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        const totalWidth = pianoWidth + (rollWidth || 800);
+        const totalWidth = (showPiano ? pianoWidth : 0) + effectiveRollWidth;
 
         // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
         // This prevents jitter when other decorative elements toggle or animations change.
@@ -790,7 +791,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
             // Only include pianoWidth if showPiano is true
             const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
-                { noteHeight, minNote, maxNote, pianoWidth: effectivePianoWidth, rollWidth },
+                { noteHeight, minNote, maxNote, pianoWidth, rollWidth: effectiveRollWidth },
                 noteBlocks,
                 effectiveTime
             );
@@ -835,15 +836,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add grid lines
         if (showNoteGrid) {
-            // Only include pianoWidth if showPiano is true
-            const effectivePianoWidth = showPiano ? pianoWidth : 0;
-            const noteLines = this._createNoteGridLines(
-                minNote,
-                maxNote,
-                effectivePianoWidth,
-                rollWidth || 800,
-                noteHeight
-            );
+            const noteLines = this._createNoteGridLines(minNote, maxNote, pianoWidth, effectiveRollWidth, noteHeight);
             noteLines.forEach((l: any) => {
                 if (noteGridColor) l.setColor?.(noteGridColor);
                 if (noteGridLineWidth) l.setLineWidth?.(noteGridLineWidth);
@@ -865,8 +858,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 windowStart,
                 windowEnd,
                 beatsPerBarForGrid,
-                effectivePianoWidth,
-                rollWidth || 800,
+                pianoWidth,
+                effectiveRollWidth,
                 (maxNote - minNote + 1) * noteHeight
             );
             beatLines.forEach((l: any) => {
@@ -915,8 +908,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 windowStart,
                 windowEnd,
                 beatsPerBarForGrid,
-                effectivePianoWidth,
-                rollWidth || 800
+                pianoWidth,
+                effectiveRollWidth
             );
             (labels as any[]).forEach((lbl) => {
                 lbl.font = `${beatLabelFontWeight} ${beatLabelFontSize}px ${beatLabelFontFamily}`;
@@ -934,8 +927,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const ph = this._createPlayhead(
                 effectiveTime,
-                effectivePianoWidth,
-                rollWidth || 800,
+                pianoWidth,
+                effectiveRollWidth,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
                 playheadColor

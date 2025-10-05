@@ -181,7 +181,8 @@ describe('computeRotation snapping', () => {
         const r = (angle * Math.PI) / 180;
         const mouseX = 50 + Math.cos(r) * 50;
         const mouseY = 50 + Math.sin(r) * 50;
-        const deg = computeRotation(mouseX, mouseY, p, true);
+        const rad = computeRotation(mouseX, mouseY, p, true);
+        const deg = (rad * 180) / Math.PI;
         expect(Math.round(deg) % 15).toBe(0);
         expect(Math.round(deg)).toBe(135); // relative delta from start (-90deg -> ~47deg)
     });
