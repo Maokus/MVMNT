@@ -33,19 +33,26 @@ const templateFiles = import.meta.glob('../templates/*.mvt', {
     import: 'default',
 }) as Record<string, () => Promise<ArrayBuffer | Uint8Array>>;
 
-function toUint8Array(value: unknown): Uint8Array {
+async function toUint8Array(value: unknown): Promise<Uint8Array> {
     if (value instanceof Uint8Array) {
         return value;
     }
     if (value instanceof ArrayBuffer) {
         return new Uint8Array(value);
     }
+    if (typeof Blob !== 'undefined' && value instanceof Blob) {
+        return new Uint8Array(await value.arrayBuffer());
+    }
     if (typeof value === 'string') {
-        const out = new Uint8Array(value.length);
-        for (let i = 0; i < value.length; i++) {
-            out[i] = value.charCodeAt(i) & 0xff;
+        if (typeof fetch !== 'function') {
+            throw new Error('Unable to resolve template asset URL');
         }
-        return out;
+        const response = await fetch(value);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch template asset: ${response.status} ${response.statusText}`);
+        }
+        const buffer = await response.arrayBuffer();
+        return new Uint8Array(buffer);
     }
     throw new Error('Unsupported template module format');
 }
@@ -75,7 +82,7 @@ const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
             author,
             loadArtifact: async () => {
                 const moduleValue = await loader();
-                const data = toUint8Array(moduleValue);
+                const data = await toUint8Array(moduleValue);
                 const metadata = extractSceneMetadataFromArtifact(data);
                 return { data, metadata };
             },
