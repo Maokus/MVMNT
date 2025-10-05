@@ -1,4 +1,16 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+    FloatingFocusManager,
+    FloatingPortal,
+    autoUpdate,
+    flip,
+    offset,
+    shift,
+    useDismiss,
+    useFloating,
+    useInteractions,
+    useRole,
+} from '@floating-ui/react';
 import { beatsToTicks, CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
@@ -334,15 +346,23 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
     const setBeatsPerBar = useTimelineStore((s) => s.setBeatsPerBar);
     const [menuOpen, setMenuOpen] = useState(false);
-    const menuRef = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        const onDoc = (e: MouseEvent) => {
-            if (!menuRef.current) return;
-            if (!menuRef.current.contains(e.target as any)) setMenuOpen(false);
-        };
-        document.addEventListener('mousedown', onDoc);
-        return () => document.removeEventListener('mousedown', onDoc);
-    }, []);
+    const {
+        refs: menuRefs,
+        floatingStyles: menuFloatingStyles,
+        context: menuContext,
+    } = useFloating({
+        open: menuOpen,
+        onOpenChange: setMenuOpen,
+        placement: 'bottom-end',
+        whileElementsMounted: autoUpdate,
+        middleware: [offset(8), flip({ padding: 12 }), shift({ padding: 12 })],
+    });
+    const menuDismiss = useDismiss(menuContext, { outsidePressEvent: 'mousedown' });
+    const menuRole = useRole(menuContext, { role: 'menu' });
+    const { getReferenceProps: getMenuReferenceProps, getFloatingProps: getMenuFloatingProps } = useInteractions([
+        menuDismiss,
+        menuRole,
+    ]);
     // Zoom slider state maps to view range width using logarithmic scale
     // Zoom now operates on tick window width using logarithmic mapping
     const MIN_RANGE = 4; // 4 ticks (~1/120 beat at PPQ=480)
@@ -380,7 +400,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     };
 
     return (
-        <div className="flex items-center gap-3 text-[12px] relative" ref={menuRef}>
+        <div className="flex items-center gap-3 text-[12px] relative">
             {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
             <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1 text-neutral-300" title="Global tempo (BPM)">
@@ -445,30 +465,48 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                 <FaMagnet />
             </button>
             {/* Ellipsis menu trigger */}
-            <button aria-haspopup="true" aria-expanded={menuOpen} title="Timeline options" onClick={() => setMenuOpen(!menuOpen)} className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center">
+            <button
+                {...getMenuReferenceProps({
+                    type: 'button',
+                    onClick: () => setMenuOpen((open) => !open),
+                    'aria-haspopup': 'menu',
+                    'aria-expanded': menuOpen,
+                    title: 'Timeline options',
+                })}
+                ref={menuRefs.setReference}
+                className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center"
+            >
                 <FaEllipsisV />
             </button>
             {menuOpen && (
-                <div
-                    role="menu"
-                    className="absolute right-0 top-full z-[60] mt-1 w-64 rounded border border-neutral-700 bg-neutral-900/95 p-3 shadow-lg flex flex-col gap-3"
-                    aria-label="Timeline options menu"
-                >
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-neutral-300">Auto follow playhead</span>
-                        <button
-                            className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
-                            onClick={() => setFollow && setFollow(!follow)}
-                            role="menuitemcheckbox"
-                            aria-checked={!!follow}
+                <FloatingPortal>
+                    <FloatingFocusManager context={menuContext} modal={false} initialFocus={-1}>
+                        <div
+                            {...getMenuFloatingProps({
+                                role: 'menu',
+                                'aria-label': 'Timeline options menu',
+                                className: 'w-64 rounded border border-neutral-700 bg-neutral-900/95 p-3 shadow-lg flex flex-col gap-3',
+                            })}
+                            ref={menuRefs.setFloating}
+                            style={menuFloatingStyles}
                         >
-                            {follow ? 'On' : 'Off'}
-                        </button>
-                    </div>
-                    <p className="m-0 text-[11px] leading-snug text-neutral-500">
-                        Scene dimensions and debug tools have moved to the scene settings modal next to the scene name.
-                    </p>
-                </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-neutral-300">Auto follow playhead</span>
+                                <button
+                                    className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
+                                    onClick={() => setFollow && setFollow(!follow)}
+                                    role="menuitemcheckbox"
+                                    aria-checked={!!follow}
+                                >
+                                    {follow ? 'On' : 'Off'}
+                                </button>
+                            </div>
+                            <p className="m-0 text-[11px] leading-snug text-neutral-500">
+                                Scene dimensions and debug tools have moved to the scene settings modal next to the scene name.
+                            </p>
+                        </div>
+                    </FloatingFocusManager>
+                </FloatingPortal>
             )}
         </div>
     );

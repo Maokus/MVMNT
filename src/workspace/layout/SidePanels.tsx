@@ -1,4 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
+import {
+    FloatingFocusManager,
+    FloatingPortal,
+    autoUpdate,
+    flip,
+    offset,
+    shift,
+    useDismiss,
+    useFloating,
+    useInteractions,
+    useRole,
+} from '@floating-ui/react';
 import { SceneElementPanel, ElementDropdown } from '@workspace/panels/scene-element';
 import { PropertiesPanel } from '@workspace/panels/properties';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -21,7 +33,6 @@ const SidePanelsInternal: React.FC = () => {
     const canExport = !!(visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
     const sidePanelsRef = useRef<HTMLDivElement>(null);
-    const addElementDropdownRef = useRef<HTMLDivElement>(null);
     const [layout, setLayout] = useState<'vertical' | 'horizontal'>(() => {
         if (typeof window === 'undefined') return 'vertical';
         return getLayoutFromWidth(window.innerWidth);
@@ -142,11 +153,6 @@ const SidePanelsInternal: React.FC = () => {
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            // Close add element dropdown if clicked outside
-            if (addElementDropdownRef.current && !addElementDropdownRef.current.contains(event.target as Node)) {
-                setShowAddElementDropdown(false);
-            }
-
             // Clear selection only if click is outside BOTH side panels and the canvas
             const clickedInsideSidePanels = sidePanelsRef.current?.contains(event.target as Node);
             const canvasEl: HTMLCanvasElement | null = canvasRef?.current || document.getElementById('canvas') as HTMLCanvasElement | null;
@@ -184,13 +190,32 @@ const SidePanelsInternal: React.FC = () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleKeyPress);
         };
-    }, [selectedElementId, showAddElementDropdown, clearSelection, deleteElement, canvasRef]);
+    }, [selectedElementId, clearSelection, deleteElement, canvasRef]);
 
     // Wrapper to handle adding element and closing dropdown
     const handleAddElementAndCloseDropdown = (elementType: string) => {
         addElement(elementType);
         setShowAddElementDropdown(false);
     };
+
+    const {
+        refs: addElementRefs,
+        floatingStyles: addElementFloatingStyles,
+        context: addElementContext,
+    } = useFloating({
+        open: showAddElementDropdown,
+        onOpenChange: setShowAddElementDropdown,
+        placement: 'bottom-end',
+        whileElementsMounted: autoUpdate,
+        middleware: [offset(8), flip({ padding: 12 }), shift({ padding: 12 })],
+    });
+
+    const addElementDismiss = useDismiss(addElementContext, { outsidePressEvent: 'mousedown' });
+    const addElementRole = useRole(addElementContext, { role: 'menu' });
+    const { getReferenceProps: getAddElementReferenceProps, getFloatingProps: getAddElementFloatingProps } = useInteractions([
+        addElementDismiss,
+        addElementRole,
+    ]);
 
     return (
         <div
@@ -205,20 +230,36 @@ const SidePanelsInternal: React.FC = () => {
             >
                 <div className="border-b px-4 py-2 shrink-0 flex justify-between items-center relative bg-menubar border-border">
                     <h3 className="text-[13px] font-semibold text-neutral-300 m-0">📚 Elements</h3>
-                    <div style={{ position: 'relative' }} ref={addElementDropdownRef}>
+                    <div className="relative">
                         <button
+                            {...getAddElementReferenceProps({
+                                type: 'button',
+                                onClick: () => setShowAddElementDropdown((prev) => !prev),
+                                title: 'Add element',
+                            })}
+                            ref={addElementRefs.setReference}
                             className="px-2 py-1 border rounded cursor-pointer text-[12px] font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4] ml-auto"
-                            onClick={() => setShowAddElementDropdown(!showAddElementDropdown)}
-                            title="Add element"
                         >
                             + Add
                         </button>
 
                         {showAddElementDropdown && (
-                            <ElementDropdown
-                                onAddElement={handleAddElementAndCloseDropdown}
-                                onClose={() => setShowAddElementDropdown(false)}
-                            />
+                            <FloatingPortal>
+                                <FloatingFocusManager context={addElementContext} modal={false} initialFocus={-1}>
+                                    <div
+                                        {...getAddElementFloatingProps({})}
+                                        ref={addElementRefs.setFloating}
+                                        style={addElementFloatingStyles}
+                                        className="z-[1000]"
+                                    >
+                                        <ElementDropdown
+                                            className="mt-2"
+                                            onAddElement={handleAddElementAndCloseDropdown}
+                                            onClose={() => setShowAddElementDropdown(false)}
+                                        />
+                                    </div>
+                                </FloatingFocusManager>
+                            </FloatingPortal>
                         )}
                     </div>
                 </div>

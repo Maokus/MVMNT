@@ -1,4 +1,18 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import {
+    FloatingFocusManager,
+    FloatingPortal,
+    autoUpdate,
+    flip,
+    offset,
+    shift,
+    size,
+    useDismiss,
+    useFloating,
+    useInteractions,
+    useRole,
+} from '@floating-ui/react';
+import { FaSearch } from 'react-icons/fa';
 import { GOOGLE_FONTS } from '@fonts/google-fonts-list';
 import { ensureFontLoaded, loadGoogleFontAsync, parseFontSelection } from '@fonts/font-loader';
 import { useVisualizer } from '@context/VisualizerContext';
@@ -26,8 +40,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     const [recent, setRecent] = useState<string[]>([]);
     const [remoteFonts, setRemoteFonts] = useState<RemoteFontMeta[] | null>(null);
     const [fetchError, setFetchError] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const weightContainerRef = useRef<HTMLDivElement | null>(null);
+    const familySearchRef = useRef<HTMLInputElement | null>(null);
 
     const { family: currentFamilyRaw, weight: currentWeightRaw } = parseFontSelection(value || schema.default || 'Arial');
     const currentFamily = currentFamilyRaw || 'Arial';
@@ -113,19 +126,76 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
         return allFonts.filter(f => f.toLowerCase().includes(q));
     }, [allFonts, query]);
 
+    const {
+        refs: familyRefs,
+        floatingStyles: familyFloatingStyles,
+        context: familyContext,
+    } = useFloating({
+        open: familyOpen,
+        onOpenChange: setFamilyOpen,
+        placement: 'bottom-start',
+        whileElementsMounted: autoUpdate,
+        middleware: [
+            offset(6),
+            flip({ padding: 12 }),
+            shift({ padding: 12 }),
+            size({
+                apply({ rects, availableHeight, elements }) {
+                    Object.assign(elements.floating.style, {
+                        width: `${Math.round(rects.reference.width)}px`,
+                        maxHeight: `${Math.min(Math.max(availableHeight - 12, 200), 360)}px`,
+                    });
+                },
+            }),
+        ],
+    });
+
+    const {
+        refs: weightRefs,
+        floatingStyles: weightFloatingStyles,
+        context: weightContext,
+    } = useFloating({
+        open: weightOpen,
+        onOpenChange: setWeightOpen,
+        placement: 'bottom-start',
+        whileElementsMounted: autoUpdate,
+        middleware: [offset(6), flip({ padding: 12 }), shift({ padding: 12 })],
+    });
+
+    const familyDismiss = useDismiss(familyContext, { outsidePressEvent: 'mousedown' });
+    const familyRole = useRole(familyContext, { role: 'listbox' });
+    const { getReferenceProps: getFamilyReferenceProps, getFloatingProps: getFamilyFloatingProps } = useInteractions([
+        familyDismiss,
+        familyRole,
+    ]);
+
+    const weightDismiss = useDismiss(weightContext, { outsidePressEvent: 'mousedown' });
+    const weightRole = useRole(weightContext, { role: 'listbox' });
+    const { getReferenceProps: getWeightReferenceProps, getFloatingProps: getWeightFloatingProps } = useInteractions([
+        weightDismiss,
+        weightRole,
+    ]);
+
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            const target = e.target as Node;
-            if (containerRef.current && !containerRef.current.contains(target)) {
-                setFamilyOpen(false);
-            }
-            if (weightContainerRef.current && !weightContainerRef.current.contains(target)) {
-                setWeightOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        if (!familyOpen) {
+            setQuery('');
+            return;
+        }
+        const id = window.setTimeout(() => {
+            familySearchRef.current?.focus();
+        }, 0);
+        return () => window.clearTimeout(id);
+    }, [familyOpen]);
+
+    useEffect(() => {
+        if (!familyOpen) return;
+        setWeightOpen(false);
+    }, [familyOpen]);
+
+    useEffect(() => {
+        if (!weightOpen) return;
+        setFamilyOpen(false);
+    }, [weightOpen]);
 
     const handleFamilySelect = (family: string) => {
         onChange(`${family}|${currentWeight}`);
@@ -145,130 +215,159 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
     };
 
     return (
-        <div style={{ display: 'flex', gap: 4, flexDirection: "column" }}>
-            <div className="ae-font-input" ref={containerRef} style={{ position: 'relative', flex: 1 }}>
+        <div className="flex flex-col gap-2">
+            <div className="ae-font-input" style={{ flex: 1 }}>
                 <button
-                    id={id}
-                    type="button"
-                    className="ae-font-trigger"
-                    disabled={disabled}
-                    title={title}
-                    onClick={() => setFamilyOpen(o => !o)}
-                    style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        fontFamily: `'${currentFamily}', sans-serif`,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        position: 'relative',
-                        background: "#383838",
-                        color: "#e0e0e0",
-                        padding: "4px",
-                        border: "none",
-                        fontSize: "1em"
-                    }}
+                    {...getFamilyReferenceProps({
+                        type: 'button',
+                        onClick: () => setFamilyOpen((o) => !o),
+                        disabled,
+                        id,
+                        title,
+                    })}
+                    ref={familyRefs.setReference}
+                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[13px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ fontFamily: `'${currentFamily}', sans-serif` }}
                 >
-                    {currentFamily}
-                    {loading && <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', fontSize: 10, opacity: 0.7 }}>⏳</span>}
-                    <span style={{ float: 'right', opacity: 0.6 }}>▼</span>
+                    <span className="truncate">{currentFamily}</span>
+                    <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-neutral-400">
+                        {loading && <span className="animate-pulse text-[10px]">⏳</span>}
+                        <span>Family</span>
+                    </span>
                 </button>
                 {familyOpen && !disabled && (
-                    <div className="ae-font-dropdown" style={{
-                        position: 'absolute',
-                        zIndex: 1000,
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        maxHeight: 260,
-                        overflow: 'hidden',
-                        background: '#222',
-                        border: '1px solid #444',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.4)'
-                    }}>
-                        <div style={{ padding: 4, borderBottom: '1px solid #333' }}>
-                            <input
-                                autoFocus
-                                placeholder="Search fonts..."
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                style={{ width: '100%' }}
-                            />
-                            {fetchError && (
-                                <div style={{ marginTop: 6, color: '#e88', fontSize: 10 }}>API: {fetchError}</div>
-                            )}
-                        </div>
-                        <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-                            {filtered.map(f => (
-                                <div
-                                    key={f}
-                                    onClick={() => handleFamilySelect(f)}
-                                    style={{
-                                        padding: '4px 8px',
-                                        cursor: 'pointer',
-                                        fontFamily: `'${f}', sans-serif`,
-                                        background: f === currentFamily ? '#333' : 'transparent',
-                                    }}
-                                >
-                                    {f}
+                    <FloatingPortal>
+                        <FloatingFocusManager context={familyContext} modal={false} initialFocus={-1}>
+                            <div
+                                {...getFamilyFloatingProps({})}
+                                ref={familyRefs.setFloating}
+                                style={familyFloatingStyles}
+                                className="z-[1000] flex max-h-[360px] flex-col overflow-hidden rounded border border-neutral-700 bg-neutral-950/95 text-[13px] text-neutral-100 shadow-2xl"
+                            >
+                                <div className="border-b border-neutral-800 bg-neutral-900/60 p-3">
+                                    <label className="relative flex items-center">
+                                        <FaSearch className="pointer-events-none absolute left-3 text-xs text-neutral-500" />
+                                        <input
+                                            ref={familySearchRef}
+                                            placeholder="Search fonts..."
+                                            value={query}
+                                            onChange={(e) => setQuery(e.target.value)}
+                                            className="w-full rounded bg-neutral-800/80 py-2 pl-8 pr-3 text-[13px] text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                            aria-label="Search font families"
+                                        />
+                                    </label>
+                                    {fetchError && (
+                                        <p className="mt-2 text-[11px] text-rose-400/80">API: {fetchError}</p>
+                                    )}
+                                    {recent.length > 0 && (
+                                        <div className="mt-3">
+                                            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Recent</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {recent.map((r) => (
+                                                    <button
+                                                        key={r}
+                                                        type="button"
+                                                        onClick={() => handleFamilySelect(r)}
+                                                        className={`rounded-full border px-2 py-1 text-[11px] transition ${
+                                                            r === currentFamily
+                                                                ? 'border-sky-500/80 bg-sky-500/20 text-sky-100'
+                                                                : 'border-neutral-700 bg-neutral-800/60 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800'
+                                                        }`}
+                                                    >
+                                                        {r}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
-                            {filtered.length === 0 && (
-                                <div style={{ padding: '6px 8px', opacity: 0.6 }}>No matches</div>
-                            )}
-                        </div>
-                    </div>
+                                <div className="flex-1 overflow-y-auto bg-neutral-950/90">
+                                    {filtered.length > 0 ? (
+                                        <ul className="m-0 list-none p-0">
+                                            {filtered.map((f) => (
+                                                <li key={f}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleFamilySelect(f)}
+                                                        className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${
+                                                            f === currentFamily
+                                                                ? 'bg-sky-500/20 text-sky-100'
+                                                                : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                        }`}
+                                                        style={{ fontFamily: `'${f}', sans-serif` }}
+                                                    >
+                                                        <span className="truncate">{f}</span>
+                                                        {remoteFontNames.includes(f) && (
+                                                            <span className="ml-2 text-[10px] uppercase tracking-wide text-neutral-500">Google</span>
+                                                        )}
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <div className="p-4 text-center text-[12px] text-neutral-500">No matching fonts</div>
+                                    )}
+                                </div>
+                            </div>
+                        </FloatingFocusManager>
+                    </FloatingPortal>
                 )}
             </div>
-            <div className="ae-font-weight-input" ref={weightContainerRef} style={{ position: 'relative', width: 90 }}>
+            <div className="ae-font-weight-input w-[110px]">
                 <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => setWeightOpen(o => !o)}
-                    style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        background: "#383838",
-                        color: "#e0e0e0",
-                        padding: "4px",
-                        border: "none",
-                        fontSize: "1em"
-                    }}
+                    {...getWeightReferenceProps({
+                        type: 'button',
+                        onClick: () => setWeightOpen((o) => !o),
+                        disabled,
+                    })}
+                    ref={weightRefs.setReference}
+                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[13px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                     title="Select font weight"
                 >
-                    {currentWeight}
-                    {loading && <span style={{ float: 'right', opacity: 0.6, marginRight: 4 }}>⏳</span>}
-                    <span style={{ float: 'right', opacity: 0.6 }}>▼</span>
+                    <span>{currentWeight}</span>
+                    <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-neutral-400">
+                        {loading && <span className="animate-pulse text-[10px]">⏳</span>}
+                        <span>Weight</span>
+                    </span>
                 </button>
                 {weightOpen && !disabled && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        background: '#222',
-                        border: '1px solid #444',
-                        zIndex: 1000,
-                        maxHeight: 200,
-                        overflowY: 'auto'
-                    }}>
-                        {availableWeights.map(w => (
-                            <div key={w}
-                                onClick={() => handleWeightSelect(w)}
-                                style={{
-                                    padding: '4px 6px',
-                                    cursor: 'pointer',
-                                    background: w === currentWeight ? '#333' : 'transparent'
-                                }}>{w}</div>
-                        ))}
-                        {availableWeights.length === 0 && (
-                            <div style={{ padding: '4px 6px', opacity: 0.6 }}>No weights</div>
-                        )}
-                    </div>
+                    <FloatingPortal>
+                        <FloatingFocusManager context={weightContext} modal={false} initialFocus={-1}>
+                            <div
+                                {...getWeightFloatingProps({})}
+                                ref={weightRefs.setFloating}
+                                style={weightFloatingStyles}
+                                className="z-[1000] max-h-[240px] w-[110px] overflow-y-auto rounded border border-neutral-700 bg-neutral-950/95 text-[13px] text-neutral-100 shadow-xl"
+                            >
+                                <ul className="m-0 list-none p-1">
+                                    {availableWeights.length > 0 ? (
+                                        availableWeights.map((w) => (
+                                            <li key={w}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleWeightSelect(w)}
+                                                    className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition ${
+                                                        w === currentWeight
+                                                            ? 'bg-sky-500/20 text-sky-100'
+                                                            : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span>{w}</span>
+                                                </button>
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-3 py-2 text-center text-[12px] text-neutral-500">No weights</li>
+                                    )}
+                                </ul>
+                            </div>
+                        </FloatingFocusManager>
+                    </FloatingPortal>
                 )}
             </div>
         </div>
     );
+
 };
 
 export default FontInput;

@@ -5,6 +5,7 @@
     "private": true,
     "type": "module",
     "dependencies": {
+        "@floating-ui/react": "^0.27.16",
         "@mediabunny/mp3-encoder": "^1.18.0",
         "fflate": "^0.8.2",
         "gifuct-js": "^2.1.2",

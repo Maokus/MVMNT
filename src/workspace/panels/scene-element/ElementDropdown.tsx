@@ -5,13 +5,15 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 interface ElementDropdownProps {
     onAddElement: (elementType: string) => void;
     onClose: () => void;
+    className?: string;
+    style?: React.CSSProperties;
 }
 
 const SAFE_ZONE_WIDTH = 20;
 const SUBMENU_GAP = 8;
 const WALKWAY_WIDTH = SAFE_ZONE_WIDTH + SUBMENU_GAP;
 
-const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose }) => {
+const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose, className, style }) => {
     const types = useMemo(() => sceneElementRegistry.getElementTypeInfo(), []);
 
     const categories = useMemo(() => {
@@ -98,7 +100,8 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     return (
         <div
             ref={dropdownRef}
-            className="absolute top-full right-0 z-[1000] mt-1 overflow-visible rounded border border-control2 bg-menubar shadow-lg"
+            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar shadow-lg ${className ?? ''}`}
+            style={style}
             onMouseLeave={scheduleClose}
             onMouseEnter={clearCloseTimeout}
         >
