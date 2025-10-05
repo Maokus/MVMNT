@@ -3,6 +3,7 @@ import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/form/inputs/FontInput';
 import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
+import { useNumberDrag } from '@workspace/form/inputs/useNumberDrag';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -28,6 +29,55 @@ interface MacroAssignment {
     elementId: string;
     propertyPath: string;
 }
+
+interface MacroNumberInputProps {
+    macro: Macro;
+    value: string;
+    onChange: (value: string) => void;
+    onBlur: () => void;
+    onCommit: (value: number) => void;
+    onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+}
+
+const MacroNumberInput: React.FC<MacroNumberInputProps> = ({ macro, value, onChange, onBlur, onCommit, onKeyDown }) => {
+    const numericStep = typeof macro.options.step === 'number' && isFinite(macro.options.step) && macro.options.step > 0
+        ? macro.options.step
+        : undefined;
+    const min = typeof macro.options.min === 'number' ? macro.options.min : undefined;
+    const max = typeof macro.options.max === 'number' ? macro.options.max : undefined;
+    const fallbackValue = typeof macro.value === 'number' ? macro.value : 0;
+
+    const getCurrentValue = useCallback(() => {
+        const parsed = parseFloat(value);
+        if (!isNaN(parsed)) return parsed;
+        return fallbackValue;
+    }, [fallbackValue, value]);
+
+    const { onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useNumberDrag({
+        step: numericStep,
+        min,
+        max,
+        getCurrentValue,
+        onChange: onCommit,
+    });
+
+    return (
+        <input
+            type="number"
+            value={value}
+            min={min}
+            max={max}
+            step={macro.options.step || 'any'}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+        />
+    );
+};
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = true }) => {
     const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
@@ -264,14 +314,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         switch (macro.type) {
             case 'number':
                 return (
-                    <input
-                        type="number"
+                    <MacroNumberInput
+                        macro={macro}
                         value={inputValues[macro.name] ?? macro.value.toString()}
-                        min={macro.options.min}
-                        max={macro.options.max}
-                        step={macro.options.step || 'any'}
-                        onChange={(e) => handleNumberInputChange(macro.name, e.target.value)}
+                        onChange={(val) => handleNumberInputChange(macro.name, val)}
                         onBlur={() => handleNumberInputBlur(macro.name)}
+                        onCommit={(next) => handleNumberInputChange(macro.name, next.toString())}
                         onKeyDown={handleKeyDown}
                     />
                 );

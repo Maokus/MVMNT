@@ -1,18 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
 import MidiTrackSelect from './MidiTrackSelect';
-
-function getStepDecimals(step: number): number {
-    if (!isFinite(step) || step <= 0) return 0;
-    const str = step.toString();
-    if (str.includes('e-')) {
-        const match = /e-(\d+)/.exec(str);
-        return match ? parseInt(match[1], 10) : 0;
-    }
-    const parts = str.split('.');
-    return parts[1]?.length ?? 0;
-}
+import { useNumberDrag } from './useNumberDrag';
 
 interface FormInputProps {
     id: string;
@@ -27,22 +17,29 @@ interface FormInputProps {
 const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled = false, title, onChange }) => {
     // Local state helpers for text/number inputs to avoid wiping while typing
     const [localValue, setLocalValue] = useState<string>('');
-    const numberDragStateRef = useRef<
-        | null
-        | {
-              pointerId: number;
-              startY: number;
-              startValue: number;
-              step: number;
-              min?: number;
-              max?: number;
-              decimals: number;
-              lastValue: number;
-              prevCursor: string;
-              prevUserSelect: string;
-          }
-    >(null);
-    const numberInputRef = useRef<HTMLInputElement | null>(null);
+    const isNumberType = type === 'number';
+
+    const getCurrentNumberValue = useCallback(() => {
+        if (typeof value === 'number' && !isNaN(value)) return value;
+        const parsed = parseFloat(localValue);
+        if (!isNaN(parsed)) return parsed;
+        const defaultValue = typeof schema?.default === 'number' ? schema.default : 0;
+        return defaultValue;
+    }, [localValue, schema?.default, value]);
+
+    const numberDragHandlers = useNumberDrag({
+        disabled: disabled || !isNumberType,
+        step: typeof schema?.step === 'number' ? schema.step : undefined,
+        min: typeof schema?.min === 'number' ? schema.min : undefined,
+        max: typeof schema?.max === 'number' ? schema.max : undefined,
+        getCurrentValue: getCurrentNumberValue,
+        onPreview: (next) => {
+            setLocalValue(next.toString());
+        },
+        onChange: (next) => {
+            onChange(next);
+        },
+    });
 
     useEffect(() => {
         if (type === 'number') {
@@ -137,81 +134,10 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             if (e.key === 'Enter') e.currentTarget.blur();
         };
 
-        const handlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
-            if (!e.altKey || disabled) return;
-            const currentValue = typeof value === 'number' && !isNaN(value)
-                ? value
-                : (() => {
-                      const parsed = parseFloat(localValue);
-                      return !isNaN(parsed) ? parsed : 0;
-                  })();
-            const rawStep = typeof schema?.step === 'number' && isFinite(schema.step) && schema.step > 0 ? schema.step : 1;
-            const decimals = getStepDecimals(rawStep);
-            const min = typeof schema?.min === 'number' ? schema.min : undefined;
-            const max = typeof schema?.max === 'number' ? schema.max : undefined;
-            numberDragStateRef.current = {
-                pointerId: e.pointerId,
-                startY: e.clientY,
-                startValue: currentValue,
-                step: rawStep,
-                min,
-                max,
-                decimals,
-                lastValue: currentValue,
-                prevCursor: document.body.style.cursor,
-                prevUserSelect: document.body.style.userSelect,
-            };
-            document.body.style.cursor = 'ns-resize';
-            document.body.style.userSelect = 'none';
-            try {
-                e.currentTarget.setPointerCapture(e.pointerId);
-            } catch {}
-            e.preventDefault();
-        };
-
-        const handlePointerMove = (e: React.PointerEvent<HTMLInputElement>) => {
-            const drag = numberDragStateRef.current;
-            if (!drag || drag.pointerId !== e.pointerId) return;
-            const deltaY = drag.startY - e.clientY;
-            const modifier = e.shiftKey ? 5 : e.ctrlKey || e.metaKey ? 0.1 : 1;
-            const baseStep = drag.step || 1;
-            let next = drag.startValue + deltaY * baseStep * modifier;
-            if (baseStep > 0) {
-                const stepped = Math.round(next / baseStep) * baseStep;
-                next = drag.decimals > 0 ? parseFloat(stepped.toFixed(drag.decimals)) : stepped;
-            }
-            if (drag.min !== undefined) next = Math.max(drag.min, next);
-            if (drag.max !== undefined) next = Math.min(drag.max, next);
-            if (!isFinite(next) || next === drag.lastValue) return;
-            drag.lastValue = next;
-            setLocalValue(next.toString());
-            onChange(next);
-        };
-
-        const finishPointerDrag = (target: EventTarget | null, pointerId: number) => {
-            const drag = numberDragStateRef.current;
-            if (!drag || drag.pointerId !== pointerId) return;
-            numberDragStateRef.current = null;
-            document.body.style.cursor = drag.prevCursor;
-            document.body.style.userSelect = drag.prevUserSelect;
-            try {
-                (target as HTMLElement | null)?.releasePointerCapture(pointerId);
-            } catch {}
-        };
-
-        const handlePointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
-            finishPointerDrag(e.currentTarget, e.pointerId);
-        };
-
-        const handlePointerCancel = (e: React.PointerEvent<HTMLInputElement>) => {
-            finishPointerDrag(e.currentTarget, e.pointerId);
-        };
-
         return (
             <input
                 type="number"
                 id={id}
-                ref={numberInputRef}
                 value={localValue}
                 min={schema?.min}
                 max={schema?.max}
@@ -220,10 +146,10 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 title={title}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
+                onPointerDown={numberDragHandlers.onPointerDown}
+                onPointerMove={numberDragHandlers.onPointerMove}
+                onPointerUp={numberDragHandlers.onPointerUp}
+                onPointerCancel={numberDragHandlers.onPointerCancel}
             />
         );
     }
