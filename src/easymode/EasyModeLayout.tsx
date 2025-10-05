@@ -19,7 +19,7 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 interface LoadedTemplateArtifact {
     data: Uint8Array;
-    metadata?: { name?: string; author?: string };
+    metadata?: { name?: string; author?: string; description?: string };
 }
 
 interface TemplateDefinition {
@@ -27,6 +27,7 @@ interface TemplateDefinition {
     name: string;
     description: string;
     loadArtifact: () => Promise<LoadedTemplateArtifact>;
+    loadMetadata?: () => Promise<LoadedTemplateArtifact['metadata'] | undefined>;
     author?: string;
 }
 
@@ -77,16 +78,48 @@ const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
         const name = manifest?.name?.trim() || fallbackName || 'Template';
         const description = manifest?.description?.trim() || 'Ready-made scene configuration.';
         const author = manifest?.author?.trim() || undefined;
+        let cachedData: Uint8Array | null = null;
+        let cachedMetadata: LoadedTemplateArtifact['metadata'];
+        let pendingLoad: Promise<void> | null = null;
+
+        const ensureLoaded = async () => {
+            if (cachedData) return;
+            if (pendingLoad) {
+                await pendingLoad;
+                return;
+            }
+            pendingLoad = (async () => {
+                try {
+                    const moduleValue = await loader();
+                    const data = await toUint8Array(moduleValue);
+                    cachedData = data;
+                    cachedMetadata = extractSceneMetadataFromArtifact(data);
+                } finally {
+                    pendingLoad = null;
+                }
+            })();
+            await pendingLoad;
+        };
         return {
             id,
             name,
             description,
             author,
             loadArtifact: async () => {
-                const moduleValue = await loader();
-                const data = await toUint8Array(moduleValue);
-                const metadata = extractSceneMetadataFromArtifact(data);
-                return { data, metadata };
+                await ensureLoaded();
+                if (!cachedData) {
+                    throw new Error('Template data unavailable');
+                }
+                const cloned = new Uint8Array(cachedData);
+                return { data: cloned, metadata: cachedMetadata };
+            },
+            loadMetadata: async () => {
+                try {
+                    await ensureLoaded();
+                    return cachedMetadata;
+                } catch {
+                    return undefined;
+                }
             },
         };
     })
@@ -361,6 +394,8 @@ interface TemplateBrowserModalProps {
 }
 
 const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, onClose, onSelect }) => {
+    const [metadataMap, setMetadataMap] = useState<Record<string, { name?: string; author?: string; description?: string }>>({});
+
     useEffect(() => {
         const handler = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -371,6 +406,48 @@ const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, 
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [onClose]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadAllMetadata = async () => {
+            const results = await Promise.all(
+                templates.map(async (template) => {
+                    if (!template.loadMetadata) return undefined;
+                    try {
+                        const metadata = await template.loadMetadata();
+                        if (!metadata) return undefined;
+                        return [template.id, metadata] as const;
+                    } catch {
+                        return undefined;
+                    }
+                })
+            );
+            if (cancelled) return;
+            setMetadataMap((prev) => {
+                let changed = false;
+                const next = { ...prev };
+                for (const entry of results) {
+                    if (!entry) continue;
+                    const [id, metadata] = entry;
+                    const existing = prev[id];
+                    if (
+                        existing?.name === metadata.name &&
+                        existing?.description === metadata.description &&
+                        existing?.author === metadata.author
+                    ) {
+                        continue;
+                    }
+                    next[id] = metadata;
+                    changed = true;
+                }
+                return changed ? next : prev;
+            });
+        };
+        void loadAllMetadata();
+        return () => {
+            cancelled = true;
+        };
+    }, [templates]);
 
     return (
         <div
@@ -399,26 +476,32 @@ const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, 
                         <p className="text-sm text-neutral-400">No templates available yet.</p>
                     ) : (
                         <div className="grid gap-3 sm:grid-cols-2">
-                            {templates.map((template) => (
-                                <button
-                                    key={template.id}
-                                    type="button"
-                                    onClick={() => onSelect(template)}
-                                    className="group flex h-full flex-col items-start gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
-                                >
-                                    <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
-                                        {template.name}
-                                    </span>
-                                    <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
-                                        {template.description}
-                                    </span>
-                                    {template.author && (
-                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
-                                            By {template.author}
+                            {templates.map((template) => {
+                                const metadata = metadataMap[template.id];
+                                const displayName = metadata?.name?.trim() || template.name;
+                                const displayDescription = metadata?.description?.trim() || template.description;
+                                const displayAuthor = metadata?.author?.trim() || template.author;
+                                return (
+                                    <button
+                                        key={template.id}
+                                        type="button"
+                                        onClick={() => onSelect(template)}
+                                        className="group flex h-full flex-col items-start gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
+                                    >
+                                        <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
+                                            {displayName}
                                         </span>
-                                    )}
-                                </button>
-                            ))}
+                                        <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
+                                            {displayDescription}
+                                        </span>
+                                        {displayAuthor && (
+                                            <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
+                                                By {displayAuthor}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
