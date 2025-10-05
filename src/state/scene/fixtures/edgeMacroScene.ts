@@ -97,7 +97,7 @@ export function buildEdgeMacroScene(): SceneFixtureResult {
         elementId: 'title',
         config: {
             id: 'title',
-            text: { type: 'constant', value: 'Phase 0' },
+            text: { type: 'constant', value: 'Baseline Scene' },
             color: { type: 'macro', macroId: 'macro.color.primary' },
             fontSize: { type: 'macro', macroId: 'macro.fontSize' },
             offsetX: { type: 'constant', value: 0 },

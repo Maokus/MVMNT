@@ -6,7 +6,7 @@
  *  - Primitive serialization matches JSON.stringify for supported types.
  *  - Functions / symbols omitted (like JSON.stringify behavior when in objects) or become undefined in arrays.
  *  - BigInt not supported (JSON.stringify throws) -> we mimic same throw for early visibility.
- * NOTE: We intentionally do not attempt cycle detection in Phase 1; cyclic input will throw.
+ * NOTE: Cycle detection is intentionally omitted; cyclic input will throw to surface bugs early.
  */
 export function serializeStable(value: unknown): string {
     const seen = new Set<any>();

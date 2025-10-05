@@ -14,8 +14,8 @@ interface AudioWaveformProps {
     visibleEndTickAbs?: number;
 }
 
-// Lightweight canvas waveform renderer using peakData (mono absolute peaks) from audioCache.
-// Assumes peakData extracted asynchronously; will re-render when cache changes via subscription.
+// Lightweight canvas waveform renderer using waveform peak data (mono absolute peaks) from audioCache.
+// Assumes waveform extracted asynchronously; will re-render when cache changes via subscription.
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     trackId,
     height = 40,
@@ -50,7 +50,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const cacheKey = t.audioSourceId || trackId;
         const cache = s.audioCache[cacheKey];
         return {
-            peaks: cache?.peakData,
+            peaks: cache?.waveform?.channelPeaks,
             selected: s.selection.selectedTrackIds.includes(trackId),
             offsetTicks: t.offsetTicks,
             durationTicks: (t.regionEndTick ?? cache?.durationTicks ?? 0) - (t.regionStartTick ?? 0),
@@ -60,24 +60,28 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         };
     });
 
-    const safeOffsetTicks = typeof offsetTicks === 'number' ? offsetTicks : 0;
     const fallbackRegionStart = typeof regionStartTick === 'number' ? regionStartTick : 0;
     const fallbackRegionEnd = typeof regionEndTick === 'number' ? regionEndTick : fallbackRegionStart + Math.max(durationTicks, 0);
+    const safeOffsetTicks = typeof offsetTicks === 'number' ? offsetTicks : 0;
+    const derivedOffsetTicks = typeof regionStartTickAbs === 'number'
+        ? regionStartTickAbs - fallbackRegionStart
+        : safeOffsetTicks;
+    const effectiveOffsetTicks = Number.isFinite(derivedOffsetTicks) ? derivedOffsetTicks : 0;
 
     const effectiveRegionStart = typeof regionStartTickAbs === 'number'
-        ? Math.max(0, regionStartTickAbs - safeOffsetTicks)
+        ? Math.max(0, regionStartTickAbs - effectiveOffsetTicks)
         : fallbackRegionStart;
 
     const effectiveRegionEnd = typeof regionEndTickAbs === 'number'
-        ? Math.max(effectiveRegionStart, regionEndTickAbs - safeOffsetTicks)
+        ? Math.max(effectiveRegionStart, regionEndTickAbs - effectiveOffsetTicks)
         : Math.max(effectiveRegionStart, fallbackRegionEnd);
 
     const effectiveVisibleStart = typeof visibleStartTickAbs === 'number'
-        ? Math.max(effectiveRegionStart, Math.min(visibleStartTickAbs - safeOffsetTicks, effectiveRegionEnd))
+        ? Math.max(effectiveRegionStart, Math.min(visibleStartTickAbs - effectiveOffsetTicks, effectiveRegionEnd))
         : effectiveRegionStart;
 
     const effectiveVisibleEnd = typeof visibleEndTickAbs === 'number'
-        ? Math.max(effectiveVisibleStart, Math.min(visibleEndTickAbs - safeOffsetTicks, effectiveRegionEnd))
+        ? Math.max(effectiveVisibleStart, Math.min(visibleEndTickAbs - effectiveOffsetTicks, effectiveRegionEnd))
         : effectiveRegionEnd;
 
     useEffect(() => {

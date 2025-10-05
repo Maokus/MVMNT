@@ -1,9 +1,20 @@
-import { createDefaultMIDIScene, resetToDefaultScene } from '@core/scene-templates';
+import { loadDefaultScene, resetToDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
+
+function toArrayBuffer(view: Uint8Array): ArrayBuffer {
+    const buffer = view.buffer as ArrayBuffer;
+    if (view.byteOffset === 0 && view.byteLength === buffer.byteLength) {
+        return buffer;
+    }
+    if (typeof buffer.slice === 'function') {
+        return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    }
+    return view.slice().buffer as ArrayBuffer;
+}
 
 interface UseMenuBarProps {
     visualizer: any;
@@ -33,20 +44,25 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = () => {
+    const saveScene = async () => {
         try {
-            const res = exportScene(sceneName);
+            const res = await exportScene(sceneName);
             if (!res.ok) {
-                alert('Export failed.');
+                alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;
             }
             const safeName = sceneName.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
-            const blob = new Blob([res.json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
+            const { blob, mode } = res;
+            const exportBlob =
+                blob ||
+                (mode === 'zip-package'
+                    ? new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' })
+                    : new Blob([res.json], { type: 'application/json' }));
+            const extension = mode === 'zip-package' ? '.mvmntpkg' : '.mvt';
+            const url = URL.createObjectURL(exportBlob);
             const link = document.createElement('a');
             link.href = url;
-            // New simplified extension for scenes
-            link.download = `${safeName}.mvt`;
+            link.download = `${safeName}${extension}`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -62,7 +78,7 @@ export const useMenuBar = ({
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         // Accept legacy .json exports and new .mvt extension
-        fileInput.accept = '.mvt,.json';
+        fileInput.accept = '.mvt,.json,.mvmntpkg';
         fileInput.style.display = 'none';
         fileInput.onchange = async (e: Event) => {
             const target = e.target as HTMLInputElement;
@@ -72,14 +88,14 @@ export const useMenuBar = ({
                 return;
             }
             try {
-                const text = await file.text();
-                const result = importScene(text);
+                const buffer = await file.arrayBuffer();
+                const result = await importScene(buffer);
                 if (!result.ok) {
                     alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
                 } else {
                     // Attempt to read name from envelope metadata when present
                     try {
-                        const parsed = JSON.parse(text);
+                        const parsed = JSON.parse(await file.text());
                         if (parsed?.metadata?.name) {
                             onSceneNameChange(parsed.metadata.name);
                         } else if (file.name) {
@@ -129,25 +145,25 @@ export const useMenuBar = ({
     };
 
     const createNewDefaultScene = () => {
-        if (visualizer) {
-            // Generate a new scene name using the scene name generator
-            const newSceneName = SceneNameGenerator.generate();
+        if (!visualizer) {
+            console.log('New default scene functionality: visualizer not available');
+            return;
+        }
 
-            // Update scene name first
+        void (async () => {
+            const newSceneName = SceneNameGenerator.generate();
             onSceneNameChange(newSceneName);
 
-            // Reset to default scene
-            // Use centralized template reset (handles track clearing & events)
+            let resetSucceeded = false;
             try {
-                resetToDefaultScene(visualizer);
-            } catch {
-                // Fallback minimal default if template fails
-                try {
-                    createDefaultMIDIScene();
-                } catch {}
+                resetSucceeded = await resetToDefaultScene(visualizer);
+            } catch (error) {
+                console.warn('Failed to reset to default scene, attempting fallback import', error);
+            }
+            if (!resetSucceeded) {
+                await loadDefaultScene('useMenuBar.createNewDefaultScene.fallback');
             }
 
-            // Reset scene settings to defaults and notify contexts about the reset
             try {
                 const settings = useSceneStore.getState().settings;
                 visualizer?.canvas?.dispatchEvent(
@@ -155,17 +171,16 @@ export const useMenuBar = ({
                 );
             } catch {}
 
-            visualizer?.invalidateRender?.();
+            try {
+                visualizer?.invalidateRender?.();
+            } catch {}
 
-            // Trigger refresh of UI components
             if (onSceneRefresh) {
                 onSceneRefresh();
             }
 
             console.log(`New default scene created with name: ${newSceneName}`);
-        } else {
-            console.log('New default scene functionality: visualizer not available');
-        }
+        })();
     };
 
     return {

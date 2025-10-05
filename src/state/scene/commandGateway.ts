@@ -20,6 +20,9 @@ export type SceneCommand =
           elementType: string;
           elementId: string;
           config?: Record<string, unknown>;
+          targetIndex?: number;
+          createdAt?: number;
+          createdBy?: string;
       }
     | {
           type: 'removeElement';
@@ -90,6 +93,12 @@ export interface SceneCommandResult {
     durationMs: number;
     command: SceneCommand;
     error?: Error;
+    patch?: SceneCommandPatch | null;
+}
+
+export interface SceneCommandPatch {
+    undo: SceneCommand[];
+    redo: SceneCommand[];
 }
 
 function normalizeBindingValue(value: unknown): BindingState {
@@ -108,9 +117,266 @@ function normalizeBindingValue(value: unknown): BindingState {
 function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBindingsPatch {
     const next: ElementBindingsPatch = {};
     for (const [property, value] of Object.entries(patch)) {
+        if (value == null) {
+            next[property] = null;
+            continue;
+        }
         next[property] = normalizeBindingValue(value);
     }
     return next;
+}
+
+function bindingEquals(a: BindingState | undefined, b: BindingState | undefined): boolean {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.type !== b.type) return false;
+    if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
+    if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
+    return false;
+}
+
+function bindingToConfigValue(binding: BindingState | undefined): unknown {
+    if (!binding) return null;
+    if (binding.type === 'macro') {
+        return { type: 'macro', macroId: binding.macroId };
+    }
+    return { type: 'constant', value: binding.value };
+}
+
+function buildConfigFromBindings(bindings: ElementBindings): Record<string, unknown> {
+    const config: Record<string, unknown> = {};
+    for (const [key, binding] of Object.entries(bindings)) {
+        config[key] = bindingToConfigValue(binding);
+    }
+    return config;
+}
+
+function captureSceneSnapshot(state: SceneStoreState): SceneImportPayload {
+    const draft = state.exportSceneDraft();
+    return {
+        elements: draft.elements,
+        sceneSettings: draft.sceneSettings,
+        macros: draft.macros ?? null,
+    };
+}
+
+function cloneCommand<T extends SceneCommand>(command: T): T {
+    return JSON.parse(JSON.stringify(command)) as T;
+}
+
+function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): SceneCommandPatch | null {
+    switch (command.type) {
+        case 'addElement': {
+            if (state.elements[command.elementId]) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'removeElement',
+                        elementId: command.elementId,
+                    },
+                ],
+            };
+        }
+        case 'removeElement': {
+            const element = state.elements[command.elementId];
+            if (!element) return null;
+            const bindings = state.bindings.byElement[command.elementId] ?? {};
+            const index = state.order.indexOf(command.elementId);
+            const config = buildConfigFromBindings(bindings);
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'addElement',
+                        elementType: element.type,
+                        elementId: element.id,
+                        config,
+                        targetIndex: index,
+                        createdAt: element.createdAt,
+                        createdBy: element.createdBy,
+                    },
+                ],
+            };
+        }
+        case 'updateElementConfig': {
+            const existing = state.bindings.byElement[command.elementId];
+            if (!existing) return null;
+            const undoPatch: Record<string, unknown> = {};
+            let changed = false;
+            for (const [key, value] of Object.entries(command.patch)) {
+                const nextBinding = value == null ? undefined : normalizeBindingValue(value);
+                const current = existing[key];
+                const isEqual = bindingEquals(current, nextBinding);
+                if (isEqual) continue;
+                changed = true;
+                undoPatch[key] = current ? bindingToConfigValue(current) : null;
+            }
+            if (!changed) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateElementConfig',
+                        elementId: command.elementId,
+                        patch: undoPatch,
+                    },
+                ],
+            };
+        }
+        case 'moveElement': {
+            const currentIndex = state.order.indexOf(command.elementId);
+            if (currentIndex === -1) return null;
+            if (command.targetIndex === currentIndex) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'moveElement',
+                        elementId: command.elementId,
+                        targetIndex: currentIndex,
+                    },
+                ],
+            };
+        }
+        case 'duplicateElement': {
+            const source = state.elements[command.sourceId];
+            if (!source || state.elements[command.newId]) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'removeElement',
+                        elementId: command.newId,
+                    },
+                ],
+            };
+        }
+        case 'updateElementId': {
+            const element = state.elements[command.currentId];
+            if (!element || command.currentId === command.nextId) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateElementId',
+                        currentId: command.nextId,
+                        nextId: command.currentId,
+                    },
+                ],
+            };
+        }
+        case 'clearScene': {
+            const snapshot = captureSceneSnapshot(state);
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'loadSerializedScene',
+                        payload: snapshot,
+                    },
+                ],
+            };
+        }
+        case 'resetSceneSettings': {
+            const previous = { ...state.settings };
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateSceneSettings',
+                        patch: previous,
+                    },
+                ],
+            };
+        }
+        case 'updateSceneSettings': {
+            const undoPatch: Record<string, unknown> = {};
+            let changed = false;
+            for (const [key, value] of Object.entries(command.patch)) {
+                const prev = (state.settings as any)[key];
+                if (Object.is(prev, value)) continue;
+                changed = true;
+                undoPatch[key] = prev;
+            }
+            if (!changed) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateSceneSettings',
+                        patch: undoPatch,
+                    },
+                ],
+            };
+        }
+        case 'loadSerializedScene': {
+            const snapshot = captureSceneSnapshot(state);
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'loadSerializedScene',
+                        payload: snapshot,
+                    },
+                ],
+            };
+        }
+        case 'createMacro': {
+            if (state.macros.byId[command.macroId]) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'deleteMacro',
+                        macroId: command.macroId,
+                    },
+                ],
+            };
+        }
+        case 'updateMacroValue': {
+            const macro = state.macros.byId[command.macroId];
+            if (!macro || Object.is(macro.value, command.value)) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateMacroValue',
+                        macroId: command.macroId,
+                        value: macro.value,
+                    },
+                ],
+            };
+        }
+        case 'deleteMacro': {
+            const macro = state.macros.byId[command.macroId];
+            if (!macro) return null;
+            const snapshot = captureSceneSnapshot(state);
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'loadSerializedScene',
+                        payload: snapshot,
+                    },
+                ],
+            };
+        }
+        case 'importMacros': {
+            const snapshot = captureSceneSnapshot(state);
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'loadSerializedScene',
+                        payload: snapshot,
+                    },
+                ],
+            };
+        }
+        default:
+            return null;
+    }
 }
 
 function readConstantNumber(binding: BindingState | undefined): number | null {
@@ -150,7 +416,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
                 id: command.elementId,
                 type: command.elementType,
                 config: command.config ?? {},
-                createdBy: command.elementType,
+                index: command.targetIndex,
+                createdAt: command.createdAt,
+                createdBy: command.createdBy ?? command.elementType,
             });
             const bindings = { ...(input.bindings ?? {}) } as ElementBindings;
             const settings = store.settings;
@@ -218,6 +486,7 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
     const start = now();
     ensureMacroSync();
     const store = useSceneStore.getState();
+    const patch = buildSceneCommandPatch(store, command);
 
     let result: SceneCommandResult;
     try {
@@ -226,6 +495,7 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
             success: true,
             durationMs: now() - start,
             command,
+            patch,
         };
     } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
@@ -234,6 +504,7 @@ export function dispatchSceneCommand(command: SceneCommand, options?: SceneComma
             durationMs: now() - start,
             command,
             error: err,
+            patch: null,
         };
     }
     emitSceneCommandTelemetry(result, options);

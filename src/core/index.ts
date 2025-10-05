@@ -11,13 +11,7 @@ export { ImageSequenceGenerator } from '@export/image-sequence-generator';
 // ==========================================
 export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
 export type { PropertyBindingData } from '@bindings/property-bindings';
-export {
-    createDefaultMIDIScene,
-    createAllElementsDebugScene,
-    createDebugScene,
-    createTestScene,
-    resetToDefaultScene,
-} from './scene-templates';
+export { loadDefaultScene, resetToDefaultScene } from './default-scene-loader';
 
 // ==========================================
 // Visualizer Rendering Exports

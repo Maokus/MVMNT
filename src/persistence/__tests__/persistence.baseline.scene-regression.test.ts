@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DocumentGateway } from '@persistence/document-gateway';
 import { useTimelineStore } from '@state/timelineStore';
 import { buildEdgeMacroScene } from '@state/scene/fixtures/edgeMacroScene';
-import fixture from '@persistence/__fixtures__/phase0/scene.edge-macros.json';
+import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { useSceneStore } from '@state/sceneStore';
 
 const FIXED_TIMESTAMP = 1700000000000;
@@ -34,7 +34,7 @@ function withSilentConsole<T>(fn: () => T): T {
     }
 }
 
-describe('DocumentGateway scene regression (Phase 0)', () => {
+describe('DocumentGateway baseline regression suite', () => {
     beforeEach(() => {
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);

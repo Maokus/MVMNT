@@ -2,6 +2,7 @@ import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
+import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding']);
@@ -20,6 +21,7 @@ export interface PersistentDocumentV1 {
     rowHeight: number;
     midiCache: any;
     scene: { elements: any[]; sceneSettings?: any; macros?: any };
+    metadata?: Partial<SceneMetadataState>;
 }
 
 export interface BuildOptions {
@@ -68,6 +70,11 @@ export const DocumentGateway = {
             }
         }
 
+        let metadata: Partial<SceneMetadataState> | undefined;
+        try {
+            metadata = { ...useSceneMetadataStore.getState().metadata };
+        } catch {}
+
         const doc: PersistentDocumentV1 = {
             timeline: timelineCore,
             tracks: state.tracks,
@@ -77,6 +84,7 @@ export const DocumentGateway = {
             rowHeight: state.rowHeight,
             midiCache: state.midiCache,
             scene: { elements, sceneSettings, macros },
+            metadata,
         };
 
         if (!opts.includeEphemeral) return doc;
@@ -170,6 +178,12 @@ export const DocumentGateway = {
                     transport: transport ? { ...prev.transport, ...transport } : prev.transport,
                     timelineView: timelineView ? { ...timelineView } : prev.timelineView,
                 }));
+            } catch {}
+        }
+
+        if (doc.metadata) {
+            try {
+                useSceneMetadataStore.getState().hydrate(doc.metadata);
             } catch {}
         }
     },

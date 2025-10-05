@@ -5,7 +5,7 @@ import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
-import { createAllElementsDebugScene, createDefaultMIDIScene, createDebugScene } from '@core/scene-templates';
+import { loadDefaultScene } from '@core/default-scene-loader';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
@@ -25,12 +25,13 @@ const EasyModeTemplateInitializer: React.FC = () => {
         const state: any = location.state || {};
         let didChange = false;
 
-        try {
-            if (state.importScene) {
-                const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
-                if (payload) {
-                    try {
-                        const result = importScene(payload);
+        const run = async () => {
+            try {
+                if (state.importScene) {
+                    const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                    if (payload) {
+                        try {
+                            const result = await importScene(payload);
                         if (!result.ok) {
                             console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
                         } else {
@@ -44,41 +45,41 @@ const EasyModeTemplateInitializer: React.FC = () => {
                             refreshSceneUI();
                             didChange = true;
                         }
-                    } catch (err) {
-                        console.error('Failed to import scene payload from HomePage', err);
-                    }
-                    sessionStorage.removeItem('mvmnt_import_scene_payload');
-                }
-            } else if (state.template) {
-                const tpl = state.template as string;
-                dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'EasyModeTemplateInitializer.template' });
-                switch (tpl) {
-                    case 'blank':
-                        break;
-                    case 'default':
-                        createDefaultMIDIScene();
-                        break;
-                    case 'debug':
-                        try {
-                            createAllElementsDebugScene();
-                        } catch {
-                            createDebugScene();
+                        } catch (err) {
+                            console.error('Failed to import scene payload from HomePage', err);
                         }
-                        break;
-                    default:
-                        createDefaultMIDIScene();
+                        sessionStorage.removeItem('mvmnt_import_scene_payload');
+                    }
+                } else if (state.template) {
+                    const tpl = state.template as string;
+                    dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'EasyModeTemplateInitializer.template' });
+                    switch (tpl) {
+                        case 'blank':
+                            break;
+                        case 'default':
+                            await loadDefaultScene('EasyModeTemplateInitializer.default');
+                            break;
+                        case 'debug':
+                            console.warn('Debug template is no longer available; loading default scene instead.');
+                            await loadDefaultScene('EasyModeTemplateInitializer.debugFallback');
+                            break;
+                        default:
+                            await loadDefaultScene('EasyModeTemplateInitializer.fallback');
+                    }
+                    refreshSceneUI();
+                    didChange = true;
                 }
-                refreshSceneUI();
-                didChange = true;
-            }
 
-            if (didChange) {
-                visualizer.invalidateRender?.();
-                navigate('/easymode', { replace: true });
+                if (didChange) {
+                    visualizer.invalidateRender?.();
+                    navigate('/easymode', { replace: true });
+                }
+            } catch (error) {
+                console.error('Template initialization error', error);
             }
-        } catch (error) {
-            console.error('Template initialization error', error);
-        }
+        };
+
+        run();
     }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
 
     return null;

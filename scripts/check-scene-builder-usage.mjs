@@ -26,7 +26,6 @@ const mutatingMembers = [
 
 const allowList = new Set([
     'src/core/scene-builder.ts',
-    'src/core/scene-templates.ts',
     'src/state/scene/commandGateway.ts',
 ]);
 

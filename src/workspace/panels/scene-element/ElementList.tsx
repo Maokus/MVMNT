@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ElementListItem from './ElementListItem';
 
 interface ElementListProps {
@@ -22,24 +22,171 @@ const ElementList: React.FC<ElementListProps> = ({
     onDeleteElement,
     onUpdateElementId,
 }) => {
+    const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
+    const [draggingHeight, setDraggingHeight] = useState<number | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+    const resetDragState = useCallback(() => {
+        setDraggingElementId(null);
+        setDraggingHeight(null);
+        setDropIndex(null);
+    }, []);
+
+    const handleDragStart = useCallback((elementId: string, height: number) => {
+        setDraggingElementId(elementId);
+        setDraggingHeight(height);
+        setDropIndex(null);
+    }, []);
+
+    const handleDragOver = useCallback(
+        (event: React.DragEvent<HTMLDivElement>, index: number) => {
+            if (!draggingElementId) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const bounding = event.currentTarget.getBoundingClientRect();
+            const offset = event.clientY - bounding.top;
+            const shouldInsertBefore = offset < bounding.height / 2;
+            const nextIndex = shouldInsertBefore ? index : index + 1;
+
+            setDropIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
+        },
+        [draggingElementId],
+    );
+
+    const handleDragOverContainer = useCallback(
+        (event: React.DragEvent<HTMLDivElement>) => {
+            if (!draggingElementId) {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (elements.length === 0) {
+                setDropIndex(0);
+                return;
+            }
+
+            const container = event.currentTarget;
+            const bounding = container.getBoundingClientRect();
+            const offsetY = event.clientY - bounding.top;
+
+            if (offsetY < 0) {
+                setDropIndex(0);
+            } else if (offsetY > bounding.height) {
+                setDropIndex(elements.length);
+            }
+        },
+        [draggingElementId, elements.length],
+    );
+
+    const handleDrop = useCallback(() => {
+        if (!draggingElementId || dropIndex === null) {
+            resetDragState();
+            return;
+        }
+
+        const currentIndex = elements.findIndex((el) => el.id === draggingElementId);
+        if (currentIndex === -1) {
+            resetDragState();
+            return;
+        }
+
+        let targetIndex = dropIndex;
+        if (dropIndex > currentIndex) {
+            targetIndex -= 1;
+        }
+
+        if (targetIndex !== currentIndex) {
+            onMoveElement(draggingElementId, targetIndex);
+        }
+
+        resetDragState();
+    }, [draggingElementId, dropIndex, elements, onMoveElement, resetDragState]);
+
+    const placeholderStyle = useMemo(() => {
+        if (draggingHeight === null) {
+            return undefined;
+        }
+
+        return {
+            height: `${draggingHeight}px`,
+            minHeight: `${draggingHeight}px`,
+        } as React.CSSProperties;
+    }, [draggingHeight]);
+
+    const renderInsertionLine = useCallback(
+        (index: number) => {
+            if (dropIndex !== index) {
+                return null;
+            }
+
+            return <div className="h-0.5 bg-[#1177bb] rounded my-1" />;
+        },
+        [dropIndex],
+    );
+
+    const handleDragLeave = useCallback(
+        (event: React.DragEvent<HTMLDivElement>) => {
+            if (!draggingElementId) {
+                return;
+            }
+
+            const related = event.relatedTarget as Node | null;
+            if (!related || !event.currentTarget.contains(related)) {
+                setDropIndex(null);
+            }
+        },
+        [draggingElementId],
+    );
+
     return (
-        <div>
-            {elements.map((element, index) => (
-                <ElementListItem
-                    key={element.id}
-                    element={element}
-                    index={index}
-                    totalElements={elements.length}
-                    isSelected={selectedElementId === element.id}
-                    onSelect={() => onElementSelect(element.id)}
-                    onToggleVisibility={() => onToggleVisibility(element.id)}
-                    onMoveUp={() => onMoveElement(element.id, index - 1)}
-                    onMoveDown={() => onMoveElement(element.id, index + 1)}
-                    onDuplicate={() => onDuplicateElement(element.id)}
-                    onDelete={() => onDeleteElement(element.id)}
-                    onUpdateId={onUpdateElementId}
-                />
-            ))}
+        <div
+            onDragOver={handleDragOverContainer}
+            onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleDrop();
+            }}
+            onDragEnd={resetDragState}
+            onDragLeave={handleDragLeave}
+        >
+            {elements.map((element, index) => {
+                const isDragging = element.id === draggingElementId;
+
+                return (
+                    <React.Fragment key={element.id}>
+                        {renderInsertionLine(index)}
+                        {isDragging ? (
+                            <div
+                                className="mb-1 w-full rounded border border-dashed border-[#1177bb]"
+                                style={placeholderStyle}
+                            />
+                        ) : (
+                            <ElementListItem
+                                element={element}
+                                index={index}
+                                totalElements={elements.length}
+                                isSelected={selectedElementId === element.id}
+                                onSelect={() => onElementSelect(element.id)}
+                                onToggleVisibility={() => onToggleVisibility(element.id)}
+                                onMoveUp={() => onMoveElement(element.id, index - 1)}
+                                onMoveDown={() => onMoveElement(element.id, index + 1)}
+                                onDuplicate={() => onDuplicateElement(element.id)}
+                                onDelete={() => onDeleteElement(element.id)}
+                                onUpdateId={onUpdateElementId}
+                                onDragStart={(height) => handleDragStart(element.id, height)}
+                                onDragOver={(event) => handleDragOver(event, index)}
+                                onDragEnd={resetDragState}
+                            />
+                        )}
+                    </React.Fragment>
+                );
+            })}
+            {renderInsertionLine(elements.length)}
         </div>
     );
 };

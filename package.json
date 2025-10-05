@@ -6,6 +6,7 @@
     "type": "module",
     "dependencies": {
         "@mediabunny/mp3-encoder": "^1.18.0",
+        "fflate": "^0.8.2",
         "gifuct-js": "^2.1.2",
         "mediabunny": "^1.14.4",
         "react": "^19.1.1",
@@ -43,7 +44,7 @@
         "start": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "test": "vitest",
+        "test": "vitest run",
         "test:watch": "vitest --watch",
         "lint": "npx tsc --noEmit",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",

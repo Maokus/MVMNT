@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
@@ -6,15 +6,15 @@ import SidePanels from './SidePanels';
 import { TimelinePanel } from '@workspace/panels/timeline';
 import SmallScreenWarning from './SmallScreenWarning';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
-import ExportProgressOverlay from './ExportProgressOverlay';
+const ExportProgressOverlay = React.lazy(() => import('./ExportProgressOverlay'));
 import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
 import { SceneProvider } from '@context/SceneContext';
 import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
-import OnboardingOverlay from './OnboardingOverlay';
-import RenderModal from './RenderModal';
+const OnboardingOverlay = React.lazy(() => import('./OnboardingOverlay'));
+const RenderModal = React.lazy(() => import('./RenderModal'));
 import { importScene } from '@persistence/index';
-import { createDefaultMIDIScene, createAllElementsDebugScene, createDebugScene } from '@core/scene-templates';
+import { loadDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
@@ -235,12 +235,27 @@ const MidiVisualizerInner: React.FC = () => {
                 )}
             </SceneSelectionProvider>
             {showProgressOverlay && (
-                <ExportProgressOverlay kind={exportKind} progress={progressData.progress} text={progressData.text} onClose={closeProgress} />
+                <Suspense fallback={null}>
+                    <ExportProgressOverlay
+                        kind={exportKind}
+                        progress={progressData.progress}
+                        text={progressData.text}
+                        onClose={closeProgress}
+                    />
+                </Suspense>
             )}
-            {showOnboarding && <OnboardingOverlay onClose={() => setShowOnboarding(false)} />}
+            {showOnboarding && (
+                <Suspense fallback={null}>
+                    <OnboardingOverlay onClose={() => setShowOnboarding(false)} />
+                </Suspense>
+            )}
 
             {showSmallScreenWarning && (<SmallScreenWarning onProceed={proceedSmallScreen} />)}
-            {showRenderModal && <RenderModal onClose={() => setShowRenderModal(false)} />}
+            {showRenderModal && (
+                <Suspense fallback={null}>
+                    <RenderModal onClose={() => setShowRenderModal(false)} />
+                </Suspense>
+            )}
         </div>
     );
 };
@@ -272,12 +287,14 @@ const TemplateInitializer: React.FC = () => {
         if (!visualizer) return;
         const state: any = location.state || {};
         let didChange = false;
-        try {
-            if (state.importScene) {
-                const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
-                if (payload) {
-                    try {
-                        const result = importScene(payload);
+
+        const run = async () => {
+            try {
+                if (state.importScene) {
+                    const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                    if (payload) {
+                        try {
+                            const result = await importScene(payload);
                         if (!result.ok) {
                             console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
                         } else {
@@ -289,41 +306,40 @@ const TemplateInitializer: React.FC = () => {
                             refreshSceneUI();
                             didChange = true;
                         }
-                    } catch (e) {
-                        console.error('Failed to import scene payload from HomePage', e);
-                    }
-                    sessionStorage.removeItem('mvmnt_import_scene_payload');
-                }
-            } else if (state.template) {
-                const tpl = state.template as string;
-                dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
-                switch (tpl) {
-                    case 'blank':
-                        // Clear scene already resets settings; nothing else required.
-                        break;
-                    case 'default':
-                        createDefaultMIDIScene();
-                        break;
-                    case 'debug':
-                        try {
-                            createAllElementsDebugScene();
-                        } catch {
-                            createDebugScene();
+                        } catch (e) {
+                            console.error('Failed to import scene payload from HomePage', e);
                         }
-                        break;
-                    default:
-                        createDefaultMIDIScene();
+                        sessionStorage.removeItem('mvmnt_import_scene_payload');
+                    }
+                } else if (state.template) {
+                    const tpl = state.template as string;
+                    dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
+                    switch (tpl) {
+                        case 'blank':
+                            break;
+                        case 'default':
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.default');
+                            break;
+                        case 'debug':
+                            console.warn('Debug template is no longer available; loading default scene instead.');
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.debugFallback');
+                            break;
+                        default:
+                            await loadDefaultScene('MidiVisualizer.TemplateInitializer.fallback');
+                    }
+                    refreshSceneUI();
+                    didChange = true;
                 }
-                refreshSceneUI();
-                didChange = true;
+                if (didChange) {
+                    visualizer.invalidateRender?.();
+                    navigate('/workspace', { replace: true });
+                }
+            } catch (e) {
+                console.error('Template initialization error', e);
             }
-            if (didChange) {
-                visualizer.invalidateRender?.();
-                navigate('/workspace', { replace: true });
-            }
-        } catch (e) {
-            console.error('Template initialization error', e);
-        }
+        };
+
+        run();
     }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
     return null;
 };

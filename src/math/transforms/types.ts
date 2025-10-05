@@ -39,6 +39,8 @@ export interface ScaleComputationParams {
     fixedWorldPoint: Point;
     fixedLocalPoint: Point; // retained for future use / clarity (not used directly in computeScaledTransform)
     dragLocalPoint: Point; // retained for future use / clarity (not used directly in computeScaledTransform)
+    centerWorldPoint?: Point | null;
+    centerLocalPoint?: Point | null;
     geom: GeometryInfo;
     origRotation: number;
     origSkewX: number;

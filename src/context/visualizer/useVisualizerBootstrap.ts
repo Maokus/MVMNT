@@ -1,10 +1,34 @@
 import { useEffect } from 'react';
-import { MIDIVisualizerCore } from '@core/visualizer-core.js';
-import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
-import { VideoExporter } from '@export/video-exporter.js';
-import '@export/av-exporter.js';
+import type { VideoExporter } from '@export/video-exporter.js';
 import { useSceneStore } from '@state/sceneStore';
 import type { ExportSettings } from './types';
+
+type VisualizerModules = {
+    MIDIVisualizerCore: typeof import('@core/visualizer-core.js').MIDIVisualizerCore;
+    ImageSequenceGenerator: typeof import('@export/image-sequence-generator.js').ImageSequenceGenerator;
+    VideoExporter: typeof import('@export/video-exporter.js').VideoExporter;
+};
+
+let visualizerModulesPromise: Promise<VisualizerModules> | null = null;
+
+const loadVisualizerModules = async (): Promise<VisualizerModules> => {
+    if (!visualizerModulesPromise) {
+        visualizerModulesPromise = (async () => {
+            const [core, sequence, video] = await Promise.all([
+                import('@core/visualizer-core.js'),
+                import('@export/image-sequence-generator.js'),
+                import('@export/video-exporter.js'),
+                import('@export/av-exporter.js'),
+            ]);
+            return {
+                MIDIVisualizerCore: core.MIDIVisualizerCore,
+                ImageSequenceGenerator: sequence.ImageSequenceGenerator,
+                VideoExporter: video.VideoExporter,
+            };
+        })();
+    }
+    return visualizerModulesPromise;
+};
 
 interface UseVisualizerBootstrapArgs {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -39,26 +63,42 @@ export function useVisualizerBootstrap({
     }, [sceneNameRef, setSceneNameState]);
 
     useEffect(() => {
-        if (canvasRef.current && !visualizer) {
-            const vis = new MIDIVisualizerCore(canvasRef.current);
-            vis.render();
-            setVisualizer(vis);
-            const gen = new ImageSequenceGenerator(canvasRef.current, vis);
-            setImageSequenceGenerator(gen);
-            const vid = new VideoExporter(canvasRef.current, vis);
-            setVideoExporter(vid);
-            (window as any).debugVisualizer = vis;
-            try {
-                const settings = useSceneStore.getState().settings;
-                setExportSettings((prev) => ({
-                    ...prev,
-                    fps: settings.fps ?? prev.fps,
-                    width: settings.width ?? prev.width,
-                    height: settings.height ?? prev.height,
-                }));
-            } catch {
-                /* ignore */
-            }
+        const canvas = canvasRef.current;
+        if (!canvas || visualizer) {
+            return;
         }
+        let cancelled = false;
+        (async () => {
+            try {
+                const { MIDIVisualizerCore, ImageSequenceGenerator, VideoExporter } = await loadVisualizerModules();
+                if (cancelled || !canvasRef.current) {
+                    return;
+                }
+                const vis = new MIDIVisualizerCore(canvasRef.current);
+                vis.render();
+                setVisualizer(vis);
+                const gen = new ImageSequenceGenerator(canvasRef.current, vis);
+                setImageSequenceGenerator(gen);
+                const vid = new VideoExporter(canvasRef.current, vis);
+                setVideoExporter(vid);
+                (window as any).debugVisualizer = vis;
+                try {
+                    const settings = useSceneStore.getState().settings;
+                    setExportSettings((prev) => ({
+                        ...prev,
+                        fps: settings.fps ?? prev.fps,
+                        width: settings.width ?? prev.width,
+                        height: settings.height ?? prev.height,
+                    }));
+                } catch {
+                    /* ignore */
+                }
+            } catch (error) {
+                console.error('Failed to load visualizer modules', error);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [canvasRef, visualizer, setVisualizer, setImageSequenceGenerator, setVideoExporter, setExportSettings]);
 }

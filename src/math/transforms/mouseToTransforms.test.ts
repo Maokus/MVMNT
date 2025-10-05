@@ -33,6 +33,8 @@ function buildScaleParams(overrides: Partial<ScaleComputationParams>): ScaleComp
         fixedWorldPoint: { x: 0, y: 0 },
         fixedLocalPoint: { x: 0, y: 0 },
         dragLocalPoint: { x: 0, y: 0 },
+        centerWorldPoint: null,
+        centerLocalPoint: null,
         geom: geom as any,
         origRotation: 0,
         origSkewX: 0,
@@ -56,6 +58,22 @@ describe('computeScaledTransform basic scaling', () => {
         const res = computeScaledTransform(-50, 0, params, false)!;
         expect(res.newScaleX).toBeLessThan(0);
         expect(Math.abs(res.newScaleX)).toBeCloseTo(0.5, 4);
+    });
+
+    test('alt-drag on corner scales around center', () => {
+        const params = buildScaleParams({
+            mode: 'scale-se',
+            origAnchorX: 0.5,
+            origAnchorY: 0.5,
+            dragLocalPoint: { x: 100, y: 100 },
+            centerWorldPoint: { x: 50, y: 50 },
+            centerLocalPoint: { x: 50, y: 50 },
+        });
+        const res = computeScaledTransform(150, 150, params, false, true)!;
+        expect(res.newScaleX).toBeCloseTo(2, 5);
+        expect(res.newScaleY).toBeCloseTo(2, 5);
+        expect(res.newOffsetX).toBeCloseTo(50, 5);
+        expect(res.newOffsetY).toBeCloseTo(50, 5);
     });
 });
 

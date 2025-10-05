@@ -11,6 +11,7 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
@@ -40,6 +41,24 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         rec
     );
     const el = rec?.element;
+    const baseBounds = rec?.baseBounds || null;
+    const geometry: GeometryInfo | null =
+        geom && typeof geom === 'object' && (geom as any).widthVec ? (geom as GeometryInfo) : null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const corners = geometry?.corners ?? null;
+    const centerWorld = corners
+        ? {
+              x: (corners.TL.x + corners.TR.x + corners.BR.x + corners.BL.x) / 4,
+              y: (corners.TL.y + corners.TR.y + corners.BR.y + corners.BL.y) / 4,
+          }
+        : rec?.bounds
+        ? {
+              x: (rec.bounds.x || 0) + (rec.bounds.width || 0) / 2,
+              y: (rec.bounds.y || 0) + (rec.bounds.height || 0) / 2,
+          }
+        : null;
+    const centerLocal = baseBounds
+        ? { x: baseBounds.x + baseBounds.width / 2, y: baseBounds.y + baseBounds.height / 2 }
+        : null;
     vis._dragMeta = {
         mode: handleHit.type,
         startX: x,
@@ -57,11 +76,13 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         origAnchorY: el?.getProperty('anchorY') ?? 0.5,
         bounds: rec?.bounds,
         corners: rec?.corners || null,
-        baseBounds: rec?.baseBounds || null,
-        geom,
+        baseBounds,
+        geom: geometry,
         fixedWorldPoint,
         fixedLocalPoint,
         dragLocalPoint,
+        centerWorld,
+        centerLocal,
     };
 }
 
@@ -123,6 +144,7 @@ function updateScaleDrag(
     x: number,
     y: number,
     shiftKey: boolean,
+    altKey: boolean,
     deps: InteractionDeps
 ) {
     const { updateElementConfig } = deps;
@@ -138,6 +160,8 @@ function updateScaleDrag(
             fixedWorldPoint: meta.fixedWorldPoint,
             fixedLocalPoint: meta.fixedLocalPoint,
             dragLocalPoint: meta.dragLocalPoint,
+            centerWorldPoint: meta.centerWorld,
+            centerLocalPoint: meta.centerLocal,
             geom: meta.geom,
             origRotation: meta.origRotation,
             origSkewX: meta.origSkewX,
@@ -145,7 +169,12 @@ function updateScaleDrag(
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
         },
-        shiftKey
+        shiftKey,
+        altKey &&
+            (meta.mode === 'scale-ne' ||
+                meta.mode === 'scale-nw' ||
+                meta.mode === 'scale-se' ||
+                meta.mode === 'scale-sw')
     );
     if (r) {
         const cfg = {
@@ -205,7 +234,7 @@ function updateRotateDrag(
     updateElementConfig?.(elId, { elementRotation: newRotationDeg });
 }
 
-function processDrag(vis: any, x: number, y: number, shiftKey: boolean, deps: InteractionDeps) {
+function processDrag(vis: any, x: number, y: number, shiftKey: boolean, altKey: boolean, deps: InteractionDeps) {
     if (!(vis._interactionState?.draggingElementId && vis._dragMeta)) return false;
     const meta = vis._dragMeta;
     const elId = vis._interactionState.draggingElementId;
@@ -216,7 +245,7 @@ function processDrag(vis: any, x: number, y: number, shiftKey: boolean, deps: In
             updateMoveDrag(meta, vis, elId, dx, dy, shiftKey, deps);
             break;
         case meta.mode?.startsWith('scale') && !!meta.bounds:
-            updateScaleDrag(meta, vis, elId, x, y, shiftKey, deps);
+            updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, deps);
             break;
         case meta.mode === 'anchor' && !!meta.bounds:
             updateAnchorDrag(meta, vis, elId, x, y, shiftKey, deps);
@@ -355,7 +384,7 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
     const { x, y } = getWorldPoint(canvas, e.clientX, e.clientY);
-    if (processDrag(vis, x, y, e.shiftKey, deps)) return;
+    if (processDrag(vis, x, y, e.shiftKey, e.altKey ?? false, deps)) return;
     updateHover(vis, x, y);
 }
 

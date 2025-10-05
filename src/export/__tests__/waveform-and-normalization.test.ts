@@ -71,7 +71,16 @@ describe('Offline mix normalization', () => {
             solo: false,
             enabled: true,
         };
-        const audioCache: any = { aud1: { audioBuffer: buf, durationTicks, sampleRate, channels: 1 } };
+        const audioCache: any = {
+            aud1: {
+                audioBuffer: buf,
+                durationTicks,
+                durationSeconds: seconds,
+                durationSamples: buf.length,
+                sampleRate,
+                channels: 1,
+            },
+        };
         const res = await offlineMix({
             tracks: { aud1: track },
             tracksOrder: ['aud1'],

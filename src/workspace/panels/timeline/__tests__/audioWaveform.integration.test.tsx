@@ -63,8 +63,18 @@ describe('AudioWaveform integration in TrackLanes', () => {
             },
             audioCache: {
                 'audio1': {
-                    peakData: new Float32Array(Array.from({ length: 128 }, (_, i) => Math.sin(i / 8) * 0.5 + 0.5).map(v => Math.max(0, Math.min(1, v)))),
+                    waveform: {
+                        version: 1,
+                        channelPeaks: new Float32Array(
+                            Array.from({ length: 128 }, (_, i) => Math.sin(i / 8) * 0.5 + 0.5).map((v) =>
+                                Math.max(0, Math.min(1, v))
+                            )
+                        ),
+                        sampleStep: 1024,
+                    },
                     durationTicks: 400,
+                    durationSeconds: 1,
+                    durationSamples: 44100,
                     audioBuffer: fakeAudioBuffer,
                     sampleRate: 44100,
                     channels: 1,

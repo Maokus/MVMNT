@@ -15,7 +15,7 @@
       "elementRotation": { "type": "constant", "value": 0 },
       "elementSkewX": { "type": "constant", "value": 0 },
       "elementSkewY": { "type": "constant", "value": 0 },
-      "text": { "type": "constant", "value": "Phase 0" },
+      "text": { "type": "constant", "value": "Baseline Scene" },
       "fontFamily": { "type": "constant", "value": "Inter" },
       "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
       "color": { "type": "macro", "macroId": "macro.color.primary" },
