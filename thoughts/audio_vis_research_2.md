@@ -85,7 +85,9 @@
 
 ## Open question answers
 
+-   Feature caches should invalidate and recalculate when tempo has been edited, and feature is being requested. This allows the user
+
 ## Recommendations
 
 -   User should not need to select feature source, only the source track. The scene element should intelligently know what feature to extract from the source track (a volume indicator wouldn't need to know the FFT bins)
--   Investigate how
+-   Investigate how features might be stored in the downloaded .mvt file.
