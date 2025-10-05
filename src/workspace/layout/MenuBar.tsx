@@ -116,15 +116,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         )}
 
                         <button
-                            className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1 rounded text-xs transition-colors hover:bg-white/10 hover:text-white flex items-center"
-                            onClick={() => setIsEditingName(true)}
-                            title="Edit scene name"
-                            aria-label="Edit scene name"
-                        >
-                            <FaPen />
-                        </button>
-
-                        <button
                             className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"
                             onClick={() => { setShowSettingsModal(true); setShowSceneMenu(false); }}
                             title="Scene settings"
