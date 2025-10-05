@@ -138,5 +138,68 @@ describe('patch-based undo controller', () => {
         const finalized = controller?.debugStack();
         expect(finalized?.entries.length).toBe(2);
         expect(finalized?.entries[1].transient).toBe(false);
+
+        controller?.undo();
+        const afterUndo = useSceneStore.getState().bindings.byElement['drag-target'];
+        expect(afterUndo.offsetX).toEqual({ type: 'constant', value: 0 });
+
+        controller?.redo();
+        const afterRedo = useSceneStore.getState().bindings.byElement['drag-target'];
+        expect(afterRedo.offsetX).toEqual({ type: 'constant', value: 18 });
+    });
+
+    it('batches property drag updates from number inputs into a single undo entry', () => {
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'prop-drag-target',
+            config: { offsetX: { type: 'constant', value: 5 } },
+        });
+
+        const sessionId = 'session-1';
+        const mergeKey = `property-drag:prop-drag-target:offsetX:${sessionId}`;
+        const mergeGuard = (other: any) =>
+            other.command.type === 'updateElementConfig' &&
+            other.command.elementId === 'prop-drag-target' &&
+            Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, 'offsetX');
+
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'prop-drag-target',
+                patch: { offsetX: { type: 'constant', value: 9 } },
+            },
+            { mergeKey, transient: true, canMergeWith: mergeGuard }
+        );
+
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'prop-drag-target',
+                patch: { offsetX: { type: 'constant', value: 12 } },
+            },
+            { mergeKey, transient: true, canMergeWith: mergeGuard }
+        );
+
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'prop-drag-target',
+                patch: { offsetX: { type: 'constant', value: 12 } },
+            },
+            { mergeKey, transient: false, canMergeWith: mergeGuard }
+        );
+
+        const snapshot = controller?.debugStack();
+        expect(snapshot?.entries.length).toBe(2);
+        expect(snapshot?.entries[1].transient).toBe(false);
+
+        controller?.undo();
+        const undoBindings = useSceneStore.getState().bindings.byElement['prop-drag-target'];
+        expect(undoBindings.offsetX).toEqual({ type: 'constant', value: 5 });
+
+        controller?.redo();
+        const redoBindings = useSceneStore.getState().bindings.byElement['prop-drag-target'];
+        expect(redoBindings.offsetX).toEqual({ type: 'constant', value: 12 });
     });
 });

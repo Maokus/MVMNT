@@ -3,13 +3,19 @@ import PropertyGroupPanel from './PropertyGroupPanel';
 import { EnhancedConfigSchema } from '@fonts/components';
 import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
+import type { SceneCommandOptions } from '@state/scene';
+import type { FormInputChange } from '@workspace/form/inputs/FormInput';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
     elementType: string;
     schema: EnhancedConfigSchema | null;
     bindings: ElementBindings;
-    onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
+    onConfigChange: (
+        elementId: string,
+        changes: { [key: string]: any },
+        options?: Omit<SceneCommandOptions, 'source'>,
+    ) => void;
     refreshToken?: number;
 }
 
@@ -121,10 +127,23 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     ]);
 
     const handleValueChange = useCallback(
-        (key: string, value: any) => {
+        (key: string, value: any, meta?: FormInputChange['meta']) => {
             setPropertyValues((prev) => ({ ...prev, [key]: value }));
             if (onConfigChange) {
-                onConfigChange(elementId, { [key]: value });
+                let options: Omit<SceneCommandOptions, 'source'> | undefined;
+                const session = meta?.mergeSession;
+                if (session && elementId) {
+                    const mergeKey = `property-drag:${elementId}:${key}:${session.id}`;
+                    options = {
+                        mergeKey,
+                        transient: !session.finalize,
+                        canMergeWith: (other) =>
+                            other.command.type === 'updateElementConfig' &&
+                            other.command.elementId === elementId &&
+                            Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, key),
+                    };
+                }
+                onConfigChange(elementId, { [key]: value }, options);
             }
         },
         [elementId, onConfigChange]

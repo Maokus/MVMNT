@@ -3,6 +3,7 @@ import ElementPropertiesPanel from './ElementPropertiesPanel';
 import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import type { ElementBindings } from '@state/sceneStore';
+import type { SceneCommandOptions } from '@state/scene';
 
 interface SelectedElementProps {
     id: string;
@@ -14,7 +15,11 @@ interface PropertiesPanelProps {
     element?: SelectedElementProps | null;
     schema?: any;
     refreshToken?: number;
-    onConfigChange: (elementId: string, changes: { [key: string]: any }) => void;
+    onConfigChange: (
+        elementId: string,
+        changes: { [key: string]: any },
+        options?: Omit<SceneCommandOptions, 'source'>,
+    ) => void;
     onExport: (exportSettings: any) => void;
     exportStatus: string;
     canExport: boolean;

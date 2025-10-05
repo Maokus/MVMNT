@@ -93,13 +93,27 @@ class PatchUndoController implements UndoController {
     }
 
     private mergeEntries(existing: UndoStackEntry, incoming: UndoStackEntry): UndoStackEntry {
+        const mergedScene = this.mergeScenes(existing.scene, incoming.scene);
         return {
+            ...existing,
             ...incoming,
-            scene: incoming.scene ?? existing.scene,
+            scene: mergedScene,
             source: incoming.source ?? existing.source,
             mergeKey: incoming.mergeKey ?? existing.mergeKey,
             transient: incoming.transient,
             event: incoming.event ?? existing.event,
+        };
+    }
+
+    private mergeScenes(
+        existing: UndoStackEntry['scene'],
+        incoming: UndoStackEntry['scene'],
+    ): UndoStackEntry['scene'] {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+        return {
+            undo: [...incoming.undo, ...existing.undo],
+            redo: [...existing.redo, ...incoming.redo],
         };
     }
 

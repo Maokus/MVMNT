@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
-import FormInput from '@workspace/form/inputs/FormInput';
+import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInput';
 import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
@@ -11,7 +11,7 @@ interface PropertyGroupPanelProps {
     group: PropertyGroup;
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
-    onValueChange: (key: string, value: any) => void;
+    onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
 }
@@ -61,13 +61,22 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         const macroExists = assignedMacro ? macroLookup.has(assignedMacro) : false;
         const isAssignedToMacro = !!assignedMacro && macroExists;
 
+        const handleInputChange = (payload: any) => {
+            if (payload && typeof payload === 'object' && 'value' in payload) {
+                const change = payload as FormInputChange;
+                onValueChange(property.key, change.value, change.meta);
+            } else {
+                onValueChange(property.key, payload);
+            }
+        };
+
         const commonProps = {
             id: `config-${property.key}`,
             value,
             schema: property,
             disabled: isAssignedToMacro,
             title: property.description, // Use description as tooltip
-            onChange: (newValue: any) => onValueChange(property.key, newValue)
+            onChange: handleInputChange,
         };
 
         // If assigned to macro, get the macro value

@@ -3,7 +3,12 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 
 type GetCurrentValue = () => number;
 
-type OnNumberChange = (value: number) => void;
+export interface NumberDragMeta {
+    sessionId: string;
+    finalize: boolean;
+}
+
+type OnNumberChange = (value: number, meta?: NumberDragMeta) => void;
 
 export interface UseNumberDragOptions {
     disabled?: boolean;
@@ -28,6 +33,8 @@ interface NumberDragState {
     prevUserSelect: string;
     active: boolean;
     captured: boolean;
+    sessionId: string;
+    hadChange: boolean;
 }
 
 const DRAG_THRESHOLD = 2;
@@ -75,6 +82,8 @@ export function useNumberDrag(options: UseNumberDragOptions) {
         const startValueRaw = getCurrentValue();
         const startValue = isFinite(startValueRaw) ? startValueRaw : 0;
 
+        const sessionId = `number-drag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
         dragStateRef.current = {
             pointerId: e.pointerId,
             startY: e.clientY,
@@ -88,6 +97,8 @@ export function useNumberDrag(options: UseNumberDragOptions) {
             prevUserSelect: document.body.style.userSelect,
             active: false,
             captured: false,
+            sessionId,
+            hadChange: false,
         };
     }, []);
 
@@ -96,6 +107,10 @@ export function useNumberDrag(options: UseNumberDragOptions) {
         if (!drag || drag.pointerId !== e.pointerId) return;
 
         if (e.buttons === 0) {
+            if (drag.hadChange) {
+                const { onChange } = optionsRef.current;
+                onChange(drag.lastValue, { sessionId: drag.sessionId, finalize: true });
+            }
             finishPointerDrag(e.currentTarget, e.pointerId);
             return;
         }
@@ -128,21 +143,44 @@ export function useNumberDrag(options: UseNumberDragOptions) {
         if (!isFinite(next) || next === drag.lastValue) return;
 
         drag.lastValue = next;
+        drag.hadChange = true;
 
         const { onPreview, onChange } = optionsRef.current;
         onPreview?.(next);
-        onChange(next);
+        onChange(next, { sessionId: drag.sessionId, finalize: false });
 
         e.preventDefault();
     }, [finishPointerDrag]);
 
-    const handlePointerUp = useCallback((e: ReactPointerEvent<HTMLInputElement>) => {
-        finishPointerDrag(e.currentTarget, e.pointerId);
-    }, [finishPointerDrag]);
+    const emitFinalizeIfNeeded = useCallback((drag: NumberDragState | null) => {
+        if (!drag || !drag.hadChange) return;
+        const { onChange } = optionsRef.current;
+        onChange(drag.lastValue, { sessionId: drag.sessionId, finalize: true });
+    }, []);
 
-    const handlePointerCancel = useCallback((e: ReactPointerEvent<HTMLInputElement>) => {
-        finishPointerDrag(e.currentTarget, e.pointerId);
-    }, [finishPointerDrag]);
+    const handlePointerUp = useCallback(
+        (e: ReactPointerEvent<HTMLInputElement>) => {
+            const drag = dragStateRef.current;
+            if (!drag || drag.pointerId !== e.pointerId) {
+                finishPointerDrag(e.currentTarget, e.pointerId);
+                return;
+            }
+            emitFinalizeIfNeeded(drag);
+            finishPointerDrag(e.currentTarget, e.pointerId);
+        },
+        [emitFinalizeIfNeeded, finishPointerDrag],
+    );
+
+    const handlePointerCancel = useCallback(
+        (e: ReactPointerEvent<HTMLInputElement>) => {
+            const drag = dragStateRef.current;
+            if (drag && drag.pointerId === e.pointerId) {
+                emitFinalizeIfNeeded(drag);
+            }
+            finishPointerDrag(e.currentTarget, e.pointerId);
+        },
+        [emitFinalizeIfNeeded, finishPointerDrag],
+    );
 
     return {
         onPointerDown: handlePointerDown,

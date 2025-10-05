@@ -4,6 +4,18 @@ import FontInput from './FontInput';
 import MidiTrackSelect from './MidiTrackSelect';
 import { useNumberDrag } from './useNumberDrag';
 
+export interface FormInputChangeMeta {
+    mergeSession?: {
+        id: string;
+        finalize: boolean;
+    };
+}
+
+export interface FormInputChange {
+    value: any;
+    meta?: FormInputChangeMeta;
+}
+
 interface FormInputProps {
     id: string;
     type: string;
@@ -11,7 +23,7 @@ interface FormInputProps {
     schema: any;
     disabled?: boolean;
     title?: string;
-    onChange: (value: any) => void;
+    onChange: (value: any | FormInputChange) => void;
 }
 
 const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled = false, title, onChange }) => {
@@ -27,6 +39,17 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         return defaultValue;
     }, [localValue, schema?.default, value]);
 
+    const emitChange = useCallback(
+        (nextValue: any, meta?: FormInputChangeMeta) => {
+            if (meta) {
+                onChange({ value: nextValue, meta });
+            } else {
+                onChange(nextValue);
+            }
+        },
+        [onChange],
+    );
+
     const numberDragHandlers = useNumberDrag({
         disabled: disabled || !isNumberType,
         step: typeof schema?.step === 'number' ? schema.step : undefined,
@@ -36,8 +59,15 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         onPreview: (next) => {
             setLocalValue(next.toString());
         },
-        onChange: (next) => {
-            onChange(next);
+        onChange: (next, meta) => {
+            emitChange(next, meta
+                ? {
+                      mergeSession: {
+                          id: meta.sessionId,
+                          finalize: meta.finalize,
+                      },
+                  }
+                : undefined);
         },
     });
 
@@ -99,7 +129,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     if (type === 'range') {
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const numValue = parseFloat(e.target.value);
-            if (!isNaN(numValue)) onChange(numValue);
+            if (!isNaN(numValue)) emitChange(numValue);
         };
 
         return (
@@ -127,7 +157,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             if (inputValue === '' || inputValue === '-') return;
 
             const numValue = parseFloat(inputValue);
-            if (!isNaN(numValue)) onChange(numValue);
+            if (!isNaN(numValue)) emitChange(numValue);
         };
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -184,7 +214,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
         setLocalValue(newValue);
-        onChange(newValue);
+        emitChange(newValue);
     };
 
     const handleTextKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
