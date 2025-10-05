@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
 import MidiTrackSelect from './MidiTrackSelect';
@@ -29,6 +29,7 @@ interface FormInputProps {
 const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled = false, title, onChange }) => {
     // Local state helpers for text/number inputs to avoid wiping while typing
     const [localValue, setLocalValue] = useState<string>('');
+    const lastNonEmptyValueRef = useRef<string>('');
     const isNumberType = type === 'number';
 
     const getCurrentNumberValue = useCallback(() => {
@@ -79,6 +80,9 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         } else if (type === 'string' || type === 'text') {
             const displayValue = typeof value === 'string' ? value : (typeof schema?.default === 'string' ? schema.default : '');
             setLocalValue(displayValue);
+            if (displayValue.trim().length > 0) {
+                lastNonEmptyValueRef.current = displayValue;
+            }
         }
     }, [value, schema?.default, type]);
 
@@ -215,10 +219,32 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         const newValue = e.target.value;
         setLocalValue(newValue);
         emitChange(newValue);
+        if (newValue.trim().length > 0) {
+            lastNonEmptyValueRef.current = newValue;
+        }
     };
 
     const handleTextKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') e.currentTarget.blur();
+    };
+
+    const handleTextBlur = () => {
+        if (localValue.trim().length > 0) {
+            return;
+        }
+
+        const fallbackFromHistory = lastNonEmptyValueRef.current;
+        const schemaDefault = typeof schema?.default === 'string' ? schema.default : '';
+        const nextValue = fallbackFromHistory.trim().length > 0 ? fallbackFromHistory : schemaDefault;
+
+        if (nextValue !== localValue) {
+            setLocalValue(nextValue);
+            emitChange(nextValue);
+        }
+
+        if (nextValue.trim().length > 0) {
+            lastNonEmptyValueRef.current = nextValue;
+        }
     };
 
     return (
@@ -230,6 +256,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             title={title}
             onChange={handleTextChange}
             onKeyDown={handleTextKeyDown}
+            onBlur={handleTextBlur}
         />
     );
 };
