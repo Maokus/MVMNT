@@ -383,6 +383,36 @@ function normalizeIndex(targetIndex: number, size: number): number {
     return Math.floor(targetIndex);
 }
 
+function readZIndexValue(binding: BindingState | undefined): number | null {
+    if (!binding || binding.type !== 'constant') return null;
+    const value = typeof binding.value === 'number' ? binding.value : Number(binding.value);
+    return Number.isFinite(value) ? value : null;
+}
+
+function sortElementIdsByZIndex(order: string[], byElement: Record<string, ElementBindings>): string[] {
+    const enriched = order.map((id, index) => ({
+        id,
+        z: readZIndexValue(byElement[id]?.zIndex) ?? Number.NEGATIVE_INFINITY,
+        index,
+    }));
+
+    enriched.sort((a, b) => {
+        if (a.z === b.z) return a.index - b.index;
+        return b.z - a.z;
+    });
+
+    return enriched.map((entry) => entry.id);
+}
+
+function ordersEqual(a: string[], b: string[]): boolean {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
 const createSceneStoreState = (
     set: (
         partial: Partial<SceneStoreState> | ((state: SceneStoreState) => Partial<SceneStoreState>),
@@ -445,9 +475,42 @@ const createSceneStoreState = (
             nextOrder.splice(currentIndex, 1);
             nextOrder.splice(boundedIndex, 0, elementId);
 
+            const total = nextOrder.length;
+            let nextByElement: Record<string, ElementBindings> | null = null;
+            let bindingsMutated = false;
+
+            for (let index = 0; index < nextOrder.length; index += 1) {
+                const id = nextOrder[index];
+                const desiredZ = total - index - 1;
+                const sourceMap = nextByElement ?? state.bindings.byElement;
+                const existingBindings = sourceMap[id] ?? {};
+                const current = existingBindings.zIndex;
+                const currentValue = readZIndexValue(current);
+                if (current?.type === 'constant' && currentValue === desiredZ) {
+                    continue;
+                }
+
+                if (!nextByElement) {
+                    nextByElement = { ...state.bindings.byElement };
+                }
+
+                const nextZBinding: ConstantBindingState = { type: 'constant', value: desiredZ };
+                const updatedBindings: ElementBindings = { ...existingBindings, zIndex: nextZBinding };
+                nextByElement[id] = updatedBindings;
+                bindingsMutated = true;
+            }
+
+            const bindingsState = bindingsMutated
+                ? {
+                      byElement: nextByElement!,
+                      byMacro: rebuildMacroIndex(nextByElement!),
+                  }
+                : state.bindings;
+
             return {
                 ...state,
                 order: nextOrder,
+                bindings: bindingsState,
                 runtimeMeta: markDirty(state, 'moveElement'),
             };
         });
@@ -586,6 +649,7 @@ const createSceneStoreState = (
             if (!existing) throw new Error(`SceneStore.updateBindings: element '${elementId}' not found`);
 
             let changed = false;
+            let zIndexChanged = false;
             const nextBindingsForElement: ElementBindings = { ...existing };
 
             for (const [key, binding] of Object.entries(patch)) {
@@ -593,6 +657,9 @@ const createSceneStoreState = (
                     if (key in nextBindingsForElement) {
                         delete nextBindingsForElement[key];
                         changed = true;
+                        if (key === 'zIndex') {
+                            zIndexChanged = true;
+                        }
                     }
                     continue;
                 }
@@ -606,12 +673,17 @@ const createSceneStoreState = (
                 if (!current || !bindingEquals(current, normalized)) {
                     nextBindingsForElement[key] = normalized;
                     changed = true;
+                    if (key === 'zIndex') {
+                        zIndexChanged = true;
+                    }
                 }
             }
 
             if (!changed) return state;
 
             const nextByElement = { ...state.bindings.byElement, [elementId]: nextBindingsForElement };
+            const reordered = zIndexChanged ? sortElementIdsByZIndex(state.order, nextByElement) : state.order;
+
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
@@ -619,6 +691,7 @@ const createSceneStoreState = (
 
             return {
                 ...state,
+                order: zIndexChanged && !ordersEqual(reordered, state.order) ? reordered : state.order,
                 bindings: nextBindings,
                 runtimeMeta: markDirty(state, 'updateBindings'),
             };
@@ -787,6 +860,8 @@ const createSceneStoreState = (
                 nextByElement[el.id] = deserializeElementBindings(el);
             }
 
+            const sortedOrder = sortElementIdsByZIndex(nextOrder, nextByElement);
+
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
                 byMacro: rebuildMacroIndex(nextByElement),
@@ -803,7 +878,7 @@ const createSceneStoreState = (
                 ...state,
                 settings: nextSettings,
                 elements: nextElements,
-                order: nextOrder,
+                order: sortedOrder,
                 bindings: nextBindings,
                 macros: buildMacroState(payload.macros),
                 interaction: createInitialInteractionState(),

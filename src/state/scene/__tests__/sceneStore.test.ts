@@ -70,6 +70,34 @@ describe('sceneStore', () => {
         expect(afterMove[0].id).toBe('background');
     });
 
+    it('reorders elements when zIndex bindings change', () => {
+        importFixture();
+
+        const initialOrder = store.getState().order;
+        expect(initialOrder).toEqual(['title', 'background']);
+
+        store.getState().updateBindings('background', { zIndex: { type: 'constant', value: 10 } });
+
+        const state = store.getState();
+        expect(state.order).toEqual(['background', 'title']);
+        expect(state.bindings.byElement.background.zIndex).toEqual({ type: 'constant', value: 10 });
+    });
+
+    it('assigns sequential zIndex values when elements are moved', () => {
+        importFixture();
+
+        store.getState().moveElement('background', 0);
+
+        const state = store.getState();
+        expect(state.order).toEqual(['background', 'title']);
+
+        const backgroundZ = state.bindings.byElement.background?.zIndex;
+        const titleZ = state.bindings.byElement.title?.zIndex;
+
+        expect(backgroundZ).toEqual({ type: 'constant', value: 1 });
+        expect(titleZ).toEqual({ type: 'constant', value: 0 });
+    });
+
     it('keeps memoized selector references stable for unrelated updates', () => {
         importFixture();
         const selectors = createSceneSelectors();

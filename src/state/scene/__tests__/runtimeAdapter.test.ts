@@ -35,7 +35,7 @@ describe('SceneRuntimeAdapter', () => {
         expect(afterDiagnostics.version).toBeGreaterThan(beforeDiagnostics.version);
     });
 
-    it('keeps element cache versions stable when only order changes', () => {
+    it('updates z-index bindings and cache versions when order changes', () => {
         const beforeOrder = adapter.collectDiagnostics();
         const versionsBefore = {
             title: adapter.getElementVersion('title'),
@@ -51,9 +51,12 @@ describe('SceneRuntimeAdapter', () => {
         const afterOrder = adapter.collectDiagnostics();
 
         expect(versionsAfter.title).toBe(versionsBefore.title);
-        expect(versionsAfter.background).toBe(versionsBefore.background);
+        expect(versionsAfter.background).toBeGreaterThan(versionsBefore.background);
         expect(adapter.getElements().map((element) => element.id)).toEqual(store.getState().order);
         expect(afterOrder.version).toBeGreaterThan(beforeOrder.version);
+        const bindings = store.getState().bindings.byElement;
+        expect(bindings.background.zIndex).toEqual({ type: 'constant', value: 1 });
+        expect(bindings.title.zIndex).toEqual({ type: 'constant', value: 0 });
     });
 });
 
