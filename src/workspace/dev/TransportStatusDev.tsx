@@ -2,6 +2,7 @@ import React from 'react';
 import { getTransportCoordinator } from '@audio/transport-coordinator';
 import { registerSceneCommandListener } from '@state/scene';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
+import type { DebugSettings } from '@context/visualizer/types';
 
 interface RecentCommand {
     id: number;
@@ -177,9 +178,14 @@ const renderRecentList = (events: RecentCommand[], emptyLabel: string) => {
 
 export const TransportStatusDev: React.FC = () => {
     const isProd = process.env.NODE_ENV === 'production';
-    const transportCoordinator = React.useMemo(() => (isProd ? null : getTransportCoordinator()), [isProd]);
+    const appMode = import.meta.env.VITE_APP_MODE;
+    const isBetaMode = appMode === 'beta';
+    const defaultEnabled = !isProd && !isBetaMode;
+    const transportCoordinator = React.useMemo(() => getTransportCoordinator(), []);
     const [, forceRender] = React.useReducer((x) => x + 1, 0);
-    const [visible, setVisible] = React.useState(!isProd);
+    const [enabled, setEnabled] = React.useState(defaultEnabled);
+    const enabledRef = React.useRef(defaultEnabled);
+    const [visible, setVisible] = React.useState(defaultEnabled);
     const [sceneMetrics, dispatchSceneMetrics] = React.useReducer(metricsReducer, initialMetrics);
     const [timelineMetrics, dispatchTimelineMetrics] = React.useReducer(metricsReducer, initialMetrics);
     const commandId = React.useRef(0);
@@ -196,15 +202,15 @@ export const TransportStatusDev: React.FC = () => {
     };
 
     React.useEffect(() => {
-        if (!transportCoordinator) return;
+        if (!enabled || !transportCoordinator) return;
         const unsubscribe = transportCoordinator.subscribe(() => forceRender());
         return () => {
             unsubscribe();
         };
-    }, [transportCoordinator]);
+    }, [transportCoordinator, enabled]);
 
     React.useEffect(() => {
-        if (isProd) return;
+        if (!enabled) return;
         const unsubscribe = registerSceneCommandListener((event) => {
             commandId.current += 1;
             dispatchSceneMetrics({
@@ -222,10 +228,10 @@ export const TransportStatusDev: React.FC = () => {
         return () => {
             unsubscribe();
         };
-    }, [isProd]);
+    }, [enabled]);
 
     React.useEffect(() => {
-        if (isProd) return;
+        if (!enabled) return;
         const unsubscribe = registerTimelineCommandListener((event) => {
             commandId.current += 1;
             dispatchTimelineMetrics({
@@ -243,10 +249,10 @@ export const TransportStatusDev: React.FC = () => {
         return () => {
             unsubscribe();
         };
-    }, [isProd]);
+    }, [enabled]);
 
     React.useEffect(() => {
-        if (isProd) return;
+        if (!enabled) return;
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
                 event.preventDefault();
@@ -257,7 +263,35 @@ export const TransportStatusDev: React.FC = () => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isProd]);
+    }, [enabled]);
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const win = window as typeof window & { __mvmntDebugSettings?: DebugSettings };
+        const applySettings = (settings?: DebugSettings) => {
+            if (!settings) return;
+            const nextEnabled = !!settings.showDevelopmentOverlay;
+            const wasEnabled = enabledRef.current;
+            enabledRef.current = nextEnabled;
+            setEnabled(nextEnabled);
+            if (nextEnabled && !wasEnabled) {
+                setVisible(true);
+            } else if (!nextEnabled && wasEnabled) {
+                setVisible(false);
+            } else if (!nextEnabled) {
+                setVisible(false);
+            }
+        };
+        applySettings(win.__mvmntDebugSettings);
+        const listener = (event: Event) => {
+            const detail = (event as CustomEvent<DebugSettings>).detail;
+            applySettings(detail);
+        };
+        window.addEventListener('mvmnt-debug-settings-changed', listener as EventListener);
+        return () => {
+            window.removeEventListener('mvmnt-debug-settings-changed', listener as EventListener);
+        };
+    }, []);
 
     React.useEffect(() => {
         if (!visible) return;
@@ -270,7 +304,7 @@ export const TransportStatusDev: React.FC = () => {
         };
     }, [visible]);
 
-    if (isProd || !visible || !transportCoordinator) {
+    if (!enabled || !visible || !transportCoordinator) {
         return null;
     }
 

@@ -21,6 +21,7 @@ export interface ExportSettings {
 
 export interface DebugSettings {
     showAnchorPoints: boolean;
+    showDevelopmentOverlay: boolean;
 }
 
 export interface ProgressData {

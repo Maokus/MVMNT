@@ -4,6 +4,7 @@ import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
+import type { DebugSettings } from '@context/visualizer/types';
 
 interface SelectedElementProps {
     id: string;
@@ -25,8 +26,8 @@ interface PropertiesPanelProps {
     canExport: boolean;
     exportSettings: any;
     onExportSettingsChange: (settings: any) => void;
-    debugSettings: { showAnchorPoints: boolean };
-    onDebugSettingsChange: (settings: { showAnchorPoints: boolean }) => void;
+    debugSettings: DebugSettings;
+    onDebugSettingsChange: (settings: DebugSettings) => void;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {

@@ -19,7 +19,7 @@ export class MIDIVisualizerCore {
     animationId: number | null = null;
     currentTime = -0.5;
     exportSettings: any = { fullDuration: true };
-    debugSettings: any = { showAnchorPoints: false };
+    debugSettings: any = { showAnchorPoints: false, showDevelopmentOverlay: false };
     modularRenderer = new ModularRenderer();
     runtimeAdapter: SceneRuntimeAdapter | null = null;
     private _needsRender = true;

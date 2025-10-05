@@ -69,7 +69,12 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         audioSampleRate: 'auto',
         audioChannels: 2,
     });
-    const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
+    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
+    const defaultDebugSettings: DebugSettings = {
+        showAnchorPoints: false,
+        showDevelopmentOverlay: import.meta.env.DEV && !isBetaMode,
+    };
+    const [debugSettings, setDebugSettings] = useState<DebugSettings>(defaultDebugSettings);
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
     const [exportKind, setExportKind] = useState<ExportKind>(null);
@@ -160,6 +165,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         if (!visualizer) return;
         visualizer.updateDebugSettings?.(debugSettings);
     }, [visualizer, debugSettings]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            (window as any).__mvmntDebugSettings = debugSettings;
+            const event = new CustomEvent<DebugSettings>('mvmnt-debug-settings-changed', { detail: debugSettings });
+            window.dispatchEvent(event);
+        } catch {
+            /* noop: custom event dispatch may fail in non-browser contexts */
+        }
+    }, [debugSettings]);
 
     // Re-render canvas when fonts finish loading so text bounds recalc
     useEffect(() => {

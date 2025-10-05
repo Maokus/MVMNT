@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import MacroConfig from './MacroConfig';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
+import type { DebugSettings } from '@context/visualizer/types';
 
 interface ExportSettings {
     fps: number;
@@ -12,10 +13,6 @@ interface ExportSettings {
     endTime?: number;
     // padding removed
     includeAudio?: boolean;
-}
-
-interface DebugSettings {
-    showAnchorPoints: boolean;
 }
 
 interface GlobalPropertiesPanelProps {

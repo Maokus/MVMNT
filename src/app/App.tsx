@@ -9,13 +9,11 @@ const AboutPage = lazy(() => import('@pages/AboutPage'));
 const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
 const HomePage = lazy(() => import('@pages/HomePage'));
 
-const TransportStatusDevLazy = import.meta.env.DEV
-  ? lazy(() =>
-      import('@workspace/dev/TransportStatusDev').then((module) => ({
-        default: module.TransportStatusDev,
-      })),
-    )
-  : null;
+const TransportStatusDevLazy = lazy(() =>
+  import('@workspace/dev/TransportStatusDev').then((module) => ({
+    default: module.TransportStatusDev,
+  })),
+);
 
 export function App() {
 
@@ -58,11 +56,9 @@ export function App() {
           <Route path="/changelog" element={<ChangelogPage />} />
         </Routes>
       </Suspense>
-      {TransportStatusDevLazy ? (
-        <Suspense fallback={null}>
-          <TransportStatusDevLazy />
-        </Suspense>
-      ) : null}
+      <Suspense fallback={null}>
+        <TransportStatusDevLazy />
+      </Suspense>
     </div>
   );
 }

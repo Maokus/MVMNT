@@ -299,9 +299,22 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         <input
                             type="checkbox"
                             checked={!!debugSettings?.showAnchorPoints}
-                            onChange={(e) => setDebugSettings((prev: any) => ({ ...prev, showAnchorPoints: e.target.checked }))}
+                            onChange={(e) => setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))}
                         />
                         Show Anchor Points
+                    </label>
+                    <label className="flex items-center gap-2 text-[12px] text-neutral-300">
+                        <input
+                            type="checkbox"
+                            checked={!!debugSettings?.showDevelopmentOverlay}
+                            onChange={(e) =>
+                                setDebugSettings((prev) => ({
+                                    ...prev,
+                                    showDevelopmentOverlay: e.target.checked,
+                                }))
+                            }
+                        />
+                        Enable Development Overlay
                     </label>
                 </div>
             </div>
