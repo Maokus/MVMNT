@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '@assets/Logo_Transparent.png';
+import { isZipBytes, writeStoredImportPayload } from '@utils/importPayloadStorage';
 
 /**
  * Home / Landing page
@@ -19,13 +20,24 @@ const HomePage: React.FC = () => {
     const handleLoadFile = () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.json';
+        input.accept = '.mvt,.json';
         input.onchange = async (e: any) => {
             const file = e.target.files?.[0];
             if (!file) return;
             try {
-                const text = await file.text();
-                sessionStorage.setItem('mvmnt_import_scene_payload', text);
+                const buffer = await file.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+                if (isZipBytes(bytes)) {
+                    writeStoredImportPayload(bytes);
+                } else {
+                    let text: string;
+                    try {
+                        text = new TextDecoder().decode(bytes);
+                    } catch {
+                        text = await file.text();
+                    }
+                    writeStoredImportPayload(text);
+                }
                 navigate('/workspace', { state: { importScene: true } });
             } catch (e) {
                 alert('Failed to read file');

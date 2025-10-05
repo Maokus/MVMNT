@@ -2,6 +2,7 @@ import { loadDefaultScene, resetToDefaultScene } from '@core/default-scene-loade
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
+import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -91,21 +92,19 @@ export const useMenuBar = ({
             }
             try {
                 const buffer = await file.arrayBuffer();
-                const result = await importScene(buffer);
+                const bytes = new Uint8Array(buffer);
+                const result = await importScene(bytes);
                 if (!result.ok) {
                     alert('Import failed: ' + (result.errors.map((e) => e.message).join('\n') || 'Unknown error'));
                 } else {
-                    // Attempt to read name from envelope metadata when present
-                    try {
-                        const parsed = JSON.parse(await file.text());
-                        if (parsed?.metadata?.name) {
-                            onSceneNameChange(parsed.metadata.name);
-                        } else if (file.name) {
-                            // Fallback: derive scene name from filename (strip extension)
-                            const base = file.name.replace(/\.(mvt|json)$/i, '');
-                            if (base) onSceneNameChange(base);
-                        }
-                    } catch {}
+                    const metadata = extractSceneMetadataFromArtifact(bytes);
+                    if (metadata?.name?.trim()) {
+                        onSceneNameChange(metadata.name.trim());
+                    } else if (file.name) {
+                        // Fallback: derive scene name from filename (strip extension)
+                        const base = file.name.replace(/\.(mvt|json)$/i, '');
+                        if (base) onSceneNameChange(base);
+                    }
                     undo?.reset();
                     if (onSceneRefresh) onSceneRefresh();
                     console.log('Scene imported.');

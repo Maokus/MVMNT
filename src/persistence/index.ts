@@ -6,7 +6,7 @@
  * snapshot-based undo ring described in the docs.
  *
  * Current Guarantees:
- *  - `exportScene()` returns a deterministic envelope (inline JSON or packaged ZIP) wrapped in a Promise.
+ *  - `exportScene()` returns a deterministic envelope (packaged ZIP by default; inline JSON is legacy/deprecated) wrapped in a Promise.
  *  - `importScene()` performs parsing + structural validation; returns structured result (error paths do not throw).
  *  - `createPatchUndoController()` provides patch-based history with configurable depth limits.
  *

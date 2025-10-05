@@ -56,6 +56,7 @@ interface ExportResultBase {
     warnings: string[];
 }
 
+/** @deprecated Legacy inline JSON export result. */
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
@@ -199,6 +200,27 @@ function buildZip(
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
     files['document.json'] = strToU8(docJson, true);
+    if (typeof iconDataUrl === 'string') {
+        let iconBytes: Uint8Array | null = null;
+        if (iconDataUrl.startsWith('data:')) {
+            const commaIndex = iconDataUrl.indexOf(',');
+            if (commaIndex !== -1) {
+                const base64 = iconDataUrl.slice(commaIndex + 1);
+                try {
+                    iconBytes = base64ToUint8Array(base64);
+                } catch {
+                    /* ignore decode errors */
+                }
+            }
+        } else {
+            try {
+                iconBytes = base64ToUint8Array(iconDataUrl);
+            } catch {
+                /* ignore decode errors */
+            }
+        }
+        files['Icon.icns'] = iconBytes ?? strToU8('icns', true);
+    }
     for (const [assetId, payload] of audioAssets.entries()) {
         const safeName = payload.filename || `${assetId}.bin`;
         const path = `assets/audio/${assetId}/${safeName}`;
@@ -217,6 +239,13 @@ export async function exportScene(
     options: ExportSceneOptions = {}
 ): Promise<ExportSceneResult> {
     const storage: AssetStorageMode = options.storage ?? 'zip-package';
+    const preflightWarnings: string[] = [];
+    if (storage === 'inline-json') {
+        const message =
+            'Legacy inline JSON export mode is deprecated. Packaged .mvt exports are recommended for future compatibility.';
+        console.warn(`[exportScene] ${message}`);
+        preflightWarnings.push(message);
+    }
     const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
     const metadataStore = (() => {
@@ -261,7 +290,7 @@ export async function exportScene(
         onProgress: options.onProgress,
     });
 
-    const warnings: string[] = [...collectResult.warnings];
+    const warnings: string[] = [...preflightWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
         warnings.push(`Audio cache entries missing for: ${collectResult.missingIds.join(', ')}`);
     }

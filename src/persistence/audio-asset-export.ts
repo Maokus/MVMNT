@@ -4,7 +4,9 @@ import { encodeAudioBufferToWavFloat32 } from '@audio/wav/encode-audio-buffer';
 import { uint8ArrayToBase64 } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 
-export type AssetStorageMode = 'inline-json' | 'zip-package';
+export type AssetStorageMode =
+    | 'zip-package'
+    | /** @deprecated Legacy inline JSON exports are deprecated. Use packaged exports instead. */ 'inline-json';
 
 export interface AudioAssetRecord {
     kind: 'original' | 'wav';
@@ -16,6 +18,7 @@ export interface AudioAssetRecord {
     sampleRate: number;
     channels: number;
     durationSamples: number;
+    /** @deprecated Legacy inline JSON payload data. */
     dataBase64?: string;
 }
 

@@ -13,19 +13,42 @@ import logo from '@assets/Logo_Transparent.png';
 import { useMacros } from '@context/MacroContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { easyModeTemplateManifest, TemplateManifestEntry } from '../templates/manifest';
+import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
+
+interface LoadedTemplateArtifact {
+    data: Uint8Array;
+    metadata?: { name?: string; author?: string };
+}
 
 interface TemplateDefinition {
     id: string;
     name: string;
     description: string;
-    loadContent: () => Promise<string>;
+    loadArtifact: () => Promise<LoadedTemplateArtifact>;
     author?: string;
 }
 
 const templateFiles = import.meta.glob('../templates/*.mvt', {
     query: '?raw',
     import: 'default',
-}) as Record<string, () => Promise<string>>;
+}) as Record<string, () => Promise<unknown>>;
+
+function toUint8Array(value: unknown): Uint8Array {
+    if (value instanceof Uint8Array) {
+        return value;
+    }
+    if (value instanceof ArrayBuffer) {
+        return new Uint8Array(value);
+    }
+    if (typeof value === 'string') {
+        const out = new Uint8Array(value.length);
+        for (let i = 0; i < value.length; i++) {
+            out[i] = value.charCodeAt(i) & 0xff;
+        }
+        return out;
+    }
+    throw new Error('Unsupported template module format');
+}
 
 const manifestEntries = easyModeTemplateManifest.reduce<Record<string, TemplateManifestEntry>>((acc, entry) => {
     acc[entry.id] = entry;
@@ -45,13 +68,23 @@ const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
         const name = manifest?.name?.trim() || fallbackName || 'Template';
         const description = manifest?.description?.trim() || 'Ready-made scene configuration.';
         const author = manifest?.author?.trim() || undefined;
-        return { id, name, description, author, loadContent: loader };
+        return {
+            id,
+            name,
+            description,
+            author,
+            loadArtifact: async () => {
+                const moduleValue = await loader();
+                const data = toUint8Array(moduleValue);
+                const metadata = extractSceneMetadataFromArtifact(data);
+                return { data, metadata };
+            },
+        };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
 const EasyModeLayout: React.FC = () => {
-    const { sceneName, setSceneName, loadScene, refreshSceneUI } = useScene();
-    const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
+    const { sceneName, loadScene, refreshSceneUI } = useScene();
     const visualizerCtx = useVisualizer() as any;
     const { visualizer, showProgressOverlay, progressData, closeProgress, exportKind } = visualizerCtx;
     const exportVideo = visualizerCtx?.exportVideo as ((override?: any) => Promise<void>) | undefined;
@@ -125,47 +158,38 @@ const EasyModeLayout: React.FC = () => {
     }, [loadScene]);
 
     const handleApplyTemplate = useCallback(async (template: TemplateDefinition) => {
-        let content: string;
+        let artifact: LoadedTemplateArtifact;
         try {
-            content = await template.loadContent();
+            artifact = await template.loadArtifact();
         } catch (error) {
             console.error('Failed to load template content', error);
             alert('Failed to load template. Please try again.');
             return;
         }
-        const result = await importScene(content);
+        const result = await importScene(artifact.data);
         if (!result.ok) {
             const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
             alert(`Failed to load template: ${message}`);
             return;
         }
-        try {
-            const parsed = JSON.parse(content);
-            if (parsed?.metadata?.name) {
-                setSceneName(parsed.metadata.name);
-            } else {
-                setSceneName(template.name);
+        const metadataStore = useSceneMetadataStore.getState();
+        const importedName = metadataStore.metadata?.name?.trim();
+        if (!importedName) {
+            const fallbackName = artifact.metadata?.name?.trim() || template.name;
+            if (fallbackName) {
+                metadataStore.setName(fallbackName);
             }
-            if (parsed?.metadata?.author) {
-                setSceneAuthor(parsed.metadata.author);
-            } else if (template.author) {
-                setSceneAuthor(template.author);
-            } else {
-                setSceneAuthor('');
-            }
-        } catch {
-            setSceneName(template.name);
-            if (template.author) {
-                setSceneAuthor(template.author);
-            } else {
-                setSceneAuthor('');
-            }
+        }
+        const importedAuthor = metadataStore.metadata?.author?.trim();
+        if (!importedAuthor || importedAuthor.length === 0) {
+            const fallbackAuthor = artifact.metadata?.author?.trim() || template.author || '';
+            metadataStore.setAuthor(fallbackAuthor);
         }
         undo.reset();
         refreshSceneUI();
         visualizer?.invalidateRender?.();
         setShowTemplateModal(false);
-    }, [refreshSceneUI, setSceneAuthor, setSceneName, undo, visualizer]);
+    }, [refreshSceneUI, undo, visualizer]);
 
     const handleOpenTemplates = useCallback(() => setShowTemplateModal(true), []);
     const handleCloseTemplates = useCallback(() => setShowTemplateModal(false), []);

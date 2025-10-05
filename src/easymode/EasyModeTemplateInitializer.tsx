@@ -8,10 +8,11 @@ import { dispatchSceneCommand } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
+import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
-    const { setSceneName, refreshSceneUI } = useScene();
+    const { refreshSceneUI } = useScene();
     const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const undo = (() => {
         try {
@@ -31,32 +32,26 @@ const EasyModeTemplateInitializer: React.FC = () => {
         const run = async () => {
             try {
                 if (state.importScene) {
-                    const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                    const payload = readStoredImportPayload();
                     if (payload) {
                         try {
                             const result = await importScene(payload);
-                        if (!result.ok) {
-                            console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
-                        } else {
-                            try {
-                                const parsed = JSON.parse(payload);
-                                if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
-                                if (parsed?.metadata?.author) {
-                                    setSceneAuthor(parsed.metadata.author);
-                                } else {
+                            if (!result.ok) {
+                                console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
+                            } else {
+                                const metadataStore = useSceneMetadataStore.getState();
+                                const currentAuthor = metadataStore.metadata?.author?.trim();
+                                if (!currentAuthor) {
                                     setSceneAuthor('');
                                 }
-                            } catch {
-                                /* ignore parse errors */
+                                undo?.reset();
+                                refreshSceneUI();
+                                didChange = true;
                             }
-                            undo?.reset();
-                            refreshSceneUI();
-                            didChange = true;
-                        }
                         } catch (err) {
                             console.error('Failed to import scene payload from HomePage', err);
                         }
-                        sessionStorage.removeItem('mvmnt_import_scene_payload');
+                        clearStoredImportPayload();
                     }
                 } else if (state.template) {
                     const tpl = state.template as string;
@@ -104,7 +99,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, setSceneName, undo]);
+    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, undo]);
 
     return null;
 };

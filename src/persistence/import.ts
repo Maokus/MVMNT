@@ -3,7 +3,12 @@ import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelopeV2 } from './export';
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
-import { unzipSync } from 'fflate';
+import {
+    decodeSceneText,
+    parseLegacyInlineScene,
+    parseScenePackage,
+    ScenePackageError,
+} from './scene-package';
 
 export interface ImportError {
     code?: string;
@@ -33,20 +38,19 @@ interface ParsedArtifact {
     midiPayloads: Map<string, Uint8Array>;
 }
 
-function decodeText(data: Uint8Array): string {
-    if (typeof TextDecoder !== 'undefined') {
-        return new TextDecoder().decode(data);
-    }
-    let result = '';
-    for (let i = 0; i < data.length; i++) result += String.fromCharCode(data[i]);
-    return result;
-}
-
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
     if (typeof input === 'string') {
         try {
-            const env = JSON.parse(input);
-            return { envelope: env, warnings: [], audioPayloads: new Map(), midiPayloads: new Map() };
+            console.warn(
+                '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+            );
+            const legacy = parseLegacyInlineScene(input);
+            return {
+                envelope: legacy.envelope,
+                warnings: legacy.warnings,
+                audioPayloads: legacy.audioPayloads,
+                midiPayloads: legacy.midiPayloads,
+            };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
         }
@@ -65,48 +69,30 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
         return { error: { code: 'ERR_INPUT_TYPE', message: 'Unsupported import input' } };
     }
 
-    // ZIP signature PK\x03\x04
-    if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
-        const zip = unzipSync(bytes);
-        const docBytes = zip['document.json'];
-        if (!docBytes) {
-            return { error: { code: 'ERR_ZIP_DOCUMENT', message: 'Scene package missing document.json' } };
-        }
-        let envelope: any;
-        try {
-            envelope = JSON.parse(decodeText(docBytes));
-        } catch (error: any) {
-            return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid document.json: ' + error.message } };
-        }
-        const audioPayloads = new Map<string, Uint8Array>();
-        const midiPayloads = new Map<string, Uint8Array>();
-        for (const path of Object.keys(zip)) {
-            if (!path.startsWith('assets/audio/')) continue;
-            const parts = path.split('/');
-            if (parts.length < 3) continue;
-            const assetId = parts[2];
-            if (!audioPayloads.has(assetId)) {
-                audioPayloads.set(assetId, zip[path]);
-            }
-        }
-        for (const path of Object.keys(zip)) {
-            if (!path.startsWith('assets/midi/')) continue;
-            const parts = path.split('/');
-            if (parts.length < 3) continue;
-            const assetId = parts[2];
-            if (!midiPayloads.has(assetId)) {
-                midiPayloads.set(assetId, zip[path]);
-            }
-        }
-        return { envelope, warnings: [], audioPayloads, midiPayloads };
-    }
-
     try {
-        const text = decodeText(bytes);
-        const env = JSON.parse(text);
-        return { envelope: env, warnings: [], audioPayloads: new Map(), midiPayloads: new Map() };
-    } catch (error: any) {
-        return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
+        return parseScenePackage(bytes);
+    } catch (error) {
+        if (error instanceof ScenePackageError) {
+            if (error.code === 'ERR_PACKAGE_FORMAT') {
+                try {
+                    const text = decodeSceneText(bytes);
+                    console.warn(
+                        '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+                    );
+                    const legacy = parseLegacyInlineScene(text);
+                    return {
+                        envelope: legacy.envelope,
+                        warnings: legacy.warnings,
+                        audioPayloads: legacy.audioPayloads,
+                        midiPayloads: legacy.midiPayloads,
+                    };
+                } catch (inner: any) {
+                    return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
+                }
+            }
+            return { error: { code: error.code, message: error.message } };
+        }
+        return { error: { code: 'ERR_PACKAGE_FORMAT', message: (error as Error).message } };
     }
 }
 
@@ -151,7 +137,7 @@ function restoreMidiCache(
             continue;
         }
         try {
-            const parsed = JSON.parse(decodeText(payload));
+            const parsed = JSON.parse(decodeSceneText(payload));
             restored[cacheId] = parsed;
         } catch (error) {
             warnings.push(`Failed to parse MIDI payload for cache ${cacheId}: ${(error as Error).message}`);

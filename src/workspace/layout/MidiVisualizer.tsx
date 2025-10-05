@@ -20,6 +20,7 @@ import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
+import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -280,7 +281,7 @@ const MidiVisualizer: React.FC = () => {
 // Handles applying template/import based on navigation state or session storage
 const TemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
-    const { setSceneName, refreshSceneUI } = useScene();
+    const { refreshSceneUI } = useScene();
     const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
@@ -294,30 +295,26 @@ const TemplateInitializer: React.FC = () => {
         const run = async () => {
             try {
                 if (state.importScene) {
-                    const payload = sessionStorage.getItem('mvmnt_import_scene_payload');
+                    const payload = readStoredImportPayload();
                     if (payload) {
                         try {
                             const result = await importScene(payload);
-                        if (!result.ok) {
-                            console.warn('[HomePage Import] Failed:', result.errors.map(e => e.message).join('\n'));
-                        } else {
-                            try {
-                                const parsed = JSON.parse(payload);
-                                if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
-                                if (parsed?.metadata?.author) {
-                                    setSceneAuthor(parsed.metadata.author);
-                                } else {
+                            if (!result.ok) {
+                                console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
+                            } else {
+                                const metadataStore = useSceneMetadataStore.getState();
+                                const currentAuthor = metadataStore.metadata?.author?.trim();
+                                if (!currentAuthor) {
                                     setSceneAuthor('');
                                 }
-                            } catch { }
-                            undo?.reset();
-                            refreshSceneUI();
-                            didChange = true;
-                        }
+                                undo?.reset();
+                                refreshSceneUI();
+                                didChange = true;
+                            }
                         } catch (e) {
                             console.error('Failed to import scene payload from HomePage', e);
                         }
-                        sessionStorage.removeItem('mvmnt_import_scene_payload');
+                        clearStoredImportPayload();
                     }
                 } else if (state.template) {
                     const tpl = state.template as string;
@@ -364,7 +361,7 @@ const TemplateInitializer: React.FC = () => {
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, setSceneName, undo]);
+    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, undo]);
     return null;
 };
 
