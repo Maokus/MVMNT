@@ -24,7 +24,7 @@ interface UseMenuBarProps {
 }
 
 interface MenuBarActions {
-    saveScene: () => void;
+    saveScene: (projectName?: string) => Promise<void>;
     loadScene: () => void;
     clearScene: () => void;
     createNewDefaultScene: () => void;
@@ -44,14 +44,15 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = async () => {
+    const saveScene = async (projectName?: string) => {
         try {
-            const res = await exportScene(sceneName);
+            const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
+            const res = await exportScene(nameToUse);
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;
             }
-            const safeName = sceneName.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
+            const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
             const { blob, mode } = res;
             const exportBlob =
                 blob ||

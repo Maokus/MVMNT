@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { useMenuBar } from '@context/useMenuBar';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { SaveSceneModal } from '@workspace/layout/SaveSceneModal';
 
 interface SceneContextValue {
     sceneName: string;
@@ -20,6 +21,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     const { visualizer } = useVisualizer();
     const sceneName = useSceneMetadataStore((state) => state.metadata.name);
     const setSceneName = useSceneMetadataStore((state) => state.setName);
+
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
     useEffect(() => {
         try {
@@ -53,7 +56,31 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         onSceneRefresh: refreshSceneUI
     });
 
-    const { saveScene, loadScene } = menuBarActions;
+    const { saveScene: performSceneSave, loadScene } = menuBarActions;
+
+    const openSaveModal = useCallback(() => {
+        setIsSaveModalOpen(true);
+    }, []);
+
+    const closeSaveModal = useCallback(() => {
+        setIsSaveModalOpen(false);
+    }, []);
+
+    const handleConfirmSave = useCallback(
+        async (name: string) => {
+            const trimmed = name.trim();
+            if (!trimmed) {
+                return;
+            }
+            updateSceneName(trimmed);
+            try {
+                await performSceneSave(trimmed);
+            } finally {
+                closeSaveModal();
+            }
+        },
+        [closeSaveModal, performSceneSave, updateSceneName]
+    );
 
     useEffect(() => {
         const handler = (event: KeyboardEvent) => {
@@ -72,25 +99,36 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             if (isEditable) return;
             event.preventDefault();
             if (key === 's') {
-                saveScene();
+                openSaveModal();
             } else if (key === 'o') {
                 loadScene();
             }
         };
         window.addEventListener('keydown', handler, { capture: true });
         return () => window.removeEventListener('keydown', handler, { capture: true } as any);
-    }, [loadScene, saveScene]);
+    }, [loadScene, openSaveModal]);
 
     const value: SceneContextValue = {
         sceneName,
         setSceneName: updateSceneName,
-        saveScene,
+        saveScene: openSaveModal,
         loadScene,
         clearScene: menuBarActions.clearScene,
         createNewDefaultScene: menuBarActions.createNewDefaultScene,
         refreshSceneUI
     };
-    return <SceneContext.Provider value={value}>{children}</SceneContext.Provider>;
+    return (
+        <SceneContext.Provider value={value}>
+            {children}
+            {isSaveModalOpen && (
+                <SaveSceneModal
+                    initialName={sceneName}
+                    onCancel={closeSaveModal}
+                    onConfirm={handleConfirmSave}
+                />
+            )}
+        </SceneContext.Provider>
+    );
 }
 
 export const useScene = () => {
