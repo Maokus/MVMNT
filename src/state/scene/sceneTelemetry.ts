@@ -1,7 +1,9 @@
-import type { SceneCommandOptions, SceneCommandResult } from './commandGateway';
+import type { SceneCommandMergeContext, SceneCommandOptions, SceneCommandResult } from './commandGateway';
 
-export interface SceneCommandTelemetryEvent extends SceneCommandResult {
-    source: string;
+export interface SceneCommandTelemetryEvent extends SceneCommandMergeContext {
+    mergeKey?: string;
+    transient?: boolean;
+    canMergeWith?: SceneCommandOptions['canMergeWith'];
 }
 
 type SceneCommandListener = (event: SceneCommandTelemetryEvent) => void;
@@ -27,6 +29,9 @@ export function emitSceneCommandTelemetry(
     const event: SceneCommandTelemetryEvent = {
         ...result,
         source: options?.source ?? 'store',
+        mergeKey: options?.mergeKey,
+        transient: options?.transient ?? false,
+        canMergeWith: options?.canMergeWith,
     };
     for (const listener of listeners) {
         try {

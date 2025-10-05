@@ -83,17 +83,30 @@ export type SceneCommand =
           payload: SceneSerializedMacros;
       };
 
-export interface SceneCommandOptions {
-    /** Human friendly source string for logging / telemetry */
-    source?: string;
-}
-
 export interface SceneCommandResult {
     success: boolean;
     durationMs: number;
     command: SceneCommand;
     error?: Error;
     patch?: SceneCommandPatch | null;
+}
+
+export interface SceneCommandMergeContext extends SceneCommandResult {
+    source: string;
+}
+
+export interface SceneCommandOptions {
+    /** Human friendly source string for logging / telemetry */
+    source?: string;
+    /**
+     * When provided, allows subsequent commands with the same key to merge into a single undo entry.
+     * Useful for continuous gestures such as drag interactions.
+     */
+    mergeKey?: string;
+    /** Marks the undo entry as transient so it can be replaced until finalized. */
+    transient?: boolean;
+    /** Optional guard to determine whether two telemetry events may merge. */
+    canMergeWith?: (other: SceneCommandMergeContext) => boolean;
 }
 
 export interface SceneCommandPatch {

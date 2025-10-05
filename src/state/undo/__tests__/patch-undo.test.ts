@@ -82,4 +82,61 @@ describe('patch-based undo controller', () => {
         });
         expect(controller?.canUndo()).toBe(beforeCanUndo);
     });
+
+    it('merges transient drag updates into a single undo entry', () => {
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'drag-target',
+            config: { offsetX: { type: 'constant', value: 0 }, offsetY: { type: 'constant', value: 0 } },
+        });
+
+        const mergeKey = 'move:test-drag';
+        const baseOptions = {
+            source: 'test.drag',
+            mergeKey,
+            canMergeWith: (other: any) =>
+                other.command.type === 'updateElementConfig' && other.command.elementId === 'drag-target',
+        };
+
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'drag-target',
+                patch: { offsetX: { type: 'constant', value: 10 } },
+            },
+            { ...baseOptions, transient: true }
+        );
+        const afterFirst = controller?.debugStack();
+        expect(afterFirst?.entries.length).toBe(2);
+        expect(afterFirst?.entries[1].mergeKey).toBe(mergeKey);
+        expect(afterFirst?.entries[1].transient).toBe(true);
+
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'drag-target',
+                patch: { offsetX: { type: 'constant', value: 18 } },
+            },
+            { ...baseOptions, transient: true }
+        );
+        const afterSecond = controller?.debugStack();
+        expect(afterSecond?.entries.length).toBe(2);
+        expect(afterSecond?.entries[1].mergeKey).toBe(mergeKey);
+        expect(afterSecond?.entries[1].transient).toBe(true);
+
+        // Finalize drag with identical state; should flip transient to false without adding a new entry
+        dispatchSceneCommand(
+            {
+                type: 'updateElementConfig',
+                elementId: 'drag-target',
+                patch: { offsetX: { type: 'constant', value: 18 } },
+            },
+            { ...baseOptions, transient: false }
+        );
+
+        const finalized = controller?.debugStack();
+        expect(finalized?.entries.length).toBe(2);
+        expect(finalized?.entries[1].transient).toBe(false);
+    });
 });

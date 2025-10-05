@@ -17,6 +17,9 @@ interface UndoStackEntry {
     scene?: SceneCommandPatch;
     source?: string;
     timestamp: number;
+    mergeKey?: string;
+    transient: boolean;
+    event?: SceneCommandTelemetryEvent;
 }
 
 class PatchUndoController implements UndoController {
@@ -35,13 +38,25 @@ class PatchUndoController implements UndoController {
     private onSceneCommand(event: SceneCommandTelemetryEvent) {
         if (this.restoring) return;
         if (!event.success) return;
-        if (!event.patch) return;
-        const { undo, redo } = event.patch;
-        if (!Array.isArray(undo) || !Array.isArray(redo) || undo.length === 0 || redo.length === 0) return;
+        const undo = event.patch?.undo;
+        const redo = event.patch?.redo;
+        const hasScenePatch =
+            Array.isArray(undo) && Array.isArray(redo) && undo.length > 0 && redo.length > 0;
+
+        if (!hasScenePatch) {
+            if (event.mergeKey) {
+                this.updateExistingEntry(event);
+            }
+            return;
+        }
+
         const entry: UndoStackEntry = {
             scene: { undo, redo },
             source: event.source,
             timestamp: Date.now(),
+            mergeKey: event.mergeKey,
+            transient: event.transient ?? false,
+            event,
         };
         this.pushEntry(entry);
     }
@@ -50,10 +65,55 @@ class PatchUndoController implements UndoController {
         if (this.index < this.stack.length - 1) {
             this.stack.splice(this.index + 1);
         }
+        const last = this.stack[this.stack.length - 1];
+        if (last && this.canEntriesMerge(last, entry)) {
+            this.stack[this.stack.length - 1] = this.mergeEntries(last, entry);
+            this.index = this.stack.length - 1;
+            return;
+        }
         this.stack.push(entry);
         if (this.stack.length > this.maxDepth) {
             this.stack.shift();
         }
+        this.index = this.stack.length - 1;
+    }
+
+    private canEntriesMerge(existing: UndoStackEntry, incoming: UndoStackEntry): boolean {
+        if (!existing.mergeKey || !incoming.mergeKey) return false;
+        if (existing.mergeKey !== incoming.mergeKey) return false;
+        const existingEvent = existing.event;
+        const incomingEvent = incoming.event;
+        if (incomingEvent?.canMergeWith && existingEvent && !incomingEvent.canMergeWith(existingEvent)) {
+            return false;
+        }
+        if (existingEvent?.canMergeWith && incomingEvent && !existingEvent.canMergeWith(incomingEvent)) {
+            return false;
+        }
+        return true;
+    }
+
+    private mergeEntries(existing: UndoStackEntry, incoming: UndoStackEntry): UndoStackEntry {
+        return {
+            ...incoming,
+            scene: incoming.scene ?? existing.scene,
+            source: incoming.source ?? existing.source,
+            mergeKey: incoming.mergeKey ?? existing.mergeKey,
+            transient: incoming.transient,
+            event: incoming.event ?? existing.event,
+        };
+    }
+
+    private updateExistingEntry(event: SceneCommandTelemetryEvent): void {
+        if (!this.stack.length) return;
+        const last = this.stack[this.stack.length - 1];
+        if (!last || !last.mergeKey || last.mergeKey !== event.mergeKey) return;
+        const lastEvent = last.event;
+        if (event.canMergeWith && lastEvent && !event.canMergeWith(lastEvent)) return;
+        if (lastEvent?.canMergeWith && !lastEvent.canMergeWith(event)) return;
+        last.transient = event.transient ?? last.transient;
+        last.source = event.source ?? last.source;
+        last.timestamp = Date.now();
+        last.event = event;
         this.index = this.stack.length - 1;
     }
 
@@ -150,6 +210,8 @@ class PatchUndoController implements UndoController {
                 hasScenePatch: !!entry.scene,
                 source: entry.source,
                 ageMs: Date.now() - entry.timestamp,
+                mergeKey: entry.mergeKey ?? null,
+                transient: entry.transient,
             })),
         };
     }

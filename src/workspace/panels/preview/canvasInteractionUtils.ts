@@ -13,6 +13,7 @@ import {
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
 import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
+import type { SceneCommandOptions } from '@state/scene';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
 // Types kept broad (any) to avoid tight coupling with visualizer internal shapes.
@@ -20,8 +21,46 @@ export interface InteractionDeps {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     visualizer: any; // runtime visualizer instance
     selectElement: (id: string | null) => void;
-    updateElementConfig?: (id: string, cfg: any) => void;
+    updateElementConfig?: (
+        id: string,
+        cfg: any,
+        options?: Omit<SceneCommandOptions, 'source'>,
+    ) => void;
     incrementPropertyPanelRefresh: () => void;
+}
+
+type DragCommandOptionsBase = Omit<SceneCommandOptions, 'source' | 'transient'>;
+
+let dragSessionCounter = 0;
+
+function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOptionsBase {
+    if (meta.dragCommandOptionsBase) {
+        return meta.dragCommandOptionsBase as DragCommandOptionsBase;
+    }
+    const sessionId = meta.dragSessionId ?? `drag-${++dragSessionCounter}`;
+    meta.dragSessionId = sessionId;
+    const mode = typeof meta.mode === 'string' && meta.mode.length > 0 ? meta.mode : 'drag';
+    const base: DragCommandOptionsBase = {
+        mergeKey: `${mode}:${sessionId}`,
+        canMergeWith: (other) =>
+            other.command.type === 'updateElementConfig' && other.command.elementId === elementId,
+    };
+    meta.dragCommandOptionsBase = base;
+    return base;
+}
+
+function applyDragUpdate(
+    meta: any,
+    elementId: string,
+    cfg: Record<string, unknown>,
+    deps: InteractionDeps,
+) {
+    const { updateElementConfig } = deps;
+    if (!updateElementConfig) return;
+    meta.dragElementId = elementId;
+    const baseOptions = ensureDragCommandOptions(meta, elementId);
+    updateElementConfig(elementId, cfg, { ...baseOptions, transient: true });
+    meta.lastConfig = { ...cfg };
 }
 
 // ----- Helper functions -----
@@ -83,6 +122,7 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         dragLocalPoint,
         centerWorld,
         centerLocal,
+        dragElementId: selectedId,
     };
 }
 
@@ -114,6 +154,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             origRotation: hit.element?.elementRotation || 0,
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
+            dragElementId: hit.id,
         };
     } else {
         selectElement(null);
@@ -123,23 +164,22 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
 
 function updateMoveDrag(
     meta: any,
-    vis: any,
+    _vis: any,
     elId: string,
     dx: number,
     dy: number,
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { updateElementConfig } = deps;
     const constrained = computeConstrainedMoveDelta(dx, dy, meta.origRotation || 0, shiftKey);
     const newX = meta.origOffsetX + constrained.dx;
     const newY = meta.origOffsetY + constrained.dy;
-    updateElementConfig?.(elId, { offsetX: newX, offsetY: newY });
+    applyDragUpdate(meta, elId, { offsetX: newX, offsetY: newY }, deps);
 }
 
 function updateScaleDrag(
     meta: any,
-    vis: any,
+    _vis: any,
     elId: string,
     x: number,
     y: number,
@@ -147,7 +187,6 @@ function updateScaleDrag(
     altKey: boolean,
     deps: InteractionDeps
 ) {
-    const { updateElementConfig } = deps;
     if (!meta.bounds) return;
     const r = computeScaledTransform(
         x,
@@ -183,20 +222,19 @@ function updateScaleDrag(
             offsetX: r.newOffsetX,
             offsetY: r.newOffsetY,
         };
-        updateElementConfig?.(elId, cfg);
+        applyDragUpdate(meta, elId, cfg, deps);
     }
 }
 
 function updateAnchorDrag(
     meta: any,
-    vis: any,
+    _vis: any,
     elId: string,
     x: number,
     y: number,
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { updateElementConfig } = deps;
     if (!meta.bounds || !meta.baseBounds) return;
     const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
         x,
@@ -216,22 +254,21 @@ function updateAnchorDrag(
         shiftKey
     );
     const cfg = { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY };
-    updateElementConfig?.(elId, cfg);
+    applyDragUpdate(meta, elId, cfg, deps);
 }
 
 function updateRotateDrag(
     meta: any,
-    vis: any,
+    _vis: any,
     elId: string,
     x: number,
     y: number,
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    const { updateElementConfig } = deps;
     if (!meta.bounds) return;
     const newRotationDeg = computeRotation(x, y, meta, shiftKey);
-    updateElementConfig?.(elId, { elementRotation: newRotationDeg });
+    applyDragUpdate(meta, elId, { elementRotation: newRotationDeg }, deps);
 }
 
 function processDrag(vis: any, x: number, y: number, shiftKey: boolean, altKey: boolean, deps: InteractionDeps) {
@@ -279,7 +316,22 @@ function updateHover(vis: any, x: number, y: number) {
 }
 
 function finalizeDrag(vis: any, deps: InteractionDeps) {
-    if (vis._interactionState?.draggingElementId) {
+    const draggingId = vis._interactionState?.draggingElementId;
+    const meta = vis._dragMeta;
+    if (
+        draggingId &&
+        meta &&
+        meta.lastConfig &&
+        meta.dragCommandOptionsBase &&
+        typeof deps.updateElementConfig === 'function'
+    ) {
+        const finalPatch = { ...meta.lastConfig };
+        deps.updateElementConfig(draggingId, finalPatch, {
+            ...meta.dragCommandOptionsBase,
+            transient: false,
+        });
+    }
+    if (draggingId) {
         vis.setInteractionState({ draggingElementId: null, activeHandle: null });
         vis._dragMeta = null;
         deps.incrementPropertyPanelRefresh();

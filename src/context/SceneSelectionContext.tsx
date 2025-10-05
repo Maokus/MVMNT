@@ -8,7 +8,7 @@ import {
     useSceneElementRecord,
     dispatchSceneCommand,
 } from '@state/scene';
-import type { SceneCommand } from '@state/scene';
+import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
 
 interface SceneSelectionState {
@@ -23,7 +23,11 @@ interface SceneSelectionState {
 interface SceneSelectionActions {
     selectElement: (elementId: string | null) => void;
     clearSelection: () => void;
-    updateElementConfig: (elementId: string, changes: { [key: string]: any }) => void;
+    updateElementConfig: (
+        elementId: string,
+        changes: { [key: string]: any },
+        options?: Omit<SceneCommandOptions, 'source'>,
+    ) => void;
     addElement: (elementType: string) => void;
     incrementPropertyPanelRefresh: () => void;
     toggleElementVisibility: (elementId: string) => void;
@@ -160,8 +164,8 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     }, [selectElement]);
 
     const runSceneCommand = useCallback(
-        (command: SceneCommand, source: string) => {
-            const result = dispatchSceneCommand(command, { source });
+        (command: SceneCommand, source: string, options?: Omit<SceneCommandOptions, 'source'>) => {
+            const result = dispatchSceneCommand(command, { source, ...options });
             if (!result.success) {
                 console.warn(`[SceneSelectionContext] Command failed (${source})`, {
                     command,
@@ -175,17 +179,18 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const updateElementConfig = useCallback(
-        (elementId: string, changes: { [key: string]: any }) => {
+        (elementId: string, changes: { [key: string]: any }, options?: Omit<SceneCommandOptions, 'source'>) => {
             if (!elementId) return;
             const ok = runSceneCommand(
                 { type: 'updateElementConfig', elementId, patch: changes },
-                'SceneSelectionContext.updateElementConfig'
+                'SceneSelectionContext.updateElementConfig',
+                options,
             );
             if (!ok) return;
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             setPropertyPanelRefresh((prev) => prev + 1);
         },
-        [runSceneCommand, visualizer, selectedElementId]
+        [runSceneCommand, visualizer]
     );
 
     const generateUniqueElementId = useCallback((elementType: string): string => {
