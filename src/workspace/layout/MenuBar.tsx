@@ -1,9 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png'
 import { FaSave, FaFolderOpen, FaTrash, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
 import SceneSettingsModal from './SceneSettingsModal';
+import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
+import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
+import { useTemplateApply } from '@workspace/templates/useTemplateApply';
+import type { TemplateDefinition } from '@workspace/templates/types';
 
 interface MenuBarProps {
     onHelp?: () => void;
@@ -16,6 +20,13 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const sceneMenuRef = useRef<HTMLDivElement>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
+    const templates = useMemo(() => easyModeTemplates, []);
+    const hasTemplates = templates.length > 0;
+    const applyTemplate = useTemplateApply();
+    const handleBrowseTemplates = useCallback(
+        (template: TemplateDefinition) => applyTemplate(template),
+        [applyTemplate]
+    );
 
     // Handle clicks outside scene menu to close it
     useEffect(() => {
@@ -149,6 +160,14 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                 </div>
                 <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                     <div className="flex items-center gap-2 mr-2">
+                        <BrowseTemplatesButton
+                            templates={templates}
+                            onTemplateSelect={handleBrowseTemplates}
+                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-600 bg-neutral-800/70 text-neutral-100 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
+                            disabled={!hasTemplates}
+                        >
+                            Browse Templates
+                        </BrowseTemplatesButton>
                         <button
                             type="button"
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
