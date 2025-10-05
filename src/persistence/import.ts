@@ -3,6 +3,9 @@ import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelopeV2 } from './export';
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
+import { FontBinaryStore } from './font-binary-store';
+import { ensureFontVariantsRegistered } from '@fonts/font-loader';
+import type { FontAsset } from '@state/scene/fonts';
 import {
     decodeSceneText,
     parseLegacyInlineScene,
@@ -36,6 +39,7 @@ interface ParsedArtifact {
     warnings: { message: string }[];
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
+    fontPayloads: Map<string, Uint8Array>;
 }
 
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
@@ -50,6 +54,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 warnings: legacy.warnings,
                 audioPayloads: legacy.audioPayloads,
                 midiPayloads: legacy.midiPayloads,
+                fontPayloads: legacy.fontPayloads,
             };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
@@ -85,6 +90,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         warnings: legacy.warnings,
                         audioPayloads: legacy.audioPayloads,
                         midiPayloads: legacy.midiPayloads,
+                        fontPayloads: legacy.fontPayloads,
                     };
                 } catch (inner: any) {
                     return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
@@ -279,7 +285,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         return { ok: false, errors: [parsed.error], warnings: [] };
     }
 
-    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads } = parsed;
+    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads, fontPayloads } = parsed;
     const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
         return {
@@ -295,8 +301,27 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     DocumentGateway.apply(doc as any);
 
     let hydrationWarnings: string[] = [];
+    const fontWarnings: string[] = [];
     if (envelope.schemaVersion === 2 && envelope.assets) {
         hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, audioPayloads);
+    }
+
+    if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {
+        const fontAssets = envelope.scene.fontAssets as Record<string, FontAsset>;
+        for (const asset of Object.values(fontAssets)) {
+            if (!asset || !asset.id) continue;
+            const payload = fontPayloads.get(asset.id);
+            if (!payload) {
+                fontWarnings.push(`Missing font payload for asset ${asset.id}`);
+                continue;
+            }
+            try {
+                await FontBinaryStore.put(asset.id, payload);
+                await ensureFontVariantsRegistered(asset, asset.variants ?? []);
+            } catch (error) {
+                fontWarnings.push(`Failed to hydrate font ${asset.id}: ${(error as Error).message}`);
+            }
+        }
     }
 
     const warnings = [
@@ -304,6 +329,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...validation.warnings.map((w) => ({ message: w.message })),
         ...midiRestoration.warnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
+        ...fontWarnings.map((message) => ({ message })),
     ];
     return { ok: true, errors: [], warnings };
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import type { SceneClipboard } from '@state/sceneStore';
+import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
 
 type Store = ReturnType<typeof createSceneStore>;
@@ -170,5 +171,57 @@ describe('sceneStore', () => {
 
         expect(firstExport.macros?.exportedAt).toBeDefined();
         expect(secondExport.macros?.exportedAt).toBe(firstExport.macros?.exportedAt);
+    });
+
+    it('registers, updates, and deletes font assets', () => {
+        const asset: FontAsset = {
+            id: 'font-1',
+            family: 'Custom Family',
+            originalFileName: 'Custom.ttf',
+            fileSize: 1024,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            licensingAcknowledged: true,
+            variants: [
+                { id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' },
+            ],
+        };
+
+        store.getState().registerFontAsset(asset);
+        expect(store.getState().fonts.assets[asset.id]?.family).toBe('Custom Family');
+
+        store.getState().updateFontAsset(asset.id, { family: 'Updated Family' });
+        expect(store.getState().fonts.assets[asset.id]?.family).toBe('Updated Family');
+
+        store.getState().deleteFontAsset(asset.id);
+        expect(store.getState().fonts.assets[asset.id]).toBeUndefined();
+    });
+
+    it('imports and exports font asset metadata', () => {
+        const asset: FontAsset = {
+            id: 'font-2',
+            family: 'Scene Font',
+            originalFileName: 'SceneFont.otf',
+            fileSize: 2048,
+            createdAt: 123,
+            updatedAt: 456,
+            licensingAcknowledged: true,
+            variants: [
+                { id: 'italic', weight: 400, style: 'italic', sourceFormat: 'otf' },
+            ],
+        };
+
+        store.getState().importScene({
+            elements: [],
+            fontAssets: { [asset.id]: asset },
+            fontLicensingAcknowledgedAt: 789,
+        });
+
+        expect(store.getState().fonts.assets[asset.id]?.family).toBe('Scene Font');
+        expect(store.getState().fonts.licensingAcknowledgedAt).toBe(789);
+
+        const exported = store.getState().exportSceneDraft();
+        expect(exported.fontAssets?.[asset.id]?.family).toBe('Scene Font');
+        expect(exported.fontLicensingAcknowledgedAt).toBe(789);
     });
 });

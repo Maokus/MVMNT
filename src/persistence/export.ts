@@ -7,6 +7,7 @@ import {
     type AudioAssetRecord,
     type WaveformAssetRecord,
 } from './audio-asset-export';
+import { collectFontAssets } from './font-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
@@ -37,6 +38,7 @@ export interface SceneExportEnvelopeV2 {
         createdWith: string;
         audio: { byId: Record<string, AudioAssetRecord> };
         waveforms?: { byAudioId: Record<string, WaveformAssetRecord> };
+        fonts?: { byId: Record<string, import('./font-asset-export').FontAssetRecord> };
     };
     references?: {
         audioIdMap: Record<string, string>;
@@ -195,7 +197,8 @@ function prepareMidiAssets(
 function buildZip(
     envelope: SceneExportEnvelopeV2,
     audioAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
-    midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
@@ -229,6 +232,11 @@ function buildZip(
     for (const [assetId, payload] of midiAssets.entries()) {
         const safeName = payload.filename || MIDI_ASSET_FILENAME;
         const path = `assets/midi/${assetId}/${safeName}`;
+        files[path] = payload.bytes;
+    }
+    for (const [assetId, payload] of fontAssets.entries()) {
+        const safeName = payload.filename || `${assetId}.bin`;
+        const path = `assets/fonts/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
@@ -290,6 +298,8 @@ export async function exportScene(
         onProgress: options.onProgress,
     });
 
+    const fontResult = await collectFontAssets();
+
     const warnings: string[] = [...preflightWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
         warnings.push(`Audio cache entries missing for: ${collectResult.missingIds.join(', ')}`);
@@ -300,6 +310,9 @@ export async function exportScene(
                 (options.maxInlineAssetBytes ?? DEFAULT_MAX_INLINE_ASSET_BYTES) / (1024 * 1024)
             )} MB.`
         );
+    }
+    if (fontResult.missing.length) {
+        warnings.push(`Font binaries missing for: ${fontResult.missing.join(', ')}`);
     }
 
     if (storage === 'inline-json' && collectResult.inlineRejected) {
@@ -322,6 +335,9 @@ export async function exportScene(
     };
     if (collectResult.waveforms) {
         assetsSection.waveforms = collectResult.waveforms;
+    }
+    if (Object.keys(fontResult.byId).length) {
+        assetsSection.fonts = { byId: fontResult.byId };
     }
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
@@ -357,7 +373,7 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(envelope, collectResult.assetPayloads, midiAssets.assetPayloads);
+    const zip = buildZip(envelope, collectResult.assetPayloads, midiAssets.assetPayloads, fontResult.assetPayloads);
     return {
         ok: true,
         mode: 'zip-package',

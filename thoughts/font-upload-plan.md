@@ -1,6 +1,6 @@
 # Custom Font Support Implementation Plan
 
-**Status:** Ready for implementation
+**Status:** Implemented — see [`docs/mvt-asset-packaging.md`](../docs/mvt-asset-packaging.md) for export packaging details and the updated font persistence helpers in `@state/scene/fonts`.
 
 ## Current Font Handling
 
