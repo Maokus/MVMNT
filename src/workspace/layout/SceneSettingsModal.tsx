@@ -4,6 +4,7 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import SceneFontManager from './SceneFontManager';
 
 interface SceneSettingsModalProps {
     onClose: () => void;
@@ -292,6 +293,13 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
                         </div>
                     </div>
+                </div>
+                <div className="mb-4 flex flex-col gap-3 border-t border-neutral-700 pt-3">
+                    <h3 className="m-0 text-[13px] font-semibold text-white">Fonts</h3>
+                    <p className="m-0 text-[12px] text-neutral-400">
+                        Upload custom fonts for this scene and manage the shared font library available to font pickers.
+                    </p>
+                    <SceneFontManager />
                 </div>
                 <div className="flex flex-col gap-2 border-t border-neutral-700 pt-3">
                     <h3 className="m-0 text-[13px] font-semibold text-white">Debug</h3>

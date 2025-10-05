@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     // React SWC plugin already enables Fast Refresh by default; ensure our component
     // modules use named function declarations for providers for consistent boundaries.
     plugins: [react(), tsconfigPaths()],
-    assetsInclude: ['**/*.icns'],
+    assetsInclude: ['**/*.icns', '**/*.mvt'],
     build: {
         outDir: 'build',
         sourcemap: true,
@@ -36,6 +36,6 @@ export default defineConfig(({ mode }) => ({
         setupFiles: ['./src/setupTests.ts'],
         globals: true,
         include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
-        assetsInclude: ['**/*.icns'],
+        assetsInclude: ['**/*.icns', '**/*.mvt'],
     },
 }));

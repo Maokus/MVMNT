@@ -29,9 +29,9 @@ interface TemplateDefinition {
 }
 
 const templateFiles = import.meta.glob('../templates/*.mvt', {
-    query: '?raw',
+    query: '?arraybuffer',
     import: 'default',
-}) as Record<string, () => Promise<unknown>>;
+}) as Record<string, () => Promise<ArrayBuffer | Uint8Array>>;
 
 function toUint8Array(value: unknown): Uint8Array {
     if (value instanceof Uint8Array) {
