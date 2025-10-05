@@ -7,6 +7,7 @@ interface ElementListItemProps {
     index: number;
     totalElements: number;
     isSelected: boolean;
+    isDragging?: boolean;
     onSelect: () => void;
     onToggleVisibility: () => void;
     onMoveUp: () => void;
@@ -25,6 +26,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     totalElements,
     isSelected,
     onSelect,
+    isDragging = false,
     onToggleVisibility,
     onMoveUp,
     onMoveDown,
@@ -101,10 +103,11 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     const baseItem = "flex items-center justify-between px-3 py-0.5 mb-1 border rounded cursor-pointer transition";
     const unselected = "bg-[color:var(--twc-control)] border-[color:var(--twc-control2)] hover:bg-[color:var(--twc-control2)] hover:border-neutral-500";
     const selected = "bg-[#0e639c] border-[#1177bb] text-white";
+    const draggingState = isDragging ? 'opacity-0 pointer-events-none' : '';
     return (
         <div
             ref={containerRef}
-            className={`${baseItem} ${isSelected ? selected : unselected}`}
+            className={`${baseItem} ${isSelected ? selected : unselected} ${draggingState}`}
             onClick={onSelect}
             draggable={!isEditingId}
             onDragStart={(event) => {

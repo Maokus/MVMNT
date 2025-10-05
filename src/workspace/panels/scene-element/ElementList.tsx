@@ -136,7 +136,11 @@ const ElementList: React.FC<ElementListProps> = ({
             }
 
             const related = event.relatedTarget as Node | null;
-            if (!related || !event.currentTarget.contains(related)) {
+            if (!related) {
+                return;
+            }
+
+            if (!event.currentTarget.contains(related)) {
                 setDropIndex(null);
             }
         },
@@ -160,17 +164,13 @@ const ElementList: React.FC<ElementListProps> = ({
                 return (
                     <React.Fragment key={element.id}>
                         {renderInsertionLine(index)}
-                        {isDragging ? (
-                            <div
-                                className="mb-1 w-full rounded border border-dashed border-[#1177bb]"
-                                style={placeholderStyle}
-                            />
-                        ) : (
+                        <div className="relative">
                             <ElementListItem
                                 element={element}
                                 index={index}
                                 totalElements={elements.length}
                                 isSelected={selectedElementId === element.id}
+                                isDragging={isDragging}
                                 onSelect={() => onElementSelect(element.id)}
                                 onToggleVisibility={() => onToggleVisibility(element.id)}
                                 onMoveUp={() => onMoveElement(element.id, index - 1)}
@@ -182,7 +182,15 @@ const ElementList: React.FC<ElementListProps> = ({
                                 onDragOver={(event) => handleDragOver(event, index)}
                                 onDragEnd={resetDragState}
                             />
-                        )}
+                            {isDragging ? (
+                                <div className="pointer-events-none absolute inset-0 flex">
+                                    <div
+                                        className="flex-1 rounded border border-dashed border-[#1177bb]"
+                                        style={placeholderStyle}
+                                    />
+                                </div>
+                            ) : null}
+                        </div>
                     </React.Fragment>
                 );
             })}
