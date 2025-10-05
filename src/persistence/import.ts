@@ -29,7 +29,8 @@ export type ImportSceneInput = string | ArrayBuffer | Uint8Array | Blob;
 interface ParsedArtifact {
     envelope: any;
     warnings: { message: string }[];
-    assetPayloads: Map<string, Uint8Array>;
+    audioPayloads: Map<string, Uint8Array>;
+    midiPayloads: Map<string, Uint8Array>;
 }
 
 function decodeText(data: Uint8Array): string {
@@ -45,7 +46,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
     if (typeof input === 'string') {
         try {
             const env = JSON.parse(input);
-            return { envelope: env, warnings: [], assetPayloads: new Map() };
+            return { envelope: env, warnings: [], audioPayloads: new Map(), midiPayloads: new Map() };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
         }
@@ -77,23 +78,33 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid document.json: ' + error.message } };
         }
-        const assetPayloads = new Map<string, Uint8Array>();
+        const audioPayloads = new Map<string, Uint8Array>();
+        const midiPayloads = new Map<string, Uint8Array>();
         for (const path of Object.keys(zip)) {
             if (!path.startsWith('assets/audio/')) continue;
             const parts = path.split('/');
             if (parts.length < 3) continue;
             const assetId = parts[2];
-            if (!assetPayloads.has(assetId)) {
-                assetPayloads.set(assetId, zip[path]);
+            if (!audioPayloads.has(assetId)) {
+                audioPayloads.set(assetId, zip[path]);
             }
         }
-        return { envelope, warnings: [], assetPayloads };
+        for (const path of Object.keys(zip)) {
+            if (!path.startsWith('assets/midi/')) continue;
+            const parts = path.split('/');
+            if (parts.length < 3) continue;
+            const assetId = parts[2];
+            if (!midiPayloads.has(assetId)) {
+                midiPayloads.set(assetId, zip[path]);
+            }
+        }
+        return { envelope, warnings: [], audioPayloads, midiPayloads };
     }
 
     try {
         const text = decodeText(bytes);
         const env = JSON.parse(text);
-        return { envelope: env, warnings: [], assetPayloads: new Map() };
+        return { envelope: env, warnings: [], audioPayloads: new Map(), midiPayloads: new Map() };
     } catch (error: any) {
         return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
     }
@@ -112,6 +123,41 @@ function buildDocumentShape(envelope: any) {
         scene: { ...envelope.scene },
         metadata: envelope.metadata,
     };
+}
+
+function restoreMidiCache(
+    midiSection: any,
+    midiPayloads: Map<string, Uint8Array>
+): { cache: Record<string, any>; warnings: string[] } {
+    if (!midiSection || typeof midiSection !== 'object') {
+        return { cache: {}, warnings: [] };
+    }
+    const restored: Record<string, any> = {};
+    const warnings: string[] = [];
+    for (const [cacheId, value] of Object.entries(midiSection)) {
+        if (!value || typeof value !== 'object') {
+            restored[cacheId] = value;
+            continue;
+        }
+        const assetRef = (value as any).assetRef;
+        if (typeof assetRef !== 'string') {
+            restored[cacheId] = value;
+            continue;
+        }
+        const assetId = typeof (value as any).assetId === 'string' ? (value as any).assetId : encodeURIComponent(cacheId);
+        const payload = midiPayloads.get(assetId);
+        if (!payload) {
+            warnings.push(`Missing MIDI payload for cache ${cacheId}`);
+            continue;
+        }
+        try {
+            const parsed = JSON.parse(decodeText(payload));
+            restored[cacheId] = parsed;
+        } catch (error) {
+            warnings.push(`Failed to parse MIDI payload for cache ${cacheId}: ${(error as Error).message}`);
+        }
+    }
+    return { cache: restored, warnings };
 }
 
 async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
@@ -247,7 +293,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         return { ok: false, errors: [parsed.error], warnings: [] };
     }
 
-    const { envelope, warnings: artifactWarnings, assetPayloads } = parsed;
+    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads } = parsed;
     const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
         return {
@@ -258,16 +304,19 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     }
 
     const doc = buildDocumentShape(envelope);
+    const midiRestoration = restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
+    doc.midiCache = midiRestoration.cache;
     DocumentGateway.apply(doc as any);
 
     let hydrationWarnings: string[] = [];
     if (envelope.schemaVersion === 2 && envelope.assets) {
-        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, assetPayloads);
+        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, audioPayloads);
     }
 
     const warnings = [
         ...artifactWarnings,
         ...validation.warnings.map((w) => ({ message: w.message })),
+        ...midiRestoration.warnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
     ];
     return { ok: true, errors: [], warnings };

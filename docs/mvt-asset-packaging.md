@@ -5,8 +5,13 @@
   so user-triggered saves emit packaged scenes by default.
 - The menu bar's `saveScene` action relies on that default and downloads `.mvt` archives
   that contain `document.json` and the asset payload tree.
+- Packaged exports move MIDI cache payloads into `assets/midi/<id>/midi.json` and replace
+  `timeline.midiCache` entries with lightweight `{ assetRef, assetId }` descriptors so the
+  ZIP stays readable.
 - Inline JSON remains available for debugging; when explicitly selected,
   `collectAudioAssets` embeds each audio buffer as Base64 and skips ZIP assembly.
+- `.mvt` archives now include `Icon.icns` at the root so desktop shells show the branded
+  document icon.
 
 ## Steps toward a more professional `.mvt` format
 - **Pick a primary container**: default user exports to `'zip-package'`, retain inline JSON

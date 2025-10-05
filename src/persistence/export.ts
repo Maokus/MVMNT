@@ -10,6 +10,7 @@ import {
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import iconDataUrl from '@assets/Icon.icns?inline';
 
 export interface SceneMetadata {
     id: string;
@@ -114,16 +115,98 @@ function createBlob(parts: BlobPart[], type: string): Blob | undefined {
     }
 }
 
+function base64ToUint8Array(base64: string): Uint8Array {
+    if (typeof atob === 'function') {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+    const globalBuffer = (globalThis as any)?.Buffer;
+    if (typeof globalBuffer?.from === 'function') {
+        return new Uint8Array(globalBuffer.from(base64, 'base64'));
+    }
+    const bytes: number[] = [];
+    let buffer = 0;
+    let bits = 0;
+    for (const char of base64.replace(/=+$/, '')) {
+        const index = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.indexOf(char);
+        if (index === -1) continue;
+        buffer = (buffer << 6) | index;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            bytes.push((buffer >> bits) & 0xff);
+        }
+    }
+    return new Uint8Array(bytes);
+}
+
+function decodeDataUrl(dataUrl: string | undefined): Uint8Array | null {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    const comma = dataUrl.indexOf(',');
+    if (comma === -1) return null;
+    const base64 = dataUrl.slice(comma + 1);
+    try {
+        return base64ToUint8Array(base64);
+    } catch {
+        return null;
+    }
+}
+
+const MIDI_ASSET_FILENAME = 'midi.json';
+
+function prepareMidiAssets(
+    midiCache: Record<string, any> | undefined,
+    mode: AssetStorageMode
+): {
+    timelineMidiCache: Record<string, any>;
+    assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+} {
+    const cache = midiCache || {};
+    if (mode !== 'zip-package') {
+        return { timelineMidiCache: cache, assetPayloads: new Map() };
+    }
+    const timelineMidiCache: Record<string, any> = {};
+    const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+    for (const [cacheId, entry] of Object.entries(cache)) {
+        if (!entry) {
+            continue;
+        }
+        const assetId = encodeURIComponent(cacheId);
+        const assetRef = `assets/midi/${assetId}/${MIDI_ASSET_FILENAME}`;
+        const payloadJson = serializeStable(entry);
+        assetPayloads.set(assetId, {
+            bytes: strToU8(payloadJson, true),
+            filename: MIDI_ASSET_FILENAME,
+            mimeType: 'application/json',
+        });
+        timelineMidiCache[cacheId] = {
+            assetId,
+            assetRef,
+            ticksPerQuarter: entry.ticksPerQuarter,
+            notes: Array.isArray(entry.notesRaw) ? { count: entry.notesRaw.length } : undefined,
+        };
+    }
+    return { timelineMidiCache, assetPayloads };
+}
+
 function buildZip(
     envelope: SceneExportEnvelopeV2,
-    assets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    audioAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
     files['document.json'] = strToU8(docJson, true);
-    for (const [assetId, payload] of assets.entries()) {
+    for (const [assetId, payload] of audioAssets.entries()) {
         const safeName = payload.filename || `${assetId}.bin`;
         const path = `assets/audio/${assetId}/${safeName}`;
+        files[path] = payload.bytes;
+    }
+    for (const [assetId, payload] of midiAssets.entries()) {
+        const safeName = payload.filename || MIDI_ASSET_FILENAME;
+        const path = `assets/midi/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
@@ -212,6 +295,8 @@ export async function exportScene(
         assetsSection.waveforms = collectResult.waveforms;
     }
 
+    const midiAssets = prepareMidiAssets(doc.midiCache, storage);
+
     const envelope: SceneExportEnvelopeV2 = {
         schemaVersion: 2,
         format: 'mvmnt.scene',
@@ -224,12 +309,10 @@ export async function exportScene(
             playbackRange: doc.playbackRange,
             playbackRangeUserDefined: doc.playbackRangeUserDefined,
             rowHeight: doc.rowHeight,
-            midiCache: doc.midiCache,
+            midiCache: midiAssets.timelineMidiCache,
         },
         assets: assetsSection,
-        references: Object.keys(collectResult.audioIdMap).length
-            ? { audioIdMap: collectResult.audioIdMap }
-            : undefined,
+        references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,
         compatibility: buildCompatibilityWarnings(warnings),
     };
 
@@ -245,7 +328,7 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(envelope, collectResult.assetPayloads);
+    const zip = buildZip(envelope, collectResult.assetPayloads, midiAssets.assetPayloads);
     return {
         ok: true,
         mode: 'zip-package',
