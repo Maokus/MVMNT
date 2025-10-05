@@ -4,6 +4,7 @@ import { SceneNameGenerator } from '@core/scene-name-generator';
 import { exportScene, importScene } from '@persistence/index';
 import { useUndo } from './UndoContext';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 
 function toArrayBuffer(view: Uint8Array): ArrayBuffer {
     const buffer = view.buffer as ArrayBuffer;
@@ -132,6 +133,9 @@ export const useMenuBar = ({
             console.warn('Failed to clear scene', result.error);
             return;
         }
+        try {
+            useTimelineStore.getState().resetTimeline();
+        } catch {}
         try {
             const settings = useSceneStore.getState().settings;
             visualizer?.canvas?.dispatchEvent(

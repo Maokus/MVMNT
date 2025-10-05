@@ -19,6 +19,7 @@ import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useSceneStore } from '@state/sceneStore';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -337,6 +338,21 @@ const TemplateInitializer: React.FC = () => {
                     setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
+                } else {
+                    const hasScene = (() => {
+                        try {
+                            return useSceneStore.getState().order.length > 0;
+                        } catch {
+                            return false;
+                        }
+                    })();
+                    if (!hasScene) {
+                        const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
+                        if (loaded) {
+                            refreshSceneUI();
+                            didChange = true;
+                        }
+                    }
                 }
                 if (didChange) {
                     visualizer.invalidateRender?.();

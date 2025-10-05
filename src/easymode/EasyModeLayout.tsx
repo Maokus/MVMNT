@@ -229,13 +229,14 @@ const EasyModeLayout: React.FC = () => {
                         >
                             Import .mvt
                         </button>
-                        <button
-                            type="button"
-                            onClick={handleExportVideo}
-                            className="inline-flex items-center justify-center gap-1 rounded border border-emerald-500/70 bg-emerald-600/20 px-3 py-1 text-emerald-100 transition-colors hover:bg-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                        >
-                            Export Video
-                        </button>
+                        <div className="flex items-center gap-2 mr-2">
+                            <button
+                                type="button"
+                                onClick={handleExportVideo}
+                                className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
+                                title="Render / Export Video"
+                            >Export Video</button>
+                        </div>
 
                     </div>
                 </div>

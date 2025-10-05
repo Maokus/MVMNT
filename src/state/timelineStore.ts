@@ -120,6 +120,7 @@ export type TimelineState = {
         options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }
     ) => void;
     clearAllTracks: () => void;
+    resetTimeline: () => void;
 };
 
 // Utility to create IDs
@@ -223,6 +224,51 @@ const DEFAULT_TIMING_CONTEXT: TimelineTimingContext = createTimingContext(
     _tmSingleton.ticksPerQuarter
 );
 
+function createInitialTimelineSlice(): Pick<
+    TimelineState,
+    | 'timeline'
+    | 'tracks'
+    | 'tracksOrder'
+    | 'transport'
+    | 'selection'
+    | 'midiCache'
+    | 'audioCache'
+    | 'timelineView'
+    | 'playbackRange'
+    | 'playbackRangeUserDefined'
+    | 'rowHeight'
+> {
+    return {
+        timeline: {
+            id: 'tl_1',
+            name: 'Main Timeline',
+            currentTick: 0,
+            globalBpm: 120,
+            beatsPerBar: 4,
+            playheadAuthority: 'tick',
+        },
+        tracks: {},
+        tracksOrder: [],
+        audioCache: {},
+        transport: {
+            state: 'idle',
+            isPlaying: false,
+            loopEnabled: false,
+            rate: 1.0,
+            // Quantize enabled by default (bar snapping)
+            quantize: 'bar',
+            loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
+            loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
+        },
+        selection: { selectedTrackIds: [] },
+        midiCache: {},
+        timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
+        playbackRange: undefined,
+        playbackRangeUserDefined: false,
+        rowHeight: 30,
+    };
+}
+
 function contextFromState(state: TimelineState): TimelineTimingContext {
     return createTimingContext(
         {
@@ -235,33 +281,7 @@ function contextFromState(state: TimelineState): TimelineTimingContext {
 }
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
-    timeline: {
-        id: 'tl_1',
-        name: 'Main Timeline',
-        currentTick: 0,
-        globalBpm: 120,
-        beatsPerBar: 4,
-        playheadAuthority: 'tick',
-    },
-    tracks: {},
-    tracksOrder: [],
-    audioCache: {},
-    transport: {
-        state: 'idle',
-        isPlaying: false,
-        loopEnabled: false,
-        rate: 1.0,
-        // Quantize enabled by default (bar snapping)
-        quantize: 'bar',
-        loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
-        loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
-    },
-    selection: { selectedTrackIds: [] },
-    midiCache: {},
-    timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
-    playbackRange: undefined,
-    playbackRangeUserDefined: false,
-    rowHeight: 30,
+    ...createInitialTimelineSlice(),
 
     async addMidiTrack(input: {
         name: string;
@@ -767,6 +787,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    resetTimeline() {
+        const initial = createInitialTimelineSlice();
+        set(() => initial);
+        try {
+            const tm = getSharedTimingManager();
+            tm.setBPM(initial.timeline.globalBpm || 120);
+            tm.setTempoMap(undefined, 'seconds');
         } catch {}
     },
 

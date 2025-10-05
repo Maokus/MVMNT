@@ -7,6 +7,7 @@ import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { useSceneStore } from '@state/sceneStore';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
@@ -76,6 +77,21 @@ const EasyModeTemplateInitializer: React.FC = () => {
                     setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
+                } else {
+                    const hasScene = (() => {
+                        try {
+                            return useSceneStore.getState().order.length > 0;
+                        } catch {
+                            return false;
+                        }
+                    })();
+                    if (!hasScene) {
+                        const loaded = await loadDefaultScene('EasyModeTemplateInitializer.initialDefault');
+                        if (loaded) {
+                            refreshSceneUI();
+                            didChange = true;
+                        }
+                    }
                 }
 
                 if (didChange) {

@@ -49,18 +49,6 @@ export class MIDIVisualizerCore {
         this.ctx = ctx;
         this._setupImageLoadedListener();
         try {
-            const state = useSceneStore.getState();
-            if (!state.order.length) {
-                void loadDefaultScene('MIDIVisualizerCore.constructor').then(() => {
-                    try {
-                        this.invalidateRender();
-                    } catch {}
-                });
-            }
-        } catch (error) {
-            console.warn('[MIDIVisualizerCore] failed to initialize default scene', error);
-        }
-        try {
             this.runtimeAdapter = new SceneRuntimeAdapter();
         } catch (error) {
             console.warn('[MIDIVisualizerCore] failed to initialize SceneRuntimeAdapter, falling back', error);
