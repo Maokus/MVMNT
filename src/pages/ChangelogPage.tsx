@@ -28,13 +28,13 @@ const ChangelogPage: React.FC = () => {
 
                     <ChangelogEntry version="0.13.0" date="05-10-25" notes={[
                         'Added audio track support: playback, export, mixing',
-                        'Various ui/ux improvments',
-                        'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
+                        'Various UI/UX improvements',
+                        'Added video codec selection (AVC, VP8, VP9, AV1, HEVC, etc)',
                         'Reworked entire document store system for improved reliability and modularity',
                         'Allowed panel dragging and resizing',
                         'Added easy mode',
-                        'midi track visual aid',
-                        'save files now embed audio and midi data'
+                        'Midi track visual aid',
+                        'Save files now embed audio and midi data, and compress to radically reduce file sizes.'
                     ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
                         'Improved undo stack reliability and snapshot creation',
