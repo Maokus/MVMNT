@@ -7,6 +7,7 @@ import { loadDefaultScene } from './default-scene-loader';
 import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
+import type { SnapGuide } from '@core/interaction/snapping';
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
@@ -35,6 +36,7 @@ export class MIDIVisualizerCore {
         selectedElementId: null,
         draggingElementId: null,
         activeHandle: null,
+        snapGuides: [],
     };
     private _interactionBoundsCache = new Map();
     private _interactionHandlesCache = new Map();
@@ -405,10 +407,31 @@ export class MIDIVisualizerCore {
     }
     _renderInteractionOverlays(targetTime: number, config: any) {
         if (!this._interactionState) return;
-        const { hoverElementId, selectedElementId, draggingElementId, activeHandle } = this._interactionState;
-        if (!hoverElementId && !selectedElementId && !draggingElementId) return;
+        const { hoverElementId, selectedElementId, draggingElementId, activeHandle, snapGuides } =
+            this._interactionState;
+        const guides = Array.isArray(snapGuides) ? (snapGuides as SnapGuide[]) : [];
+        if (!hoverElementId && !selectedElementId && !draggingElementId && guides.length === 0) return;
         const ctx = this.ctx;
         ctx.save();
+        if (guides.length) {
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#4C9AFF';
+            ctx.globalAlpha = 0.9;
+            for (const guide of guides) {
+                ctx.beginPath();
+                if (guide.orientation === 'vertical') {
+                    ctx.moveTo(guide.position, 0);
+                    ctx.lineTo(guide.position, this.canvas.height);
+                } else {
+                    ctx.moveTo(0, guide.position);
+                    ctx.lineTo(this.canvas.width, guide.position);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
         const boundsList = this.getElementBoundsAtTime(targetTime);

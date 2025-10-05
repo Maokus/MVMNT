@@ -11,6 +11,13 @@ import {
     getCanvasWorldPoint,
 } from '@math/interaction';
 import { computeAnchorAdjustment, computeRotation, computeScaledTransform } from '@core/interaction/mouse-transforms';
+import {
+    DEFAULT_SNAP_TOLERANCE,
+    buildSnapTargets,
+    snapPoint,
+    snapTranslation,
+    type SnapGuide,
+} from '@core/interaction/snapping';
 import type { GeometryInfo } from '@math/transforms/types';
 import { useSceneStore } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
@@ -113,7 +120,7 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         origSkewY: el?.getProperty('elementSkewY') ?? 0,
         origAnchorX: el?.getProperty('anchorX') ?? 0.5,
         origAnchorY: el?.getProperty('anchorY') ?? 0.5,
-        bounds: rec?.bounds,
+        bounds: rec?.bounds ? { ...rec.bounds } : null,
         corners: rec?.corners || null,
         baseBounds,
         geom: geometry,
@@ -123,7 +130,10 @@ function startHandleDrag(vis: any, handleHit: any, x: number, y: number) {
         centerWorld,
         centerLocal,
         dragElementId: selectedId,
+        snapTargets: buildSnapTargets(vis, selectedId),
+        snapTolerance: DEFAULT_SNAP_TOLERANCE,
     };
+    vis.setInteractionState({ snapGuides: [] });
 }
 
 function attemptHandleHit(vis: any, x: number, y: number): boolean {
@@ -144,7 +154,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
     const hit = elementHitTest(boundsList, x, y);
     if (hit) {
         selectElement(hit.id);
-        vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move' });
+        vis.setInteractionState({ draggingElementId: hit.id, activeHandle: 'move', snapGuides: [] });
         vis._dragMeta = {
             mode: 'move',
             startX: x,
@@ -154,11 +164,15 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             origRotation: hit.element?.elementRotation || 0,
             origSkewX: hit.element?.elementSkewX || 0,
             origSkewY: hit.element?.elementSkewY || 0,
+            bounds: hit.bounds ? { ...hit.bounds } : null,
+            corners: hit.corners || null,
+            snapTargets: buildSnapTargets(vis, hit.id),
+            snapTolerance: DEFAULT_SNAP_TOLERANCE,
             dragElementId: hit.id,
         };
     } else {
         selectElement(null);
-        vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null });
+        vis.setInteractionState({ hoverElementId: null, draggingElementId: null, activeHandle: null, snapGuides: [] });
     }
 }
 
@@ -166,15 +180,30 @@ function updateMoveDrag(
     meta: any,
     _vis: any,
     elId: string,
-    dx: number,
-    dy: number,
+    x: number,
+    y: number,
     shiftKey: boolean,
+    disableSnap: boolean,
     deps: InteractionDeps
-) {
-    const constrained = computeConstrainedMoveDelta(dx, dy, meta.origRotation || 0, shiftKey);
-    const newX = meta.origOffsetX + constrained.dx;
-    const newY = meta.origOffsetY + constrained.dy;
+): SnapGuide[] {
+    const rawDx = x - meta.startX;
+    const rawDy = y - meta.startY;
+    const constrained = computeConstrainedMoveDelta(rawDx, rawDy, meta.origRotation || 0, shiftKey);
+    let dx = constrained.dx;
+    let dy = constrained.dy;
+    let guides: SnapGuide[] | undefined = [];
+    if (!disableSnap) {
+        const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
+        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
+        const snapResult = snapTranslation(meta.bounds ?? null, dx, dy, targets, tolerance);
+        dx = snapResult.dx;
+        dy = snapResult.dy;
+        guides = snapResult.guides;
+    }
+    const newX = meta.origOffsetX + dx;
+    const newY = meta.origOffsetY + dy;
     applyDragUpdate(meta, elId, { offsetX: newX, offsetY: newY }, deps);
+    return guides;
 }
 
 function updateScaleDrag(
@@ -185,12 +214,24 @@ function updateScaleDrag(
     y: number,
     shiftKey: boolean,
     altKey: boolean,
+    disableSnap: boolean,
     deps: InteractionDeps
 ) {
-    if (!meta.bounds) return;
+    if (!meta.bounds) return [];
+    let pointerX = x;
+    let pointerY = y;
+    let guides: SnapGuide[] = [];
+    if (!disableSnap) {
+        const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
+        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
+        const snapResult = snapPoint(pointerX, pointerY, targets, tolerance);
+        pointerX = snapResult.x;
+        pointerY = snapResult.y;
+        guides = snapResult.guides;
+    }
     const r = computeScaledTransform(
-        x,
-        y,
+        pointerX,
+        pointerY,
         {
             mode: meta.mode,
             origScaleX: meta.origScaleX,
@@ -207,7 +248,7 @@ function updateScaleDrag(
             origSkewY: meta.origSkewY,
             origAnchorX: meta.origAnchorX,
             origAnchorY: meta.origAnchorY,
-        },
+            },
         shiftKey,
         altKey &&
             (meta.mode === 'scale-ne' ||
@@ -224,6 +265,7 @@ function updateScaleDrag(
         };
         applyDragUpdate(meta, elId, cfg, deps);
     }
+    return guides;
 }
 
 function updateAnchorDrag(
@@ -233,12 +275,24 @@ function updateAnchorDrag(
     x: number,
     y: number,
     shiftKey: boolean,
+    disableSnap: boolean,
     deps: InteractionDeps
 ) {
-    if (!meta.bounds || !meta.baseBounds) return;
+    if (!meta.bounds || !meta.baseBounds) return [];
+    let pointerX = x;
+    let pointerY = y;
+    let guides: SnapGuide[] = [];
+    const targets = Array.isArray(meta.snapTargets) ? meta.snapTargets : [];
+    if (!disableSnap && targets.length) {
+        const tolerance = typeof meta.snapTolerance === 'number' ? meta.snapTolerance : DEFAULT_SNAP_TOLERANCE;
+        const snapResult = snapPoint(pointerX, pointerY, targets, tolerance);
+        pointerX = snapResult.x;
+        pointerY = snapResult.y;
+        guides = snapResult.guides;
+    }
     const { newAnchorX, newAnchorY, newOffsetX, newOffsetY } = computeAnchorAdjustment(
-        x,
-        y,
+        pointerX,
+        pointerY,
         {
             baseBounds: meta.baseBounds,
             origAnchorX: meta.origAnchorX,
@@ -255,6 +309,7 @@ function updateAnchorDrag(
     );
     const cfg = { anchorX: newAnchorX, anchorY: newAnchorY, offsetX: newOffsetX, offsetY: newOffsetY };
     applyDragUpdate(meta, elId, cfg, deps);
+    return guides;
 }
 
 function updateRotateDrag(
@@ -266,34 +321,43 @@ function updateRotateDrag(
     shiftKey: boolean,
     deps: InteractionDeps
 ) {
-    if (!meta.bounds) return;
+    if (!meta.bounds) return [];
     const newRotationDeg = computeRotation(x, y, meta, shiftKey);
     applyDragUpdate(meta, elId, { elementRotation: newRotationDeg }, deps);
+    return [];
 }
 
-function processDrag(vis: any, x: number, y: number, shiftKey: boolean, altKey: boolean, deps: InteractionDeps) {
+function processDrag(
+    vis: any,
+    x: number,
+    y: number,
+    shiftKey: boolean,
+    altKey: boolean,
+    disableSnap: boolean,
+    deps: InteractionDeps
+) {
     if (!(vis._interactionState?.draggingElementId && vis._dragMeta)) return false;
     const meta = vis._dragMeta;
     const elId = vis._interactionState.draggingElementId;
-    const dx = x - meta.startX;
-    const dy = y - meta.startY;
+    let guides: SnapGuide[] = [];
     switch (true) {
         case meta.mode === 'move':
-            updateMoveDrag(meta, vis, elId, dx, dy, shiftKey, deps);
+            guides = updateMoveDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
             break;
         case meta.mode?.startsWith('scale') && !!meta.bounds:
-            updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, deps);
+            guides = updateScaleDrag(meta, vis, elId, x, y, shiftKey, altKey, disableSnap, deps);
             break;
         case meta.mode === 'anchor' && !!meta.bounds:
-            updateAnchorDrag(meta, vis, elId, x, y, shiftKey, deps);
+            guides = updateAnchorDrag(meta, vis, elId, x, y, shiftKey, disableSnap, deps);
             break;
         case meta.mode === 'rotate' && !!meta.bounds:
-            updateRotateDrag(meta, vis, elId, x, y, shiftKey, deps);
+            guides = updateRotateDrag(meta, vis, elId, x, y, shiftKey, deps);
             break;
         default:
             break;
     }
-    vis.setInteractionState({}); // trigger update
+    const nextGuides = Array.isArray(guides) ? guides : [];
+    vis.setInteractionState({ snapGuides: nextGuides });
     return true;
 }
 
@@ -332,7 +396,7 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
         });
     }
     if (draggingId) {
-        vis.setInteractionState({ draggingElementId: null, activeHandle: null });
+        vis.setInteractionState({ draggingElementId: null, activeHandle: null, snapGuides: [] });
         vis._dragMeta = null;
         deps.incrementPropertyPanelRefresh();
         // Trigger undo snapshot capture after completing a drag interaction (move/scale/rotate/anchor)
@@ -436,7 +500,8 @@ export function onCanvasMouseMove(e: CanvasMouseEvent, deps: InteractionDeps) {
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
     const { x, y } = getWorldPoint(canvas, e.clientX, e.clientY);
-    if (processDrag(vis, x, y, e.shiftKey, e.altKey ?? false, deps)) return;
+    const disableSnap = Boolean(e.metaKey || e.ctrlKey);
+    if (processDrag(vis, x, y, e.shiftKey, e.altKey ?? false, disableSnap, deps)) return;
     updateHover(vis, x, y);
 }
 
@@ -450,9 +515,9 @@ export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) 
     const { visualizer: vis } = deps;
     if (!vis) return;
     if (vis._interactionState?.draggingElementId) {
-        vis.setInteractionState({ hoverElementId: null, activeHandle: null });
+        vis.setInteractionState({ hoverElementId: null, activeHandle: null, snapGuides: [] });
         return;
     }
     finalizeDrag(vis, deps);
-    vis.setInteractionState({ hoverElementId: null, activeHandle: null });
+    vis.setInteractionState({ hoverElementId: null, activeHandle: null, snapGuides: [] });
 }
