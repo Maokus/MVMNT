@@ -474,7 +474,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     title: 'Timeline options',
                 })}
                 ref={menuRefs.setReference}
-                className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center"
+                className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center text-[12px]"
             >
                 <FaEllipsisV />
             </button>

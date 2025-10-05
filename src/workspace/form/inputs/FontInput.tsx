@@ -141,8 +141,9 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
             shift({ padding: 12 }),
             size({
                 apply({ rects, availableHeight, elements }) {
+                    const targetWidth = Math.max(Math.round(rects.reference.width), 320);
                     Object.assign(elements.floating.style, {
-                        width: `${Math.round(rects.reference.width)}px`,
+                        width: `${targetWidth}px`,
                         maxHeight: `${Math.min(Math.max(availableHeight - 12, 200), 360)}px`,
                     });
                 },
@@ -226,7 +227,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         title,
                     })}
                     ref={familyRefs.setReference}
-                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[13px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[12px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{ fontFamily: `'${currentFamily}', sans-serif` }}
                 >
                     <span className="truncate">{currentFamily}</span>
@@ -242,6 +243,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                 {...getFamilyFloatingProps({})}
                                 ref={familyRefs.setFloating}
                                 style={familyFloatingStyles}
+                                data-preserve-selection="true"
                                 className="z-[1000] flex max-h-[360px] flex-col overflow-hidden rounded border border-neutral-700 bg-neutral-950/95 text-[13px] text-neutral-100 shadow-2xl"
                             >
                                 <div className="border-b border-neutral-800 bg-neutral-900/60 p-3">
@@ -321,7 +323,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         disabled,
                     })}
                     ref={weightRefs.setReference}
-                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[13px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[12px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                     title="Select font weight"
                 >
                     <span>{currentWeight}</span>
@@ -337,6 +339,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                 {...getWeightFloatingProps({})}
                                 ref={weightRefs.setFloating}
                                 style={weightFloatingStyles}
+                                data-preserve-selection="true"
                                 className="z-[1000] max-h-[240px] w-[110px] overflow-y-auto rounded border border-neutral-700 bg-neutral-950/95 text-[13px] text-neutral-100 shadow-xl"
                             >
                                 <ul className="m-0 list-none p-1">

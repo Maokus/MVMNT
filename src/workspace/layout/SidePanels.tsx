@@ -153,6 +153,13 @@ const SidePanelsInternal: React.FC = () => {
     // Handle clicks outside of side panels to clear selection and show global settings
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            const composed = typeof event.composedPath === 'function' ? event.composedPath() : [];
+            const preserveSelection = (composed as EventTarget[]).some(
+                (node) => node instanceof HTMLElement && node.dataset?.preserveSelection === 'true',
+            );
+            if (preserveSelection) {
+                return;
+            }
             // Clear selection only if click is outside BOTH side panels and the canvas
             const clickedInsideSidePanels = sidePanelsRef.current?.contains(event.target as Node);
             const canvasEl: HTMLCanvasElement | null = canvasRef?.current || document.getElementById('canvas') as HTMLCanvasElement | null;
