@@ -26,9 +26,7 @@ const TimelinePanel: React.FC = () => {
     const fileRef = useRef<HTMLInputElement | null>(null);
     const audioFileRef = useRef<HTMLInputElement | null>(null);
     // Scroll containers for sync
-    const leftScrollRef = useRef<HTMLDivElement | null>(null);
-    const rightScrollRef = useRef<HTMLDivElement | null>(null);
-    const isSyncingRef = useRef(false);
+    const lanesScrollRef = useRef<HTMLDivElement | null>(null);
     const timelineBodyRef = useRef<HTMLDivElement | null>(null);
     const [bodyHeight, setBodyHeight] = useState(0);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
@@ -104,31 +102,6 @@ const TimelinePanel: React.FC = () => {
         } catch { }
     }, [visualizer]);
 
-    // Scroll sync handlers: mirror vertical scroll between left (track list) and right (lanes)
-    const onLeftScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
-        if (isSyncingRef.current) return;
-        const left = e.currentTarget;
-        const right = rightScrollRef.current;
-        if (!right) return;
-        if (right.scrollTop !== left.scrollTop) {
-            isSyncingRef.current = true;
-            right.scrollTop = left.scrollTop;
-            // release flag on next frame
-            requestAnimationFrame(() => { isSyncingRef.current = false; });
-        }
-    };
-    const onRightScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
-        if (isSyncingRef.current) return;
-        const right = e.currentTarget;
-        const left = leftScrollRef.current;
-        if (!left) return;
-        if (left.scrollTop !== right.scrollTop) {
-            isSyncingRef.current = true;
-            left.scrollTop = right.scrollTop;
-            requestAnimationFrame(() => { isSyncingRef.current = false; });
-        }
-    };
-
     // Wheel pan handler on the right container (zoom removed; only horizontal pan via deltaX)
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const view = useTimelineStore((s) => s.timelineView); // contains startTick/endTick canonical
@@ -141,7 +114,7 @@ const TimelinePanel: React.FC = () => {
 
     const onRightWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
         // Only allow horizontal wheel (deltaX) to pan; vertical scroll passes through. All zoom gestures are disabled.
-        const container = rightScrollRef.current;
+        const container = lanesScrollRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
@@ -161,7 +134,7 @@ const TimelinePanel: React.FC = () => {
 
     const onRightPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
         if (e.button !== 1) return; // middle button drag to pan
-        const container = rightScrollRef.current;
+        const container = lanesScrollRef.current;
         if (!container) return;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         rightDragRef.current = { active: true, startClientX: e.clientX, startView: { s: view.startTick, e: view.endTick } };
@@ -170,7 +143,7 @@ const TimelinePanel: React.FC = () => {
     const onRightPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
         const drag = rightDragRef.current;
         if (!drag?.active) return;
-        const container = rightScrollRef.current;
+        const container = lanesScrollRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
@@ -210,7 +183,7 @@ const TimelinePanel: React.FC = () => {
 
     // Prevent browser gesture zoom on Safari within the panel to avoid page zoom side-effects
     useEffect(() => {
-        const el = rightScrollRef.current;
+        const el = lanesScrollRef.current;
         if (!el) return;
         const prevent = (ev: Event) => {
             ev.preventDefault();
@@ -276,34 +249,27 @@ const TimelinePanel: React.FC = () => {
                 </div>
             </div>
             <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
-                {/* Left: Track list */}
-                <div
-                    className="tracklist-container min-h-0 h-full w-60 shrink-0 overflow-y-auto border-r border-neutral-800"
-                    ref={leftScrollRef}
-                    onScroll={onLeftScroll}
-                >
-                    <TrackList trackIds={trackIds} />
-                </div>
-
-                {/* Right: Ruler stacked above lanes */}
-                <div className="min-h-0 min-w-0 flex-1">
-                    {/* Single scroll container to keep ruler sticky and horizontal-scrollable together with lanes */}
-                    <div
-                        className="relative h-full w-full overflow-auto"
-                        ref={rightScrollRef}
-                        onScroll={onRightScroll}
-                        onWheel={onRightWheel}
-                        onPointerDown={onRightPointerDown}
-                        onPointerMove={onRightPointerMove}
-                        onPointerUp={onRightPointerUp}
-                        style={{ overscrollBehavior: 'contain', overflowX: 'hidden' }}
-                    >
-                        {/* Sticky ruler */}
-                        <div className="sticky top-0 z-10">
-                            <TimelineRuler />
+                <div className="flex h-full w-full overflow-hidden">
+                    <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
+                        <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                            <TrackList trackIds={trackIds} />
                         </div>
-                        {/* Lanes content below */}
-                        <TrackLanes trackIds={trackIds} />
+                        <div className="flex min-h-full flex-1 flex-col">
+                            <div className="sticky top-0 z-10">
+                                <TimelineRuler />
+                            </div>
+                            <div
+                                className="relative flex-1 overflow-x-auto"
+                                ref={lanesScrollRef}
+                                onWheel={onRightWheel}
+                                onPointerDown={onRightPointerDown}
+                                onPointerMove={onRightPointerMove}
+                                onPointerUp={onRightPointerUp}
+                                style={{ overscrollBehaviorX: 'contain', overflowY: 'visible' }}
+                            >
+                                <TrackLanes trackIds={trackIds} />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

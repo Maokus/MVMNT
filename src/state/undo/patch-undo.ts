@@ -279,6 +279,7 @@ class PatchUndoController implements UndoController {
             entries: this.stack.map((entry, idx) => ({
                 index: idx,
                 hasScenePatch: !!entry.scene,
+                hasTimelinePatch: !!entry.timeline,
                 source: entry.source,
                 ageMs: Date.now() - entry.timestamp,
                 mergeKey: entry.mergeKey ?? null,
