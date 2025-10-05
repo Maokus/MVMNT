@@ -64,7 +64,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         </Link>
                     </h3>
                     <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
-                        <Link to="/" style={{ textDecoration: 'none', color: '#cccccc', padding: '4px 6px', borderRadius: 4 }}>home</Link>
                         <button
                             type="button"
                             onClick={() => onHelp?.()}
