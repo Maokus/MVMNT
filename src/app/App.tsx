@@ -15,6 +15,29 @@ const TransportStatusDevLazy = lazy(() =>
   })),
 );
 
+const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading MVMNT…' }) => {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-neutral-100">
+      <div className="relative">
+        <div
+          className="pointer-events-none absolute -inset-16 rounded-[44px] bg-gradient-to-br from-indigo-500/25 via-fuchsia-500/20 to-sky-500/25 opacity-70 blur-3xl"
+          aria-hidden="true"
+        />
+        <div className="relative flex w-[min(90vw,22rem)] flex-col items-center gap-5 overflow-hidden rounded-3xl border border-neutral-800/80 bg-neutral-900/85 px-8 py-9 text-center shadow-[0_35px_120px_-40px_rgba(79,70,229,0.55)] backdrop-blur">
+          <div className="relative flex h-12 w-12 items-center justify-center">
+            <span className="absolute h-12 w-12 animate-ping rounded-full bg-indigo-400/25" aria-hidden="true" />
+            <span className="relative h-12 w-12 animate-spin rounded-full border-[3px] border-indigo-300/60 border-t-transparent" aria-hidden="true" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-base font-semibold tracking-tight text-neutral-100">{message}</p>
+            <p className="text-sm text-neutral-400">Booting up the studio experience…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function App() {
 
   useEffect(() => {
@@ -46,7 +69,7 @@ export function App() {
 
   return (
     <div className="App">
-      <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-neutral-400">Loading…</div>}>
+      <Suspense fallback={<AppLoadingScreen />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/workspace" element={<MidiVisualizer />} />
