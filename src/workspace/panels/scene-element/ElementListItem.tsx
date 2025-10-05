@@ -54,7 +54,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
 
     const truncatedId = truncateText(element.id, 18);
 
-    // Handle starting edit mode
+    // Handle starting advanced mode
     const startEditing = (e: React.MouseEvent) => {
         e.stopPropagation();
         setEditValue(element.id);

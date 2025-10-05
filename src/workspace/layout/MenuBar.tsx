@@ -88,8 +88,8 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 border: '1px solid rgba(191, 191, 191, 0.6)',
                                 fontWeight: 600,
                             }}
-                            title="Open simplified template mode"
-                        >Open Template Mode</Link>
+                            title="Open simplified Easy mode"
+                        >Open Easy Mode</Link>
                     </nav>
                 </div>
 

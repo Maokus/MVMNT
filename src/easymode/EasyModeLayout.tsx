@@ -192,13 +192,13 @@ const EasyModeLayout: React.FC = () => {
                             </Link>
                         </h3>
                         <span className="rounded-full border border-neutral-700/80 bg-neutral-800/80 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-neutral-300">
-                            Template Mode
+                            Easy Mode
                         </span>
                         <Link
                             to="/workspace"
                             className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
                         >
-                            Open Edit Mode
+                            Open Advanced Mode
                         </Link>
                     </div>
                     <div className="flex min-w-[240px] flex-1 flex-wrap items-center justify-center gap-3 text-[11px] text-neutral-300 md:justify-center">

@@ -37,7 +37,7 @@ const AboutPage: React.FC = () => {
                             <li>Double-click the scene name (top) to rename it.</li>
                             <li>Use the (⋯) menu to save / load / clear scenes.</li>
                             <li>Macros let you change multiple element properties at once.</li>
-                            <li>Browse templates in Template Mode for ready-made starting points.</li>
+                            <li>Browse templates in Easy Mode for ready-made starting points.</li>
                         </ul>
                     </section>
                     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800 lg:col-span-1">
