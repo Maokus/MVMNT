@@ -33,7 +33,7 @@ describe('Timeline mapping helpers (store version)', () => {
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
         // Region 0.5s..2.0s => 0.5s=1 beat=PPQ ticks after offset; relative region ticks = start PPQ end 4*PPQ
-        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
         const state = useTimelineStore.getState();
         const track = state.tracks[id];
         if (!track || track.type !== 'midi') throw new Error('expected midi track');

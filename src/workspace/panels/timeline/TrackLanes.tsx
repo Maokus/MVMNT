@@ -155,7 +155,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                     const limited = Math.min(newLocal, endBoundary);
                     const nextStart = limited <= dataStartTick ? undefined : Math.round(limited);
                     if (nextStart !== prevStart) {
-                        setTrackRegionTicks(trackId, nextStart, prevEnd);
+                        void setTrackRegionTicks(trackId, nextStart, prevEnd);
                     }
                 } else {
                     const startBoundary = currentRegionStart ?? dataStartTick;
@@ -163,7 +163,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                     const limited = Math.min(enforced, dataEndTick);
                     const nextEnd = limited >= dataEndTick ? undefined : Math.round(limited);
                     if (nextEnd !== prevEnd) {
-                        setTrackRegionTicks(trackId, prevStart, nextEnd);
+                        void setTrackRegionTicks(trackId, prevStart, nextEnd);
                     }
                 }
                 setDidMove(true);
@@ -190,7 +190,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             const fallback = track?.offsetTicks ?? 0;
             const finalTick = dragTick != null ? dragTick : fallback;
             const clampedFinal = allowNegativeOffset ? finalTick : Math.max(0, finalTick);
-            setTrackOffsetTicks(trackId, clampedFinal);
+            void setTrackOffsetTicks(trackId, clampedFinal);
             setDragTick(null);
             onHoverSnapX(null);
             // Click selection when not moved

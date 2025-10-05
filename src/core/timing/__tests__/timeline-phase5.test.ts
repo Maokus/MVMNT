@@ -57,7 +57,7 @@ describe('Central note queries (store version)', () => {
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
         // Region: 0.5s..1.0s => at 120bpm that's 1..2 beats => ticks range CANONICAL_PPQ .. 2*CANONICAL_PPQ
-        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 2 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 2 * CANONICAL_PPQ);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [id], 0, 2);
         expect(notes.length).toBe(1);
         expect(notes[0].startSec).toBeLessThan(0.6); // original inside region after clipping still present
@@ -83,8 +83,8 @@ describe('Central note queries (store version)', () => {
                     makeMidi([{ type: 'noteOn', note: 62, velocity: 100, time: 0, tick: 0, channel: 1 }])
                 )
             );
-        useTimelineStore.getState().setTrackMute(idA, true);
-        useTimelineStore.getState().setTrackSolo(idB, true);
+        await useTimelineStore.getState().setTrackMute(idA, true);
+        await useTimelineStore.getState().setTrackSolo(idB, true);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [], 0, 0.1);
         expect(notes.length).toBe(1);
         expect(notes[0].trackId).toBe(idB);

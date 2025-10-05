@@ -4,7 +4,9 @@ import type { TimelineCommandPatch, TimelinePatchAction } from './patches';
 export type TimelineCommandId =
     | 'timeline.addTrack'
     | 'timeline.removeTracks'
-    | 'timeline.setTrackOffsetTicks';
+    | 'timeline.setTrackOffsetTicks'
+    | 'timeline.setTrackProperties'
+    | 'timeline.reorderTracks';
 
 export type TimelineCommandMode = 'serial' | 'concurrent';
 

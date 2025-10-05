@@ -91,4 +91,44 @@ describe('timeline command gateway', () => {
         expect(event).toHaveProperty('transient');
         expect(event).toHaveProperty('canMergeWith');
     });
+
+    it('updates track properties via command', async () => {
+        const added = await timelineCommandGateway.dispatchById<AddTrackCommandResult>('timeline.addTrack', {
+            type: 'midi',
+            name: 'Props Track',
+        });
+        const trackId = added.result?.trackId ?? '';
+        expect(trackId).toBeTruthy();
+
+        await timelineCommandGateway.dispatchById('timeline.setTrackProperties', {
+            updates: [
+                { trackId, patch: { mute: true, regionStartTick: 120 } },
+            ],
+        });
+
+        const state = useTimelineStore.getState();
+        expect(state.tracks[trackId]?.mute).toBe(true);
+        expect(state.tracks[trackId]?.regionStartTick).toBe(120);
+    });
+
+    it('reorders tracks via command dispatch', async () => {
+        const first = await timelineCommandGateway.dispatchById<AddTrackCommandResult>('timeline.addTrack', {
+            type: 'midi',
+            name: 'First',
+        });
+        const second = await timelineCommandGateway.dispatchById<AddTrackCommandResult>('timeline.addTrack', {
+            type: 'midi',
+            name: 'Second',
+        });
+        const ids = [first.result?.trackId ?? '', second.result?.trackId ?? ''];
+        expect(ids[0]).not.toBe(ids[1]);
+
+        await timelineCommandGateway.dispatchById('timeline.reorderTracks', {
+            order: [ids[1], ids[0]].filter(Boolean),
+        });
+
+        const order = useTimelineStore.getState().tracksOrder;
+        expect(order[0]).toBe(ids[1]);
+        expect(order[1]).toBe(ids[0]);
+    });
 });

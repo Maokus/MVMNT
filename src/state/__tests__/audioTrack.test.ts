@@ -50,7 +50,7 @@ describe('Audio Track', () => {
         const buffer = makeTestAudioBuffer(1.0);
         const id = await useTimelineStore.getState().addAudioTrack({ name: 'Gain Track', buffer });
         await new Promise((r) => setTimeout(r, 0));
-        useTimelineStore.getState().setTrackGain(id, 1.75);
+        await useTimelineStore.getState().setTrackGain(id, 1.75);
         const track = useTimelineStore.getState().tracks[id] as any;
         expect(track.gain).toBeCloseTo(1.75, 5);
     });

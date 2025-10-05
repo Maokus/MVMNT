@@ -12,6 +12,14 @@ import {
     createSetTrackOffsetTicksCommand,
     type SetTrackOffsetTicksPayload,
 } from './commands/setTrackOffsetTicksCommand';
+import {
+    createSetTrackPropertiesCommand,
+    type SetTrackPropertiesPayload,
+} from './commands/setTrackPropertiesCommand';
+import {
+    createReorderTracksCommand,
+    type ReorderTracksPayload,
+} from './commands/reorderTracksCommand';
 
 export interface TimelineCommandRegistration<TPayload, TResult = void> {
     id: TimelineCommandId;
@@ -23,6 +31,8 @@ type TimelineRegistryMap = {
     'timeline.addTrack': TimelineCommandRegistration<AddTrackCommandPayload, AddTrackCommandResult>;
     'timeline.removeTracks': TimelineCommandRegistration<RemoveTracksCommandPayload>;
     'timeline.setTrackOffsetTicks': TimelineCommandRegistration<SetTrackOffsetTicksPayload>;
+    'timeline.setTrackProperties': TimelineCommandRegistration<SetTrackPropertiesPayload>;
+    'timeline.reorderTracks': TimelineCommandRegistration<ReorderTracksPayload>;
 };
 
 const registry: TimelineRegistryMap = {
@@ -52,6 +62,24 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_set_track_offset',
         }),
         factory: (payload, metadata) => createSetTrackOffsetTicksCommand(payload, metadata),
+    },
+    'timeline.setTrackProperties': {
+        id: 'timeline.setTrackProperties',
+        buildMetadata: () => ({
+            commandId: 'timeline.setTrackProperties',
+            undoLabel: 'Update Track Properties',
+            telemetryEvent: 'timeline_set_track_properties',
+        }),
+        factory: (payload, metadata) => createSetTrackPropertiesCommand(payload, metadata),
+    },
+    'timeline.reorderTracks': {
+        id: 'timeline.reorderTracks',
+        buildMetadata: () => ({
+            commandId: 'timeline.reorderTracks',
+            undoLabel: 'Reorder Tracks',
+            telemetryEvent: 'timeline_reorder_tracks',
+        }),
+        factory: (payload, metadata) => createReorderTracksCommand(payload, metadata),
     },
 };
 

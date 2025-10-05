@@ -94,13 +94,13 @@ export type TimelineState = {
     }) => Promise<string>;
     removeTrack: (id: string) => void;
     removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)
-    updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
+    updateTrack: (id: string, patch: Partial<TimelineTrack>) => Promise<void>;
     setTrackOffsetTicks: (id: string, offsetTicks: number) => Promise<void>;
-    setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => void;
-    setTrackEnabled: (id: string, enabled: boolean) => void;
-    setTrackMute: (id: string, mute: boolean) => void;
-    setTrackSolo: (id: string, solo: boolean) => void;
-    setTrackGain: (id: string, gain: number) => void; // audio only
+    setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => Promise<void>;
+    setTrackEnabled: (id: string, enabled: boolean) => Promise<void>;
+    setTrackMute: (id: string, mute: boolean) => Promise<void>;
+    setTrackSolo: (id: string, solo: boolean) => Promise<void>;
+    setTrackGain: (id: string, gain: number) => Promise<void>; // audio only
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
@@ -115,7 +115,7 @@ export type TimelineState = {
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRangeTicks: (startTick?: number, endTick?: number) => void;
     toggleLoop: () => void;
-    reorderTracks: (order: string[]) => void;
+    reorderTracks: (order: string[]) => Promise<void>;
     setTimelineViewTicks: (startTick: number, endTick: number) => void;
     selectTracks: (ids: string[]) => void;
     setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
@@ -231,26 +231,44 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             });
     },
 
-    updateTrack(id: string, patch: Partial<TimelineTrack>) {
-        // Only offsetTicks is honored; any removed fields are ignored
-        set((s: TimelineState) => {
-            const prev = s.tracks[id];
-            if (!prev) return { tracks: s.tracks } as TimelineState;
-            let next: TimelineTrack = { ...prev } as TimelineTrack;
-            if (typeof patch.offsetTicks === 'number') {
-                next.offsetTicks = patch.offsetTicks;
-            }
-            if (typeof patch.name === 'string') next.name = patch.name;
-            if (typeof patch.enabled === 'boolean') next.enabled = patch.enabled;
-            if (typeof patch.mute === 'boolean') next.mute = patch.mute;
-            if (typeof patch.solo === 'boolean') next.solo = patch.solo;
-            if (typeof patch.regionStartTick === 'number') next.regionStartTick = patch.regionStartTick;
-            if (typeof patch.regionEndTick === 'number') next.regionEndTick = patch.regionEndTick;
-            return { tracks: { ...s.tracks, [id]: next } } as TimelineState;
-        });
+    async updateTrack(id: string, patch: Partial<TimelineTrack>) {
+        if (!id || !patch) return;
+        const propertyPatch: Record<string, unknown> = {};
+        if (typeof patch.name === 'string') propertyPatch.name = patch.name;
+        if (typeof patch.enabled === 'boolean') propertyPatch.enabled = patch.enabled;
+        if (typeof patch.mute === 'boolean') propertyPatch.mute = patch.mute;
+        if (typeof patch.solo === 'boolean') propertyPatch.solo = patch.solo;
+        if ('regionStartTick' in patch) propertyPatch.regionStartTick = patch.regionStartTick;
+        if ('regionEndTick' in patch) propertyPatch.regionEndTick = patch.regionEndTick;
+
+        const tasks: Array<Promise<unknown>> = [];
+        if (typeof patch.offsetTicks === 'number') {
+            tasks.push(
+                timelineCommandGateway.dispatchById(
+                    'timeline.setTrackOffsetTicks',
+                    { trackId: id, offsetTicks: patch.offsetTicks },
+                    { source: 'timeline-store' },
+                ),
+            );
+        }
+        if (Object.keys(propertyPatch).length) {
+            tasks.push(
+                timelineCommandGateway.dispatchById(
+                    'timeline.setTrackProperties',
+                    {
+                        updates: [{ trackId: id, patch: propertyPatch }],
+                    },
+                    { source: 'timeline-store' },
+                ),
+            );
+        }
+        if (!tasks.length) return;
         try {
-            autoAdjustSceneRangeIfNeeded(get, set);
-        } catch {}
+            await Promise.all(tasks);
+        } catch (error) {
+            console.error('[timelineStore] updateTrack command failed', error);
+            throw error;
+        }
     },
     async setTrackOffsetTicks(id: string, offsetTicks: number) {
         if (!id) return;
@@ -265,30 +283,80 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             throw error;
         }
     },
-    setTrackRegionTicks(id: string, startTick?: number, endTick?: number) {
-        set((s: TimelineState) => ({
-            tracks: { ...s.tracks, [id]: { ...s.tracks[id], regionStartTick: startTick, regionEndTick: endTick } },
-        }));
+    async setTrackRegionTicks(id: string, startTick?: number, endTick?: number) {
+        if (!id) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackProperties',
+                {
+                    updates: [
+                        {
+                            trackId: id,
+                            patch: { regionStartTick: startTick, regionEndTick: endTick },
+                        },
+                    ],
+                },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackRegionTicks command failed', error);
+            throw error;
+        }
     },
 
-    setTrackEnabled(id: string, enabled: boolean) {
-        set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], enabled } } }));
+    async setTrackEnabled(id: string, enabled: boolean) {
+        if (!id) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackProperties',
+                { updates: [{ trackId: id, patch: { enabled } }] },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackEnabled command failed', error);
+            throw error;
+        }
     },
 
-    setTrackMute(id: string, mute: boolean) {
-        set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], mute } } }));
+    async setTrackMute(id: string, mute: boolean) {
+        if (!id) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackProperties',
+                { updates: [{ trackId: id, patch: { mute } }] },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackMute command failed', error);
+            throw error;
+        }
     },
 
-    setTrackSolo(id: string, solo: boolean) {
-        set((s: TimelineState) => ({ tracks: { ...s.tracks, [id]: { ...s.tracks[id], solo } } }));
+    async setTrackSolo(id: string, solo: boolean) {
+        if (!id) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackProperties',
+                { updates: [{ trackId: id, patch: { solo } }] },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackSolo command failed', error);
+            throw error;
+        }
     },
-    setTrackGain(id: string, gain: number) {
-        const g = Math.max(0, Math.min(2, gain));
-        set((s: TimelineState) => {
-            const prev: any = s.tracks[id];
-            if (!prev || prev.type !== 'audio') return { tracks: s.tracks } as TimelineState;
-            return { tracks: { ...s.tracks, [id]: { ...prev, gain: g } } } as TimelineState;
-        });
+    async setTrackGain(id: string, gain: number) {
+        if (!id) return;
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackProperties',
+                { updates: [{ trackId: id, patch: { gain } }] },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackGain command failed', error);
+            throw error;
+        }
     },
 
     setMasterTempoMap(map?: TempoMapEntry[]) {
@@ -465,8 +533,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ transport: { ...s.transport, loopEnabled: !s.transport.loopEnabled } }));
     },
 
-    reorderTracks(order: string[]) {
-        set(() => ({ tracksOrder: [...order] }));
+    async reorderTracks(order: string[]) {
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.reorderTracks',
+                { order },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] reorderTracks command failed', error);
+            throw error;
+        }
     },
 
     setTimelineViewTicks(startTick: number, endTick: number) {

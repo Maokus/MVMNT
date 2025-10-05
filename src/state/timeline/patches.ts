@@ -43,11 +43,24 @@ export interface TimelinePatchSetTrackOffsetPayload {
     offsetTicks: number;
 }
 
+export interface TimelinePatchUpdateTracksPayload {
+    updates: Array<{
+        trackId: string;
+        patch: Partial<TimelineTrackLike>;
+    }>;
+}
+
+export interface TimelinePatchSetTrackOrderPayload {
+    order: string[];
+}
+
 export type TimelinePatchAction =
     | { action: 'timeline/ADD_TRACK'; payload: TimelinePatchAddTrackPayload }
     | { action: 'timeline/REMOVE_TRACKS'; payload: TimelinePatchRemoveTracksPayload }
     | { action: 'timeline/RESTORE_TRACKS'; payload: TimelinePatchRestoreTracksPayload }
-    | { action: 'timeline/SET_TRACK_OFFSET_TICKS'; payload: TimelinePatchSetTrackOffsetPayload };
+    | { action: 'timeline/SET_TRACK_OFFSET_TICKS'; payload: TimelinePatchSetTrackOffsetPayload }
+    | { action: 'timeline/UPDATE_TRACKS'; payload: TimelinePatchUpdateTracksPayload }
+    | { action: 'timeline/SET_TRACK_ORDER'; payload: TimelinePatchSetTrackOrderPayload };
 
 export interface TimelineCommandPatch {
     undo: TimelinePatchAction[];
@@ -189,6 +202,31 @@ function applySetTrackOffset(
     });
 }
 
+function applyUpdateTracks(context: TimelinePatchContext, payload: TimelinePatchUpdateTracksPayload): void {
+    const { setState } = context;
+    if (!payload.updates.length) return;
+    setState((state) => {
+        let nextTracks = state.tracks;
+        let mutated = false;
+        for (const update of payload.updates) {
+            const existing = nextTracks[update.trackId] ?? state.tracks[update.trackId];
+            if (!existing) continue;
+            if (!mutated) {
+                nextTracks = { ...state.tracks };
+                mutated = true;
+            }
+            nextTracks[update.trackId] = { ...existing, ...update.patch } as TimelineTrackLike;
+        }
+        if (!mutated) return state;
+        return { tracks: nextTracks } as TimelineState;
+    });
+}
+
+function applySetTrackOrder(context: TimelinePatchContext, payload: TimelinePatchSetTrackOrderPayload): void {
+    const { setState } = context;
+    setState(() => ({ tracksOrder: [...payload.order] } as TimelineState));
+}
+
 export function applyTimelinePatchActions(
     context: TimelinePatchContext,
     actions: TimelinePatchAction[],
@@ -207,6 +245,12 @@ export function applyTimelinePatchActions(
                 break;
             case 'timeline/SET_TRACK_OFFSET_TICKS':
                 applySetTrackOffset(context, action.payload);
+                break;
+            case 'timeline/UPDATE_TRACKS':
+                applyUpdateTracks(context, action.payload);
+                break;
+            case 'timeline/SET_TRACK_ORDER':
+                applySetTrackOrder(context, action.payload);
                 break;
             default:
                 break;

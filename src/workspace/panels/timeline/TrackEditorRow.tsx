@@ -34,7 +34,10 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                     className={`flex items-center justify-center rounded border ${track.enabled ? 'border-neutral-600 text-neutral-200' : 'border-neutral-700 text-neutral-500 opacity-80'}`}
                     title={track.enabled ? 'Disable track' : 'Enable track'}
                     aria-label={track.enabled ? 'Disable track' : 'Enable track'}
-                    onClick={(e) => { e.stopPropagation(); setEnabled(trackId, !track.enabled); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        void setEnabled(trackId, !track.enabled);
+                    }}
                     style={{ width: controlSize, height: controlSize }}
                 >
                     {track.enabled ? <FaEye /> : <FaEyeSlash />}
@@ -47,14 +50,18 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                         <button
                             aria-label={track.mute ? 'Unmute track' : 'Mute track'}
                             className={`rounded border px-1 ${track.mute ? 'bg-red-700/40 border-red-500 text-red-200' : 'border-neutral-600 text-neutral-200 hover:bg-neutral-700/40'}`}
-                            onClick={() => setTrackMute(trackId, !track.mute)}
+                            onClick={() => {
+                                void setTrackMute(trackId, !track.mute);
+                            }}
                             title={track.mute ? 'Muted (click to unmute)' : 'Mute track'}
                             style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
                         >M</button>
                         <button
                             aria-label={track.solo ? 'Unsolo track' : 'Solo track'}
                             className={`rounded border px-1 ${track.solo ? 'bg-yellow-600/40 border-yellow-400 text-yellow-200' : 'border-neutral-600 text-neutral-200 hover:bg-neutral-700/40'}`}
-                            onClick={() => setTrackSolo(trackId, !track.solo)}
+                            onClick={() => {
+                                void setTrackSolo(trackId, !track.solo);
+                            }}
                             title={track.solo ? 'Solo active (click to clear)' : 'Solo track'}
                             style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
                         >S</button>
@@ -88,7 +95,7 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
                                         // Clamp dB range: -60dB (near silent) to +6dB (~2x)
                                         valDb = Math.max(-60, Math.min(6, valDb));
                                         const linNew = Math.pow(10, valDb / 20);
-                                        setTrackGain(trackId, linNew);
+                                        void setTrackGain(trackId, linNew);
                                         // Normalize formatting after commit
                                         e.target.value = valDb.toFixed(1);
                                     }}
