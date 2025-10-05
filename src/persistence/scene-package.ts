@@ -8,6 +8,7 @@ export interface ScenePackageContents {
     envelope: SceneEnvelope;
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
+    fontPayloads: Map<string, Uint8Array>;
     warnings: { message: string }[];
 }
 
@@ -37,9 +38,11 @@ export function decodeSceneText(data: Uint8Array): string {
 function collectScenePayloads(archive: Record<string, Uint8Array>): {
     audio: Map<string, Uint8Array>;
     midi: Map<string, Uint8Array>;
+    fonts: Map<string, Uint8Array>;
 } {
     const audioPayloads = new Map<string, Uint8Array>();
     const midiPayloads = new Map<string, Uint8Array>();
+    const fontPayloads = new Map<string, Uint8Array>();
 
     for (const path of Object.keys(archive)) {
         if (path.startsWith('assets/audio/')) {
@@ -58,10 +61,18 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
                     midiPayloads.set(assetId, archive[path]);
                 }
             }
+        } else if (path.startsWith('assets/fonts/')) {
+            const parts = path.split('/');
+            if (parts.length >= 3) {
+                const assetId = parts[2];
+                if (!fontPayloads.has(assetId)) {
+                    fontPayloads.set(assetId, archive[path]);
+                }
+            }
         }
     }
 
-    return { audio: audioPayloads, midi: midiPayloads };
+    return { audio: audioPayloads, midi: midiPayloads, fonts: fontPayloads };
 }
 
 export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
@@ -87,6 +98,7 @@ export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
         envelope,
         audioPayloads: payloads.audio,
         midiPayloads: payloads.midi,
+        fontPayloads: payloads.fonts,
         warnings: [],
     };
 }
@@ -100,6 +112,7 @@ export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
         envelope,
         audioPayloads: new Map(),
         midiPayloads: new Map(),
+        fontPayloads: new Map(),
         warnings: [
             {
                 message: 'Legacy inline JSON scene payloads are deprecated. Please re-export as a packaged .mvt scene.',

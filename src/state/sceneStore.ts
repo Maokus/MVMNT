@@ -1,6 +1,7 @@
 import { create, type StateCreator } from 'zustand';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
+import type { FontAsset } from '@state/scene/fonts';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -75,6 +76,7 @@ export type SceneMutationSource =
     | 'updateBindings'
     | 'updateSettings'
     | 'updateMacros'
+    | 'updateFonts'
     | 'clearScene'
     | 'importScene';
 
@@ -83,10 +85,19 @@ export interface SceneBindingsState {
     byMacro: MacroBindingsIndex;
 }
 
+export interface SceneFontsState {
+    assets: Record<string, FontAsset>;
+    order: string[];
+    totalBytes: number;
+    licensingAcknowledgedAt?: number;
+}
+
 export interface SceneStoreComputedExport {
     elements: SceneSerializedElement[];
     sceneSettings: SceneSettingsState;
     macros?: SceneSerializedMacros;
+    fontAssets?: Record<string, FontAsset>;
+    fontLicensingAcknowledgedAt?: number;
 }
 
 export interface SceneSerializedElement {
@@ -112,6 +123,8 @@ export interface SceneImportPayload {
     elements?: SceneSerializedElement[];
     sceneSettings?: Partial<SceneSettingsState> | null;
     macros?: SceneSerializedMacros | null;
+    fontAssets?: Record<string, FontAsset> | null;
+    fontLicensingAcknowledgedAt?: number | null;
 }
 
 export interface SceneElementInput {
@@ -136,6 +149,10 @@ export interface SceneStoreActions {
     createMacro: (macroId: string, definition: SceneMacroDefinition) => void;
     updateMacroValue: (macroId: string, value: unknown) => void;
     deleteMacro: (macroId: string) => void;
+    registerFontAsset: (asset: FontAsset) => void;
+    updateFontAsset: (assetId: string, patch: Partial<Omit<FontAsset, 'id'>>) => void;
+    deleteFontAsset: (assetId: string) => void;
+    acknowledgeFontLicensing: (timestamp?: number) => void;
     clearScene: () => void;
     importScene: (payload: SceneImportPayload) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
@@ -149,6 +166,7 @@ export interface SceneStoreState extends SceneStoreActions {
     order: string[];
     bindings: SceneBindingsState;
     macros: SceneMacroState;
+    fonts: SceneFontsState;
     interaction: SceneInteractionState;
     runtimeMeta: SceneRuntimeMeta;
 }
@@ -188,6 +206,43 @@ function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
         result[key] = cloneBinding(binding);
     }
     return result;
+}
+
+function cloneFontAsset(asset: FontAsset): FontAsset {
+    return {
+        ...asset,
+        variants: Array.isArray(asset.variants)
+            ? asset.variants.map((variant) => ({
+                  ...variant,
+                  variationSettings: variant.variationSettings ? { ...variant.variationSettings } : undefined,
+              }))
+            : [],
+    };
+}
+
+function computeFontBytes(assets: Record<string, FontAsset>): number {
+    return Object.values(assets).reduce((total, asset) => {
+        if (!asset) return total;
+        const size = typeof asset.fileSize === 'number' && Number.isFinite(asset.fileSize) ? asset.fileSize : 0;
+        return total + size;
+    }, 0);
+}
+
+function normalizeFontAssetInput(input: FontAsset, existing?: FontAsset): FontAsset {
+    const now = Date.now();
+    const createdAt = existing?.createdAt ?? input.createdAt ?? now;
+    const updatedAt = input.updatedAt ?? now;
+    const licensingAcknowledged =
+        typeof input.licensingAcknowledged === 'boolean'
+            ? input.licensingAcknowledged
+            : existing?.licensingAcknowledged ?? false;
+    return cloneFontAsset({
+        ...existing,
+        ...input,
+        createdAt,
+        updatedAt,
+        licensingAcknowledged,
+    });
 }
 
 function rebuildMacroIndex(byElement: Record<string, ElementBindings>): MacroBindingsIndex {
@@ -425,6 +480,7 @@ const createSceneStoreState = (
     order: [],
     bindings: createEmptyBindingsState(),
     macros: { byId: {}, allIds: [], exportedAt: undefined },
+    fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
     interaction: createInitialInteractionState(),
     runtimeMeta: createRuntimeMeta(),
 
@@ -822,6 +878,82 @@ const createSceneStoreState = (
         });
     },
 
+    registerFontAsset: (asset) => {
+        set((state) => {
+            if (!asset?.id) throw new Error('SceneStore.registerFontAsset: id is required');
+            const existing = state.fonts.assets[asset.id];
+            const normalized = normalizeFontAssetInput(asset, existing);
+            const nextAssets = { ...state.fonts.assets, [asset.id]: normalized };
+            const nextOrder = [...state.fonts.order.filter((id) => id !== asset.id), asset.id];
+            return {
+                ...state,
+                fonts: {
+                    ...state.fonts,
+                    assets: nextAssets,
+                    order: nextOrder,
+                    totalBytes: computeFontBytes(nextAssets),
+                },
+                runtimeMeta: markDirty(state, 'updateFonts'),
+            };
+        });
+    },
+
+    updateFontAsset: (assetId, patch) => {
+        set((state) => {
+            const existing = state.fonts.assets[assetId];
+            if (!existing) return state;
+            const merged: FontAsset = normalizeFontAssetInput({ ...existing, ...patch, id: assetId } as FontAsset, existing);
+            if (JSON.stringify(existing) === JSON.stringify(merged)) {
+                return state;
+            }
+            const nextAssets = { ...state.fonts.assets, [assetId]: merged };
+            return {
+                ...state,
+                fonts: {
+                    ...state.fonts,
+                    assets: nextAssets,
+                    totalBytes: computeFontBytes(nextAssets),
+                },
+                runtimeMeta: markDirty(state, 'updateFonts'),
+            };
+        });
+    },
+
+    deleteFontAsset: (assetId) => {
+        set((state) => {
+            if (!state.fonts.assets[assetId]) return state;
+            const nextAssets = { ...state.fonts.assets };
+            delete nextAssets[assetId];
+            const nextOrder = state.fonts.order.filter((id) => id !== assetId);
+            return {
+                ...state,
+                fonts: {
+                    ...state.fonts,
+                    assets: nextAssets,
+                    order: nextOrder,
+                    totalBytes: computeFontBytes(nextAssets),
+                },
+                runtimeMeta: markDirty(state, 'updateFonts'),
+            };
+        });
+    },
+
+    acknowledgeFontLicensing: (timestamp) => {
+        set((state) => {
+            const resolved = typeof timestamp === 'number' ? timestamp : Date.now();
+            if (state.fonts.licensingAcknowledgedAt === resolved) {
+                return state;
+            }
+            return {
+                ...state,
+                fonts: {
+                    ...state.fonts,
+                    licensingAcknowledgedAt: resolved,
+                },
+            };
+        });
+    },
+
     clearScene: () => {
         set((state) => ({
             ...state,
@@ -830,6 +962,7 @@ const createSceneStoreState = (
             order: [],
             bindings: createEmptyBindingsState(),
             macros: { byId: {}, allIds: [], exportedAt: undefined },
+            fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
             interaction: createInitialInteractionState(),
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
@@ -874,6 +1007,20 @@ const createSceneStoreState = (
 
             const importTimestamp = Date.now();
 
+            const normalizedFontAssets: Record<string, FontAsset> = {};
+            if (payload.fontAssets) {
+                for (const [assetId, asset] of Object.entries(payload.fontAssets)) {
+                    if (!assetId || !asset) continue;
+                    const id = typeof asset.id === 'string' ? asset.id : assetId;
+                    normalizedFontAssets[id] = normalizeFontAssetInput({ ...asset, id } as FontAsset);
+                }
+            }
+            const fontOrder = Object.keys(normalizedFontAssets);
+            const fontLicensingAcknowledgedAt =
+                typeof payload.fontLicensingAcknowledgedAt === 'number'
+                    ? payload.fontLicensingAcknowledgedAt
+                    : undefined;
+
             return {
                 ...state,
                 settings: nextSettings,
@@ -881,6 +1028,12 @@ const createSceneStoreState = (
                 order: sortedOrder,
                 bindings: nextBindings,
                 macros: buildMacroState(payload.macros),
+                fonts: {
+                    assets: normalizedFontAssets,
+                    order: fontOrder,
+                    totalBytes: computeFontBytes(normalizedFontAssets),
+                    licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
+                },
                 interaction: createInitialInteractionState(),
                 runtimeMeta: {
                     ...state.runtimeMeta,
@@ -902,10 +1055,17 @@ const createSceneStoreState = (
             const bindings = state.bindings.byElement[id] ?? {};
             elements.push(serializeElement(element, bindings, idx));
         });
+        const fontAssets = state.fonts.order.reduce((acc, id) => {
+            const asset = state.fonts.assets[id];
+            if (asset) acc[id] = cloneFontAsset(asset);
+            return acc;
+        }, {} as Record<string, FontAsset>);
         return {
             elements,
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
+            fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
+            fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
         };
     },
 

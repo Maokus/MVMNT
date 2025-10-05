@@ -20,7 +20,7 @@ export interface PersistentDocumentV1 {
     playbackRangeUserDefined: boolean;
     rowHeight: number;
     midiCache: any;
-    scene: { elements: any[]; sceneSettings?: any; macros?: any };
+    scene: { elements: any[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number };
     metadata?: Partial<SceneMetadataState>;
 }
 
@@ -45,6 +45,8 @@ export const DocumentGateway = {
         let elements: any[] = [];
         let sceneSettings: any = undefined;
         let macros: any = undefined;
+        let fontAssets: any = undefined;
+        let fontLicensingAcknowledgedAt: number | undefined;
 
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
@@ -56,6 +58,12 @@ export const DocumentGateway = {
             }
             if (snapshot.macros) {
                 macros = { ...snapshot.macros };
+            }
+            if (snapshot.fontAssets) {
+                fontAssets = { ...snapshot.fontAssets };
+            }
+            if (typeof snapshot.fontLicensingAcknowledgedAt === 'number') {
+                fontLicensingAcknowledgedAt = snapshot.fontLicensingAcknowledgedAt;
             }
         } catch {}
 
@@ -83,7 +91,13 @@ export const DocumentGateway = {
             playbackRangeUserDefined: state.playbackRangeUserDefined,
             rowHeight: state.rowHeight,
             midiCache: state.midiCache,
-            scene: { elements, sceneSettings, macros },
+            scene: {
+                elements,
+                sceneSettings,
+                macros,
+                fontAssets,
+                fontLicensingAcknowledgedAt,
+            },
             metadata,
         };
 
@@ -140,6 +154,8 @@ export const DocumentGateway = {
             elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
+            fontAssets: doc.scene?.fontAssets,
+            fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
         };
 
         try {
