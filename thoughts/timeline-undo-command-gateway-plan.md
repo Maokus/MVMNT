@@ -86,9 +86,10 @@
 ## Open question answers
 
 -   Timeline commands should emid granular patches.
+-   Expose the timeline gateway to scripting via a small scripting API that accepts serialized command descriptors (not raw store calls) and returns standardized results (patches + metadata).
 
 ## Recommendations
 
 -   Add Execution Ordering Policy (Explicitly define how async commands queue or block)
 -   Telemetry Schema Validation (Add a simple contract test ensuring telemetry payloads conform to the same shape as scene telemetry)
--   Formalize Patch Domains
+-   Formalize Patch Domains (Prefix or namespace patch actions (timeline/ADD_TRACK, scene/ADD_OBJECT) so undo controller and telemetry can distinguish sources unambiguously.)
