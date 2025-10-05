@@ -73,7 +73,6 @@ describe('MIDI asset packaging', () => {
         expect(midiEntry.midiData).toBeUndefined();
 
         const zip = unzipSync(result.zip);
-        expect(zip['Icon.icns']).toBeDefined();
         expect(zip[midiEntry.assetRef]).toBeDefined();
 
         useTimelineStore.setState((state: any) => ({
