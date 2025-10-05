@@ -413,27 +413,6 @@ export class MIDIVisualizerCore {
         if (!hoverElementId && !selectedElementId && !draggingElementId && guides.length === 0) return;
         const ctx = this.ctx;
         ctx.save();
-        if (guides.length) {
-            ctx.save();
-            ctx.setLineDash([]);
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = '#4C9AFF';
-            ctx.globalAlpha = 0.9;
-            for (const guide of guides) {
-                ctx.beginPath();
-                if (guide.orientation === 'vertical') {
-                    ctx.moveTo(guide.position, 0);
-                    ctx.lineTo(guide.position, this.canvas.height);
-                } else {
-                    ctx.moveTo(0, guide.position);
-                    ctx.lineTo(this.canvas.width, guide.position);
-                }
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
         const boundsList = this.getElementBoundsAtTime(targetTime);
         const draw = (id: string, strokeStyle: string) => {
             if (!id) return;
@@ -451,6 +430,43 @@ export class MIDIVisualizerCore {
                 ctx.strokeRect(b.x, b.y, b.width, b.height);
             }
         };
+        if (guides.length) {
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#4C9AFF';
+            ctx.globalAlpha = 0.9;
+            for (const guide of guides) {
+                ctx.beginPath();
+                if (guide.orientation === 'vertical') {
+                    ctx.moveTo(guide.position, 0);
+                    ctx.lineTo(guide.position, this.canvas.height);
+                } else {
+                    ctx.moveTo(0, guide.position);
+                    ctx.lineTo(this.canvas.width, guide.position);
+                }
+                ctx.stroke();
+            }
+            const snapSourceIds = new Set<string>();
+            for (const guide of guides) {
+                if (guide.sourceElementId) {
+                    snapSourceIds.add(guide.sourceElementId);
+                }
+            }
+            if (snapSourceIds.size) {
+                ctx.save();
+                ctx.setLineDash([4, 2]);
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.9;
+                for (const id of snapSourceIds) {
+                    draw(id, '#4C9AFF');
+                }
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
         if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF');
         if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
             draw(hoverElementId, '#FFFF00');

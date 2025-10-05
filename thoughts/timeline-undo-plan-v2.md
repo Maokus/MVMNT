@@ -59,6 +59,7 @@
     - Define TypeScript interfaces for `TimelineCommand`, `TimelineCommandContext`, patch payloads, and serialized command descriptors.
     - Create the gateway factory and wire it to the undo controller through a dedicated subscription channel.
     - Implement the execution ordering queue with serial-by-default behavior.
+    - Document gateway lifecycle hooks (init, teardown) so tests and scripting callers can boot deterministic instances.
 
 2. **Implement Foundational Commands**
     - Move `addTrack` and `removeTracks` logic into commands, returning the resulting granular patches.
@@ -83,6 +84,37 @@
     - Add unit tests for commands validating that `execute`/`undo`/`redo` apply the correct granular patches.
     - Extend integration tests to confirm undo/redo stacks remain consistent across scene and timeline domains.
     - Add tests for the execution ordering queue and serialized descriptor API.
+
+## Serialized Command Descriptor Draft
+
+- **Shape**
+  - `type`: canonical command identifier (e.g., `"timeline.addTrack"`).
+  - `version`: semantic version for descriptor evolution; callers must supply `1` initially.
+  - `payload`: JSON-serializable data passed to the command factory; command definitions validate and normalize it.
+  - `options`: optional execution hints (e.g., `{ mode: "concurrent" }`) that mirror the command metadata defaults.
+- **Resolution Flow**
+  - Gateway facade looks up the command constructor by `type` and rejects unknown or deprecated versions with structured errors.
+  - Descriptors execute inside the same queue as imperative command instances to guarantee ordering.
+  - Responses include `patches`, `undoLabel`, `telemetryEvent`, and any command-specific `result` metadata for scripting consumers.
+- **Validation**
+  - Add zod-based schema validation at the facade boundary and emit telemetry when descriptors are rejected.
+  - Record accepted descriptors in a rolling log for migration analytics.
+
+## Telemetry and Validation Addendum
+
+- Central registry couples command identifiers with telemetry event names, undo labels, and feature flags controlling preview rollout.
+- Telemetry payload schema mirrors the scene command schema; add a shared helper to assert parity at runtime and in tests.
+- Emit a `timeline_command_gateway` heartbeat event containing execution counts, queue depth, and error rates for observability.
+- Provide a redaction utility ensuring that user-generated track names are scrubbed before telemetry submission when privacy mode is enabled.
+
+## Execution Checklist
+
+- [ ] Land gateway scaffolding with queue, telemetry validation helper, and undo subscription wiring.
+- [ ] Implement `addTrack` and `removeTracks` commands plus granular patch emission tests.
+- [ ] Ship serialized descriptor facade behind a feature flag for scripting consumers.
+- [ ] Update timeline UI callers to use the gateway via thin adapters and remove direct store mutations.
+- [ ] Enable telemetry heartbeat and verify dashboards capture timeline command traffic.
+- [ ] Publish migration guide in `/docs` and cross-link from scripting docs once facade is stable.
 
 ## Risks and Mitigations
 
