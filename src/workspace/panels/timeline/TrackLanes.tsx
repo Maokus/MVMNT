@@ -4,12 +4,13 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
+import { formatQuantizeShortLabel, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 
 type Props = {
     trackIds: string[];
 };
 
-// Tick-domain snapping: bar snap when quantize==='bar' or forceSnap.
+// Tick-domain snapping: snap to selected denomination when quantize !== 'off', or forceSnap for bar snapping.
 function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
@@ -20,10 +21,12 @@ function useSnapTicks() {
             return allowNegative ? rounded : Math.max(0, rounded);
         };
         if (altKey) return clamp(candidateTick);
-        const should = forceSnap || quantize === 'bar';
-        if (!should) return clamp(candidateTick);
-        const ticksPerBar = bpb * ppq;
-        return clamp(Math.round(candidateTick / ticksPerBar) * ticksPerBar);
+        const target: QuantizeSetting = forceSnap ? 'bar' : quantize;
+        if (target === 'off') return clamp(candidateTick);
+        const beatLength = quantizeSettingToBeats(target, bpb);
+        if (!beatLength) return clamp(candidateTick);
+        const resolution = Math.max(1, Math.round(beatLength * ppq));
+        return clamp(Math.round(candidateTick / resolution) * resolution);
     }, [quantize, bpb, ppq]);
 }
 
@@ -251,7 +254,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 const prefix = negative ? '-' : '';
                 return `${prefix}${barIdx}|${beatInBar}`;
             };
-            const snapInfo = `Snap: ${quantize === 'bar' ? 'Bar' : 'Off'} (hold Alt to bypass)`;
+            const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
         }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 

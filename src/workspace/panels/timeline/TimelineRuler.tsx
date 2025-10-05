@@ -4,6 +4,7 @@ import { RULER_HEIGHT } from './constants';
 import { useTickScale } from './useTickScale';
 import { sharedTimingManager } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
+import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 
 // Snap tick helper
 function useSnapTicks() {
@@ -15,12 +16,14 @@ function useSnapTicks() {
         (candidateTick: number, opts?: { altKey?: boolean; forceBar?: boolean }) => {
             const { altKey, forceBar } = opts || {};
             if (altKey) return Math.max(0, candidateTick);
-            const shouldSnap = forceBar || quantize === 'bar';
-            if (!shouldSnap) return Math.max(0, candidateTick);
+            const target: QuantizeSetting = forceBar ? 'bar' : quantize;
+            if (target === 'off') return Math.max(0, candidateTick);
+            const beatLength = quantizeSettingToBeats(target, beatsPerBar);
+            if (!beatLength) return Math.max(0, candidateTick);
             const tpq = tm.ticksPerQuarter;
-            const ticksPerBar = beatsPerBar * tpq;
-            const snappedBars = Math.round(candidateTick / ticksPerBar);
-            return Math.max(0, snappedBars * ticksPerBar);
+            const resolution = Math.max(1, Math.round(beatLength * tpq));
+            const snappedUnits = Math.round(candidateTick / resolution);
+            return Math.max(0, snappedUnits * resolution);
         },
         [quantize, beatsPerBar, tm]
     );

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     FloatingFocusManager,
     FloatingPortal,
@@ -26,6 +26,13 @@ import { TimingManager } from '@core/timing';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
+import {
+    formatQuantizeLabel,
+    formatQuantizeShortLabel,
+    TIMELINE_SNAP_OPTIONS,
+    type QuantizeSetting,
+    type SnapQuantizeOption,
+} from '@state/timeline/quantize';
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -340,6 +347,19 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    const lastNonOffQuantizeRef = useRef<QuantizeSetting>('bar');
+    useEffect(() => {
+        if (quantize !== 'off') {
+            lastNonOffQuantizeRef.current = quantize;
+        }
+    }, [quantize]);
+    const snapSelectId = useId();
+    const magnetActive = quantize !== 'off';
+    const currentQuantizeLabel = formatQuantizeLabel(quantize);
+    const pendingQuantizeLabel = formatQuantizeLabel(lastNonOffQuantizeRef.current);
+    const currentSnapSummary = magnetActive ? formatQuantizeShortLabel(quantize) : 'Off';
+    const pendingSnapSummary = formatQuantizeShortLabel(lastNonOffQuantizeRef.current);
+    const snapSelectValue = (magnetActive ? quantize : lastNonOffQuantizeRef.current) as SnapQuantizeOption;
     // Global timing state
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
@@ -457,10 +477,22 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             </label>
             {/* Quantize toggle (moved out of menu) */}
             <button
-                aria-label={quantize === 'bar' ? 'Disable bar quantize' : 'Enable bar quantize'}
-                title={quantize === 'bar' ? 'Quantize: Bar (click to turn off)' : 'Quantize: Off (click to enable bar snapping)'}
-                onClick={() => setQuantize(quantize === 'bar' ? 'off' : 'bar')}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${quantize === 'bar' ? 'bg-blue-600/70 text-white border-blue-400/70' : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'}`}
+                aria-label={
+                    magnetActive
+                        ? `Disable snapping (${currentQuantizeLabel})`
+                        : `Enable snapping (${pendingQuantizeLabel})`
+                }
+                title={
+                    magnetActive
+                        ? `Snapping: ${currentQuantizeLabel} (click to turn off)`
+                        : `Snapping: ${pendingQuantizeLabel} (click to turn on)`
+                }
+                onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${
+                    magnetActive
+                        ? 'bg-blue-600/70 text-white border-blue-400/70'
+                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                }`}
             >
                 <FaMagnet />
             </button>
@@ -501,6 +533,27 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                                 >
                                     {follow ? 'On' : 'Off'}
                                 </button>
+                            </div>
+                            <div className="flex flex-col gap-1 text-sm" role="none">
+                                <label htmlFor={snapSelectId} className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                                    Snap to
+                                </label>
+                                <select
+                                    id={snapSelectId}
+                                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    value={snapSelectValue}
+                                    onChange={(e) => setQuantize(e.target.value as SnapQuantizeOption)}
+                                >
+                                    {TIMELINE_SNAP_OPTIONS.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="m-0 text-[11px] leading-snug text-neutral-500">
+                                    Current: {currentSnapSummary}
+                                    {!magnetActive && ` (will use ${pendingSnapSummary} when enabled)`}
+                                </p>
                             </div>
                             <p className="m-0 text-[11px] leading-snug text-neutral-500">
                                 Scene dimensions and debug tools have moved to the scene settings modal next to the scene name.

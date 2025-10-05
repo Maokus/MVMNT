@@ -3,6 +3,7 @@ import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
+import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
     createTimingContext,
     secondsToTicks as timingSecondsToTicks,
@@ -67,7 +68,7 @@ export type TimelineState = {
         loopStartTick?: number; // canonical loop start
         loopEndTick?: number; // canonical loop end
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
-        quantize: 'off' | 'bar'; // toggle bar quantization on/off
+        quantize: QuantizeSetting; // snap denomination for transport interactions
     };
     selection: { selectedTrackIds: string[] };
     // UI view window in ticks
@@ -111,7 +112,7 @@ export type TimelineState = {
     seekTick: (tick: number) => void;
     scrubTick: (tick: number) => void;
     setRate: (rate: number) => void;
-    setQuantize: (q: 'off' | 'bar') => void;
+    setQuantize: (q: QuantizeSetting) => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRangeTicks: (startTick?: number, endTick?: number) => void;
     toggleLoop: () => void;
@@ -459,14 +460,21 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             // current tick is already aligned or if we were just playing.
             let curTick = s.timeline.currentTick;
             const wasPlaying = s.transport.isPlaying;
-            if (!wasPlaying && s.transport.quantize === 'bar') {
-                const ticksPerBar = Math.max(
-                    1,
-                    Math.round(beatsToTicks(createTimelineTimingContext(s), s.timeline.beatsPerBar))
-                );
+            const quantizeSetting = s.transport.quantize;
+            if (!wasPlaying && quantizeSetting !== 'off') {
+                const beatLength = quantizeSettingToBeats(quantizeSetting, s.timeline.beatsPerBar);
+                const ticksPerUnit = beatLength
+                    ? Math.max(1, Math.round(beatsToTicks(createTimelineTimingContext(s), beatLength)))
+                    : null;
+                if (!ticksPerUnit) {
+                    return {
+                        timeline: { ...s.timeline, currentTick: curTick },
+                        transport: { ...s.transport, isPlaying: true, state: 'playing' },
+                    } as TimelineState;
+                }
                 // Use floor so we never jump the playhead forward past the user's chosen position;
                 // this eliminates the visible half-bar forward jump experienced with Math.round.
-                const snapped = Math.floor(curTick / ticksPerBar) * ticksPerBar;
+                const snapped = Math.floor(curTick / ticksPerUnit) * ticksPerUnit;
                 if (snapped !== curTick) {
                     curTick = snapped;
                     // Notify runtime (VisualizerContext) to align playback clock
@@ -511,9 +519,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => ({ transport: { ...s.transport, rate: r } }));
     },
 
-    setQuantize(q: 'off' | 'bar') {
-        const v: 'off' | 'bar' = q === 'bar' ? 'bar' : 'off';
-        set((s: TimelineState) => ({ transport: { ...s.transport, quantize: v } }));
+    setQuantize(q: QuantizeSetting) {
+        const allowed: QuantizeSetting[] = ['off', 'bar', 'quarter', 'eighth', 'sixteenth'];
+        const next = allowed.includes(q) ? q : 'off';
+        set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
     },
 
     setLoopEnabled(enabled: boolean) {
