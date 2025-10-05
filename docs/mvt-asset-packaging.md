@@ -1,16 +1,16 @@
 # MVT Asset Packaging Notes
 
-## Why exports default to inline JSON
-- `exportScene` falls back to `'inline-json'` when callers do not pass a storage mode.
-  The export flow stays inlined unless the caller explicitly opts into ZIP packaging.
-- The menu bar's `saveScene` action calls `exportScene` without specifying options,
-  so user-triggered saves always go through the inline branch today.
-- When inline mode is selected, `collectAudioAssets` embeds each audio buffer as
-  Base64 in the JSON envelope, and the ZIP assembly path is bypassed.
+## Current export behavior
+- `exportScene` now falls back to `'zip-package'` when callers do not pass a storage mode,
+  so user-triggered saves emit packaged scenes by default.
+- The menu bar's `saveScene` action relies on that default and downloads `.mvt` archives
+  that contain `document.json` and the asset payload tree.
+- Inline JSON remains available for debugging; when explicitly selected,
+  `collectAudioAssets` embeds each audio buffer as Base64 and skips ZIP assembly.
 
 ## Steps toward a more professional `.mvt` format
 - **Pick a primary container**: default user exports to `'zip-package'`, retain inline JSON
-  only for lightweight debugging, and update the downloader to prefer the `.mvmntpkg`
+  only for lightweight debugging, and update the downloader to prefer the `.mvt`
   extension.
 - **Define a manifest**: keep `document.json` as the root descriptor, formalize an
   `assets/` layout (for example, `assets/audio/<id>/original` vs `rendered`), and

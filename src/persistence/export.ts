@@ -133,7 +133,7 @@ export async function exportScene(
     sceneNameOverride?: string,
     options: ExportSceneOptions = {}
 ): Promise<ExportSceneResult> {
-    const storage: AssetStorageMode = options.storage || 'inline-json';
+    const storage: AssetStorageMode = options.storage ?? 'zip-package';
     const doc = DocumentGateway.build();
     const state = useTimelineStore.getState();
     const metadataStore = (() => {

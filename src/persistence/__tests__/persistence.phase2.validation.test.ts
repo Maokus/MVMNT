@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { exportScene, importScene } from '../index';
 import { serializeStable } from '../stable-stringify';
 import { validateSceneEnvelope } from '../validate';
-import type { ExportSceneResult, ExportSceneResultInline } from '../export';
+import type { ExportSceneResultInline } from '../export';
 
-function requireInline(result: ExportSceneResult): ExportSceneResultInline {
+async function exportInlineScene(): Promise<ExportSceneResultInline> {
+    const result = await exportScene(undefined, { storage: 'inline-json' });
     if (!result.ok || result.mode !== 'inline-json') {
         throw new Error('Expected inline-json export result');
     }
@@ -13,7 +14,7 @@ function requireInline(result: ExportSceneResult): ExportSceneResultInline {
 
 // Helper to produce a minimal valid envelope baseline to mutate
 async function makeValidEnvelope() {
-    const exp = requireInline(await exportScene());
+    const exp = await exportInlineScene();
     if (!exp.ok) throw new Error('Export failed during validation tests');
     return JSON.parse(exp.json);
 }
