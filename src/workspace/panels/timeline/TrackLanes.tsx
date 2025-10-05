@@ -30,16 +30,6 @@ function useSnapTicks() {
     }, [quantize, bpb, ppq]);
 }
 
-function computeMidiLeadingTicks(entry: { midiData?: { trimmedTicks?: number; ticksPerQuarter?: number } } | undefined) {
-    const trimmed = entry?.midiData?.trimmedTicks;
-    if (!Number.isFinite(trimmed) || !trimmed || trimmed <= 0) return 0;
-    const sourcePPQ = entry?.midiData?.ticksPerQuarter || CANONICAL_PPQ;
-    if (!Number.isFinite(sourcePPQ) || sourcePPQ <= 0) return 0;
-    const scale = CANONICAL_PPQ / sourcePPQ;
-    const converted = Math.round(trimmed * scale);
-    return converted > 0 ? converted : 0;
-}
-
 const GridLines: React.FC<{ width: number; height: number } & { startTick: number; endTick: number }> = ({ width, height, startTick, endTick }) => {
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const ppq = CANONICAL_PPQ; // unified PPQ
@@ -98,24 +88,26 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const quantize = useTimelineStore((s) => s.transport.quantize);
 
         // Compute local clip extent from cached MIDI and optional region trimming
-        const { dataStartTick, dataEndTick, midiLeadingTicks } = useMemo(() => {
-            if (!track) {
-                return { dataStartTick: 0, dataEndTick: 0, midiLeadingTicks: 0 };
-            }
+        const { dataStartTick, dataEndTick } = useMemo(() => {
+            if (!track) return { dataStartTick: 0, dataEndTick: 0 };
             if (track.type === 'audio') {
                 const duration = audioCacheEntry?.durationTicks ?? 0;
                 const safeDuration = Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : 0;
-                return { dataStartTick: 0, dataEndTick: safeDuration, midiLeadingTicks: 0 };
+                return { dataStartTick: 0, dataEndTick: safeDuration };
             }
-            const leading = computeMidiLeadingTicks(midiCacheEntry);
             const notes = midiCacheEntry?.notesRaw || [];
+            if (!notes.length) return { dataStartTick: 0, dataEndTick: 0 };
+            let minTick = Number.POSITIVE_INFINITY;
             let maxTick = 0;
             for (const note of notes) {
+                if (typeof note.startTick === 'number' && note.startTick < minTick) minTick = note.startTick;
                 if (typeof note.endTick === 'number' && note.endTick > maxTick) maxTick = note.endTick;
             }
-            const safeEnd = Math.max(0, Math.round(maxTick));
-            const clipEnd = safeEnd + leading;
-            return { dataStartTick: 0, dataEndTick: clipEnd > 0 ? clipEnd : 0, midiLeadingTicks: leading };
+            if (!isFinite(minTick)) minTick = 0;
+            if (maxTick < minTick) maxTick = minTick;
+            const safeStart = Math.max(0, Math.round(minTick));
+            const safeEnd = Math.max(safeStart, Math.round(maxTick));
+            return { dataStartTick: safeStart, dataEndTick: safeEnd };
         }, [track, midiCacheEntry, audioCacheEntry]);
 
         const regionStart = useMemo(() => {
@@ -132,8 +124,6 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
 
         const localStartTick = regionStart ?? dataStartTick;
         const localEndTick = regionEnd ?? dataEndTick;
-        const midiVisibleStart = track?.type === 'midi' ? localStartTick - midiLeadingTicks : localStartTick;
-        const midiVisibleEnd = track?.type === 'midi' ? localEndTick - midiLeadingTicks : localEndTick;
 
         const onPointerDown = (e: React.PointerEvent) => {
             if (e.button !== 0) return;
@@ -296,8 +286,8 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         {track?.type === 'midi' && (
                             <MidiNotePreview
                                 notes={midiCacheEntry?.notesRaw ?? []}
-                                visibleStartTick={midiVisibleStart}
-                                visibleEndTick={midiVisibleEnd}
+                                visibleStartTick={localStartTick}
+                                visibleEndTick={localEndTick}
                                 height={clipHeight - 4}
                             />
                         )}
@@ -458,21 +448,13 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
                 const cacheKey = t.midiSourceId ?? id;
                 const cache = midiCache[cacheKey];
                 const notes = cache?.notesRaw || [];
-                const leading = computeMidiLeadingTicks(cache);
-                let maxTick = 0;
-                for (const n of notes) {
-                    if (typeof n.endTick === 'number' && n.endTick > maxTick) maxTick = n.endTick;
-                }
-                const clipEndLocal = Math.max(0, Math.round(maxTick)) + leading;
-                if (!notes.length && clipEndLocal === 0) continue;
-                const regionStart = typeof t.regionStartTick === 'number'
-                    ? Math.min(Math.max(Math.round(t.regionStartTick), 0), clipEndLocal)
-                    : 0;
-                const regionEnd = typeof t.regionEndTick === 'number'
-                    ? Math.min(Math.max(Math.round(t.regionEndTick), regionStart), clipEndLocal)
-                    : clipEndLocal;
-                const absStart = Math.max(0, (t.offsetTicks || 0) + regionStart);
-                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + regionEnd);
+                if (notes.length === 0) continue;
+                const rawStart = notes.reduce((m, n) => Math.min(m, n.startBeat != null ? Math.round(n.startBeat * ppq) : m), Number.POSITIVE_INFINITY);
+                const rawEnd = notes.reduce((m, n) => Math.max(m, n.endBeat != null ? Math.round(n.endBeat * ppq) : m), 0);
+                const regionStart = typeof t.regionStartTick === 'number' ? Math.max(rawStart, t.regionStartTick) : rawStart;
+                const regionEnd = typeof t.regionEndTick === 'number' ? Math.min(rawEnd, t.regionEndTick) : rawEnd;
+                const absStart = Math.max(0, (t.offsetTicks || 0) + Math.max(0, regionStart));
+                const absEnd = Math.max(absStart, (t.offsetTicks || 0) + Math.max(0, regionEnd));
                 const clipL = toX(absStart, Math.max(1, width));
                 const clipR = toX(absEnd, Math.max(1, width));
                 const intersects = !(clipR < x1 || clipL > x2);
