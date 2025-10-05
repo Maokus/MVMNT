@@ -18,6 +18,7 @@ import { loadDefaultScene } from '@core/default-scene-loader';
 import { dispatchSceneCommand } from '@state/scene';
 import { useScene } from '@context/SceneContext';
 import { useUndo } from '@context/UndoContext';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -279,6 +280,7 @@ const MidiVisualizer: React.FC = () => {
 const TemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
     const { setSceneName, refreshSceneUI } = useScene();
+    const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
     const navigate = useNavigate();
@@ -301,6 +303,11 @@ const TemplateInitializer: React.FC = () => {
                             try {
                                 const parsed = JSON.parse(payload);
                                 if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
+                                if (parsed?.metadata?.author) {
+                                    setSceneAuthor(parsed.metadata.author);
+                                } else {
+                                    setSceneAuthor('');
+                                }
                             } catch { }
                             undo?.reset();
                             refreshSceneUI();
@@ -327,6 +334,7 @@ const TemplateInitializer: React.FC = () => {
                         default:
                             await loadDefaultScene('MidiVisualizer.TemplateInitializer.fallback');
                     }
+                    setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
                 }
@@ -340,7 +348,7 @@ const TemplateInitializer: React.FC = () => {
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
+    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, setSceneName, undo]);
     return null;
 };
 

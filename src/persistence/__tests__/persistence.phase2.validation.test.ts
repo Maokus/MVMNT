@@ -51,6 +51,14 @@ describe('Persistence validation extended', () => {
         expect(r.errors.some((e) => e.code === 'ERR_TRACKS_ORDER_TYPE')).toBe(true);
     });
 
+    it('detects metadata author type mismatch', async () => {
+        const env = await makeValidEnvelope();
+        env.metadata.author = 123;
+        const r = validateSceneEnvelope(env);
+        expect(r.ok).toBe(false);
+        expect(r.errors.some((e) => e.code === 'ERR_METADATA_AUTHOR')).toBe(true);
+    });
+
     it('detects tracksOrder reference mismatch', async () => {
         const env = await makeValidEnvelope();
         env.timeline.tracks = {}; // ensure empty

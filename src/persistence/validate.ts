@@ -15,6 +15,7 @@ export type ValidationErrorCode =
     | 'ERR_METADATA_MISSING'
     | 'ERR_METADATA_ID'
     | 'ERR_METADATA_NAME'
+    | 'ERR_METADATA_AUTHOR'
     | 'ERR_SCENE_MISSING'
     | 'ERR_SCENE_ELEMENTS_TYPE'
     | 'ERR_DUP_ELEMENT_ID'
@@ -73,6 +74,8 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             errors.push(err('ERR_METADATA_ID', 'metadata.id missing or not string', 'metadata.id'));
         if (typeof root.metadata.name !== 'string')
             errors.push(err('ERR_METADATA_NAME', 'metadata.name missing or not string', 'metadata.name'));
+        if (root.metadata.author !== undefined && typeof root.metadata.author !== 'string')
+            errors.push(err('ERR_METADATA_AUTHOR', 'metadata.author must be string when present', 'metadata.author'));
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));

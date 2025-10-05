@@ -18,6 +18,7 @@ export interface SceneMetadata {
     modifiedAt: string;
     format: 'scene';
     description?: string;
+    author?: string;
 }
 
 export interface SceneExportEnvelopeV2 {
@@ -159,6 +160,10 @@ export async function exportScene(
     const description = currentMetadata?.description?.trim();
     if (description) {
         metadata.description = description;
+    }
+    const author = currentMetadata?.author?.trim();
+    if (author) {
+        metadata.author = author;
     }
 
     if (metadataStore) {

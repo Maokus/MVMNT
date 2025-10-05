@@ -11,12 +11,14 @@ import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import logo from '@assets/Logo_Transparent.png';
 import { useMacros } from '@context/MacroContext';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 interface TemplateDefinition {
     id: string;
     name: string;
     description: string;
     content: string;
+    author?: string;
 }
 
 const templateFiles = import.meta.glob('../templates/*.mvt', { as: 'raw', eager: true }) as Record<string, string>;
@@ -32,23 +34,27 @@ const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
             .replace(/\b\w/g, (char) => char.toUpperCase());
         let name = fallbackName || 'Template';
         let description = 'Ready-made scene configuration.';
+        let author: string | undefined;
         try {
             const parsed = JSON.parse(content);
             if (parsed?.metadata) {
                 const metaName = typeof parsed.metadata.name === 'string' ? parsed.metadata.name.trim() : '';
                 const metaDescription = typeof parsed.metadata.description === 'string' ? parsed.metadata.description.trim() : '';
+                const metaAuthor = typeof parsed.metadata.author === 'string' ? parsed.metadata.author.trim() : '';
                 if (metaName) name = metaName;
                 if (metaDescription) description = metaDescription;
+                if (metaAuthor) author = metaAuthor;
             }
         } catch {
             /* ignore parse errors for metadata lookup */
         }
-        return { id, name, description, content };
+        return { id, name, description, content, author };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
 const EasyModeLayout: React.FC = () => {
     const { sceneName, setSceneName, loadScene, refreshSceneUI } = useScene();
+    const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const visualizerCtx = useVisualizer() as any;
     const { visualizer, showProgressOverlay, progressData, closeProgress, exportKind } = visualizerCtx;
     const exportVideo = visualizerCtx?.exportVideo as ((override?: any) => Promise<void>) | undefined;
@@ -135,14 +141,26 @@ const EasyModeLayout: React.FC = () => {
             } else {
                 setSceneName(template.name);
             }
+            if (parsed?.metadata?.author) {
+                setSceneAuthor(parsed.metadata.author);
+            } else if (template.author) {
+                setSceneAuthor(template.author);
+            } else {
+                setSceneAuthor('');
+            }
         } catch {
             setSceneName(template.name);
+            if (template.author) {
+                setSceneAuthor(template.author);
+            } else {
+                setSceneAuthor('');
+            }
         }
         undo.reset();
         refreshSceneUI();
         visualizer?.invalidateRender?.();
         setShowTemplateModal(false);
-    }, [refreshSceneUI, setSceneName, undo, visualizer]);
+    }, [refreshSceneUI, setSceneAuthor, setSceneName, undo, visualizer]);
 
     const handleOpenTemplates = useCallback(() => setShowTemplateModal(true), []);
     const handleCloseTemplates = useCallback(() => setShowTemplateModal(false), []);
@@ -340,6 +358,11 @@ const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, 
                                     <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
                                         {template.description}
                                     </span>
+                                    {template.author && (
+                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
+                                            By {template.author}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>

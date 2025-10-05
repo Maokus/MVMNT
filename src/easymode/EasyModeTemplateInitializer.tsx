@@ -6,10 +6,12 @@ import { useUndo } from '@context/UndoContext';
 import { importScene } from '@persistence/index';
 import { dispatchSceneCommand } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
     const { setSceneName, refreshSceneUI } = useScene();
+    const setSceneAuthor = useSceneMetadataStore((state) => state.setAuthor);
     const undo = (() => {
         try {
             return useUndo();
@@ -38,6 +40,11 @@ const EasyModeTemplateInitializer: React.FC = () => {
                             try {
                                 const parsed = JSON.parse(payload);
                                 if (parsed?.metadata?.name) setSceneName(parsed.metadata.name);
+                                if (parsed?.metadata?.author) {
+                                    setSceneAuthor(parsed.metadata.author);
+                                } else {
+                                    setSceneAuthor('');
+                                }
                             } catch {
                                 /* ignore parse errors */
                             }
@@ -66,6 +73,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
                         default:
                             await loadDefaultScene('EasyModeTemplateInitializer.fallback');
                     }
+                    setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
                 }
@@ -80,7 +88,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneName, undo]);
+    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, setSceneName, undo]);
 
     return null;
 };

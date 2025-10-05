@@ -25,6 +25,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const setMetadataName = useSceneMetadataStore((state) => state.setName);
     const setMetadataId = useSceneMetadataStore((state) => state.setId);
     const setMetadataDescription = useSceneMetadataStore((state) => state.setDescription);
+    const setMetadataAuthor = useSceneMetadataStore((state) => state.setAuthor);
 
     const startTick = playbackRange?.startTick ?? view.startTick;
     const endTick = playbackRange?.endTick ?? view.endTick;
@@ -45,6 +46,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [localSceneName, setLocalSceneName] = useState<string>(() => metadata.name);
     const [localSceneId, setLocalSceneId] = useState<string>(() => metadata.id);
     const [localDescription, setLocalDescription] = useState<string>(() => metadata.description ?? '');
+    const [localAuthor, setLocalAuthor] = useState<string>(() => metadata.author ?? '');
 
     useEffect(() => { setLocalWidth(String(exportSettings.width)); }, [exportSettings.width]);
     useEffect(() => { setLocalHeight(String(exportSettings.height)); }, [exportSettings.height]);
@@ -54,6 +56,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     useEffect(() => { setLocalSceneName(metadata.name); }, [metadata.name]);
     useEffect(() => { setLocalSceneId(metadata.id); }, [metadata.id]);
     useEffect(() => { setLocalDescription(metadata.description ?? ''); }, [metadata.description]);
+    useEffect(() => { setLocalAuthor(metadata.author ?? ''); }, [metadata.author]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -93,6 +96,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
 
     const commitDescription = () => {
         setMetadataDescription(localDescription);
+    };
+    const commitAuthor = () => {
+        setMetadataAuthor(localAuthor);
     };
 
     const commitSceneRange = () => {
@@ -258,6 +264,22 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             onBlur={commitDescription}
                             rows={3}
                             className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                        />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px]">
+                        Author
+                        <input
+                            type="text"
+                            value={localAuthor}
+                            onChange={(e) => setLocalAuthor(e.target.value)}
+                            onBlur={commitAuthor}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    commitAuthor();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                }
+                            }}
+                            className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
                         />
                     </label>
                     <div className="grid grid-cols-2 gap-3 text-[11px] text-neutral-400">

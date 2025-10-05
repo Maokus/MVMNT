@@ -6,6 +6,7 @@ export interface SceneMetadataState {
     id: string;
     name: string;
     description: string;
+    author: string;
     createdAt: string;
     modifiedAt: string;
 }
@@ -16,6 +17,7 @@ interface SceneMetadataStore {
     setName: (name: string) => void;
     setId: (id: string) => void;
     setDescription: (description: string) => void;
+    setAuthor: (author: string) => void;
     hydrate: (metadata?: Partial<SceneMetadataState> | null) => void;
     touchModified: () => void;
 }
@@ -28,6 +30,7 @@ const createDefaultMetadata = (): SceneMetadataState => {
         id: 'scene_1',
         name: SceneNameGenerator.generate(),
         description: '',
+        author: '',
         createdAt: now,
         modifiedAt: now,
     };
@@ -55,6 +58,9 @@ export const useSceneMetadataStore = create<SceneMetadataStore>((set, get) => {
             if (!patch.modifiedAt) {
                 nextPatch.modifiedAt = nowIso();
             }
+            if (typeof nextPatch.author === 'string') {
+                nextPatch.author = nextPatch.author.trim();
+            }
             set((state) => ({ metadata: { ...state.metadata, ...nextPatch } }));
             syncTimeline({ id: patch.id, name: patch.name });
         },
@@ -71,6 +77,9 @@ export const useSceneMetadataStore = create<SceneMetadataStore>((set, get) => {
     setDescription: (description) => {
         get().setMetadata({ description });
     },
+    setAuthor: (author) => {
+        get().setMetadata({ author });
+    },
     hydrate: (metadata) => {
         if (!metadata) return;
         const fallback = get().metadata;
@@ -78,6 +87,7 @@ export const useSceneMetadataStore = create<SceneMetadataStore>((set, get) => {
             id: metadata.id?.trim() || fallback.id,
             name: metadata.name?.trim() || fallback.name,
             description: metadata.description ?? fallback.description,
+            author: typeof metadata.author === 'string' ? metadata.author.trim() : fallback.author,
             createdAt: metadata.createdAt || fallback.createdAt || nowIso(),
             modifiedAt: metadata.modifiedAt || nowIso(),
         };
