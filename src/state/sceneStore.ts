@@ -148,6 +148,7 @@ export interface SceneStoreActions {
     updateBindings: (elementId: string, patch: ElementBindingsPatch) => void;
     createMacro: (macroId: string, definition: SceneMacroDefinition) => void;
     updateMacroValue: (macroId: string, value: unknown) => void;
+    renameMacro: (currentId: string, nextId: string) => void;
     deleteMacro: (macroId: string) => void;
     registerFontAsset: (asset: FontAsset) => void;
     updateFontAsset: (assetId: string, patch: Partial<Omit<FontAsset, 'id'>>) => void;
@@ -816,6 +817,81 @@ const createSceneStoreState = (
                 macros: {
                     byId: { ...state.macros.byId, [macroId]: nextMacro },
                     allIds: [...state.macros.allIds],
+                    exportedAt: nextExportedAt,
+                },
+                runtimeMeta: markDirty(state, 'updateMacros'),
+            };
+        });
+    },
+
+    renameMacro: (currentId, nextId) => {
+        set((state) => {
+            const macro = state.macros.byId[currentId];
+            if (!macro) return state;
+
+            const trimmed = typeof nextId === 'string' ? nextId.trim() : '';
+            if (!trimmed) {
+                throw new Error('SceneStore.renameMacro: nextId is required');
+            }
+            if (trimmed === currentId) {
+                return state;
+            }
+            if (state.macros.byId[trimmed]) {
+                throw new Error(`SceneStore.renameMacro: macro '${trimmed}' already exists`);
+            }
+
+            const now = Date.now();
+            const renamed: Macro = {
+                ...macro,
+                name: trimmed,
+                lastModified: now,
+            };
+
+            const nextById = { ...state.macros.byId };
+            delete nextById[currentId];
+            nextById[trimmed] = renamed;
+
+            const nextAllIds = state.macros.allIds.map((id) => (id === currentId ? trimmed : id));
+
+            const mutatedBindings: Record<string, ElementBindings> = {};
+            let bindingsMutated = false;
+
+            for (const [elementId, bindings] of Object.entries(state.bindings.byElement)) {
+                let elementMutated = false;
+                const updated: ElementBindings = { ...bindings };
+
+                for (const [property, binding] of Object.entries(bindings)) {
+                    if (binding?.type === 'macro' && binding.macroId === currentId) {
+                        updated[property] = { type: 'macro', macroId: trimmed };
+                        elementMutated = true;
+                    }
+                }
+
+                if (elementMutated) {
+                    mutatedBindings[elementId] = updated;
+                    bindingsMutated = true;
+                }
+            }
+
+            const nextByElement = bindingsMutated
+                ? { ...state.bindings.byElement, ...mutatedBindings }
+                : state.bindings.byElement;
+
+            const nextBindings: SceneBindingsState = bindingsMutated
+                ? {
+                      byElement: nextByElement,
+                      byMacro: rebuildMacroIndex(nextByElement),
+                  }
+                : state.bindings;
+
+            const nextExportedAt = typeof state.macros.exportedAt === 'number' ? state.macros.exportedAt : now;
+
+            return {
+                ...state,
+                bindings: nextBindings,
+                macros: {
+                    byId: nextById,
+                    allIds: nextAllIds,
                     exportedAt: nextExportedAt,
                 },
                 runtimeMeta: markDirty(state, 'updateMacros'),

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FaLink, FaTrash, FaPlus } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { FaLink, FaTrash, FaPlus, FaPen } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/form/inputs/FontInput';
 import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
@@ -80,7 +80,7 @@ const MacroNumberInput: React.FC<MacroNumberInputProps> = ({ macro, value, onCha
 };
 
 const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = true }) => {
-    const { macros: contextMacros, create, updateValue, delete: deleteMacro, get, assignListener } = useMacros();
+    const { macros: contextMacros, create, updateValue, rename, delete: deleteMacro, get, assignListener } = useMacros();
     const storeAssignments = useMacroAssignments();
     const assignmentMap = useMemo(() => {
         const map = new Map<string, MacroAssignment[]>();
@@ -94,6 +94,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const [macros, setMacros] = useState<Macro[]>(contextMacros as any);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
+    const [editingMacroId, setEditingMacroId] = useState<string | null>(null);
+    const [macroNameDraft, setMacroNameDraft] = useState('');
+    const nameInputRef = useRef<HTMLInputElement | null>(null);
     const [newMacro, setNewMacro] = useState({
         name: '',
         type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
@@ -104,6 +107,24 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         options: '',
         accept: '.mid,.midi'
     });
+
+    useEffect(() => {
+        if (editingMacroId && nameInputRef.current) {
+            nameInputRef.current.focus();
+            nameInputRef.current.select();
+        }
+    }, [editingMacroId]);
+
+    useEffect(() => {
+        if (!editingMacroId) {
+            return;
+        }
+        const exists = macros.some((macro) => macro.name === editingMacroId);
+        if (!exists) {
+            setEditingMacroId(null);
+            setMacroNameDraft('');
+        }
+    }, [editingMacroId, macros]);
 
     // Update macros when the store-backed macro list changes
     const updateMacros = useCallback(() => {
@@ -119,6 +140,57 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         });
         setInputValues(newInputValues);
     }, [contextMacros]);
+
+    const handleStartEditingName = useCallback((macroName: string) => {
+        setEditingMacroId(macroName);
+        setMacroNameDraft(macroName);
+    }, []);
+
+    const finishEditingName = useCallback(
+        (macroName: string, save: boolean) => {
+            if (!save) {
+                setEditingMacroId(null);
+                setMacroNameDraft('');
+                return;
+            }
+
+            const trimmed = macroNameDraft.trim();
+            if (!trimmed) {
+                alert('Macro name cannot be empty.');
+                setEditingMacroId(null);
+                setMacroNameDraft('');
+                return;
+            }
+
+            if (trimmed === macroName) {
+                setEditingMacroId(null);
+                setMacroNameDraft('');
+                return;
+            }
+
+            const success = rename(macroName, trimmed);
+            if (!success) {
+                alert('Failed to rename macro. Name might already exist.');
+            }
+
+            setEditingMacroId(null);
+            setMacroNameDraft('');
+        },
+        [macroNameDraft, rename]
+    );
+
+    const handleNameKeyDown = useCallback(
+        (event: React.KeyboardEvent<HTMLInputElement>, macroName: string) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                finishEditingName(macroName, true);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                finishEditingName(macroName, false);
+            }
+        },
+        [finishEditingName]
+    );
 
     useEffect(() => {
         // Setup macro manager listener for any macro changes (create/delete/update/import/clear)
@@ -428,11 +500,44 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const renderMacroItem = (macro: Macro) => {
         const assignments = assignmentMap.get(macro.name) ?? [];
+        const isEditingName = editingMacroId === macro.name;
 
         return (
             <div key={macro.name} className="macro-item" data-macro={macro.name}>
                 <div className="macro-control">
-                    <label className="macro-label">{macro.name}</label>
+                    <div className="macro-label">
+                        {isEditingName ? (
+                            <input
+                                ref={nameInputRef}
+                                type="text"
+                                value={macroNameDraft}
+                                onChange={(event) => setMacroNameDraft(event.target.value)}
+                                onBlur={() => finishEditingName(macro.name, true)}
+                                onKeyDown={(event) => handleNameKeyDown(event, macro.name)}
+                                className="outline-none text-sm px-1 py-0.5 rounded border border-[color:var(--twc-border)] bg-[color:var(--twc-control2)] text-white"
+                                aria-label="Macro name"
+                            />
+                        ) : (
+                            <div className="flex items-center gap-1">
+                                <span
+                                    className="cursor-pointer"
+                                    title={macro.name}
+                                    onDoubleClick={() => handleStartEditingName(macro.name)}
+                                >
+                                    {macro.name}
+                                </span>
+                                <button
+                                    type="button"
+                                    className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                                    onClick={() => handleStartEditingName(macro.name)}
+                                    title="Edit macro name"
+                                    aria-label="Edit macro name"
+                                >
+                                    <FaPen />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
                         <button

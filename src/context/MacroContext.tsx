@@ -13,6 +13,7 @@ interface MacroContextValue {
     refresh: () => void;
     create: (name: string, type: MacroType, value: any, options?: any) => boolean;
     updateValue: (name: string, value: any) => boolean;
+    rename: (currentId: string, nextId: string) => boolean;
     delete: (name: string) => void;
     get: (name: string) => Macro | null;
     assignListener: (listener: (eventType: string, data: any) => void) => () => void;
@@ -69,6 +70,17 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         [runCommand]
     );
 
+    const rename = useCallback(
+        (currentId: string, nextId: string) => {
+            const success = runCommand(
+                { type: 'renameMacro', currentId, nextId },
+                'MacroContext.rename'
+            );
+            return success;
+        },
+        [runCommand]
+    );
+
     const del = useCallback(
         (name: string) => {
             const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
@@ -90,7 +102,9 @@ export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, []);
 
     return (
-        <MacroContext.Provider value={{ macros, refresh, create, updateValue, delete: del, get, assignListener }}>
+        <MacroContext.Provider
+            value={{ macros, refresh, create, updateValue, rename, delete: del, get, assignListener }}
+        >
             {children}
         </MacroContext.Provider>
     );

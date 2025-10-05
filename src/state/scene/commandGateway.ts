@@ -75,6 +75,11 @@ export type SceneCommand =
           value: unknown;
       }
     | {
+          type: 'renameMacro';
+          currentId: string;
+          nextId: string;
+      }
+    | {
           type: 'deleteMacro';
           macroId: string;
       }
@@ -361,6 +366,21 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                 ],
             };
         }
+        case 'renameMacro': {
+            const macro = state.macros.byId[command.currentId];
+            if (!macro || command.currentId === command.nextId) return null;
+            if (state.macros.byId[command.nextId]) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'renameMacro',
+                        currentId: command.nextId,
+                        nextId: command.currentId,
+                    },
+                ],
+            };
+        }
         case 'deleteMacro': {
             const macro = state.macros.byId[command.macroId];
             if (!macro) return null;
@@ -479,6 +499,9 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             break;
         case 'updateMacroValue':
             store.updateMacroValue(command.macroId, command.value);
+            break;
+        case 'renameMacro':
+            store.renameMacro(command.currentId, command.nextId);
             break;
         case 'deleteMacro':
             store.deleteMacro(command.macroId);

@@ -163,6 +163,30 @@ describe('sceneStore', () => {
         expect(state.bindings.byElement['title'].color).toEqual({ type: 'constant', value: '#ff3366' });
     });
 
+    it('renames macros and updates binding references', () => {
+        importFixture();
+
+        const initialState = store.getState();
+        expect(initialState.macros.byId['macro.color.primary']).toBeDefined();
+        expect(initialState.bindings.byElement['title'].color).toEqual({
+            type: 'macro',
+            macroId: 'macro.color.primary',
+        });
+
+        store.getState().renameMacro('macro.color.primary', 'macro.color.accent');
+
+        const state = store.getState();
+        expect(state.macros.byId['macro.color.primary']).toBeUndefined();
+        expect(state.macros.byId['macro.color.accent']).toMatchObject({ name: 'macro.color.accent' });
+        expect(state.bindings.byElement['title'].color).toEqual({
+            type: 'macro',
+            macroId: 'macro.color.accent',
+        });
+        expect(state.bindings.byMacro['macro.color.accent']).toEqual([
+            { elementId: 'title', propertyPath: 'color' },
+        ]);
+    });
+
     it('keeps macro exportedAt stable across draft exports without mutations', () => {
         store.getState().createMacro('macro.stability', { type: 'number', value: 1 });
 

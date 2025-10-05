@@ -142,11 +142,16 @@ describe('scene command gateway', () => {
         expect(updateResult.success).toBe(true);
         expect(useSceneStore.getState().macros.byId['macro.test']?.value).toBe(9);
 
+        const renameResult = dispatchSceneCommand({ type: 'renameMacro', currentId: 'macro.test', nextId: 'macro.renamed' });
+        expect(renameResult.success).toBe(true);
+        expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
+        expect(useSceneStore.getState().macros.byId['macro.renamed']).toBeDefined();
+
         const deleteResult = dispatchSceneCommand(
-            { type: 'deleteMacro', macroId: 'macro.test' },
+            { type: 'deleteMacro', macroId: 'macro.renamed' },
         );
         expect(deleteResult.success).toBe(true);
-        expect(useSceneStore.getState().macros.byId['macro.test']).toBeUndefined();
+        expect(useSceneStore.getState().macros.byId['macro.renamed']).toBeUndefined();
     });
 
     it('hydrates default scene macros into the scene store', async () => {
