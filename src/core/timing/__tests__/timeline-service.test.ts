@@ -31,7 +31,7 @@ describe('Note query basics (store version)', () => {
         const id = await useTimelineStore.getState().addMidiTrack({ name: 'Piano', offsetTicks: 0 });
         // Simulate second-based offsetSec=0.5 by converting to beats then ticks.
         // At 120 bpm -> 0.5s == 1 beat (since 60/120). So offsetTicks = CANONICAL_PPQ.
-        useTimelineStore.getState().setTrackOffsetTicks(id, 1 * CANONICAL_PPQ); // 1 beat
+        await useTimelineStore.getState().setTrackOffsetTicks(id, 1 * CANONICAL_PPQ); // 1 beat
         useTimelineStore.getState().ingestMidiToCache(id, ingested);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [id], 0, 10);
         expect(notes.length).toBe(2);

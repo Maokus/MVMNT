@@ -61,7 +61,7 @@ describe('Tick-domain transport: looping, bpm change consistency, offsets', () =
         // Set offset to 2 beats
         const offsetBeats = 2;
         const offsetTicks = offsetBeats * TPQ;
-        api.setTrackOffsetTicks(trackId, offsetTicks);
+        await api.setTrackOffsetTicks(trackId, offsetTicks);
         const tr = useTimelineStore.getState().tracks[trackId];
         expect(tr.offsetTicks).toBe(offsetTicks);
         // Derived seconds should match beats * secondsPerBeat (120 bpm => 0.5 sec/beat)

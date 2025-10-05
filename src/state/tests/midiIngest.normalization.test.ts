@@ -34,7 +34,7 @@ describe('MIDI ingestion normalization', () => {
         });
     });
 
-    it('track offset in ticks equals intended beats after normalization', () => {
+    it('track offset in ticks equals intended beats after normalization', async () => {
         const midi = makeMidi(96, 0, 1);
         const result = buildNotesFromMIDI(midi);
         const trackId = 'trk_norm';
@@ -56,7 +56,7 @@ describe('MIDI ingestion normalization', () => {
         useTimelineStore.getState().ingestMidiToCache(trackId, result);
         // 1 bar offset (beatsPerBar=4) => 4 beats * canonical PPQ
         const oneBarTicks = 4 * CANONICAL_PPQ;
-        useTimelineStore.getState().setTrackOffsetTicks(trackId, oneBarTicks);
+        await useTimelineStore.getState().setTrackOffsetTicks(trackId, oneBarTicks);
         // Validate that effective start time shift is approx one bar's seconds at 120bpm (0.5s per beat -> 2s per bar)
         const events = selectNotesForTrackSeconds(useTimelineStore.getState(), trackId);
         expect(events.length).toBe(1);

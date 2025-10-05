@@ -95,7 +95,7 @@ export type TimelineState = {
     removeTrack: (id: string) => void;
     removeTracks: (ids: string[]) => void; // batch removal (single undo snapshot)
     updateTrack: (id: string, patch: Partial<TimelineTrack>) => void;
-    setTrackOffsetTicks: (id: string, offsetTicks: number) => void;
+    setTrackOffsetTicks: (id: string, offsetTicks: number) => Promise<void>;
     setTrackRegionTicks: (id: string, startTick?: number, endTick?: number) => void;
     setTrackEnabled: (id: string, enabled: boolean) => void;
     setTrackMute: (id: string, mute: boolean) => void;
@@ -252,13 +252,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
-    setTrackOffsetTicks(id: string, offsetTicks: number) {
+    async setTrackOffsetTicks(id: string, offsetTicks: number) {
         if (!id) return;
-        timelineCommandGateway
-            .dispatchById('timeline.setTrackOffsetTicks', { trackId: id, offsetTicks }, { source: 'timeline-store' })
-            .catch((error) => {
-                console.error('[timelineStore] setTrackOffsetTicks command failed', error);
-            });
+        try {
+            await timelineCommandGateway.dispatchById(
+                'timeline.setTrackOffsetTicks',
+                { trackId: id, offsetTicks },
+                { source: 'timeline-store' },
+            );
+        } catch (error) {
+            console.error('[timelineStore] setTrackOffsetTicks command failed', error);
+            throw error;
+        }
     },
     setTrackRegionTicks(id: string, startTick?: number, endTick?: number) {
         set((s: TimelineState) => ({

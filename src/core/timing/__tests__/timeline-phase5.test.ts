@@ -23,8 +23,8 @@ describe('Central note queries (store version)', () => {
         const idA = await store.addMidiTrack({ name: 'A', offsetTicks: 0 });
         const idB = await store.addMidiTrack({ name: 'B', offsetTicks: 0 });
         // Offsets: 0.5s and 1.0s -> at 120bpm => beats (0.5s=1 beat, 1s=2 beats)
-        useTimelineStore.getState().setTrackOffsetTicks(idA, CANONICAL_PPQ); // 1 beat
-        useTimelineStore.getState().setTrackOffsetTicks(idB, 2 * CANONICAL_PPQ); // 2 beats
+        await useTimelineStore.getState().setTrackOffsetTicks(idA, CANONICAL_PPQ); // 1 beat
+        await useTimelineStore.getState().setTrackOffsetTicks(idB, 2 * CANONICAL_PPQ); // 2 beats
         const midiA = makeMidi([
             { type: 'noteOn', note: 60, velocity: 100, time: 0.0, tick: 0, channel: 0 },
             { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 1 * CANONICAL_PPQ, channel: 0 },
