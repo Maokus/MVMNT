@@ -12,19 +12,28 @@ import { importScene } from '@persistence/index';
 import logo from '@assets/Logo_Transparent.png';
 import { useMacros } from '@context/MacroContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { easyModeTemplateManifest, TemplateManifestEntry } from '../templates/manifest';
 
 interface TemplateDefinition {
     id: string;
     name: string;
     description: string;
-    content: string;
+    loadContent: () => Promise<string>;
     author?: string;
 }
 
-const templateFiles = import.meta.glob('../templates/*.mvt', { as: 'raw', eager: true }) as Record<string, string>;
+const templateFiles = import.meta.glob('../templates/*.mvt', {
+    query: '?raw',
+    import: 'default',
+}) as Record<string, () => Promise<string>>;
+
+const manifestEntries = easyModeTemplateManifest.reduce<Record<string, TemplateManifestEntry>>((acc, entry) => {
+    acc[entry.id] = entry;
+    return acc;
+}, {});
 
 const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
-    .map(([path, content]) => {
+    .map(([path, loader]) => {
         const filename = path.split('/').pop() ?? 'template.mvt';
         const id = filename.replace(/\.mvt$/i, '');
         const fallbackName = id
@@ -32,23 +41,11 @@ const EASY_MODE_TEMPLATES: TemplateDefinition[] = Object.entries(templateFiles)
             .replace(/\s+/g, ' ')
             .trim()
             .replace(/\b\w/g, (char) => char.toUpperCase());
-        let name = fallbackName || 'Template';
-        let description = 'Ready-made scene configuration.';
-        let author: string | undefined;
-        try {
-            const parsed = JSON.parse(content);
-            if (parsed?.metadata) {
-                const metaName = typeof parsed.metadata.name === 'string' ? parsed.metadata.name.trim() : '';
-                const metaDescription = typeof parsed.metadata.description === 'string' ? parsed.metadata.description.trim() : '';
-                const metaAuthor = typeof parsed.metadata.author === 'string' ? parsed.metadata.author.trim() : '';
-                if (metaName) name = metaName;
-                if (metaDescription) description = metaDescription;
-                if (metaAuthor) author = metaAuthor;
-            }
-        } catch {
-            /* ignore parse errors for metadata lookup */
-        }
-        return { id, name, description, content, author };
+        const manifest = manifestEntries[id];
+        const name = manifest?.name?.trim() || fallbackName || 'Template';
+        const description = manifest?.description?.trim() || 'Ready-made scene configuration.';
+        const author = manifest?.author?.trim() || undefined;
+        return { id, name, description, author, loadContent: loader };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -128,14 +125,22 @@ const EasyModeLayout: React.FC = () => {
     }, [loadScene]);
 
     const handleApplyTemplate = useCallback(async (template: TemplateDefinition) => {
-        const result = await importScene(template.content);
+        let content: string;
+        try {
+            content = await template.loadContent();
+        } catch (error) {
+            console.error('Failed to load template content', error);
+            alert('Failed to load template. Please try again.');
+            return;
+        }
+        const result = await importScene(content);
         if (!result.ok) {
             const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
             alert(`Failed to load template: ${message}`);
             return;
         }
         try {
-            const parsed = JSON.parse(template.content);
+            const parsed = JSON.parse(content);
             if (parsed?.metadata?.name) {
                 setSceneName(parsed.metadata.name);
             } else {
