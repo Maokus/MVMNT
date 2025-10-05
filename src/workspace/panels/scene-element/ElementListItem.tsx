@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { FaEye, FaEyeSlash, FaArrowUp, FaArrowDown, FaClone, FaTrash, FaPen } from 'react-icons/fa';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 
@@ -41,6 +41,8 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     const [editValue, setEditValue] = useState(element.id);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const idContainerRef = useRef<HTMLDivElement>(null);
+    const [maxIdLength, setMaxIdLength] = useState(18);
 
     // Get element type info
     const typeInfo = sceneElementRegistry.getElementTypeInfo().find((t: any) => t.type === element.type);
@@ -52,7 +54,43 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
         return text.substring(0, maxLength - 3) + '...';
     };
 
-    const truncatedId = truncateText(element.id, 18);
+    const truncatedId = useMemo(() => truncateText(element.id, maxIdLength), [element.id, maxIdLength]);
+
+    useEffect(() => {
+        const idContainer = idContainerRef.current;
+        if (!idContainer || typeof ResizeObserver === 'undefined') {
+            return;
+        }
+
+        const averageCharacterWidth = 7;
+        const paddingAllowance = 16;
+
+        const updateMaxIdLength = () => {
+            const { width } = idContainer.getBoundingClientRect();
+            if (!width) {
+                return;
+            }
+
+            const computedLength = Math.max(
+                8,
+                Math.min(64, Math.floor((width - paddingAllowance) / averageCharacterWidth)),
+            );
+
+            setMaxIdLength((current) => (current === computedLength ? current : computedLength));
+        };
+
+        updateMaxIdLength();
+
+        const observer = new ResizeObserver(() => {
+            updateMaxIdLength();
+        });
+
+        observer.observe(idContainer);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
 
     // Handle starting advanced mode
     const startEditing = (e: React.MouseEvent) => {
@@ -128,7 +166,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                 onDragEnd();
             }}
         >
-            <div className="flex-1">
+            <div className="flex-1" ref={idContainerRef}>
                 <div className="flex items-center gap-1 mb-0.5">
                     {isEditingId ? (
                         <input
