@@ -28,6 +28,7 @@ const ChangelogPage: React.FC = () => {
 
                     <ChangelogEntry version="0.13.0" date="05-10-25" notes={[
                         'Added audio track support: playback, export, mixing',
+                        'Added custom font upload manager in scene settings',
                         'Various UI/UX improvements',
                         'Added video codec selection (AVC, VP8, VP9, AV1, HEVC, etc)',
                         'Reworked entire document store system for improved reliability and modularity',

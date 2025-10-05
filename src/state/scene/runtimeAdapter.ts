@@ -71,10 +71,18 @@ export class SceneRuntimeAdapter {
     private settingsVersion = 0;
     private unsubscribe?: () => void;
     private disposed = false;
+    private readonly handleFontLoaded: (event: Event) => void;
 
     constructor(options?: SceneRuntimeAdapterOptions) {
         this.store = options?.store ?? useSceneStore;
         this.registry = options?.registry ?? sceneElementRegistry;
+        this.handleFontLoaded = () => {
+            for (const entry of this.cache.values()) {
+                try {
+                    entry.element.markBoundsDirty?.();
+                } catch {}
+            }
+        };
 
         const initialState = this.store.getState();
         this.settings = { ...initialState.settings };
@@ -83,10 +91,16 @@ export class SceneRuntimeAdapter {
         this.unsubscribe = this.store.subscribe((next: SceneStoreState, prev: SceneStoreState) => {
             this.handleStateChange(next, prev);
         });
+        if (typeof window !== 'undefined') {
+            window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
+        }
     }
 
     dispose() {
         if (this.disposed) return;
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
+        }
         this.unsubscribe?.();
         this.cache.forEach((entry) => {
             try {

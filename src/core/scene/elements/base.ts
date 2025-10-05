@@ -714,9 +714,16 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /** Invalidate the scene element bounds cache */
-    private _invalidateBoundsCache(): void {
+    protected _invalidateBoundsCache(): void {
         this._boundsDirty = true;
         this._boundsCache.clear();
+    }
+
+    /**
+     * Exposed hook so external lifecycle events (e.g., async font loads) can force a bounds refresh.
+     */
+    public markBoundsDirty(): void {
+        this._invalidateBoundsCache();
     }
 
     // Setter methods that work with the binding system
