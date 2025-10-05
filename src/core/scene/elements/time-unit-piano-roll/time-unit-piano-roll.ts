@@ -33,7 +33,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return {
             name: 'Time Unit Piano Roll',
             description: 'Piano Roll visualization split into time units',
-            category: 'complete',
+            category: 'Note Displays',
             groups: [
                 ...base.groups,
                 // Timing (tempo + offset)

@@ -29,7 +29,7 @@ export class BackgroundElement extends SceneElement {
         return {
             name: 'Background',
             description: 'Solid background color for the visualization',
-            category: 'layout',
+            category: 'Layout',
             groups: [
                 ...base.groups,
                 {

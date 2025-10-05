@@ -35,7 +35,7 @@ export class TimeDisplayElement extends SceneElement {
         return {
             name: 'Time Display',
             description: 'Current time and beat position display',
-            category: 'info',
+            category: 'Time',
             groups: [
                 ...base.groups,
                 // Element uses global timing; no per-element bpm/beat settings

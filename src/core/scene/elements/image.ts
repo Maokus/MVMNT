@@ -32,7 +32,7 @@ export class ImageElement extends SceneElement {
         return {
             name: 'Image',
             description: 'Display an image with transformations',
-            category: 'media',
+            category: 'Layout',
             groups: [
                 ...base.groups,
                 {

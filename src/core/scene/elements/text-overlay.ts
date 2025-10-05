@@ -14,7 +14,7 @@ export class TextOverlayElement extends SceneElement {
         return {
             name: 'Text',
             description: 'Single line text display',
-            category: 'info',
+            category: 'Layout',
             groups: [
                 ...base.groups,
                 {

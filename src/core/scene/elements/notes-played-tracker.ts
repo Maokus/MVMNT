@@ -17,7 +17,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         return {
             name: 'Notes Played Tracker',
             description: 'Displays how many notes/events have played so far (timeline-backed)',
-            category: 'info',
+            category: 'MIDI Info',
             groups: [
                 ...base.groups,
                 {

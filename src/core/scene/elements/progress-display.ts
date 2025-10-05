@@ -31,7 +31,7 @@ export class ProgressDisplayElement extends SceneElement {
         return {
             name: 'Progress Display',
             description: 'Playback progress bar and statistics',
-            category: 'info',
+            category: 'Time',
             groups: [
                 ...base.groups,
                 {

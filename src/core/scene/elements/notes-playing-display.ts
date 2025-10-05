@@ -17,7 +17,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         return {
             name: 'Notes Playing Display',
             description: 'Displays active notes and velocities per track/channel (timeline-backed)',
-            category: 'info',
+            category: 'MIDI Info',
             groups: [
                 ...base.groups,
                 {

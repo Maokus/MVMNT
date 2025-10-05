@@ -22,7 +22,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             name: 'Chord Estimate Display',
             description:
                 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
-            category: 'music',
+            category: 'MIDI Info',
             groups: [
                 ...base.groups,
                 {

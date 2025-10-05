@@ -8,11 +8,11 @@ interface ElementDropdownProps {
 }
 
 const SAFE_ZONE_WIDTH = 20;
-const SUBMENU_GAP = 12;
+const SUBMENU_GAP = 8;
 const WALKWAY_WIDTH = SAFE_ZONE_WIDTH + SUBMENU_GAP;
 
 const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose }) => {
-    const types = sceneElementRegistry.getElementTypeInfo();
+    const types = useMemo(() => sceneElementRegistry.getElementTypeInfo(), []);
 
     const categories = useMemo(() => {
         const grouped: Record<string, any[]> = {};
@@ -34,15 +34,25 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
         })),
         [categories, sortedCategories]
     );
-    const [openCategory, setOpenCategory] = useState<string | null>(sortedCategories[0] ?? null);
+    const [openCategory, setOpenCategory] = useState<string | null>(null);
     const [submenuTop, setSubmenuTop] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const closeTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
-        setOpenCategory(sortedCategories[0] ?? null);
-        setSubmenuTop(0);
+        setOpenCategory((current) => {
+            if (!current || sortedCategories.includes(current)) {
+                return current;
+            }
+            return null;
+        });
     }, [sortedCategories]);
+
+    useEffect(() => {
+        if (!openCategory) {
+            setSubmenuTop(0);
+        }
+    }, [openCategory]);
 
     const clearCloseTimeout = useCallback(() => {
         if (closeTimeoutRef.current !== null) {
