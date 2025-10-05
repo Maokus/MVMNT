@@ -3,11 +3,12 @@ import { useTimelineStore } from '../../state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
-import type { ExportSceneResult, ExportSceneResultInline } from '../export';
+import type { ExportSceneResultInline } from '../export';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 
-function requireInline(result: ExportSceneResult): ExportSceneResultInline {
+async function exportInlineScene(): Promise<ExportSceneResultInline> {
+    const result = await exportScene(undefined, { storage: 'inline-json' });
     if (!result.ok || result.mode !== 'inline-json') {
         throw new Error('Expected inline-json export result');
     }
@@ -34,12 +35,12 @@ describe('Persistence', () => {
     });
 
     test('Export -> Import -> Export round-trip stable ignoring modifiedAt', async () => {
-        const first = requireInline(await exportScene());
+        const first = await exportInlineScene();
         expect(first.ok).toBe(true);
         const json1 = first.json;
         const imp = await importScene(json1);
         expect(imp.ok).toBe(true);
-        const second = requireInline(await exportScene());
+        const second = await exportInlineScene();
         if (!second.ok) throw new Error('Second export failed');
         const env1 = JSON.parse(json1);
         const env2 = JSON.parse(second.json);

@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { exportScene } from '@persistence/export';
 import { useTimelineStore } from '@state/timelineStore';
-import type { ExportSceneResult, ExportSceneResultInline } from '@persistence/export';
+import type { ExportSceneResultInline } from '@persistence/export';
 
-function requireInline(result: ExportSceneResult): ExportSceneResultInline {
+async function exportInlineScene(): Promise<ExportSceneResultInline> {
+    const result = await exportScene(undefined, { storage: 'inline-json' });
     if (!result.ok || result.mode !== 'inline-json') {
         throw new Error('Expected inline-json export result');
     }
@@ -25,7 +26,7 @@ describe('Persistence - selection omission & undo triggers', () => {
     it('exported scene does not contain selection field', async () => {
         // Add a track (selection may change during usage but we ignore it)
         await useTimelineStore.getState().addMidiTrack({ name: 'Track 1' });
-        const result = requireInline(await exportScene());
+        const result = await exportInlineScene();
         if (!result.ok) throw new Error('export failed or disabled');
         const json = result.json;
         expect(json.includes('selection')).toBe(false);
@@ -35,7 +36,7 @@ describe('Persistence - selection omission & undo triggers', () => {
         const store = useTimelineStore.getState();
         const trackId = await store.addMidiTrack({ name: 'Selection Test' });
         store.selectTracks([trackId]);
-        const result = requireInline(await exportScene());
+        const result = await exportInlineScene();
         if (!result.ok) throw new Error('export failed or disabled');
         expect(result.json.includes('selectedTrackIds')).toBe(false);
     });

@@ -1,5 +1,9 @@
 import { dispatchSceneCommand, registerSceneCommandListener, type SceneCommandPatch } from '@state/scene';
 import type { SceneCommandTelemetryEvent } from '@state/scene/sceneTelemetry';
+import { registerTimelineCommandListener, type TimelineCommandTelemetryEvent } from '@state/timeline/timelineTelemetry';
+import type { TimelineCommandPatch } from '@state/timeline/patches';
+import { applyTimelinePatchActions } from '@state/timeline/patches';
+import { useTimelineStore } from '@state/timelineStore';
 
 export interface UndoController {
     canUndo(): boolean;
@@ -15,11 +19,13 @@ export interface CreatePatchUndoOptions {
 
 interface UndoStackEntry {
     scene?: SceneCommandPatch;
+    timeline?: TimelineCommandPatch;
     source?: string;
     timestamp: number;
     mergeKey?: string;
     transient: boolean;
     event?: SceneCommandTelemetryEvent;
+    timelineEvent?: TimelineCommandTelemetryEvent;
 }
 
 class PatchUndoController implements UndoController {
@@ -28,10 +34,12 @@ class PatchUndoController implements UndoController {
     private readonly maxDepth: number;
     private restoring = false;
     private unsubscribeScene?: () => void;
+    private unsubscribeTimeline?: () => void;
 
     constructor(options: CreatePatchUndoOptions = {}) {
         this.maxDepth = Math.max(1, Math.min(options.maxDepth ?? 100, 200));
         this.unsubscribeScene = registerSceneCommandListener((event) => this.onSceneCommand(event));
+        this.unsubscribeTimeline = registerTimelineCommandListener((event) => this.onTimelineCommand(event));
         this.exposeGlobals();
     }
 
@@ -57,6 +65,27 @@ class PatchUndoController implements UndoController {
             mergeKey: event.mergeKey,
             transient: event.transient ?? false,
             event,
+        };
+        this.pushEntry(entry);
+    }
+
+    private onTimelineCommand(event: TimelineCommandTelemetryEvent) {
+        if (this.restoring) return;
+        if (!event.success) return;
+        const patch = event.patch;
+        if (!patch || !Array.isArray(patch.undo) || !Array.isArray(patch.redo)) {
+            return;
+        }
+        if (!patch.undo.length && !patch.redo.length) {
+            return;
+        }
+        const entry: UndoStackEntry = {
+            timeline: patch,
+            source: event.source,
+            timestamp: Date.now(),
+            mergeKey: undefined,
+            transient: false,
+            timelineEvent: event,
         };
         this.pushEntry(entry);
     }
@@ -94,14 +123,17 @@ class PatchUndoController implements UndoController {
 
     private mergeEntries(existing: UndoStackEntry, incoming: UndoStackEntry): UndoStackEntry {
         const mergedScene = this.mergeScenes(existing.scene, incoming.scene);
+        const mergedTimeline = this.mergeTimelines(existing.timeline, incoming.timeline);
         return {
             ...existing,
             ...incoming,
             scene: mergedScene,
+            timeline: mergedTimeline,
             source: incoming.source ?? existing.source,
             mergeKey: incoming.mergeKey ?? existing.mergeKey,
             transient: incoming.transient,
             event: incoming.event ?? existing.event,
+            timelineEvent: incoming.timelineEvent ?? existing.timelineEvent,
         };
     }
 
@@ -109,6 +141,18 @@ class PatchUndoController implements UndoController {
         existing: UndoStackEntry['scene'],
         incoming: UndoStackEntry['scene'],
     ): UndoStackEntry['scene'] {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+        return {
+            undo: [...incoming.undo, ...existing.undo],
+            redo: [...existing.redo, ...incoming.redo],
+        };
+    }
+
+    private mergeTimelines(
+        existing: UndoStackEntry['timeline'],
+        incoming: UndoStackEntry['timeline'],
+    ): UndoStackEntry['timeline'] {
         if (!existing) return incoming;
         if (!incoming) return existing;
         return {
@@ -131,13 +175,24 @@ class PatchUndoController implements UndoController {
         this.index = this.stack.length - 1;
     }
 
-    private applyCommands(commands: SceneCommandPatch['undo']): void {
+    private applySceneCommands(commands: SceneCommandPatch['undo']): void {
         for (const command of commands) {
             const result = dispatchSceneCommand(command, { source: 'undo' });
             if (!result.success) {
                 console.error('[undo] Failed to apply command during undo/redo', result.error);
             }
         }
+    }
+
+    private applyTimelineCommands(patch: TimelineCommandPatch['undo']): void {
+        if (!patch.length) return;
+        applyTimelinePatchActions(
+            {
+                getState: () => useTimelineStore.getState(),
+                setState: (updater) => useTimelineStore.setState(updater as any),
+            },
+            patch,
+        );
     }
 
     private exposeGlobals() {
@@ -166,13 +221,14 @@ class PatchUndoController implements UndoController {
     undo(): void {
         if (!this.canUndo()) return;
         const entry = this.stack[this.index];
-        if (!entry.scene) {
-            this.index -= 1;
-            return;
-        }
         this.restoring = true;
         try {
-            this.applyCommands(entry.scene.undo);
+            if (entry.scene) {
+                this.applySceneCommands(entry.scene.undo);
+            }
+            if (entry.timeline) {
+                this.applyTimelineCommands(entry.timeline.undo);
+            }
         } finally {
             this.restoring = false;
             this.index -= 1;
@@ -182,13 +238,14 @@ class PatchUndoController implements UndoController {
     redo(): void {
         if (!this.canRedo()) return;
         const entry = this.stack[this.index + 1];
-        if (!entry.scene) {
-            this.index += 1;
-            return;
-        }
         this.restoring = true;
         try {
-            this.applyCommands(entry.scene.redo);
+            if (entry.scene) {
+                this.applySceneCommands(entry.scene.redo);
+            }
+            if (entry.timeline) {
+                this.applyTimelineCommands(entry.timeline.redo);
+            }
         } finally {
             this.restoring = false;
             this.index += 1;
@@ -222,6 +279,7 @@ class PatchUndoController implements UndoController {
             entries: this.stack.map((entry, idx) => ({
                 index: idx,
                 hasScenePatch: !!entry.scene,
+                hasTimelinePatch: !!entry.timeline,
                 source: entry.source,
                 ageMs: Date.now() - entry.timestamp,
                 mergeKey: entry.mergeKey ?? null,

@@ -3,6 +3,8 @@
 ## Status
 
 - Revised plan incorporating resolved questions and new safeguards
+- Serialized descriptor facade (`dispatchTimelineCommandDescriptor`) exposes the gateway to scripting
+- Timeline store/UI callers now route mutations through command dispatches and reuse gateway telemetry validation
 
 ## Goals
 
@@ -75,12 +77,12 @@
     - Implement a small API that accepts serialized command descriptors, resolves them into command instances, and returns standardized results (patches + metadata).
     - Provide examples and usage documentation for scripting consumers.
 
-5. **Caller Migration Guide**
+5. **Caller Migration Guide** *(Status: Complete — timeline store helpers now issue command dispatches and UI handlers were updated to call the async adapters.)*
     - Document the migration pattern: import the gateway, construct command instances (or descriptors), and dispatch.
     - Provide lint or type guards (e.g., deprecate direct store methods) once the gateway covers most mutations.
     - Track migration progress in a checklist and add runtime assertions when known direct mutations occur outside the gateway.
 
-6. **Testing Strategy**
+6. **Testing Strategy** *(Status: Complete — new command coverage verifies property updates, reordering, and telemetry schema checks.)*
     - Add unit tests for commands validating that `execute`/`undo`/`redo` apply the correct granular patches.
     - Extend integration tests to confirm undo/redo stacks remain consistent across scene and timeline domains.
     - Add tests for the execution ordering queue and serialized descriptor API.
@@ -109,10 +111,10 @@
 
 ## Execution Checklist
 
-- [ ] Land gateway scaffolding with queue, telemetry validation helper, and undo subscription wiring.
-- [ ] Implement `addTrack` and `removeTracks` commands plus granular patch emission tests.
-- [ ] Ship serialized descriptor facade behind a feature flag for scripting consumers.
-- [ ] Update timeline UI callers to use the gateway via thin adapters and remove direct store mutations.
+- [x] Land gateway scaffolding with queue, telemetry validation helper, and undo subscription wiring.
+- [x] Implement `addTrack` and `removeTracks` commands plus granular patch emission tests.
+- [x] Ship serialized descriptor facade behind a feature flag for scripting consumers.
+- [x] Update timeline UI callers to use the gateway via thin adapters and remove direct store mutations.
 - [ ] Enable telemetry heartbeat and verify dashboards capture timeline command traffic.
 - [ ] Publish migration guide in `/docs` and cross-link from scripting docs once facade is stable.
 

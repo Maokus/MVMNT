@@ -26,14 +26,14 @@ describe('Timeline mapping helpers (store version)', () => {
     it('timelineToTrackSeconds respects offsets and regions (converted to tick regions)', async () => {
         const id = await useTimelineStore.getState().addMidiTrack({ name: 'T', offsetTicks: 0 });
         // Offset 1.5s => at 120 bpm: 1.5s * (120/60)=3 beats => 3*PPQ ticks
-        useTimelineStore.getState().setTrackOffsetTicks(id, 3 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackOffsetTicks(id, 3 * CANONICAL_PPQ);
         const midi = makeMidi([
             { type: 'noteOn', note: 60, velocity: 100, time: 0.0, tick: 0, channel: 0 },
             { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 1 * CANONICAL_PPQ, channel: 0 },
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
         // Region 0.5s..2.0s => 0.5s=1 beat=PPQ ticks after offset; relative region ticks = start PPQ end 4*PPQ
-        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
         const state = useTimelineStore.getState();
         const track = state.tracks[id];
         if (!track || track.type !== 'midi') throw new Error('expected midi track');

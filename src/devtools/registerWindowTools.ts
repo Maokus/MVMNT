@@ -1,7 +1,7 @@
 import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@state/scene/commandGateway';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
-import { useTimelineStore } from '@state/timelineStore';
+import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';
 import { exportScene, importScene } from '@persistence/index';
 import type { ImportSceneResult } from '@persistence/index';
 import {
@@ -56,6 +56,7 @@ const sceneTools = {
 
 const timelineTools = {
     getState: () => useTimelineStore.getState(),
+    dispatchDescriptor: dispatchTimelineCommandDescriptor,
     setGlobalBpm,
     setBeatsPerBar,
     setMasterTempoMap,

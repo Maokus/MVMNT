@@ -33,10 +33,10 @@ describe('timelineStore', () => {
         expect(s.tracksOrder.includes(id)).toBe(true);
     });
 
-    it('updates track properties and selection', () => {
+    it('updates track properties and selection', async () => {
         const id = Object.keys(getState().tracks)[0];
-        act(() => {
-            getState().updateTrack(id, { mute: true });
+        await act(async () => {
+            await getState().updateTrack(id, { mute: true });
             getState().selectTracks([id]);
         });
         const s = getState();

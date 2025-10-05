@@ -11,13 +11,17 @@ function s() {
 describe('track offset consistency (ticks only)', () => {
     it('1 bar offsetTicks = beatsPerBar * PPQ', async () => {
         const tm = getSharedTimingManager();
-        const id = await act(async () => await s().addMidiTrack({ name: 'Offset Test' }));
+        let createdId: string | undefined;
+        await act(async () => {
+            createdId = await s().addMidiTrack({ name: 'Offset Test' });
+        });
+        const id = createdId as string;
         const beatsPerBar = s().timeline.beatsPerBar;
         const oneBarTicks = beatsPerBar * tm.ticksPerQuarter;
-        act(() => {
-            s().setTrackOffsetTicks(id as string, oneBarTicks);
+        await act(async () => {
+            await s().setTrackOffsetTicks(id, oneBarTicks);
         });
-        const tr = s().tracks[id as string];
+        const tr = s().tracks[id];
         expect(tr.offsetTicks).toBe(oneBarTicks);
     });
 
@@ -28,7 +32,9 @@ describe('track offset consistency (ticks only)', () => {
         const barsToTest = [0, 1, 2, 3, 8];
         for (const bars of barsToTest) {
             const ticks = bars * beatsPerBar * tm.ticksPerQuarter;
-            act(() => s().setTrackOffsetTicks(id, ticks));
+            await act(async () => {
+                await s().setTrackOffsetTicks(id, ticks);
+            });
             const tr = s().tracks[id];
             expect(tr.offsetTicks).toBe(ticks);
         }

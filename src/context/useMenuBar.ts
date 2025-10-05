@@ -60,7 +60,7 @@ export const useMenuBar = ({
                 (mode === 'zip-package'
                     ? new Blob([toArrayBuffer(res.zip)], { type: 'application/zip' })
                     : new Blob([res.json], { type: 'application/json' }));
-            const extension = mode === 'zip-package' ? '.mvmntpkg' : '.mvt';
+            const extension = mode === 'zip-package' ? '.mvt' : '.json';
             const url = URL.createObjectURL(exportBlob);
             const link = document.createElement('a');
             link.href = url;
@@ -79,7 +79,7 @@ export const useMenuBar = ({
     const loadScene = () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        // Accept legacy .json exports and new .mvt extension
+        // Accept packaged .mvt exports, inline .json, and legacy .mvmntpkg files
         fileInput.accept = '.mvt,.json,.mvmntpkg';
         fileInput.style.display = 'none';
         fileInput.onchange = async (e: Event) => {

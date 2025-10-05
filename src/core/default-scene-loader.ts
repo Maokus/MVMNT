@@ -1,27 +1,49 @@
-import defaultSceneRaw from '../templates/default.mvt?raw';
 import { importScene } from '@persistence/import';
 import type { SceneSettingsState } from '@state/sceneStore';
 import type { SceneMetadataState } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
 
-const DEFAULT_SCENE_STRING = typeof defaultSceneRaw === 'string' ? defaultSceneRaw : '';
+interface DefaultSceneCache {
+    sceneString: string;
+    settings?: Partial<SceneSettingsState>;
+    metadata?: Partial<SceneMetadataState>;
+}
 
-const DEFAULT_SCENE_ENVELOPE = (() => {
-    try {
-        return DEFAULT_SCENE_STRING ? JSON.parse(DEFAULT_SCENE_STRING) : null;
-    } catch (error) {
-        console.error('[default-scene-loader] Failed to parse bundled default.mvt', error);
-        return null;
+let defaultSceneCachePromise: Promise<DefaultSceneCache | null> | null = null;
+
+async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
+    if (!defaultSceneCachePromise) {
+        defaultSceneCachePromise = import('../templates/default.mvt?raw')
+            .then((mod) => {
+                const sceneString = typeof mod.default === 'string' ? mod.default : '';
+                if (!sceneString) {
+                    return null;
+                }
+                try {
+                    const envelope = JSON.parse(sceneString);
+                    const settings = envelope?.scene?.sceneSettings
+                        ? { ...envelope.scene.sceneSettings }
+                        : undefined;
+                    const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
+                    return { sceneString, settings, metadata };
+                } catch (error) {
+                    console.error('[default-scene-loader] Failed to parse bundled default.mvt', error);
+                    return null;
+                }
+            })
+            .catch((error) => {
+                console.error('[default-scene-loader] Failed to load bundled default.mvt', error);
+                return null;
+            });
     }
-})();
-
-const DEFAULT_SCENE_SETTINGS = DEFAULT_SCENE_ENVELOPE?.scene?.sceneSettings;
-const DEFAULT_SCENE_METADATA = DEFAULT_SCENE_ENVELOPE?.metadata;
+    return defaultSceneCachePromise;
+}
 
 export async function loadDefaultScene(source = 'default-scene-loader.loadDefaultScene'): Promise<boolean> {
-    if (!DEFAULT_SCENE_STRING) return false;
+    const cache = await resolveDefaultSceneCache();
+    if (!cache?.sceneString) return false;
     try {
-        const result = await importScene(DEFAULT_SCENE_STRING);
+        const result = await importScene(cache.sceneString);
         if (!result.ok) {
             console.error(`[${source}] failed to load default scene`, result.errors);
             return false;
@@ -40,18 +62,13 @@ export async function loadDefaultScene(source = 'default-scene-loader.loadDefaul
     }
 }
 
-export function getDefaultSceneSettings(): Partial<SceneSettingsState> | undefined {
-    if (!DEFAULT_SCENE_SETTINGS) return undefined;
-    return { ...DEFAULT_SCENE_SETTINGS };
-}
-
 export async function resetToDefaultScene(visualizer: any): Promise<boolean> {
     try {
         useTimelineStore.getState().clearAllTracks();
     } catch {}
     const success = await loadDefaultScene('default-scene-loader.resetToDefaultScene');
     if (!success) return false;
-    const settings = getDefaultSceneSettings();
+    const settings = await getDefaultSceneSettings();
     if (visualizer?.canvas && settings) {
         try {
             visualizer.canvas.dispatchEvent(
@@ -65,7 +82,14 @@ export async function resetToDefaultScene(visualizer: any): Promise<boolean> {
     return true;
 }
 
-export function getDefaultSceneMetadata(): Partial<SceneMetadataState> | undefined {
-    if (!DEFAULT_SCENE_METADATA) return undefined;
-    return { ...DEFAULT_SCENE_METADATA };
+export async function getDefaultSceneSettings(): Promise<Partial<SceneSettingsState> | undefined> {
+    const cache = await resolveDefaultSceneCache();
+    if (!cache?.settings) return undefined;
+    return { ...cache.settings };
+}
+
+export async function getDefaultSceneMetadata(): Promise<Partial<SceneMetadataState> | undefined> {
+    const cache = await resolveDefaultSceneCache();
+    if (!cache?.metadata) return undefined;
+    return { ...cache.metadata };
 }

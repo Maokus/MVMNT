@@ -75,7 +75,7 @@ describe('AudioEngine scheduling mapping', () => {
         // Region from 1s to 3s (2 seconds long)
         const regionStartTick = Math.round(1 * ticksPerSecond);
         const regionEndTick = Math.round(3 * ticksPerSecond);
-        store.setTrackRegionTicks(trackId, regionStartTick, regionEndTick);
+        await store.setTrackRegionTicks(trackId, regionStartTick, regionEndTick);
 
         const ctx = new InstrumentedAudioContext();
         const engine = new AudioEngine();
