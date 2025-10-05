@@ -26,14 +26,15 @@ const ChangelogPage: React.FC = () => {
                         </ul>
                     </section>
 
-                    <ChangelogEntry version="0.13.0" date="28-09-25" notes={[
+                    <ChangelogEntry version="0.13.0" date="05-10-25" notes={[
                         'Added audio track support: playback, export, mixing',
                         'Various ui/ux improvments',
                         'Added video codec selection (avc, vp8, vp9, av1, hevc, etc)',
                         'Reworked entire document store system for improved reliability and modularity',
                         'Allowed panel dragging and resizing',
                         'Added easy mode',
-                        'midi track visual aid'
+                        'midi track visual aid',
+                        'save files now embed audio and midi data'
                     ]} />
                     <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
                         'Improved undo stack reliability and snapshot creation',

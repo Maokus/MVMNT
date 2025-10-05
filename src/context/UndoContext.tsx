@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createSnapshotUndoController } from '@persistence/index';
-import { instrumentTimelineStoreForUndo } from '@state/undo/snapshot-undo';
+import { createPatchUndoController } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface UndoContextValue {
@@ -16,15 +15,14 @@ const UndoContext = createContext<UndoContextValue | undefined>(undefined);
 
 export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const enabled = true; // persistence always enabled
-    const controllerRef = useRef<ReturnType<typeof createSnapshotUndoController> | null>(null);
+    const controllerRef = useRef<ReturnType<typeof createPatchUndoController> | null>(null);
     const [, forceTick] = useState(0);
 
     // Initialize controller once when enabled
     useEffect(() => {
         if (!controllerRef.current) {
             // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
-            controllerRef.current = createSnapshotUndoController(useTimelineStore, { maxDepth: 50, debounceMs: 50 });
-            try { instrumentTimelineStoreForUndo(); } catch { }
+            controllerRef.current = createPatchUndoController(useTimelineStore, { maxDepth: 50 });
             try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
         }
         // Force a tick so consumers re-read canUndo/canRedo

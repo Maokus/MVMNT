@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exportScene, importScene, createSnapshotUndoController } from '../';
+import { exportScene, importScene, createPatchUndoController } from '../';
 import type { ExportSceneResult, ExportSceneResultInline } from '../export';
 
 function requireInline(result: ExportSceneResult): ExportSceneResultInline {
@@ -28,7 +28,7 @@ describe('Persistence skeleton', () => {
     });
 
     it('undo controller initializes and can reset', () => {
-        const undo = createSnapshotUndoController({});
+        const undo = createPatchUndoController({});
         expect(() => undo.reset()).not.toThrow();
     });
 });

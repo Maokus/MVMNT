@@ -33,6 +33,8 @@ describe('scene command gateway', () => {
         );
 
         expect(result.success).toBe(true);
+        expect(result.patch?.redo[0]).toMatchObject({ type: 'addElement', elementId: 'element-1' });
+        expect(result.patch?.undo[0]).toMatchObject({ type: 'removeElement', elementId: 'element-1' });
         const store = useSceneStore.getState();
         expect(store.order).toEqual(['element-1']);
         expect(store.bindings.byElement['element-1'].text).toEqual({ type: 'constant', value: 'Hello' });
