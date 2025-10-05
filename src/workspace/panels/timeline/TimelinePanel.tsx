@@ -353,7 +353,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     } = useFloating({
         open: menuOpen,
         onOpenChange: setMenuOpen,
-        placement: 'bottom-end',
+        placement: 'top-end',
         whileElementsMounted: autoUpdate,
         middleware: [offset(8), flip({ padding: 12 }), shift({ padding: 12 })],
     });
@@ -474,7 +474,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     title: 'Timeline options',
                 })}
                 ref={menuRefs.setReference}
-                className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center text-[12px]"
+                className="px-2 py-1 rounded border border-border bg-menubar hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center text-[12px]"
             >
                 <FaEllipsisV />
             </button>
@@ -485,12 +485,13 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                             {...getMenuFloatingProps({
                                 role: 'menu',
                                 'aria-label': 'Timeline options menu',
-                                className: 'w-64 rounded border border-neutral-700 bg-neutral-900/95 p-3 shadow-lg flex flex-col gap-3',
+                                className:
+                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000]',
                             })}
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
                         >
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center justify-between gap-2 text-sm">
                                 <span className="text-neutral-300">Auto follow playhead</span>
                                 <button
                                     className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
