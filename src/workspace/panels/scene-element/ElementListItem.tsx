@@ -14,6 +14,9 @@ interface ElementListItemProps {
     onDuplicate: () => void;
     onDelete: () => void;
     onUpdateId: (oldId: string, newId: string) => boolean;
+    onDragStart: (height: number) => void;
+    onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
+    onDragEnd: () => void;
 }
 
 const ElementListItem: React.FC<ElementListItemProps> = ({
@@ -28,10 +31,14 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     onDuplicate,
     onDelete,
     onUpdateId,
+    onDragStart,
+    onDragOver,
+    onDragEnd,
 }) => {
     const [isEditingId, setIsEditingId] = useState(false);
     const [editValue, setEditValue] = useState(element.id);
     const inputRef = useRef<HTMLInputElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Get element type info
     const typeInfo = sceneElementRegistry.getElementTypeInfo().find((t: any) => t.type === element.type);
@@ -96,8 +103,27 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
     const selected = "bg-[#0e639c] border-[#1177bb] text-white";
     return (
         <div
+            ref={containerRef}
             className={`${baseItem} ${isSelected ? selected : unselected}`}
             onClick={onSelect}
+            draggable={!isEditingId}
+            onDragStart={(event) => {
+                if (isEditingId) {
+                    event.preventDefault();
+                    return;
+                }
+
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', element.id);
+
+                const rect = containerRef.current?.getBoundingClientRect();
+                const computedHeight = rect?.height ?? containerRef.current?.offsetHeight ?? 0;
+                onDragStart(computedHeight > 0 ? computedHeight : 1);
+            }}
+            onDragOver={onDragOver}
+            onDragEnd={() => {
+                onDragEnd();
+            }}
         >
             <div className="flex-1">
                 <div className="flex items-center gap-1 mb-0.5">
