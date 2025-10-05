@@ -29,6 +29,9 @@
       "@app/*": [
         "app/*"
       ],
+      "@audio/*": [
+        "audio/*"
+      ],
       "@core/*": [
         "core/*"
       ],
@@ -47,8 +50,14 @@
       "@persistence/*": [
         "persistence/*"
       ],
-      "@ui/*": [
-        "ui/*"
+      "@devtools/*": [
+        "devtools/*"
+      ],
+      "@workspace/*": [
+        "workspace/*"
+      ],
+      "@config/*": [
+        "config/*"
       ],
       "@state/*": [
         "state/*"

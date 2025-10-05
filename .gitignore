@@ -24,5 +24,6 @@ yarn-error.log*
 
 todo.txt
 deploy.sh
+deploy_beta.sh
 count_lines.sh
 output.txt

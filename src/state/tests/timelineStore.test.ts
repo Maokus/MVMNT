@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore, type TimelineTrack } from '../timelineStore';
 import { act } from '@testing-library/react';
 
@@ -6,7 +7,7 @@ function getState() {
     return useTimelineStore.getState();
 }
 
-describe('timelineStore (Phase 1)', () => {
+describe('timelineStore', () => {
     it('adds a MIDI track and ingests provided MIDI data', async () => {
         const midi = {
             events: [
@@ -15,7 +16,7 @@ describe('timelineStore (Phase 1)', () => {
             ],
             duration: 1,
             tempo: 500000,
-            ticksPerQuarter: 480,
+            ticksPerQuarter: CANONICAL_PPQ,
             timeSignature: { numerator: 4, denominator: 4, clocksPerClick: 24, thirtysecondNotesPerBeat: 8 },
             trimmedTicks: 0,
         } as any;
@@ -32,10 +33,10 @@ describe('timelineStore (Phase 1)', () => {
         expect(s.tracksOrder.includes(id)).toBe(true);
     });
 
-    it('updates track properties and selection', () => {
+    it('updates track properties and selection', async () => {
         const id = Object.keys(getState().tracks)[0];
-        act(() => {
-            getState().updateTrack(id, { mute: true });
+        await act(async () => {
+            await getState().updateTrack(id, { mute: true });
             getState().selectTracks([id]);
         });
         const s = getState();

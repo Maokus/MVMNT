@@ -9,7 +9,7 @@ import {
     PropertyBindingData,
     BindingType,
 } from '@bindings/property-bindings';
-import { globalMacroManager } from '@bindings/macro-manager';
+import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
 import { debugLog } from '@utils/debug-log';
 
 export class SceneElement implements SceneElementInterface {
@@ -26,7 +26,7 @@ export class SceneElement implements SceneElementInterface {
     private _boundsCache: Map<string, { x: number; y: number; width: number; height: number }> = new Map();
     private _boundsDirty: boolean = true;
 
-    private _macroListenerRef?: (eventType: any, data: any) => void;
+    private _macroUnsubscribe?: () => void;
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -46,50 +46,42 @@ export class SceneElement implements SceneElementInterface {
      * Set up listener for macro changes to invalidate cache
      */
     private _setupMacroListener(): void {
-        this._macroListenerRef = (
-            eventType:
-                | 'macroValueChanged'
-                | 'macroCreated'
-                | 'macroDeleted'
-                | 'macroAssigned'
-                | 'macroUnassigned'
-                | 'macrosImported',
-            data: any
-        ) => {
-            // Avoid noisy logging during playback; enable via debug if needed
-            if (eventType === 'macroValueChanged') {
-                // Invalidate cache for properties bound to this macro
+        this._macroUnsubscribe = subscribeToMacroEvents((event: MacroEvent) => {
+            if (event.type === 'macroValueChanged') {
                 this.bindings.forEach((binding, key) => {
-                    if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
-                        // Invalidate caches for the affected property
+                    if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
                     }
                 });
-            } else if (eventType === 'macroDeleted') {
-                // Convert all macro bindings for this macro to constant bindings
+            } else if (event.type === 'macroDeleted') {
                 this.bindings.forEach((binding, key) => {
-                    if (binding instanceof MacroBinding && binding.getMacroId() === data.name) {
-                        // Get the last known value before conversion
+                    if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         const currentValue = binding.getValue();
-                        // Convert to constant binding
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
                     }
                 });
+            } else if (event.type === 'macrosImported') {
+                // Imported snapshots may replace macro objects entirely; drop caches for macro-bound props.
+                this.bindings.forEach((binding, key) => {
+                    if (binding instanceof MacroBinding) {
+                        this._cacheValid.set(key, false);
+                    }
+                });
+                this._invalidateBoundsCache();
             }
-        };
-        globalMacroManager.addListener(this._macroListenerRef);
+        });
     }
 
     /**
      * Dispose element resources and detach listeners
      */
     dispose(): void {
-        if (this._macroListenerRef) {
-            globalMacroManager.removeListener(this._macroListenerRef);
-            this._macroListenerRef = undefined;
+        if (this._macroUnsubscribe) {
+            this._macroUnsubscribe();
+            this._macroUnsubscribe = undefined;
         }
     }
 
@@ -722,9 +714,16 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /** Invalidate the scene element bounds cache */
-    private _invalidateBoundsCache(): void {
+    protected _invalidateBoundsCache(): void {
         this._boundsDirty = true;
         this._boundsCache.clear();
+    }
+
+    /**
+     * Exposed hook so external lifecycle events (e.g., async font loads) can force a bounds refresh.
+     */
+    public markBoundsDirty(): void {
+        this._invalidateBoundsCache();
     }
 
     // Setter methods that work with the binding system

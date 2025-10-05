@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimelineStore } from '../timelineStore';
 import { getSharedTimingManager } from '../timelineStore';
-import { createSharedPlaybackClock } from '@core/playback-clock';
+import { createSharedPlaybackClock } from '@core/timing/playback-clock';
 
 // These tests validate that:
 // 1. Pausing freezes tick advancement even if clock.update() is called (store does not advance when isPlaying=false)

@@ -7,26 +7,43 @@ import { Link } from 'react-router-dom';
  */
 const ChangelogPage: React.FC = () => {
     return (
-        <div className="min-h-screen bg-neutral-950 text-neutral-200 px-6 py-10">
+        <div className="min-h-screen bg-neutral-800 text-neutral-200 px-6 py-10">
             <main className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-start mb-10">
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">Changelog</h1>
                         <p className="mt-3 text-neutral-400 text-sm">Recent updates for MVMNT v{((import.meta as any).env?.VITE_VERSION)}.</p>
                     </div>
-                    <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Workspace</Link>
+                    <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Home</Link>
                 </div>
 
                 <div className="space-y-10">
                     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
                         <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-                            <li>Ctrl+Z undo stack refinements</li>
-                            <li>Audio track sync & export pipeline</li>
+                            <li>Video?</li>
+                            <li>Tracker style text elements</li>
                         </ul>
                     </section>
 
-                    <ChangelogEntry version="0.12.0" date="12-09-31" notes={[
+                    <ChangelogEntry version="0.13.0" date="05-10-25" notes={[
+                        'Added audio track support: playback, export, mixing',
+                        'Added custom font upload manager in scene settings',
+                        'Various UI/UX improvements',
+                        'Added video codec selection (AVC, VP8, VP9, AV1, HEVC, etc)',
+                        'Reworked entire document store system for improved reliability and modularity',
+                        'Allowed panel dragging and resizing',
+                        'Added easy mode',
+                        'Midi track visual aid',
+                        'Save files now embed audio and midi data, and compress to radically reduce file sizes.'
+                    ]} />
+                    <ChangelogEntry version="0.12.1" date="19-09-25" notes={[
+                        'Improved undo stack reliability and snapshot creation',
+                        'fixed various minor ui/ux issues (scrolling disabled, unreliable ',
+                        'Developed ptsd from trying to improve the ctrl z feature',
+                    ]} />
+
+                    <ChangelogEntry version="0.12.0" date="12-09-25" notes={[
                         'Overhauled timing & MIDI system (timeline panel, better arrangement)',
                         'Improved save/load format',
                         'Added the legendary ctrl z',
@@ -35,12 +52,12 @@ const ChangelogPage: React.FC = () => {
                         'Partial migration to Zustand (more responsive UI)',
                         'TailwindCSS adoption for consistency & dev speed'
                     ]} />
-                    <ChangelogEntry version="0.11.5" date="24-08-31" notes={[
+                    <ChangelogEntry version="0.11.5" date="24-08-25" notes={[
                         'Added chord estimation element',
                         'Added played notes tracker element',
                         'Added playing notes display element'
                     ]} />
-                    <ChangelogEntry version="0.11.4" date="24-08-31" notes={[
+                    <ChangelogEntry version="0.11.4" date="24-08-25" notes={[
                         'Changed bounding box handling logic (includeInLayoutBounds flag)',
                         'Cleaned up some renderObject logic'
                     ]} />

@@ -32,7 +32,7 @@ function normalizeMap(map: TempoMapEntry[] | null | undefined): Seg[] {
     return segs;
 }
 
-// Primary API (Phase 0): direct conversions with explicit fallback seconds-per-beat
+// Primary API: direct conversions with explicit fallback seconds-per-beat
 export function beatsToSeconds(
     map: TempoMapEntry[] | null | undefined,
     beats: number,

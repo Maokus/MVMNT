@@ -19,7 +19,7 @@ const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
     return beats * spbFallback;
 };
 
-const getEffectiveOffsetSec = (s: TimelineState, t: TimelineTrack): number => {
+export const getTrackOffsetSeconds = (s: TimelineState, t: TimelineTrack): number => {
     // Convert canonical tick offset to seconds (no legacy offsetSec/offsetBeats fields remain)
     const beats = offsetTicksToBeats(t.offsetTicks || 0);
     return convertBeatsToSeconds(s.timeline.masterTempoMap, beats, 60 / (s.timeline.globalBpm || 120));
@@ -43,13 +43,18 @@ export type TimelineNoteEvent = {
 };
 
 export const selectMidiTracks = (s: TimelineState): TimelineTrack[] =>
-    Object.values(s.tracks).filter((t) => t.type === 'midi');
+    Object.values(s.tracks).filter((t): t is TimelineTrack => Boolean(t) && t.type === 'midi');
 
-export const selectTrackById = (s: TimelineState, id: string | undefined | null): TimelineTrack | undefined =>
-    id ? s.tracks[id] : undefined;
+export const selectTrackById = (s: TimelineState, id: string | undefined | null): TimelineTrack | undefined => {
+    if (!id) return undefined;
+    const track = s.tracks[id];
+    return track && track.type === 'midi' ? track : undefined;
+};
 
 export const selectTracksByIds = (s: TimelineState, ids: string[]): TimelineTrack[] =>
-    ids.map((id) => s.tracks[id]).filter(Boolean) as TimelineTrack[];
+    ids
+        .map((id) => s.tracks[id])
+        .filter((track): track is TimelineTrack => Boolean(track) && track.type === 'midi');
 
 export const selectTransport = (s: TimelineState) => s.transport;
 export const selectTimeline = (s: TimelineState) => s.timeline;
@@ -72,7 +77,7 @@ export const selectNotesInWindow = (
         const cache = s.midiCache[cacheKey];
         if (!cache) continue;
         const tpq = CANONICAL_PPQ; // normalized
-        const offsetSec = getEffectiveOffsetSec(s, track);
+        const offsetSec = getTrackOffsetSeconds(s, track);
         const regionStartTick = track.regionStartTick ?? 0;
         const regionEndTick = track.regionEndTick ?? Number.POSITIVE_INFINITY;
         // Convert window to track-local seconds
@@ -135,12 +140,12 @@ export const selectNotesInWindowMemo = (
     let depParts: string[] = [];
     for (const tid of args.trackIds) {
         const t = s.tracks[tid];
-        if (!t) continue;
+        if (!t || t.type !== 'midi') continue;
         const cacheKey = t.midiSourceId ?? tid;
         const cache = s.midiCache[cacheKey];
         const notesId = cache ? (cache.notesRaw as any) : null;
         depParts.push(
-            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getEffectiveOffsetSec(s, t)}:${t.regionStartTick ?? ''}:$${
+            `${tid}:${t.enabled ? 1 : 0}${t.mute ? 1 : 0}:${getTrackOffsetSeconds(s, t)}:${t.regionStartTick ?? ''}:$${
                 t.regionEndTick ?? ''
             }:` +
                 `${cache ? cache.ticksPerQuarter : ''}:${cache ? cache.tempoMap?.length ?? 0 : ''}:${

@@ -17,7 +17,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         return {
             name: 'Notes Played Tracker',
             description: 'Displays how many notes/events have played so far (timeline-backed)',
-            category: 'info',
+            category: 'MIDI Info',
             groups: [
                 ...base.groups,
                 {
@@ -88,22 +88,21 @@ export class NotesPlayedTrackerElement extends SceneElement {
         let playedEvents = 0;
         if (trackId) {
             const state = useTimelineStore.getState();
-            const track = state.tracks[trackId];
-            const offset = track ? track.offsetSec || 0 : 0;
-            // Attempt to estimate duration from cache when available
-            const cacheKey = track?.midiSourceId ?? trackId;
-            const cache = state.midiCache[cacheKey];
-            const localDur = cache?.notesRaw?.reduce((m: number, n: any) => Math.max(m, n.endTime || 0), 0) || 0;
-            const duration = localDur;
-            const startSec = Math.max(0, offset + 0);
-            const endSec = duration ? offset + duration : effectiveTime + 600; // fallback large window
-            const all = selectNotesInWindow(state, { trackIds: [trackId], startSec, endSec });
+            const all = selectNotesInWindow(state, {
+                trackIds: [trackId],
+                startSec: 0,
+                endSec: Number.POSITIVE_INFINITY,
+            });
             totalNotes = all.length;
             if (targetTime >= 0) {
-                playedNotes = all.filter((n) => (n.startTime ?? 0) <= effectiveTime).length;
-                for (const n of all) {
-                    if ((n.startTime ?? 0) <= effectiveTime) playedEvents++;
-                    if ((n.endTime ?? 0) <= effectiveTime) playedEvents++;
+                for (const note of all) {
+                    if ((note.startTime ?? 0) <= effectiveTime) {
+                        playedNotes += 1;
+                        playedEvents += 1;
+                    }
+                    if ((note.endTime ?? 0) <= effectiveTime) {
+                        playedEvents += 1;
+                    }
                 }
             }
         }

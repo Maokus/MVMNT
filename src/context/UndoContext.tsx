@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '@persistence/index';
+import { createPatchUndoController } from '@persistence/index';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface UndoContextValue {
@@ -14,16 +14,15 @@ interface UndoContextValue {
 const UndoContext = createContext<UndoContextValue | undefined>(undefined);
 
 export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const enabled = SERIALIZATION_V1_ENABLED();
-    const controllerRef = useRef<ReturnType<typeof createSnapshotUndoController> | null>(null);
+    const enabled = true; // persistence always enabled
+    const controllerRef = useRef<ReturnType<typeof createPatchUndoController> | null>(null);
     const [, forceTick] = useState(0);
 
     // Initialize controller once when enabled
     useEffect(() => {
-        if (!enabled) return; // keep disabled semantics
         if (!controllerRef.current) {
             // timelineStore is imported; we just pass store reference (not used internally yet but future-proof)
-            controllerRef.current = createSnapshotUndoController(useTimelineStore, { maxDepth: 50, debounceMs: 50 });
+            controllerRef.current = createPatchUndoController(useTimelineStore, { maxDepth: 50 });
             try { console.debug('[Persistence] UndoProvider controller created (enabled=', enabled, ')'); } catch { }
         }
         // Force a tick so consumers re-read canUndo/canRedo
@@ -33,7 +32,6 @@ export const UndoProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Global keyboard shortcuts (Cmd/Ctrl+Z and redo variants)
     useEffect(() => {
-        if (!enabled) return;
         const handler = (e: KeyboardEvent) => {
             const meta = e.metaKey || e.ctrlKey;
             if (!meta) return;

@@ -25,7 +25,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return {
             name: 'Moving Notes Piano Roll',
             description: 'Notes move past a static playhead',
-            category: 'complete',
+            category: 'Note Displays',
             groups: [
                 ...base.groups,
                 // timing offset removed

@@ -1,138 +1,335 @@
-import { SERIALIZATION_V1_ENABLED } from './flags';
 import { validateSceneEnvelope } from './validate';
-import { useTimelineStore } from '../state/timelineStore';
-import { globalMacroManager } from '../bindings/macro-manager';
-import { instrumentSceneBuilderForUndo } from './undo/snapshot-undo';
-
-function _getSceneBuilder(): any | null {
-    try {
-        const vis: any = (window as any).vis || (window as any).visualizer;
-        if (vis && typeof vis.getSceneBuilder === 'function') return vis.getSceneBuilder();
-        if (vis && vis.sceneBuilder) return vis.sceneBuilder;
-    } catch {}
-    return null;
-}
+import { DocumentGateway } from './document-gateway';
+import type { SceneExportEnvelopeV2 } from './export';
+import { base64ToUint8Array } from '@utils/base64';
+import { sha256Hex } from '@utils/hash/sha256';
+import { FontBinaryStore } from './font-binary-store';
+import { ensureFontVariantsRegistered } from '@fonts/font-loader';
+import type { FontAsset } from '@state/scene/fonts';
+import {
+    decodeSceneText,
+    parseLegacyInlineScene,
+    parseScenePackage,
+    ScenePackageError,
+} from './scene-package';
 
 export interface ImportError {
-    code?: string; // Provided in Phase 2 validation (fatal codes)
+    code?: string;
     message: string;
     path?: string;
 }
 
-export interface ImportResultDisabled {
-    ok: false;
-    disabled: true;
-    reason: 'feature-disabled';
-    errors: ImportError[];
-}
-
 export interface ImportResultSuccess {
     ok: true;
-    disabled: false;
     errors: [];
     warnings: { message: string }[];
 }
 
 export interface ImportResultFailureEnabled {
     ok: false;
-    disabled: false;
     errors: ImportError[];
     warnings: { message: string }[];
 }
 
-export type ImportSceneResult = ImportResultDisabled | ImportResultSuccess | ImportResultFailureEnabled;
+export type ImportSceneResult = ImportResultSuccess | ImportResultFailureEnabled;
+export type ImportSceneInput = string | ArrayBuffer | Uint8Array | Blob;
 
-/**
- * Phase 0 importer: validates nothing, does not mutate store (no dependency yet).
- */
-export function importScene(json: string): ImportSceneResult {
-    if (!SERIALIZATION_V1_ENABLED()) {
-        return {
-            ok: false,
-            disabled: true,
-            reason: 'feature-disabled',
-            errors: [{ message: 'Serialization feature disabled' }],
-        };
+interface ParsedArtifact {
+    envelope: any;
+    warnings: { message: string }[];
+    audioPayloads: Map<string, Uint8Array>;
+    midiPayloads: Map<string, Uint8Array>;
+    fontPayloads: Map<string, Uint8Array>;
+}
+
+async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
+    if (typeof input === 'string') {
+        try {
+            console.warn(
+                '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+            );
+            const legacy = parseLegacyInlineScene(input);
+            return {
+                envelope: legacy.envelope,
+                warnings: legacy.warnings,
+                audioPayloads: legacy.audioPayloads,
+                midiPayloads: legacy.midiPayloads,
+                fontPayloads: legacy.fontPayloads,
+            };
+        } catch (error: any) {
+            return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
+        }
     }
-    let parsed: any;
+
+    let bytes: Uint8Array | null = null;
+    if (input instanceof ArrayBuffer) {
+        bytes = new Uint8Array(input);
+    } else if (input instanceof Uint8Array) {
+        bytes = input;
+    } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
+        bytes = new Uint8Array(await input.arrayBuffer());
+    }
+
+    if (!bytes) {
+        return { error: { code: 'ERR_INPUT_TYPE', message: 'Unsupported import input' } };
+    }
+
     try {
-        parsed = JSON.parse(json);
-    } catch (e: any) {
-        return {
-            ok: false,
-            disabled: false,
-            errors: [{ code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + e.message }],
-            warnings: [],
-        };
+        return parseScenePackage(bytes);
+    } catch (error) {
+        if (error instanceof ScenePackageError) {
+            if (error.code === 'ERR_PACKAGE_FORMAT') {
+                try {
+                    const text = decodeSceneText(bytes);
+                    console.warn(
+                        '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+                    );
+                    const legacy = parseLegacyInlineScene(text);
+                    return {
+                        envelope: legacy.envelope,
+                        warnings: legacy.warnings,
+                        audioPayloads: legacy.audioPayloads,
+                        midiPayloads: legacy.midiPayloads,
+                        fontPayloads: legacy.fontPayloads,
+                    };
+                } catch (inner: any) {
+                    return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
+                }
+            }
+            return { error: { code: error.code, message: error.message } };
+        }
+        return { error: { code: 'ERR_PACKAGE_FORMAT', message: (error as Error).message } };
     }
-    const validation = validateSceneEnvelope(parsed);
+}
+
+function buildDocumentShape(envelope: any) {
+    const tl = envelope.timeline || {};
+    return {
+        timeline: tl.timeline,
+        tracks: tl.tracks,
+        tracksOrder: tl.tracksOrder || [],
+        playbackRange: tl.playbackRange,
+        playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
+        rowHeight: tl.rowHeight,
+        midiCache: tl.midiCache || {},
+        scene: { ...envelope.scene },
+        metadata: envelope.metadata,
+    };
+}
+
+function restoreMidiCache(
+    midiSection: any,
+    midiPayloads: Map<string, Uint8Array>
+): { cache: Record<string, any>; warnings: string[] } {
+    if (!midiSection || typeof midiSection !== 'object') {
+        return { cache: {}, warnings: [] };
+    }
+    const restored: Record<string, any> = {};
+    const warnings: string[] = [];
+    for (const [cacheId, value] of Object.entries(midiSection)) {
+        if (!value || typeof value !== 'object') {
+            restored[cacheId] = value;
+            continue;
+        }
+        const assetRef = (value as any).assetRef;
+        if (typeof assetRef !== 'string') {
+            restored[cacheId] = value;
+            continue;
+        }
+        const assetId = typeof (value as any).assetId === 'string' ? (value as any).assetId : encodeURIComponent(cacheId);
+        const payload = midiPayloads.get(assetId);
+        if (!payload) {
+            warnings.push(`Missing MIDI payload for cache ${cacheId}`);
+            continue;
+        }
+        try {
+            const parsed = JSON.parse(decodeSceneText(payload));
+            restored[cacheId] = parsed;
+        } catch (error) {
+            warnings.push(`Failed to parse MIDI payload for cache ${cacheId}: ${(error as Error).message}`);
+        }
+    }
+    return { cache: restored, warnings };
+}
+
+async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
+    const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
+    const sampleRate = record.sampleRate || 44100;
+    const channels = Math.max(1, record.channels || 1);
+    if (typeof window !== 'undefined' && typeof (window as any).AudioContext === 'function') {
+        try {
+            const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+            const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+            ctx.close?.();
+            return buffer;
+        } catch {
+            /* fall through */
+        }
+    }
+    if (typeof AudioBuffer === 'function') {
+        try {
+            return new AudioBuffer({ length, numberOfChannels: channels, sampleRate });
+        } catch {
+            /* ignore */
+        }
+    }
+    const channelData: Float32Array[] = [];
+    for (let c = 0; c < channels; c++) channelData.push(new Float32Array(length));
+    const durationSeconds = typeof record.durationSeconds === 'number' ? record.durationSeconds : length / sampleRate;
+    const fallback: AudioBuffer = {
+        length,
+        duration: durationSeconds,
+        sampleRate,
+        numberOfChannels: channels,
+        copyFromChannel: (destination: Float32Array, channelNumber: number, startInChannel = 0) => {
+            const source = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
+            destination.set(source.subarray(startInChannel, startInChannel + destination.length));
+        },
+        copyToChannel: (source: Float32Array, channelNumber: number, startInChannel = 0) => {
+            const target = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
+            target.set(source, startInChannel);
+        },
+        getChannelData: (channel: number) =>
+            channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
+    } as unknown as AudioBuffer;
+    return fallback;
+}
+
+function buildWaveform(record: any | undefined) {
+    if (!record) return undefined;
+    return {
+        version: 1 as const,
+        channelPeaks: new Float32Array(record.channelPeaks ?? []),
+        sampleStep: record.sampleStep ?? 1,
+    };
+}
+
+async function hydrateAudioAssets(
+    envelope: SceneExportEnvelopeV2,
+    assetPayloads: Map<string, Uint8Array>
+): Promise<string[]> {
+    const warnings: string[] = [];
+    const audioById = envelope.assets?.audio?.byId || {};
+    const waveforms = envelope.assets?.waveforms?.byAudioId || {};
+    const audioIdMap = Object.keys(envelope.references?.audioIdMap || {}).length
+        ? envelope.references!.audioIdMap!
+        : Object.keys(audioById).reduce((acc: Record<string, string>, id) => {
+              acc[id] = id;
+              return acc;
+          }, {});
+    const { useTimelineStore } = (await import('../state/timelineStore')) as typeof import('../state/timelineStore');
+    const ingest = useTimelineStore.getState().ingestAudioToCache;
+
+    const assetData = new Map<string, { record: any; bytes: Uint8Array }>();
+    for (const [assetId, record] of Object.entries(audioById)) {
+        let bytes: Uint8Array | undefined;
+        if (record.dataBase64) {
+            try {
+                bytes = base64ToUint8Array(record.dataBase64);
+            } catch {
+                warnings.push(`Failed to decode base64 for asset ${assetId}`);
+                continue;
+            }
+        } else if (assetPayloads.has(assetId)) {
+            bytes = assetPayloads.get(assetId)!;
+        }
+        if (!bytes) {
+            warnings.push(`Missing audio payload for asset ${assetId}`);
+            continue;
+        }
+        if (record.byteLength && bytes.byteLength !== record.byteLength) {
+            warnings.push(
+                `Byte length mismatch for asset ${assetId} (expected ${record.byteLength}, got ${bytes.byteLength})`
+            );
+        }
+        try {
+            const hash = await sha256Hex(bytes);
+            if (record.hash && hash !== record.hash) warnings.push(`Hash mismatch for asset ${assetId}`);
+        } catch {
+            warnings.push(`Failed to hash asset ${assetId}`);
+        }
+        assetData.set(assetId, { record, bytes });
+    }
+
+    const consumed = new Set<string>();
+    for (const [originalId, assetId] of Object.entries(audioIdMap)) {
+        if (consumed.has(originalId)) continue;
+        const payload = assetData.get(assetId);
+        if (!payload) {
+            warnings.push(`Referenced asset ${assetId} missing for audio ${originalId}`);
+            continue;
+        }
+        const waveform = buildWaveform(waveforms[assetId]);
+        const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
+        const originalFile = {
+            name: payload.record.filename,
+            mimeType: payload.record.mimeType,
+            bytes: payload.bytes,
+            byteLength: payload.bytes.byteLength,
+            hash: payload.record.hash,
+        };
+        try {
+            ingest(originalId, buffer, { originalFile, waveform });
+        } catch (error) {
+            warnings.push(`Failed to ingest audio ${originalId}: ${(error as Error).message}`);
+        }
+        consumed.add(originalId);
+    }
+
+    return warnings;
+}
+
+export async function importScene(input: ImportSceneInput): Promise<ImportSceneResult> {
+    const parsed = await parseArtifact(input);
+    if ('error' in parsed) {
+        return { ok: false, errors: [parsed.error], warnings: [] };
+    }
+
+    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads, fontPayloads } = parsed;
+    const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
         return {
             ok: false,
-            disabled: false,
             errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
-            warnings: validation.warnings.map((w) => ({ message: w.message })),
+            warnings: [...artifactWarnings, ...validation.warnings.map((w) => ({ message: w.message }))],
         };
     }
-    // Hydrate store (replace-mode for timeline related slices) + scene elements/macros.
-    const tl = parsed.timeline;
-    const set = useTimelineStore.setState;
-    set((prev: any) => ({
-        timeline: tl.timeline,
-        tracks: tl.tracks,
-        tracksOrder: tl.tracksOrder,
-        transport: tl.transport || prev.transport,
-        selection: tl.selection || { selectedTrackIds: [] },
-        timelineView: tl.timelineView || prev.timelineView,
-        playbackRange: tl.playbackRange,
-        playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
-        rowHeight: typeof tl.rowHeight === 'number' ? tl.rowHeight : prev.rowHeight,
-        midiCache: tl.midiCache || {},
-    }));
 
-    // Scene + macros best effort hydration
-    try {
-        const scene = parsed.scene || {};
-        if (scene.macros) {
-            try {
-                globalMacroManager.importMacros(scene.macros);
-            } catch (e) {
-                console.error('[importScene] Macro import failed', e);
-            }
-        }
-        const sb = _getSceneBuilder();
-        if (sb) {
-            try {
-                instrumentSceneBuilderForUndo(sb);
-            } catch {}
-            // Build a legacy sceneData object compatible with HybridSceneBuilder.loadScene
-            const sceneData = {
-                elements: Array.isArray(scene.elements) ? scene.elements : [],
-                sceneSettings: scene.sceneSettings,
-                macros: scene.macros, // loadScene will re-import macros; that's okay (idempotent) or ignore if absent
-            };
-            if (typeof sb.loadScene === 'function') {
-                const ok = sb.loadScene(sceneData);
-                if (!ok) console.error('[importScene] Scene builder load failed');
-                try {
-                    const canvas: any = sb?.canvas || (window as any).vis?.canvas;
-                    canvas?.dispatchEvent?.(
-                        new CustomEvent('scene-imported', { detail: { exportSettings: scene.sceneSettings || {} } })
-                    );
-                } catch {}
-            } else if (Array.isArray(scene.elements) && typeof sb.setElements === 'function') {
-                // Fallback minimal restoration: assume elements are simple configs requiring registry creation
-                for (const el of scene.elements) {
-                    try {
-                        sb.addElementFromRegistry?.(el.type, el);
-                    } catch (e) {
-                        console.error('[importScene] addElement fallback failed', e);
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.error('[importScene] Scene element restoration failed', e);
+    const doc = buildDocumentShape(envelope);
+    const midiRestoration = restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
+    doc.midiCache = midiRestoration.cache;
+    DocumentGateway.apply(doc as any);
+
+    let hydrationWarnings: string[] = [];
+    const fontWarnings: string[] = [];
+    if (envelope.schemaVersion === 2 && envelope.assets) {
+        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, audioPayloads);
     }
-    return { ok: true, disabled: false, errors: [], warnings: validation.warnings };
+
+    if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {
+        const fontAssets = envelope.scene.fontAssets as Record<string, FontAsset>;
+        for (const asset of Object.values(fontAssets)) {
+            if (!asset || !asset.id) continue;
+            const payload = fontPayloads.get(asset.id);
+            if (!payload) {
+                fontWarnings.push(`Missing font payload for asset ${asset.id}`);
+                continue;
+            }
+            try {
+                await FontBinaryStore.put(asset.id, payload);
+                await ensureFontVariantsRegistered(asset, asset.variants ?? []);
+            } catch (error) {
+                fontWarnings.push(`Failed to hydrate font ${asset.id}: ${(error as Error).message}`);
+            }
+        }
+    }
+
+    const warnings = [
+        ...artifactWarnings,
+        ...validation.warnings.map((w) => ({ message: w.message })),
+        ...midiRestoration.warnings.map((message) => ({ message })),
+        ...hydrationWarnings.map((message) => ({ message })),
+        ...fontWarnings.map((message) => ({ message })),
+    ];
+    return { ok: true, errors: [], warnings };
 }

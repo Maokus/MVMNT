@@ -1,48 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { exportScene, importScene, createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '../';
+import { exportScene, importScene, createPatchUndoController } from '../';
+import type { ExportSceneResultInline } from '../export';
 
-// These tests assert only Phase 0 placeholder semantics; they will be superseded / expanded in Phase 1.
+async function exportInlineScene(): Promise<ExportSceneResultInline> {
+    const result = await exportScene(undefined, { storage: 'inline-json' });
+    if (!result.ok || result.mode !== 'inline-json') {
+        throw new Error('Expected inline-json export result');
+    }
+    return result;
+}
 
-describe('Persistence Phase 0 Skeleton', () => {
-    it('exportScene returns disabled result when flag off', () => {
-        if (!SERIALIZATION_V1_ENABLED()) {
-            const result = exportScene();
-            expect(result.ok).toBe(false);
-            // @ts-expect-no-error accessing disabled field
-            if (!result.ok) {
-                expect(result.disabled).toBe(true);
-            }
-        } else {
-            const result = exportScene();
-            expect(result.ok).toBe(true);
-            if (result.ok) {
-                expect(result.envelope.format).toBe('mvmnt.scene');
-            }
+// These tests assert initial placeholder semantics; they will be superseded / expanded later.
+
+describe('Persistence skeleton', () => {
+    it('exportScene returns success result', async () => {
+        const result = await exportScene();
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.mode).toBe('zip-package');
+            expect(result.envelope.format).toBe('mvmnt.scene');
         }
     });
 
-    it('importScene safe disabled behavior', () => {
-        // In Phase 1 implementation, when flag enabled validation is enforced. Use a real export envelope.
-        let json = '{"fake":true}';
-        if (SERIALIZATION_V1_ENABLED()) {
-            const exp = exportScene();
-            expect(exp.ok).toBe(true);
-            if (exp.ok) json = exp.json;
+    it('importScene round trip succeeds for a packaged export', async () => {
+        const exp = await exportScene();
+        if (!exp.ok || exp.mode !== 'zip-package') {
+            throw new Error('Expected packaged export result');
         }
-        const res = importScene(json);
-        if (!SERIALIZATION_V1_ENABLED()) {
-            expect(res.ok).toBe(false);
-            if (!res.ok) {
-                expect(res.disabled).toBe(true);
-            }
-        } else {
-            expect(res.ok).toBe(true);
-        }
+        const res = await importScene(exp.zip);
+        expect(res.ok).toBe(true);
     });
 
-    it('undo controller placeholder responds with no capability', () => {
-        const undo = createSnapshotUndoController({});
-        expect(undo.canUndo()).toBe(false);
-        expect(() => undo.undo()).not.toThrow();
+    it('importScene round trip succeeds for an inline JSON export', async () => {
+        const exp = await exportInlineScene();
+        const res = await importScene(exp.json);
+        expect(res.ok).toBe(true);
+    });
+
+    it('undo controller initializes and can reset', () => {
+        const undo = createPatchUndoController({});
+        expect(() => undo.reset()).not.toThrow();
     });
 });

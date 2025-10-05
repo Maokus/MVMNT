@@ -1,5 +1,6 @@
 // MIDI Parser Module - TypeScript migration (Timing logic inlined; TimingManager removed)
 import { MIDIEvent, MIDIData, MIDITimeSignature } from '@core/types';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 interface MIDIHeader {
     format: number;
@@ -39,8 +40,8 @@ export class MIDIParser {
 
     constructor() {
         this.tracks = [];
-        // Defaults
-        this.ticksPerQuarter = 480;
+        // Defaults (use canonical PPQ so downstream normalization is consistent)
+        this.ticksPerQuarter = CANONICAL_PPQ;
         this.tempo = 500000; // 120 BPM
         this.bpm = 60000000 / this.tempo;
         this.timeSignature = {

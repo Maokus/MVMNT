@@ -1,56 +1,110 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-// @ts-ignore
-import { globalMacroManager, MacroType } from '@bindings/macro-manager';
+import React, { createContext, useContext, useEffect, useCallback } from 'react';
+import type { MacroType, Macro } from '@state/scene/macros';
+import { useVisualizer } from './VisualizerContext';
+import { dispatchSceneCommand, useSceneMacros } from '@state/scene';
+import type { SceneCommand } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
+import { ensureMacroSync } from '@state/scene/macroSyncService';
+
+type MacroList = ReturnType<typeof useSceneMacros>;
 
 interface MacroContextValue {
-    manager: any;
-    macros: any[];
+    macros: MacroList;
     refresh: () => void;
     create: (name: string, type: MacroType, value: any, options?: any) => boolean;
     updateValue: (name: string, value: any) => boolean;
+    rename: (currentId: string, nextId: string) => boolean;
     delete: (name: string) => void;
-    get: (name: string) => any;
+    get: (name: string) => Macro | null;
     assignListener: (listener: (eventType: string, data: any) => void) => () => void;
 }
 
 const MacroContext = createContext<MacroContextValue | undefined>(undefined);
 
 export const MacroProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [macros, setMacros] = useState<any[]>(() => globalMacroManager.getAllMacros());
-
-    const refresh = useCallback(() => {
-        setMacros(globalMacroManager.getAllMacros());
+    const { visualizer } = useVisualizer() as any;
+    const storeMacros = useSceneMacros();
+    const macros = storeMacros;
+    useEffect(() => {
+        ensureMacroSync();
     }, []);
 
-    // Auto-refresh on macro events
     useEffect(() => {
-        const listener = () => refresh();
-        globalMacroManager.addListener(listener);
-        return () => globalMacroManager.removeListener(listener);
-    }, [refresh]);
+        if (!visualizer || typeof visualizer.invalidateRender !== 'function') return;
+        try {
+            visualizer.invalidateRender();
+        } catch (err) {
+            console.warn('[MacroContext] Failed to invalidate visualizer after macro change', err);
+        }
+    }, [visualizer, macros]);
 
-    const create = (name: string, type: MacroType, value: any, options?: any) => {
-        const ok = globalMacroManager.createMacro(name, type as MacroType, value, options);
-        if (ok) refresh();
-        return ok;
-    };
-    const updateValue = (name: string, value: any) => {
-        const ok = globalMacroManager.updateMacroValue(name, value);
-        if (ok) refresh();
-        return ok;
-    };
-    const del = (name: string) => {
-        globalMacroManager.deleteMacro(name);
-        refresh();
-    };
-    const get = (name: string) => globalMacroManager.getMacro(name);
-    const assignListener = (listener: (eventType: string, data: any) => void) => {
-        globalMacroManager.addListener(listener);
-        return () => globalMacroManager.removeListener(listener);
-    };
+    const refresh = useCallback(() => {
+        // Store-first implementation keeps macros synchronized via command side-effects.
+        // The refresh hook remains for compatibility but no longer performs work.
+    }, []);
+
+    const runCommand = useCallback((command: SceneCommand, source: string) => {
+        const result = dispatchSceneCommand(command, { source });
+        if (!result.success) {
+            console.warn(`[MacroContext] Command failed (${source})`, result.error);
+        }
+        return result.success;
+    }, []);
+
+    const create = useCallback(
+        (name: string, type: MacroType, value: any, options?: any) => {
+            const success = runCommand(
+                { type: 'createMacro', macroId: name, definition: { type, value, options } },
+                'MacroContext.create'
+            );
+            return success;
+        },
+        [runCommand]
+    );
+
+    const updateValue = useCallback(
+        (name: string, value: any) => {
+            const success = runCommand({ type: 'updateMacroValue', macroId: name, value }, 'MacroContext.updateValue');
+            return success;
+        },
+        [runCommand]
+    );
+
+    const rename = useCallback(
+        (currentId: string, nextId: string) => {
+            const success = runCommand(
+                { type: 'renameMacro', currentId, nextId },
+                'MacroContext.rename'
+            );
+            return success;
+        },
+        [runCommand]
+    );
+
+    const del = useCallback(
+        (name: string) => {
+            const success = runCommand({ type: 'deleteMacro', macroId: name }, 'MacroContext.delete');
+        },
+        [runCommand]
+    );
+
+    const get = useCallback((name: string): Macro | null => {
+        return useSceneStore.getState().macros.byId[name] ?? null;
+    }, []);
+
+    const assignListener = useCallback((listener: (eventType: string, data: any) => void) => {
+        const unsubscribe = useSceneStore.subscribe((state, prev) => {
+            if (state.macros !== prev.macros) {
+                listener('macroStoreUpdated', state.macros);
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     return (
-        <MacroContext.Provider value={{ manager: globalMacroManager, macros, refresh, create, updateValue, delete: del, get, assignListener }}>
+        <MacroContext.Provider
+            value={{ macros, refresh, create, updateValue, rename, delete: del, get, assignListener }}
+        >
             {children}
         </MacroContext.Provider>
     );

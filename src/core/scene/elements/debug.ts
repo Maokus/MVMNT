@@ -21,7 +21,7 @@ export class DebugElement extends SceneElement {
         return {
             name: 'Debug',
             description: 'Debugging information display',
-            category: 'misc',
+            category: 'Misc',
             groups: [
                 ...base.groups,
                 {

@@ -1,0 +1,311 @@
+import { dispatchSceneCommand, registerSceneCommandListener, type SceneCommandPatch } from '@state/scene';
+import type { SceneCommandTelemetryEvent } from '@state/scene/sceneTelemetry';
+import { registerTimelineCommandListener, type TimelineCommandTelemetryEvent } from '@state/timeline/timelineTelemetry';
+import type { TimelineCommandPatch } from '@state/timeline/patches';
+import { applyTimelinePatchActions } from '@state/timeline/patches';
+import { useTimelineStore } from '@state/timelineStore';
+
+export interface UndoController {
+    canUndo(): boolean;
+    canRedo(): boolean;
+    undo(): void;
+    redo(): void;
+    reset(): void;
+}
+
+export interface CreatePatchUndoOptions {
+    maxDepth?: number;
+}
+
+interface UndoStackEntry {
+    scene?: SceneCommandPatch;
+    timeline?: TimelineCommandPatch;
+    source?: string;
+    timestamp: number;
+    mergeKey?: string;
+    transient: boolean;
+    event?: SceneCommandTelemetryEvent;
+    timelineEvent?: TimelineCommandTelemetryEvent;
+}
+
+class PatchUndoController implements UndoController {
+    private stack: UndoStackEntry[] = [];
+    private index: number = -1;
+    private readonly maxDepth: number;
+    private restoring = false;
+    private unsubscribeScene?: () => void;
+    private unsubscribeTimeline?: () => void;
+
+    constructor(options: CreatePatchUndoOptions = {}) {
+        this.maxDepth = Math.max(1, Math.min(options.maxDepth ?? 100, 200));
+        this.unsubscribeScene = registerSceneCommandListener((event) => this.onSceneCommand(event));
+        this.unsubscribeTimeline = registerTimelineCommandListener((event) => this.onTimelineCommand(event));
+        this.exposeGlobals();
+    }
+
+    private onSceneCommand(event: SceneCommandTelemetryEvent) {
+        if (this.restoring) return;
+        if (!event.success) return;
+        const undo = event.patch?.undo;
+        const redo = event.patch?.redo;
+        const hasScenePatch =
+            Array.isArray(undo) && Array.isArray(redo) && undo.length > 0 && redo.length > 0;
+
+        if (!hasScenePatch) {
+            if (event.mergeKey) {
+                this.updateExistingEntry(event);
+            }
+            return;
+        }
+
+        const entry: UndoStackEntry = {
+            scene: { undo, redo },
+            source: event.source,
+            timestamp: Date.now(),
+            mergeKey: event.mergeKey,
+            transient: event.transient ?? false,
+            event,
+        };
+        this.pushEntry(entry);
+    }
+
+    private onTimelineCommand(event: TimelineCommandTelemetryEvent) {
+        if (this.restoring) return;
+        if (!event.success) return;
+        const patch = event.patch;
+        if (!patch || !Array.isArray(patch.undo) || !Array.isArray(patch.redo)) {
+            return;
+        }
+        if (!patch.undo.length && !patch.redo.length) {
+            return;
+        }
+        const entry: UndoStackEntry = {
+            timeline: patch,
+            source: event.source,
+            timestamp: Date.now(),
+            mergeKey: undefined,
+            transient: false,
+            timelineEvent: event,
+        };
+        this.pushEntry(entry);
+    }
+
+    private pushEntry(entry: UndoStackEntry) {
+        if (this.index < this.stack.length - 1) {
+            this.stack.splice(this.index + 1);
+        }
+        const last = this.stack[this.stack.length - 1];
+        if (last && this.canEntriesMerge(last, entry)) {
+            this.stack[this.stack.length - 1] = this.mergeEntries(last, entry);
+            this.index = this.stack.length - 1;
+            return;
+        }
+        this.stack.push(entry);
+        if (this.stack.length > this.maxDepth) {
+            this.stack.shift();
+        }
+        this.index = this.stack.length - 1;
+    }
+
+    private canEntriesMerge(existing: UndoStackEntry, incoming: UndoStackEntry): boolean {
+        if (!existing.mergeKey || !incoming.mergeKey) return false;
+        if (existing.mergeKey !== incoming.mergeKey) return false;
+        const existingEvent = existing.event;
+        const incomingEvent = incoming.event;
+        if (incomingEvent?.canMergeWith && existingEvent && !incomingEvent.canMergeWith(existingEvent)) {
+            return false;
+        }
+        if (existingEvent?.canMergeWith && incomingEvent && !existingEvent.canMergeWith(incomingEvent)) {
+            return false;
+        }
+        return true;
+    }
+
+    private mergeEntries(existing: UndoStackEntry, incoming: UndoStackEntry): UndoStackEntry {
+        const mergedScene = this.mergeScenes(existing.scene, incoming.scene);
+        const mergedTimeline = this.mergeTimelines(existing.timeline, incoming.timeline);
+        return {
+            ...existing,
+            ...incoming,
+            scene: mergedScene,
+            timeline: mergedTimeline,
+            source: incoming.source ?? existing.source,
+            mergeKey: incoming.mergeKey ?? existing.mergeKey,
+            transient: incoming.transient,
+            event: incoming.event ?? existing.event,
+            timelineEvent: incoming.timelineEvent ?? existing.timelineEvent,
+        };
+    }
+
+    private mergeScenes(
+        existing: UndoStackEntry['scene'],
+        incoming: UndoStackEntry['scene'],
+    ): UndoStackEntry['scene'] {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+        return {
+            undo: [...incoming.undo, ...existing.undo],
+            redo: [...existing.redo, ...incoming.redo],
+        };
+    }
+
+    private mergeTimelines(
+        existing: UndoStackEntry['timeline'],
+        incoming: UndoStackEntry['timeline'],
+    ): UndoStackEntry['timeline'] {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+        return {
+            undo: [...incoming.undo, ...existing.undo],
+            redo: [...existing.redo, ...incoming.redo],
+        };
+    }
+
+    private updateExistingEntry(event: SceneCommandTelemetryEvent): void {
+        if (!this.stack.length) return;
+        const last = this.stack[this.stack.length - 1];
+        if (!last || !last.mergeKey || last.mergeKey !== event.mergeKey) return;
+        const lastEvent = last.event;
+        if (event.canMergeWith && lastEvent && !event.canMergeWith(lastEvent)) return;
+        if (lastEvent?.canMergeWith && !lastEvent.canMergeWith(event)) return;
+        last.transient = event.transient ?? last.transient;
+        last.source = event.source ?? last.source;
+        last.timestamp = Date.now();
+        last.event = event;
+        this.index = this.stack.length - 1;
+    }
+
+    private applySceneCommands(commands: SceneCommandPatch['undo']): void {
+        for (const command of commands) {
+            const result = dispatchSceneCommand(command, { source: 'undo' });
+            if (!result.success) {
+                console.error('[undo] Failed to apply command during undo/redo', result.error);
+            }
+        }
+    }
+
+    private applyTimelineCommands(patch: TimelineCommandPatch['undo']): void {
+        if (!patch.length) return;
+        applyTimelinePatchActions(
+            {
+                getState: () => useTimelineStore.getState(),
+                setState: (updater) => useTimelineStore.setState(updater as any),
+            },
+            patch,
+        );
+    }
+
+    private exposeGlobals() {
+        if (typeof window === 'undefined') return;
+        try {
+            (window as any).__mvmntUndo = this;
+            if (!(window as any).getUndoStack) {
+                (window as any).getUndoStack = () => this.debugStack();
+            }
+            if (!(window as any).dumpUndo) {
+                (window as any).dumpUndo = (index?: number) => this.dump(index);
+            }
+        } catch {
+            /* non-fatal */
+        }
+    }
+
+    canUndo(): boolean {
+        return this.index >= 0 && this.index < this.stack.length;
+    }
+
+    canRedo(): boolean {
+        return this.index < this.stack.length - 1;
+    }
+
+    undo(): void {
+        if (!this.canUndo()) return;
+        const entry = this.stack[this.index];
+        this.restoring = true;
+        try {
+            if (entry.scene) {
+                this.applySceneCommands(entry.scene.undo);
+            }
+            if (entry.timeline) {
+                this.applyTimelineCommands(entry.timeline.undo);
+            }
+        } finally {
+            this.restoring = false;
+            this.index -= 1;
+        }
+    }
+
+    redo(): void {
+        if (!this.canRedo()) return;
+        const entry = this.stack[this.index + 1];
+        this.restoring = true;
+        try {
+            if (entry.scene) {
+                this.applySceneCommands(entry.scene.redo);
+            }
+            if (entry.timeline) {
+                this.applyTimelineCommands(entry.timeline.redo);
+            }
+        } finally {
+            this.restoring = false;
+            this.index += 1;
+        }
+    }
+
+    reset(): void {
+        this.stack = [];
+        this.index = -1;
+    }
+
+    dispose(): void {
+        this.reset();
+        this.unsubscribeScene?.();
+        this.unsubscribeScene = undefined;
+        if (typeof window !== 'undefined') {
+            try {
+                if ((window as any).__mvmntUndo === this) {
+                    delete (window as any).__mvmntUndo;
+                }
+            } catch {
+                /* noop */
+            }
+        }
+    }
+
+    debugStack() {
+        return {
+            index: this.index,
+            size: this.stack.length,
+            entries: this.stack.map((entry, idx) => ({
+                index: idx,
+                hasScenePatch: !!entry.scene,
+                hasTimelinePatch: !!entry.timeline,
+                source: entry.source,
+                ageMs: Date.now() - entry.timestamp,
+                mergeKey: entry.mergeKey ?? null,
+                transient: entry.transient,
+            })),
+        };
+    }
+
+    dump(index: number = this.index) {
+        const entry = this.stack[index];
+        if (!entry) return null;
+        return { ...entry.scene };
+    }
+
+    markDirty(): void {
+        // Patch-based undo applies changes eagerly; markDirty is retained for legacy integrations.
+    }
+
+    isRestoring(): boolean {
+        return this.restoring;
+    }
+}
+
+export function createPatchUndoController(
+    _store: unknown,
+    options: CreatePatchUndoOptions = {}
+): PatchUndoController {
+    return new PatchUndoController(options);
+}

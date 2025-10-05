@@ -26,19 +26,21 @@ describe('Timeline mapping helpers (store version)', () => {
     it('timelineToTrackSeconds respects offsets and regions (converted to tick regions)', async () => {
         const id = await useTimelineStore.getState().addMidiTrack({ name: 'T', offsetTicks: 0 });
         // Offset 1.5s => at 120 bpm: 1.5s * (120/60)=3 beats => 3*PPQ ticks
-        useTimelineStore.getState().setTrackOffsetTicks(id, 3 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackOffsetTicks(id, 3 * CANONICAL_PPQ);
         const midi = makeMidi([
             { type: 'noteOn', note: 60, velocity: 100, time: 0.0, tick: 0, channel: 0 },
             { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 1 * CANONICAL_PPQ, channel: 0 },
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
         // Region 0.5s..2.0s => 0.5s=1 beat=PPQ ticks after offset; relative region ticks = start PPQ end 4*PPQ
-        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
+        await useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 4 * CANONICAL_PPQ);
         const state = useTimelineStore.getState();
-        expect(timelineToTrackSeconds(state, state.tracks[id], 1.0)).toBeNull();
-        expect(timelineToTrackSeconds(state, state.tracks[id], 2.0)).toBeCloseTo(0.5, 1);
-        expect(timelineToTrackSeconds(state, state.tracks[id], 3.0)).toBeCloseTo(1.5, 1);
-        expect(timelineToTrackSeconds(state, state.tracks[id], 4.0)).toBeNull();
+        const track = state.tracks[id];
+        if (!track || track.type !== 'midi') throw new Error('expected midi track');
+        expect(timelineToTrackSeconds(state, track, 1.0)).toBeNull();
+        expect(timelineToTrackSeconds(state, track, 2.0)).toBeCloseTo(0.5, 1);
+        expect(timelineToTrackSeconds(state, track, 3.0)).toBeCloseTo(1.5, 1);
+        expect(timelineToTrackSeconds(state, track, 4.0)).toBeNull();
     });
 
     it('align across tracks via beats (cross sync)', async () => {
@@ -54,7 +56,9 @@ describe('Timeline mapping helpers (store version)', () => {
         expect(mapped).toBeCloseTo(4.0, 6);
         // Sanity: using helper for A baseline
         const state = useTimelineStore.getState();
-        const approxASeconds = trackBeatsToTimelineSeconds(state, state.tracks[idA], beats);
+        const trackA = state.tracks[idA];
+        if (!trackA || trackA.type !== 'midi') throw new Error('expected midi track A');
+        const approxASeconds = trackBeatsToTimelineSeconds(state, trackA, beats);
         expect(approxASeconds).toBeCloseTo(beats * 0.5, 1); // at default 120bpm spb=0.5
     });
 });

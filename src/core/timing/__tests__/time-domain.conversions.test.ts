@@ -1,25 +1,19 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { TimingManager } from '../timing-manager';
-import { CANONICAL_PPQ, basicConverters, beats, tick } from '../time-domain';
+// (Removed import of internal converters; test simplified to TimingManager integration only)
 
 function approx(a: number, b: number, eps = 1e-9) {
     expect(Math.abs(a - b)).toBeLessThan(eps);
 }
 
-describe('Time Domain Conversions (Phase 1)', () => {
-    it('ticks <-> beats basicConverters symmetry', () => {
-        const tpq = CANONICAL_PPQ;
-        for (let t = 0; t <= tpq * 8; t += 37) {
-            const b = basicConverters.ticksToBeats(tick(t), tpq) as number;
-            const t2 = basicConverters.beatsToTicks(beats(b), tpq) as number;
-            expect(Math.abs(t - t2)).toBeLessThanOrEqual(0.5); // rounding allowance
-        }
-    });
+describe('Time Domain Conversions', () => {
+    // Basic tick<->beat symmetry is covered by TimingManager tests elsewhere.
 
     it('fixed tempo ticks<->seconds round trip', () => {
         const tm = new TimingManager();
         tm.setBPM(120); // 0.5s per beat
-        const tpq = tm.ticksPerQuarter; // 480 default
+        const tpq = tm.ticksPerQuarter; // canonical default
         for (let t = 0; t < tpq * 16; t += 113) {
             const sec = tm.ticksToSeconds(t);
             const t2 = tm.secondsToTicks(sec);
@@ -29,7 +23,7 @@ describe('Time Domain Conversions (Phase 1)', () => {
 
     it('tempo map multi-segment ticks<->seconds round trip', () => {
         const tm = new TimingManager();
-        tm.setTicksPerQuarter(480);
+        tm.setTicksPerQuarter(CANONICAL_PPQ);
         // Two segments: 120bpm for first 4s (8 beats), then 90bpm
         tm.setTempoMap([
             { time: 0, bpm: 120 },

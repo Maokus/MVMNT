@@ -1,20 +1,34 @@
-import type { TimelineState } from '@state/timelineStore';
+import type { TimelineState, TimelineTrack } from '@state/timelineStore';
+import { offsetTicksToSeconds } from '@core/timing/offset-utils';
+import { beatsToSeconds } from '@core/timing/tempo-utils';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { CompileWindowArgs, CompileTrack, CompileMidiCache } from './compile';
 
 export type SchedulerConfig = CompileWindowArgs;
 
+function asMidiTracks(tracks: Record<string, TimelineTrack | any>): TimelineTrack[] {
+    return Object.values(tracks).filter((t): t is TimelineTrack => Boolean(t) && t.type === 'midi');
+}
+
+function ticksToSeconds(state: TimelineState, ticks?: number): number | undefined {
+    if (ticks == null) return undefined;
+    const spb = 60 / (state.timeline.globalBpm || 120);
+    return beatsToSeconds(state.timeline.masterTempoMap, ticks / CANONICAL_PPQ, spb);
+}
+
 export function buildSchedulerConfig(s: TimelineState, nowSec: number, lookAheadSec: number): SchedulerConfig {
-    const tracks: CompileTrack[] = Object.values(s.tracks).map((t) => ({
+    const midiTracks = asMidiTracks(s.tracks);
+    const spb = 60 / (s.timeline.globalBpm || 120);
+    const tracks: CompileTrack[] = midiTracks.map((t) => ({
         id: t.id,
         enabled: t.enabled,
         mute: t.mute,
         solo: t.solo,
-        offsetSec: t.offsetSec,
-        regionStartSec: t.regionStartSec,
-        regionEndSec: t.regionEndSec,
-        midiSourceId: t.midiSourceId,
-        type: undefined as any, // ignored by compile (narrowed type)
-    })) as any;
+        offsetSec: offsetTicksToSeconds(t.offsetTicks || 0, s.timeline.masterTempoMap, spb),
+        regionStartSec: ticksToSeconds(s, t.regionStartTick),
+        regionEndSec: ticksToSeconds(s, t.regionEndTick),
+        midiSourceId: t.midiSourceId ?? t.id,
+    }));
     const midiCache: CompileMidiCache = {};
     for (const [id, v] of Object.entries(s.midiCache)) {
         midiCache[id] = {

@@ -22,7 +22,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             name: 'Chord Estimate Display',
             description:
                 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
-            category: 'music',
+            category: 'MIDI Info',
             groups: [
                 ...base.groups,
                 {
@@ -248,8 +248,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         // Chroma line (12 bins with names)
         if (this.getProperty('showChroma')) {
             const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const rectWidth = 20;
+            const spacing = 30;
+            const totalWidth = (names.length - 1) * spacing + rectWidth;
+            let startX = 0;
+            if (justify === 'center') startX = -totalWidth / 2;
+            else if (justify === 'right' || justify === 'end') startX = -totalWidth;
             for (let i = 0; i < names.length; i++) {
-                const rect = new Rectangle(i * 30, y, 20, 20, `rgba(255,255,255,${chroma[i]})`);
+                const rectX = startX + i * spacing;
+                const rect = new Rectangle(rectX, y, rectWidth, 20, `rgba(255,255,255,${chroma[i]})`);
                 renderObjects.push(rect);
             }
             y += detailsFontSize + lineSpacing;

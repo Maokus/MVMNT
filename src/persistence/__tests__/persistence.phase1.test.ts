@@ -1,20 +1,21 @@
-import { exportScene, importScene, createSnapshotUndoController, SERIALIZATION_V1_ENABLED } from '../index';
+import { exportScene, importScene, createPatchUndoController } from '../index';
 import { useTimelineStore } from '../../state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
+import type { ExportSceneResultInline } from '../export';
+import { dispatchSceneCommand } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
 
-// Ensure flag is considered enabled in test environment; if env not set, skip tests gracefully.
-const flagEnabled = typeof SERIALIZATION_V1_ENABLED === 'function' ? true : true; // Assume test env sets it or treat as true.
-
-describe('Persistence Phase 1', () => {
-    if (!flagEnabled) {
-        it('Feature disabled – skipping tests', () => {
-            expect(true).toBe(true);
-        });
-        return;
+async function exportInlineScene(): Promise<ExportSceneResultInline> {
+    const result = await exportScene(undefined, { storage: 'inline-json' });
+    if (!result.ok || result.mode !== 'inline-json') {
+        throw new Error('Expected inline-json export result');
     }
+    return result;
+}
 
+describe('Persistence', () => {
     test('Stable stringify deterministic for object key order', () => {
         const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
         const s1 = serializeStable(a);
@@ -33,13 +34,13 @@ describe('Persistence Phase 1', () => {
         expect(sorted.map((e) => e.id)).toEqual(['a', 'b', 'c', 'd']);
     });
 
-    test('Export -> Import -> Export round-trip stable ignoring modifiedAt', () => {
-        const first = exportScene();
+    test('Export -> Import -> Export round-trip stable ignoring modifiedAt', async () => {
+        const first = await exportInlineScene();
         expect(first.ok).toBe(true);
-        const json1 = first.ok ? first.json : '';
-        const imp = importScene(json1);
+        const json1 = first.json;
+        const imp = await importScene(json1);
         expect(imp.ok).toBe(true);
-        const second = exportScene();
+        const second = await exportInlineScene();
         if (!second.ok) throw new Error('Second export failed');
         const env1 = JSON.parse(json1);
         const env2 = JSON.parse(second.json);
@@ -53,32 +54,20 @@ describe('Persistence Phase 1', () => {
         expect(serializeStable(env1)).toEqual(serializeStable(env2));
     });
 
-    test('Undo controller captures snapshots and can undo/redo', () => {
-        const undo = createSnapshotUndoController(useTimelineStore, { maxDepth: 10, debounceMs: 10 });
-        const store = useTimelineStore;
-        // Perform a sequence of mutations
-        return new Promise<void>((resolve) => {
-            store.getState().setGlobalBpm(130);
-            store.getState().setBeatsPerBar(3);
-            setTimeout(() => {
-                const currentTick = store.getState().timeline.currentTick;
-                store.getState().seekTick(currentTick + 120);
-                setTimeout(() => {
-                    // Allow debounce flush
-                    setTimeout(() => {
-                        const canUndo = undo.canUndo();
-                        expect(canUndo).toBe(true);
-                        const before = store.getState().timeline.globalBpm;
-                        undo.undo();
-                        const afterUndo = store.getState().timeline.globalBpm;
-                        // Undo should revert BPM change OR tick change.
-                        expect(afterUndo === before || afterUndo === 120).toBe(true);
-                        // Redo path
-                        if (undo.canRedo()) undo.redo();
-                        resolve();
-                    }, 30);
-                }, 5);
-            }, 15);
+    test('Undo controller tracks scene commands and can undo/redo', () => {
+        const undo = createPatchUndoController(useTimelineStore, { maxDepth: 10 });
+        useSceneStore.getState().clearScene();
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'undo-phase1',
+            config: { text: { type: 'constant', value: 'Phase1' } },
         });
+        expect(undo.canUndo()).toBe(true);
+        undo.undo();
+        expect(useSceneStore.getState().elements['undo-phase1']).toBeUndefined();
+        expect(undo.canRedo()).toBe(true);
+        undo.redo();
+        expect(useSceneStore.getState().elements['undo-phase1']).toBeDefined();
     });
 });

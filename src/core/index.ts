@@ -6,14 +6,12 @@
 export { MIDIParser, parseMIDI } from '@core/midi/midi-parser';
 export { NoteEvent } from '@core/midi/note-event';
 export { ImageSequenceGenerator } from '@export/image-sequence-generator';
-export { MacroManager, globalMacroManager } from '@bindings/macro-manager';
-
 // ==========================================
 // Property Binding System Exports
 // ==========================================
 export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
 export type { PropertyBindingData } from '@bindings/property-bindings';
-export { HybridSceneBuilder } from '@core/scene-builder';
+export { loadDefaultScene, resetToDefaultScene } from './default-scene-loader';
 
 // ==========================================
 // Visualizer Rendering Exports
@@ -38,7 +36,6 @@ export * from '@core/types';
 // ==========================================
 // Animation Utilities Export
 // ==========================================
-export { FloatCurve, AnimMath } from '@animation/anim-math.js';
 
 // ==========================================
 // Timing/Timeline exports

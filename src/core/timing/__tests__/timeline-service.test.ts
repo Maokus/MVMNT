@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { noteQueryApi } from '@core/timing/note-query';
 import { useTimelineStore } from '@state/timelineStore';
-import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDIEvent } from '@core/types';
 
@@ -29,9 +29,9 @@ describe('Note query basics (store version)', () => {
         const ingested = buildNotesFromMIDI(midi);
         const store = useTimelineStore.getState();
         const id = await useTimelineStore.getState().addMidiTrack({ name: 'Piano', offsetTicks: 0 });
-        // Simulate second-based offsetSec=0.5 by converting to beats then ticks (PPQ=480 -> 0.5s at 120bpm = 1 beat => 480 ticks)
-        // 120 bpm -> 0.5s == 1 beat (since 60/120). So offsetTicks = 480.
-        useTimelineStore.getState().setTrackOffsetTicks(id, 1 * CANONICAL_PPQ); // 1 beat
+        // Simulate second-based offsetSec=0.5 by converting to beats then ticks.
+        // At 120 bpm -> 0.5s == 1 beat (since 60/120). So offsetTicks = CANONICAL_PPQ.
+        await useTimelineStore.getState().setTrackOffsetTicks(id, 1 * CANONICAL_PPQ); // 1 beat
         useTimelineStore.getState().ingestMidiToCache(id, ingested);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [id], 0, 10);
         expect(notes.length).toBe(2);

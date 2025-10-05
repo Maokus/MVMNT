@@ -73,31 +73,36 @@ export function createExportTimingSnapshot(tm: TimingManager): ExportTimingSnaps
 
 // ---- Conversion helpers (pure, deterministic, independent of live timing manager) ----
 
-export function snapshotSecondsToBeats(snapshot: ExportTimingSnapshot, seconds: number): number {
+export function snapshotSecondsToTicks(snapshot: ExportTimingSnapshot, seconds: number): number {
+    // Inline seconds->beats conversion (was snapshotSecondsToBeats) to reduce surface area
     const segs = snapshot._segments;
+    let beats: number;
     if (!segs || segs.length === 0) {
         const spb = snapshot.baseTempo / 1_000_000;
-        return seconds / spb;
-    }
-    // Binary search for segment with start.time <= seconds
-    let lo = 0,
-        hi = segs.length - 1,
-        idx = 0;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (segs[mid].time <= seconds) {
-            idx = mid;
-            lo = mid + 1;
-        } else {
-            hi = mid - 1;
+        beats = seconds / spb;
+    } else {
+        let lo = 0,
+            hi = segs.length - 1,
+            idx = 0;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (segs[mid].time <= seconds) {
+                idx = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
         }
+        const seg = segs[idx];
+        const dt = seconds - seg.time;
+        beats = seg.cumulativeBeats + dt / seg.secondsPerBeat;
     }
-    const seg = segs[idx];
-    const dt = seconds - seg.time;
-    return seg.cumulativeBeats + dt / seg.secondsPerBeat;
+    return beats * snapshot.ticksPerQuarter;
 }
 
-export function snapshotBeatsToSeconds(snapshot: ExportTimingSnapshot, beats: number): number {
+export function snapshotTicksToSeconds(snapshot: ExportTimingSnapshot, ticks: number): number {
+    // Inline beats->seconds conversion (was snapshotBeatsToSeconds)
+    const beats = ticks / snapshot.ticksPerQuarter;
     const segs = snapshot._segments;
     if (!segs || segs.length === 0) {
         const spb = snapshot.baseTempo / 1_000_000;
@@ -118,16 +123,6 @@ export function snapshotBeatsToSeconds(snapshot: ExportTimingSnapshot, beats: nu
     const seg = segs[idx];
     const beatsInSeg = beats - seg.cumulativeBeats;
     return seg.time + beatsInSeg * seg.secondsPerBeat;
-}
-
-export function snapshotSecondsToTicks(snapshot: ExportTimingSnapshot, seconds: number): number {
-    const beats = snapshotSecondsToBeats(snapshot, seconds);
-    return beats * snapshot.ticksPerQuarter;
-}
-
-export function snapshotTicksToSeconds(snapshot: ExportTimingSnapshot, ticks: number): number {
-    const beats = ticks / snapshot.ticksPerQuarter;
-    return snapshotBeatsToSeconds(snapshot, beats);
 }
 
 export function cloneSnapshot(snapshot: ExportTimingSnapshot): ExportTimingSnapshot {

@@ -1,5 +1,5 @@
 // Single source of truth for ticks per quarter (PPQ) used across UI and timing logic.
-// Historically 480; some tooling expects 960. We centralize and allow runtime configuration
+// Historically 960; some tooling expects 960. We centralize and allow runtime configuration
 // early during application startup / test setup. Avoid importing and mutating elsewhere.
 
 let _canonicalPPQ = 960; // default

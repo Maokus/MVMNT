@@ -1,11 +1,19 @@
-import React, { useEffect } from 'react';
-// Tailwind styles are loaded via index.tsx
-import MidiVisualizer from '@ui/layout/MidiVisualizer';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import AnimationTestPage from '@pages/AnimationTestPage';
-import AboutPage from '@pages/AboutPage';
-import ChangelogPage from '@pages/ChangelogPage';
-import HomePage from '@pages/HomePage';
+
+// Tailwind styles are loaded via index.tsx
+const MidiVisualizer = lazy(() => import('@workspace/layout/MidiVisualizer'));
+const EasyModePage = lazy(() => import('../easymode/EasyModePage'));
+const AnimationTestPage = lazy(() => import('@pages/AnimationTestPage'));
+const AboutPage = lazy(() => import('@pages/AboutPage'));
+const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
+const HomePage = lazy(() => import('@pages/HomePage'));
+
+const TransportStatusDevLazy = lazy(() =>
+  import('@workspace/dev/TransportStatusDev').then((module) => ({
+    default: module.TransportStatusDev,
+  })),
+);
 
 export function App() {
 
@@ -38,13 +46,19 @@ export function App() {
 
   return (
     <div className="App">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/workspace" element={<MidiVisualizer />} />
-        <Route path="/animation-test" element={<AnimationTestPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/changelog" element={<ChangelogPage />} />
-      </Routes>
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-neutral-400">Loading…</div>}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/workspace" element={<MidiVisualizer />} />
+          <Route path="/easymode" element={<EasyModePage />} />
+          <Route path="/animation-test" element={<AnimationTestPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
+        </Routes>
+      </Suspense>
+      <Suspense fallback={null}>
+        <TransportStatusDevLazy />
+      </Suspense>
     </div>
   );
 }

@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
     // Use a dynamic base so the app can be hosted under a sub-path in production
     // Production target path: https://maok.us/playbox/projects/mvmnt/
     // Local dev remains at root '/'
-    base: mode === 'production' ? '/playbox/projects/mvmnt/' : '/',
+    base: mode === 'production' ? '/playbox/projects/mvmnt/' : mode === 'beta' ? '/playbox/projects/mvmnt_beta/' : '/',
     optimizeDeps: {
         exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
     },
@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => ({
     // React SWC plugin already enables Fast Refresh by default; ensure our component
     // modules use named function declarations for providers for consistent boundaries.
     plugins: [react(), tsconfigPaths()],
+    assetsInclude: ['**/*.icns', '**/*.mvt'],
     build: {
         outDir: 'build',
         sourcemap: true,
@@ -35,5 +36,6 @@ export default defineConfig(({ mode }) => ({
         setupFiles: ['./src/setupTests.ts'],
         globals: true,
         include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
+        assetsInclude: ['**/*.icns', '**/*.mvt'],
     },
 }));

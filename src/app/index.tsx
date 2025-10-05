@@ -4,7 +4,9 @@ import './tailwind.css';
 import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
-import '@core/timing/debug-tools';
+if (import.meta.env.DEV) {
+  void import('@devtools/registerWindowTools');
+}
 import { setCanonicalPPQ } from '@core/timing/ppq';
 
 // Early initialization: allow overriding canonical PPQ via Vite env var VITE_CANONICAL_PPQ

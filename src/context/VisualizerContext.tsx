@@ -1,36 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-// @ts-ignore
-import { MIDIVisualizerCore } from '@core/visualizer-core.js';
-// @ts-ignore
-import { ImageSequenceGenerator } from '@export/image-sequence-generator.js';
-import { VideoExporter } from '@export/video-exporter.js';
-import { TimingManager } from '@core/timing';
+import type { VideoExporter } from '@export/video-exporter.js';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useSceneStore } from '@state/sceneStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
-import { PlaybackClock } from '@core/playback-clock';
-// Removed direct secondsToBeats usage for loop wrap; conversions now derive from ticks via shared TimingManager
-
-export interface ExportSettings {
-    fps: number;
-    width: number;
-    height: number;
-    fullDuration: boolean;
-    startTime: number;
-    endTime: number;
-    prePadding?: number;
-    postPadding?: number;
-    // Optional per-export (render modal) video settings. Kept here so override typing is easy.
-    bitrate?: number; // target video bitrate (bps)
-    qualityPreset?: 'low' | 'medium' | 'high';
-}
-
-export interface DebugSettings {
-    showAnchorPoints: boolean;
-}
-
-interface ProgressData { progress: number; text: string; }
+import type { ProgressData } from './visualizer/types';
+import { ExportKind, ExportSettings, DebugSettings } from './visualizer/types';
+import { useVisualizerBootstrap } from './visualizer/useVisualizerBootstrap';
+import { useRenderLoop } from './visualizer/useRenderLoop';
+import { useTransportBridge } from './visualizer/useTransportBridge';
 
 interface VisualizerContextValue {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -39,6 +18,7 @@ interface VisualizerContextValue {
     currentTimeLabel: string;
     numericCurrentTime: number;
     totalDuration: number;
+    sceneName: string;
     exportSettings: ExportSettings;
     setExportSettings: React.Dispatch<React.SetStateAction<ExportSettings>>;
     debugSettings: DebugSettings;
@@ -53,6 +33,7 @@ interface VisualizerContextValue {
     showProgressOverlay: boolean;
     progressData: ProgressData;
     closeProgress: () => void;
+    exportKind: ExportKind;
     // TimelineService removed from context; use timeline store + note-query utilities instead.
     // Expose convenience store hooks
     useTimeline: () => TimelineState['timeline'];
@@ -81,220 +62,77 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         fullDuration: true,
         startTime: 0,
         endTime: 0,
-        prePadding: 0,
-        postPadding: 0,
+        includeAudio: true,
+        videoCodec: 'h264',
+        audioCodec: 'aac',
+        videoBitrateMode: 'auto',
+        audioSampleRate: 'auto',
+        audioChannels: 2,
     });
-    const [debugSettings, setDebugSettings] = useState<DebugSettings>({ showAnchorPoints: false });
+    const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
+    const defaultDebugSettings: DebugSettings = {
+        showAnchorPoints: false,
+        showDevelopmentOverlay: import.meta.env.DEV && !isBetaMode,
+    };
+    const [debugSettings, setDebugSettings] = useState<DebugSettings>(defaultDebugSettings);
     const [showProgressOverlay, setShowProgressOverlay] = useState(false);
     const [progressData, setProgressData] = useState<ProgressData>({ progress: 0, text: 'Generating images...' });
+    const [exportKind, setExportKind] = useState<ExportKind>(null);
     const sceneNameRef = useRef<string>('scene');
+    // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
+    const [sceneNameState, setSceneNameState] = useState<string>('scene');
+    // Keep export settings aligned with the currently loaded scene resolution.
+    const sceneSettings = useSceneStore((state) => state.settings);
     // TimelineService removed: all track/timeline operations flow through Zustand store.
 
-    // Listen for scene name changes broadcast by SceneContext
-    useEffect(() => {
-        const handler = (e: any) => {
-            if (e?.detail?.sceneName) sceneNameRef.current = e.detail.sceneName;
-        };
-        window.addEventListener('scene-name-changed', handler as EventListener);
-        return () => window.removeEventListener('scene-name-changed', handler as EventListener);
-    }, []);
+    useVisualizerBootstrap({
+        canvasRef,
+        visualizer,
+        setVisualizer,
+        setImageSequenceGenerator,
+        setVideoExporter,
+        setExportSettings,
+        sceneNameRef,
+        setSceneNameState,
+    });
 
-    // Initialize visualizer
-    useEffect(() => {
-        if (canvasRef.current && !visualizer) {
-            const vis = new MIDIVisualizerCore(canvasRef.current);
-            // Do not tie visualizer play range to initial timeline view; view should not constrain playback.
-            vis.render();
-            setVisualizer(vis);
-            const gen = new ImageSequenceGenerator(canvasRef.current, vis);
-            setImageSequenceGenerator(gen);
-            const vid = new VideoExporter(canvasRef.current, vis);
-            setVideoExporter(vid);
-            (window as any).debugVisualizer = vis;
-            // Global timeline service removed; non-React consumers should use store adapters instead.
-            // Removed auto-binding of first timeline track to piano roll to avoid confusion
-            // (Explicit user selection now required.)
-            try { /* no-op */ } catch { }
-            // Sync initial fps/width/height from scene builder settings
-            try {
-                const s = vis.getSceneBuilder()?.getSceneSettings?.();
-                if (s) {
-                    setExportSettings((prev) => ({
-                        ...prev,
-                        fps: s.fps ?? prev.fps,
-                        width: s.width ?? prev.width,
-                        height: s.height ?? prev.height,
-                        prePadding: s.prePadding ?? prev.prePadding ?? 0,
-                        postPadding: s.postPadding ?? prev.postPadding ?? 0,
-                    }));
-                }
-            } catch { }
-        }
-    }, [visualizer]);
+    useRenderLoop({ visualizer, setCurrentTimeLabel, setNumericCurrentTime, setTotalDuration });
+
+    const { playPause, stop, stepForward, stepBackward, forceRender, seekPercent } = useTransportBridge({
+        visualizer,
+        setIsPlaying,
+    });
 
     // (Removed duplicate view sync; see effect near bottom that also clamps current time)
 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
 
-    // Animation / time update loop — drives tick-domain playhead. Seconds are derived for any UI that needs them.
-    // NOTE (2025-09): Updated paused-state sync so manual tick scrubs (ruler drag while paused) immediately seek the
-    // visualizer instead of being reverted by the seconds->tick mirror. We track the last applied tick to detect user driven changes.
     useEffect(() => {
-        if (!visualizer) return;
-        let raf: number;
-        let lastUIUpdate = 0;
-        const lastAppliedTickRef = { current: useTimelineStore.getState().timeline.currentTick };
-        // Lazy-init playback clock referencing shared TimingManager (singleton inside timeline store conversions for now)
-        // We approximate current tick from existing store on mount.
-        const tm = getSharedTimingManager();
-        const stateAtStart = useTimelineStore.getState();
-        // Derive starting tick from store (already dual-written)
-        const startTick = stateAtStart.timeline.currentTick ?? 0;
-        const clock = new PlaybackClock({
-            timingManager: tm,
-            initialTick: startTick,
-            autoStartPaused: !stateAtStart.transport.isPlaying,
+        if (!sceneSettings) return;
+        setExportSettings((prev) => {
+            let changed = false;
+            const next: ExportSettings = { ...prev };
+            const syncKeys: Array<'fps' | 'width' | 'height'> = ['fps', 'width', 'height'];
+            for (const key of syncKeys) {
+                const value = sceneSettings[key];
+                if (typeof value === 'number' && value > 0 && value !== prev[key]) {
+                    next[key] = value;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
         });
-        const playSnapHandler = (e: any) => {
-            if (!e?.detail?.tick) return;
-            try { clock.setTick(e.detail.tick); } catch { /* ignore */ }
-        };
-        window.addEventListener('timeline-play-snapped', playSnapHandler as EventListener);
-
-        const loop = () => {
-            const state = useTimelineStore.getState();
-            const vNow = visualizer.currentTime || 0; // seconds (visualizer still seconds-based internally)
-            // Determine playback end (stop automatically when playhead passes explicit playback range end)
-            try {
-                const st = useTimelineStore.getState();
-                const pr = st.playbackRange;
-                if (pr?.endTick != null) {
-                    // Convert authoritative tick to seconds for comparison (approx using TimingManager)
-                    const tmApprox = getSharedTimingManager();
-                    tmApprox.setBPM(st.timeline.globalBpm || 120);
-                    const endBeats = pr.endTick / tmApprox.ticksPerQuarter;
-                    const endSec = tmApprox.beatsToSeconds(endBeats);
-                    if (vNow >= endSec) {
-                        // Auto-stop behavior: pause visualizer & transport, reset playhead to start (loop-like) without killing RAF loop.
-                        visualizer.pause?.();
-                        try { if (st.transport.isPlaying) st.pause(); } catch { /* ignore */ }
-                        const startTick = pr.startTick ?? 0;
-                        clock.setTick(startTick);
-                        st.setCurrentTick(startTick, 'clock');
-                        // Do not early-return; allow rest of loop to process paused state and schedule next frame.
-                    }
-                }
-            } catch { }
-            // Loop handling (tick domain): if loop active and visualizer time passes loop end, wrap to loop start.
-            const { loopEnabled, loopStartTick, loopEndTick } = state.transport;
-            if (
-                loopEnabled &&
-                typeof loopStartTick === 'number' &&
-                typeof loopEndTick === 'number' &&
-                loopEndTick > loopStartTick
-            ) {
-                try {
-                    const tmLoop = getSharedTimingManager();
-                    tmLoop.setBPM(state.timeline.globalBpm || 120);
-                    if (state.timeline.masterTempoMap) tmLoop.setTempoMap(state.timeline.masterTempoMap, 'seconds');
-                    const loopStartSec = tmLoop.beatsToSeconds(loopStartTick / tmLoop.ticksPerQuarter);
-                    const loopEndSec = tmLoop.beatsToSeconds(loopEndTick / tmLoop.ticksPerQuarter);
-                    if (vNow >= loopEndSec - 1e-6) {
-                        visualizer.seek?.(loopStartSec);
-                        clock.setTick(loopStartTick);
-                        state.setCurrentTick(loopStartTick, 'clock');
-                    }
-                } catch {
-                    /* ignore loop wrap errors */
-                }
-            }
-            // Manage pause/resume of playback clock.
-            if (!state.transport.isPlaying) {
-                if (!clock.isPaused) clock.pause(performance.now());
-            } else if (clock.isPaused) {
-                clock.resume(performance.now());
-            }
-            // Advance clock only when transport playing
-            if (state.transport.isPlaying) {
-                // CLOCK → STORE → VISUALIZER
-                const storeTick = state.timeline.currentTick ?? 0;
-                if (storeTick !== clock.currentTick) {
-                    clock.setTick(storeTick); // accept external seek while playing
-                }
-                const nextTick = clock.update(performance.now());
-                if (nextTick !== storeTick) {
-                    state.setCurrentTick(nextTick, 'clock');
-                    lastAppliedTickRef.current = nextTick;
-                    // Derive seconds and seek visualizer only if significant drift (visualizer still seconds-based)
-                    try {
-                        const tmConv = getSharedTimingManager();
-                        tmConv.setBPM(state.timeline.globalBpm || 120);
-                        const secFromTick = tmConv.beatsToSeconds(nextTick / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.03) visualizer.seek?.(secFromTick);
-                    } catch { /* ignore */ }
-                }
-            } else {
-                // PAUSED: USER (store tick) → CLOCK & VISUALIZER
-                const currentTickVal = state.timeline.currentTick ?? 0;
-                if (currentTickVal !== lastAppliedTickRef.current) {
-                    try {
-                        const tmConv = getSharedTimingManager();
-                        tmConv.setBPM(state.timeline.globalBpm || 120);
-                        const secFromTick = tmConv.beatsToSeconds(currentTickVal / tmConv.ticksPerQuarter);
-                        if (Math.abs((visualizer.currentTime || 0) - secFromTick) > 0.001) visualizer.seek?.(secFromTick);
-                    } catch { /* noop */ }
-                    clock.setTick(currentTickVal);
-                    lastAppliedTickRef.current = currentTickVal;
-                } else {
-                    clock.setTick(currentTickVal); // keep internal fractional cleared
-                }
-            }
-
-            // Throttled UI labels
-            const nowTs = performance.now();
-            if (nowTs - lastUIUpdate > 80) {
-                const total = visualizer.getCurrentDuration ? visualizer.getCurrentDuration() : (visualizer.duration || 0);
-                // Display time relative to the current playback window start to match manual start/end UX
-                let rel = vNow;
-                try {
-                    const view = useTimelineStore.getState().timelineView as any;
-                    // startSec is injected by subscribe shim; use fallback when absent
-                    const startSec = typeof view.startSec === 'number' ? view.startSec : 0;
-                    rel = vNow - startSec;
-                } catch { /* ignore */ }
-                const format = (s: number) => {
-                    const sign = s < 0 ? '-' : '';
-                    const abs = Math.abs(s);
-                    const m = Math.floor(abs / 60);
-                    const sec = Math.floor(abs % 60);
-                    return `${sign}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-                };
-                setCurrentTimeLabel(`${format(rel)} / ${format(total)}`);
-                setNumericCurrentTime(vNow);
-                setTotalDuration(total);
-                lastUIUpdate = nowTs;
-            }
-            raf = requestAnimationFrame(loop);
-        };
-        raf = requestAnimationFrame(loop);
-        return () => {
-            cancelAnimationFrame(raf);
-            window.removeEventListener('timeline-play-snapped', playSnapHandler as EventListener);
-            if (typeof visualizer.cleanup === 'function') visualizer.cleanup();
-        };
-    }, [visualizer]);
+    }, [sceneSettings.fps, sceneSettings.width, sceneSettings.height, setExportSettings]);
 
     // Apply export settings size changes
     useEffect(() => {
         if (!visualizer || !canvasRef.current) return;
-        const sceneSettings = visualizer.getSceneBuilder?.().getSceneSettings?.() || {};
+        const sceneSettings = useSceneStore.getState().settings;
         if (
             sceneSettings.fps !== exportSettings.fps ||
             sceneSettings.width !== exportSettings.width ||
-            sceneSettings.height !== exportSettings.height ||
-            sceneSettings.prePadding !== exportSettings.prePadding ||
-            sceneSettings.postPadding !== exportSettings.postPadding
+            sceneSettings.height !== exportSettings.height
         ) {
             visualizer.updateExportSettings?.(exportSettings);
         } else if ('fullDuration' in exportSettings) {
@@ -311,7 +149,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             if (es) {
                 setExportSettings((prev) => ({
                     ...prev,
-                    ...['fps', 'width', 'height', 'prePadding', 'postPadding'].reduce((acc: any, key) => {
+                    ...['fps', 'width', 'height'].reduce((acc: any, key) => {
                         if (es[key] != null) acc[key] = es[key];
                         return acc;
                     }, {}),
@@ -328,6 +166,17 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         visualizer.updateDebugSettings?.(debugSettings);
     }, [visualizer, debugSettings]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            (window as any).__mvmntDebugSettings = debugSettings;
+            const event = new CustomEvent<DebugSettings>('mvmnt-debug-settings-changed', { detail: debugSettings });
+            window.dispatchEvent(event);
+        } catch {
+            /* noop: custom event dispatch may fail in non-browser contexts */
+        }
+    }, [debugSettings]);
+
     // Re-render canvas when fonts finish loading so text bounds recalc
     useEffect(() => {
         if (!visualizer) return;
@@ -335,60 +184,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         window.addEventListener('font-loaded', handler as EventListener);
         return () => window.removeEventListener('font-loaded', handler as EventListener);
     }, [visualizer]);
-
-    const playPause = useCallback(() => {
-        // Delegate play/pause to global timeline store so UI stays in sync
-        const { togglePlay } = useTimelineStore.getState();
-        togglePlay();
-    }, []);
-
-    // Global spacebar shortcut for play/pause (ignores when typing in inputs/contentEditable)
-    useEffect(() => {
-        const handleKey = (e: KeyboardEvent) => {
-            if (e.code === 'Space' || e.key === ' ') {
-                const target = e.target as HTMLElement | null;
-                const tag = target?.tagName;
-                if (target?.isContentEditable) return; // allow editing
-                if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return; // allow form controls
-                e.preventDefault();
-                const { togglePlay } = useTimelineStore.getState();
-                togglePlay();
-            }
-        };
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, []);
-
-    // Sync visualizer playback with global timeline store transport
-    const tIsPlaying = useTimelineStore((s) => s.transport.isPlaying);
-    // Use derived seconds selector instead of removed currentTimeSec
-    const tCurrent = useTimelineStore((s) => {
-        const spb = 60 / (s.timeline.globalBpm || 120);
-        const beats = s.timeline.currentTick / getSharedTimingManager().ticksPerQuarter;
-        return getSharedTimingManager().beatsToSeconds(beats); // TimingManager already accounts for tempo map
-    });
-    useEffect(() => {
-        if (!visualizer) return;
-        // Toggle visualizer play/pause to match store
-        if (tIsPlaying && !visualizer.isPlaying) {
-            const started = visualizer.play?.();
-            setIsPlaying(started && !!visualizer.isPlaying);
-        } else if (!tIsPlaying && visualizer.isPlaying) {
-            visualizer.pause?.();
-            setIsPlaying(false);
-        }
-    }, [visualizer, tIsPlaying]);
-
-    // Seek visualizer when store time changes (scrub) and update play range when view window changes
-    useEffect(() => {
-        if (!visualizer) return;
-        const vTime = visualizer.currentTime || 0;
-        // Only push from store to visualizer on explicit scrubs (big changes),
-        // small drift is handled by the mirroring loop above.
-        if (typeof tCurrent === 'number' && Math.abs(vTime - tCurrent) > 0.05) {
-            visualizer.seek?.(tCurrent);
-        }
-    }, [visualizer, tCurrent]);
 
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
@@ -448,28 +243,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         }
     }, [totalDuration, tView.startTick, tView.endTick, setTimelineViewTicks, playbackRange?.startTick, playbackRange?.endTick, setPlaybackRangeTicks]);
 
-    const stop = useCallback(() => {
-        if (!visualizer) return;
-        visualizer.stop();
-        setIsPlaying(false);
-    }, [visualizer]);
-
-    const stepForward = useCallback(() => { visualizer?.stepForward?.(); }, [visualizer]);
-    const stepBackward = useCallback(() => { visualizer?.stepBackward?.(); }, [visualizer]);
-    const forceRender = useCallback(() => { visualizer?.invalidateRender?.(); }, [visualizer]);
-    const seekPercent = useCallback((percent: number) => {
-        if (!visualizer) return;
-        const st = useTimelineStore.getState();
-        const { startTick, endTick } = st.timelineView;
-        const tm = getSharedTimingManager();
-        tm.setBPM(st.timeline.globalBpm || 120);
-        const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
-        const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
-        const range = Math.max(0.001, endSec - startSec);
-        const target = startSec + Math.max(0, Math.min(1, percent)) * range;
-        visualizer.seek?.(target);
-    }, [visualizer]);
-
     const exportSequence = useCallback(async (override?: Partial<ExportSettings>) => {
         if (!visualizer || !imageSequenceGenerator) return;
         const settings: ExportSettings = { ...exportSettings, ...(override || {}) } as ExportSettings;
@@ -480,6 +253,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             }
         }
         setShowProgressOverlay(true);
+        setExportKind('png');
         setProgressData({ progress: 0, text: 'Generating images...' });
         try {
             let maxFrames: number | null = null; let startFrame = 0;
@@ -495,6 +269,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 width: settings.width,
                 height: settings.height,
                 sceneName: sceneNameRef.current,
+                filename: settings.filename,
                 maxFrames,
                 _startFrame: startFrame,
                 onProgress: (progress: number, text: string = 'Generating images...') => setProgressData({ progress, text }),
@@ -517,6 +292,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             }
         }
         setShowProgressOverlay(true);
+        setExportKind('video');
         setProgressData({ progress: 0, text: 'Rendering & encoding video...' });
         try {
             let maxFrames: number | null = null; let startFrame = 0;
@@ -527,15 +303,50 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 const totalFrames = Math.ceil((clampedEnd - clampedStart) * settings.fps);
                 maxFrames = totalFrames; startFrame = Math.floor(clampedStart * settings.fps);
             }
+            // If including audio we prefer to delegate by providing tick range so VideoExporter can hand off to AVExporter.
+            let startTick: number | undefined;
+            let endTick: number | undefined;
+            if (settings.includeAudio) {
+                try {
+                    const st = useTimelineStore.getState();
+                    const tm = getSharedTimingManager();
+                    tm.setBPM(st.timeline.globalBpm || 120);
+                    if (st.timeline.masterTempoMap) tm.setTempoMap(st.timeline.masterTempoMap, 'seconds');
+                    // Determine tick range: use playbackRange if defined, else entire timeline view, else current duration
+                    const pr = st.playbackRange;
+                    if (pr && typeof pr.startTick === 'number' && typeof pr.endTick === 'number') {
+                        startTick = pr.startTick;
+                        endTick = pr.endTick;
+                    } else {
+                        // Approximate using duration seconds -> beats -> ticks
+                        const durationSec = visualizer.getCurrentDuration();
+                        const beats = tm.secondsToBeats ? tm.secondsToBeats(durationSec) : (durationSec * (st.timeline.globalBpm || 120)) / 60;
+                        endTick = Math.floor(beats * tm.ticksPerQuarter);
+                        startTick = 0;
+                    }
+                } catch { /* ignore tick derivation errors */ }
+            }
             await videoExporter.exportVideo({
                 fps: settings.fps,
                 width: settings.width,
                 height: settings.height,
                 sceneName: sceneNameRef.current,
+                filename: settings.filename,
                 maxFrames,
                 _startFrame: startFrame,
                 // Pass through new optional settings
                 bitrate: settings.bitrate,
+                qualityPreset: settings.qualityPreset,
+                includeAudio: settings.includeAudio,
+                videoCodec: settings.videoCodec,
+                videoBitrateMode: settings.videoBitrateMode,
+                videoBitrate: settings.videoBitrate,
+                audioCodec: settings.audioCodec,
+                audioBitrate: settings.audioBitrate,
+                audioSampleRate: settings.audioSampleRate,
+                audioChannels: settings.audioChannels,
+                startTick,
+                endTick,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),
             });
         } catch (e) {
@@ -553,6 +364,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         currentTimeLabel,
         numericCurrentTime,
         totalDuration,
+        // Expose reactive scene name so UI defaults (e.g., filename field) follow latest scene title.
+        sceneName: sceneNameState,
         exportSettings,
         setExportSettings,
         debugSettings,
@@ -569,6 +382,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         exportVideo,
         showProgressOverlay,
         progressData,
+        exportKind,
         closeProgress: () => setShowProgressOverlay(false),
         useTimeline: () => useTimelineStore(selectTimeline),
         useTransport: () => {

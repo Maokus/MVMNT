@@ -23,8 +23,8 @@ describe('Central note queries (store version)', () => {
         const idA = await store.addMidiTrack({ name: 'A', offsetTicks: 0 });
         const idB = await store.addMidiTrack({ name: 'B', offsetTicks: 0 });
         // Offsets: 0.5s and 1.0s -> at 120bpm => beats (0.5s=1 beat, 1s=2 beats)
-        useTimelineStore.getState().setTrackOffsetTicks(idA, CANONICAL_PPQ); // 1 beat
-        useTimelineStore.getState().setTrackOffsetTicks(idB, 2 * CANONICAL_PPQ); // 2 beats
+        await useTimelineStore.getState().setTrackOffsetTicks(idA, CANONICAL_PPQ); // 1 beat
+        await useTimelineStore.getState().setTrackOffsetTicks(idB, 2 * CANONICAL_PPQ); // 2 beats
         const midiA = makeMidi([
             { type: 'noteOn', note: 60, velocity: 100, time: 0.0, tick: 0, channel: 0 },
             { type: 'noteOff', note: 60, velocity: 0, time: 1.0, tick: 1 * CANONICAL_PPQ, channel: 0 },
@@ -56,8 +56,8 @@ describe('Central note queries (store version)', () => {
             { type: 'noteOff', note: 60, velocity: 0, time: 1.2, tick: Math.round(1.2 * (PPQ * 2)), channel: 0 },
         ]);
         useTimelineStore.getState().ingestMidiToCache(id, buildNotesFromMIDI(midi));
-        // Region: 0.5s..1.0s => in beats: 0.5s=1 beat (480 ticks) 1.0s=2 beats (960 ticks)
-        useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 2 * CANONICAL_PPQ);
+        // Region: 0.5s..1.0s => at 120bpm that's 1..2 beats => ticks range CANONICAL_PPQ .. 2*CANONICAL_PPQ
+        await useTimelineStore.getState().setTrackRegionTicks(id, 1 * CANONICAL_PPQ, 2 * CANONICAL_PPQ);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [id], 0, 2);
         expect(notes.length).toBe(1);
         expect(notes[0].startSec).toBeLessThan(0.6); // original inside region after clipping still present
@@ -83,8 +83,8 @@ describe('Central note queries (store version)', () => {
                     makeMidi([{ type: 'noteOn', note: 62, velocity: 100, time: 0, tick: 0, channel: 1 }])
                 )
             );
-        useTimelineStore.getState().setTrackMute(idA, true);
-        useTimelineStore.getState().setTrackSolo(idB, true);
+        await useTimelineStore.getState().setTrackMute(idA, true);
+        await useTimelineStore.getState().setTrackSolo(idB, true);
         const notes = noteQueryApi.getNotesInWindow(useTimelineStore.getState(), [], 0, 0.1);
         expect(notes.length).toBe(1);
         expect(notes[0].trackId).toBe(idB);
