@@ -21,6 +21,8 @@ import { useUndo } from '@context/UndoContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
+import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
+import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -189,6 +191,7 @@ const MidiVisualizerInner: React.FC = () => {
 
     return (
         <div className="app-container">
+            <TemplateLoadingOverlay />
             <MenuBar
                 onHelp={() => setShowOnboarding(true)}
             />
@@ -286,15 +289,45 @@ const TemplateInitializer: React.FC = () => {
     const undo = (() => { try { return useUndo(); } catch { return null; } })();
     const location = useLocation();
     const navigate = useNavigate();
+    const startTemplateLoading = useTemplateStatusStore((state) => state.startLoading);
+    const finishTemplateLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     useEffect(() => {
         if (!visualizer) return;
         const state: any = location.state || {};
-        let didChange = false;
+        const hasScene = (() => {
+            try {
+                return useSceneStore.getState().order.length > 0;
+            } catch {
+                return false;
+            }
+        })();
+
+        const shouldImport = Boolean(state.importScene);
+        const shouldLoadTemplate = Boolean(state.template);
+        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene;
+        const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
+        const message = shouldImport
+            ? 'Importing scene…'
+            : shouldLoadTemplate
+                ? 'Loading template…'
+                : 'Preparing default scene…';
+
+        let finished = false;
+        const finish = () => {
+            if (finished || !shouldShowIndicator) return;
+            finished = true;
+            finishTemplateLoading();
+        };
+
+        if (shouldShowIndicator) {
+            startTemplateLoading(message);
+        }
 
         const run = async () => {
+            let didChange = false;
             try {
-                if (state.importScene) {
+                if (shouldImport) {
                     const payload = readStoredImportPayload();
                     if (payload) {
                         try {
@@ -316,7 +349,7 @@ const TemplateInitializer: React.FC = () => {
                         }
                         clearStoredImportPayload();
                     }
-                } else if (state.template) {
+                } else if (shouldLoadTemplate) {
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
                     switch (tpl) {
@@ -335,20 +368,11 @@ const TemplateInitializer: React.FC = () => {
                     setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
-                } else {
-                    const hasScene = (() => {
-                        try {
-                            return useSceneStore.getState().order.length > 0;
-                        } catch {
-                            return false;
-                        }
-                    })();
-                    if (!hasScene) {
-                        const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
-                        if (loaded) {
-                            refreshSceneUI();
-                            didChange = true;
-                        }
+                } else if (shouldLoadDefault) {
+                    const loaded = await loadDefaultScene('MidiVisualizer.TemplateInitializer.initialDefault');
+                    if (loaded) {
+                        refreshSceneUI();
+                        didChange = true;
                     }
                 }
                 if (didChange) {
@@ -357,11 +381,24 @@ const TemplateInitializer: React.FC = () => {
                 }
             } catch (e) {
                 console.error('Template initialization error', e);
+            } finally {
+                finish();
             }
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, undo]);
+
+        return finish;
+    }, [
+        visualizer,
+        location.state,
+        navigate,
+        refreshSceneUI,
+        setSceneAuthor,
+        undo,
+        startTemplateLoading,
+        finishTemplateLoading,
+    ]);
     return null;
 };
 

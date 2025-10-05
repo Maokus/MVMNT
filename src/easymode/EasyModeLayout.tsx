@@ -14,6 +14,8 @@ import { useMacros } from '@context/MacroContext';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { easyModeTemplateManifest, TemplateManifestEntry } from '../templates/manifest';
 import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
+import { TemplateLoadingOverlay } from '../components/TemplateLoadingOverlay';
+import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 interface LoadedTemplateArtifact {
     data: Uint8Array;
@@ -102,6 +104,8 @@ const EasyModeLayout: React.FC = () => {
     const hasTemplates = templates.length > 0;
     const displaySceneName = sceneName?.trim() ? sceneName : 'Untitled Scene';
     const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
+    const startTemplateLoading = useTemplateStatusStore((state) => state.startLoading);
+    const finishTemplateLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     const midiTrackIds = useTimelineStore(
         useCallback((state) => state.tracksOrder.filter((id) => state.tracks[id]?.type === 'midi'), [])
@@ -165,38 +169,50 @@ const EasyModeLayout: React.FC = () => {
     }, [loadScene]);
 
     const handleApplyTemplate = useCallback(async (template: TemplateDefinition) => {
+        const templateLabel = template.name.trim() || 'template';
+        startTemplateLoading(`Loading ${templateLabel}…`);
         let artifact: LoadedTemplateArtifact;
         try {
-            artifact = await template.loadArtifact();
-        } catch (error) {
-            console.error('Failed to load template content', error);
-            alert('Failed to load template. Please try again.');
-            return;
-        }
-        const result = await importScene(artifact.data);
-        if (!result.ok) {
-            const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
-            alert(`Failed to load template: ${message}`);
-            return;
-        }
-        const metadataStore = useSceneMetadataStore.getState();
-        const importedName = metadataStore.metadata?.name?.trim();
-        if (!importedName) {
-            const fallbackName = artifact.metadata?.name?.trim() || template.name;
-            if (fallbackName) {
-                metadataStore.setName(fallbackName);
+            try {
+                artifact = await template.loadArtifact();
+            } catch (error) {
+                console.error('Failed to load template content', error);
+                alert('Failed to load template. Please try again.');
+                return;
             }
+            const result = await importScene(artifact.data);
+            if (!result.ok) {
+                const message = result.errors.map((error) => error.message).join('\n') || 'Unknown error';
+                alert(`Failed to load template: ${message}`);
+                return;
+            }
+            const metadataStore = useSceneMetadataStore.getState();
+            const importedName = metadataStore.metadata?.name?.trim();
+            if (!importedName) {
+                const fallbackName = artifact.metadata?.name?.trim() || template.name;
+                if (fallbackName) {
+                    metadataStore.setName(fallbackName);
+                }
+            }
+            const importedAuthor = metadataStore.metadata?.author?.trim();
+            if (!importedAuthor || importedAuthor.length === 0) {
+                const fallbackAuthor = artifact.metadata?.author?.trim() || template.author || '';
+                metadataStore.setAuthor(fallbackAuthor);
+            }
+            undo.reset();
+            refreshSceneUI();
+            visualizer?.invalidateRender?.();
+            setShowTemplateModal(false);
+        } finally {
+            finishTemplateLoading();
         }
-        const importedAuthor = metadataStore.metadata?.author?.trim();
-        if (!importedAuthor || importedAuthor.length === 0) {
-            const fallbackAuthor = artifact.metadata?.author?.trim() || template.author || '';
-            metadataStore.setAuthor(fallbackAuthor);
-        }
-        undo.reset();
-        refreshSceneUI();
-        visualizer?.invalidateRender?.();
-        setShowTemplateModal(false);
-    }, [refreshSceneUI, undo, visualizer]);
+    }, [
+        finishTemplateLoading,
+        refreshSceneUI,
+        startTemplateLoading,
+        undo,
+        visualizer,
+    ]);
 
     const handleOpenTemplates = useCallback(() => setShowTemplateModal(true), []);
     const handleCloseTemplates = useCallback(() => setShowTemplateModal(false), []);
@@ -216,6 +232,7 @@ const EasyModeLayout: React.FC = () => {
 
     return (
         <div className="flex h-screen flex-col bg-neutral-800 text-neutral-100">
+            <TemplateLoadingOverlay />
             <header style={{ 'backgroundColor': 'var(--twc-menubar)' }} className="border-b border-neutral-600 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)] h-[48px]">
                 <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-4 px-4 py-0 text-xs">
                     <div className="flex items-center gap-3 text-sm font-medium">

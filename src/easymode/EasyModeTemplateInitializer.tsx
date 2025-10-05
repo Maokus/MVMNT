@@ -9,6 +9,7 @@ import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
+import { useTemplateStatusStore } from '@state/templateStatusStore';
 
 const EasyModeTemplateInitializer: React.FC = () => {
     const { visualizer } = useVisualizer() as any;
@@ -23,15 +24,45 @@ const EasyModeTemplateInitializer: React.FC = () => {
     })();
     const location = useLocation();
     const navigate = useNavigate();
+    const startTemplateLoading = useTemplateStatusStore((state) => state.startLoading);
+    const finishTemplateLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     useEffect(() => {
         if (!visualizer) return;
         const state: any = location.state || {};
-        let didChange = false;
+        const hasScene = (() => {
+            try {
+                return useSceneStore.getState().order.length > 0;
+            } catch {
+                return false;
+            }
+        })();
+
+        const shouldImport = Boolean(state.importScene);
+        const shouldLoadTemplate = Boolean(state.template);
+        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene;
+        const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
+        const message = shouldImport
+            ? 'Importing scene…'
+            : shouldLoadTemplate
+                ? 'Loading template…'
+                : 'Preparing default scene…';
+
+        let finished = false;
+        const finish = () => {
+            if (finished || !shouldShowIndicator) return;
+            finished = true;
+            finishTemplateLoading();
+        };
+
+        if (shouldShowIndicator) {
+            startTemplateLoading(message);
+        }
 
         const run = async () => {
+            let didChange = false;
             try {
-                if (state.importScene) {
+                if (shouldImport) {
                     const payload = readStoredImportPayload();
                     if (payload) {
                         try {
@@ -53,7 +84,7 @@ const EasyModeTemplateInitializer: React.FC = () => {
                         }
                         clearStoredImportPayload();
                     }
-                } else if (state.template) {
+                } else if (shouldLoadTemplate) {
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'EasyModeTemplateInitializer.template' });
                     switch (tpl) {
@@ -72,20 +103,11 @@ const EasyModeTemplateInitializer: React.FC = () => {
                     setSceneAuthor('');
                     refreshSceneUI();
                     didChange = true;
-                } else {
-                    const hasScene = (() => {
-                        try {
-                            return useSceneStore.getState().order.length > 0;
-                        } catch {
-                            return false;
-                        }
-                    })();
-                    if (!hasScene) {
-                        const loaded = await loadDefaultScene('EasyModeTemplateInitializer.initialDefault');
-                        if (loaded) {
-                            refreshSceneUI();
-                            didChange = true;
-                        }
+                } else if (shouldLoadDefault) {
+                    const loaded = await loadDefaultScene('EasyModeTemplateInitializer.initialDefault');
+                    if (loaded) {
+                        refreshSceneUI();
+                        didChange = true;
                     }
                 }
 
@@ -95,11 +117,24 @@ const EasyModeTemplateInitializer: React.FC = () => {
                 }
             } catch (error) {
                 console.error('Template initialization error', error);
+            } finally {
+                finish();
             }
         };
 
         run();
-    }, [visualizer, location.state, navigate, refreshSceneUI, setSceneAuthor, undo]);
+
+        return finish;
+    }, [
+        visualizer,
+        location.state,
+        navigate,
+        refreshSceneUI,
+        setSceneAuthor,
+        undo,
+        startTemplateLoading,
+        finishTemplateLoading,
+    ]);
 
     return null;
 };
