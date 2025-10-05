@@ -3,6 +3,7 @@
 ## Status
 
 - Revised plan incorporating resolved questions and new safeguards
+- Serialized descriptor facade (`dispatchTimelineCommandDescriptor`) exposes the gateway to scripting
 
 ## Goals
 
@@ -109,9 +110,9 @@
 
 ## Execution Checklist
 
-- [ ] Land gateway scaffolding with queue, telemetry validation helper, and undo subscription wiring.
-- [ ] Implement `addTrack` and `removeTracks` commands plus granular patch emission tests.
-- [ ] Ship serialized descriptor facade behind a feature flag for scripting consumers.
+- [x] Land gateway scaffolding with queue, telemetry validation helper, and undo subscription wiring.
+- [x] Implement `addTrack` and `removeTracks` commands plus granular patch emission tests.
+- [x] Ship serialized descriptor facade behind a feature flag for scripting consumers.
 - [ ] Update timeline UI callers to use the gateway via thin adapters and remove direct store mutations.
 - [ ] Enable telemetry heartbeat and verify dashboards capture timeline command traffic.
 - [ ] Publish migration guide in `/docs` and cross-link from scripting docs once facade is stable.
