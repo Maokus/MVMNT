@@ -622,7 +622,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // timeOffset removed; targetTime used directly
         const effectiveTime = targetTime;
         const timeUnitBars = this.getProperty<number>('timeUnitBars');
-        const pianoWidth = this.getProperty<number>('pianoWidth');
+        const showPiano = this.getProperty<boolean>('showPiano'); // Keep this declaration
+        const pianoWidth = showPiano ? this.getProperty<number>('pianoWidth') : 0; // Keep this declaration
         const rollWidth = this.getProperty<number>('rollWidth');
         const showNoteGrid = this.getProperty<boolean>('showNoteGrid');
         const showNoteLabels = this.getProperty<boolean>('showNoteLabels');
@@ -636,7 +637,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
         const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
         const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
-        const showPiano = this.getProperty<boolean>('showPiano');
         const whiteKeyColor = this.getProperty<string>('whiteKeyColor') || '#f0f0f0';
         const blackKeyColor = this.getProperty<string>('blackKeyColor') || '#555555';
         const pianoOpacity = this.getProperty<number>('pianoOpacity') ?? 1;
@@ -694,7 +694,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
-        const totalWidth = (showPiano ? pianoWidth : 0) + (rollWidth || 800);
+        const totalWidth = pianoWidth + (rollWidth || 800);
 
         // Add an invisible rectangle that establishes the layout bounds to roughly cover the content area
         // This prevents jitter when other decorative elements toggle or animations change.
@@ -787,8 +787,10 @@ export class TimeUnitPianoRollElement extends SceneElement {
         );
         if (showNotes && windowedNoteBlocks.length > 0) {
             const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
-                { noteHeight, minNote, maxNote, pianoWidth, rollWidth },
+                { noteHeight, minNote, maxNote, pianoWidth: effectivePianoWidth, rollWidth },
                 noteBlocks,
                 effectiveTime
             );
@@ -833,7 +835,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add grid lines
         if (showNoteGrid) {
-            const noteLines = this._createNoteGridLines(minNote, maxNote, pianoWidth, rollWidth || 800, noteHeight);
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
+            const noteLines = this._createNoteGridLines(
+                minNote,
+                maxNote,
+                effectivePianoWidth,
+                rollWidth || 800,
+                noteHeight
+            );
             noteLines.forEach((l: any) => {
                 if (noteGridColor) l.setColor?.(noteGridColor);
                 if (noteGridLineWidth) l.setLineWidth?.(noteGridLineWidth);
@@ -849,11 +859,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 timeUnitBars
             );
             const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const beatLines = this._createBeatGridLines(
                 windowStart,
                 windowEnd,
                 beatsPerBarForGrid,
-                pianoWidth,
+                effectivePianoWidth,
                 rollWidth || 800,
                 (maxNote - minNote + 1) * noteHeight
             );
@@ -870,7 +882,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add note labels
         if (showNoteLabels) {
-            const labels = this._createNoteLabels(minNote, maxNote, pianoWidth, noteHeight);
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
+            const labels = this._createNoteLabels(minNote, maxNote, effectivePianoWidth, noteHeight);
             let visibleIndex = 0;
             for (const lbl of labels as any[]) {
                 // interval logic based solely on visibleIndex
@@ -880,7 +894,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     lbl.text && (lbl.font = `${noteLabelFontWeight} ${noteLabelFontSize}px ${noteLabelFontFamily}`);
                     lbl.color = noteLabelFontColor;
                     lbl.setOpacity?.(noteLabelOpacity);
-                    lbl.x = pianoWidth + noteLabelOffsetX; // adjust relative to piano edge
+                    lbl.x = effectivePianoWidth + noteLabelOffsetX; // adjust relative to piano edge
                     lbl.y += noteLabelOffsetY;
                 }
                 visibleIndex++;
@@ -895,11 +909,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 timeUnitBars
             );
             const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const labels = this._createBeatLabels(
                 windowStart,
                 windowEnd,
                 beatsPerBarForGrid,
-                pianoWidth,
+                effectivePianoWidth,
                 rollWidth || 800
             );
             (labels as any[]).forEach((lbl) => {
@@ -914,9 +930,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add playhead
         if (showPlayhead) {
+            // Only include pianoWidth if showPiano is true
+            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const ph = this._createPlayhead(
                 effectiveTime,
-                pianoWidth,
+                effectivePianoWidth,
                 rollWidth || 800,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
