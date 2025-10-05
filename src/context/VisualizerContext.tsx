@@ -76,6 +76,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
     const sceneNameRef = useRef<string>('scene');
     // Keep a reactive scene name so consumers (like Render / Export modal) get live updates.
     const [sceneNameState, setSceneNameState] = useState<string>('scene');
+    // Keep export settings aligned with the currently loaded scene resolution.
+    const sceneSettings = useSceneStore((state) => state.settings);
     // TimelineService removed: all track/timeline operations flow through Zustand store.
 
     useVisualizerBootstrap({
@@ -100,6 +102,23 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     // Removed listener for auto-binding newly added tracks; user chooses explicitly now.
     useEffect(() => { return () => { /* cleanup only */ }; }, []);
+
+    useEffect(() => {
+        if (!sceneSettings) return;
+        setExportSettings((prev) => {
+            let changed = false;
+            const next: ExportSettings = { ...prev };
+            const syncKeys: Array<'fps' | 'width' | 'height'> = ['fps', 'width', 'height'];
+            for (const key of syncKeys) {
+                const value = sceneSettings[key];
+                if (typeof value === 'number' && value > 0 && value !== prev[key]) {
+                    next[key] = value;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [sceneSettings.fps, sceneSettings.width, sceneSettings.height, setExportSettings]);
 
     // Apply export settings size changes
     useEffect(() => {
