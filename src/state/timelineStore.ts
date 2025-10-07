@@ -219,7 +219,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     removeTrack(id: string) {
         if (!id) return;
-        this.removeTracks([id]);
+        const { removeTracks } = get();
+        removeTracks([id]);
     },
 
     // Batch removal utility so multi-delete (keyboard) produces a single state update & undo snapshot.

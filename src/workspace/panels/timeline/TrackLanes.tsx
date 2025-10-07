@@ -135,7 +135,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setDidMove(false);
             onHoverSnapX(null);
         };
-        const allowNegativeOffset = track?.type === 'audio';
+        const allowNegativeOffset = true; // allow shifting MIDI imports that start late back toward the origin
 
         const onPointerMove = (e: React.PointerEvent) => {
             if (resizing) {

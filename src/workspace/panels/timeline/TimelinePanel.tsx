@@ -46,6 +46,7 @@ const TimelinePanel: React.FC = () => {
     const audioFileRef = useRef<HTMLInputElement | null>(null);
     // Scroll containers for sync
     const lanesScrollRef = useRef<HTMLDivElement | null>(null);
+    const lanesScrollEl = lanesScrollRef.current;
     const timelineBodyRef = useRef<HTMLDivElement | null>(null);
     const [bodyHeight, setBodyHeight] = useState(0);
     const rowHeight = useTimelineStore((s) => s.rowHeight);
@@ -80,6 +81,35 @@ const TimelinePanel: React.FC = () => {
             setRowHeight(clamped);
         }
     }, [bodyHeight, trackCount, rowHeight, setRowHeight]);
+
+    useEffect(() => {
+        const el = lanesScrollEl;
+        if (!el) return;
+        const handleScroll = () => {
+            const scrollLeft = el.scrollLeft;
+            if (Math.abs(scrollLeft) < 1) {
+                el.scrollLeft = 0;
+                return;
+            }
+            const width = el.clientWidth || 1;
+            const state = useTimelineStore.getState();
+            const { startTick, endTick } = state.timelineView;
+            const range = Math.max(1, endTick - startTick);
+            if (!range) {
+                el.scrollLeft = 0;
+                return;
+            }
+            const shift = Math.round((scrollLeft / width) * range);
+            if (shift !== 0) {
+                state.setTimelineViewTicks(startTick + shift, endTick + shift);
+            }
+            el.scrollLeft = 0;
+        };
+        el.addEventListener('scroll', handleScroll);
+        return () => {
+            el.removeEventListener('scroll', handleScroll);
+        };
+    }, [lanesScrollEl]);
 
     const handleAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
