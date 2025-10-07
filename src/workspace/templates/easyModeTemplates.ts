@@ -2,7 +2,7 @@ import { extractSceneMetadataFromArtifact } from '@persistence/scene-package';
 import { easyModeTemplateManifest, TemplateManifestEntry } from '../../templates/manifest';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
 
-const templateFiles = import.meta.glob('../../easymode/templates/*.mvt', {
+const templateFiles = import.meta.glob('../../templates/*.mvt', {
     query: '?arraybuffer',
     import: 'default',
 }) as Record<string, () => Promise<ArrayBuffer | Uint8Array>>;
