@@ -678,7 +678,7 @@ export class SceneElement implements SceneElementInterface {
                 value &&
                 typeof value === 'object' &&
                 value.type &&
-                (value.type === 'constant' || value.type === 'macro')
+                (value.type === 'constant' || value.type === 'macro' || value.type === 'audioFeature')
             ) {
                 // This is serialized binding data
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));

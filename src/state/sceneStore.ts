@@ -774,10 +774,22 @@ const createSceneStoreState = (
                     continue;
                 }
 
-                const normalized =
-                    binding.type === 'constant'
-                        ? ({ type: 'constant', value: binding.value } as BindingState)
-                        : ({ type: 'macro', macroId: binding.macroId } as BindingState);
+                let normalized: BindingState;
+                if (binding.type === 'constant') {
+                    normalized = { type: 'constant', value: binding.value };
+                } else if (binding.type === 'macro') {
+                    normalized = { type: 'macro', macroId: binding.macroId };
+                } else {
+                    normalized = {
+                        type: 'audioFeature',
+                        trackId: binding.trackId,
+                        featureKey: binding.featureKey,
+                        calculatorId: binding.calculatorId,
+                        bandIndex: binding.bandIndex ?? null,
+                        channelIndex: binding.channelIndex ?? null,
+                        smoothing: binding.smoothing ?? null,
+                    };
+                }
 
                 const current = nextBindingsForElement[key];
                 if (!current || !bindingEquals(current, normalized)) {

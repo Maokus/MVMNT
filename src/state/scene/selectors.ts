@@ -42,7 +42,18 @@ function bindingsFingerprint(bindings: ElementBindings): string {
             if (binding.type === 'constant') {
                 return `${property}=const:${stableValueFingerprint(binding.value)}`;
             }
-            return `${property}=macro:${binding.macroId}`;
+            if (binding.type === 'macro') {
+                return `${property}=macro:${binding.macroId}`;
+            }
+            const payload = {
+                trackId: binding.trackId,
+                featureKey: binding.featureKey,
+                calculatorId: binding.calculatorId ?? null,
+                bandIndex: binding.bandIndex ?? null,
+                channelIndex: binding.channelIndex ?? null,
+                smoothing: binding.smoothing ?? null,
+            };
+            return `${property}=audio:${stableValueFingerprint(payload)}`;
         })
         .sort();
     return pairs.join('|');

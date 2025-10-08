@@ -237,6 +237,39 @@ describe('sceneStore', () => {
         });
     });
 
+    it('updates audio feature bindings without polluting macro indices', () => {
+        store.getState().addElement({
+            id: 'osc',
+            type: 'audioOscilloscope',
+            index: store.getState().order.length,
+        });
+
+        store.getState().updateBindings('osc', {
+            featureBinding: {
+                type: 'audioFeature',
+                trackId: 'track-1',
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                bandIndex: 1,
+                channelIndex: 0,
+                smoothing: 0.25,
+            },
+        });
+
+        const binding = store.getState().bindings.byElement['osc'].featureBinding;
+        expect(binding).toEqual({
+            type: 'audioFeature',
+            trackId: 'track-1',
+            featureKey: 'waveform',
+            calculatorId: 'mvmnt.waveform',
+            bandIndex: 1,
+            channelIndex: 0,
+            smoothing: 0.25,
+        });
+
+        expect(store.getState().bindings.byMacro).not.toHaveProperty('undefined');
+    });
+
     it('registers, updates, and deletes font assets', () => {
         const asset: FontAsset = {
             id: 'font-1',

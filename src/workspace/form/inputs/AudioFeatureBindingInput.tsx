@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AudioTrack } from '@audio/audioTypes';
 import { useTimelineStore } from '@state/timelineStore';
 import {
     sampleAudioFeatureRange,
@@ -61,8 +62,8 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
         useCallback((state) => {
             return state.tracksOrder
                 .map((trackId) => state.tracks[trackId])
-                .filter((track): track is TrackOption & { type: 'audio' } => Boolean(track) && track.type === 'audio')
-                .map((track) => ({
+                .filter((track): track is AudioTrack => Boolean(track) && track.type === 'audio')
+                .map<TrackOption>((track) => ({
                     id: track.id,
                     name: track.name ?? track.id,
                     sourceId: track.audioSourceId ?? track.id,
@@ -149,9 +150,10 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
                 patch.channelIndex !== undefined ? patch.channelIndex : bindingValue?.channelIndex ?? null;
             const nextSmoothing =
                 patch.smoothing !== undefined ? patch.smoothing : bindingValue?.smoothing ?? null;
+            const resolvedTrackId = trackInfo.id;
             onChange({
                 type: 'audioFeature',
-                trackId: baseTrackId,
+                trackId: resolvedTrackId,
                 featureKey: resolvedFeatureKey,
                 calculatorId: patch.calculatorId ?? trackEntry?.calculatorId ?? bindingValue?.calculatorId,
                 bandIndex: nextBandIndex,

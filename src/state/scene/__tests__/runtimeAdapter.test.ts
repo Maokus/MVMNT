@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { AudioFeatureBinding } from '@bindings/property-bindings';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
@@ -57,6 +58,30 @@ describe('SceneRuntimeAdapter', () => {
         const bindings = store.getState().bindings.byElement;
         expect(bindings.background.zIndex).toEqual({ type: 'constant', value: 1 });
         expect(bindings.title.zIndex).toEqual({ type: 'constant', value: 0 });
+    });
+
+    it('hydrates audio feature bindings for new elements', () => {
+        store.getState().addElement({
+            id: 'osc',
+            type: 'audioOscilloscope',
+            index: store.getState().order.length,
+            bindings: {
+                featureBinding: {
+                    type: 'audioFeature',
+                    trackId: 'track-1',
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    bandIndex: null,
+                    channelIndex: null,
+                    smoothing: null,
+                },
+            },
+        });
+
+        const runtimeElement = adapter.getElements().find((element) => element.id === 'osc');
+        expect(runtimeElement).toBeDefined();
+        const binding = runtimeElement?.getBinding('featureBinding');
+        expect(binding).toBeInstanceOf(AudioFeatureBinding);
     });
 });
 

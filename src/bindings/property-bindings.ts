@@ -94,8 +94,10 @@ export abstract class PropertyBinding<T = any> {
                 };
                 return new AudioFeatureBinding(cfg);
             }
-            default:
-                throw new Error(`Unknown binding type: ${data.type}`);
+            default: {
+                const unknownType = (data as { type?: string }).type ?? 'unknown';
+                throw new Error(`Unknown binding type: ${unknownType}`);
+            }
         }
     }
 }
