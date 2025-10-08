@@ -51,14 +51,30 @@ const EasyModeTemplateInitializer: React.FC = () => {
                 : 'Preparing default scene…';
 
         let finished = false;
+        let unsubscribeHydration: (() => void) | null = null;
         const finish = () => {
             if (finished || !shouldShowIndicator) return;
             finished = true;
+            unsubscribeHydration?.();
+            unsubscribeHydration = null;
             finishTemplateLoading();
         };
 
         if (shouldShowIndicator) {
             startTemplateLoading(message);
+            try {
+                const initialHydration = useSceneStore.getState().runtimeMeta?.lastHydratedAt ?? 0;
+                unsubscribeHydration = useSceneStore.subscribe((state, previousState) => {
+                    if (finished) return;
+                    const nextHydration = state.runtimeMeta?.lastHydratedAt ?? 0;
+                    const prevHydration = previousState.runtimeMeta?.lastHydratedAt ?? 0;
+                    if (!nextHydration || nextHydration === prevHydration) return;
+                    if (prevHydration !== initialHydration) return;
+                    finish();
+                });
+            } catch {
+                /* ignore */
+            }
         }
 
         const run = async () => {
