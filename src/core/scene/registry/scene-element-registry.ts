@@ -12,6 +12,9 @@ import {
     NotesPlayedTrackerElement,
     NotesPlayingDisplayElement,
     ChordEstimateDisplayElement,
+    AudioSpectrumElement,
+    AudioVolumeMeterElement,
+    AudioOscilloscopeElement,
 } from '@core/scene/elements';
 
 export interface SceneElementFactorySchema {
@@ -123,6 +126,21 @@ export class SceneElementRegistry {
             'chordEstimateDisplay',
             (config) => new ChordEstimateDisplayElement(config.id || 'chordEstimateDisplay', config),
             ChordEstimateDisplayElement.getConfigSchema()
+        );
+        this.registerElement(
+            'audioSpectrum',
+            (config) => new AudioSpectrumElement(config.id || 'audioSpectrum', config),
+            AudioSpectrumElement.getConfigSchema(),
+        );
+        this.registerElement(
+            'audioVolumeMeter',
+            (config) => new AudioVolumeMeterElement(config.id || 'audioVolumeMeter', config),
+            AudioVolumeMeterElement.getConfigSchema(),
+        );
+        this.registerElement(
+            'audioOscilloscope',
+            (config) => new AudioOscilloscopeElement(config.id || 'audioOscilloscope', config),
+            AudioOscilloscopeElement.getConfigSchema(),
         );
     }
 }

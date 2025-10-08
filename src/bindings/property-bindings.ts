@@ -7,14 +7,29 @@
  */
 
 import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
+import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
+import { selectAudioFeatureFrame, type AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 
-export type BindingType = 'constant' | 'macro';
+export type BindingType = 'constant' | 'macro' | 'audioFeature';
 
-export interface PropertyBindingData {
-    type: BindingType;
-    value?: any;
-    macroId?: string;
+export interface PropertyBindingContext {
+    targetTime: number;
+    sceneConfig: Record<string, unknown>;
 }
+
+export interface AudioFeatureBindingConfig {
+    trackId: string;
+    featureKey: string;
+    calculatorId?: string;
+    bandIndex?: number | null;
+    channelIndex?: number | null;
+    smoothing?: number | null;
+}
+
+export type PropertyBindingData =
+    | { type: 'constant'; value: any }
+    | { type: 'macro'; macroId: string }
+    | ({ type: 'audioFeature' } & AudioFeatureBindingConfig);
 
 /**
  * Abstract base class for property bindings
@@ -30,6 +45,8 @@ export abstract class PropertyBinding<T = any> {
      * Get the current value of the property
      */
     abstract getValue(): T;
+
+    getValueWithContext?(context: PropertyBindingContext): T;
 
     /**
      * Set the value of the property
@@ -58,10 +75,25 @@ export abstract class PropertyBinding<T = any> {
                 };
                 return new ConstantBinding(unwrapConstant(data.value));
             case 'macro':
-                if (!data.macroId) {
+                if (!('macroId' in data) || !data.macroId) {
                     throw new Error('Macro binding requires macroId');
                 }
                 return new MacroBinding(data.macroId);
+            case 'audioFeature': {
+                const { trackId, featureKey } = data;
+                if (typeof trackId !== 'string' || typeof featureKey !== 'string') {
+                    throw new Error('AudioFeature binding requires trackId and featureKey');
+                }
+                const cfg: AudioFeatureBindingConfig = {
+                    trackId,
+                    featureKey,
+                    calculatorId: data.calculatorId,
+                    bandIndex: data.bandIndex ?? null,
+                    channelIndex: data.channelIndex ?? null,
+                    smoothing: data.smoothing ?? null,
+                };
+                return new AudioFeatureBinding(cfg);
+            }
             default:
                 throw new Error(`Unknown binding type: ${data.type}`);
         }
@@ -128,6 +160,73 @@ export class MacroBinding<T = any> extends PropertyBinding<T> {
             type: 'macro',
             macroId: this.macroId,
         };
+    }
+}
+
+export class AudioFeatureBinding extends PropertyBinding<AudioFeatureFrameSample | null> {
+    private config: AudioFeatureBindingConfig;
+    private lastSample: AudioFeatureFrameSample | null = null;
+
+    constructor(config: AudioFeatureBindingConfig) {
+        super('audioFeature');
+        this.config = { ...config };
+    }
+
+    getValue(): AudioFeatureFrameSample | null {
+        return this.lastSample;
+    }
+
+    getValueWithContext(context: PropertyBindingContext): AudioFeatureFrameSample | null {
+        const state = useTimelineStore.getState();
+        const tm = getSharedTimingManager();
+        const tick = tm.secondsToTicks(Math.max(0, context.targetTime));
+        const sample = selectAudioFeatureFrame(state, this.config.trackId, this.config.featureKey, tick, {
+            bandIndex: this.config.bandIndex ?? undefined,
+            channelIndex: this.config.channelIndex ?? undefined,
+            smoothing: this.config.smoothing ?? undefined,
+        });
+        this.lastSample = sample ?? null;
+        return this.lastSample;
+    }
+
+    setValue(value: AudioFeatureBindingConfig | AudioFeatureFrameSample | null): void {
+        if (!value) {
+            this.lastSample = null;
+            return;
+        }
+        if ('trackId' in value && 'featureKey' in value) {
+            this.config = {
+                trackId: value.trackId,
+                featureKey: value.featureKey,
+                calculatorId: value.calculatorId,
+                bandIndex: value.bandIndex ?? null,
+                channelIndex: value.channelIndex ?? null,
+                smoothing: value.smoothing ?? null,
+            };
+            this.lastSample = null;
+            return;
+        }
+        this.lastSample = value;
+    }
+
+    serialize(): PropertyBindingData {
+        return {
+            type: 'audioFeature',
+            trackId: this.config.trackId,
+            featureKey: this.config.featureKey,
+            calculatorId: this.config.calculatorId,
+            bandIndex: this.config.bandIndex ?? undefined,
+            channelIndex: this.config.channelIndex ?? undefined,
+            smoothing: this.config.smoothing ?? undefined,
+        };
+    }
+
+    updateConfig(patch: Partial<AudioFeatureBindingConfig>) {
+        this.config = { ...this.config, ...patch };
+    }
+
+    getConfig(): AudioFeatureBindingConfig {
+        return { ...this.config };
     }
 }
 

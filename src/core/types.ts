@@ -205,7 +205,8 @@ export interface ConfigSchemaProperty {
         | 'file'
         | 'file-midi'
         | 'file-image'
-        | 'midiTrackRef';
+        | 'midiTrackRef'
+        | 'audioFeature';
     label: string;
     default: any;
     min?: number;
@@ -240,7 +241,8 @@ export interface PropertyDefinition {
         | 'file-midi'
         | 'file-image'
         | 'font'
-        | 'midiTrackRef';
+        | 'midiTrackRef'
+        | 'audioFeature';
     label: string;
     default?: any;
     min?: number;

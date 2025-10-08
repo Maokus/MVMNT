@@ -1,6 +1,6 @@
 # Audio Visualization Implementation Plan (Audio Feature Cache)
 
-**Status:** Phase 1–2 complete in mainline (2025-02-16); remaining work tracks Phase 3–4 delivery
+**Status:** Phase 1–4 complete in mainline (2025-02-17); verification and docs linked below
 
 ## Objectives
 
@@ -62,7 +62,12 @@
 - Invalidation test editing tempo map and confirming caches mark stale and regenerate on next request.
 - Calculator plug-in test injecting a custom calculator (e.g., zero-crossing rate) ensures results feed into cache and align with `hopTicks` metadata.
 
-## Phase 3 – Runtime Consumption & Scene Binding
+## Phase 3 – Runtime Consumption & Scene Binding ✅ (2025-02-17)
+
+Runtime selectors, bindings, and scene elements now read from the shared cache. Deterministic parity
+tests live in `src/export/__tests__/audio-feature-export-parity.test.ts`, ensuring export rendering
+matches live sampling. Reference implementation details in
+[`docs/audio-feature-bindings.md`](../docs/audio-feature-bindings.md).
 
 ### Deliverables
 
@@ -84,7 +89,11 @@
 - UI integration tests (or Storybook interactions) verifying inspector binding configuration surfaces available features and handles missing cache states gracefully.
 - Manual QA checklist covering seek, loop, tempo change, and project reload scenarios for feature-driven elements.
 
-## Phase 4 – Authoring UX & Documentation
+## Phase 4 – Authoring UX & Documentation ✅ (2025-02-17)
+
+Inspector controls for audio feature bindings ship with status messaging, preview sparklines, and
+retry hooks. Authoring and calculator integration guidance is documented in
+[`docs/audio-feature-bindings.md`](../docs/audio-feature-bindings.md).
 
 ### Deliverables
 

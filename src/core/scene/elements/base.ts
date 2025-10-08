@@ -8,6 +8,7 @@ import {
     PropertyBindingUtils,
     PropertyBindingData,
     BindingType,
+    type PropertyBindingContext,
 } from '@bindings/property-bindings';
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
 import { debugLog } from '@utils/debug-log';
@@ -27,6 +28,7 @@ export class SceneElement implements SceneElementInterface {
     private _boundsDirty: boolean = true;
 
     private _macroUnsubscribe?: () => void;
+    private _renderContext: PropertyBindingContext | null = null;
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -130,7 +132,11 @@ export class SceneElement implements SceneElementInterface {
             return undefined as T;
         }
 
-        let value = binding.getValue();
+        const context = this._renderContext;
+        let value =
+            context && typeof binding.getValueWithContext === 'function'
+                ? binding.getValueWithContext(context)
+                : binding.getValue();
         // Normalize angle properties to radians for internal use
         if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && value != null) {
             // If bound to a macro, assume macro stores degrees and convert to radians here
@@ -300,7 +306,9 @@ export class SceneElement implements SceneElementInterface {
         if (!this.visible) return [];
 
         // Call the child class implementation to build the base render objects
+        this._renderContext = { targetTime, sceneConfig: config };
         const childRenderObjects = this._buildRenderObjects(config, targetTime);
+        this._renderContext = null;
 
         if (childRenderObjects.length === 0) return [];
 

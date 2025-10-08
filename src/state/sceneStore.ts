@@ -3,7 +3,7 @@ import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 
-export type BindingState = ConstantBindingState | MacroBindingState;
+export type BindingState = ConstantBindingState | MacroBindingState | AudioFeatureBindingState;
 
 export interface ConstantBindingState {
     type: 'constant';
@@ -13,6 +13,16 @@ export interface ConstantBindingState {
 export interface MacroBindingState {
     type: 'macro';
     macroId: string;
+}
+
+export interface AudioFeatureBindingState {
+    type: 'audioFeature';
+    trackId: string;
+    featureKey: string;
+    calculatorId?: string;
+    bandIndex?: number | null;
+    channelIndex?: number | null;
+    smoothing?: number | null;
 }
 
 export type ElementBindings = Record<string, BindingState>;
@@ -196,9 +206,21 @@ function createEmptyBindingsState(): SceneBindingsState {
 }
 
 function cloneBinding(binding: BindingState): BindingState {
-    return binding.type === 'constant'
-        ? { type: 'constant', value: binding.value }
-        : { type: 'macro', macroId: binding.macroId };
+    if (binding.type === 'constant') {
+        return { type: 'constant', value: binding.value };
+    }
+    if (binding.type === 'macro') {
+        return { type: 'macro', macroId: binding.macroId };
+    }
+    return {
+        type: 'audioFeature',
+        trackId: binding.trackId,
+        featureKey: binding.featureKey,
+        calculatorId: binding.calculatorId,
+        bandIndex: binding.bandIndex ?? null,
+        channelIndex: binding.channelIndex ?? null,
+        smoothing: binding.smoothing ?? null,
+    };
 }
 
 function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
@@ -291,6 +313,16 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
+    if (a.type === 'audioFeature' && b.type === 'audioFeature') {
+        return (
+            a.trackId === b.trackId &&
+            a.featureKey === b.featureKey &&
+            (a.calculatorId ?? null) === (b.calculatorId ?? null) &&
+            (a.bandIndex ?? null) === (b.bandIndex ?? null) &&
+            (a.channelIndex ?? null) === (b.channelIndex ?? null) &&
+            (a.smoothing ?? null) === (b.smoothing ?? null)
+        );
+    }
     return false;
 }
 
@@ -304,6 +336,16 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
             bindings[key] = { type: 'constant', value: payload.value };
         } else if (payload.type === 'macro' && typeof payload.macroId === 'string') {
             bindings[key] = { type: 'macro', macroId: payload.macroId };
+        } else if (payload.type === 'audioFeature') {
+            bindings[key] = {
+                type: 'audioFeature',
+                trackId: payload.trackId,
+                featureKey: payload.featureKey,
+                calculatorId: payload.calculatorId,
+                bandIndex: payload.bandIndex ?? null,
+                channelIndex: payload.channelIndex ?? null,
+                smoothing: payload.smoothing ?? null,
+            };
         }
     }
     return bindings;
@@ -320,10 +362,21 @@ function serializeElement(
         index,
     };
     for (const [key, binding] of Object.entries(bindings)) {
-        serialized[key] =
-            binding.type === 'constant'
-                ? ({ type: 'constant', value: binding.value } satisfies PropertyBindingData)
-                : ({ type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData);
+        if (binding.type === 'constant') {
+            serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
+        } else if (binding.type === 'macro') {
+            serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
+        } else {
+            serialized[key] = {
+                type: 'audioFeature',
+                trackId: binding.trackId,
+                featureKey: binding.featureKey,
+                calculatorId: binding.calculatorId,
+                bandIndex: binding.bandIndex ?? undefined,
+                channelIndex: binding.channelIndex ?? undefined,
+                smoothing: binding.smoothing ?? undefined,
+            } satisfies PropertyBindingData;
+        }
     }
     return serialized;
 }

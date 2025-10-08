@@ -128,6 +128,17 @@ function normalizeBindingValue(value: unknown): BindingState {
         if (payload.type === 'constant' && 'value' in payload) {
             return { type: 'constant', value: payload.value };
         }
+        if (payload.type === 'audioFeature' && typeof payload.trackId === 'string' && typeof payload.featureKey === 'string') {
+            return {
+                type: 'audioFeature',
+                trackId: payload.trackId,
+                featureKey: payload.featureKey,
+                calculatorId: payload.calculatorId,
+                bandIndex: payload.bandIndex ?? null,
+                channelIndex: payload.channelIndex ?? null,
+                smoothing: payload.smoothing ?? null,
+            };
+        }
     }
     return { type: 'constant', value };
 }
@@ -150,6 +161,16 @@ function bindingEquals(a: BindingState | undefined, b: BindingState | undefined)
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
+    if (a.type === 'audioFeature' && b.type === 'audioFeature') {
+        return (
+            a.trackId === b.trackId &&
+            a.featureKey === b.featureKey &&
+            (a.calculatorId ?? null) === (b.calculatorId ?? null) &&
+            (a.bandIndex ?? null) === (b.bandIndex ?? null) &&
+            (a.channelIndex ?? null) === (b.channelIndex ?? null) &&
+            (a.smoothing ?? null) === (b.smoothing ?? null)
+        );
+    }
     return false;
 }
 
@@ -158,7 +179,18 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
     if (binding.type === 'macro') {
         return { type: 'macro', macroId: binding.macroId };
     }
-    return { type: 'constant', value: binding.value };
+    if (binding.type === 'constant') {
+        return { type: 'constant', value: binding.value };
+    }
+    return {
+        type: 'audioFeature',
+        trackId: binding.trackId,
+        featureKey: binding.featureKey,
+        calculatorId: binding.calculatorId,
+        bandIndex: binding.bandIndex ?? undefined,
+        channelIndex: binding.channelIndex ?? undefined,
+        smoothing: binding.smoothing ?? undefined,
+    };
 }
 
 function buildConfigFromBindings(bindings: ElementBindings): Record<string, unknown> {

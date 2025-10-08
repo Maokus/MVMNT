@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
 import MidiTrackSelect from './MidiTrackSelect';
+import AudioFeatureBindingInput from './AudioFeatureBindingInput';
 import { useNumberDrag } from './useNumberDrag';
 
 export interface FormInputChangeMeta {
@@ -211,6 +212,19 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     if (type === 'midiTrackRef') {
         return (
             <MidiTrackSelect id={id} value={value ?? null} schema={schema} disabled={disabled} title={title} onChange={onChange} />
+        );
+    }
+
+    if (type === 'audioFeature') {
+        return (
+            <AudioFeatureBindingInput
+                id={id}
+                value={value ?? null}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
         );
     }
 

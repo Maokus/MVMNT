@@ -11,3 +11,6 @@ export { DebugElement } from './debug';
 export { NotesPlayedTrackerElement } from './notes-played-tracker';
 export { NotesPlayingDisplayElement } from './notes-playing-display';
 export { ChordEstimateDisplayElement } from './chord-estimate-display';
+export { AudioSpectrumElement } from './audio-spectrum';
+export { AudioVolumeMeterElement } from './audio-volume-meter';
+export { AudioOscilloscopeElement } from './audio-oscilloscope';

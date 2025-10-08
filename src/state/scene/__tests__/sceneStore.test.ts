@@ -197,6 +197,46 @@ describe('sceneStore', () => {
         expect(secondExport.macros?.exportedAt).toBe(firstExport.macros?.exportedAt);
     });
 
+    it('persists audio feature bindings through export drafts', () => {
+        store.getState().addElement({
+            id: 'audio-element',
+            type: 'audioSpectrum',
+            index: 0,
+            bindings: {
+                featureBinding: {
+                    type: 'audioFeature',
+                    trackId: 'audio-track',
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channelIndex: null,
+                    smoothing: null,
+                },
+            },
+        });
+
+        const elementBindings = store.getState().bindings.byElement['audio-element'];
+        expect(elementBindings.featureBinding).toEqual({
+            type: 'audioFeature',
+            trackId: 'audio-track',
+            featureKey: 'rms',
+            calculatorId: 'mvmnt.rms',
+            bandIndex: null,
+            channelIndex: null,
+            smoothing: null,
+        });
+
+        const exported = store.getState().exportSceneDraft();
+        const serialized = exported.elements.find((el) => el.id === 'audio-element');
+        expect(serialized).toBeDefined();
+        expect((serialized as any).featureBinding).toEqual({
+            type: 'audioFeature',
+            trackId: 'audio-track',
+            featureKey: 'rms',
+            calculatorId: 'mvmnt.rms',
+        });
+    });
+
     it('registers, updates, and deletes font assets', () => {
         const asset: FontAsset = {
             id: 'font-1',
