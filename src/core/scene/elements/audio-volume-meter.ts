@@ -2,6 +2,7 @@ import { SceneElement } from './base';
 import { Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
+import { AudioFeatureBinding } from '@bindings/property-bindings';
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
@@ -73,8 +74,12 @@ export class AudioVolumeMeterElement extends SceneElement {
         };
     }
 
-    protected _buildRenderObjects(_config: any, _targetTime: number): RenderObject[] {
-        const sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
+    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const binding = this.getBinding('featureBinding');
+        const sample =
+            binding instanceof AudioFeatureBinding
+                ? binding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ?? binding.getValue()
+                : this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
         const rms = sample?.values?.[0] ?? 0;
         const minValue = this.getProperty<number>('minValue') ?? 0;
         const maxValue = this.getProperty<number>('maxValue') ?? 1;

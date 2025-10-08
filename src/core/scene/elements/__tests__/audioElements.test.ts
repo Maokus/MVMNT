@@ -4,7 +4,7 @@ import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
 import { ConstantBinding, AudioFeatureBinding } from '@bindings/property-bindings';
 import { Poly } from '@core/render/render-objects';
-import { useTimelineStore } from '@state/timelineStore';
+import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
 function createWaveformCache(trackId: string): AudioFeatureCache {
@@ -36,6 +36,76 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
                 hopSeconds: 0.02,
                 format: 'waveform-minmax',
                 data: { min, max },
+            },
+        },
+    };
+}
+
+function createSpectrogramCache(trackId: string): AudioFeatureCache {
+    const frameCount = 3;
+    const hopTicks = 120;
+    const hopSeconds = 0.25;
+    return {
+        version: 1,
+        audioSourceId: trackId,
+        hopTicks,
+        hopSeconds,
+        frameCount,
+        analysisParams: {
+            windowSize: 1024,
+            hopSize: 512,
+            overlap: 2,
+            sampleRate: 44100,
+            calculatorVersions: { 'test.spectrogram': 1 },
+        },
+        featureTracks: {
+            spectrogram: {
+                key: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                version: 1,
+                frameCount,
+                channels: 3,
+                hopTicks,
+                hopSeconds,
+                format: 'float32',
+                data: new Float32Array([
+                    0.1, 0.2, 0.3,
+                    0.6, 0.3, 0.15,
+                    0.2, 0.8, 0.4,
+                ]),
+            },
+        },
+    };
+}
+
+function createRmsCache(trackId: string): AudioFeatureCache {
+    const frameCount = 3;
+    const hopTicks = 120;
+    const hopSeconds = 0.25;
+    return {
+        version: 1,
+        audioSourceId: trackId,
+        hopTicks,
+        hopSeconds,
+        frameCount,
+        analysisParams: {
+            windowSize: 1024,
+            hopSize: 512,
+            overlap: 2,
+            sampleRate: 44100,
+            calculatorVersions: { 'test.rms': 1 },
+        },
+        featureTracks: {
+            rms: {
+                key: 'rms',
+                calculatorId: 'test.rms',
+                version: 1,
+                frameCount,
+                channels: 1,
+                hopTicks,
+                hopSeconds,
+                format: 'float32',
+                data: new Float32Array([0.1, 0.65, 0.3]),
             },
         },
     };
@@ -84,6 +154,38 @@ describe('audio scene elements', () => {
         expect(container.children.slice(1).every((child: any) => child?.includeInLayoutBounds === false)).toBe(true);
     });
 
+    it('updates spectrum bar heights from audio feature samples over time', () => {
+        const cache = createSpectrogramCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioSpectrumElement('spectrumDynamic');
+        element.setBinding(
+            'featureBinding',
+            new AudioFeatureBinding({
+                trackId: 'testTrack',
+                featureKey: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                bandIndex: null,
+                channelIndex: null,
+                smoothing: null,
+            }),
+        );
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
+        const first = element.buildRenderObjects({}, 0);
+        const second = element.buildRenderObjects({}, hopSeconds);
+        const getBarHeights = (objects: any[]) => {
+            const container = objects[0] as any;
+            return (container.children ?? []).slice(1).map((child: any) => child.height);
+        };
+        const firstHeights = getBarHeights(first);
+        const secondHeights = getBarHeights(second);
+        expect(firstHeights).toHaveLength(3);
+        expect(secondHeights).toHaveLength(3);
+        expect(secondHeights[0]).toBeGreaterThan(firstHeights[0]);
+        expect(secondHeights[1]).toBeLessThan(firstHeights[1]);
+        expect(secondHeights[2]).not.toBeCloseTo(firstHeights[2]);
+    });
+
     it('builds volume meter rectangles', () => {
         const element = new AudioVolumeMeterElement('meter');
         element.setBinding(
@@ -100,6 +202,36 @@ describe('audio scene elements', () => {
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
         expect(container.children[0]?.includeInLayoutBounds).toBe(true);
+    });
+
+    it('updates volume meter height from audio feature frames', () => {
+        const cache = createRmsCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioVolumeMeterElement('meterDynamic');
+        element.setBinding(
+            'featureBinding',
+            new AudioFeatureBinding({
+                trackId: 'testTrack',
+                featureKey: 'rms',
+                calculatorId: 'test.rms',
+                bandIndex: null,
+                channelIndex: null,
+                smoothing: null,
+            }),
+        );
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
+        const first = element.buildRenderObjects({}, 0);
+        const second = element.buildRenderObjects({}, hopSeconds);
+        const getMeterHeight = (objects: any[]) => {
+            const container = objects[0] as any;
+            const meter = container.children?.[1];
+            return meter?.height ?? 0;
+        };
+        const firstHeight = getMeterHeight(first);
+        const secondHeight = getMeterHeight(second);
+        expect(firstHeight).toBeGreaterThan(0);
+        expect(secondHeight).toBeGreaterThan(firstHeight);
     });
 
     it('samples waveform data for oscilloscope element', () => {
