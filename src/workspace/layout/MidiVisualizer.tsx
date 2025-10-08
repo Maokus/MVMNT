@@ -295,17 +295,19 @@ const TemplateInitializer: React.FC = () => {
     useEffect(() => {
         if (!visualizer) return;
         const state: any = location.state || {};
-        const hasScene = (() => {
+        const sceneStoreState = (() => {
             try {
-                return useSceneStore.getState().order.length > 0;
+                return useSceneStore.getState();
             } catch {
-                return false;
+                return null;
             }
         })();
+        const hasScene = sceneStoreState ? sceneStoreState.order.length > 0 : false;
+        const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
 
         const shouldImport = Boolean(state.importScene);
         const shouldLoadTemplate = Boolean(state.template);
-        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene;
+        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene && !hasInitializedScene;
         const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
         const message = shouldImport
             ? 'Importing scene…'

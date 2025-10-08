@@ -75,6 +75,7 @@ export interface SceneRuntimeMeta {
     lastMutationSource?: SceneMutationSource;
     lastMutatedAt?: number;
     persistentDirty: boolean;
+    hasInitializedScene: boolean;
 }
 
 export type SceneMutationSource =
@@ -388,6 +389,7 @@ function createRuntimeMeta(): SceneRuntimeMeta {
         initializedAt: now,
         lastMutatedAt: now,
         persistentDirty: false,
+        hasInitializedScene: false,
     };
 }
 
@@ -398,6 +400,7 @@ function markDirty(prev: SceneStoreState, source: SceneMutationSource): SceneRun
         persistentDirty: true,
         lastMutationSource: source,
         lastMutatedAt: now,
+        hasInitializedScene: true,
     };
 }
 
@@ -1182,6 +1185,7 @@ const createSceneStoreState = (
                     lastHydratedAt: importTimestamp,
                     lastMutationSource: 'importScene',
                     lastMutatedAt: importTimestamp,
+                    hasInitializedScene: true,
                 },
             };
         });
