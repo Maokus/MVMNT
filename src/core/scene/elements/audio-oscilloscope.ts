@@ -1,6 +1,7 @@
 import { SceneElement } from './base';
 import { Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
+import type { AudioTrack } from '@audio/audioTypes';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
@@ -39,6 +40,19 @@ export class AudioOscilloscopeElement extends SceneElement {
                             min: 0.05,
                             max: 5,
                             step: 0.05,
+                        },
+                        {
+                            key: 'offset',
+                            type: 'number',
+                            label: 'Offset (ms)',
+                            default: 0,
+                            step: 1,
+                        },
+                        {
+                            key: 'showPlayhead',
+                            type: 'boolean',
+                            label: 'Show Playhead',
+                            default: false,
                         },
                         { key: 'lineColor', type: 'color', label: 'Line Color', default: '#22d3ee' },
                         {
@@ -88,31 +102,80 @@ export class AudioOscilloscopeElement extends SceneElement {
             return [layoutRect];
         }
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
+        const offsetMs = this.getProperty<number>('offset') ?? 0;
+        const offsetSeconds = offsetMs / 1000;
         const tm = getSharedTimingManager();
         const halfWindow = windowSeconds / 2;
-        const startTick = Math.round(tm.secondsToTicks(Math.max(0, targetTime - halfWindow)));
-        const endTick = Math.round(tm.secondsToTicks(targetTime + halfWindow));
+        const windowStartSeconds = targetTime + offsetSeconds - halfWindow;
+        const windowEndSeconds = targetTime + offsetSeconds + halfWindow;
+        const startTick = Math.round(tm.secondsToTicks(windowStartSeconds));
+        const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
+        const windowStartTick = Math.min(startTick, endTick);
+        const windowEndTick = Math.max(startTick, endTick);
         const state = useTimelineStore.getState();
+        const track = state.tracks[config.trackId] as AudioTrack | undefined;
+        if (!track || track.type !== 'audio') {
+            return [layoutRect];
+        }
+        const sourceId = track.audioSourceId ?? config.trackId;
+        const featureCache = state.audioFeatureCaches[sourceId];
+        const featureTrack = featureCache?.featureTracks?.[config.featureKey];
+        if (!featureTrack || featureTrack.frameCount <= 0) {
+            return [layoutRect];
+        }
+        const hopTicks = Math.max(1, featureTrack.hopTicks || featureCache?.hopTicks || 1);
+        const regionStart = track.regionStartTick ?? 0;
+        const regionEnd = (() => {
+            if (typeof track.regionEndTick === 'number' && Number.isFinite(track.regionEndTick)) {
+                return track.regionEndTick;
+            }
+            const cacheEntry = state.audioCache[sourceId];
+            if (cacheEntry) {
+                return cacheEntry.durationTicks;
+            }
+            return regionStart + featureTrack.frameCount * hopTicks;
+        })();
+        const regionLength = Math.max(0, regionEnd - regionStart);
+        const trackStartTick = track.offsetTicks;
+        const trackEndTick = trackStartTick + regionLength;
+        const localWindowStart = windowStartTick - track.offsetTicks + regionStart;
+        const localWindowEnd = windowEndTick - track.offsetTicks + regionStart;
+        const requestedFrameStart = Math.floor(Math.min(localWindowStart, localWindowEnd) / hopTicks);
+        const requestedFrameEnd = Math.floor(Math.max(localWindowStart, localWindowEnd) / hopTicks);
+        const rangeStartFrame = Math.max(0, requestedFrameStart);
+        const rangeEndFrame = Math.min(featureTrack.frameCount - 1, requestedFrameEnd);
+        const expectedFrameCount = Math.max(1, Math.floor(Math.max(0, windowEndTick - windowStartTick) / hopTicks) + 1);
         const range = sampleAudioFeatureRange(state, config.trackId, config.featureKey, startTick, endTick, {
             bandIndex: config.bandIndex ?? undefined,
             channelIndex: config.channelIndex ?? undefined,
         });
-        if (!range || range.frameCount === 0) {
-            return [layoutRect];
-        }
-        const channels = range.channels;
+        const channels = range?.channels ?? featureTrack.channels ?? 1;
         const points: Array<{ x: number; y: number }> = [];
-        for (let i = 0; i < range.frameCount; i += 1) {
+        const dataFrameCount = range?.frameCount ?? 0;
+        const availableRangeEndFrame = range ? rangeStartFrame + dataFrameCount - 1 : rangeEndFrame;
+        for (let i = 0; i < expectedFrameCount; i += 1) {
+            const frameTick = windowStartTick + i * hopTicks;
+            const withinTrack = frameTick >= trackStartTick && frameTick < trackEndTick;
             let value = 0;
-            if (range.format === 'waveform-minmax' && channels >= 2) {
-                const min = range.data[i * channels] ?? 0;
-                const max = range.data[i * channels + 1] ?? min;
-                value = (min + max) / 2;
-            } else {
-                value = range.data[i * channels] ?? 0;
+            if (withinTrack && range && dataFrameCount > 0) {
+                const localTick = frameTick - track.offsetTicks + regionStart;
+                const frameIndex = Math.floor(localTick / hopTicks);
+                if (frameIndex >= rangeStartFrame && frameIndex <= availableRangeEndFrame) {
+                    const dataIndex = frameIndex - rangeStartFrame;
+                    if (dataIndex >= 0 && dataIndex < dataFrameCount) {
+                        if (range.format === 'waveform-minmax' && channels >= 2) {
+                            const min = range.data[dataIndex * channels] ?? 0;
+                            const max = range.data[dataIndex * channels + 1] ?? min;
+                            value = (min + max) / 2;
+                        } else {
+                            value = range.data[dataIndex * channels] ?? 0;
+                        }
+                    }
+                }
             }
             const normalized = Math.max(-1, Math.min(1, value));
-            const x = (i / Math.max(1, range.frameCount - 1)) * width;
+            const denom = Math.max(1, expectedFrameCount - 1);
+            const x = (i / denom) * width;
             const y = height / 2 - normalized * (height / 2);
             points.push({ x, y });
         }
@@ -122,6 +185,28 @@ export class AudioOscilloscopeElement extends SceneElement {
         const line = new Poly(points, null, this.getProperty<string>('lineColor') ?? '#22d3ee', this.getProperty<number>('lineWidth') ?? 2);
         line.setClosed(false);
         line.setIncludeInLayoutBounds(false);
-        return [layoutRect, line];
+        const renderObjects: RenderObject[] = [layoutRect, line];
+        if (this.getProperty<boolean>('showPlayhead')) {
+            const windowDuration = windowEndSeconds - windowStartSeconds;
+            if (windowDuration > 0) {
+                const playheadPosition = (targetTime - windowStartSeconds) / windowDuration;
+                if (playheadPosition >= 0 && playheadPosition <= 1) {
+                    const playheadX = playheadPosition * width;
+                    const playhead = new Poly(
+                        [
+                            { x: playheadX, y: 0 },
+                            { x: playheadX, y: height },
+                        ],
+                        null,
+                        '#f8fafc',
+                        Math.max(1, Math.floor((this.getProperty<number>('lineWidth') ?? 2) / 2)),
+                    );
+                    playhead.setClosed(false);
+                    playhead.setIncludeInLayoutBounds(false);
+                    renderObjects.push(playhead);
+                }
+            }
+        }
+        return renderObjects;
     }
 }
