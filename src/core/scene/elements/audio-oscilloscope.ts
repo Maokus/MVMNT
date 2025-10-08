@@ -13,17 +13,21 @@ export class AudioOscilloscopeElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             ...base,
             name: 'Audio Oscilloscope',
             description: 'Draws waveform samples from audio features over time.',
             category: 'audio',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'oscilloscope',
+                    id: 'oscilloscopeBasics',
                     label: 'Oscilloscope',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Bind to a waveform feature and adjust the viewport.',
                     properties: [
                         {
                             key: 'featureBinding',
@@ -36,7 +40,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         {
                             key: 'windowSeconds',
                             type: 'number',
-                            label: 'Window (seconds)',
+                            label: 'Window Length (s)',
                             default: 0.5,
                             min: 0.05,
                             max: 5,
@@ -45,9 +49,11 @@ export class AudioOscilloscopeElement extends SceneElement {
                         {
                             key: 'offset',
                             type: 'number',
-                            label: 'Offset (ms)',
+                            label: 'Time Offset (ms)',
                             default: 0,
                             step: 1,
+                            min: -5000,
+                            max: 5000,
                         },
                         {
                             key: 'showPlayhead',
@@ -55,11 +61,11 @@ export class AudioOscilloscopeElement extends SceneElement {
                             label: 'Show Playhead',
                             default: false,
                         },
-                        { key: 'lineColor', type: 'color', label: 'Line Color', default: '#22d3ee' },
+                        { key: 'lineColor', type: 'color', label: 'Waveform Color', default: '#22d3ee' },
                         {
                             key: 'lineWidth',
                             type: 'number',
-                            label: 'Line Width',
+                            label: 'Line Width (px)',
                             default: 2,
                             min: 1,
                             max: 10,
@@ -68,7 +74,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         {
                             key: 'width',
                             type: 'number',
-                            label: 'Width',
+                            label: 'Viewport Width (px)',
                             default: 320,
                             min: 40,
                             max: 1600,
@@ -77,14 +83,32 @@ export class AudioOscilloscopeElement extends SceneElement {
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Height',
+                            label: 'Viewport Height (px)',
                             default: 160,
                             min: 20,
                             max: 600,
                             step: 1,
                         },
                     ],
+                    presets: [
+                        {
+                            id: 'studioScope',
+                            label: 'Studio Scope',
+                            values: { windowSeconds: 0.5, width: 480, height: 180, lineWidth: 2, lineColor: '#22d3ee' },
+                        },
+                        {
+                            id: 'wideAnalyzer',
+                            label: 'Wide Analyzer',
+                            values: { windowSeconds: 1.2, width: 720, height: 200, lineWidth: 1.5, lineColor: '#f59e0b' },
+                        },
+                        {
+                            id: 'microWave',
+                            label: 'Micro Window',
+                            values: { windowSeconds: 0.2, width: 320, height: 120, lineWidth: 3, lineColor: '#a855f7' },
+                        },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

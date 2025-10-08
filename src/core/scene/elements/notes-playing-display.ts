@@ -14,36 +14,45 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Notes Playing Display',
             description: 'Displays active notes and velocities per track/channel (timeline-backed)',
             category: 'MIDI Info',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'content',
-                    label: 'Content',
+                    id: 'playingContent',
+                    label: 'Source',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Select which MIDI track(s) feed the live note readout.',
                     properties: [
-                        // Timeline-backed source only
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
                         {
                             key: 'showAllAvailableTracks',
                             type: 'boolean',
-                            label: 'Show All Available Tracks',
+                            label: 'Show All Tracks When Idle',
                             default: false,
                         },
+                    ],
+                    presets: [
+                        { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
+                        { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
                     ],
                 },
                 {
                     id: 'appearance',
-                    label: 'Appearance',
-                    collapsed: true,
+                    label: 'Typography',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Tweak alignment and spacing for the note list.',
                     properties: [
                         {
                             key: 'textJustification',
                             type: 'select',
-                            label: 'Text Justification',
+                            label: 'Text Alignment',
                             default: 'left',
                             options: [
                                 { value: 'left', label: 'Left' },
@@ -51,19 +60,37 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             ],
                         },
                         { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Font Size', default: 30, min: 6, max: 72, step: 1 },
+                        { key: 'fontSize', type: 'number', label: 'Font Size (px)', default: 30, min: 6, max: 72, step: 1 },
                         { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
                         {
                             key: 'lineSpacing',
                             type: 'number',
-                            label: 'Line Spacing',
+                            label: 'Line Spacing (px)',
                             default: 4,
                             min: 0,
                             max: 40,
                             step: 1,
                         },
                     ],
+                    presets: [
+                        {
+                            id: 'compact',
+                            label: 'Compact List',
+                            values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
+                        },
+                        {
+                            id: 'stageReadout',
+                            label: 'Stage Readout',
+                            values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
+                        },
+                        {
+                            id: 'monitor',
+                            label: 'Monitor Overlay',
+                            values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
+                        },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

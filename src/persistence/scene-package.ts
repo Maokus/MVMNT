@@ -9,6 +9,8 @@ export interface ScenePackageContents {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    waveformPayloads: Map<string, Uint8Array>;
+    audioFeaturePayloads: Map<string, Uint8Array>;
     warnings: { message: string }[];
 }
 
@@ -39,10 +41,14 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
     audio: Map<string, Uint8Array>;
     midi: Map<string, Uint8Array>;
     fonts: Map<string, Uint8Array>;
+    waveforms: Map<string, Uint8Array>;
+    audioFeatures: Map<string, Uint8Array>;
 } {
     const audioPayloads = new Map<string, Uint8Array>();
     const midiPayloads = new Map<string, Uint8Array>();
     const fontPayloads = new Map<string, Uint8Array>();
+    const waveformPayloads = new Map<string, Uint8Array>();
+    const audioFeaturePayloads = new Map<string, Uint8Array>();
 
     for (const path of Object.keys(archive)) {
         if (path.startsWith('assets/audio/')) {
@@ -69,10 +75,32 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
                     fontPayloads.set(assetId, archive[path]);
                 }
             }
+        } else if (path.startsWith('assets/waveforms/')) {
+            const parts = path.split('/');
+            if (parts.length >= 3) {
+                const assetId = parts[2];
+                if (!waveformPayloads.has(assetId)) {
+                    waveformPayloads.set(assetId, archive[path]);
+                }
+            }
+        } else if (path.startsWith('assets/audio-features/')) {
+            const parts = path.split('/');
+            if (parts.length >= 3) {
+                const assetId = parts[2];
+                if (!audioFeaturePayloads.has(assetId)) {
+                    audioFeaturePayloads.set(assetId, archive[path]);
+                }
+            }
         }
     }
 
-    return { audio: audioPayloads, midi: midiPayloads, fonts: fontPayloads };
+    return {
+        audio: audioPayloads,
+        midi: midiPayloads,
+        fonts: fontPayloads,
+        waveforms: waveformPayloads,
+        audioFeatures: audioFeaturePayloads,
+    };
 }
 
 export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
@@ -99,6 +127,8 @@ export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
         audioPayloads: payloads.audio,
         midiPayloads: payloads.midi,
         fontPayloads: payloads.fonts,
+        waveformPayloads: payloads.waveforms,
+        audioFeaturePayloads: payloads.audioFeatures,
         warnings: [],
     };
 }
@@ -113,6 +143,8 @@ export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
         audioPayloads: new Map(),
         midiPayloads: new Map(),
         fontPayloads: new Map(),
+        waveformPayloads: new Map(),
+        audioFeaturePayloads: new Map(),
         warnings: [
             {
                 message: 'Legacy inline JSON scene payloads are deprecated. Please re-export as a packaged .mvt scene.',

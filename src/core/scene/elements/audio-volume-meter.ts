@@ -11,17 +11,21 @@ export class AudioVolumeMeterElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             ...base,
             name: 'Audio Volume Meter',
             description: 'Displays RMS audio levels as a vertical bar.',
             category: 'audio',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'audio',
-                    label: 'Volume Meter',
+                    id: 'volumeMeter',
+                    label: 'Meter Basics',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Connect to a volume feature and shape the meter.',
                     properties: [
                         {
                             key: 'featureBinding',
@@ -53,7 +57,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                         {
                             key: 'width',
                             type: 'number',
-                            label: 'Width',
+                            label: 'Meter Width (px)',
                             default: 20,
                             min: 4,
                             max: 200,
@@ -62,14 +66,32 @@ export class AudioVolumeMeterElement extends SceneElement {
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Height',
+                            label: 'Meter Height (px)',
                             default: 200,
                             min: 20,
                             max: 800,
                             step: 1,
                         },
                     ],
+                    presets: [
+                        {
+                            id: 'calibrated',
+                            label: 'Calibrated Meter',
+                            values: { minValue: 0, maxValue: 1, meterColor: '#38bdf8', width: 24, height: 220 },
+                        },
+                        {
+                            id: 'broadcast',
+                            label: 'Broadcast Meter',
+                            values: { minValue: 0.1, maxValue: 1.2, meterColor: '#f97316', width: 32, height: 260 },
+                        },
+                        {
+                            id: 'club',
+                            label: 'Club Meter',
+                            values: { minValue: 0, maxValue: 1.5, meterColor: '#a855f7', width: 18, height: 200 },
+                        },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

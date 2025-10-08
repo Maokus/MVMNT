@@ -18,26 +18,34 @@ export class DebugElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Debug',
             description: 'Debugging information display',
             category: 'Misc',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'debug',
-                    label: 'Debug',
+                    id: 'debugSettings',
+                    label: 'Debug Tools',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Toggle helper visuals for layout debugging.',
                     properties: [
                         {
                             key: 'showDots',
                             type: 'boolean',
-                            label: 'Show Dots',
+                            label: 'Show Alignment Dots',
                             default: true,
-                            description: 'show dots',
                         },
                     ],
+                    presets: [
+                        { id: 'dotsOn', label: 'Dots Visible', values: { showDots: true } },
+                        { id: 'dotsOff', label: 'Dots Hidden', values: { showDots: false } },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

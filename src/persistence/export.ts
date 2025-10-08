@@ -5,7 +5,7 @@ import {
     collectAudioAssets,
     type AssetStorageMode,
     type AudioAssetRecord,
-    type WaveformAssetRecord,
+    type WaveformExportRecord,
 } from './audio-asset-export';
 import { collectFontAssets } from './font-asset-export';
 import pkg from '../../package.json';
@@ -42,14 +42,14 @@ export interface SceneExportEnvelopeV2 {
         playbackRangeUserDefined?: boolean;
         rowHeight?: number;
         midiCache: Record<string, any>;
-        audioFeatureCaches?: Record<string, SerializedAudioFeatureCache>;
+        audioFeatureCaches?: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
         audioFeatureCacheStatus?: Record<string, AudioFeatureCacheStatus>;
     };
     assets: {
         storage: AssetStorageMode;
         createdWith: string;
         audio: { byId: Record<string, AudioAssetRecord> };
-        waveforms?: { byAudioId: Record<string, WaveformAssetRecord> };
+        waveforms?: { byAudioId: Record<string, WaveformExportRecord> };
         fonts?: { byId: Record<string, import('./font-asset-export').FontAssetRecord> };
     };
     references?: {
@@ -57,6 +57,13 @@ export interface SceneExportEnvelopeV2 {
     };
     compatibility?: { warnings: { message: string }[] };
 }
+
+interface AudioFeatureCacheAssetReference {
+    assetId: string;
+    assetRef: string;
+}
+
+const AUDIO_FEATURE_ASSET_FILENAME = 'feature-cache.json';
 
 export interface ExportSceneOptions {
     storage?: AssetStorageMode;
@@ -210,7 +217,9 @@ function buildZip(
     envelope: SceneExportEnvelopeV2,
     audioAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
-    fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    waveformAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    audioFeatureAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
@@ -251,7 +260,54 @@ function buildZip(
         const path = `assets/fonts/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
+    for (const [assetId, payload] of waveformAssets.entries()) {
+        const safeName = payload.filename || 'waveform.json';
+        const path = `assets/waveforms/${assetId}/${safeName}`;
+        files[path] = payload.bytes;
+    }
+    for (const [assetId, payload] of audioFeatureAssets.entries()) {
+        const safeName = payload.filename || AUDIO_FEATURE_ASSET_FILENAME;
+        const path = `assets/audio-features/${assetId}/${safeName}`;
+        files[path] = payload.bytes;
+    }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
+}
+
+function prepareAudioFeatureCaches(
+    caches: Record<string, any> | undefined,
+    mode: AssetStorageMode
+): {
+    timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
+    assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+} {
+    const timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference> = {};
+    const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+    if (!caches) {
+        return { timelineCaches, assetPayloads };
+    }
+
+    for (const [sourceId, cache] of Object.entries(caches)) {
+        try {
+            const serialized = serializeAudioFeatureCache(cache);
+            if (mode === 'zip-package') {
+                const assetId = encodeURIComponent(sourceId);
+                const assetRef = `assets/audio-features/${assetId}/${AUDIO_FEATURE_ASSET_FILENAME}`;
+                const payloadJson = serializeStable(serialized);
+                assetPayloads.set(assetId, {
+                    bytes: strToU8(payloadJson, true),
+                    filename: AUDIO_FEATURE_ASSET_FILENAME,
+                    mimeType: 'application/json',
+                });
+                timelineCaches[sourceId] = { assetId, assetRef };
+            } else {
+                timelineCaches[sourceId] = serialized;
+            }
+        } catch (error) {
+            console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
+        }
+    }
+
+    return { timelineCaches, assetPayloads };
 }
 
 export async function exportScene(
@@ -353,15 +409,7 @@ export async function exportScene(
     }
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
-
-    const serializedFeatureCaches: Record<string, SerializedAudioFeatureCache> = {};
-    for (const [sourceId, cache] of Object.entries(doc.audioFeatureCaches || {})) {
-        try {
-            serializedFeatureCaches[sourceId] = serializeAudioFeatureCache(cache);
-        } catch (error) {
-            console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
-        }
-    }
+    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
     const envelope: SceneExportEnvelopeV2 = {
         schemaVersion: 2,
@@ -376,8 +424,8 @@ export async function exportScene(
             playbackRangeUserDefined: doc.playbackRangeUserDefined,
             rowHeight: doc.rowHeight,
             midiCache: midiAssets.timelineMidiCache,
-            audioFeatureCaches: Object.keys(serializedFeatureCaches).length
-                ? serializedFeatureCaches
+            audioFeatureCaches: Object.keys(featureAssets.timelineCaches).length
+                ? featureAssets.timelineCaches
                 : undefined,
             audioFeatureCacheStatus:
                 doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
@@ -401,7 +449,14 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(envelope, collectResult.assetPayloads, midiAssets.assetPayloads, fontResult.assetPayloads);
+    const zip = buildZip(
+        envelope,
+        collectResult.assetPayloads,
+        midiAssets.assetPayloads,
+        fontResult.assetPayloads,
+        collectResult.waveformAssetPayloads,
+        featureAssets.assetPayloads
+    );
     return {
         ok: true,
         mode: 'zip-package',

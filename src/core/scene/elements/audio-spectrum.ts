@@ -75,17 +75,21 @@ export class AudioSpectrumElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             ...base,
             name: 'Audio Spectrum',
             description: 'Visualize spectrogram magnitudes with configurable frequency, style, and color.',
             category: 'audio',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'audio',
-                    label: 'Audio Binding',
+                    id: 'audioSpectrum',
+                    label: 'Spectrum Basics',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Bind to an audio feature and tune the look of the spectrum.',
                     properties: [
                         {
                             key: 'featureBinding',
@@ -186,8 +190,8 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'barWidth',
                             type: 'number',
-                            label: 'Band Width',
-                            default: 6,
+                            label: 'Bar Width (px)',
+                            default: 8,
                             min: 1,
                             max: 80,
                             step: 1,
@@ -195,7 +199,7 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'barSpacing',
                             type: 'number',
-                            label: 'Band Spacing',
+                            label: 'Bar Spacing (px)',
                             default: 2,
                             min: 0,
                             max: 80,
@@ -204,41 +208,32 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Height',
-                            default: 160,
+                            label: 'Bar Height (px)',
+                            default: 140,
                             min: 10,
                             max: 800,
                             step: 1,
                         },
+                    ],
+                    presets: [
                         {
-                            key: 'lineThickness',
-                            type: 'number',
-                            label: 'Line/Dot Thickness',
-                            default: 2,
-                            min: 1,
-                            max: 40,
-                            step: 0.5,
+                            id: 'neonCity',
+                            label: 'Neon City',
+                            values: { barColor: '#22d3ee', barWidth: 6, barSpacing: 1, height: 180 },
                         },
                         {
-                            key: 'softness',
-                            type: 'number',
-                            label: 'Softness (Blur)',
-                            default: 0,
-                            min: 0,
-                            max: 30,
-                            step: 0.5,
+                            id: 'boldBlocks',
+                            label: 'Bold Blocks',
+                            values: { barColor: '#f97316', barWidth: 14, barSpacing: 4, height: 220 },
                         },
                         {
-                            key: 'temporalSmoothing',
-                            type: 'number',
-                            label: 'Temporal Smoothing (frames)',
-                            default: 0,
-                            min: 0,
-                            max: 12,
-                            step: 1,
+                            id: 'minimalMeter',
+                            label: 'Minimal Meter',
+                            values: { barColor: '#cbd5f5', barWidth: 4, barSpacing: 2, height: 100 },
                         },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }
@@ -494,7 +489,7 @@ export class AudioSpectrumElement extends SceneElement {
                         next.centerX,
                         baseline + next.bottomHeight,
                         color,
-                        lineThickness,
+                        lineThickness
                     );
                     line.setIncludeInLayoutBounds(false);
                     line.setLineCap('round');
@@ -511,10 +506,19 @@ export class AudioSpectrumElement extends SceneElement {
             const dotSize = lineThickness;
             for (const band of bandData) {
                 if (!band) continue;
-                const color = colorMode === 'solid' ? primaryColor : colorForBand(band.index / Math.max(1, bandCount - 1), band.normalized);
+                const color =
+                    colorMode === 'solid'
+                        ? primaryColor
+                        : colorForBand(band.index / Math.max(1, bandCount - 1), band.normalized);
                 if (sideMode === 'top' || sideMode === 'both') {
                     const centerY = band.topHeight > 0 ? band.topY : baseline - dotSize / 2;
-                    const dot = new Rectangle(band.centerX - dotSize / 2, clamp(centerY, 0, Math.max(0, height - dotSize)), dotSize, dotSize, color);
+                    const dot = new Rectangle(
+                        band.centerX - dotSize / 2,
+                        clamp(centerY, 0, Math.max(0, height - dotSize)),
+                        dotSize,
+                        dotSize,
+                        color
+                    );
                     dot.setIncludeInLayoutBounds(false);
                     dot.setCornerRadius(dotSize / 2);
                     if (softness > 0) {
@@ -523,7 +527,8 @@ export class AudioSpectrumElement extends SceneElement {
                     objects.push(dot);
                 }
                 if (sideMode === 'bottom' || sideMode === 'both') {
-                    const centerY = band.bottomHeight > 0 ? baseline + band.bottomHeight - dotSize / 2 : baseline - dotSize / 2;
+                    const centerY =
+                        band.bottomHeight > 0 ? baseline + band.bottomHeight - dotSize / 2 : baseline - dotSize / 2;
                     const clampedY = clamp(centerY, 0, Math.max(0, height - dotSize));
                     const dot = new Rectangle(band.centerX - dotSize / 2, clampedY, dotSize, dotSize, color);
                     dot.setIncludeInLayoutBounds(false);
@@ -542,7 +547,10 @@ export class AudioSpectrumElement extends SceneElement {
         const segmentGap = Math.max(0, Math.round(segmentHeight * 0.4));
         for (const band of bandData) {
             if (!band) continue;
-            const color = colorMode === 'solid' ? primaryColor : colorForBand(band.index / Math.max(1, bandCount - 1), band.normalized);
+            const color =
+                colorMode === 'solid'
+                    ? primaryColor
+                    : colorForBand(band.index / Math.max(1, bandCount - 1), band.normalized);
             if (sideMode === 'top' || sideMode === 'both') {
                 let remaining = band.topHeight;
                 let cursor = baseline;

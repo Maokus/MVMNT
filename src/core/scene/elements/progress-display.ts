@@ -28,58 +28,85 @@ export class ProgressDisplayElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Progress Display',
             description: 'Playback progress bar and statistics',
             category: 'Time',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'display',
-                    label: 'Display',
+                    id: 'progressBasics',
+                    label: 'Progress & Stats',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Decide which UI elements to show and size the progress bar.',
                     properties: [
                         {
                             key: 'showBar',
                             type: 'boolean',
                             label: 'Show Progress Bar',
                             default: true,
-                            description: 'Display the progress bar',
                         },
                         {
                             key: 'showStats',
                             type: 'boolean',
                             label: 'Show Statistics',
                             default: true,
-                            description: 'Display time and note count statistics',
                         },
                         {
                             key: 'barWidth',
                             type: 'number',
-                            label: 'Bar Width',
+                            label: 'Bar Width (px)',
                             default: 400,
                             min: 100,
-                            max: 800,
+                            max: 1200,
                             step: 5,
-                            description: 'Width of the progress bar in pixels',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Height',
+                            label: 'Bar Height (px)',
                             default: 20,
                             min: 10,
-                            max: 50,
+                            max: 80,
                             step: 5,
-                            description: 'Height of the progress bar in pixels',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
-                        // Color and opacity configs
+                    ],
+                    presets: [
+                        {
+                            id: 'fullPanel',
+                            label: 'Full Panel',
+                            values: { showBar: true, showStats: true, barWidth: 480, height: 24 },
+                        },
+                        {
+                            id: 'barOnly',
+                            label: 'Bar Only',
+                            values: { showBar: true, showStats: false, barWidth: 560, height: 18 },
+                        },
+                        {
+                            id: 'statsOverlay',
+                            label: 'Stats Overlay',
+                            values: { showBar: false, showStats: true },
+                        },
+                    ],
+                },
+                {
+                    id: 'progressAppearance',
+                    label: 'Colors & Opacity',
+                    variant: 'advanced',
+                    collapsed: true,
+                    description: 'Fine-tune bar and statistics styling.',
+                    properties: [
                         {
                             key: 'barColor',
                             type: 'color',
                             label: 'Bar Color',
                             default: '#cccccc',
-                            description: 'Color of the progress bar fill',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'barOpacity',
@@ -89,14 +116,14 @@ export class ProgressDisplayElement extends SceneElement {
                             min: 0,
                             max: 1,
                             step: 0.05,
-                            description: 'Opacity of the progress bar fill',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'barBgColor',
                             type: 'color',
                             label: 'Bar Background Color',
                             default: '#ffffff',
-                            description: 'Color of the progress bar background',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'barBgOpacity',
@@ -106,14 +133,14 @@ export class ProgressDisplayElement extends SceneElement {
                             min: 0,
                             max: 1,
                             step: 0.05,
-                            description: 'Opacity of the progress bar background',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'borderColor',
                             type: 'color',
                             label: 'Border Color',
                             default: '#ffffff',
-                            description: 'Color of the progress bar border',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'borderOpacity',
@@ -123,14 +150,14 @@ export class ProgressDisplayElement extends SceneElement {
                             min: 0,
                             max: 1,
                             step: 0.05,
-                            description: 'Opacity of the progress bar border',
+                            visibleWhen: [{ key: 'showBar', truthy: true }],
                         },
                         {
                             key: 'statsTextColor',
                             type: 'color',
                             label: 'Stats Text Color',
                             default: '#cccccc',
-                            description: 'Color of the statistics text',
+                            visibleWhen: [{ key: 'showStats', truthy: true }],
                         },
                         {
                             key: 'statsTextOpacity',
@@ -140,10 +167,55 @@ export class ProgressDisplayElement extends SceneElement {
                             min: 0,
                             max: 1,
                             step: 0.05,
-                            description: 'Opacity of the statistics text',
+                            visibleWhen: [{ key: 'showStats', truthy: true }],
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'glass',
+                            label: 'Glass Overlay',
+                            values: {
+                                barColor: '#38bdf8',
+                                barOpacity: 0.8,
+                                barBgColor: '#0f172a',
+                                barBgOpacity: 0.35,
+                                borderColor: '#38bdf8',
+                                borderOpacity: 0.5,
+                                statsTextColor: '#f8fafc',
+                                statsTextOpacity: 0.9,
+                            },
+                        },
+                        {
+                            id: 'minimal',
+                            label: 'Minimal Line',
+                            values: {
+                                barColor: '#e2e8f0',
+                                barOpacity: 0.6,
+                                barBgColor: '#ffffff',
+                                barBgOpacity: 0.08,
+                                borderColor: '#ffffff',
+                                borderOpacity: 0.2,
+                                statsTextColor: '#cbd5f5',
+                                statsTextOpacity: 0.8,
+                            },
+                        },
+                        {
+                            id: 'clubNight',
+                            label: 'Club Night',
+                            values: {
+                                barColor: '#f97316',
+                                barOpacity: 0.9,
+                                barBgColor: '#111827',
+                                barBgOpacity: 0.4,
+                                borderColor: '#f59e0b',
+                                borderOpacity: 0.6,
+                                statsTextColor: '#f8fafc',
+                                statsTextOpacity: 1,
+                            },
                         },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }
