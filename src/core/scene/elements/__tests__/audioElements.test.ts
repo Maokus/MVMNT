@@ -45,6 +45,7 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
     const frameCount = 3;
     const hopTicks = 120;
     const hopSeconds = 0.25;
+    const channels = 8;
     return {
         version: 1,
         audioSourceId: trackId,
@@ -52,27 +53,33 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
         hopSeconds,
         frameCount,
         analysisParams: {
-            windowSize: 1024,
+            windowSize: 2048,
             hopSize: 512,
-            overlap: 2,
+            overlap: 4,
             sampleRate: 44100,
-            calculatorVersions: { 'test.spectrogram': 1 },
+            calculatorVersions: { 'test.spectrogram': 2 },
         },
         featureTracks: {
             spectrogram: {
                 key: 'spectrogram',
                 calculatorId: 'test.spectrogram',
-                version: 1,
+                version: 2,
                 frameCount,
-                channels: 3,
+                channels,
                 hopTicks,
                 hopSeconds,
                 format: 'float32',
                 data: new Float32Array([
-                    0.1, 0.2, 0.3,
-                    0.6, 0.3, 0.15,
-                    0.2, 0.8, 0.4,
+                    -70, -62, -58, -50, -42, -35, -20, -10,
+                    -65, -55, -48, -40, -30, -22, -15, -6,
+                    -60, -50, -46, -38, -32, -24, -18, -8,
                 ]),
+                metadata: {
+                    sampleRate: 44100,
+                    fftSize: 2048,
+                    minDecibels: -80,
+                    maxDecibels: 0,
+                },
             },
         },
     };
@@ -135,13 +142,21 @@ describe('audio scene elements', () => {
 
     it('builds bar geometry for spectrum elements', () => {
         const element = new AudioSpectrumElement('spectrum');
+        element.updateConfig({
+            bandCount: 3,
+            sideMode: 'top',
+            displayMode: 'bars',
+            useLogScale: false,
+            startFrequency: 0,
+            endFrequency: 22050,
+        });
         element.setBinding(
             'featureBinding',
             new ConstantBinding({
                 frameIndex: 0,
                 fractionalIndex: 0,
                 hopTicks: 120,
-                values: [0.2, 0.4, 0.6],
+                values: [-60, -30, -10],
                 format: 'float32',
             }),
         );
@@ -152,12 +167,23 @@ describe('audio scene elements', () => {
         expect(container.children).toHaveLength(4);
         expect(container.children[0]?.includeInLayoutBounds).toBe(true);
         expect(container.children.slice(1).every((child: any) => child?.includeInLayoutBounds === false)).toBe(true);
+        const heights = container.children.slice(1).map((child: any) => child.height);
+        expect(heights.every((value: number) => value > 0)).toBe(true);
     });
 
     it('updates spectrum bar heights from audio feature samples over time', () => {
         const cache = createSpectrogramCache('testTrack');
         useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
         const element = new AudioSpectrumElement('spectrumDynamic');
+        element.updateConfig({
+            bandCount: 5,
+            displayMode: 'bars',
+            sideMode: 'top',
+            useLogScale: false,
+            startFrequency: 0,
+            endFrequency: 22050,
+            temporalSmoothing: 0,
+        });
         element.setBinding(
             'featureBinding',
             new AudioFeatureBinding({
@@ -173,17 +199,17 @@ describe('audio scene elements', () => {
         const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
         const first = element.buildRenderObjects({}, 0);
         const second = element.buildRenderObjects({}, hopSeconds);
-        const getBarHeights = (objects: any[]) => {
+        const collectHeights = (objects: any[]) => {
             const container = objects[0] as any;
             return (container.children ?? []).slice(1).map((child: any) => child.height);
         };
-        const firstHeights = getBarHeights(first);
-        const secondHeights = getBarHeights(second);
-        expect(firstHeights).toHaveLength(3);
-        expect(secondHeights).toHaveLength(3);
+        const firstHeights = collectHeights(first);
+        const secondHeights = collectHeights(second);
+        expect(firstHeights).toHaveLength(5);
+        expect(secondHeights).toHaveLength(5);
         expect(secondHeights[0]).toBeGreaterThan(firstHeights[0]);
-        expect(secondHeights[1]).toBeLessThan(firstHeights[1]);
-        expect(secondHeights[2]).not.toBeCloseTo(firstHeights[2]);
+        expect(secondHeights[1]).toBeGreaterThan(firstHeights[1]);
+        expect(secondHeights[4]).toBeGreaterThan(firstHeights[4]);
     });
 
     it('builds volume meter rectangles', () => {

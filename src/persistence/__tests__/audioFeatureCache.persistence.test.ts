@@ -14,12 +14,15 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
         hopSeconds: 0.04,
         frameCount,
         analysisParams: {
-            windowSize: 1024,
+            windowSize: 2048,
             hopSize: 512,
-            overlap: 2,
+            overlap: 4,
             sampleRate: 44100,
+            fftSize: 2048,
+            minDecibels: -80,
+            maxDecibels: 0,
             calculatorVersions: {
-                'mvmnt.spectrogram': 1,
+                'mvmnt.spectrogram': 2,
                 'mvmnt.rms': 1,
             },
         },
@@ -27,14 +30,19 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             spectrogram: {
                 key: 'spectrogram',
                 calculatorId: 'mvmnt.spectrogram',
-                version: 1,
+                version: 2,
                 frameCount,
                 channels: 4,
                 hopTicks,
                 hopSeconds: 0.04,
                 format: 'float32',
                 data: Float32Array.from({ length: frameCount * 4 }, (_, idx) => idx / (frameCount * 4)),
-                metadata: { bands: 4 },
+                metadata: {
+                    sampleRate: 44100,
+                    fftSize: 2048,
+                    minDecibels: -80,
+                    maxDecibels: 0,
+                },
             },
         },
     };
@@ -84,8 +92,9 @@ describe('audio feature cache persistence', () => {
         const timelineSection = exported.envelope.timeline;
         expect(timelineSection.audioFeatureCaches?.aud_persist).toBeDefined();
         const serialized = timelineSection.audioFeatureCaches!.aud_persist;
-        expect(serialized.analysisParams.windowSize).toBe(1024);
-        expect(serialized.featureTracks.spectrogram.metadata?.bands).toBe(4);
+        expect(serialized.analysisParams.windowSize).toBe(2048);
+        expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
+        expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
         useTimelineStore.getState().resetTimeline();
         const importResult = await importScene(exported.json);
         expect(importResult.ok).toBe(true);

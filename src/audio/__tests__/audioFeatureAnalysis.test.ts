@@ -50,12 +50,17 @@ describe('audio feature analysis', () => {
         expect(cache.featureTracks.spectrogram).toBeDefined();
         expect(cache.featureTracks.rms).toBeDefined();
         expect(cache.featureTracks.waveform).toBeDefined();
-        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(1);
+        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(2);
         expect(cache.hopTicks).toBeGreaterThan(0);
         const roundTrip = deserializeAudioFeatureCache(serializeAudioFeatureCache(cache));
         expect(roundTrip.featureTracks.spectrogram.channels).toBe(
             cache.featureTracks.spectrogram.channels,
         );
+        const spectrogramTrack = cache.featureTracks.spectrogram;
+        expect(spectrogramTrack.metadata?.minDecibels).toBe(-80);
+        expect(spectrogramTrack.metadata?.maxDecibels).toBe(0);
+        const values = Array.from((spectrogramTrack.data as Float32Array).slice(0, spectrogramTrack.channels));
+        expect(values.every((value) => value >= -80 && value <= 0)).toBe(true);
     });
 
     it('scheduler resolves queued jobs and supports cancellation', async () => {

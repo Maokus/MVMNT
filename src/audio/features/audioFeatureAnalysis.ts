@@ -48,9 +48,11 @@ export interface SerializedAudioFeatureCache {
 }
 
 const DEFAULT_WINDOW_SIZE = 2048;
-const DEFAULT_HOP_SIZE = 1024;
+const DEFAULT_HOP_SIZE = 512;
 const WAVEFORM_OVERSAMPLE_FACTOR = 8;
-const DEFAULT_SPECTROGRAM_BANDS = 32;
+const SPECTROGRAM_MIN_DECIBELS = -80;
+const SPECTROGRAM_MAX_DECIBELS = 0;
+const SPECTROGRAM_EPSILON = 1e-8;
 
 function hannWindow(length: number): Float32Array {
     const window = new Float32Array(length);
@@ -248,60 +250,64 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
 function createSpectrogramCalculator(): AudioFeatureCalculator {
     return {
         id: 'mvmnt.spectrogram',
-        version: 1,
+        version: 2,
         featureKey: 'spectrogram',
         label: 'Spectrogram',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
             const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount } = context;
             const mono = mixBufferToMono(audioBuffer);
             const { windowSize, hopSize } = analysisParams;
-            const bands = DEFAULT_SPECTROGRAM_BANDS;
+            const fftSize = Math.max(32, windowSize);
+            const binCount = Math.floor(fftSize / 2) + 1;
             const window = hannWindow(windowSize);
-            const output = new Float32Array(frameCount * bands);
-            const binCount = windowSize / 2;
-            const binsPerBand = Math.max(1, Math.floor(binCount / bands));
+            const output = new Float32Array(frameCount * binCount);
             const sampleRate = audioBuffer.sampleRate || 44100;
+            const magnitudeScale = 2 / Math.max(1, windowSize);
+
             for (let frame = 0; frame < frameCount; frame++) {
                 const start = frame * hopSize;
-                const slice = mono.subarray(start, start + windowSize);
-                const magnitudes = new Float32Array(binCount);
-                for (let k = 0; k < binCount; k++) {
+                for (let bin = 0; bin < binCount; bin++) {
                     let real = 0;
                     let imag = 0;
                     for (let n = 0; n < windowSize; n++) {
-                        const sample = (slice[n] ?? 0) * window[n];
-                        const angle = (-2 * Math.PI * k * n) / windowSize;
+                        const sample = (mono[start + n] ?? 0) * window[n];
+                        const angle = (-2 * Math.PI * bin * n) / fftSize;
                         real += sample * Math.cos(angle);
                         imag += sample * Math.sin(angle);
                     }
-                    magnitudes[k] = Math.sqrt(real * real + imag * imag);
-                }
-                for (let band = 0; band < bands; band++) {
-                    let sum = 0;
-                    const startBin = band * binsPerBand;
-                    const endBin = Math.min(binCount, startBin + binsPerBand);
-                    for (let bin = startBin; bin < endBin; bin++) {
-                        sum += magnitudes[bin];
-                    }
-                    const avg = endBin > startBin ? sum / (endBin - startBin) : 0;
-                    output[frame * bands + band] = avg;
+                    const magnitude = Math.sqrt(real * real + imag * imag) * magnitudeScale;
+                    const decibels = 20 * Math.log10(magnitude + SPECTROGRAM_EPSILON);
+                    const clamped = Math.max(SPECTROGRAM_MIN_DECIBELS, Math.min(SPECTROGRAM_MAX_DECIBELS, decibels));
+                    output[frame * binCount + bin] = clamped;
                 }
             }
+
             return {
                 key: 'spectrogram',
                 calculatorId: 'mvmnt.spectrogram',
-                version: 1,
+                version: 2,
                 frameCount,
-                channels: DEFAULT_SPECTROGRAM_BANDS,
+                channels: binCount,
                 hopTicks,
                 hopSeconds,
                 format: 'float32',
                 data: output,
                 metadata: {
-                    bands,
+                    fftSize,
+                    hopSize,
                     sampleRate,
+                    window: 'hann',
+                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
+                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
                 },
-                analysisParams: { bands },
+                analysisParams: {
+                    fftSize,
+                    windowSize,
+                    hopSize,
+                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
+                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
+                    window: 'hann',
+                },
             };
         },
         serializeResult(track: AudioFeatureTrack) {

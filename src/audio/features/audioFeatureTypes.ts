@@ -46,6 +46,10 @@ export interface AudioFeatureAnalysisParams {
     overlap: number;
     smoothing?: number;
     sampleRate: number;
+    fftSize?: number;
+    minDecibels?: number;
+    maxDecibels?: number;
+    window?: string;
     tempoMapHash?: string;
     calculatorVersions: Record<string, number>;
 }
