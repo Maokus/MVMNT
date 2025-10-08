@@ -53,6 +53,58 @@ const WAVEFORM_OVERSAMPLE_FACTOR = 8;
 const SPECTROGRAM_MIN_DECIBELS = -80;
 const SPECTROGRAM_MAX_DECIBELS = 0;
 const SPECTROGRAM_EPSILON = 1e-8;
+const ANALYSIS_YIELD_MIN_INTERVAL_MS = 12;
+
+type YieldCallback = () => Promise<void>;
+
+function nowTimestamp(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+    }
+    return Date.now();
+}
+
+function scheduleDeferred(resolve: () => void): void {
+    const globalScope = globalThis as {
+        requestAnimationFrame?: (callback: FrameRequestCallback) => number;
+        requestIdleCallback?: (callback: () => void) => number;
+    };
+    if (typeof globalScope.requestAnimationFrame === 'function') {
+        globalScope.requestAnimationFrame(() => resolve());
+        return;
+    }
+    if (typeof globalScope.requestIdleCallback === 'function') {
+        globalScope.requestIdleCallback(() => resolve());
+        return;
+    }
+    setTimeout(resolve, 0);
+}
+
+function createAnalysisAbortError(): Error {
+    const error = new Error('Audio feature analysis aborted');
+    (error as Error).name = 'AbortError';
+    return error;
+}
+
+function assertSignalNotAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+        throw createAnalysisAbortError();
+    }
+}
+
+function createAnalysisYieldController(signal?: AbortSignal): YieldCallback {
+    let lastYieldAt = nowTimestamp();
+    return async () => {
+        assertSignalNotAborted(signal);
+        const now = nowTimestamp();
+        if (now - lastYieldAt < ANALYSIS_YIELD_MIN_INTERVAL_MS) {
+            return;
+        }
+        await new Promise<void>((resolve) => scheduleDeferred(resolve));
+        lastYieldAt = nowTimestamp();
+        assertSignalNotAborted(signal);
+    };
+}
 
 function hannWindow(length: number): Float32Array {
     const window = new Float32Array(length);
@@ -72,19 +124,35 @@ function computeTempoMapHash(map: TempoMapEntry[] | undefined): string | undefin
     return hash.toString(16);
 }
 
-function mixBufferToMono(buffer: AudioBuffer): Float32Array {
+async function mixBufferToMono(buffer: AudioBuffer, maybeYield?: YieldCallback): Promise<Float32Array> {
     const frameCount = buffer.length;
     const channelCount = buffer.numberOfChannels || 1;
     const mono = new Float32Array(frameCount);
+    if (frameCount === 0) {
+        return mono;
+    }
+    const chunkSize = Math.max(1024, Math.floor(frameCount / 24));
     for (let channel = 0; channel < channelCount; channel++) {
         const data = buffer.getChannelData(channel);
-        for (let i = 0; i < frameCount; i++) {
-            mono[i] += data[i] || 0;
+        for (let index = 0; index < frameCount; index += chunkSize) {
+            const end = Math.min(frameCount, index + chunkSize);
+            for (let i = index; i < end; i++) {
+                mono[i] += data[i] ?? 0;
+            }
+            if (maybeYield) {
+                await maybeYield();
+            }
         }
     }
     const invChannels = 1 / Math.max(1, channelCount);
-    for (let i = 0; i < frameCount; i++) {
-        mono[i] *= invChannels;
+    for (let index = 0; index < frameCount; index += chunkSize) {
+        const end = Math.min(frameCount, index + chunkSize);
+        for (let i = index; i < end; i++) {
+            mono[i] *= invChannels;
+        }
+        if (maybeYield) {
+            await maybeYield();
+        }
     }
     return mono;
 }
@@ -254,8 +322,9 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
         featureKey: 'spectrogram',
         label: 'Spectrogram',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount } = context;
-            const mono = mixBufferToMono(audioBuffer);
+            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
+            const maybeYield = createAnalysisYieldController(signal);
+            const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const { windowSize, hopSize } = analysisParams;
             const fftSize = Math.max(32, windowSize);
             const binCount = Math.floor(fftSize / 2) + 1;
@@ -263,6 +332,8 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
             const output = new Float32Array(frameCount * binCount);
             const sampleRate = audioBuffer.sampleRate || 44100;
             const magnitudeScale = 2 / Math.max(1, windowSize);
+            const binYieldInterval = Math.max(1, Math.floor(binCount / 8));
+            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 4));
 
             for (let frame = 0; frame < frameCount; frame++) {
                 const start = frame * hopSize;
@@ -279,8 +350,15 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
                     const decibels = 20 * Math.log10(magnitude + SPECTROGRAM_EPSILON);
                     const clamped = Math.max(SPECTROGRAM_MIN_DECIBELS, Math.min(SPECTROGRAM_MAX_DECIBELS, decibels));
                     output[frame * binCount + bin] = clamped;
+                    if ((bin + 1) % binYieldInterval === 0) {
+                        await maybeYield();
+                    }
+                }
+                if ((frame + 1) % frameYieldInterval === 0) {
+                    await maybeYield();
                 }
             }
+            await maybeYield();
 
             return {
                 key: 'spectrogram',
@@ -325,11 +403,13 @@ function createRmsCalculator(): AudioFeatureCalculator {
         id: 'mvmnt.rms',
         version: 1,
         featureKey: 'rms',
-        calculate(context: AudioFeatureCalculatorContext): AudioFeatureTrack {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount } = context;
-            const mono = mixBufferToMono(audioBuffer);
+        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
+            const maybeYield = createAnalysisYieldController(signal);
+            const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const { windowSize, hopSize } = analysisParams;
             const output = new Float32Array(frameCount);
+            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 12));
             for (let frame = 0; frame < frameCount; frame++) {
                 const start = frame * hopSize;
                 let sumSquares = 0;
@@ -340,7 +420,11 @@ function createRmsCalculator(): AudioFeatureCalculator {
                 }
                 const count = Math.max(1, end - start);
                 output[frame] = Math.sqrt(sumSquares / count);
+                if ((frame + 1) % frameYieldInterval === 0) {
+                    await maybeYield();
+                }
             }
+            await maybeYield();
             return {
                 key: 'rms',
                 calculatorId: 'mvmnt.rms',
@@ -370,14 +454,16 @@ function createWaveformCalculator(): AudioFeatureCalculator {
         id: 'mvmnt.waveform',
         version: 1,
         featureKey: 'waveform',
-        calculate(context: AudioFeatureCalculatorContext): AudioFeatureTrack {
-            const { audioBuffer, analysisParams, hopTicks } = context;
-            const mono = mixBufferToMono(audioBuffer);
+        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+            const { audioBuffer, analysisParams, hopTicks, signal } = context;
+            const maybeYield = createAnalysisYieldController(signal);
+            const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const baseHopSize = Math.max(1, analysisParams.hopSize);
             const waveformHopSize = Math.max(1, Math.round(baseHopSize / WAVEFORM_OVERSAMPLE_FACTOR));
             const waveformFrameCount = computeFrameCount(mono.length, waveformHopSize, waveformHopSize);
             const minValues = new Float32Array(waveformFrameCount);
             const maxValues = new Float32Array(waveformFrameCount);
+            const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
             for (let frame = 0; frame < waveformFrameCount; frame++) {
                 const start = frame * waveformHopSize;
                 const end = Math.min(start + waveformHopSize, mono.length);
@@ -392,7 +478,11 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 if (!isFinite(max)) max = 0;
                 minValues[frame] = min;
                 maxValues[frame] = max;
+                if ((frame + 1) % frameYieldInterval === 0) {
+                    await maybeYield();
+                }
             }
+            await maybeYield();
             const hopRatio = waveformHopSize / baseHopSize;
             const waveformHopTicks = Math.max(1, Math.round(Math.max(1, hopTicks) * hopRatio));
             const waveformHopSeconds = waveformHopSize / audioBuffer.sampleRate;
@@ -471,20 +561,13 @@ export async function analyzeAudioBufferFeatures(
     const featureTracks: Record<string, AudioFeatureTrack> = {};
     const progress = options.onProgress;
     const signal = options.signal;
-    const assertNotAborted = () => {
-        if (signal?.aborted) {
-            const error = new Error('Audio feature analysis aborted');
-            (error as Error).name = 'AbortError';
-            throw error;
-        }
-    };
-    assertNotAborted();
+    assertSignalNotAborted(signal);
     if (progress) {
         progress(0, 'start');
     }
     for (let i = 0; i < calculators.length; i++) {
         const calculator = calculators[i];
-        assertNotAborted();
+        assertSignalNotAborted(signal);
         const prepared = calculator.prepare ? await calculator.prepare(analysisParams) : undefined;
         const context: AudioFeatureCalculatorContext = {
             audioBuffer: options.audioBuffer,
@@ -497,7 +580,7 @@ export async function analyzeAudioBufferFeatures(
             signal,
         };
         const result = await calculator.calculate(context);
-        assertNotAborted();
+        assertSignalNotAborted(signal);
         const tracks = Array.isArray(result) ? result : [result];
         for (const track of tracks) {
             featureTracks[track.key] = track;

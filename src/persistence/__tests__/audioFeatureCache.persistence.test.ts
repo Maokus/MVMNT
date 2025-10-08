@@ -101,6 +101,9 @@ describe('audio feature cache persistence', () => {
         const timelineSection = exported.envelope.timeline;
         expect(timelineSection.audioFeatureCaches?.aud_persist).toBeDefined();
         const serialized = timelineSection.audioFeatureCaches!.aud_persist;
+        if (!serialized || !('analysisParams' in serialized) || !('featureTracks' in serialized)) {
+            throw new Error('Expected inline audio feature cache payload');
+        }
         expect(serialized.analysisParams.windowSize).toBe(2048);
         expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
         expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
