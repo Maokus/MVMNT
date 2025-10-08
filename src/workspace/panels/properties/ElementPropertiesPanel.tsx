@@ -5,6 +5,7 @@ import { useMacros } from '@context/MacroContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/form/inputs/FormInput';
+import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -451,7 +452,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         onClick={handleResetAll}
                         title="Reset all properties to their defaults"
                     >
-                        Reset All
+                        <FaRotate />
                     </button>
                     <button
                         type="button"
@@ -459,7 +460,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         onClick={handleCopyElement}
                         title="Copy all properties for this element"
                     >
-                        Copy
+                        <FaCopy />
                     </button>
                     <button
                         type="button"
@@ -472,7 +473,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                                 : 'Paste properties from a copied element'
                         }
                     >
-                        Paste
+                        <FaPaste />
                     </button>
                 </div>
             </div>
