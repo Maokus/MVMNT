@@ -68,8 +68,8 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [groupCollapseState, setGroupCollapseState] = useState<Record<string, boolean>>({});
     const [macroListenerKey, setMacroListenerKey] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
-    const [groupClipboard, setGroupClipboard] = useState<{
-        groupId: string;
+    const [elementClipboard, setElementClipboard] = useState<{
+        elementType: string;
         values: Record<string, any>;
         macroAssignments: Record<string, string>;
     } | null>(null);
@@ -217,6 +217,17 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
             .filter(({ properties }) => properties.length > 0);
     }, [enhancedSchema, normalizedSearch, propertyPassesVisibility]);
 
+    const elementPresets = useMemo(() => {
+        if (!enhancedSchema) return [];
+
+        return enhancedSchema.groups.flatMap((group) =>
+            (group.presets ?? []).map((preset) => ({
+                value: `${group.id}::${preset.id}`,
+                label: `${group.label ?? 'Group'} · ${preset.label}`,
+            })),
+        );
+    }, [enhancedSchema]);
+
     const handleValueChange = useCallback(
         (key: string, value: any, meta?: FormInputChange['meta']) => {
             setPropertyValues((prev) => ({ ...prev, [key]: value }));
@@ -294,29 +305,27 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         [elementId, onConfigChange],
     );
 
-    const handleResetGroup = useCallback(
-        (groupId: string) => {
-            if (!enhancedSchema) return;
-            const group = enhancedSchema.groups.find((entry) => entry.id === groupId);
-            if (!group) return;
+    const handleResetAll = useCallback(() => {
+        if (!enhancedSchema) return;
 
-            const nextValues: Record<string, any> = {};
+        const nextValues: Record<string, any> = {};
+        enhancedSchema.groups.forEach((group) => {
             group.properties.forEach((property) => {
-                const defaultValue = property.default ?? null;
+                const defaultValue = normalizeConstantValue(property.key, property.default ?? null);
                 nextValues[property.key] = defaultValue;
                 if (macroAssignments[property.key]) {
                     handleMacroAssignment(property.key, '');
                 }
             });
+        });
 
-            applyBulkValueChange(nextValues);
-        },
-        [applyBulkValueChange, enhancedSchema, handleMacroAssignment, macroAssignments],
-    );
+        applyBulkValueChange(nextValues);
+    }, [applyBulkValueChange, enhancedSchema, handleMacroAssignment, macroAssignments]);
 
     const handleApplyPreset = useCallback(
-        (groupId: string, presetId: string) => {
+        (presetKey: string) => {
             if (!enhancedSchema) return;
+            const [groupId, presetId] = presetKey.split('::');
             const group = enhancedSchema.groups.find((entry) => entry.id === groupId);
             if (!group || !group.presets) return;
             const preset = group.presets.find((entry) => entry.id === presetId);
@@ -335,56 +344,68 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         [applyBulkValueChange, enhancedSchema, handleMacroAssignment, macroAssignments],
     );
 
-    const handleCopyGroup = useCallback(
-        (groupId: string) => {
-            if (!enhancedSchema) return;
-            const group = enhancedSchema.groups.find((entry) => entry.id === groupId);
-            if (!group) return;
+    const handleCopyElement = useCallback(() => {
+        if (!enhancedSchema) return;
 
-            const values: Record<string, any> = {};
-            const macros: Record<string, string> = {};
+        const values: Record<string, any> = {};
+        const macros: Record<string, string> = {};
+
+        enhancedSchema.groups.forEach((group) => {
             group.properties.forEach((property) => {
-                values[property.key] = propertyValues[property.key];
+                if (Object.prototype.hasOwnProperty.call(propertyValues, property.key)) {
+                    values[property.key] = propertyValues[property.key];
+                }
                 if (macroAssignments[property.key]) {
                     macros[property.key] = macroAssignments[property.key];
                 }
             });
+        });
 
-            setGroupClipboard({ groupId, values, macroAssignments: macros });
-        },
-        [enhancedSchema, macroAssignments, propertyValues],
-    );
+        setElementClipboard({ elementType, values, macroAssignments: macros });
+    }, [enhancedSchema, elementType, macroAssignments, propertyValues]);
 
-    const handlePasteGroup = useCallback(
-        (groupId: string) => {
-            if (!enhancedSchema || !groupClipboard) return;
-            const group = enhancedSchema.groups.find((entry) => entry.id === groupId);
-            if (!group) return;
+    const handlePasteElement = useCallback(() => {
+        if (!enhancedSchema || !elementClipboard) return;
+        if (elementClipboard.elementType !== elementType) return;
 
-            const nextValues: Record<string, any> = {};
+        const nextValues: Record<string, any> = {};
+        enhancedSchema.groups.forEach((group) => {
             group.properties.forEach((property) => {
-                if (Object.prototype.hasOwnProperty.call(groupClipboard.values, property.key)) {
-                    nextValues[property.key] = groupClipboard.values[property.key];
+                if (Object.prototype.hasOwnProperty.call(elementClipboard.values, property.key)) {
+                    nextValues[property.key] = elementClipboard.values[property.key];
                 }
             });
+        });
 
-            applyBulkValueChange(nextValues);
+        applyBulkValueChange(nextValues);
 
+        enhancedSchema.groups.forEach((group) => {
             group.properties.forEach((property) => {
-                const macroName = groupClipboard.macroAssignments[property.key];
+                const macroName = elementClipboard.macroAssignments[property.key];
                 if (macroName && macroLookup.has(macroName)) {
                     handleMacroAssignment(property.key, macroName);
                 } else if (macroAssignments[property.key]) {
                     handleMacroAssignment(property.key, '');
                 }
             });
+        });
+    }, [applyBulkValueChange, elementClipboard, enhancedSchema, handleMacroAssignment, macroAssignments, macroLookup, elementType]);
+
+    const handlePresetSelection = useCallback(
+        (event: React.ChangeEvent<HTMLSelectElement>) => {
+            const presetKey = event.target.value;
+            if (!presetKey) return;
+            handleApplyPreset(presetKey);
+            event.target.value = '';
         },
-        [applyBulkValueChange, enhancedSchema, groupClipboard, handleMacroAssignment, macroAssignments, macroLookup],
+        [handleApplyPreset],
     );
 
     const handleCollapseToggle = useCallback((groupId: string) => {
         setGroupCollapseState((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
     }, []);
+
+    const canPasteElement = elementClipboard?.elementType === elementType;
 
     if (!enhancedSchema) {
         return (
@@ -397,13 +418,63 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     return (
         <div className="element-properties-panel ae-style">
             <div className="ae-properties-toolbar">
-                <input
-                    type="search"
-                    className="ae-properties-search"
-                    placeholder="Search properties…"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                />
+                <div className="ae-toolbar-row">
+                    <input
+                        type="search"
+                        className="ae-properties-search"
+                        placeholder="Search properties…"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                    />
+                </div>
+                <div className="ae-toolbar-row ae-element-actions">
+                    {elementPresets.length > 0 && (
+                        <select
+                            className="ae-element-preset"
+                            onChange={handlePresetSelection}
+                            defaultValue=""
+                            title="Apply a preset to this element"
+                        >
+                            <option value="" disabled>
+                                Apply preset…
+                            </option>
+                            {elementPresets.map((preset) => (
+                                <option key={preset.value} value={preset.value}>
+                                    {preset.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <button
+                        type="button"
+                        className="ae-element-action"
+                        onClick={handleResetAll}
+                        title="Reset all properties to their defaults"
+                    >
+                        Reset All
+                    </button>
+                    <button
+                        type="button"
+                        className="ae-element-action"
+                        onClick={handleCopyElement}
+                        title="Copy all properties for this element"
+                    >
+                        Copy
+                    </button>
+                    <button
+                        type="button"
+                        className="ae-element-action"
+                        disabled={!canPasteElement}
+                        onClick={handlePasteElement}
+                        title={
+                            elementClipboard && elementClipboard.elementType !== elementType
+                                ? 'Clipboard contains a different element type'
+                                : 'Paste properties from a copied element'
+                        }
+                    >
+                        Paste
+                    </button>
+                </div>
             </div>
             {filteredGroups.length === 0 ? (
                 <div className="ae-empty-search">No properties match your search.</div>
@@ -418,11 +489,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         onValueChange={handleValueChange}
                         onMacroAssignment={handleMacroAssignment}
                         onCollapseToggle={handleCollapseToggle}
-                        onResetGroup={handleResetGroup}
-                        onApplyPreset={handleApplyPreset}
-                        onCopyGroup={handleCopyGroup}
-                        onPasteGroup={handlePasteGroup}
-                        canPasteGroup={!!groupClipboard}
                     />
                 ))
             )}

@@ -15,17 +15,7 @@ interface PropertyGroupPanelProps {
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
-    onResetGroup: (groupId: string) => void;
-    onApplyPreset: (groupId: string, presetId: string) => void;
-    onCopyGroup: (groupId: string) => void;
-    onPasteGroup: (groupId: string) => void;
-    canPasteGroup: boolean;
 }
-
-const GROUP_VARIANT_LABEL: Record<'basic' | 'advanced', string> = {
-    basic: 'Basic',
-    advanced: 'Advanced',
-};
 
 const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     group,
@@ -35,11 +25,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onValueChange,
     onMacroAssignment,
     onCollapseToggle,
-    onResetGroup,
-    onApplyPreset,
-    onCopyGroup,
-    onPasteGroup,
-    canPasteGroup,
 }) => {
     const { macros: macroList, create: createMacro } = useMacros();
     const macrosSource = useMemo(() => macroList as any[], [macroList]);
@@ -328,12 +313,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         );
     };
 
-    const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const presetId = event.target.value;
-        if (!presetId) return;
-        onApplyPreset(group.id, presetId);
-        event.target.value = '';
-    };
+    const groupDescription = group.description?.trim() ?? '';
 
     return (
         <div className="ae-property-group">
@@ -348,60 +328,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 </button>
                 <div className="ae-group-meta">
                     <div className="ae-group-title-row">
-                        <span className="ae-group-label">{group.label}</span>
-                        {group.variant && (
-                            <span className={`ae-group-badge variant-${group.variant}`}>
-                                {GROUP_VARIANT_LABEL[group.variant] ?? group.variant}
-                            </span>
-                        )}
+                        <span className="ae-group-label" title={groupDescription || undefined}>
+                            {group.label}
+                        </span>
                     </div>
-                    {group.description && <span className="ae-group-description">{group.description}</span>}
-                </div>
-                <div className="ae-group-actions">
-                    {group.presets && group.presets.length > 0 && (
-                        <select className="ae-group-preset" onChange={handlePresetChange} defaultValue="">
-                            <option value="">Presets…</option>
-                            {group.presets.map((preset) => (
-                                <option key={`${group.id}-${preset.id}`} value={preset.id}>
-                                    {preset.label}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    <button
-                        type="button"
-                        className="ae-group-action"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            onResetGroup(group.id);
-                        }}
-                        title="Reset to defaults"
-                    >
-                        Reset
-                    </button>
-                    <button
-                        type="button"
-                        className="ae-group-action"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            onCopyGroup(group.id);
-                        }}
-                        title="Copy group settings"
-                    >
-                        Copy
-                    </button>
-                    <button
-                        type="button"
-                        className="ae-group-action"
-                        disabled={!canPasteGroup}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            onPasteGroup(group.id);
-                        }}
-                        title="Paste group settings"
-                    >
-                        Paste
-                    </button>
                 </div>
             </div>
 

@@ -504,10 +504,28 @@
         @apply border-b border-[#383838];
     }
     .ae-properties-toolbar {
-        @apply px-2 py-2 border-b border-[#383838] bg-[#1f1f1f];
+        @apply px-2 py-2 border-b border-[#383838] bg-[#1f1f1f] flex flex-col gap-2;
+    }
+    .ae-toolbar-row {
+        @apply flex flex-wrap items-center gap-2;
     }
     .ae-properties-search {
-        @apply w-full h-7 rounded border border-[#3f3f46] bg-[#2b2b2b] px-3 text-[12px] text-[#f4f4f5] placeholder:text-[#9ca3af] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40;
+        @apply flex-1 min-w-[140px] h-7 rounded border border-[#3f3f46] bg-[#2b2b2b] px-3 text-[12px] text-[#f4f4f5] placeholder:text-[#9ca3af] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40;
+    }
+    .ae-element-actions {
+        @apply flex flex-wrap items-center gap-1;
+    }
+    .ae-element-preset {
+        @apply h-7 rounded border border-[#3f3f46] bg-[#1f1f1f] px-2 text-[11px] text-[#f4f4f5] focus:outline-none focus:border-accent flex-1 min-w-[180px] max-w-[260px];
+    }
+    .ae-element-action {
+        @apply h-7 px-3 rounded border border-[#3f3f46] bg-[#1f1f1f] text-[11px] uppercase tracking-wide text-[#f4f4f5] cursor-pointer transition-colors flex-shrink-0;
+    }
+    .ae-element-action:disabled {
+        @apply cursor-not-allowed opacity-50;
+    }
+    .ae-element-action:not(:disabled):hover {
+        @apply border-accent bg-accent/10 text-white;
     }
     .ae-empty-search {
         @apply px-4 py-6 text-center text-[12px] text-[#a3a3a3];
@@ -536,33 +554,6 @@
     .ae-group-label {
         @apply font-bold text-[11px] text-[#e0e0e0];
     }
-    .ae-group-description {
-        @apply text-[10px] text-[#9ca3af];
-    }
-    .ae-group-badge {
-        @apply inline-flex items-center justify-center rounded px-1 py-[1px] text-[9px] uppercase tracking-wide font-semibold ml-1;
-    }
-    .ae-group-badge.variant-basic {
-        @apply bg-emerald-600/30 text-emerald-200 border border-emerald-500/40;
-    }
-    .ae-group-badge.variant-advanced {
-        @apply bg-sky-600/30 text-sky-200 border border-sky-500/40;
-    }
-    .ae-group-actions {
-        @apply flex items-center gap-1 ml-auto;
-    }
-    .ae-group-preset {
-        @apply h-6 rounded border border-[#3f3f46] bg-[#1f1f1f] px-2 text-[10px] text-[#f4f4f5] focus:outline-none focus:border-accent;
-    }
-    .ae-group-action {
-        @apply h-6 px-2 rounded border border-[#3f3f46] bg-[#1f1f1f] text-[10px] uppercase tracking-wide text-[#f4f4f5] cursor-pointer transition-colors;
-    }
-    .ae-group-action:disabled {
-        @apply cursor-not-allowed opacity-50;
-    }
-    .ae-group-action:not(:disabled):hover {
-        @apply border-accent bg-accent/10 text-white;
-    }
     .ae-property-list {
         @apply bg-[#2c2c2c];
     }
@@ -573,7 +564,7 @@
         @apply text-[11px] text-[#9ca3af];
     }
     .ae-property-row {
-        @apply flex items-center justify-between px-2 py-1 border-b;
+        @apply flex flex-wrap items-center gap-2 px-2 py-1 border-b;
         padding-left: 26px;
         min-height: 24px;
         border-color: rgba(255, 255, 255, 0.05);
@@ -582,11 +573,10 @@
         @apply bg-white/5;
     }
     .ae-property-label {
-        @apply flex items-center shrink-0 mr-2;
-        min-width: 80px;
+        @apply flex items-center gap-1 shrink-0 min-w-0;
     }
     .ae-property-name {
-        @apply text-[11px] text-[#e0e0e0] select-none;
+        @apply text-[11px] text-[#e0e0e0] select-none truncate max-w-[180px];
     }
     .ae-animation-icon {
         @apply w-[14px] h-[14px] ml-1 flex items-center justify-center text-[10px] text-[#666] cursor-pointer transition-colors;
@@ -598,7 +588,7 @@
         color: var(--twc-accent);
     }
     .ae-property-controls {
-        @apply flex items-center gap-1.5 flex-1 justify-end;
+        @apply flex items-center gap-1.5 flex-1 justify-end flex-wrap min-w-0;
     }
     .ae-macro-assignment {
         @apply relative flex-shrink-0;
@@ -643,7 +633,7 @@
         @apply px-3 py-2 text-[11px] text-[#9ca3af];
     }
     .ae-property-input {
-        @apply flex-[0_0_120px] max-w-[120px];
+        @apply flex-[1_1_140px] min-w-[120px] max-w-[220px];
     }
     .ae-style .ae-property-input input,
     .ae-style .ae-property-input select {
