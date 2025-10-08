@@ -17,6 +17,7 @@ export interface MIDIEvent {
     data?: number[];
     metaType?: number;
     text?: string;
+    trackIndex?: number;
 }
 
 export interface MIDITimeSignature {
@@ -36,6 +37,22 @@ export interface MIDIData {
     // Optional tempo map with absolute times in seconds and tempo (microseconds per quarter)
     tempoMap?: Array<{ time: number; tempo: number }>;
     fileName?: string; // Optional file name for save/load functionality
+    trackSummaries?: MIDITrackSummary[];
+    trackDetails?: MIDITrackDetails[];
+    format?: number;
+    trackCount?: number;
+}
+
+export interface MIDITrackSummary {
+    trackIndex: number;
+    name?: string;
+    noteCount: number;
+    channels: number[];
+}
+
+export interface MIDITrackDetails extends MIDITrackSummary {
+    events: MIDIEvent[];
+    duration: number;
 }
 
 export interface TimingData {

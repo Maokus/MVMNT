@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     FloatingFocusManager,
     FloatingPortal,
@@ -24,6 +24,9 @@ import { useVisualizer } from '@context/VisualizerContext';
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
+import { parseMIDIFileToData } from '@core/midi/midi-library';
+import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
+import type { MIDIData, MIDITrackDetails } from '@core/types';
 import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 import {
@@ -33,6 +36,15 @@ import {
     type QuantizeSetting,
     type SnapQuantizeOption,
 } from '@state/timeline/quantize';
+import { MidiImportModeModal } from './MidiImportModeModal';
+
+type MultiTrackChoice = 'single' | 'split' | 'cancel';
+
+interface MultiTrackDecisionState {
+    fileName: string;
+    midiData: MIDIData;
+    tracks: MIDITrackDetails[];
+}
 
 const TimelinePanel: React.FC = () => {
     const { visualizer } = useVisualizer();
@@ -44,6 +56,33 @@ const TimelinePanel: React.FC = () => {
     const trackIds = useMemo(() => order.filter((id) => !!tracksMap[id]), [order, tracksMap]);
     const fileRef = useRef<HTMLInputElement | null>(null);
     const audioFileRef = useRef<HTMLInputElement | null>(null);
+    const [multiTrackPrompt, setMultiTrackPrompt] = useState<MultiTrackDecisionState | null>(null);
+    const multiTrackResolverRef = useRef<((choice: MultiTrackChoice) => void) | null>(null);
+
+    const requestImportMode = useCallback(
+        (info: MultiTrackDecisionState) =>
+            new Promise<MultiTrackChoice>((resolve) => {
+                multiTrackResolverRef.current = resolve;
+                setMultiTrackPrompt(info);
+            }),
+        [],
+    );
+
+    const resolveImportMode = useCallback((choice: MultiTrackChoice) => {
+        const resolver = multiTrackResolverRef.current;
+        multiTrackResolverRef.current = null;
+        setMultiTrackPrompt(null);
+        if (resolver) resolver(choice);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (multiTrackResolverRef.current) {
+                multiTrackResolverRef.current('cancel');
+                multiTrackResolverRef.current = null;
+            }
+        };
+    }, []);
     // Scroll containers for sync
     const lanesScrollRef = useRef<HTMLDivElement | null>(null);
     const lanesScrollEl = lanesScrollRef.current;
@@ -111,12 +150,58 @@ const TimelinePanel: React.FC = () => {
         };
     }, [lanesScrollEl]);
 
-    const handleAddFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        await addMidiTrack({ name: f.name.replace(/\.[^/.]+$/, ''), file: f });
-        if (fileRef.current) fileRef.current.value = '';
-    };
+    const handleAddFile = useCallback(
+        async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const files = Array.from(e.target.files ?? []);
+            if (!files.length) return;
+            if (fileRef.current) fileRef.current.value = '';
+            for (const file of files) {
+                const baseName = file.name.replace(/\.[^/.]+$/, '');
+                let midiData: MIDIData;
+                try {
+                    midiData = await parseMIDIFileToData(file);
+                } catch (error) {
+                    console.error('Failed to parse MIDI file', error);
+                    alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
+                    continue;
+                }
+                const details = midiData.trackDetails ?? [];
+                const playableTracks = details.length
+                    ? details
+                    : [];
+                if (playableTracks.length <= 1) {
+                    const detailName = playableTracks[0]?.name?.trim();
+                    const trackName = detailName && detailName.length ? detailName : baseName;
+                    await addMidiTrack({ name: trackName, midiData });
+                    continue;
+                }
+                const choice = await requestImportMode({
+                    fileName: file.name,
+                    midiData,
+                    tracks: playableTracks,
+                });
+                if (choice === 'cancel') continue;
+                if (choice === 'single') {
+                    await addMidiTrack({ name: baseName, midiData });
+                    continue;
+                }
+                const splits = splitMidiDataByTracks(midiData);
+                if (!splits.length) {
+                    await addMidiTrack({ name: baseName, midiData });
+                    continue;
+                }
+                for (let index = 0; index < splits.length; index++) {
+                    const entry = splits[index];
+                    const labelCandidate = entry.track.name?.trim();
+                    const trackName = labelCandidate && labelCandidate.length
+                        ? labelCandidate
+                        : `${baseName} - Track ${index + 1}`;
+                    await addMidiTrack({ name: trackName, midiData: entry.data });
+                }
+            }
+        },
+        [addMidiTrack, requestImportMode],
+    );
 
     const handleAddAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -263,7 +348,8 @@ const TimelinePanel: React.FC = () => {
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
     return (
-        <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
+        <>
+            <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
             {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
             <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                 {/* Left: Add track */}
@@ -272,7 +358,14 @@ const TimelinePanel: React.FC = () => {
                         <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
                             <FaPlus className="text-neutral-300" />
                             <span>MIDI</span>
-                            <input ref={fileRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleAddFile} />
+                            <input
+                                ref={fileRef}
+                                type="file"
+                                accept=".mid,.midi"
+                                multiple
+                                className="hidden"
+                                onChange={handleAddFile}
+                            />
                         </label>
                         <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
                             <FaPlus className="text-emerald-300" />
@@ -323,6 +416,15 @@ const TimelinePanel: React.FC = () => {
                 </div>
             </div>
         </div>
+        <MidiImportModeModal
+            open={!!multiTrackPrompt}
+            fileName={multiTrackPrompt?.fileName ?? ''}
+            tracks={multiTrackPrompt?.tracks ?? []}
+            onCancel={() => resolveImportMode('cancel')}
+            onImportSingle={() => resolveImportMode('single')}
+            onImportSplit={() => resolveImportMode('split')}
+        />
+        </>
     );
 };
 
