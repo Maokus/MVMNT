@@ -41,6 +41,8 @@ interface ParsedArtifact {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    waveformPayloads: Map<string, Uint8Array>;
+    audioFeaturePayloads: Map<string, Uint8Array>;
 }
 
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
@@ -56,6 +58,8 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 audioPayloads: legacy.audioPayloads,
                 midiPayloads: legacy.midiPayloads,
                 fontPayloads: legacy.fontPayloads,
+                waveformPayloads: legacy.waveformPayloads,
+                audioFeaturePayloads: legacy.audioFeaturePayloads,
             };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
@@ -92,6 +96,8 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         audioPayloads: legacy.audioPayloads,
                         midiPayloads: legacy.midiPayloads,
                         fontPayloads: legacy.fontPayloads,
+                        waveformPayloads: legacy.waveformPayloads,
+                        audioFeaturePayloads: legacy.audioFeaturePayloads,
                     };
                 } catch (inner: any) {
                     return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
@@ -103,11 +109,46 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
     }
 }
 
-function buildDocumentShape(envelope: any) {
+function buildDocumentShape(
+    envelope: any,
+    audioFeaturePayloads: Map<string, Uint8Array>
+): {
+    doc: {
+        timeline: any;
+        tracks: any;
+        tracksOrder: string[];
+        playbackRange?: any;
+        playbackRangeUserDefined: boolean;
+        rowHeight: number;
+        midiCache: Record<string, any>;
+        audioFeatureCaches: Record<string, any>;
+        audioFeatureCacheStatus: Record<string, any>;
+        scene: any;
+        metadata: any;
+    };
+    featureWarnings: string[];
+} {
     const tl = envelope.timeline || {};
     const featureCaches: Record<string, any> = {};
+    const featureWarnings: string[] = [];
     if (tl.audioFeatureCaches && typeof tl.audioFeatureCaches === 'object') {
         for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
+            if (cache && typeof cache === 'object' && 'assetRef' in cache) {
+                const assetId = typeof (cache as any).assetId === 'string' ? (cache as any).assetId : encodeURIComponent(id);
+                const payload = audioFeaturePayloads.get(assetId);
+                if (!payload) {
+                    featureWarnings.push(`Missing audio feature payload for cache ${id}`);
+                    continue;
+                }
+                try {
+                    const serialized = JSON.parse(decodeSceneText(payload));
+                    featureCaches[id] = deserializeAudioFeatureCache(serialized as any);
+                } catch (error) {
+                    console.warn('[importScene] failed to parse audio feature payload', id, error);
+                    featureWarnings.push(`Failed to parse audio feature payload for cache ${id}`);
+                }
+                continue;
+            }
             try {
                 featureCaches[id] = deserializeAudioFeatureCache(cache as any);
             } catch (error) {
@@ -116,17 +157,20 @@ function buildDocumentShape(envelope: any) {
         }
     }
     return {
-        timeline: tl.timeline,
-        tracks: tl.tracks,
-        tracksOrder: tl.tracksOrder || [],
-        playbackRange: tl.playbackRange,
-        playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
-        rowHeight: tl.rowHeight,
-        midiCache: tl.midiCache || {},
-        audioFeatureCaches: featureCaches,
-        audioFeatureCacheStatus: tl.audioFeatureCacheStatus || {},
-        scene: { ...envelope.scene },
-        metadata: envelope.metadata,
+        doc: {
+            timeline: tl.timeline,
+            tracks: tl.tracks,
+            tracksOrder: tl.tracksOrder || [],
+            playbackRange: tl.playbackRange,
+            playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
+            rowHeight: tl.rowHeight,
+            midiCache: tl.midiCache || {},
+            audioFeatureCaches: featureCaches,
+            audioFeatureCacheStatus: tl.audioFeatureCacheStatus || {},
+            scene: { ...envelope.scene },
+            metadata: envelope.metadata,
+        },
+        featureWarnings,
     };
 }
 
@@ -217,9 +261,38 @@ function buildWaveform(record: any | undefined) {
     };
 }
 
+function resolveWaveformRecord(
+    waveforms: Record<string, any>,
+    assetId: string,
+    waveformPayloads: Map<string, Uint8Array>,
+    warnings: string[]
+): any | undefined {
+    const entry = waveforms[assetId];
+    if (!entry) return undefined;
+    if (entry && typeof entry === 'object' && 'channelPeaks' in entry) {
+        return entry;
+    }
+    if (entry && typeof entry === 'object' && 'assetRef' in entry) {
+        const waveformAssetId = typeof (entry as any).assetId === 'string' ? (entry as any).assetId : assetId;
+        const payload = waveformPayloads.get(waveformAssetId);
+        if (!payload) {
+            warnings.push(`Missing waveform payload for asset ${assetId}`);
+            return undefined;
+        }
+        try {
+            return JSON.parse(decodeSceneText(payload));
+        } catch (error) {
+            warnings.push(`Failed to parse waveform payload for asset ${assetId}: ${(error as Error).message}`);
+            return undefined;
+        }
+    }
+    return undefined;
+}
+
 async function hydrateAudioAssets(
     envelope: SceneExportEnvelopeV2,
-    assetPayloads: Map<string, Uint8Array>
+    assetPayloads: Map<string, Uint8Array>,
+    waveformPayloads: Map<string, Uint8Array>
 ): Promise<string[]> {
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
@@ -272,7 +345,8 @@ async function hydrateAudioAssets(
             warnings.push(`Referenced asset ${assetId} missing for audio ${originalId}`);
             continue;
         }
-        const waveform = buildWaveform(waveforms[assetId]);
+        const waveformRecord = resolveWaveformRecord(waveforms, assetId, waveformPayloads, warnings);
+        const waveform = buildWaveform(waveformRecord);
         const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
         const originalFile = {
             name: payload.record.filename,
@@ -298,7 +372,15 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         return { ok: false, errors: [parsed.error], warnings: [] };
     }
 
-    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads, fontPayloads } = parsed;
+    const {
+        envelope,
+        warnings: artifactWarnings,
+        audioPayloads,
+        midiPayloads,
+        fontPayloads,
+        waveformPayloads,
+        audioFeaturePayloads,
+    } = parsed;
     const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
         return {
@@ -308,7 +390,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         };
     }
 
-    const doc = buildDocumentShape(envelope);
+    const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
     const midiRestoration = restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
     DocumentGateway.apply(doc as any);
@@ -316,7 +398,11 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
     if (envelope.schemaVersion === 2 && envelope.assets) {
-        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, audioPayloads);
+        hydrationWarnings = await hydrateAudioAssets(
+            envelope as SceneExportEnvelopeV2,
+            audioPayloads,
+            waveformPayloads
+        );
     }
 
     if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {
@@ -341,6 +427,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...artifactWarnings,
         ...validation.warnings.map((w) => ({ message: w.message })),
         ...midiRestoration.warnings.map((message) => ({ message })),
+        ...featureWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
     ];
