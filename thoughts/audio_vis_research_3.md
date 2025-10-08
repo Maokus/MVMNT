@@ -1,6 +1,6 @@
 # Audio Visualization Implementation Plan (Audio Feature Cache)
 
-**Status:** Ready for engineering execution (2025-02-16)
+**Status:** Phase 1–2 complete in mainline (2025-02-16); remaining work tracks Phase 3–4 delivery
 
 ## Objectives
 

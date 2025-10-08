@@ -39,6 +39,7 @@ export function createRemoveTracksCommand(
             };
             const midiKeys: string[] = [];
             const audioKeys: string[] = [];
+            const featureKeys: string[] = [];
             for (const id of payload.trackIds) {
                 const track = state.tracks[id];
                 if (!track) continue;
@@ -63,6 +64,14 @@ export function createRemoveTracksCommand(
                     } else {
                         restorePayload.tracks.push({ track: audioTrack, index });
                     }
+                    const featureCache = (state as any).audioFeatureCaches?.[key] as
+                        | import('@audio/features/audioFeatureTypes').AudioFeatureCache
+                        | undefined;
+                    if (featureCache) {
+                        const entry = restorePayload.tracks[restorePayload.tracks.length - 1];
+                        entry.audioFeatureCache = { key, value: featureCache };
+                        featureKeys.push(key);
+                    }
                 }
             }
             if (midiKeys.length) {
@@ -70,6 +79,9 @@ export function createRemoveTracksCommand(
             }
             if (audioKeys.length) {
                 removePayload.audioCacheKeys = audioKeys;
+            }
+            if (featureKeys.length) {
+                removePayload.audioFeatureCacheKeys = featureKeys;
             }
             const patch: TimelineCommandPatch = {
                 redo: [

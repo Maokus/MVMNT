@@ -12,6 +12,8 @@ import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import iconDataUrl from '@assets/Icon.icns?inline';
+import { serializeAudioFeatureCache, type SerializedAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
+import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 
 export interface SceneMetadata {
     id: string;
@@ -32,7 +34,17 @@ export interface SceneExportEnvelopeV2 {
         sceneSettings?: any;
         macros?: any;
     };
-    timeline: any;
+    timeline: {
+        timeline: any;
+        tracks: any;
+        tracksOrder: string[];
+        playbackRange?: any;
+        playbackRangeUserDefined?: boolean;
+        rowHeight?: number;
+        midiCache: Record<string, any>;
+        audioFeatureCaches?: Record<string, SerializedAudioFeatureCache>;
+        audioFeatureCacheStatus?: Record<string, AudioFeatureCacheStatus>;
+    };
     assets: {
         storage: AssetStorageMode;
         createdWith: string;
@@ -342,6 +354,15 @@ export async function exportScene(
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
 
+    const serializedFeatureCaches: Record<string, SerializedAudioFeatureCache> = {};
+    for (const [sourceId, cache] of Object.entries(doc.audioFeatureCaches || {})) {
+        try {
+            serializedFeatureCaches[sourceId] = serializeAudioFeatureCache(cache);
+        } catch (error) {
+            console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
+        }
+    }
+
     const envelope: SceneExportEnvelopeV2 = {
         schemaVersion: 2,
         format: 'mvmnt.scene',
@@ -355,6 +376,13 @@ export async function exportScene(
             playbackRangeUserDefined: doc.playbackRangeUserDefined,
             rowHeight: doc.rowHeight,
             midiCache: midiAssets.timelineMidiCache,
+            audioFeatureCaches: Object.keys(serializedFeatureCaches).length
+                ? serializedFeatureCaches
+                : undefined,
+            audioFeatureCacheStatus:
+                doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
+                    ? doc.audioFeatureCacheStatus
+                    : undefined,
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,

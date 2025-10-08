@@ -2,6 +2,11 @@ import { create, type StateCreator } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
+import type {
+    AudioFeatureCache,
+    AudioFeatureCacheStatus,
+    AudioFeatureCacheStatusState,
+} from '@audio/features/audioFeatureTypes';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
@@ -82,6 +87,8 @@ export type TimelineState = {
         { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     >;
     audioCache: Record<string, AudioCacheEntry>;
+    audioFeatureCaches: Record<string, AudioFeatureCache>;
+    audioFeatureCacheStatus: Record<string, AudioFeatureCacheStatus>;
     // UI preferences
     rowHeight: number; // track row height in px
 
@@ -131,9 +138,60 @@ export type TimelineState = {
         buffer: AudioBuffer,
         options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }
     ) => void;
+    ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
+    invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
+    setAudioFeatureCacheStatus: (id: string, status: AudioFeatureCacheStatusState, message?: string) => void;
+    clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
 };
+
+function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
+    return JSON.stringify({
+        hopTicks: cache.hopTicks,
+        frameCount: cache.frameCount,
+        analysisParams: cache.analysisParams,
+    });
+}
+
+function buildAudioFeatureStatus(
+    previous: AudioFeatureCacheStatus | undefined,
+    nextState: AudioFeatureCacheStatusState,
+    message?: string,
+    sourceHash?: string,
+): AudioFeatureCacheStatus {
+    return {
+        state: nextState,
+        message,
+        sourceHash: sourceHash ?? previous?.sourceHash,
+        updatedAt: Date.now(),
+    };
+}
+
+function markAllAudioFeatureStatuses(
+    status: TimelineState['audioFeatureCacheStatus'],
+    nextState: AudioFeatureCacheStatusState,
+    message: string,
+): Record<string, AudioFeatureCacheStatus> {
+    const next: Record<string, AudioFeatureCacheStatus> = { ...status };
+    for (const [key, value] of Object.entries(status)) {
+        next[key] = buildAudioFeatureStatus(value, nextState, message, value.sourceHash);
+    }
+    return next;
+}
+
+function updateAudioFeatureStatusEntry(
+    status: TimelineState['audioFeatureCacheStatus'],
+    id: string,
+    nextState: AudioFeatureCacheStatusState,
+    message?: string,
+    sourceHash?: string,
+): Record<string, AudioFeatureCacheStatus> {
+    return {
+        ...status,
+        [id]: buildAudioFeatureStatus(status[id], nextState, message, sourceHash ?? status[id]?.sourceHash),
+    };
+}
 
 function createInitialTimelineSlice(): Pick<
     TimelineState,
@@ -144,6 +202,8 @@ function createInitialTimelineSlice(): Pick<
     | 'selection'
     | 'midiCache'
     | 'audioCache'
+    | 'audioFeatureCaches'
+    | 'audioFeatureCacheStatus'
     | 'timelineView'
     | 'playbackRange'
     | 'playbackRangeUserDefined'
@@ -161,6 +221,8 @@ function createInitialTimelineSlice(): Pick<
         tracks: {},
         tracksOrder: [],
         audioCache: {},
+        audioFeatureCaches: {},
+        audioFeatureCacheStatus: {},
         transport: {
             state: 'idle',
             isPlaying: false,
@@ -366,6 +428,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         set((s: TimelineState) => {
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, masterTempoMap: map };
+            if (Object.keys(s.audioFeatureCacheStatus).length) {
+                next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
+                    s.audioFeatureCacheStatus,
+                    'stale',
+                    'tempo map updated',
+                );
+            }
             // Propagate tempo map to shared timing manager for immediate effect in playback clock & UI
             try {
                 getSharedTimingManager().setTempoMap(map, 'seconds');
@@ -384,6 +453,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const hadMap = (s.timeline.masterTempoMap?.length || 0) > 0;
             const next: TimelineState = { ...s } as any;
             next.timeline = { ...s.timeline, globalBpm: v };
+            if (s.timeline.globalBpm !== v && Object.keys(s.audioFeatureCacheStatus).length) {
+                next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
+                    s.audioFeatureCacheStatus,
+                    'stale',
+                    'tempo updated',
+                );
+            }
             // Propagate BPM to shared timing manager so playback rate updates immediately
             try {
                 getSharedTimingManager().setBPM(v);
@@ -613,6 +689,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     ...s.tracks,
                     [id]: { ...(s.tracks[id] as any), audioSourceId: id },
                 },
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'stale',
+                    'audio source updated',
+                ),
             }));
             // Kick off async peak extraction (non-blocking)
             (async () => {
@@ -646,6 +728,80 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
     },
 
+    ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
+        const sourceHash = computeFeatureCacheSourceHash(cache);
+        set((s: TimelineState) => ({
+            audioFeatureCaches: {
+                ...s.audioFeatureCaches,
+                [id]: cache,
+            },
+            audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                s.audioFeatureCacheStatus,
+                id,
+                'ready',
+                undefined,
+                sourceHash,
+            ),
+        }));
+        try {
+            autoAdjustSceneRangeIfNeeded(get, set);
+        } catch {}
+    },
+
+    invalidateAudioFeatureCachesByCalculator(calculatorId: string, version: number) {
+        if (!calculatorId) {
+            return;
+        }
+        set((s: TimelineState) => {
+            let mutated = false;
+            const nextStatus = { ...s.audioFeatureCacheStatus };
+            for (const [sourceId, cache] of Object.entries(s.audioFeatureCaches)) {
+                const tracks = Object.values(cache.featureTracks || {});
+                const hasMismatch = tracks.some(
+                    (track) => track.calculatorId === calculatorId && track.version !== version,
+                );
+                if (!hasMismatch) {
+                    continue;
+                }
+                mutated = true;
+                const previous = nextStatus[sourceId];
+                nextStatus[sourceId] = {
+                    state: 'stale',
+                    message: 'calculator updated',
+                    updatedAt: Date.now(),
+                    sourceHash: previous?.sourceHash ?? computeFeatureCacheSourceHash(cache),
+                };
+            }
+            if (!mutated) {
+                return s;
+            }
+            return { audioFeatureCacheStatus: nextStatus } as TimelineState;
+        });
+    },
+
+    setAudioFeatureCacheStatus(id: string, status: AudioFeatureCacheStatusState, message?: string) {
+        set((s: TimelineState) => ({
+            audioFeatureCacheStatus: updateAudioFeatureStatusEntry(s.audioFeatureCacheStatus, id, status, message),
+        }));
+    },
+
+    clearAudioFeatureCache(id: string) {
+        set((s: TimelineState) => {
+            if (!s.audioFeatureCaches[id] && !s.audioFeatureCacheStatus[id]) {
+                return s;
+            }
+            const nextCaches = { ...s.audioFeatureCaches };
+            delete nextCaches[id];
+            const nextStatus = { ...s.audioFeatureCacheStatus };
+            delete nextStatus[id];
+            return {
+                ...s,
+                audioFeatureCaches: nextCaches,
+                audioFeatureCacheStatus: nextStatus,
+            } as TimelineState;
+        });
+    },
+
     clearAllTracks() {
         set((s: TimelineState) => ({
             tracks: {},
@@ -653,6 +809,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             selection: { selectedTrackIds: [] },
             midiCache: {},
             audioCache: {},
+            audioFeatureCaches: {},
+            audioFeatureCacheStatus: {},
         }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);

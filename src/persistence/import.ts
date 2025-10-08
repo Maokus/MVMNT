@@ -1,6 +1,7 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelopeV2 } from './export';
+import { deserializeAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
@@ -104,6 +105,16 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
 
 function buildDocumentShape(envelope: any) {
     const tl = envelope.timeline || {};
+    const featureCaches: Record<string, any> = {};
+    if (tl.audioFeatureCaches && typeof tl.audioFeatureCaches === 'object') {
+        for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
+            try {
+                featureCaches[id] = deserializeAudioFeatureCache(cache as any);
+            } catch (error) {
+                console.warn('[importScene] failed to deserialize audio feature cache', id, error);
+            }
+        }
+    }
     return {
         timeline: tl.timeline,
         tracks: tl.tracks,
@@ -112,6 +123,8 @@ function buildDocumentShape(envelope: any) {
         playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
         rowHeight: tl.rowHeight,
         midiCache: tl.midiCache || {},
+        audioFeatureCaches: featureCaches,
+        audioFeatureCacheStatus: tl.audioFeatureCacheStatus || {},
         scene: { ...envelope.scene },
         metadata: envelope.metadata,
     };

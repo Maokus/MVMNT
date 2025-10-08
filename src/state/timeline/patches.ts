@@ -1,4 +1,5 @@
 import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
+import type { AudioFeatureCache, AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import type { MIDIData } from '@core/types';
 import type { TimelineState, TimelineTrack } from '../timelineStore';
 import type { NoteRaw, TempoMapEntry } from '../timelineTypes';
@@ -18,6 +19,7 @@ export interface TimelinePatchAddTrackPayload {
     index?: number;
     midiCache?: { key: string; value: TimelineMidiCacheEntry };
     audioCache?: { key: string; value: AudioCacheEntry };
+    audioFeatureCache?: { key: string; value: AudioFeatureCache };
     selection?: string[];
 }
 
@@ -25,6 +27,7 @@ export interface TimelinePatchRemoveTracksPayload {
     trackIds: string[];
     midiCacheKeys?: string[];
     audioCacheKeys?: string[];
+    audioFeatureCacheKeys?: string[];
     selection?: string[];
 }
 
@@ -34,6 +37,7 @@ export interface TimelinePatchRestoreTracksPayload {
         index: number;
         midiCache?: { key: string; value: TimelineMidiCacheEntry };
         audioCache?: { key: string; value: AudioCacheEntry };
+        audioFeatureCache?: { key: string; value: AudioFeatureCache };
     }>;
     selection?: string[];
 }
@@ -70,6 +74,18 @@ export interface TimelineCommandPatch {
 export interface TimelinePatchContext {
     getState: () => TimelineState;
     setState: (updater: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void;
+}
+
+function buildReadyFeatureStatus(cache: AudioFeatureCache): AudioFeatureCacheStatus {
+    return {
+        state: 'ready',
+        updatedAt: Date.now(),
+        sourceHash: JSON.stringify({
+            hopTicks: cache.hopTicks,
+            frameCount: cache.frameCount,
+            analysisParams: cache.analysisParams,
+        }),
+    };
 }
 
 function ensureSelection(selection: string[] | undefined, state: TimelineState): string[] {
@@ -126,6 +142,15 @@ function applyAddTrack(context: TimelinePatchContext, payload: TimelinePatchAddT
         audioCache: payload.audioCache
             ? { ...state.audioCache, [payload.audioCache.key]: payload.audioCache.value }
             : state.audioCache,
+        audioFeatureCaches: payload.audioFeatureCache
+            ? { ...state.audioFeatureCaches, [payload.audioFeatureCache.key]: payload.audioFeatureCache.value }
+            : state.audioFeatureCaches,
+        audioFeatureCacheStatus: payload.audioFeatureCache
+            ? {
+                  ...state.audioFeatureCacheStatus,
+                  [payload.audioFeatureCache.key]: buildReadyFeatureStatus(payload.audioFeatureCache.value),
+              }
+            : state.audioFeatureCacheStatus,
     }));
 }
 
@@ -142,12 +167,20 @@ function applyRemoveTracks(context: TimelinePatchContext, payload: TimelinePatch
         for (const key of payload.audioCacheKeys ?? []) {
             delete nextAudioCache[key];
         }
+        const nextAudioFeatureCaches = { ...state.audioFeatureCaches };
+        const nextAudioFeatureStatus = { ...state.audioFeatureCacheStatus };
+        for (const key of payload.audioFeatureCacheKeys ?? []) {
+            delete nextAudioFeatureCaches[key];
+            delete nextAudioFeatureStatus[key];
+        }
         const selection = ensureSelection(payload.selection, state).filter((id) => !payload.trackIds.includes(id));
         return {
             tracks,
             tracksOrder,
             midiCache: nextMidiCache,
             audioCache: nextAudioCache,
+            audioFeatureCaches: nextAudioFeatureCaches,
+            audioFeatureCacheStatus: nextAudioFeatureStatus,
             selection: { selectedTrackIds: selection },
         };
     });
@@ -160,6 +193,8 @@ function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatc
     let nextOrder = [...snapshot.tracksOrder];
     const nextMidiCache = { ...snapshot.midiCache };
     const nextAudioCache = { ...snapshot.audioCache };
+    const nextAudioFeatureCaches = { ...snapshot.audioFeatureCaches };
+    const nextAudioFeatureStatus = { ...snapshot.audioFeatureCacheStatus } as Record<string, AudioFeatureCacheStatus>;
     for (const entry of payload.tracks) {
         nextTracks = { ...nextTracks, [entry.track.id]: entry.track };
         if (!nextOrder.includes(entry.track.id)) {
@@ -175,12 +210,18 @@ function applyRestoreTracks(context: TimelinePatchContext, payload: TimelinePatc
         if (entry.audioCache) {
             nextAudioCache[entry.audioCache.key] = entry.audioCache.value;
         }
+        if (entry.audioFeatureCache) {
+            nextAudioFeatureCaches[entry.audioFeatureCache.key] = entry.audioFeatureCache.value;
+            nextAudioFeatureStatus[entry.audioFeatureCache.key] = buildReadyFeatureStatus(entry.audioFeatureCache.value);
+        }
     }
     setState((state) => ({
         tracks: nextTracks,
         tracksOrder: nextOrder,
         midiCache: nextMidiCache,
         audioCache: nextAudioCache,
+        audioFeatureCaches: nextAudioFeatureCaches,
+        audioFeatureCacheStatus: nextAudioFeatureStatus,
         selection: { selectedTrackIds: ensureSelection(payload.selection, state) },
     }));
 }
