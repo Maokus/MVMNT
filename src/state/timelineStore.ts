@@ -7,6 +7,10 @@ import type {
     AudioFeatureCacheStatus,
     AudioFeatureCacheStatusState,
 } from '@audio/features/audioFeatureTypes';
+import {
+    sharedAudioFeatureAnalysisScheduler,
+    type AudioFeatureAnalysisHandle,
+} from '@audio/features/audioFeatureScheduler';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
@@ -191,6 +195,88 @@ function updateAudioFeatureStatusEntry(
         ...status,
         [id]: buildAudioFeatureStatus(status[id], nextState, message, sourceHash ?? status[id]?.sourceHash),
     };
+}
+
+const activeAudioFeatureJobs = new Map<string, AudioFeatureAnalysisHandle>();
+
+function cancelActiveAudioFeatureJob(id: string): void {
+    const job = activeAudioFeatureJobs.get(id);
+    if (!job) {
+        return;
+    }
+    activeAudioFeatureJobs.delete(id);
+    try {
+        job.cancel();
+    } catch {
+        /* ignore */
+    }
+}
+
+function scheduleAudioFeatureAnalysis(
+    sourceId: string,
+    buffer: AudioBuffer,
+    get: () => TimelineState,
+    set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void,
+): void {
+    cancelActiveAudioFeatureJob(sourceId);
+    if (process.env.NODE_ENV === 'test' && process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS !== 'true') {
+        set((state: TimelineState) => ({
+            audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                state.audioFeatureCacheStatus,
+                sourceId,
+                'stale',
+                'analysis skipped in tests',
+            ),
+        }));
+        return;
+    }
+    const snapshot = get();
+    set((state: TimelineState) => ({
+        audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+            state.audioFeatureCacheStatus,
+            sourceId,
+            'pending',
+            'analyzing audio',
+        ),
+    }));
+    const handle = sharedAudioFeatureAnalysisScheduler.schedule({
+        audioSourceId: sourceId,
+        audioBuffer: buffer,
+        globalBpm: snapshot.timeline.globalBpm,
+        beatsPerBar: snapshot.timeline.beatsPerBar,
+        tempoMap: snapshot.timeline.masterTempoMap,
+    });
+    activeAudioFeatureJobs.set(sourceId, handle);
+    handle.promise
+        .then((cache) => {
+            if (activeAudioFeatureJobs.get(sourceId) !== handle) {
+                return;
+            }
+            activeAudioFeatureJobs.delete(sourceId);
+            try {
+                get().ingestAudioFeatureCache(sourceId, cache);
+            } catch (error) {
+                console.warn('[timelineStore] failed to ingest analyzed audio features', error);
+            }
+        })
+        .catch((error) => {
+            if (activeAudioFeatureJobs.get(sourceId) !== handle) {
+                return;
+            }
+            activeAudioFeatureJobs.delete(sourceId);
+            if ((error as Error)?.name === 'AbortError') {
+                return;
+            }
+            console.warn('[timelineStore] audio analysis failed', error);
+            set((state: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    state.audioFeatureCacheStatus,
+                    sourceId,
+                    'failed',
+                    'analysis failed',
+                ),
+            }));
+        });
 }
 
 function createInitialTimelineSlice(): Pick<
@@ -692,8 +778,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
                     s.audioFeatureCacheStatus,
                     id,
-                    'stale',
-                    'audio source updated',
+                    'pending',
+                    'analyzing audio',
                 ),
             }));
             // Kick off async peak extraction (non-blocking)
@@ -723,12 +809,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     // console.debug('Peak extraction skipped', err);
                 }
             })();
+            scheduleAudioFeatureAnalysis(id, buffer, get, set);
         } catch (err) {
             console.warn('Failed to ingest audio buffer', err);
         }
     },
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
+        cancelActiveAudioFeatureJob(id);
         const sourceHash = computeFeatureCacheSourceHash(cache);
         set((s: TimelineState) => ({
             audioFeatureCaches: {
@@ -786,6 +874,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     clearAudioFeatureCache(id: string) {
+        cancelActiveAudioFeatureJob(id);
         set((s: TimelineState) => {
             if (!s.audioFeatureCaches[id] && !s.audioFeatureCacheStatus[id]) {
                 return s;
@@ -803,6 +892,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     clearAllTracks() {
+        for (const key of Array.from(activeAudioFeatureJobs.keys())) {
+            cancelActiveAudioFeatureJob(key);
+        }
         set((s: TimelineState) => ({
             tracks: {},
             tracksOrder: [],
@@ -818,6 +910,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     resetTimeline() {
+        for (const key of Array.from(activeAudioFeatureJobs.keys())) {
+            cancelActiveAudioFeatureJob(key);
+        }
         const initial = createInitialTimelineSlice();
         set(() => initial);
         try {

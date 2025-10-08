@@ -17,6 +17,7 @@ export class AudioOscilloscopeElement extends SceneElement {
             ...base,
             name: 'Audio Oscilloscope',
             description: 'Draws waveform samples from audio features over time.',
+            category: 'audio',
             groups: [
                 ...base.groups,
                 {
@@ -182,14 +183,19 @@ export class AudioOscilloscopeElement extends SceneElement {
         if (points.length < 2) {
             return [layoutRect];
         }
-        const line = new Poly(points, null, this.getProperty<string>('lineColor') ?? '#22d3ee', this.getProperty<number>('lineWidth') ?? 2);
+        const line = new Poly(
+            points,
+            null,
+            this.getProperty<string>('lineColor') ?? '#22d3ee',
+            this.getProperty<number>('lineWidth') ?? 2
+        );
         line.setClosed(false);
         line.setIncludeInLayoutBounds(false);
         const renderObjects: RenderObject[] = [layoutRect, line];
         if (this.getProperty<boolean>('showPlayhead')) {
             const windowDuration = windowEndSeconds - windowStartSeconds;
             if (windowDuration > 0) {
-                const playheadPosition = (targetTime - windowStartSeconds) / windowDuration;
+                const playheadPosition = (targetTime - windowStartSeconds + 0.25) / windowDuration;
                 if (playheadPosition >= 0 && playheadPosition <= 1) {
                     const playheadX = playheadPosition * width;
                     const playhead = new Poly(
@@ -199,7 +205,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         ],
                         null,
                         '#f8fafc',
-                        Math.max(1, Math.floor((this.getProperty<number>('lineWidth') ?? 2) / 2)),
+                        Math.max(1, Math.floor((this.getProperty<number>('lineWidth') ?? 2) / 2))
                     );
                     playhead.setClosed(false);
                     playhead.setIncludeInLayoutBounds(false);

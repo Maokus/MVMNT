@@ -5,6 +5,7 @@ import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
+import type { AudioTrack } from '@audio/audioTypes';
 
 type Props = {
     trackIds: string[];
@@ -73,6 +74,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return undefined;
         });
         const audioCacheEntry = useTimelineStore((s) => s.audioCache[trackId]);
+        const audioSourceId = track?.type === 'audio' ? (track as AudioTrack).audioSourceId ?? trackId : undefined;
+        const audioFeatureStatus = useTimelineStore((s) =>
+            audioSourceId ? s.audioFeatureCacheStatus[audioSourceId] : undefined,
+        );
         const setTrackGain = useTimelineStore((s) => s.setTrackGain);
         const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
         const ppq = CANONICAL_PPQ; // unified PPQ
@@ -258,6 +263,34 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
         }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
+        let featureStatusLabel: string | null = null;
+        let featureStatusClass = '';
+        if (track?.type === 'audio') {
+            switch (audioFeatureStatus?.state) {
+                case 'ready':
+                    featureStatusLabel = 'Analyzed';
+                    featureStatusClass = 'bg-emerald-500/60 text-emerald-50 border border-emerald-300/40';
+                    break;
+                case 'pending':
+                    featureStatusLabel = 'Analyzing…';
+                    featureStatusClass = 'bg-amber-500/60 text-amber-50 border border-amber-300/40';
+                    break;
+                case 'failed':
+                    featureStatusLabel = 'Failed';
+                    featureStatusClass = 'bg-rose-500/70 text-rose-50 border border-rose-300/40';
+                    break;
+                case 'stale':
+                    featureStatusLabel = 'Queued';
+                    featureStatusClass = 'bg-sky-500/60 text-sky-50 border border-sky-300/40';
+                    break;
+                default:
+                    featureStatusLabel = 'Not analyzed';
+                    featureStatusClass = 'bg-slate-600/70 text-slate-100 border border-slate-400/40';
+            }
+        }
+
+        const featureStatusTitle = audioFeatureStatus?.message ? audioFeatureStatus.message : undefined;
+
         return (
             <div className="relative h-full"
                 onPointerMove={onPointerMove}
@@ -295,7 +328,19 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             <span>{track?.name}</span>
                             <span className="opacity-80">{label}</span>
                             {track?.type === 'audio' ? (
-                                <span className="ml-1 text-[10px] opacity-80">{audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}</span>
+                                <>
+                                    <span className="ml-1 text-[10px] opacity-80">
+                                        {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
+                                    </span>
+                                    {featureStatusLabel && (
+                                        <span
+                                            className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
+                                            title={featureStatusTitle}
+                                        >
+                                            {featureStatusLabel}
+                                        </span>
+                                    )}
+                                </>
                             ) : (
                                 (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
                                     <span className="ml-1 text-[10px] opacity-70">No data</span>

@@ -14,6 +14,7 @@ export class AudioSpectrumElement extends SceneElement {
             ...base,
             name: 'Audio Spectrum',
             description: 'Displays audio feature magnitudes as a spectrum of bars.',
+            category: 'audio',
             groups: [
                 ...base.groups,
                 {

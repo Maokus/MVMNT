@@ -14,6 +14,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             ...base,
             name: 'Audio Volume Meter',
             description: 'Displays RMS audio levels as a vertical bar.',
+            category: 'audio',
             groups: [
                 ...base.groups,
                 {

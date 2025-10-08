@@ -6,7 +6,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
 function createCache(trackId: string): AudioFeatureCache {
-    const frameCount = 8;
+    const frameCount = 4;
     const hopTicks = 120;
     const data = Float32Array.from({ length: frameCount }, (_, idx) => idx / frameCount);
     return {
@@ -53,14 +53,24 @@ beforeEach(() => {
                 offsetTicks: 0,
                 gain: 1,
             },
+            secondTrack: {
+                id: 'secondTrack',
+                name: 'Second Track',
+                type: 'audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                offsetTicks: 0,
+                gain: 1,
+            },
         },
-        tracksOrder: ['audioTrack'],
+        tracksOrder: ['audioTrack', 'secondTrack'],
     }));
     useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', createCache('audioTrack'));
 });
 
 describe('AudioFeatureBindingInput', () => {
-    it('renders track and feature selectors when feature is configurable', () => {
+    it('renders audio track options and selects the current track', () => {
         const handleChange = vi.fn();
         render(
             <AudioFeatureBindingInput
@@ -78,34 +88,16 @@ describe('AudioFeatureBindingInput', () => {
                 onChange={handleChange}
             />,
         );
-        expect(screen.getByLabelText(/Audio Track/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Feature/i)).toHaveValue('rms');
+
+        const select = screen.getByLabelText(/Audio Track/i) as HTMLSelectElement;
+        expect(select).toBeInTheDocument();
+        expect(select.value).toBe('audioTrack');
+        expect(select.options.length).toBe(2);
+        const statusNode = screen.getByText(/Status:/i).parentElement;
+        expect(statusNode).toHaveTextContent(/ready/i);
     });
 
-    it('locks feature selection when a required feature is provided', () => {
-        const handleChange = vi.fn();
-        render(
-            <AudioFeatureBindingInput
-                id="binding"
-                value={{
-                    type: 'audioFeature',
-                    trackId: 'audioTrack',
-                    featureKey: 'rms',
-                    calculatorId: 'mvmnt.rms',
-                    bandIndex: null,
-                    channelIndex: null,
-                    smoothing: null,
-                }}
-                schema={{ requiredFeatureKey: 'spectrogram', autoFeatureLabel: 'Spectrogram' }}
-                onChange={handleChange}
-            />,
-        );
-        expect(screen.getByLabelText(/Audio Track/i)).toBeInTheDocument();
-        expect(screen.queryByRole('combobox', { name: /Feature/i })).toBeNull();
-        expect(screen.getByText('Spectrogram')).toBeInTheDocument();
-    });
-
-    it('emits changes when smoothing value updates', () => {
+    it('invokes onChange when a different track is selected', () => {
         const handleChange = vi.fn();
         render(
             <AudioFeatureBindingInput
@@ -123,10 +115,12 @@ describe('AudioFeatureBindingInput', () => {
                 onChange={handleChange}
             />,
         );
-        const input = screen.getByLabelText(/Smoothing/);
-        fireEvent.change(input, { target: { value: '2' } });
+
+        const select = screen.getByLabelText(/Audio Track/i);
+        fireEvent.change(select, { target: { value: 'secondTrack' } });
         expect(handleChange).toHaveBeenCalled();
-        const lastCall = handleChange.mock.calls.at(-1)?.[0];
-        expect(lastCall?.smoothing).toBe(2);
+        const payload = handleChange.mock.calls.at(-1)?.[0];
+        expect(payload.trackId).toBe('secondTrack');
+        expect(payload.type).toBe('audioFeature');
     });
 });
