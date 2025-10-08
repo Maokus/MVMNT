@@ -1,6 +1,6 @@
 # Audio Visualization Research Notes (Precomputed Analysis Focus)
 
-**Status:** Drafting implementation approach (2025-02-16).
+**Status:** Implementation roadmap drafted (2025-02-16).
 
 ## Context Recap
 
@@ -55,27 +55,106 @@
 -   **Oscilloscope:** Render polyline or shader-based line strip using downsampled waveform segments keyed by tick. Precomputed waveform windows ensure deterministic export and match timeline zoom.
 -   For authoring, inspector UI should mirror MIDI binding panels: user selects feature source (audio track), picks feature type (RMS, band, waveform), sets smoothing/response curve, and maps it to element properties.
 
-## High-Level Implementation Plan
+## Phased Implementation Roadmap
 
-1. **Data Model Extension**
-    - Add `audioFeatureTracks` store slice adjacent to `midiCache`/`audioCache`, keyed by audio source ID.
-    - Define TypeScript types for feature frames, hop sizes, and channel descriptors.
-    - Update timeline commands and undo payloads to persist feature caches.
-2. **Analysis Worker**
-    - Build an offline analysis module leveraging `OfflineAudioContext`. Pipeline: decode buffer → segment into hops → compute FFT/RMS → quantize/serialize.
-    - Consider Web Worker or Worklet to avoid blocking UI during long analyses.
-3. **Selector & Binding Surface**
-    - Introduce selectors like `selectAudioFeatureFrame(state, sourceId, tick)` returning interpolated values.
-    - Extend scene binding schema with `AudioFeatureBinding` referencing feature tracks and channels.
-4. **Runtime Adapter Enhancements**
-    - Update scene runtime to subscribe to feature tracks and hydrate elements with relevant time slices.
-    - Implement sampling utilities converting current tick to feature frame index (`frame = floor((tick - offset) / hopTicks)`).
-5. **UI/UX Additions**
-    - Create analysis status indicators (pending, failed, stale).
-    - Provide inspector widgets for spectrogram/volume/oscilloscope bindings, including preview thumbnails sourced from cached data.
-6. **Testing & Validation**
-    - Unit tests: verify hop alignment with tempo changes; ensure undo/redo preserves caches.
-    - Integration tests: confirm runtime sampling yields deterministic outputs compared to offline computations.
+### Phase 1 – Feature Cache Foundations
+
+**Objectives**
+
+- Introduce durable cache structures capable of storing waveform-derived features aligned to the canonical tick system.
+- Ensure existing timeline commands can serialize/deserialize the new cache payloads for undo/redo and project persistence.
+
+**Key Tasks**
+
+- Define `AudioFeatureCache` TypeScript interfaces covering feature channels, hop duration in ticks, analysis parameters, and cache versioning.
+- Extend `timelineStore` to track `audioFeatureTracks` keyed by audio source ID, with selectors for retrieving feature metadata.
+- Update command payload packing (`addTrackCommand`, `timelineShared`) to include feature cache data during history operations.
+- Document cache schema in `/docs` for future reference once stabilized.
+
+**Dependencies**
+
+- Alignment with existing `midiCache` and `audioCache` schemas to reuse validation and persistence utilities.
+
+**Acceptance Criteria**
+
+- Timeline state exposes a typed slice for audio feature caches that mirrors existing cache access patterns.
+- Creating, undoing, and redoing an audio track preserves associated feature cache metadata without runtime errors.
+- Project serialization/deserialization (including .mvt export/import) retains placeholder feature caches even before analysis runs.
+
+### Phase 2 – Offline Analysis Pipeline
+
+**Objectives**
+
+- Generate precomputed FFT, RMS, and waveform data for audio tracks without impacting UI responsiveness.
+- Normalize analysis results into the Phase 1 cache schema with consistent tick alignment.
+
+**Key Tasks**
+
+- Build an analysis module using `OfflineAudioContext` (or Node-based equivalent for server rendering) that computes spectrogram magnitudes, RMS envelopes, and downsampled waveform slices.
+- Quantize analysis hops to tick units via `createTimelineTimingContext`, ensuring compatibility with tempo-adjusted playback.
+- Implement analysis job orchestration (queueing, progress states, cancellation) and integrate with existing ingestion workflows.
+- Persist analysis parameter signatures to trigger cache invalidation when audio source buffers, tempo maps, or pipeline settings change.
+
+**Dependencies**
+
+- Phase 1 cache schema and selectors.
+- Access to audio decoding utilities used during ingest.
+
+**Acceptance Criteria**
+
+- Importing an audio file automatically generates feature caches containing FFT, RMS, and waveform data within acceptable processing time thresholds (target <10s for 3-minute track on baseline hardware).
+- Re-ingesting or re-analyzing audio invalidates stale caches and repopulates them without manual state resets.
+- Analysis completion updates cache status flags (`pending`, `ready`, `failed`) consumable by UI layers.
+
+### Phase 3 – Runtime Consumption & Scene Binding
+
+**Objectives**
+
+- Make precomputed feature data accessible to scene elements in real time and during exports.
+- Provide a binding surface that parallels existing MIDI-driven workflows.
+
+**Key Tasks**
+
+- Create selectors/utilities (e.g., `selectAudioFeatureFrame(state, sourceId, tick)`) that return interpolated feature values given a timeline tick.
+- Extend scene binding schemas with `AudioFeatureBinding` types, including feature channel descriptors (RMS, band index, waveform segment) and smoothing configuration.
+- Update runtime adapters to fetch feature data on each tick advance and feed it into render systems (e.g., instanced spectrogram quads, waveform polylines).
+- Adjust content-bound calculations so feature-only tracks influence scene extents and auto-range logic.
+
+**Dependencies**
+
+- Phase 2 cache population to supply runtime data.
+- Existing runtime adapters used for MIDI bindings.
+
+**Acceptance Criteria**
+
+- Scene elements bound to audio features respond deterministically to playback with no runtime FFT execution in the main thread.
+- Exported renders (video/image sequences) match live preview outputs when driven solely by audio feature bindings.
+- Content range calculations include feature tracks, preventing empty scenes when no MIDI notes are present.
+
+### Phase 4 – Authoring Experience & QA Hardening
+
+**Objectives**
+
+- Deliver intuitive authoring tools for configuring waveform visualizations and ensure end-to-end reliability.
+
+**Key Tasks**
+
+- Add inspector UI to select an audio track, choose feature type (spectrogram, volume, waveform), and configure response curves or smoothing.
+- Surface analysis job states (queued, running, failed) with retry affordances and background notifications.
+- Provide preview thumbnails or lightweight sparkline renderers using cached data to aid element configuration.
+- Expand automated tests (unit + integration) to cover tempo change invalidation, undo/redo flows, and export parity.
+- Update documentation referencing final UX patterns and link to this research note.
+
+**Dependencies**
+
+- Phases 1–3 complete and stable.
+
+**Acceptance Criteria**
+
+- Authors can configure waveform, volume, and spectrogram elements end-to-end without referencing external tooling.
+- Analysis failures surface actionable messaging and allow retry without page reloads.
+- Automated test suite covers critical cache lifecycle and binding scenarios, and manual QA sign-off confirms parity between preview and export modes.
+- Documentation in `/docs` reflects the shipped workflow and is cross-linked from this research note.
 
 ## Open Questions & Follow-Ups
 
@@ -85,7 +164,7 @@
 
 ## Open question answers
 
--   Feature caches should invalidate and recalculate when tempo has been edited, and feature is being requested. This allows the user
+-   Feature caches should invalidate and recalculate when tempo has been edited and a feature is requested, ensuring tick-to-time alignment remains accurate without manual cache resets.
 
 ## Recommendations
 
