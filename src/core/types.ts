@@ -228,6 +228,24 @@ export interface ConfigSchema {
 // New Grouped Schema Types (for AE-style UI)
 // ==========================================
 
+export type PropertyVisibilityCondition =
+    | {
+          key: string;
+          equals: any;
+      }
+    | {
+          key: string;
+          notEquals: any;
+      }
+    | {
+          key: string;
+          truthy: true;
+      }
+    | {
+          key: string;
+          falsy: true;
+      };
+
 export interface PropertyDefinition {
     key: string;
     type:
@@ -256,13 +274,25 @@ export interface PropertyDefinition {
     // Audio feature bindings can declare a required feature key and label.
     requiredFeatureKey?: string;
     autoFeatureLabel?: string;
+    // Optional visibility rules for progressive disclosure
+    visibleWhen?: PropertyVisibilityCondition[];
+}
+
+export interface PropertyGroupPreset {
+    id: string;
+    label: string;
+    description?: string;
+    values: Record<string, any>;
 }
 
 export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
+    variant?: 'basic' | 'advanced';
+    description?: string;
     properties: PropertyDefinition[];
+    presets?: PropertyGroupPreset[];
 }
 
 export interface EnhancedConfigSchema {

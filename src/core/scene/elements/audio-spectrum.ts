@@ -11,17 +11,21 @@ export class AudioSpectrumElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             ...base,
             name: 'Audio Spectrum',
             description: 'Displays audio feature magnitudes as a spectrum of bars.',
             category: 'audio',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'audio',
-                    label: 'Audio Binding',
+                    id: 'audioSpectrum',
+                    label: 'Spectrum Basics',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Bind to an audio feature and tune the look of the spectrum.',
                     properties: [
                         {
                             key: 'featureBinding',
@@ -40,7 +44,7 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'barWidth',
                             type: 'number',
-                            label: 'Bar Width',
+                            label: 'Bar Width (px)',
                             default: 8,
                             min: 1,
                             max: 80,
@@ -49,7 +53,7 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'barSpacing',
                             type: 'number',
-                            label: 'Bar Spacing',
+                            label: 'Bar Spacing (px)',
                             default: 2,
                             min: 0,
                             max: 40,
@@ -58,14 +62,32 @@ export class AudioSpectrumElement extends SceneElement {
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Bar Height',
+                            label: 'Bar Height (px)',
                             default: 140,
                             min: 10,
                             max: 800,
                             step: 1,
                         },
                     ],
+                    presets: [
+                        {
+                            id: 'neonCity',
+                            label: 'Neon City',
+                            values: { barColor: '#22d3ee', barWidth: 6, barSpacing: 1, height: 180 },
+                        },
+                        {
+                            id: 'boldBlocks',
+                            label: 'Bold Blocks',
+                            values: { barColor: '#f97316', barWidth: 14, barSpacing: 4, height: 220 },
+                        },
+                        {
+                            id: 'minimalMeter',
+                            label: 'Minimal Meter',
+                            values: { barColor: '#cbd5f5', barWidth: 4, barSpacing: 2, height: 100 },
+                        },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

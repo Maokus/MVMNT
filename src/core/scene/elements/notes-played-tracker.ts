@@ -14,27 +14,37 @@ export class NotesPlayedTrackerElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Notes Played Tracker',
             description: 'Displays how many notes/events have played so far (timeline-backed)',
             category: 'MIDI Info',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'content',
-                    label: 'Content',
+                    id: 'trackerSource',
+                    label: 'Source',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Select the MIDI track whose progress is tracked.',
                     properties: [{ key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null }],
+                    presets: [
+                        { id: 'leadTrack', label: 'Lead Track', values: {} },
+                        { id: 'rhythmTrack', label: 'Rhythm Track', values: {} },
+                    ],
                 },
                 {
                     id: 'appearance',
-                    label: 'Appearance',
-                    collapsed: true,
+                    label: 'Typography',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Adjust alignment and styling for the counters.',
                     properties: [
                         {
                             key: 'textJustification',
                             type: 'select',
-                            label: 'Text Justification',
+                            label: 'Text Alignment',
                             default: 'left',
                             options: [
                                 { value: 'left', label: 'Left' },
@@ -46,12 +56,12 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             type: 'font',
                             label: 'Font Family',
                             default: 'Inter',
-                            description: 'Choose the font family (Google Fonts supported)',
+                            description: 'Choose the font family (Google Fonts supported).',
                         },
                         {
                             key: 'fontSize',
                             type: 'number',
-                            label: 'Font Size',
+                            label: 'Font Size (px)',
                             default: 30,
                             min: 6,
                             max: 72,
@@ -61,14 +71,20 @@ export class NotesPlayedTrackerElement extends SceneElement {
                         {
                             key: 'lineSpacing',
                             type: 'number',
-                            label: 'Line Spacing',
+                            label: 'Line Spacing (px)',
                             default: 4,
                             min: 0,
                             max: 40,
                             step: 1,
                         },
                     ],
+                    presets: [
+                        { id: 'studio', label: 'Studio Monitor', values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 } },
+                        { id: 'sidebar', label: 'Sidebar', values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 } },
+                        { id: 'bigBoard', label: 'Big Board', values: { fontSize: 36, color: '#f97316', lineSpacing: 8 } },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

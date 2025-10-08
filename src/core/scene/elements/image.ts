@@ -29,16 +29,20 @@ export class ImageElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Image',
             description: 'Display an image with transformations',
             category: 'Layout',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'content',
-                    label: 'Content',
+                    id: 'imageSource',
+                    label: 'Image Source',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Pick the artwork and playback speed for animated assets.',
                     properties: [
                         {
                             key: 'imageSource',
@@ -46,44 +50,51 @@ export class ImageElement extends SceneElement {
                             label: 'Image File',
                             default: '',
                             accept: 'image/*',
-                            description: 'Image file to display',
+                            description: 'Image or animated GIF to display.',
                         },
                         {
                             key: 'playbackSpeed',
                             type: 'number',
-                            label: 'Playback Speed',
+                            label: 'Playback Speed (×)',
                             default: 1,
                             min: 0.1,
                             max: 10,
                             step: 0.1,
-                            description: 'Speed multiplier for animated GIFs (1 = normal)',
+                            description: 'Speed multiplier for animated GIFs (1 = normal).',
                         },
+                    ],
+                    presets: [
+                        { id: 'stillImage', label: 'Still Image', values: { playbackSpeed: 1 } },
+                        { id: 'slowLoop', label: 'Slow GIF Loop', values: { playbackSpeed: 0.5 } },
+                        { id: 'hyperLoop', label: 'Hyper GIF Loop', values: { playbackSpeed: 2 } },
                     ],
                 },
                 {
-                    id: 'layout',
+                    id: 'imageLayout',
                     label: 'Layout',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Size and crop behaviour for the image frame.',
                     properties: [
                         {
                             key: 'width',
                             type: 'number',
-                            label: 'Width',
+                            label: 'Width (px)',
                             default: 200,
                             min: 10,
                             max: 2000,
                             step: 10,
-                            description: 'Width of the image container in pixels',
+                            description: 'Width of the image container in pixels.',
                         },
                         {
                             key: 'height',
                             type: 'number',
-                            label: 'Height',
+                            label: 'Height (px)',
                             default: 200,
                             min: 10,
                             max: 2000,
                             step: 10,
-                            description: 'Height of the image container in pixels',
+                            description: 'Height of the image container in pixels.',
                         },
                         {
                             key: 'fitMode',
@@ -96,17 +107,31 @@ export class ImageElement extends SceneElement {
                                 { value: 'fill', label: 'Fill (stretch to fit)' },
                                 { value: 'none', label: 'None (original size)' },
                             ],
-                            description: 'How the image should fit within its bounds',
+                            description: 'How the image should fit within its bounds.',
                         },
                         {
                             key: 'preserveAspectRatio',
                             type: 'boolean',
                             label: 'Preserve Aspect Ratio',
                             default: true,
-                            description: 'Whether to maintain the original aspect ratio',
+                            description: 'Maintain the original proportions when resizing.',
+                            visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'fullWidth',
+                            label: 'Full Width Banner',
+                            values: { width: 1280, height: 720, fitMode: 'cover' },
+                        },
+                        {
+                            id: 'squareThumb',
+                            label: 'Square Thumbnail',
+                            values: { width: 512, height: 512, fitMode: 'contain' },
                         },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

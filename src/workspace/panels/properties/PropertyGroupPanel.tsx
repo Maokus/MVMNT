@@ -1,44 +1,70 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { PropertyGroup, PropertyDefinition } from '@core/types';
 import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInput';
-import FontInput from '@workspace/form/inputs/FontInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
-import { useTimelineStore } from '@state/timelineStore';
 import { FaLink } from 'react-icons/fa';
 
 const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
 
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
+    properties: PropertyDefinition[];
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
+    onResetGroup: (groupId: string) => void;
+    onApplyPreset: (groupId: string, presetId: string) => void;
+    onCopyGroup: (groupId: string) => void;
+    onPasteGroup: (groupId: string) => void;
+    canPasteGroup: boolean;
 }
+
+const GROUP_VARIANT_LABEL: Record<'basic' | 'advanced', string> = {
+    basic: 'Basic',
+    advanced: 'Advanced',
+};
 
 const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     group,
+    properties,
     values,
     macroAssignments,
     onValueChange,
     onMacroAssignment,
-    onCollapseToggle
+    onCollapseToggle,
+    onResetGroup,
+    onApplyPreset,
+    onCopyGroup,
+    onPasteGroup,
+    canPasteGroup,
 }) => {
     const { macros: macroList, create: createMacro } = useMacros();
-    const macrosSource = useMemo(() => (macroList as any[]), [macroList]);
+    const macrosSource = useMemo(() => macroList as any[], [macroList]);
     const macroLookup = useMemo(
         () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
-        [macrosSource]
+        [macrosSource],
     );
+
     const canAssignMacro = (propertyType: string) => {
-        return ['number', 'string', 'boolean', 'color', 'select', 'file', 'font', 'midiTrackRef'].includes(propertyType);
+        const normalizedType = propertyType === 'range' ? 'number' : propertyType;
+        return [
+            'number',
+            'string',
+            'boolean',
+            'color',
+            'select',
+            'file',
+            'font',
+            'midiTrackRef',
+        ].includes(normalizedType);
     };
 
     const getMacroOptions = (propertyType: string, propertySchema: PropertyDefinition) => {
-        if (propertyType === 'file') {
-            // For file inputs, filter by accept type
+        let macroType = propertyType === 'range' ? 'number' : propertyType;
+        if (macroType === 'file') {
             const accept = propertySchema?.accept;
             let targetFileType = 'file';
             if (accept) {
@@ -48,13 +74,58 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     targetFileType = 'file-image';
                 }
             }
-            return (macrosSource as any[]).filter((macro: any) => macro.type === targetFileType || macro.type === 'file');
+            return (macrosSource as any[]).filter(
+                (macro: any) => macro.type === targetFileType || macro.type === 'file',
+            );
         }
-        if (propertyType === 'font') {
-            // Only allow macros explicitly of type 'font'
+        if (macroType === 'font') {
             return (macrosSource as any[]).filter((macro: any) => macro.type === 'font');
         }
-        return (macrosSource as any[]).filter((macro: any) => macro.type === propertyType);
+        return (macrosSource as any[]).filter((macro: any) => macro.type === macroType);
+    };
+
+    const mapPropertyToMacroType = (prop: PropertyDefinition, currentValue: any): { type: string; options: any; value: any } => {
+        let macroType: string = prop.type;
+        if (macroType === 'range') macroType = 'number';
+        if (macroType === 'file') {
+            if (prop.accept) {
+                if (/(\.mid|\.midi)/i.test(prop.accept)) macroType = 'file-midi';
+                else if (/image/i.test(prop.accept)) macroType = 'file-image';
+            }
+        }
+        let value = currentValue;
+        if (value === undefined) value = prop.default;
+        const options: any = {};
+        switch (macroType) {
+            case 'number':
+                if (typeof value !== 'number') value = typeof value === 'string' ? parseFloat(value) || 0 : 0;
+                if (ANGLE_PROPERTIES.has(prop.key) && typeof value === 'number') {
+                    value = value * (Math.PI / 180);
+                }
+                break;
+            case 'select':
+                if (prop.options) options.selectOptions = prop.options;
+                break;
+            case 'file':
+            case 'file-midi':
+            case 'file-image':
+                if (prop.accept) options.accept = prop.accept;
+                if (value && typeof value !== 'object') value = null;
+                break;
+            case 'boolean':
+                value = !!value;
+                break;
+            case 'font':
+                if (typeof value !== 'string' || !value) value = 'Arial|400';
+                break;
+            case 'midiTrackRef':
+                if (prop.allowMultiple !== undefined) options.allowMultiple = prop.allowMultiple;
+                if (value == null) value = null;
+                break;
+            default:
+                if (value == null) value = '';
+        }
+        return { type: macroType, options, value };
     };
 
     const renderInput = (property: PropertyDefinition) => {
@@ -77,11 +148,10 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             value,
             schema: property,
             disabled: isAssignedToMacro,
-            title: property.description, // Use description as tooltip
+            title: property.description,
             onChange: handleInputChange,
         };
 
-        // If assigned to macro, get the macro value
         if (isAssignedToMacro && assignedMacro) {
             const macro = macroLookup.get(assignedMacro);
             if (macro) {
@@ -89,9 +159,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         }
 
-        // Use the consolidated FormInput for all types (it delegates to specialized components internally)
         const inputType = property.type === 'string' ? 'text' : property.type;
-        const inputEl = (
+        return (
             <FormInput
                 id={commonProps.id}
                 type={inputType}
@@ -102,10 +171,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 onChange={commonProps.onChange}
             />
         );
-
-        // midiFile migration CTA removed
-
-        return inputEl;
     };
 
     const MacroAssignmentControl: React.FC<{
@@ -169,7 +234,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         const hasMacros = macros.length > 0;
         const canRemove = !!assignedMacro;
 
-        // Generate a unique macro name derived from the property label/key
         const generateMacroName = () => {
             const baseSource = property.label || property.key || 'Macro';
             const base = baseSource
@@ -187,55 +251,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return candidate;
         };
 
-    const mapPropertyToMacroType = (prop: PropertyDefinition): { type: string; options: any; value: any } => {
-        let macroType: string = prop.type;
-            if (macroType === 'range') macroType = 'number';
-            if (macroType === 'file') {
-                if (prop.accept) {
-                    if (/(\.mid|\.midi)/i.test(prop.accept)) macroType = 'file-midi';
-                    else if (/image/i.test(prop.accept)) macroType = 'file-image';
-                }
-            }
-        let value = currentValue;
-        if (value === undefined) value = prop.default;
-            const options: any = {};
-            switch (macroType) {
-                case 'number':
-                    if (typeof value !== 'number') value = typeof value === 'string' ? parseFloat(value) || 0 : 0;
-                    if (ANGLE_PROPERTIES.has(prop.key) && typeof value === 'number') {
-                        value = value * (Math.PI / 180);
-                    }
-                    break;
-                case 'select':
-                    if (prop.options) options.selectOptions = prop.options;
-                    break;
-                case 'file':
-                case 'file-midi':
-                case 'file-image':
-                    if (prop.accept) options.accept = prop.accept;
-                    // file-type macros default to null if not an actual File object
-                    if (value && typeof value !== 'object') value = null;
-                    break;
-                case 'boolean':
-                    value = !!value;
-                    break;
-                case 'font':
-                    if (typeof value !== 'string' || !value) value = 'Arial|400';
-                    break;
-                case 'midiTrackRef':
-                    if (prop.allowMultiple !== undefined) options.allowMultiple = prop.allowMultiple;
-                    if (value == null) value = null;
-                    break;
-                default:
-                    // string, color, etc.
-                    if (value == null) value = '';
-            }
-            return { type: macroType, options, value };
-        };
-
         const createAndAssignNewMacro = () => {
             const name = generateMacroName();
-            const { type, options, value } = mapPropertyToMacroType(property);
+            const { type, options, value } = mapPropertyToMacroType(property, currentValue);
             const success = createMacro(name, type as any, value, options);
             if (success) {
                 onAssign(name);
@@ -250,15 +268,15 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     ref={triggerRef}
                     type="button"
                     className={`ae-macro-trigger ${assignedMacroExists ? 'assigned' : ''}`}
-                    onClick={() => {
+                    onClick={(event) => {
+                        event.stopPropagation();
                         if (!hasMacros && !assignedMacro) {
-                            // Auto-create and assign
                             createAndAssignNewMacro();
                         } else {
                             setIsOpen((prev) => !prev);
                         }
                     }}
-                    title={'assign to macro'}
+                    title="assign to macro"
                 >
                     <span className="ae-macro-label-text">{assignedMacro ? displayLabel : <FaLink />}</span>
                     {(hasMacros || assignedMacro) && <span className="ae-macro-caret">▼</span>}
@@ -310,73 +328,129 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         );
     };
 
-    const renderMacroDropdown = (property: PropertyDefinition) => {
-        if (!canAssignMacro(property.type)) return null;
-
-        const macros = getMacroOptions(property.type, property);
-        const currentAssignment = macroAssignments[property.key];
-        const isAssigned = !!currentAssignment && macroLookup.has(currentAssignment);
-
-        return (
-            <MacroAssignmentControl
-                propertyKey={property.key}
-                property={property}
-                currentValue={values[property.key]}
-                assignedMacro={currentAssignment}
-                isAssigned={isAssigned}
-                macros={macros}
-                onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
-            />
-        );
+    const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const presetId = event.target.value;
+        if (!presetId) return;
+        onApplyPreset(group.id, presetId);
+        event.target.value = '';
     };
 
     return (
         <div className="ae-property-group">
-            <div
-                className="ae-group-header"
-                onClick={() => onCollapseToggle(group.id)}
-            >
-                <span className={`ae-collapse-icon ${group.collapsed ? 'collapsed' : 'expanded'}`}>
-                    ▼
-                </span>
-                <span className="ae-group-label">{group.label}</span>
+            <div className="ae-group-header">
+                <button
+                    type="button"
+                    className={`ae-collapse-trigger ${group.collapsed ? 'collapsed' : 'expanded'}`}
+                    onClick={() => onCollapseToggle(group.id)}
+                    aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
+                >
+                    <span className={`ae-collapse-icon ${group.collapsed ? 'collapsed' : 'expanded'}`}>▼</span>
+                </button>
+                <div className="ae-group-meta">
+                    <div className="ae-group-title-row">
+                        <span className="ae-group-label">{group.label}</span>
+                        {group.variant && (
+                            <span className={`ae-group-badge variant-${group.variant}`}>
+                                {GROUP_VARIANT_LABEL[group.variant] ?? group.variant}
+                            </span>
+                        )}
+                    </div>
+                    {group.description && <span className="ae-group-description">{group.description}</span>}
+                </div>
+                <div className="ae-group-actions">
+                    {group.presets && group.presets.length > 0 && (
+                        <select className="ae-group-preset" onChange={handlePresetChange} defaultValue="">
+                            <option value="">Presets…</option>
+                            {group.presets.map((preset) => (
+                                <option key={`${group.id}-${preset.id}`} value={preset.id}>
+                                    {preset.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <button
+                        type="button"
+                        className="ae-group-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onResetGroup(group.id);
+                        }}
+                        title="Reset to defaults"
+                    >
+                        Reset
+                    </button>
+                    <button
+                        type="button"
+                        className="ae-group-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onCopyGroup(group.id);
+                        }}
+                        title="Copy group settings"
+                    >
+                        Copy
+                    </button>
+                    <button
+                        type="button"
+                        className="ae-group-action"
+                        disabled={!canPasteGroup}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onPasteGroup(group.id);
+                        }}
+                        title="Paste group settings"
+                    >
+                        Paste
+                    </button>
+                </div>
             </div>
 
             {!group.collapsed && (
-                <div className="ae-property-list">
-                    {group.properties.map((property) => {
-                        const isAssignedToMacro = !!macroAssignments[property.key];
-                        const hasAnimationIcon = canAssignMacro(property.type);
+                properties.length === 0 ? (
+                    <div className="ae-property-list ae-property-list-empty">
+                        <span className="ae-property-empty">No properties to display.</span>
+                    </div>
+                ) : (
+                    <div className="ae-property-list">
+                        {properties.map((property) => {
+                            const isAssignedToMacro = !!macroAssignments[property.key];
+                            const hasAnimationIcon = canAssignMacro(property.type);
 
-                        return (
-                            <div key={property.key} className="ae-property-row">
-                                <div className="ae-property-label">
-                                    <span
-                                        className="ae-property-name"
-                                        title={property.description}
-                                    >
-                                        {property.label}
-                                    </span>
-                                    {hasAnimationIcon && (
-                                        <span
-                                            className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
-                                            title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
-                                        >
-                                            ⏱
+                            return (
+                                <div key={property.key} className="ae-property-row">
+                                    <div className="ae-property-label">
+                                        <span className="ae-property-name" title={property.description}>
+                                            {property.label}
                                         </span>
-                                    )}
-                                </div>
+                                        {hasAnimationIcon && (
+                                            <span
+                                                className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
+                                                title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
+                                            >
+                                                ⏱
+                                            </span>
+                                        )}
+                                    </div>
 
-                                <div className="ae-property-controls">
-                                    {renderMacroDropdown(property)}
-                                    <div className="ae-property-input">
-                                        {renderInput(property)}
+                                    <div className="ae-property-controls">
+                                        {canAssignMacro(property.type) && (
+                                            <MacroAssignmentControl
+                                                propertyKey={property.key}
+                                                property={property}
+                                                currentValue={values[property.key]}
+                                                assignedMacro={macroAssignments[property.key]}
+                                                isAssigned={!!macroAssignments[property.key]}
+                                                macros={getMacroOptions(property.type, property)}
+                                                onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
+                                            />
+                                        )}
+                                        <div className="ae-property-input">{renderInput(property)}</div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                )
             )}
         </div>
     );

@@ -32,17 +32,20 @@ export class TimeDisplayElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Time Display',
             description: 'Current time and beat position display',
             category: 'Time',
             groups: [
-                ...base.groups,
-                // Element uses global timing; no per-element bpm/beat settings
+                ...baseBasicGroups,
                 {
-                    id: 'display',
-                    label: 'Display',
+                    id: 'timeDisplay',
+                    label: 'Time Display',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Adjust offsets and typography for the timer.',
                     properties: [
                         {
                             key: 'offsetBars',
@@ -59,32 +62,48 @@ export class TimeDisplayElement extends SceneElement {
                             type: 'boolean',
                             label: 'Show Progress Bars',
                             default: true,
-                            description: 'Display tick and beat progress bars',
                         },
                         {
                             key: 'fontFamily',
                             type: 'font',
                             label: 'Font Family',
                             default: 'Inter',
-                            description: 'Font family (Google Fonts supported)',
+                            description: 'Font family (Google Fonts supported).',
                         },
-                        // weight now selected via combined font input (family|weight)
                         {
                             key: 'textColor',
                             type: 'color',
                             label: 'Primary Text Color',
                             default: '#FFFFFF',
-                            description: 'Color for the main time and beat numbers',
+                            description: 'Color for the main time and beat numbers.',
                         },
                         {
                             key: 'textSecondaryColor',
                             type: 'color',
                             label: 'Secondary Text Color',
                             default: 'rgba(255, 255, 255, 0.9)',
-                            description: 'Color for labels and secondary text',
+                            description: 'Color for labels and secondary text.',
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'concertTimer',
+                            label: 'Concert Timer',
+                            values: { fontFamily: 'Inter|600', textColor: '#f8fafc', textSecondaryColor: '#cbd5f5' },
+                        },
+                        {
+                            id: 'techOverlay',
+                            label: 'Tech Overlay',
+                            values: { fontFamily: 'Inter|500', textColor: '#22d3ee', textSecondaryColor: '#94a3b8' },
+                        },
+                        {
+                            id: 'minimalClock',
+                            label: 'Minimal Clock',
+                            values: { fontFamily: 'Inter|400', textColor: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
                         },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

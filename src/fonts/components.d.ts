@@ -21,9 +21,39 @@ export interface SceneConfig {
 }
 
 // New property grouping system for After Effects-style UI
+export type PropertyVisibilityCondition =
+    | {
+          key: string;
+          equals: any;
+      }
+    | {
+          key: string;
+          notEquals: any;
+      }
+    | {
+          key: string;
+          truthy: true;
+      }
+    | {
+          key: string;
+          falsy: true;
+      };
+
 export interface PropertyDefinition {
     key: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'range' | 'font';
+    type:
+        | 'number'
+        | 'string'
+        | 'boolean'
+        | 'color'
+        | 'select'
+        | 'file'
+        | 'range'
+        | 'font'
+        | 'file-midi'
+        | 'file-image'
+        | 'midiTrackRef'
+        | 'audioFeature';
     label: string;
     description?: string;
     default?: any;
@@ -32,15 +62,27 @@ export interface PropertyDefinition {
     step?: number;
     options?: { value: any; label: string }[];
     accept?: string;
+    allowMultiple?: boolean;
     requiredFeatureKey?: string;
     autoFeatureLabel?: string;
+    visibleWhen?: PropertyVisibilityCondition[];
+}
+
+export interface PropertyGroupPreset {
+    id: string;
+    label: string;
+    description?: string;
+    values: Record<string, any>;
 }
 
 export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
+    variant?: 'basic' | 'advanced';
+    description?: string;
     properties: PropertyDefinition[];
+    presets?: PropertyGroupPreset[];
 }
 
 export interface EnhancedConfigSchema {

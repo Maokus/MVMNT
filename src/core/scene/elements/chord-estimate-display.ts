@@ -18,17 +18,21 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Chord Estimate Display',
             description:
                 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
             category: 'MIDI Info',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'content',
-                    label: 'Content',
+                    id: 'chordSource',
+                    label: 'Source',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Choose the MIDI track and analysis window for detection.',
                     properties: [
                         { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
                         {
@@ -41,16 +45,23 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             step: 0.05,
                         },
                     ],
+                    presets: [
+                        { id: 'defaultLead', label: 'Lead Sheet', values: { windowSeconds: 0.6 } },
+                        { id: 'tightRhythm', label: 'Tight Rhythm', values: { windowSeconds: 0.3 } },
+                        { id: 'ambientPads', label: 'Ambient Pads', values: { windowSeconds: 1.2 } },
+                    ],
                 },
                 {
                     id: 'estimation',
                     label: 'Estimation',
+                    variant: 'advanced',
                     collapsed: true,
+                    description: 'Refine which chord qualities are considered during detection.',
                     properties: [
-                        { key: 'includeTriads', type: 'boolean', label: 'Triads (maj/min)', default: true },
-                        { key: 'includeDiminished', type: 'boolean', label: 'Include Diminished', default: true },
-                        { key: 'includeAugmented', type: 'boolean', label: 'Include Augmented', default: false },
-                        { key: 'includeSevenths', type: 'boolean', label: 'Include 7ths', default: true },
+                        { key: 'includeTriads', type: 'boolean', label: 'Allow Triads (maj/min)', default: true },
+                        { key: 'includeDiminished', type: 'boolean', label: 'Allow Diminished', default: true },
+                        { key: 'includeAugmented', type: 'boolean', label: 'Allow Augmented', default: false },
+                        { key: 'includeSevenths', type: 'boolean', label: 'Allow 7ths', default: true },
                         { key: 'preferBassRoot', type: 'boolean', label: 'Prefer Root in Bass', default: true },
                         { key: 'showInversion', type: 'boolean', label: 'Show Inversion (slash)', default: true },
                         {
@@ -63,16 +74,59 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             step: 10,
                         },
                     ],
+                    presets: [
+                        {
+                            id: 'bandDefault',
+                            label: 'Band Default',
+                            values: {
+                                includeTriads: true,
+                                includeDiminished: true,
+                                includeAugmented: false,
+                                includeSevenths: true,
+                                preferBassRoot: true,
+                                showInversion: true,
+                                smoothingMs: 160,
+                            },
+                        },
+                        {
+                            id: 'jazzExtended',
+                            label: 'Jazz Extended',
+                            values: {
+                                includeTriads: true,
+                                includeDiminished: true,
+                                includeAugmented: true,
+                                includeSevenths: true,
+                                preferBassRoot: false,
+                                showInversion: true,
+                                smoothingMs: 240,
+                            },
+                        },
+                        {
+                            id: 'simpleTriads',
+                            label: 'Simple Triads',
+                            values: {
+                                includeTriads: true,
+                                includeDiminished: false,
+                                includeAugmented: false,
+                                includeSevenths: false,
+                                preferBassRoot: true,
+                                showInversion: false,
+                                smoothingMs: 120,
+                            },
+                        },
+                    ],
                 },
                 {
                     id: 'appearance',
-                    label: 'Appearance',
-                    collapsed: true,
+                    label: 'Typography',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Adjust how chords and details are rendered.',
                     properties: [
                         {
                             key: 'textJustification',
                             type: 'select',
-                            label: 'Text Justification',
+                            label: 'Text Alignment',
                             default: 'left',
                             options: [
                                 { value: 'left', label: 'Left' },
@@ -80,11 +134,11 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             ],
                         },
                         { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Font Size', default: 48, min: 6, max: 150, step: 1 },
+                        { key: 'fontSize', type: 'number', label: 'Label Font Size (px)', default: 48, min: 6, max: 150, step: 1 },
                         {
                             key: 'chordFontSize',
                             type: 'number',
-                            label: 'Chord Font Size',
+                            label: 'Chord Font Size (px)',
                             default: 48,
                             min: 6,
                             max: 150,
@@ -93,7 +147,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         {
                             key: 'detailsFontSize',
                             type: 'number',
-                            label: 'Details Font Size',
+                            label: 'Details Font Size (px)',
                             default: 24,
                             min: 6,
                             max: 150,
@@ -103,14 +157,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
                         {
                             key: 'lineSpacing',
                             type: 'number',
-                            label: 'Line Spacing',
+                            label: 'Line Spacing (px)',
                             default: 6,
                             min: 0,
                             max: 60,
                             step: 1,
                         },
                         { key: 'showActiveNotes', type: 'boolean', label: 'Show Active Notes', default: true },
-                        { key: 'showChroma', type: 'boolean', label: 'Show Chroma', default: true },
+                        { key: 'showChroma', type: 'boolean', label: 'Show Chroma Chart', default: true },
                         {
                             key: 'chromaPrecision',
                             type: 'number',
@@ -119,9 +173,28 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 0,
                             max: 6,
                             step: 1,
+                            visibleWhen: [{ key: 'showChroma', truthy: true }],
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'darkStage',
+                            label: 'Dark Stage',
+                            values: { fontFamily: 'Inter|600', chordFontSize: 54, color: '#f8fafc', lineSpacing: 8 },
+                        },
+                        {
+                            id: 'glassOverlay',
+                            label: 'Glass Overlay',
+                            values: { fontFamily: 'Inter|400', chordFontSize: 42, color: '#cbd5f5', lineSpacing: 4 },
+                        },
+                        {
+                            id: 'boldBroadcast',
+                            label: 'Broadcast Bold',
+                            values: { fontFamily: 'Inter|700', chordFontSize: 60, color: '#f97316', lineSpacing: 10 },
                         },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }
