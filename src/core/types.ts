@@ -253,6 +253,9 @@ export interface PropertyDefinition {
     description?: string;
     // UI hint: when type === 'midiTrackRef', allow selecting multiple tracks
     allowMultiple?: boolean;
+    // Audio feature bindings can declare a required feature key and label.
+    requiredFeatureKey?: string;
+    autoFeatureLabel?: string;
 }
 
 export interface PropertyGroup {

@@ -26,6 +26,8 @@ export class AudioSpectrumElement extends SceneElement {
                             type: 'audioFeature',
                             label: 'Audio Feature',
                             default: null,
+                            requiredFeatureKey: 'spectrogram',
+                            autoFeatureLabel: 'Spectrogram',
                         },
                         {
                             key: 'barColor',
@@ -68,14 +70,25 @@ export class AudioSpectrumElement extends SceneElement {
 
     protected _buildRenderObjects(_config: any, _targetTime: number): RenderObject[] {
         const sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
-        if (!sample || !sample.values?.length) {
-            return [];
-        }
         const barColor = this.getProperty<string>('barColor') ?? '#22d3ee';
         const barWidth = Math.max(1, this.getProperty<number>('barWidth') ?? 8);
         const barSpacing = Math.max(0, this.getProperty<number>('barSpacing') ?? 2);
         const maxHeight = Math.max(10, this.getProperty<number>('height') ?? 140);
-        const values = sample.values;
+        const values = sample?.values ?? [];
+        const barCount = values.length || 64;
+        const totalWidth = Math.max(0, barCount * barWidth + Math.max(0, barCount - 1) * barSpacing);
+
+        const objects: RenderObject[] = [];
+        const layoutRect = new Rectangle(0, 0, totalWidth || barWidth, maxHeight, null, null, 0, {
+            includeInLayoutBounds: true,
+        });
+        layoutRect.setVisible(false);
+        objects.push(layoutRect);
+
+        if (!values.length) {
+            return objects;
+        }
+
         let maxValue = 0;
         for (const value of values) {
             if (value > maxValue) maxValue = value;
@@ -83,12 +96,13 @@ export class AudioSpectrumElement extends SceneElement {
         if (maxValue <= Number.EPSILON) {
             maxValue = 1;
         }
-        const objects: RenderObject[] = [];
+
         values.forEach((value, index) => {
             const normalized = Math.max(0, Math.min(1, value / maxValue));
             const height = normalized * maxHeight;
             const x = index * (barWidth + barSpacing);
             const rect = new Rectangle(x, maxHeight - height, barWidth, height, barColor);
+            rect.setIncludeInLayoutBounds(false);
             objects.push(rect);
         });
         return objects;

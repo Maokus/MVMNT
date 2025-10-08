@@ -39,7 +39,10 @@ interface TrackOption {
 
 const NUMBER_EPSILON = 1e-6;
 
-function resolveDefaultFeature(cache: any | undefined): string {
+function resolveDefaultFeature(cache: any | undefined, preferredFeatureKey?: string | null): string {
+    if (preferredFeatureKey) {
+        return preferredFeatureKey;
+    }
     const keys = cache ? Object.keys(cache.featureTracks ?? {}) : [];
     if (!keys.length) {
         return 'rms';
@@ -57,6 +60,8 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
     onChange,
 }) => {
     const bindingValue = value && value.type === 'audioFeature' ? value : null;
+    const requiredFeatureKey = (schema?.requiredFeatureKey as string | undefined) ?? null;
+    const autoFeatureLabel = (schema?.autoFeatureLabel as string | undefined) ?? null;
 
     const trackOptions = useTimelineStore(
         useCallback((state) => {
@@ -97,11 +102,16 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
     }, [featureCache]);
 
     const selectedFeatureKey = useMemo(() => {
-        if (bindingValue?.featureKey && featureOptions.includes(bindingValue.featureKey)) {
-            return bindingValue.featureKey;
+        if (requiredFeatureKey) {
+            return requiredFeatureKey;
         }
-        return resolveDefaultFeature(featureCache);
-    }, [bindingValue?.featureKey, featureCache, featureOptions]);
+        if (bindingValue?.featureKey) {
+            if (!featureOptions.length || featureOptions.includes(bindingValue.featureKey)) {
+                return bindingValue.featureKey;
+            }
+        }
+        return resolveDefaultFeature(featureCache, null);
+    }, [bindingValue?.featureKey, featureCache, featureOptions, requiredFeatureKey]);
 
     const featureTrack = useAudioFeatureTrack(sourceId ?? '', selectedFeatureKey);
 
@@ -111,19 +121,25 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
     useEffect(() => {
         if (disabled) return;
         if (!selectedTrack) return;
-        if (!bindingValue) {
-            const defaultFeature = resolveDefaultFeature(featureCache);
+        const desiredFeature = resolveDefaultFeature(featureCache, requiredFeatureKey);
+        const keepExistingChannels = bindingValue?.trackId === selectedTrack.id;
+        if (
+            !bindingValue ||
+            bindingValue.trackId !== selectedTrack.id ||
+            bindingValue.featureKey !== desiredFeature
+        ) {
+            const trackEntry = featureCache?.featureTracks?.[desiredFeature];
             onChange({
                 type: 'audioFeature',
                 trackId: selectedTrack.id,
-                featureKey: defaultFeature,
-                calculatorId: featureCache?.featureTracks?.[defaultFeature]?.calculatorId,
-                bandIndex: null,
-                channelIndex: null,
-                smoothing: null,
+                featureKey: desiredFeature,
+                calculatorId: trackEntry?.calculatorId ?? bindingValue?.calculatorId,
+                bandIndex: keepExistingChannels ? bindingValue?.bandIndex ?? null : null,
+                channelIndex: keepExistingChannels ? bindingValue?.channelIndex ?? null : null,
+                smoothing: bindingValue?.smoothing ?? null,
             });
         }
-    }, [bindingValue, disabled, featureCache, onChange, selectedTrack]);
+    }, [bindingValue, disabled, featureCache, onChange, requiredFeatureKey, selectedTrack]);
 
     const emitChange = useCallback(
         (patch: Partial<Omit<AudioFeatureBindingValue, 'type'>>) => {
@@ -135,14 +151,22 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
             const state = useTimelineStore.getState();
             const cache = state.audioFeatureCaches[trackInfo.sourceId];
             const availableFeatures = cache ? Object.keys(cache.featureTracks ?? {}) : [];
-            const nextFeatureKeyCandidate = patch.featureKey ?? bindingValue?.featureKey ?? resolveDefaultFeature(cache);
-            const resolvedFeatureKey = availableFeatures.length
-                ? availableFeatures.includes(nextFeatureKeyCandidate)
+            const nextFeatureKeyCandidate =
+                patch.featureKey ??
+                bindingValue?.featureKey ??
+                resolveDefaultFeature(cache, requiredFeatureKey);
+            let resolvedFeatureKey: string;
+            if (requiredFeatureKey) {
+                resolvedFeatureKey = requiredFeatureKey;
+            } else if (availableFeatures.length) {
+                resolvedFeatureKey = availableFeatures.includes(nextFeatureKeyCandidate)
                     ? nextFeatureKeyCandidate
                     : availableFeatures.includes('rms')
                     ? 'rms'
-                    : availableFeatures[0]
-                : nextFeatureKeyCandidate;
+                    : availableFeatures[0];
+            } else {
+                resolvedFeatureKey = nextFeatureKeyCandidate;
+            }
             const trackEntry = cache?.featureTracks?.[resolvedFeatureKey];
             const nextBandIndex =
                 patch.bandIndex !== undefined ? patch.bandIndex : bindingValue?.bandIndex ?? null;
@@ -161,7 +185,7 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
                 smoothing: nextSmoothing,
             });
         },
-        [bindingValue, onChange, selectedTrack, trackLookup],
+        [bindingValue, onChange, requiredFeatureKey, selectedTrack, trackLookup],
     );
 
     const handleTrackChange = useCallback(
@@ -336,7 +360,7 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
         }
     }, [selectedTrack, sourceId]);
 
-    const calculatorLabel = calculators.get(selectedFeatureKey) ?? selectedFeatureKey;
+    const calculatorLabel = autoFeatureLabel ?? calculators.get(selectedFeatureKey) ?? selectedFeatureKey;
 
     return (
         <div className="audio-feature-binding" title={title} style={{ display: 'grid', gap: '8px' }}>
@@ -356,22 +380,39 @@ const AudioFeatureBindingInput: React.FC<AudioFeatureBindingInputProps> = ({
                 </select>
             </label>
 
-            <label htmlFor={`${id}-feature`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span>Feature</span>
-                <select
-                    id={`${id}-feature`}
-                    value={selectedFeatureKey}
-                    onChange={handleFeatureChange}
-                    disabled={disabled || !trackOptions.length}
-                >
-                    {featureOptions.length === 0 && <option value="rms">RMS (pending analysis)</option>}
-                    {featureOptions.map((key) => (
-                        <option key={key} value={key}>
-                            {calculators.get(key) ?? key}
-                        </option>
-                    ))}
-                </select>
-            </label>
+            {!requiredFeatureKey ? (
+                <label htmlFor={`${id}-feature`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span>Feature</span>
+                    <select
+                        id={`${id}-feature`}
+                        value={selectedFeatureKey}
+                        onChange={handleFeatureChange}
+                        disabled={disabled || !trackOptions.length}
+                    >
+                        {featureOptions.length === 0 && <option value="rms">RMS (pending analysis)</option>}
+                        {featureOptions.map((key) => (
+                            <option key={key} value={key}>
+                                {calculators.get(key) ?? key}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span>Feature</span>
+                    <div
+                        style={{
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            background: '#111827',
+                            color: '#E5E7EB',
+                            border: '1px solid #1F2937',
+                        }}
+                    >
+                        {autoFeatureLabel ?? calculators.get(selectedFeatureKey) ?? selectedFeatureKey}
+                    </div>
+                </div>
+            )}
 
             {featureTrack && featureTrack.channels > 1 && (
                 <label htmlFor={`${id}-band`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

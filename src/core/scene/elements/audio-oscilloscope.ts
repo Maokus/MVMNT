@@ -1,5 +1,5 @@
 import { SceneElement } from './base';
-import { Poly, type RenderObject } from '@core/render/render-objects';
+import { Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
@@ -23,7 +23,14 @@ export class AudioOscilloscopeElement extends SceneElement {
                     label: 'Oscilloscope',
                     collapsed: false,
                     properties: [
-                        { key: 'featureBinding', type: 'audioFeature', label: 'Audio Feature', default: null },
+                        {
+                            key: 'featureBinding',
+                            type: 'audioFeature',
+                            label: 'Audio Feature',
+                            default: null,
+                            requiredFeatureKey: 'waveform',
+                            autoFeatureLabel: 'Waveform',
+                        },
                         {
                             key: 'windowSeconds',
                             type: 'number',
@@ -69,15 +76,17 @@ export class AudioOscilloscopeElement extends SceneElement {
 
     protected _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
         const binding = this.getBinding('featureBinding');
+        const width = Math.max(40, this.getProperty<number>('width') ?? 320);
+        const height = Math.max(20, this.getProperty<number>('height') ?? 160);
+        const layoutRect = new Rectangle(0, 0, width, height, null, null, 0, { includeInLayoutBounds: true });
+        layoutRect.setVisible(false);
         if (!(binding instanceof AudioFeatureBinding)) {
-            return [];
+            return [layoutRect];
         }
         const config = binding.getConfig();
         if (!config.trackId || !config.featureKey) {
-            return [];
+            return [layoutRect];
         }
-        const width = Math.max(40, this.getProperty<number>('width') ?? 320);
-        const height = Math.max(20, this.getProperty<number>('height') ?? 160);
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
         const tm = getSharedTimingManager();
         const halfWindow = windowSeconds / 2;
@@ -89,7 +98,7 @@ export class AudioOscilloscopeElement extends SceneElement {
             channelIndex: config.channelIndex ?? undefined,
         });
         if (!range || range.frameCount === 0) {
-            return [];
+            return [layoutRect];
         }
         const channels = range.channels;
         const points: Array<{ x: number; y: number }> = [];
@@ -108,10 +117,11 @@ export class AudioOscilloscopeElement extends SceneElement {
             points.push({ x, y });
         }
         if (points.length < 2) {
-            return [];
+            return [layoutRect];
         }
         const line = new Poly(points, null, this.getProperty<string>('lineColor') ?? '#22d3ee', this.getProperty<number>('lineWidth') ?? 2);
         line.setClosed(false);
-        return [line];
+        line.setIncludeInLayoutBounds(false);
+        return [layoutRect, line];
     }
 }

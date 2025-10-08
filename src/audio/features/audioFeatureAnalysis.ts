@@ -49,6 +49,7 @@ export interface SerializedAudioFeatureCache {
 
 const DEFAULT_WINDOW_SIZE = 2048;
 const DEFAULT_HOP_SIZE = 1024;
+const WAVEFORM_OVERSAMPLE_FACTOR = 8;
 const DEFAULT_SPECTROGRAM_BANDS = 32;
 
 function hannWindow(length: number): Float32Array {
@@ -364,14 +365,16 @@ function createWaveformCalculator(): AudioFeatureCalculator {
         version: 1,
         featureKey: 'waveform',
         calculate(context: AudioFeatureCalculatorContext): AudioFeatureTrack {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount } = context;
+            const { audioBuffer, analysisParams, hopTicks } = context;
             const mono = mixBufferToMono(audioBuffer);
-            const { hopSize } = analysisParams;
-            const minValues = new Float32Array(frameCount);
-            const maxValues = new Float32Array(frameCount);
-            for (let frame = 0; frame < frameCount; frame++) {
-                const start = frame * hopSize;
-                const end = Math.min(start + hopSize, mono.length);
+            const baseHopSize = Math.max(1, analysisParams.hopSize);
+            const waveformHopSize = Math.max(1, Math.round(baseHopSize / WAVEFORM_OVERSAMPLE_FACTOR));
+            const waveformFrameCount = computeFrameCount(mono.length, waveformHopSize, waveformHopSize);
+            const minValues = new Float32Array(waveformFrameCount);
+            const maxValues = new Float32Array(waveformFrameCount);
+            for (let frame = 0; frame < waveformFrameCount; frame++) {
+                const start = frame * waveformHopSize;
+                const end = Math.min(start + waveformHopSize, mono.length);
                 let min = Number.POSITIVE_INFINITY;
                 let max = Number.NEGATIVE_INFINITY;
                 for (let i = start; i < end; i++) {
@@ -384,18 +387,22 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 minValues[frame] = min;
                 maxValues[frame] = max;
             }
+            const hopRatio = waveformHopSize / baseHopSize;
+            const waveformHopTicks = Math.max(1, Math.round(Math.max(1, hopTicks) * hopRatio));
+            const waveformHopSeconds = waveformHopSize / audioBuffer.sampleRate;
             return {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',
                 version: 1,
-                frameCount,
+                frameCount: waveformFrameCount,
                 channels: 1,
-                hopTicks,
-                hopSeconds,
+                hopTicks: waveformHopTicks,
+                hopSeconds: waveformHopSeconds,
                 format: 'waveform-minmax',
                 data: { min: minValues, max: maxValues },
                 metadata: {
-                    hopSize,
+                    hopSize: waveformHopSize,
+                    oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
                 },
             };
         },

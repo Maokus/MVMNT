@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe('AudioFeatureBindingInput', () => {
-    it('renders track and feature selectors', () => {
+    it('renders track and feature selectors when feature is configurable', () => {
         const handleChange = vi.fn();
         render(
             <AudioFeatureBindingInput
@@ -80,6 +80,29 @@ describe('AudioFeatureBindingInput', () => {
         );
         expect(screen.getByLabelText(/Audio Track/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/Feature/i)).toHaveValue('rms');
+    });
+
+    it('locks feature selection when a required feature is provided', () => {
+        const handleChange = vi.fn();
+        render(
+            <AudioFeatureBindingInput
+                id="binding"
+                value={{
+                    type: 'audioFeature',
+                    trackId: 'audioTrack',
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channelIndex: null,
+                    smoothing: null,
+                }}
+                schema={{ requiredFeatureKey: 'spectrogram', autoFeatureLabel: 'Spectrogram' }}
+                onChange={handleChange}
+            />,
+        );
+        expect(screen.getByLabelText(/Audio Track/i)).toBeInTheDocument();
+        expect(screen.queryByRole('combobox', { name: /Feature/i })).toBeNull();
+        expect(screen.getByText('Spectrogram')).toBeInTheDocument();
     });
 
     it('emits changes when smoothing value updates', () => {

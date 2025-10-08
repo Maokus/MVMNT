@@ -79,7 +79,9 @@ describe('audio scene elements', () => {
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
         expect(Array.isArray(container.children)).toBe(true);
-        expect(container.children).toHaveLength(3);
+        expect(container.children).toHaveLength(4);
+        expect(container.children[0]?.includeInLayoutBounds).toBe(true);
+        expect(container.children.slice(1).every((child: any) => child?.includeInLayoutBounds === false)).toBe(true);
     });
 
     it('builds volume meter rectangles', () => {
@@ -96,6 +98,8 @@ describe('audio scene elements', () => {
         );
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        expect(container.children[0]?.includeInLayoutBounds).toBe(true);
     });
 
     it('samples waveform data for oscilloscope element', () => {
@@ -113,6 +117,8 @@ describe('audio scene elements', () => {
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
         expect(Array.isArray(container.children)).toBe(true);
-        expect(container.children[0]).toBeInstanceOf(Poly);
+        expect(container.children[0]?.includeInLayoutBounds).toBe(true);
+        expect(container.children[1]).toBeInstanceOf(Poly);
+        expect(container.children[1]?.includeInLayoutBounds).toBe(false);
     });
 });

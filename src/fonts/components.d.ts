@@ -32,6 +32,8 @@ export interface PropertyDefinition {
     step?: number;
     options?: { value: any; label: string }[];
     accept?: string;
+    requiredFeatureKey?: string;
+    autoFeatureLabel?: string;
 }
 
 export interface PropertyGroup {

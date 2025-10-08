@@ -21,7 +21,14 @@ export class AudioVolumeMeterElement extends SceneElement {
                     label: 'Volume Meter',
                     collapsed: false,
                     properties: [
-                        { key: 'featureBinding', type: 'audioFeature', label: 'Audio Feature', default: null },
+                        {
+                            key: 'featureBinding',
+                            type: 'audioFeature',
+                            label: 'Audio Feature',
+                            default: null,
+                            requiredFeatureKey: 'rms',
+                            autoFeatureLabel: 'Volume (RMS)',
+                        },
                         { key: 'meterColor', type: 'color', label: 'Meter Color', default: '#f472b6' },
                         {
                             key: 'minValue',
@@ -67,10 +74,7 @@ export class AudioVolumeMeterElement extends SceneElement {
 
     protected _buildRenderObjects(_config: any, _targetTime: number): RenderObject[] {
         const sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
-        if (!sample || !sample.values?.length) {
-            return [];
-        }
-        const rms = sample.values[0] ?? 0;
+        const rms = sample?.values?.[0] ?? 0;
         const minValue = this.getProperty<number>('minValue') ?? 0;
         const maxValue = this.getProperty<number>('maxValue') ?? 1;
         const width = Math.max(4, this.getProperty<number>('width') ?? 20);
@@ -79,7 +83,17 @@ export class AudioVolumeMeterElement extends SceneElement {
         const clamped = Math.max(minValue, Math.min(maxValue, rms));
         const normalized = maxValue - minValue <= 0 ? 0 : (clamped - minValue) / (maxValue - minValue);
         const meterHeight = normalized * height;
-        const rect = new Rectangle(0, height - meterHeight, width, meterHeight, color);
-        return [rect];
+        const objects: RenderObject[] = [];
+        const layoutRect = new Rectangle(0, 0, width, height, null, null, 0, { includeInLayoutBounds: true });
+        layoutRect.setVisible(false);
+        objects.push(layoutRect);
+
+        if (sample && sample.values?.length) {
+            const rect = new Rectangle(0, height - meterHeight, width, meterHeight, color);
+            rect.setIncludeInLayoutBounds(false);
+            objects.push(rect);
+        }
+
+        return objects;
     }
 }
