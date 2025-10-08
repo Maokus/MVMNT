@@ -109,64 +109,70 @@ const EasyModeLayout: React.FC = () => {
     return (
         <div className="flex h-screen flex-col bg-neutral-800 text-neutral-100">
             <TemplateLoadingOverlay />
-            <header style={{ 'backgroundColor': 'var(--twc-menubar)' }} className="border-b border-neutral-600 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)] h-[48px]">
-                <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-4 px-4 py-0 text-xs">
-                    <div className="flex items-center gap-3 text-sm font-medium">
-                        <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
-                            <img width="50" src={logo} style={{ cursor: 'pointer', marginTop: "-1px" }} />
-                        </Link>
-                        <h3 style={{ marginRight: 0 }}>
-                            <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
-                                MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
+            <header
+                style={{ 'backgroundColor': 'var(--twc-menubar)' }}
+                className="border-b border-neutral-600 bg-[color:var(--twc-menubar)]/95 shadow-[0_2px_8px_rgba(0,0,0,0.25)]"
+            >
+                <div className="mx-auto flex w-full flex-col gap-3 px-4 py-3 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4 sm:py-2">
+                    <div className="flex flex-1 flex-wrap items-center justify-between gap-3 sm:justify-start">
+                        <div className="flex items-center gap-3 text-sm font-medium">
+                            <Link to="/" title="Go to Home" style={{ display: 'inline-flex' }}>
+                                <img width="44" src={logo} style={{ cursor: 'pointer', marginTop: '-1px' }} />
                             </Link>
-                        </h3>
-                        <span className="rounded-full border border-neutral-700/80 bg-neutral-800/80 px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-neutral-300">
-                            Easy Mode
-                        </span>
+                            <div className="flex flex-col gap-1">
+                                <h3 className="text-sm font-semibold">
+                                    <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }} title="Go to Home">
+                                        MVMNT v{((import.meta as any).env?.VITE_VERSION)} {isBetaMode ? '(beta)' : ''}
+                                    </Link>
+                                </h3>
+                                <span className="inline-flex w-fit items-center rounded-full border border-neutral-700/80 bg-neutral-800/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-neutral-300">
+                                    Easy Mode
+                                </span>
+                            </div>
+                        </div>
                         <Link
                             to="/workspace"
-                            className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
+                            className="inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-900/70 px-3 py-1 text-[11px] font-semibold text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
                         >
                             Open Advanced Mode
                         </Link>
                     </div>
-                    <div className="flex min-w-[240px] flex-1 flex-wrap items-center justify-center gap-3 text-[11px] text-neutral-300 md:justify-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-1 sm:items-center sm:justify-between">
                         <div className="flex items-center gap-2 text-neutral-200">
-                            <span className="uppercase tracking-wide text-neutral-500">Scene</span>
+                            <span className="hidden uppercase tracking-wide text-neutral-500 sm:inline">Scene</span>
                             <span
-                                className="max-w-[220px] truncate rounded px-3 py-1 text-sm font-medium text-neutral-100"
+                                className="max-w-full truncate rounded bg-neutral-900/60 px-3 py-1 text-sm font-medium text-neutral-100 sm:max-w-[240px]"
                                 title={displaySceneName}
                                 aria-label="Scene name"
                             >
                                 {displaySceneName}
                             </span>
                         </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                        <BrowseTemplatesButton
-                            templates={templates}
-                            onTemplateSelect={handleApplyTemplate}
-                            className="text-xs inline-flex items-center justify-center gap-1 rounded border border-neutral-600 bg-neutral-800/70 px-3 py-1 text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
-                            disabled={!hasTemplates}
-                        >
-                            Browse Templates
-                        </BrowseTemplatesButton>
-                        <button
-                            type="button"
-                            onClick={handleImportScene}
-                            className="inline-flex items-center justify-center gap-1 rounded border border-sky-500/70 bg-sky-600/20 px-3 py-1 text-sky-100 transition-colors hover:bg-sky-500/30 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
-                        >
-                            Import .mvt
-                        </button>
-                        <div className="flex items-center gap-2 mr-2">
+                        <div className="-mx-1 flex flex-wrap items-center gap-2 overflow-x-auto pb-1 text-[11px] font-semibold sm:mx-0 sm:justify-end sm:pb-0">
+                            <BrowseTemplatesButton
+                                templates={templates}
+                                onTemplateSelect={handleApplyTemplate}
+                                className="mx-1 inline-flex items-center justify-center gap-1 whitespace-nowrap rounded border border-neutral-600 bg-neutral-900/70 px-3 py-1 text-xs text-neutral-100 transition-colors hover:border-neutral-400 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
+                                disabled={!hasTemplates}
+                            >
+                                Browse Templates
+                            </BrowseTemplatesButton>
+                            <button
+                                type="button"
+                                onClick={handleImportScene}
+                                className="mx-1 inline-flex items-center justify-center gap-1 whitespace-nowrap rounded border border-sky-500/70 bg-sky-600/20 px-3 py-1 text-xs text-sky-100 transition-colors hover:bg-sky-500/30 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                            >
+                                Import .mvt
+                            </button>
                             <button
                                 type="button"
                                 onClick={handleExportVideo}
-                                className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
+                                className="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
                                 title="Render / Export Video"
-                            >Export Video</button>
+                            >
+                                Export Video
+                            </button>
                         </div>
-
                     </div>
                 </div>
             </header>
