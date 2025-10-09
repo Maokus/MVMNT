@@ -197,47 +197,56 @@ describe('sceneStore', () => {
         expect(secondExport.macros?.exportedAt).toBe(firstExport.macros?.exportedAt);
     });
 
-    it('persists audio feature bindings through export drafts', () => {
+    it('persists audio feature track bindings through export drafts', () => {
         store.getState().addElement({
             id: 'audio-element',
             type: 'audioSpectrum',
             index: 0,
             bindings: {
-                featureBinding: {
-                    type: 'audioFeature',
-                    trackId: 'audio-track',
-                    featureKey: 'rms',
-                    calculatorId: 'mvmnt.rms',
-                    bandIndex: null,
-                    channelIndex: null,
-                    smoothing: null,
+                featureTrackId: { type: 'constant', value: 'audio-track' },
+                featureDescriptor: {
+                    type: 'constant',
+                    value: {
+                        featureKey: 'rms',
+                        calculatorId: 'mvmnt.rms',
+                        bandIndex: null,
+                        channelIndex: null,
+                        smoothing: 0.15,
+                    },
                 },
             },
         });
 
         const elementBindings = store.getState().bindings.byElement['audio-element'];
-        expect(elementBindings.featureBinding).toEqual({
-            type: 'audioFeature',
-            trackId: 'audio-track',
-            featureKey: 'rms',
-            calculatorId: 'mvmnt.rms',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
+        expect(elementBindings.featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect(elementBindings.featureDescriptor).toEqual({
+            type: 'constant',
+            value: {
+                featureKey: 'rms',
+                calculatorId: 'mvmnt.rms',
+                bandIndex: null,
+                channelIndex: null,
+                smoothing: 0.15,
+            },
         });
 
         const exported = store.getState().exportSceneDraft();
         const serialized = exported.elements.find((el) => el.id === 'audio-element');
         expect(serialized).toBeDefined();
-        expect((serialized as any).featureBinding).toEqual({
-            type: 'audioFeature',
-            trackId: 'audio-track',
-            featureKey: 'rms',
-            calculatorId: 'mvmnt.rms',
+        expect((serialized as any).featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect((serialized as any).featureDescriptor).toEqual({
+            type: 'constant',
+            value: {
+                featureKey: 'rms',
+                calculatorId: 'mvmnt.rms',
+                bandIndex: null,
+                channelIndex: null,
+                smoothing: 0.15,
+            },
         });
     });
 
-    it('updates audio feature bindings without polluting macro indices', () => {
+    it('migrates legacy audio feature binding patches without polluting macro indices', () => {
         store.getState().addElement({
             id: 'osc',
             type: 'audioOscilloscope',
@@ -253,18 +262,21 @@ describe('sceneStore', () => {
                 bandIndex: 1,
                 channelIndex: 0,
                 smoothing: 0.25,
-            },
+            } as any,
         });
 
-        const binding = store.getState().bindings.byElement['osc'].featureBinding;
-        expect(binding).toEqual({
-            type: 'audioFeature',
-            trackId: 'track-1',
-            featureKey: 'waveform',
-            calculatorId: 'mvmnt.waveform',
-            bandIndex: 1,
-            channelIndex: 0,
-            smoothing: 0.25,
+        const bindings = store.getState().bindings.byElement['osc'];
+        expect(bindings.featureBinding).toBeUndefined();
+        expect(bindings.featureTrackId).toEqual({ type: 'constant', value: 'track-1' });
+        expect(bindings.featureDescriptor).toEqual({
+            type: 'constant',
+            value: {
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                bandIndex: 1,
+                channelIndex: 0,
+                smoothing: 0.25,
+            },
         });
 
         expect(store.getState().bindings.byMacro).not.toHaveProperty('undefined');

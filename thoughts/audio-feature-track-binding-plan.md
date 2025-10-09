@@ -39,6 +39,18 @@ through the shared tempo mapper and adapter layer delivered in that rollout; see
 -   Reduce hidden state stored inside `AudioFeatureBinding` (e.g., cached frames, smoothing) so that
     serialization and inspector panels have a single source of truth.
 
+## Decisions
+
+-   Property bindings now expose only constant or macro payloads. Legacy `audioFeature` payloads are
+    migrated through `migrateLegacyAudioFeatureBinding` before reaching the runtime, so
+    `PropertyBinding.fromSerialized` rejects unknown subtypes. See the helper definition in
+    [`src/state/sceneStore.ts`](../src/state/sceneStore.ts) and the simplified binding runtime in
+    [`src/bindings/property-bindings.ts`](../src/bindings/property-bindings.ts).
+-   Persistence and export flows normalize audio feature references to `{ featureTrackId,
+    featureDescriptor }` pairs. Scene snapshots now serialize the neutral binding data, and timeline
+    exports continue to depend on the tempo-aligned cache architecture documented in
+    [`docs/HYBRID_AUDIO_CACHE.md`](../docs/HYBRID_AUDIO_CACHE.md).
+
 ## Phased implementation plan
 
 ### Phase 1 – Unify timeline track binding metadata (Foundations)
@@ -86,6 +98,9 @@ through the shared tempo mapper and adapter layer delivered in that rollout; see
 
 ### Phase 3 – Refactor property binding infrastructure (Runtime alignment)
 
+**Status:** Complete. Runtime bindings are limited to constants and macros, and audio feature
+payloads migrate through the shared helper during import/update flows.
+
 **Objectives**
 
 -   Remove the custom `AudioFeatureBinding` subclass in favor of pure data bindings that defer sampling to the hybrid cache adapters.【F:src/bindings/property-bindings.ts†L64-L232】
@@ -105,6 +120,10 @@ through the shared tempo mapper and adapter layer delivered in that rollout; see
 -   Property binding runtime exposes a single, generic binding subtype list with no audio-specific branches.
 
 ### Phase 4 – Update persistence and export flows (Data lifecycle)
+
+**Status:** Complete. Scene exports/imports produce and consume `{ featureTrackId,
+`featureDescriptor` } bindings, and audio feature cache lifecycles remain anchored to the shared
+tempo mapping utilities.
 
 **Objectives**
 

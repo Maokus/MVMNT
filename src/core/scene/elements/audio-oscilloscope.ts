@@ -3,7 +3,6 @@ import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-ob
 import type { EnhancedConfigSchema } from '@core/types';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
-import { AudioFeatureBinding } from '@bindings/property-bindings';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import {
     coerceFeatureDescriptor,
@@ -174,8 +173,8 @@ export class AudioOscilloscopeElement extends SceneElement {
             descriptorValue,
             AudioOscilloscopeElement.DEFAULT_DESCRIPTOR,
         );
-        let trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
-        let featureKey = descriptor.featureKey;
+        const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
+        const featureKey = descriptor.featureKey;
 
         const tm = getSharedTimingManager();
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
@@ -189,36 +188,13 @@ export class AudioOscilloscopeElement extends SceneElement {
         const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
 
         const state = useTimelineStore.getState();
-        let range =
+        const range =
             trackId && featureKey
                 ? sampleAudioFeatureRange(state, trackId, featureKey, startTick, endTick, {
                       bandIndex: descriptor.bandIndex ?? undefined,
                       channelIndex: descriptor.channelIndex ?? undefined,
                   })
                 : undefined;
-        if (!range) {
-            const legacyBinding = this.getBinding('featureBinding');
-            if (legacyBinding instanceof AudioFeatureBinding) {
-                const legacyConfig = legacyBinding.getConfig();
-                if (legacyConfig.trackId && legacyConfig.featureKey) {
-                    range = sampleAudioFeatureRange(
-                        state,
-                        legacyConfig.trackId,
-                        legacyConfig.featureKey,
-                        startTick,
-                        endTick,
-                        {
-                            bandIndex: legacyConfig.bandIndex ?? undefined,
-                            channelIndex: legacyConfig.channelIndex ?? undefined,
-                        },
-                    );
-                    if (range) {
-                        trackId = legacyConfig.trackId;
-                        featureKey = legacyConfig.featureKey;
-                    }
-                }
-            }
-        }
         if (!range || range.frameCount <= 0) {
             return [layoutRect];
         }

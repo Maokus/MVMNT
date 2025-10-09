@@ -2,7 +2,6 @@ import { SceneElement } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
-import { AudioFeatureBinding } from '@bindings/property-bindings';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import {
     coerceFeatureDescriptor,
@@ -141,20 +140,8 @@ export class AudioVolumeMeterElement extends SceneElement {
         );
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
 
-        let sample: AudioFeatureFrameSample | null = null;
-        if (trackId && descriptor.featureKey) {
-            sample = sampleFeatureFrame(trackId, descriptor, targetTime);
-        }
-        if (!sample) {
-            const legacyBinding = this.getBinding('featureBinding');
-            if (legacyBinding instanceof AudioFeatureBinding) {
-                sample =
-                    legacyBinding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ??
-                    legacyBinding.getValue();
-            } else {
-                sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
-            }
-        }
+        const sample: AudioFeatureFrameSample | null =
+            trackId && descriptor.featureKey ? sampleFeatureFrame(trackId, descriptor, targetTime) : null;
         const rms = sample?.values?.[0] ?? 0;
         const minValue = this.getProperty<number>('minValue') ?? 0;
         const maxValue = this.getProperty<number>('maxValue') ?? 1;

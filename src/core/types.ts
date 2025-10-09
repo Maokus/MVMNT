@@ -206,7 +206,6 @@ export interface ConfigSchemaProperty {
         | 'file-midi'
         | 'file-image'
         | 'timelineTrackRef'
-        | 'audioFeature'
         | 'audioFeatureDescriptor';
     label: string;
     default: any;
@@ -261,7 +260,6 @@ export interface PropertyDefinition {
         | 'file-image'
         | 'font'
         | 'timelineTrackRef'
-        | 'audioFeature'
         | 'audioFeatureDescriptor';
     label: string;
     default?: any;

@@ -222,7 +222,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         );
     }
 
-    if (type === 'audioFeature' || type === 'audioFeatureDescriptor') {
+    if (type === 'audioFeatureDescriptor') {
         return (
             <AudioFeatureDescriptorInput
                 id={id}

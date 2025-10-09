@@ -2,7 +2,6 @@ import { SceneElement } from './base';
 import { Line, Rectangle, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
-import { AudioFeatureBinding } from '@bindings/property-bindings';
 import type { AudioFeatureDescriptor, AudioFeatureTrack, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import {
     coerceFeatureDescriptor,
@@ -307,7 +306,6 @@ export class AudioSpectrumElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const binding = this.getBinding('featureBinding');
         const displayMode = (this.getProperty<string>('displayMode') ?? 'bars') as SpectrumDisplayMode;
         const sideMode = (this.getProperty<string>('sideMode') ?? 'both') as SpectrumSideMode;
         const bandCount = Math.max(1, Math.floor(this.getProperty<number>('bandCount') ?? 96));
@@ -336,20 +334,6 @@ export class AudioSpectrumElement extends SceneElement {
             sample = sampleFeatureFrame(trackId, descriptor, targetTime);
             const context = resolveFeatureContext(trackId, descriptor.featureKey);
             metadata = this._resolveSpectrogramMetadata(context?.cache, context?.featureTrack);
-        }
-
-        if (!sample) {
-            const legacyBinding = binding instanceof AudioFeatureBinding ? binding : null;
-            if (legacyBinding) {
-                sample =
-                    legacyBinding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ??
-                    legacyBinding.getValue();
-                const legacyConfig = legacyBinding.getConfig();
-                const legacyContext = resolveFeatureContext(legacyConfig.trackId ?? null, legacyConfig.featureKey ?? null);
-                metadata = this._resolveSpectrogramMetadata(legacyContext?.cache, legacyContext?.featureTrack);
-            } else if (!sample) {
-                sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
-            }
         }
 
         const resolvedBinCount = (() => {

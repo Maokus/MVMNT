@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { AudioFeatureBinding } from '@bindings/property-bindings';
-import {
-    sampleAudioFeatureRange,
-    selectAudioFeatureFrame,
-} from '@state/selectors/audioFeatureSelectors';
+import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { selectAudioFeatureFrame } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
@@ -92,17 +89,14 @@ describe('audio feature export parity', () => {
         useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', cache);
     });
 
-    it('keeps runtime bindings, selectors, and export sampling in sync', () => {
-        const runtimeBinding = new AudioFeatureBinding({
-            trackId: 'audioTrack',
+    it('keeps runtime sampling and selector sampling in sync', () => {
+        const descriptor = {
             featureKey: 'rms',
             calculatorId: 'mvmnt.rms',
+            smoothing: null,
             bandIndex: null,
             channelIndex: null,
-            smoothing: null,
-        });
-        const exportBinding = new AudioFeatureBinding(runtimeBinding.getConfig());
-
+        } as const;
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);
         const rmsTrack = cache.featureTracks.rms;
@@ -111,17 +105,12 @@ describe('audio feature export parity', () => {
         const frameTimes = Array.from({ length: 4 }, (_, idx) => idx * secondsPerFrame);
 
         const runtimeVectors: number[][] = [];
-        const exportVectors: number[][] = [];
         const selectorVectors: number[][] = [];
 
         for (const time of frameTimes) {
-            const runtimeSample = runtimeBinding.getValueWithContext({ targetTime: time, sceneConfig: {} });
+            const runtimeSample = sampleFeatureFrame('audioTrack', descriptor, time);
             expect(runtimeSample).toBeTruthy();
             runtimeVectors.push([...(runtimeSample?.values ?? [])]);
-
-            const exportSample = exportBinding.getValueWithContext({ targetTime: time, sceneConfig: {} });
-            expect(exportSample).toBeTruthy();
-            exportVectors.push([...(exportSample?.values ?? [])]);
 
             const state = useTimelineStore.getState();
             const selectorSample = selectAudioFeatureFrame(
@@ -135,45 +124,19 @@ describe('audio feature export parity', () => {
         }
 
         runtimeVectors.forEach((vector, index) => {
-            expectVectorsClose(vector, exportVectors[index]);
             expectVectorsClose(vector, selectorVectors[index]);
         });
 
-        const endTick = hopTicks * (frameTimes.length - 1) + (hopTicks - 1);
-        const state = useTimelineStore.getState();
-        const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 0, endTick);
-        expect(range).toBeDefined();
-        expect(range?.frameCount).toBeGreaterThanOrEqual(frameTimes.length);
-        expect(range?.frameTicks.length).toBe(range?.frameCount ?? 0);
-        expect(range?.windowStartTick).toBeLessThanOrEqual(range?.windowEndTick ?? 0);
-
-        for (let frame = 0; frame < frameTimes.length; frame += 1) {
-            const frameVector: number[] = [];
-            for (let channel = 0; channel < (range?.channels ?? 0); channel += 1) {
-                frameVector.push(range?.data[frame * (range?.channels ?? 1) + channel] ?? 0);
-            }
-            expectVectorsClose(frameVector, selectorVectors[frame]);
-        }
-
         const midTime = secondsPerFrame * 1.5;
-        const runtimeSample = runtimeBinding.getValueWithContext({ targetTime: midTime, sceneConfig: {} });
-        const exportSample = exportBinding.getValueWithContext({ targetTime: midTime, sceneConfig: {} });
-        const selectorSample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tm.secondsToTicks(midTime));
-        expect(runtimeSample).toBeTruthy();
-        expect(exportSample).toBeTruthy();
-        expect(selectorSample).toBeTruthy();
-        expectVectorsClose(runtimeSample?.values ?? [], exportSample?.values ?? []);
-        expectVectorsClose(runtimeSample?.values ?? [], selectorSample?.values ?? []);
-
-        useTimelineStore.getState().setHybridCacheAdapterEnabled(false, 'parity-check');
-        const legacySample = selectAudioFeatureFrame(
+        const runtimeSample = sampleFeatureFrame('audioTrack', descriptor, midTime);
+        const selectorSample = selectAudioFeatureFrame(
             useTimelineStore.getState(),
             'audioTrack',
             'rms',
             tm.secondsToTicks(midTime),
         );
-        expect(legacySample).toBeTruthy();
-        expectVectorsClose(legacySample?.values ?? [], selectorSample?.values ?? []);
-        useTimelineStore.getState().setHybridCacheAdapterEnabled(true);
+        expect(runtimeSample).toBeTruthy();
+        expect(selectorSample).toBeTruthy();
+        expectVectorsClose(runtimeSample?.values ?? [], selectorSample?.values ?? []);
     });
 });

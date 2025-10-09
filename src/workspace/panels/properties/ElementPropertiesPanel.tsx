@@ -121,16 +121,6 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     }
                 } else if (binding?.type === 'constant') {
                     nextValues[property.key] = normalizeConstantValue(property.key, binding.value ?? property.default);
-                } else if (binding?.type === 'audioFeature') {
-                    nextValues[property.key] = {
-                        type: 'audioFeature',
-                        trackId: binding.trackId,
-                        featureKey: binding.featureKey,
-                        calculatorId: binding.calculatorId,
-                        bandIndex: binding.bandIndex ?? null,
-                        channelIndex: binding.channelIndex ?? null,
-                        smoothing: binding.smoothing ?? null,
-                    };
                 } else {
                     nextValues[property.key] = normalizeConstantValue(property.key, property.default);
                 }

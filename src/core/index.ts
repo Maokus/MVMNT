@@ -14,7 +14,6 @@ export {
     ConstantBinding,
     MacroBinding,
     PropertyBindingUtils,
-    AudioFeatureBinding,
 } from '@bindings/property-bindings';
 export type { PropertyBindingData, PropertyBindingContext } from '@bindings/property-bindings';
 export { loadDefaultScene, resetToDefaultScene } from './default-scene-loader';

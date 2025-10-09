@@ -2,8 +2,9 @@ import { create, type StateCreator } from 'zustand';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
+import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 
-export type BindingState = ConstantBindingState | MacroBindingState | AudioFeatureBindingState;
+export type BindingState = ConstantBindingState | MacroBindingState;
 
 export interface ConstantBindingState {
     type: 'constant';
@@ -15,17 +16,71 @@ export interface MacroBindingState {
     macroId: string;
 }
 
-export interface AudioFeatureBindingState {
+export type ElementBindings = Record<string, BindingState>;
+
+interface LegacyAudioFeatureBindingData {
     type: 'audioFeature';
-    trackId: string;
-    featureKey: string;
-    calculatorId?: string;
+    trackId?: string;
+    featureKey?: string;
+    calculatorId?: string | null;
     bandIndex?: number | null;
     channelIndex?: number | null;
     smoothing?: number | null;
 }
 
-export type ElementBindings = Record<string, BindingState>;
+function isLegacyAudioFeatureBinding(
+    value: unknown,
+): value is LegacyAudioFeatureBindingData {
+    return Boolean(value && typeof value === 'object' && (value as { type?: string }).type === 'audioFeature');
+}
+
+function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): AudioFeatureDescriptor | null {
+    const featureKey = typeof payload.featureKey === 'string' && payload.featureKey ? payload.featureKey : null;
+    if (!featureKey) return null;
+    const coerceIndex = (input: unknown): number | null =>
+        typeof input === 'number' && Number.isFinite(input) ? input : null;
+    const calculatorId =
+        typeof payload.calculatorId === 'string' && payload.calculatorId
+            ? payload.calculatorId
+            : null;
+    const smoothing =
+        typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing)
+            ? payload.smoothing
+            : null;
+    return {
+        featureKey,
+        calculatorId,
+        bandIndex: coerceIndex(payload.bandIndex),
+        channelIndex: coerceIndex(payload.channelIndex),
+        smoothing,
+    };
+}
+
+export interface LegacyBindingMigrationResult {
+    clearedKeys: string[];
+    replacements: Record<string, BindingState>;
+}
+
+export function migrateLegacyAudioFeatureBinding(
+    propertyKey: string,
+    value: unknown,
+): LegacyBindingMigrationResult | null {
+    if (propertyKey !== 'featureBinding') return null;
+    const clearedKeys = ['featureBinding', 'featureTrackId', 'featureDescriptor'];
+    if (!isLegacyAudioFeatureBinding(value)) {
+        return { clearedKeys, replacements: {} };
+    }
+    const replacements: Record<string, BindingState> = {};
+    const trackId = typeof value.trackId === 'string' && value.trackId ? value.trackId : null;
+    if (trackId) {
+        replacements.featureTrackId = { type: 'constant', value: trackId };
+    }
+    const descriptor = sanitizeLegacyDescriptor(value);
+    if (descriptor) {
+        replacements.featureDescriptor = { type: 'constant', value: descriptor };
+    }
+    return { clearedKeys, replacements };
+}
 
 export interface MacroBindingAssignment {
     elementId: string;
@@ -213,15 +268,7 @@ function cloneBinding(binding: BindingState): BindingState {
     if (binding.type === 'macro') {
         return { type: 'macro', macroId: binding.macroId };
     }
-    return {
-        type: 'audioFeature',
-        trackId: binding.trackId,
-        featureKey: binding.featureKey,
-        calculatorId: binding.calculatorId,
-        bandIndex: binding.bandIndex ?? null,
-        channelIndex: binding.channelIndex ?? null,
-        smoothing: binding.smoothing ?? null,
-    };
+    throw new Error(`Unsupported binding type: ${(binding as { type?: string }).type ?? 'unknown'}`);
 }
 
 function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
@@ -314,16 +361,6 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
-    if (a.type === 'audioFeature' && b.type === 'audioFeature') {
-        return (
-            a.trackId === b.trackId &&
-            a.featureKey === b.featureKey &&
-            (a.calculatorId ?? null) === (b.calculatorId ?? null) &&
-            (a.bandIndex ?? null) === (b.bandIndex ?? null) &&
-            (a.channelIndex ?? null) === (b.channelIndex ?? null) &&
-            (a.smoothing ?? null) === (b.smoothing ?? null)
-        );
-    }
     return false;
 }
 
@@ -332,21 +369,25 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
     for (const [key, value] of Object.entries(raw)) {
         if (key === 'id' || key === 'type' || key === 'index') continue;
         if (!value || typeof value !== 'object') continue;
-        const payload = value as PropertyBindingData;
-        if (payload.type === 'constant') {
-            bindings[key] = { type: 'constant', value: payload.value };
-        } else if (payload.type === 'macro' && typeof payload.macroId === 'string') {
-            bindings[key] = { type: 'macro', macroId: payload.macroId };
-        } else if (payload.type === 'audioFeature') {
-            bindings[key] = {
-                type: 'audioFeature',
-                trackId: payload.trackId,
-                featureKey: payload.featureKey,
-                calculatorId: payload.calculatorId,
-                bandIndex: payload.bandIndex ?? null,
-                channelIndex: payload.channelIndex ?? null,
-                smoothing: payload.smoothing ?? null,
-            };
+        const payload = value as Partial<PropertyBindingData>;
+        const type = (value as { type?: string }).type;
+        if (type === 'constant') {
+            const constantValue = (payload as { value?: unknown }).value;
+            bindings[key] = { type: 'constant', value: constantValue };
+            continue;
+        }
+        if (type === 'macro' && typeof (payload as { macroId?: unknown }).macroId === 'string') {
+            const macroId = (payload as { macroId: string }).macroId;
+            bindings[key] = { type: 'macro', macroId };
+            continue;
+        }
+        if (type === 'audioFeature') {
+            const migration = migrateLegacyAudioFeatureBinding(key, payload);
+            if (migration) {
+                for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
+                    bindings[replacementKey] = binding;
+                }
+            }
         }
     }
     return bindings;
@@ -367,16 +408,6 @@ function serializeElement(
             serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
         } else if (binding.type === 'macro') {
             serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
-        } else {
-            serialized[key] = {
-                type: 'audioFeature',
-                trackId: binding.trackId,
-                featureKey: binding.featureKey,
-                calculatorId: binding.calculatorId,
-                bandIndex: binding.bandIndex ?? undefined,
-                channelIndex: binding.channelIndex ?? undefined,
-                smoothing: binding.smoothing ?? undefined,
-            } satisfies PropertyBindingData;
         }
     }
     return serialized;
@@ -777,21 +808,42 @@ const createSceneStoreState = (
                     continue;
                 }
 
+                if ((binding as any)?.type === 'audioFeature') {
+                    const migration = migrateLegacyAudioFeatureBinding(key, binding);
+                    if (migration) {
+                        for (const clearedKey of migration.clearedKeys) {
+                            if (clearedKey in nextBindingsForElement) {
+                                delete nextBindingsForElement[clearedKey];
+                                changed = true;
+                                if (clearedKey === 'zIndex') {
+                                    zIndexChanged = true;
+                                }
+                            }
+                        }
+                        for (const [replacementKey, replacementBinding] of Object.entries(
+                            migration.replacements,
+                        )) {
+                            const current = nextBindingsForElement[replacementKey];
+                            if (!current || !bindingEquals(current, replacementBinding)) {
+                                nextBindingsForElement[replacementKey] = replacementBinding;
+                                changed = true;
+                                if (replacementKey === 'zIndex') {
+                                    zIndexChanged = true;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+
                 let normalized: BindingState;
                 if (binding.type === 'constant') {
                     normalized = { type: 'constant', value: binding.value };
                 } else if (binding.type === 'macro') {
                     normalized = { type: 'macro', macroId: binding.macroId };
                 } else {
-                    normalized = {
-                        type: 'audioFeature',
-                        trackId: binding.trackId,
-                        featureKey: binding.featureKey,
-                        calculatorId: binding.calculatorId,
-                        bandIndex: binding.bandIndex ?? null,
-                        channelIndex: binding.channelIndex ?? null,
-                        smoothing: binding.smoothing ?? null,
-                    };
+                    console.warn('[SceneStore] Ignoring unsupported binding type', binding);
+                    continue;
                 }
 
                 const current = nextBindingsForElement[key];

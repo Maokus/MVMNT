@@ -34,12 +34,6 @@ function isConstantBinding(binding: BindingState): binding is Extract<BindingSta
     return binding.type === 'constant';
 }
 
-function isAudioFeatureBinding(
-    binding: BindingState
-): binding is Extract<BindingState, { type: 'audioFeature' }> {
-    return binding.type === 'audioFeature';
-}
-
 function buildConfigPayload(record: SceneElementRecord, bindings: ElementBindings) {
     const config: Record<string, unknown> = { id: record.id };
     for (const [property, binding] of Object.entries(bindings)) {
@@ -47,16 +41,6 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
             config[property] = { type: 'macro', macroId: binding.macroId };
         } else if (isConstantBinding(binding)) {
             config[property] = { type: 'constant', value: binding.value };
-        } else if (isAudioFeatureBinding(binding)) {
-            config[property] = {
-                type: 'audioFeature',
-                trackId: binding.trackId,
-                featureKey: binding.featureKey,
-                calculatorId: binding.calculatorId,
-                bandIndex: binding.bandIndex ?? undefined,
-                channelIndex: binding.channelIndex ?? undefined,
-                smoothing: binding.smoothing ?? undefined,
-            };
         }
     }
     return config;
@@ -66,17 +50,6 @@ function bindingsSignature(elementType: string, bindings: ElementBindings): stri
     const pairs = Object.entries(bindings).map(([property, binding]) => {
         if (binding.type === 'macro') {
             return `${property}=macro:${binding.macroId}`;
-        }
-        if (isAudioFeatureBinding(binding)) {
-            const payload = {
-                trackId: binding.trackId,
-                featureKey: binding.featureKey,
-                calculatorId: binding.calculatorId ?? null,
-                bandIndex: binding.bandIndex ?? null,
-                channelIndex: binding.channelIndex ?? null,
-                smoothing: binding.smoothing ?? null,
-            };
-            return `${property}=audio:${serializeStable(payload)}`;
         }
         try {
             return `${property}=const:${serializeStable(binding.value)}`;

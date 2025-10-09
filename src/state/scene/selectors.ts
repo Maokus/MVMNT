@@ -45,15 +45,7 @@ function bindingsFingerprint(bindings: ElementBindings): string {
             if (binding.type === 'macro') {
                 return `${property}=macro:${binding.macroId}`;
             }
-            const payload = {
-                trackId: binding.trackId,
-                featureKey: binding.featureKey,
-                calculatorId: binding.calculatorId ?? null,
-                bandIndex: binding.bandIndex ?? null,
-                channelIndex: binding.channelIndex ?? null,
-                smoothing: binding.smoothing ?? null,
-            };
-            return `${property}=audio:${stableValueFingerprint(payload)}`;
+            return `${property}=unknown:${stableValueFingerprint(binding)}`;
         })
         .sort();
     return pairs.join('|');

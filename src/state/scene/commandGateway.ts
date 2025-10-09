@@ -9,6 +9,7 @@ import {
     type SceneSerializedMacros,
     type SceneSettingsState,
     type SceneStoreState,
+    migrateLegacyAudioFeatureBinding,
 } from '@state/sceneStore';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
@@ -128,17 +129,6 @@ function normalizeBindingValue(value: unknown): BindingState {
         if (payload.type === 'constant' && 'value' in payload) {
             return { type: 'constant', value: payload.value };
         }
-        if (payload.type === 'audioFeature' && typeof payload.trackId === 'string' && typeof payload.featureKey === 'string') {
-            return {
-                type: 'audioFeature',
-                trackId: payload.trackId,
-                featureKey: payload.featureKey,
-                calculatorId: payload.calculatorId,
-                bandIndex: payload.bandIndex ?? null,
-                channelIndex: payload.channelIndex ?? null,
-                smoothing: payload.smoothing ?? null,
-            };
-        }
     }
     return { type: 'constant', value };
 }
@@ -146,6 +136,18 @@ function normalizeBindingValue(value: unknown): BindingState {
 function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBindingsPatch {
     const next: ElementBindingsPatch = {};
     for (const [property, value] of Object.entries(patch)) {
+        if (property === 'featureBinding') {
+            const migration = migrateLegacyAudioFeatureBinding(property, value);
+            if (migration) {
+                for (const cleared of migration.clearedKeys) {
+                    next[cleared] = null;
+                }
+                for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
+                    next[replacementKey] = binding;
+                }
+                continue;
+            }
+        }
         if (value == null) {
             next[property] = null;
             continue;
@@ -161,16 +163,6 @@ function bindingEquals(a: BindingState | undefined, b: BindingState | undefined)
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
-    if (a.type === 'audioFeature' && b.type === 'audioFeature') {
-        return (
-            a.trackId === b.trackId &&
-            a.featureKey === b.featureKey &&
-            (a.calculatorId ?? null) === (b.calculatorId ?? null) &&
-            (a.bandIndex ?? null) === (b.bandIndex ?? null) &&
-            (a.channelIndex ?? null) === (b.channelIndex ?? null) &&
-            (a.smoothing ?? null) === (b.smoothing ?? null)
-        );
-    }
     return false;
 }
 
@@ -179,18 +171,7 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
     if (binding.type === 'macro') {
         return { type: 'macro', macroId: binding.macroId };
     }
-    if (binding.type === 'constant') {
-        return { type: 'constant', value: binding.value };
-    }
-    return {
-        type: 'audioFeature',
-        trackId: binding.trackId,
-        featureKey: binding.featureKey,
-        calculatorId: binding.calculatorId,
-        bandIndex: binding.bandIndex ?? undefined,
-        channelIndex: binding.channelIndex ?? undefined,
-        smoothing: binding.smoothing ?? undefined,
-    };
+    return { type: 'constant', value: binding.value };
 }
 
 function buildConfigFromBindings(bindings: ElementBindings): Record<string, unknown> {

@@ -2,7 +2,6 @@ import { describe, expect, it, beforeEach, beforeAll, afterAll, vi } from 'vites
 import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
-import { ConstantBinding } from '@bindings/property-bindings';
 import { Poly, Text } from '@core/render/render-objects';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
@@ -174,6 +173,7 @@ describe('audio scene elements', () => {
     });
 
     it('builds bar geometry for spectrum elements', () => {
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', createSpectrogramCache('testTrack'));
         const element = new AudioSpectrumElement('spectrum');
         element.updateConfig({
             bandCount: 3,
@@ -182,17 +182,15 @@ describe('audio scene elements', () => {
             useLogScale: false,
             startFrequency: 0,
             endFrequency: 22050,
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
         });
-        element.setBinding(
-            'featureBinding',
-            new ConstantBinding({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 120,
-                values: [-60, -30, -10],
-                format: 'float32',
-            }),
-        );
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
@@ -288,16 +286,6 @@ describe('audio scene elements', () => {
 
     it('builds volume meter rectangles', () => {
         const element = new AudioVolumeMeterElement('meter');
-        element.setBinding(
-            'featureBinding',
-            new ConstantBinding({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 120,
-                values: [0.75],
-                format: 'float32',
-            }),
-        );
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
@@ -337,16 +325,6 @@ describe('audio scene elements', () => {
     it('renders volume text when enabled', () => {
         const element = new AudioVolumeMeterElement('meterText');
         element.updateConfig({ showText: true, textLocation: 'bottom' });
-        element.setBinding(
-            'featureBinding',
-            new ConstantBinding({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 120,
-                values: [0.5],
-                format: 'float32',
-            }),
-        );
 
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
@@ -359,36 +337,30 @@ describe('audio scene elements', () => {
     });
 
     it('moves track text with meter height', () => {
+        const cache = createRmsCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
         const element = new AudioVolumeMeterElement('meterTrackText');
-        element.updateConfig({ showText: true, textLocation: 'track' });
-        element.setBinding(
-            'featureBinding',
-            new ConstantBinding({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 120,
-                values: [0.25],
-                format: 'float32',
-            }),
-        );
+        element.updateConfig({
+            showText: true,
+            textLocation: 'track',
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'rms',
+                calculatorId: 'test.rms',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
+        });
 
         const first = element.buildRenderObjects({}, 0);
         const firstContainer = first[0] as any;
         const firstText = firstContainer.children?.[2];
         expect(firstText).toBeInstanceOf(Text);
 
-        element.setBinding(
-            'featureBinding',
-            new ConstantBinding({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 120,
-                values: [0.75],
-                format: 'float32',
-            }),
-        );
-
-        const second = element.buildRenderObjects({}, 0);
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks ?? 0);
+        const second = element.buildRenderObjects({}, hopSeconds);
         const secondContainer = second[0] as any;
         const secondText = secondContainer.children?.[2];
         expect(secondText).toBeInstanceOf(Text);

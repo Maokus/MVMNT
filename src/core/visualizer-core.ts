@@ -671,18 +671,8 @@ export class MIDIVisualizerCore {
         for (const [key, binding] of Object.entries(bindings)) {
             if (binding.type === 'macro') {
                 config[key] = { type: 'macro', macroId: binding.macroId };
-            } else if (binding.type === 'constant') {
-                config[key] = binding.value;
             } else {
-                config[key] = {
-                    type: 'audioFeature',
-                    trackId: binding.trackId,
-                    featureKey: binding.featureKey,
-                    calculatorId: binding.calculatorId,
-                    bandIndex: binding.bandIndex ?? null,
-                    channelIndex: binding.channelIndex ?? null,
-                    smoothing: binding.smoothing ?? null,
-                };
+                config[key] = binding.value;
             }
         }
         return config;
