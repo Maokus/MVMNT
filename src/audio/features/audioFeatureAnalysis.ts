@@ -506,7 +506,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
         version: 1,
         featureKey: 'waveform',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, signal } = context;
+            const { audioBuffer, analysisParams, signal } = context;
             const maybeYield = createAnalysisYieldController(signal);
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const baseHopSize = Math.max(1, analysisParams.hopSize);
@@ -535,9 +535,19 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 context.reportProgress?.(frame + 1, waveformFrameCount);
             }
             await maybeYield();
-            const hopRatio = waveformHopSize / baseHopSize;
-            const waveformHopTicks = Math.max(1, Math.round(Math.max(1, hopTicks) * hopRatio));
+            const timingContext = createTimingContext(
+                {
+                    globalBpm: context.timing.globalBpm,
+                    beatsPerBar: context.timing.beatsPerBar,
+                    masterTempoMap: context.timing.tempoMap,
+                },
+                context.timing.ticksPerQuarter,
+            );
             const waveformHopSeconds = waveformHopSize / audioBuffer.sampleRate;
+            const waveformHopTicks = Math.max(
+                1,
+                Math.round(secondsToTicks(timingContext, waveformHopSeconds)),
+            );
             return {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',

@@ -9,6 +9,8 @@ import {
     audioFeatureCalculatorRegistry,
     resetAudioFeatureCalculators,
 } from '@audio/features/audioFeatureRegistry';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
+import { getSharedTimingManager } from '@state/timelineStore';
 
 function createSineBuffer(durationSeconds: number, sampleRate = 44100): AudioBuffer {
     const frameCount = Math.max(1, Math.floor(durationSeconds * sampleRate));
@@ -61,6 +63,31 @@ describe('audio feature analysis', () => {
         expect(spectrogramTrack.metadata?.maxDecibels).toBe(0);
         const values = Array.from((spectrogramTrack.data as Float32Array).slice(0, spectrogramTrack.channels));
         expect(values.every((value) => value >= -80 && value <= 0)).toBe(true);
+    });
+
+    it('aligns waveform hop ticks with hop seconds conversions', async () => {
+        const buffer = createSineBuffer(0.3);
+        const globalBpm = 128;
+        const beatsPerBar = 4;
+        const { cache } = await analyzeAudioBufferFeatures({
+            audioSourceId: 'waveform-hop',
+            audioBuffer: buffer,
+            globalBpm,
+            beatsPerBar,
+        });
+        const waveform = cache.featureTracks.waveform;
+        expect(waveform).toBeDefined();
+        if (!waveform) return;
+        const timingContext = createTimingContext(
+            {
+                globalBpm,
+                beatsPerBar,
+                masterTempoMap: undefined,
+            },
+            getSharedTimingManager().ticksPerQuarter,
+        );
+        const expectedTicks = Math.max(1, Math.round(secondsToTicks(timingContext, waveform.hopSeconds)));
+        expect(waveform.hopTicks).toBe(expectedTicks);
     });
 
     it('scheduler resolves queued jobs and supports cancellation', async () => {

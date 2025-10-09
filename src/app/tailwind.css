@@ -531,7 +531,7 @@
         @apply px-4 py-6 text-center text-[12px] text-[#a3a3a3];
     }
     .ae-group-header {
-        @apply flex items-start gap-2 px-2 py-1.5 bg-[#2c2c2c] select-none transition-colors hover:bg-[#333333];
+        @apply flex items-start gap-2 px-2 py-1.5 bg-[#2c2c2c] select-none transition-colors hover:bg-[#333333] items-center;
     }
     .ae-collapse-trigger {
         @apply flex items-center justify-center w-5 h-5 mt-[2px] rounded bg-[#1f1f1f] text-[#a0a0a0] text-[10px] border border-[#3f3f46] cursor-pointer;
