@@ -12,7 +12,7 @@
 - **Determinism first:** Rendering must derive solely from cached audio features and declared parameters; no frame-to-frame mutable renderer state.
 - **Composable descriptors:** Elements bind to `{ trackRef, featureDescriptor, profileId }` tuples and can request multiple descriptors per property.
 - **Transparent UX:** Inspector copy, prompts, and documentation use glossary-backed terminology and clearly communicate when caches must regenerate.
-- **Reusable utilities:** Shared smoothing, downsampling, transfer functions, and shader-friendly materials power all audio visuals to avoid bespoke logic.
+- **Reusable utilities:** Shared smoothing, downsampling, transfer functions, and rendering materials power all audio visuals to avoid bespoke logic.
 
 ## Dependencies & Assumptions
 - Uses the neutral binding model delivered in the Legacy Binding Shift work.
@@ -73,6 +73,7 @@
 - Implement non-blocking banners comparing current vs. requested analysis parameters with regenerate actions.
 - Create a diagnostics panel listing stale features grouped by track/profile with per-group rerun controls.
 - Record cache regeneration history for debugging and export provenance.
+- Align the above flows with the detailed requirements captured in [Audio Visualisation Phase 3 Spec](./avp-3-p3spec.md).
 
 **Acceptance Criteria**
 - Automated tests simulate profile mismatches and assert banners, diff payloads, and regeneration flows behave deterministically.
@@ -87,12 +88,12 @@
 - Spectrum: add Mel and note scale mappings, magnitude-driven color ramps, channel layering, and configurable transfer functions.
 - Volume Meter: introduce orientation presets, peak-hold markers using cached envelopes, glow/opacity curves, and label options.
 - Oscilloscope: implement stereo split, Lissajous mode, zero-cross triggering, persistence trails, and fill-under-curve styling.
-- Share GPU-friendly material abstractions that encapsulate glow and gradient uniforms with CPU fallbacks for export.
+- Share reusable material abstractions that encapsulate glow and gradient treatments with deterministic CPU rendering.
 - Provide reusable history sampling utilities that pull multiple cached frames per render to avoid stateful renderers.
 
 **Acceptance Criteria**
 - Inspector controls expose new rendering options per element, localized and documented in release notes.
-- Automated render snapshots cover multi-channel layering, persistence effects, and shader fallbacks across three reference scenes.
+- Automated render snapshots cover multi-channel layering, persistence effects, and rendering fallbacks across three reference scenes.
 - Performance profiling shows no regression beyond agreed thresholds for multi-feature scenes at target FPS.
 - Export determinism tests confirm repeated renders are identical despite advanced visual treatments.
 
@@ -101,7 +102,7 @@
 
 **Key Activities**
 - Implement global palette, glow, and smoothing multipliers that elements can opt into while remaining deterministic.
-- Extend export pipeline with oversampling/motion-blur settings and ensure compatibility with new shader materials.
+- Extend export pipeline with oversampling/motion-blur settings and ensure compatibility with new rendering materials.
 - Add preset library support for saving spectrum/meter/oscilloscope configurations with linked global styles.
 - Document best practices for combining modules and link to case studies or templates.
 
@@ -114,11 +115,10 @@
 ## Validation & QA Strategy
 - Expand automated tests for cache determinism, inspector state persistence, and render snapshot comparisons.
 - Add manual QA checklist per phase, covering multi-channel binding, cache prompts, and export verification.
-- Capture performance benchmarks for representative scenes (simple mono, stereo multi-feature, heavy shader usage).
+- Capture performance benchmarks for representative scenes (simple mono, stereo multi-feature, advanced rendering treatments).
 
 ## Open Questions
 - Should track aliases be author-editable or derived strictly from import metadata? (Requires UX and audio pipeline alignment.)
-- How do we scale descriptor UI for surround/object-based audio without overwhelming the selector?
 - What telemetry is necessary to monitor cache regeneration frequency and performance without storing user content?
 
 ## Cross-References
