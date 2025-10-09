@@ -58,6 +58,7 @@ const AboutPage: React.FC = () => {
                     <section className="md:col-span-2 p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Contributing / Feedback</h2>
                         <p className="text-sm text-neutral-300 leading-relaxed">Ideas, PRs, and bug reports welcome. Join the Discord or open an issue. Response time may vary—this is a passion project.</p>
+                        <p className="text-sm text-neutral-300 leading-relaxed">This project does incur some costs to maintain and develop, so if you find it useful, consider supporting it through the kofi :) </p>
                         <div className="flex flex-wrap gap-3 mt-5">
                             <Link to="/" className="px-4 py-2 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-medium">Back to Home</Link>
                             <a href='https://maok.us/discord' target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded bg-[#5865F2] hover:brightness-110 text-xs font-medium inline-flex items-center gap-2" aria-label="Join the Discord server">

@@ -1,7 +1,7 @@
 {
     "name": "midi-social-visualizer-react",
-    "version": "0.13.0",
-    "description": "A React-based MIDI visualization application for creating social media videos from MIDI files",
+    "version": "0.14.0",
+    "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "private": true,
     "type": "module",
     "dependencies": {
