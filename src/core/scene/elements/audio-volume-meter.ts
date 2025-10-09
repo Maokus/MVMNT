@@ -1,5 +1,5 @@
 import { SceneElement } from './base';
-import { Rectangle, type RenderObject } from '@core/render/render-objects';
+import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
@@ -72,6 +72,24 @@ export class AudioVolumeMeterElement extends SceneElement {
                             max: 800,
                             step: 1,
                         },
+                        {
+                            key: 'showText',
+                            type: 'boolean',
+                            label: 'Show Volume Text',
+                            default: false,
+                        },
+                        {
+                            key: 'textLocation',
+                            type: 'select',
+                            label: 'Text Location',
+                            default: 'bottom',
+                            options: [
+                                { label: 'Bottom', value: 'bottom' },
+                                { label: 'Top', value: 'top' },
+                                { label: 'Track', value: 'track' },
+                            ],
+                            visibleWhen: [{ key: 'showText', truthy: true }],
+                        },
                     ],
                     presets: [
                         {
@@ -108,6 +126,8 @@ export class AudioVolumeMeterElement extends SceneElement {
         const width = Math.max(4, this.getProperty<number>('width') ?? 20);
         const height = Math.max(20, this.getProperty<number>('height') ?? 200);
         const color = this.getProperty<string>('meterColor') ?? '#f472b6';
+        const showText = this.getProperty<boolean>('showText') ?? false;
+        const textLocation = (this.getProperty<string>('textLocation') ?? 'bottom') as 'bottom' | 'top' | 'track';
         const clamped = Math.max(minValue, Math.min(maxValue, rms));
         const normalized = maxValue - minValue <= 0 ? 0 : (clamped - minValue) / (maxValue - minValue);
         const meterHeight = normalized * height;
@@ -116,10 +136,35 @@ export class AudioVolumeMeterElement extends SceneElement {
         layoutRect.setVisible(false);
         objects.push(layoutRect);
 
-        if (sample && sample.values?.length) {
-            const rect = new Rectangle(0, height - meterHeight, width, meterHeight, color);
-            rect.setIncludeInLayoutBounds(false);
-            objects.push(rect);
+        const rect = new Rectangle(0, height - meterHeight, width, meterHeight, color);
+        rect.setIncludeInLayoutBounds(false);
+        if (!(sample && sample.values?.length)) {
+            rect.setVisible(false);
+        }
+        objects.push(rect);
+
+        if (showText) {
+            const dbValue = rms > 0 ? 20 * Math.log10(rms) : Number.NEGATIVE_INFINITY;
+            const formatted = Number.isFinite(dbValue) ? `${dbValue.toFixed(1)} dB` : '-∞ dB';
+            const margin = 6;
+            let textX = width / 2;
+            let textY = height + margin;
+            let align: CanvasTextAlign = 'center';
+            let baseline: CanvasTextBaseline = 'top';
+
+            if (textLocation === 'top') {
+                textY = -margin;
+                baseline = 'bottom';
+            } else if (textLocation === 'track') {
+                textX = width + margin;
+                textY = height - meterHeight;
+                align = 'left';
+                baseline = 'middle';
+            }
+
+            const text = new Text(textX, textY, formatted, '12px Arial, sans-serif', '#ffffff', align, baseline);
+            text.setIncludeInLayoutBounds(false);
+            objects.push(text);
         }
 
         return objects;

@@ -3,7 +3,7 @@ import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
 import { ConstantBinding, AudioFeatureBinding } from '@bindings/property-bindings';
-import { Poly } from '@core/render/render-objects';
+import { Poly, Text } from '@core/render/render-objects';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
@@ -258,6 +258,67 @@ describe('audio scene elements', () => {
         const secondHeight = getMeterHeight(second);
         expect(firstHeight).toBeGreaterThan(0);
         expect(secondHeight).toBeGreaterThan(firstHeight);
+    });
+
+    it('renders volume text when enabled', () => {
+        const element = new AudioVolumeMeterElement('meterText');
+        element.updateConfig({ showText: true, textLocation: 'bottom' });
+        element.setBinding(
+            'featureBinding',
+            new ConstantBinding({
+                frameIndex: 0,
+                fractionalIndex: 0,
+                hopTicks: 120,
+                values: [0.5],
+                format: 'float32',
+            }),
+        );
+
+        const renderObjects = element.buildRenderObjects({}, 0);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        const text = container.children?.[2];
+        expect(text).toBeInstanceOf(Text);
+        expect(text?.text).toContain('dB');
+        const layoutRect = container.children?.[0];
+        expect(text?.y ?? 0).toBeGreaterThan((layoutRect?.height ?? 0) - 1);
+    });
+
+    it('moves track text with meter height', () => {
+        const element = new AudioVolumeMeterElement('meterTrackText');
+        element.updateConfig({ showText: true, textLocation: 'track' });
+        element.setBinding(
+            'featureBinding',
+            new ConstantBinding({
+                frameIndex: 0,
+                fractionalIndex: 0,
+                hopTicks: 120,
+                values: [0.25],
+                format: 'float32',
+            }),
+        );
+
+        const first = element.buildRenderObjects({}, 0);
+        const firstContainer = first[0] as any;
+        const firstText = firstContainer.children?.[2];
+        expect(firstText).toBeInstanceOf(Text);
+
+        element.setBinding(
+            'featureBinding',
+            new ConstantBinding({
+                frameIndex: 0,
+                fractionalIndex: 0,
+                hopTicks: 120,
+                values: [0.75],
+                format: 'float32',
+            }),
+        );
+
+        const second = element.buildRenderObjects({}, 0);
+        const secondContainer = second[0] as any;
+        const secondText = secondContainer.children?.[2];
+        expect(secondText).toBeInstanceOf(Text);
+        expect((secondText?.y as number) < (firstText?.y as number)).toBe(true);
     });
 
     it('samples waveform data for oscilloscope element', () => {
