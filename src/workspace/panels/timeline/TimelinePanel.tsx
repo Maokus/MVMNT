@@ -621,8 +621,8 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                 }
                 onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
                 className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${magnetActive
-                        ? 'bg-blue-600/70 text-white border-blue-400/70'
-                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                    ? 'bg-blue-600/70 text-white border-blue-400/70'
+                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
                     }`}
             >
                 <FaMagnet />
@@ -649,12 +649,12 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                                 role: 'menu',
                                 'aria-label': 'Timeline options menu',
                                 className:
-                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000]',
+                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000] text-xs',
                             })}
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
                         >
-                            <div className="flex items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center justify-between gap-2">
                                 <span className="text-neutral-300">Auto follow playhead</span>
                                 <button
                                     className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
@@ -665,7 +665,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                                     {follow ? 'On' : 'Off'}
                                 </button>
                             </div>
-                            <div className="flex flex-col gap-1 text-sm" role="none">
+                            <div className="flex flex-col gap-1" role="none">
                                 <label htmlFor={snapSelectId} className="text-xs font-medium uppercase tracking-wide text-neutral-400">
                                     Snap to
                                 </label>
