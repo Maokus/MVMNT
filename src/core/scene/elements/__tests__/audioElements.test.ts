@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, beforeAll, afterAll, vi } from 'vites
 import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
-import { ConstantBinding, AudioFeatureBinding } from '@bindings/property-bindings';
+import { ConstantBinding } from '@bindings/property-bindings';
 import { Poly, Text } from '@core/render/render-objects';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
@@ -215,19 +215,15 @@ describe('audio scene elements', () => {
             useLogScale: false,
             startFrequency: 0,
             endFrequency: 22050,
-            temporalSmoothing: 0,
-        });
-        element.setBinding(
-            'featureBinding',
-            new AudioFeatureBinding({
-                trackId: 'testTrack',
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
                 featureKey: 'spectrogram',
                 calculatorId: 'test.spectrogram',
+                smoothing: 0,
                 bandIndex: null,
                 channelIndex: null,
-                smoothing: null,
-            }),
-        );
+            },
+        });
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
         const hopSeconds = tm.ticksToSeconds(hopTicks);
@@ -267,16 +263,15 @@ describe('audio scene elements', () => {
             useLogScale: false,
             startFrequency: 0,
             endFrequency: 22050,
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
         });
-        const binding = new AudioFeatureBinding({
-            trackId: 'testTrack',
-            featureKey: 'spectrogram',
-            calculatorId: 'test.spectrogram',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
-        });
-        element.setBinding('featureBinding', binding);
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
         const hopSeconds = tm.ticksToSeconds(hopTicks);
@@ -289,27 +284,6 @@ describe('audio scene elements', () => {
         const after = element.buildRenderObjects({}, offsetSeconds + (cache.frameCount + 1) * hopSeconds);
         expect(collectHeights(before).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
         expect(collectHeights(after).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
-    });
-
-    it('applies temporal smoothing to spectrogram bindings', () => {
-        const cache = createSpectrogramCache('testTrack');
-        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
-        const element = new AudioSpectrumElement('spectrumSmoothing');
-        element.updateConfig({ temporalSmoothing: 3 });
-        const binding = new AudioFeatureBinding({
-            trackId: 'testTrack',
-            featureKey: 'spectrogram',
-            calculatorId: 'test.spectrogram',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
-        });
-        element.setBinding('featureBinding', binding);
-        element.buildRenderObjects({}, 0);
-        expect(binding.getConfig().smoothing).toBe(3);
-        element.updateConfig({ temporalSmoothing: 0 });
-        element.buildRenderObjects({}, 0);
-        expect(binding.getConfig().smoothing).toBe(0);
     });
 
     it('builds volume meter rectangles', () => {
@@ -334,17 +308,16 @@ describe('audio scene elements', () => {
         const cache = createRmsCache('testTrack');
         useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
         const element = new AudioVolumeMeterElement('meterDynamic');
-        element.setBinding(
-            'featureBinding',
-            new AudioFeatureBinding({
-                trackId: 'testTrack',
+        element.updateConfig({
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
                 featureKey: 'rms',
                 calculatorId: 'test.rms',
+                smoothing: 0,
                 bandIndex: null,
                 channelIndex: null,
-                smoothing: null,
-            }),
-        );
+            },
+        });
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
         const hopSeconds = tm.ticksToSeconds(hopTicks);
@@ -423,16 +396,17 @@ describe('audio scene elements', () => {
     });
 
     it('samples waveform data for oscilloscope element', () => {
-        const binding = new AudioFeatureBinding({
-            trackId: 'testTrack',
-            featureKey: 'waveform',
-            calculatorId: 'mvmnt.waveform',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
-        });
         const element = new AudioOscilloscopeElement('osc');
-        element.setBinding('featureBinding', binding);
+        element.updateConfig({
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
+        });
         const renderObjects = element.buildRenderObjects({}, 0.25);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
@@ -443,17 +417,19 @@ describe('audio scene elements', () => {
     });
 
     it('aligns the oscilloscope playhead with the window center by default', () => {
-        const binding = new AudioFeatureBinding({
-            trackId: 'testTrack',
-            featureKey: 'waveform',
-            calculatorId: 'mvmnt.waveform',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
-        });
         const element = new AudioOscilloscopeElement('oscPlayhead');
-        element.updateConfig({ showPlayhead: true, width: 200 });
-        element.setBinding('featureBinding', binding);
+        element.updateConfig({
+            showPlayhead: true,
+            width: 200,
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
+        });
         const renderObjects = element.buildRenderObjects({}, 0.5);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
@@ -470,22 +446,25 @@ describe('audio scene elements', () => {
         useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
         const waveformTrack = cache.featureTracks.waveform!;
         const waveformData = waveformTrack.data as { min: Float32Array; max: Float32Array };
-        const binding = new AudioFeatureBinding({
-            trackId: 'testTrack',
-            featureKey: 'waveform',
-            calculatorId: 'mvmnt.waveform',
-            bandIndex: null,
-            channelIndex: null,
-            smoothing: null,
-        });
         const element = new AudioOscilloscopeElement('oscTiming');
         const width = 400;
         const height = 160;
         const tm = getSharedTimingManager();
         const hopTicks = waveformTrack.hopTicks ?? cache.hopTicks ?? 1;
         const windowSeconds = tm.ticksToSeconds(hopTicks * 10);
-        element.updateConfig({ windowSeconds, width, height });
-        element.setBinding('featureBinding', binding);
+        element.updateConfig({
+            windowSeconds,
+            width,
+            height,
+            featureTrackId: 'testTrack',
+            featureDescriptor: {
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                smoothing: 0,
+                bandIndex: null,
+                channelIndex: null,
+            },
+        });
         const targetFrameIndex = Math.floor(waveformTrack.frameCount / 2);
         const frameCenterTick = targetFrameIndex * hopTicks + hopTicks / 2;
         const targetSeconds = tm.ticksToSeconds(frameCenterTick);

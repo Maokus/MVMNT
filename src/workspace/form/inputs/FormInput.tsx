@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
-import MidiTrackSelect from './MidiTrackSelect';
-import AudioFeatureBindingInput from './AudioFeatureBindingInput';
+import TimelineTrackSelect from './TimelineTrackSelect';
+import AudioFeatureDescriptorInput from './AudioFeatureDescriptorInput';
 import { useNumberDrag } from './useNumberDrag';
 
 export interface FormInputChangeMeta {
@@ -209,15 +209,22 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         );
     }
 
-    if (type === 'midiTrackRef') {
+    if (type === 'timelineTrackRef') {
         return (
-            <MidiTrackSelect id={id} value={value ?? null} schema={schema} disabled={disabled} title={title} onChange={onChange} />
+            <TimelineTrackSelect
+                id={id}
+                value={value ?? null}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
         );
     }
 
-    if (type === 'audioFeature') {
+    if (type === 'audioFeature' || type === 'audioFeatureDescriptor') {
         return (
-            <AudioFeatureBindingInput
+            <AudioFeatureDescriptorInput
                 id={id}
                 value={value ?? null}
                 schema={schema}

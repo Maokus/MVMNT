@@ -34,7 +34,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     collapsed: false,
                     description: 'Choose the MIDI track and analysis window for detection.',
                     properties: [
-                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
                         {
                             key: 'windowSeconds',
                             type: 'number',

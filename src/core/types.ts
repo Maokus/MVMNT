@@ -205,8 +205,9 @@ export interface ConfigSchemaProperty {
         | 'file'
         | 'file-midi'
         | 'file-image'
-        | 'midiTrackRef'
-        | 'audioFeature';
+        | 'timelineTrackRef'
+        | 'audioFeature'
+        | 'audioFeatureDescriptor';
     label: string;
     default: any;
     min?: number;
@@ -259,8 +260,9 @@ export interface PropertyDefinition {
         | 'file-midi'
         | 'file-image'
         | 'font'
-        | 'midiTrackRef'
-        | 'audioFeature';
+        | 'timelineTrackRef'
+        | 'audioFeature'
+        | 'audioFeatureDescriptor';
     label: string;
     default?: any;
     min?: number;
@@ -269,7 +271,11 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
-    // UI hint: when type === 'midiTrackRef', allow selecting multiple tracks
+    // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
+    // Optional filter for track kinds supported by this binding (defaults to MIDI only)
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
+    // Link descriptor editors to the property storing the actual track reference
+    trackPropertyKey?: string;
     allowMultiple?: boolean;
     // Audio feature bindings can declare a required feature key and label.
     requiredFeatureKey?: string;

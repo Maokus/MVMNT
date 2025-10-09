@@ -8,7 +8,7 @@ export type MacroType =
     | 'file-midi'
     | 'file-image'
     | 'font'
-    | 'midiTrackRef';
+    | 'timelineTrackRef';
 
 export interface MacroOptions {
     min?: number;

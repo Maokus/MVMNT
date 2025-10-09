@@ -28,7 +28,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     variant: 'basic',
                     collapsed: false,
                     description: 'Select the MIDI track whose progress is tracked.',
-                    properties: [{ key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null }],
+                    properties: [{ key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null }],
                     presets: [
                         { id: 'leadTrack', label: 'Lead Track', values: {} },
                         { id: 'rhythmTrack', label: 'Rhythm Track', values: {} },

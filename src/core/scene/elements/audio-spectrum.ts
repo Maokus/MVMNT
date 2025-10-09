@@ -3,7 +3,13 @@ import { Line, Rectangle, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
-import { useTimelineStore } from '@state/timelineStore';
+import type { AudioFeatureDescriptor, AudioFeatureTrack, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import {
+    coerceFeatureDescriptor,
+    resolveFeatureContext,
+    resolveTimelineTrackRefValue,
+    sampleFeatureFrame,
+} from './audioFeatureUtils';
 
 type SpectrumDisplayMode = 'bars' | 'lines' | 'dots' | 'digital';
 type SpectrumSideMode = 'top' | 'bottom' | 'both';
@@ -11,6 +17,7 @@ type SpectrumColorMode = 'solid' | 'gradient' | 'magnitude';
 
 const DEFAULT_MIN_DECIBELS = -80;
 const DEFAULT_MAX_DECIBELS = 0;
+const DEFAULT_DESCRIPTOR = { featureKey: 'spectrogram', smoothing: 0 } as const;
 
 function clamp(value: number, min: number, max: number): number {
     if (Number.isNaN(value)) return min;
@@ -92,12 +99,20 @@ export class AudioSpectrumElement extends SceneElement {
                     description: 'Bind to an audio feature and tune the look of the spectrum.',
                     properties: [
                         {
-                            key: 'featureBinding',
-                            type: 'audioFeature',
-                            label: 'Audio Feature',
+                            key: 'featureTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'Audio Track',
+                            default: null,
+                            allowedTrackTypes: ['audio'],
+                        },
+                        {
+                            key: 'featureDescriptor',
+                            type: 'audioFeatureDescriptor',
+                            label: 'Feature Descriptor',
                             default: null,
                             requiredFeatureKey: 'spectrogram',
                             autoFeatureLabel: 'Spectrogram',
+                            trackPropertyKey: 'featureTrackId',
                         },
                         {
                             key: 'startFrequency',
@@ -130,15 +145,6 @@ export class AudioSpectrumElement extends SceneElement {
                             default: 96,
                             min: 4,
                             max: 512,
-                            step: 1,
-                        },
-                        {
-                            key: 'temporalSmoothing',
-                            type: 'number',
-                            label: 'Temporal Smoothing (frames)',
-                            default: 0,
-                            min: 0,
-                            max: 32,
                             step: 1,
                         },
                         {
@@ -247,25 +253,11 @@ export class AudioSpectrumElement extends SceneElement {
         };
     }
 
-    private _resolveSpectrogramMetadata(binding: AudioFeatureBinding | null): SpectrogramMetadata | null {
-        if (!(binding instanceof AudioFeatureBinding)) {
-            return null;
-        }
-        const config = binding.getConfig();
-        if (!config.trackId || !config.featureKey) {
-            return null;
-        }
-        const state = useTimelineStore.getState();
-        const track = state.tracks[config.trackId] as
-            | ({ type: string; audioSourceId?: string } & Record<string, unknown>)
-            | undefined;
-        if (!track || track.type !== 'audio') {
-            return null;
-        }
-        const sourceId = track.audioSourceId ?? config.trackId;
-        const cache = state.audioFeatureCaches[sourceId];
-        const featureTrack = cache?.featureTracks?.[config.featureKey];
-        if (!featureTrack) {
+    private _resolveSpectrogramMetadata(
+        cache: AudioFeatureCache | undefined,
+        featureTrack: AudioFeatureTrack | undefined,
+    ): SpectrogramMetadata | null {
+        if (!cache || !featureTrack) {
             return null;
         }
         const rawMetadata = featureTrack.metadata ?? {};
@@ -331,20 +323,33 @@ export class AudioSpectrumElement extends SceneElement {
         const useLogScale = this.getProperty<boolean>('useLogScale') ?? true;
         const startFrequencyProp = this.getProperty<number>('startFrequency') ?? 20;
         const endFrequencyProp = this.getProperty<number>('endFrequency') ?? 20000;
-        const smoothingFrames = Math.max(0, Math.floor(this.getProperty<number>('temporalSmoothing') ?? 0));
-
         let sample: AudioFeatureFrameSample | null = null;
         let metadata: SpectrogramMetadata | null = null;
 
-        if (binding instanceof AudioFeatureBinding) {
-            const current = binding.getConfig();
-            if ((current.smoothing ?? 0) !== smoothingFrames) {
-                binding.updateConfig({ smoothing: smoothingFrames });
+        const trackRefBinding = this.getBinding('featureTrackId');
+        const trackRefValue = this.getProperty<string | string[] | null>('featureTrackId');
+        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
+        const descriptor = coerceFeatureDescriptor(descriptorValue, DEFAULT_DESCRIPTOR);
+        const trackId = resolveTimelineTrackRefValue(trackRefBinding, trackRefValue);
+
+        if (trackId && descriptor.featureKey) {
+            sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+            const context = resolveFeatureContext(trackId, descriptor.featureKey);
+            metadata = this._resolveSpectrogramMetadata(context?.cache, context?.featureTrack);
+        }
+
+        if (!sample) {
+            const legacyBinding = binding instanceof AudioFeatureBinding ? binding : null;
+            if (legacyBinding) {
+                sample =
+                    legacyBinding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ??
+                    legacyBinding.getValue();
+                const legacyConfig = legacyBinding.getConfig();
+                const legacyContext = resolveFeatureContext(legacyConfig.trackId ?? null, legacyConfig.featureKey ?? null);
+                metadata = this._resolveSpectrogramMetadata(legacyContext?.cache, legacyContext?.featureTrack);
+            } else if (!sample) {
+                sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
             }
-            sample = binding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ?? binding.getValue();
-            metadata = this._resolveSpectrogramMetadata(binding);
-        } else {
-            sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
         }
 
         const resolvedBinCount = (() => {

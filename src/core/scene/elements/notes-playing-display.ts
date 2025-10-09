@@ -29,7 +29,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     collapsed: false,
                     description: 'Select which MIDI track(s) feed the live note readout.',
                     properties: [
-                        { key: 'midiTrackId', type: 'midiTrackRef', label: 'MIDI Track', default: null },
+                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
                         {
                             key: 'showAllAvailableTracks',
                             type: 'boolean',

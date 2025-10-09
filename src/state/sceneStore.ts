@@ -478,7 +478,7 @@ function validateMacroValue(
             if (value === null || value === undefined) return true;
             if (typeof File === 'undefined') return true;
             return value instanceof File;
-        case 'midiTrackRef':
+        case 'timelineTrackRef':
             if (value == null) return true;
             if (typeof value === 'string') return true;
             if (Array.isArray(value)) return value.every((entry) => typeof entry === 'string');

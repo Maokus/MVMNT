@@ -52,7 +52,7 @@ export interface PropertyDefinition {
         | 'font'
         | 'file-midi'
         | 'file-image'
-        | 'midiTrackRef'
+        | 'timelineTrackRef'
         | 'audioFeature';
     label: string;
     description?: string;

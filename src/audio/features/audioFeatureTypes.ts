@@ -16,6 +16,14 @@ export type AudioFeatureTrackData =
           max: Float32Array;
       };
 
+export interface AudioFeatureDescriptor {
+    featureKey: string;
+    calculatorId?: string | null;
+    bandIndex?: number | null;
+    channelIndex?: number | null;
+    smoothing?: number | null;
+}
+
 export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     /** Feature identifier (e.g., `spectrogram`). */
     key: string;

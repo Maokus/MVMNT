@@ -4,11 +4,19 @@ import type { EnhancedConfigSchema } from '@core/types';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
+import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import {
+    coerceFeatureDescriptor,
+    resolveFeatureContext,
+    resolveTimelineTrackRefValue,
+} from './audioFeatureUtils';
 
 export class AudioOscilloscopeElement extends SceneElement {
     constructor(id: string = 'audioOscilloscope', config: Record<string, unknown> = {}) {
         super('audioOscilloscope', id, config);
     }
+
+    private static readonly DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = { featureKey: 'waveform', smoothing: 0 };
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
@@ -29,12 +37,20 @@ export class AudioOscilloscopeElement extends SceneElement {
                     description: 'Bind to a waveform feature and adjust the viewport.',
                     properties: [
                         {
-                            key: 'featureBinding',
-                            type: 'audioFeature',
-                            label: 'Audio Feature',
+                            key: 'featureTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'Audio Track',
+                            default: null,
+                            allowedTrackTypes: ['audio'],
+                        },
+                        {
+                            key: 'featureDescriptor',
+                            type: 'audioFeatureDescriptor',
+                            label: 'Feature Descriptor',
                             default: null,
                             requiredFeatureKey: 'waveform',
                             autoFeatureLabel: 'Waveform',
+                            trackPropertyKey: 'featureTrackId',
                         },
                         {
                             key: 'windowSeconds',
@@ -146,19 +162,20 @@ export class AudioOscilloscopeElement extends SceneElement {
     }
 
     protected _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-        const binding = this.getBinding('featureBinding');
         const width = Math.max(40, this.getProperty<number>('width') ?? 320);
         const height = Math.max(20, this.getProperty<number>('height') ?? 160);
         const layoutRect = new Rectangle(0, 0, width, height, null, null, 0, { includeInLayoutBounds: true });
         layoutRect.setVisible(false);
-        if (!(binding instanceof AudioFeatureBinding)) {
-            return [layoutRect];
-        }
 
-        const config = binding.getConfig();
-        if (!config.trackId || !config.featureKey) {
-            return [layoutRect];
-        }
+        const trackBinding = this.getBinding('featureTrackId');
+        const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
+        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
+        const descriptor = coerceFeatureDescriptor(
+            descriptorValue,
+            AudioOscilloscopeElement.DEFAULT_DESCRIPTOR,
+        );
+        let trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
+        let featureKey = descriptor.featureKey;
 
         const tm = getSharedTimingManager();
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
@@ -172,10 +189,36 @@ export class AudioOscilloscopeElement extends SceneElement {
         const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
 
         const state = useTimelineStore.getState();
-        const range = sampleAudioFeatureRange(state, config.trackId, config.featureKey, startTick, endTick, {
-            bandIndex: config.bandIndex ?? undefined,
-            channelIndex: config.channelIndex ?? undefined,
-        });
+        let range =
+            trackId && featureKey
+                ? sampleAudioFeatureRange(state, trackId, featureKey, startTick, endTick, {
+                      bandIndex: descriptor.bandIndex ?? undefined,
+                      channelIndex: descriptor.channelIndex ?? undefined,
+                  })
+                : undefined;
+        if (!range) {
+            const legacyBinding = this.getBinding('featureBinding');
+            if (legacyBinding instanceof AudioFeatureBinding) {
+                const legacyConfig = legacyBinding.getConfig();
+                if (legacyConfig.trackId && legacyConfig.featureKey) {
+                    range = sampleAudioFeatureRange(
+                        state,
+                        legacyConfig.trackId,
+                        legacyConfig.featureKey,
+                        startTick,
+                        endTick,
+                        {
+                            bandIndex: legacyConfig.bandIndex ?? undefined,
+                            channelIndex: legacyConfig.channelIndex ?? undefined,
+                        },
+                    );
+                    if (range) {
+                        trackId = legacyConfig.trackId;
+                        featureKey = legacyConfig.featureKey;
+                    }
+                }
+            }
+        }
         if (!range || range.frameCount <= 0) {
             return [layoutRect];
         }
@@ -309,11 +352,12 @@ export class AudioOscilloscopeElement extends SceneElement {
 
             if (showDebugSource) {
                 const cacheEntry = state.audioFeatureCaches[range.sourceId];
-                const featureTrack = cacheEntry?.featureTracks?.[config.featureKey ?? ''];
+                const context = resolveFeatureContext(trackId ?? null, featureKey ?? null);
+                const featureTrack = context?.featureTrack ?? cacheEntry?.featureTracks?.[featureKey ?? ''];
                 const hopSeconds = featureTrack?.hopSeconds ?? cacheEntry?.hopSeconds;
                 const sampleRate = cacheEntry?.analysisParams?.sampleRate;
-                debugLines.push(`Track: ${config.trackId ?? '(unbound)'}`);
-                debugLines.push(`Feature: ${config.featureKey ?? '(none)'}`);
+                debugLines.push(`Track: ${trackId ?? '(unbound)'}`);
+                debugLines.push(`Feature: ${featureKey ?? '(none)'}`);
                 debugLines.push(
                     `Hop: ${range.hopTicks} ticks${
                         hopSeconds ? ` (${hopSeconds.toFixed(4)}s)` : ''

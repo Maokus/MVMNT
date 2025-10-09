@@ -119,7 +119,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     properties: [
                         {
                             key: 'midiTrackId',
-                            type: 'midiTrackRef',
+                            type: 'timelineTrackRef',
                             label: 'MIDI Track',
                             default: null,
                             description: 'Pick a track from the current timeline session.',

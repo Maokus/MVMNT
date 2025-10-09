@@ -3,11 +3,20 @@ import { Rectangle, Text, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
+import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import {
+    coerceFeatureDescriptor,
+    resolveFeatureContext,
+    resolveTimelineTrackRefValue,
+    sampleFeatureFrame,
+} from './audioFeatureUtils';
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
         super('audioVolumeMeter', id, config);
     }
+
+    private static readonly DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = { featureKey: 'rms', smoothing: 0 };
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
@@ -28,12 +37,20 @@ export class AudioVolumeMeterElement extends SceneElement {
                     description: 'Connect to a volume feature and shape the meter.',
                     properties: [
                         {
-                            key: 'featureBinding',
-                            type: 'audioFeature',
-                            label: 'Audio Feature',
+                            key: 'featureTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'Audio Track',
+                            default: null,
+                            allowedTrackTypes: ['audio'],
+                        },
+                        {
+                            key: 'featureDescriptor',
+                            type: 'audioFeatureDescriptor',
+                            label: 'Feature Descriptor',
                             default: null,
                             requiredFeatureKey: 'rms',
                             autoFeatureLabel: 'Volume (RMS)',
+                            trackPropertyKey: 'featureTrackId',
                         },
                         { key: 'meterColor', type: 'color', label: 'Meter Color', default: '#f472b6' },
                         {
@@ -115,11 +132,29 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const binding = this.getBinding('featureBinding');
-        const sample =
-            binding instanceof AudioFeatureBinding
-                ? binding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ?? binding.getValue()
-                : this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
+        const trackBinding = this.getBinding('featureTrackId');
+        const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
+        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
+        const descriptor = coerceFeatureDescriptor(
+            descriptorValue,
+            AudioVolumeMeterElement.DEFAULT_DESCRIPTOR,
+        );
+        const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
+
+        let sample: AudioFeatureFrameSample | null = null;
+        if (trackId && descriptor.featureKey) {
+            sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+        }
+        if (!sample) {
+            const legacyBinding = this.getBinding('featureBinding');
+            if (legacyBinding instanceof AudioFeatureBinding) {
+                sample =
+                    legacyBinding.getValueWithContext?.({ targetTime, sceneConfig: config ?? {} }) ??
+                    legacyBinding.getValue();
+            } else {
+                sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
+            }
+        }
         const rms = sample?.values?.[0] ?? 0;
         const minValue = this.getProperty<number>('minValue') ?? 0;
         const maxValue = this.getProperty<number>('maxValue') ?? 1;

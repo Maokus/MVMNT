@@ -75,7 +75,7 @@ export function buildEdgeMacroScene(): SceneFixtureResult {
         dispatchSceneCommand({
             type: 'createMacro',
             macroId: 'macro.midi.track',
-            definition: { type: 'midiTrackRef', value: [] },
+            definition: { type: 'timelineTrackRef', value: [] },
         });
         suppressConsole(() => {
             dispatchSceneCommand({

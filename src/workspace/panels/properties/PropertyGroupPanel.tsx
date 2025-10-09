@@ -43,7 +43,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             'select',
             'file',
             'font',
-            'midiTrackRef',
+            'timelineTrackRef',
         ].includes(normalizedType);
     };
 
@@ -103,8 +103,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             case 'font':
                 if (typeof value !== 'string' || !value) value = 'Arial|400';
                 break;
-            case 'midiTrackRef':
+            case 'timelineTrackRef':
                 if (prop.allowMultiple !== undefined) options.allowMultiple = prop.allowMultiple;
+                if (Array.isArray(prop.allowedTrackTypes)) options.allowedTrackTypes = [...prop.allowedTrackTypes];
                 if (value == null) value = null;
                 break;
             default:
@@ -128,10 +129,19 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         };
 
+        const descriptorTrackId =
+            property.type === 'audioFeatureDescriptor'
+                ? values[property.trackPropertyKey ?? 'featureTrackId'] ?? null
+                : null;
+        const schemaForInput =
+            property.type === 'audioFeatureDescriptor'
+                ? { ...property, trackId: descriptorTrackId }
+                : property;
+
         const commonProps = {
             id: `config-${property.key}`,
             value,
-            schema: property,
+            schema: schemaForInput,
             disabled: isAssignedToMacro,
             title: property.description,
             onChange: handleInputChange,

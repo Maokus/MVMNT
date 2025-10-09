@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FaLink, FaTrash, FaPlus, FaPen } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/form/inputs/FontInput';
-import MidiTrackSelect from '@workspace/form/inputs/MidiTrackSelect';
+import TimelineTrackSelect from '@workspace/form/inputs/TimelineTrackSelect';
 import { useNumberDrag } from '@workspace/form/inputs/useNumberDrag';
 import { useMacroAssignments } from '@state/scene';
 
@@ -13,7 +13,17 @@ interface MacroConfigProps {
 
 interface Macro {
     name: string;
-    type: 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'file-midi' | 'file-image' | 'font' | 'midiTrackRef';
+    type:
+        | 'number'
+        | 'string'
+        | 'boolean'
+        | 'color'
+        | 'select'
+        | 'file'
+        | 'file-midi'
+        | 'file-image'
+        | 'font'
+        | 'timelineTrackRef';
     value: any;
     options: {
         min?: number;
@@ -99,7 +109,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const nameInputRef = useRef<HTMLInputElement | null>(null);
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
         value: '',
         min: '',
         max: '',
@@ -225,7 +235,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             case 'font':
                 if (typeof value !== 'string' || value.trim() === '') value = 'Arial|400';
                 break;
-            case 'midiTrackRef':
+            case 'timelineTrackRef':
                 // Store a single track id or null initially
                 value = null;
                 break;
@@ -253,7 +263,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef',
+                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
                 value: '',
                 min: '',
                 max: '',
@@ -349,7 +359,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const handleMacroTypeChange = (type: string) => {
         setNewMacro(prev => {
-            const updated = { ...prev, type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'midiTrackRef' };
+            const updated = {
+                ...prev,
+                type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+            };
             switch (type) {
                 case 'number':
                     updated.value = '0';
@@ -366,7 +379,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 case 'font':
                     updated.value = 'Arial|400';
                     break;
-                case 'midiTrackRef':
+                case 'timelineTrackRef':
                     updated.value = '';
                     break;
                 default:
@@ -461,12 +474,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         onChange={(val: string) => handleUpdateMacroValue(macro.name, val)}
                     />
                 );
-            case 'midiTrackRef': {
+            case 'timelineTrackRef': {
                 return (
-                    <MidiTrackSelect
-                        id={`macro-midiTrack-${macro.name}`}
+                    <TimelineTrackSelect
+                        id={`macro-track-${macro.name}`}
                         value={macro.value ?? null}
-                        schema={{ allowMultiple: false }}
+                        schema={{ allowMultiple: false, allowedTrackTypes: macro.options?.allowedTrackTypes }}
                         onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
                     />
                 );
@@ -474,11 +487,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             default: // string
                 return (
                     (() => {
-                        // Heuristic: if macro named 'midiTrack' is a string, render the track dropdown
-                        if (macro.type === 'string' && macro.name.toLowerCase() === 'miditrack') {
+                        // Heuristic: if macro named 'track' is a string, render the track dropdown
+                        if (macro.type === 'string' && /track$/i.test(macro.name)) {
                             return (
-                                <MidiTrackSelect
-                                    id={`macro-midiTrack-${macro.name}`}
+                                <TimelineTrackSelect
+                                    id={`macro-track-${macro.name}`}
                                     value={macro.value ?? null}
                                     schema={{ allowMultiple: false }}
                                     onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
@@ -629,7 +642,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
                                 <option value="font">Font</option>
-                                <option value="midiTrackRef">MIDI Track</option>
+                                <option value="timelineTrackRef">Timeline Track</option>
                             </select>
                         </div>
                         {newMacro.type !== 'font' && (
