@@ -40,6 +40,7 @@ import type {
     TimelineCommandDispatchResult,
     TimelineSerializedCommandDescriptor,
 } from './timeline/commandTypes';
+import { mergeFeatureCaches } from './timeline/featureCacheUtils';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
 
@@ -172,6 +173,7 @@ export type TimelineState = {
     ) => void;
     stopAudioFeatureAnalysis: (id: string) => void;
     restartAudioFeatureAnalysis: (id: string) => void;
+    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[]) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
@@ -272,11 +274,18 @@ function cancelActiveAudioFeatureJob(id: string): void {
     }
 }
 
+interface ScheduleAudioFeatureAnalysisOptions {
+    calculators?: string[];
+    statusMessage?: string;
+    mergeWithExisting?: boolean;
+}
+
 function scheduleAudioFeatureAnalysis(
     sourceId: string,
     buffer: AudioBuffer,
     get: () => TimelineState,
     set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void,
+    options: ScheduleAudioFeatureAnalysisOptions = {},
 ): void {
     cancelActiveAudioFeatureJob(sourceId);
     if (process.env.NODE_ENV === 'test' && process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS !== 'true') {
@@ -293,12 +302,14 @@ function scheduleAudioFeatureAnalysis(
         return;
     }
     const snapshot = get();
+    const statusMessage = options.statusMessage
+        ?? (options.calculators?.length ? 'reanalysing selected features' : 'analyzing audio');
     set((state: TimelineState) => ({
         audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
             state.audioFeatureCacheStatus,
             sourceId,
             'pending',
-            'analyzing audio',
+            statusMessage,
             undefined,
             { value: 0, label: 'preparing' },
         ),
@@ -309,6 +320,7 @@ function scheduleAudioFeatureAnalysis(
         globalBpm: snapshot.timeline.globalBpm,
         beatsPerBar: snapshot.timeline.beatsPerBar,
         tempoMap: snapshot.timeline.masterTempoMap,
+        calculators: options.calculators,
         onProgress: (value, label) => {
             const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
             set((state: TimelineState) => ({
@@ -331,7 +343,11 @@ function scheduleAudioFeatureAnalysis(
             }
             activeAudioFeatureJobs.delete(sourceId);
             try {
-                get().ingestAudioFeatureCache(sourceId, cache);
+                const existing = get().audioFeatureCaches[sourceId];
+                const nextCache = options.mergeWithExisting
+                    ? mergeFeatureCaches(existing, cache)
+                    : cache;
+                get().ingestAudioFeatureCache(sourceId, nextCache);
             } catch (error) {
                 console.warn('[timelineStore] failed to ingest analyzed audio features', error);
             }
@@ -1026,6 +1042,33 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             return;
         }
         scheduleAudioFeatureAnalysis(id, buffer, get, set);
+    },
+
+    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[]) {
+        const unique = Array.from(new Set((calculatorIds || []).filter((entry): entry is string => !!entry)));
+        if (!unique.length) {
+            return;
+        }
+        const buffer = get().audioCache[id]?.audioBuffer;
+        if (!buffer) {
+            set((s: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'failed',
+                    'no audio buffer available',
+                    undefined,
+                    null,
+                ),
+            }));
+            return;
+        }
+        const statusMessage = unique.length === 1 ? 'reanalysing feature track' : 'reanalysing feature tracks';
+        scheduleAudioFeatureAnalysis(id, buffer, get, set, {
+            calculators: unique,
+            statusMessage,
+            mergeWithExisting: true,
+        });
     },
 
     clearAudioFeatureCache(id: string) {

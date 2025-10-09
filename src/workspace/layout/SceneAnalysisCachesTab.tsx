@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import type { AudioTrack } from '@audio/audioTypes';
-import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
+import type { AudioFeatureCacheStatus, AudioFeatureTrack } from '@audio/features/audioFeatureTypes';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { useTimelineStore } from '@state/timelineStore';
 import { shallow } from 'zustand/shallow';
 
@@ -77,6 +78,16 @@ function formatUpdatedAt(value?: number): string | undefined {
     }
 }
 
+function getFeatureTrackLabel(track: AudioFeatureTrack): string {
+    const calculator = track.calculatorId
+        ? audioFeatureCalculatorRegistry.get(track.calculatorId)
+        : undefined;
+    if (calculator?.label) {
+        return calculator.label;
+    }
+    return track.key;
+}
+
 const SceneAnalysisCachesTab: React.FC = () => {
     const timelineState = useTimelineStore(
         (state) => ({
@@ -90,6 +101,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
     );
     const stopAnalysis = useTimelineStore((state) => state.stopAudioFeatureAnalysis);
     const restartAnalysis = useTimelineStore((state) => state.restartAudioFeatureAnalysis);
+    const reanalyzeFeature = useTimelineStore((state) => state.reanalyzeAudioFeatureCalculators);
 
     const rows = useMemo(() => {
         return timelineState.order
@@ -99,17 +111,23 @@ const SceneAnalysisCachesTab: React.FC = () => {
                 const sourceId = track.audioSourceId ?? track.id;
                 const status = timelineState.status[sourceId];
                 const cache = timelineState.caches[sourceId];
-                const featureCount = Object.keys(cache?.featureTracks ?? {}).length;
                 const hasAudioBuffer = Boolean(timelineState.audioCache[sourceId]?.audioBuffer);
+                const features = Object.values(cache?.featureTracks ?? {})
+                    .map((feature) => ({
+                        key: feature.key,
+                        label: getFeatureTrackLabel(feature),
+                        calculatorId: feature.calculatorId,
+                    }))
+                    .sort((a, b) => a.label.localeCompare(b.label));
                 return {
                     trackId: track.id,
                     trackName: track.name ?? track.id,
                     sourceId,
                     status,
-                    featureCount,
                     hasCache: !!cache,
                     hasAudioBuffer,
                     updatedAt: status?.updatedAt,
+                    features,
                 };
             });
     }, [timelineState]);
@@ -126,6 +144,16 @@ const SceneAnalysisCachesTab: React.FC = () => {
             restartAnalysis(sourceId);
         },
         [restartAnalysis],
+    );
+
+    const handleReanalyzeFeature = useCallback(
+        (sourceId: string, calculatorId: string) => {
+            if (!calculatorId) {
+                return;
+            }
+            reanalyzeFeature(sourceId, [calculatorId]);
+        },
+        [reanalyzeFeature],
     );
 
     return (
@@ -191,39 +219,107 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                                    <div className="text-neutral-400">
-                                        {row.hasCache
-                                            ? `${row.featureCount} feature ${row.featureCount === 1 ? 'track' : 'tracks'} cached.`
-                                            : 'No analysed feature data stored yet.'}
+                                <div className="mt-3 flex flex-col gap-2 text-[11px]">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="text-neutral-400">
+                                            {row.hasCache
+                                                ? row.features.length
+                                                    ? `Cached ${row.features.length} feature ${
+                                                          row.features.length === 1 ? 'track' : 'tracks'
+                                                      }.`
+                                                    : 'Cached feature metadata available.'
+                                                : 'No analysed feature data stored yet.'}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                    stopDisabled
+                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                        : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
+                                                }`}
+                                                onClick={() => handleStop(row.sourceId)}
+                                                disabled={stopDisabled}
+                                            >
+                                                Stop
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                    restartDisabled
+                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                        : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
+                                                }`}
+                                                onClick={() => handleRestart(row.sourceId)}
+                                                disabled={restartDisabled}
+                                                title={restartTitle}
+                                            >
+                                                Restart
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            className={`rounded border px-2 py-1 transition-colors ${
-                                                stopDisabled
-                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                            }`}
-                                            onClick={() => handleStop(row.sourceId)}
-                                            disabled={stopDisabled}
-                                        >
-                                            Stop
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className={`rounded border px-2 py-1 transition-colors ${
-                                                restartDisabled
-                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                    : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
-                                            }`}
-                                            onClick={() => handleRestart(row.sourceId)}
-                                            disabled={restartDisabled}
-                                            title={restartTitle}
-                                        >
-                                            Restart
-                                        </button>
-                                    </div>
+                                    {row.features.length > 0 && (
+                                        <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                            <div className="mb-1 text-[11px] font-semibold text-neutral-200">
+                                                Cached feature tracks
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                {row.features.map((feature) => {
+                                                    const reanalyzeDisabled =
+                                                        row.status?.state === 'pending'
+                                                        || !row.hasAudioBuffer
+                                                        || !feature.calculatorId;
+                                                    const reanalyzeTitle = !row.hasAudioBuffer
+                                                        ? 'Audio buffer unavailable for this track.'
+                                                        : row.status?.state === 'pending'
+                                                            ? 'Analysis already in progress.'
+                                                            : feature.calculatorId
+                                                                ? 'Re-analyse this feature track.'
+                                                                : 'Calculator metadata unavailable.';
+                                                    return (
+                                                        <div
+                                                            key={`${row.sourceId}-${feature.key}`}
+                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800/60 bg-neutral-900/60 px-2 py-1"
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[11px] font-medium text-neutral-100">
+                                                                    {feature.label}
+                                                                </span>
+                                                                <span className="text-[10px] text-neutral-500">
+                                                                    Key: <span className="text-neutral-300">{feature.key}</span>
+                                                                    {feature.calculatorId && (
+                                                                        <>
+                                                                            {' '}
+                                                                            · Calculator:{' '}
+                                                                            <span className="text-neutral-300">
+                                                                                {feature.calculatorId}
+                                                                            </span>
+                                                                        </>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                className={`rounded border px-2 py-1 transition-colors ${
+                                                                    reanalyzeDisabled
+                                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                                        : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
+                                                                }`}
+                                                                onClick={() =>
+                                                                    feature.calculatorId
+                                                                        && handleReanalyzeFeature(row.sourceId, feature.calculatorId)
+                                                                }
+                                                                disabled={reanalyzeDisabled}
+                                                                title={reanalyzeTitle}
+                                                            >
+                                                                Re-analyse
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
