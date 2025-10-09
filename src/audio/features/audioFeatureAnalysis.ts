@@ -406,6 +406,7 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
+                context.reportProgress?.(frame + 1, frameCount);
             }
             await maybeYield();
 
@@ -472,6 +473,7 @@ function createRmsCalculator(): AudioFeatureCalculator {
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
+                context.reportProgress?.(frame + 1, frameCount);
             }
             await maybeYield();
             return {
@@ -530,6 +532,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
+                context.reportProgress?.(frame + 1, waveformFrameCount);
             }
             await maybeYield();
             const hopRatio = waveformHopSize / baseHopSize;
@@ -614,10 +617,33 @@ export async function analyzeAudioBufferFeatures(
     if (progress) {
         progress(0, 'start');
     }
+    const totalCalculators = calculators.length;
+    let completedCalculators = 0;
+    const createCalculatorProgressReporter = (label: string) => {
+        if (!progress || !totalCalculators) {
+            return undefined;
+        }
+        let lastRatio = 0;
+        return (processed: number, total: number) => {
+            if (!progress || total <= 0) {
+                return;
+            }
+            const bounded = Math.max(0, Math.min(processed, total));
+            const ratio = Math.max(0, Math.min(1, bounded / total));
+            if (ratio < lastRatio) {
+                return;
+            }
+            lastRatio = ratio;
+            const normalized = (completedCalculators + ratio) / totalCalculators;
+            progress(normalized, label);
+        };
+    };
     for (let i = 0; i < calculators.length; i++) {
         const calculator = calculators[i];
         assertSignalNotAborted(signal);
         const prepared = calculator.prepare ? await calculator.prepare(analysisParams) : undefined;
+        const label = calculator.label || calculator.featureKey;
+        const reportProgress = createCalculatorProgressReporter(label);
         const context: AudioFeatureCalculatorContext = {
             audioBuffer: options.audioBuffer,
             hopTicks,
@@ -626,6 +652,7 @@ export async function analyzeAudioBufferFeatures(
             analysisParams,
             timing: timingSlice,
             prepared,
+            reportProgress,
             signal,
         };
         const result = await calculator.calculate(context);
@@ -634,8 +661,9 @@ export async function analyzeAudioBufferFeatures(
         for (const track of tracks) {
             featureTracks[track.key] = track;
         }
+        completedCalculators += 1;
         if (progress) {
-            progress((i + 1) / calculators.length, calculator.label || calculator.featureKey);
+            progress(completedCalculators / totalCalculators, label);
         }
     }
     if (progress) {

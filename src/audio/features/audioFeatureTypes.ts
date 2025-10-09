@@ -106,6 +106,8 @@ export interface AudioFeatureCalculatorContext<P = unknown> {
     analysisParams: AudioFeatureAnalysisParams;
     timing: AudioFeatureCalculatorTiming;
     prepared?: P;
+    /** Optional progress reporter for chunk-based updates. */
+    reportProgress?: (processed: number, total: number) => void;
     signal?: AbortSignal;
 }
 
