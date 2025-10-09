@@ -3,6 +3,7 @@ import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import { useTimelineStore } from '@state/timelineStore';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -473,49 +474,101 @@ function cloneMacroOptions(source?: Macro['options']): Macro['options'] {
     if (Array.isArray(source.selectOptions)) {
         next.selectOptions = source.selectOptions.map((entry) => ({ ...entry }));
     }
+    if (Array.isArray(source.allowedTrackTypes)) {
+        next.allowedTrackTypes = [...source.allowedTrackTypes];
+    }
     return next;
 }
+
+type MacroValidationResult = { valid: true } | { valid: false; reason?: string };
 
 function validateMacroValue(
     type: Macro['type'],
     value: unknown,
     options: Macro['options'] = {} as Macro['options']
-): boolean {
+): MacroValidationResult {
     switch (type) {
         case 'number':
-            if (typeof value !== 'number' || Number.isNaN(value)) return false;
-            if (typeof options.min === 'number' && value < options.min) return false;
-            if (typeof options.max === 'number' && value > options.max) return false;
-            return true;
+            if (typeof value !== 'number' || Number.isNaN(value)) return { valid: false };
+            if (typeof options.min === 'number' && value < options.min) return { valid: false };
+            if (typeof options.max === 'number' && value > options.max) return { valid: false };
+            return { valid: true };
         case 'string':
-            return typeof value === 'string';
+            return { valid: typeof value === 'string' };
         case 'boolean':
-            return typeof value === 'boolean';
+            return { valid: typeof value === 'boolean' };
         case 'color':
-            return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value);
+            return { valid: typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value) };
         case 'font':
-            if (typeof value !== 'string') return false;
-            if (value.trim() === '') return true;
+            if (typeof value !== 'string') return { valid: false };
+            if (value.trim() === '') return { valid: true };
             const parts = value.split('|');
-            if (parts.length === 1) return true;
+            if (parts.length === 1) return { valid: true };
             if (parts.length === 2) {
-                return /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]);
+                return { valid: /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]) };
             }
-            return false;
+            return { valid: false };
         case 'select':
-            if (!Array.isArray(options.selectOptions) || options.selectOptions.length === 0) return true;
-            return options.selectOptions.some((opt) => opt.value === value);
+            if (!Array.isArray(options.selectOptions) || options.selectOptions.length === 0) {
+                return { valid: true };
+            }
+            return { valid: options.selectOptions.some((opt) => opt.value === value) };
         case 'file':
-            if (value === null || value === undefined) return true;
-            if (typeof File === 'undefined') return true;
-            return value instanceof File;
+            if (value === null || value === undefined) return { valid: true };
+            if (typeof File === 'undefined') return { valid: true };
+            return { valid: value instanceof File };
         case 'timelineTrackRef':
-            if (value == null) return true;
-            if (typeof value === 'string') return true;
-            if (Array.isArray(value)) return value.every((entry) => typeof entry === 'string');
-            return false;
+            if (value == null) return { valid: true };
+            const allowed = Array.isArray(options.allowedTrackTypes) && options.allowedTrackTypes.length
+                ? options.allowedTrackTypes
+                : ['midi'];
+            const allowedSet = new Set(allowed);
+            const toCheck = Array.isArray(value)
+                ? value
+                : typeof value === 'string'
+                    ? [value]
+                    : [];
+
+            if (!Array.isArray(value) && typeof value !== 'string') {
+                return { valid: false, reason: 'Expected a track id string or array.' };
+            }
+
+            if (Array.isArray(value) && !value.every((entry) => typeof entry === 'string')) {
+                return { valid: false, reason: 'Track assignments must be string ids.' };
+            }
+
+            const trackIds = toCheck.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+            if (trackIds.length === 0) {
+                return { valid: true };
+            }
+
+            const timelineState = useTimelineStore.getState();
+            for (const trackId of trackIds) {
+                const track = timelineState.tracks[trackId] as { type?: string } | undefined;
+                if (!track || (track.type !== 'audio' && track.type !== 'midi')) {
+                    continue;
+                }
+                if (!allowedSet.has(track.type)) {
+                    const allowedLabel = (() => {
+                        const labels = allowed.map((entry) => (entry === 'audio' ? 'audio' : 'MIDI'));
+                        if (labels.length === 1) {
+                            return `${labels[0]} tracks`;
+                        }
+                        if (labels.length === 2) {
+                            return `${labels[0]} or ${labels[1]} tracks`;
+                        }
+                        return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]} tracks`;
+                    })();
+                    const actualLabel = track.type === 'audio' ? 'audio' : 'MIDI';
+                    return {
+                        valid: false,
+                        reason: `Track '${trackId}' is ${actualLabel}, but this macro accepts ${allowedLabel}.`,
+                    };
+                }
+            }
+            return { valid: true };
         default:
-            return true;
+            return { valid: true };
     }
 }
 
@@ -885,8 +938,10 @@ const createSceneStoreState = (
 
             const options = cloneMacroOptions(definition.options);
             const defaultValue = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
-            if (!validateMacroValue(definition.type, definition.value, options)) {
-                throw new Error(`SceneStore.createMacro: invalid value for macro '${id}'`);
+            const validation = validateMacroValue(definition.type, definition.value, options);
+            if (!validation.valid) {
+                const reason = validation.reason ? `: ${validation.reason}` : '';
+                throw new Error(`SceneStore.createMacro: invalid value for macro '${id}'${reason}`);
             }
 
             const now = Date.now();
@@ -919,8 +974,10 @@ const createSceneStoreState = (
         set((state) => {
             const macro = state.macros.byId[macroId];
             if (!macro) return state;
-            if (!validateMacroValue(macro.type, value, macro.options)) {
-                throw new Error(`SceneStore.updateMacroValue: invalid value for macro '${macroId}'`);
+            const validation = validateMacroValue(macro.type, value, macro.options);
+            if (!validation.valid) {
+                const reason = validation.reason ? `: ${validation.reason}` : '';
+                throw new Error(`SceneStore.updateMacroValue: invalid value for macro '${macroId}'${reason}`);
             }
             if (Object.is(macro.value, value)) return state;
 

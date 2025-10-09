@@ -105,67 +105,17 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 break;
             case 'timelineTrackRef':
                 if (prop.allowMultiple !== undefined) options.allowMultiple = prop.allowMultiple;
-                if (Array.isArray(prop.allowedTrackTypes)) options.allowedTrackTypes = [...prop.allowedTrackTypes];
+                if (Array.isArray(prop.allowedTrackTypes) && prop.allowedTrackTypes.length > 0) {
+                    options.allowedTrackTypes = [...prop.allowedTrackTypes];
+                } else {
+                    options.allowedTrackTypes = ['midi'];
+                }
                 if (value == null) value = null;
                 break;
             default:
                 if (value == null) value = '';
         }
         return { type: macroType, options, value };
-    };
-
-    const renderInput = (property: PropertyDefinition) => {
-        const value = values[property.key];
-        const assignedMacro = macroAssignments[property.key];
-        const macroExists = assignedMacro ? macroLookup.has(assignedMacro) : false;
-        const isAssignedToMacro = !!assignedMacro && macroExists;
-
-        const handleInputChange = (payload: any) => {
-            if (payload && typeof payload === 'object' && 'value' in payload) {
-                const change = payload as FormInputChange;
-                onValueChange(property.key, change.value, change.meta);
-            } else {
-                onValueChange(property.key, payload);
-            }
-        };
-
-        const descriptorTrackId =
-            property.type === 'audioFeatureDescriptor'
-                ? values[property.trackPropertyKey ?? 'featureTrackId'] ?? null
-                : null;
-        const schemaForInput =
-            property.type === 'audioFeatureDescriptor'
-                ? { ...property, trackId: descriptorTrackId }
-                : property;
-
-        const commonProps = {
-            id: `config-${property.key}`,
-            value,
-            schema: schemaForInput,
-            disabled: isAssignedToMacro,
-            title: property.description,
-            onChange: handleInputChange,
-        };
-
-        if (isAssignedToMacro && assignedMacro) {
-            const macro = macroLookup.get(assignedMacro);
-            if (macro) {
-                commonProps.value = macro.value;
-            }
-        }
-
-        const inputType = property.type === 'string' ? 'text' : property.type;
-        return (
-            <FormInput
-                id={commonProps.id}
-                type={inputType}
-                value={commonProps.value}
-                schema={commonProps.schema}
-                disabled={commonProps.disabled}
-                title={commonProps.title}
-                onChange={commonProps.onChange}
-            />
-        );
     };
 
     const MacroAssignmentControl: React.FC<{
@@ -323,7 +273,143 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         );
     };
 
+    const renderPropertyRow = (property: PropertyDefinition, { nested = false } = {}) => {
+        const value = values[property.key];
+        const assignedMacro = macroAssignments[property.key];
+        const macroExists = assignedMacro ? macroLookup.has(assignedMacro) : false;
+        const isAssignedToMacro = !!assignedMacro && macroExists;
+
+        const handleInputChange = (payload: any) => {
+            if (payload && typeof payload === 'object' && 'value' in payload) {
+                const change = payload as FormInputChange;
+                onValueChange(property.key, change.value, change.meta);
+            } else {
+                onValueChange(property.key, payload);
+            }
+        };
+
+        const descriptorTrackId =
+            property.type === 'audioFeatureDescriptor'
+                ? values[property.trackPropertyKey ?? 'featureTrackId'] ?? null
+                : null;
+        const schemaForInput =
+            property.type === 'audioFeatureDescriptor'
+                ? { ...property, trackId: descriptorTrackId }
+                : property;
+
+        const commonProps = {
+            id: `config-${property.key}`,
+            value,
+            schema: schemaForInput,
+            disabled: isAssignedToMacro,
+            title: property.description,
+            onChange: handleInputChange,
+        };
+
+        if (isAssignedToMacro && assignedMacro) {
+            const macro = macroLookup.get(assignedMacro);
+            if (macro) {
+                (commonProps as any).value = macro.value;
+            }
+        }
+
+        const inputType = property.type === 'string' ? 'text' : property.type;
+        const hasAnimationIcon = canAssignMacro(property.type);
+
+        return (
+            <div
+                key={property.key}
+                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}`}
+                style={
+                    nested
+                        ? {
+                              paddingLeft: '12px',
+                              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+                          }
+                        : undefined
+                }
+            >
+                <div className="ae-property-label">
+                    <span className="ae-property-name" title={property.description}>
+                        {property.label}
+                    </span>
+                    {hasAnimationIcon && (
+                        <span
+                            className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
+                            title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
+                        >
+                            ⏱
+                        </span>
+                    )}
+                </div>
+
+                <div className="ae-property-controls">
+                    {canAssignMacro(property.type) && (
+                        <MacroAssignmentControl
+                            propertyKey={property.key}
+                            property={property}
+                            currentValue={values[property.key]}
+                            assignedMacro={macroAssignments[property.key]}
+                            isAssigned={!!macroAssignments[property.key]}
+                            macros={getMacroOptions(property.type, property)}
+                            onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
+                        />
+                    )}
+                    <div className="ae-property-input">
+                        <FormInput
+                            id={commonProps.id}
+                            type={inputType}
+                            value={commonProps.value}
+                            schema={commonProps.schema}
+                            disabled={commonProps.disabled}
+                            title={commonProps.title}
+                            onChange={commonProps.onChange}
+                        />
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const groupDescription = group.description?.trim() ?? '';
+
+    const propertyRows: React.ReactNode[] = [];
+    for (let index = 0; index < properties.length; index += 1) {
+        const property = properties[index];
+        if (property.type === 'timelineTrackRef') {
+            const next = properties[index + 1];
+            const descriptorKey = next?.type === 'audioFeatureDescriptor' ? next.trackPropertyKey ?? property.key : null;
+            if (next?.type === 'audioFeatureDescriptor' && descriptorKey === property.key) {
+                propertyRows.push(
+                    <div
+                        key={`${property.key}-audio-binding`}
+                        className="ae-audio-binding-block"
+                        style={{
+                            border: '1px solid var(--twc-border)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            background: 'rgba(12, 18, 28, 0.35)',
+                        }}
+                    >
+                        <div className="ae-audio-binding-header" style={{ fontWeight: 600 }}>
+                            Audio Binding
+                        </div>
+                        <div className="ae-audio-binding-copy" style={{ fontSize: '12px', color: '#9CA3AF' }}>
+                            Select an audio track and feature descriptor to drive this element.
+                        </div>
+                        {renderPropertyRow(property)}
+                        {renderPropertyRow(next, { nested: true })}
+                    </div>,
+                );
+                index += 1;
+                continue;
+            }
+        }
+        propertyRows.push(renderPropertyRow(property));
+    }
 
     return (
         <div className="ae-property-group">
@@ -351,45 +437,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         <span className="ae-property-empty">No properties to display.</span>
                     </div>
                 ) : (
-                    <div className="ae-property-list">
-                        {properties.map((property) => {
-                            const isAssignedToMacro = !!macroAssignments[property.key];
-                            const hasAnimationIcon = canAssignMacro(property.type);
-
-                            return (
-                                <div key={property.key} className="ae-property-row">
-                                    <div className="ae-property-label">
-                                        <span className="ae-property-name" title={property.description}>
-                                            {property.label}
-                                        </span>
-                                        {hasAnimationIcon && (
-                                            <span
-                                                className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
-                                                title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
-                                            >
-                                                ⏱
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="ae-property-controls">
-                                        {canAssignMacro(property.type) && (
-                                            <MacroAssignmentControl
-                                                propertyKey={property.key}
-                                                property={property}
-                                                currentValue={values[property.key]}
-                                                assignedMacro={macroAssignments[property.key]}
-                                                isAssigned={!!macroAssignments[property.key]}
-                                                macros={getMacroOptions(property.type, property)}
-                                                onAssign={(macroName) => onMacroAssignment(property.key, macroName)}
-                                            />
-                                        )}
-                                        <div className="ae-property-input">{renderInput(property)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <div className="ae-property-list">{propertyRows}</div>
                 )
             )}
         </div>

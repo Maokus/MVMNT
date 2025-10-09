@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 import type { SceneClipboard } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
+import audioMacroFixture from '@persistence/__fixtures__/baseline/scene.audio-feature-macro.json';
 
 type Store = ReturnType<typeof createSceneStore>;
 
@@ -243,6 +245,105 @@ describe('sceneStore', () => {
                 channelIndex: null,
                 smoothing: 0.15,
             },
+        });
+    });
+
+    it('imports audio feature macro fixtures with track bindings intact', () => {
+        store.getState().importScene(audioMacroFixture as any);
+
+        const bindings = store.getState().bindings.byElement['spectrum'];
+        expect(bindings?.featureTrackId).toEqual({ type: 'macro', macroId: 'macro.audio.track' });
+        expect(bindings?.featureDescriptor?.type).toBe('constant');
+
+        const macro = store.getState().macros.byId['macro.audio.track'];
+        expect(macro?.options?.allowedTrackTypes).toEqual(['audio']);
+        expect(macro?.value).toBe('audio-track-1');
+    });
+
+    describe('timeline track macro validation', () => {
+        beforeEach(() => {
+            useTimelineStore.getState().resetTimeline();
+            useTimelineStore.setState((state) => ({
+                ...state,
+                tracks: {
+                    audioA: {
+                        id: 'audioA',
+                        name: 'Audio A',
+                        type: 'audio',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                        gain: 1,
+                    },
+                    audioB: {
+                        id: 'audioB',
+                        name: 'Audio B',
+                        type: 'audio',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                        gain: 1,
+                    },
+                    midiA: {
+                        id: 'midiA',
+                        name: 'MIDI A',
+                        type: 'midi',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                    },
+                },
+                tracksOrder: ['audioA', 'audioB', 'midiA'],
+            }));
+        });
+
+        afterEach(() => {
+            useTimelineStore.getState().resetTimeline();
+        });
+
+        it('accepts audio track assignments when allowed', () => {
+            store.getState().createMacro('macro.audio.track', {
+                type: 'timelineTrackRef',
+                value: 'audioA',
+                options: { allowedTrackTypes: ['audio'] },
+            });
+
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioA');
+
+            expect(() => store.getState().updateMacroValue('macro.audio.track', 'audioB')).not.toThrow();
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioB');
+        });
+
+        it('rejects mismatched track types with descriptive errors', () => {
+            store.getState().createMacro('macro.audio.track', {
+                type: 'timelineTrackRef',
+                value: 'audioA',
+                options: { allowedTrackTypes: ['audio'] },
+            });
+
+            expect(() => store.getState().updateMacroValue('macro.audio.track', 'midiA')).toThrowError(
+                /audio.*macro accepts audio tracks/i,
+            );
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioA');
+        });
+
+        it('validates multi-track assignments when allowMultiple is set', () => {
+            store.getState().createMacro('macro.audio.multi', {
+                type: 'timelineTrackRef',
+                value: ['audioA'],
+                options: { allowedTrackTypes: ['audio'], allowMultiple: true },
+            });
+
+            expect(() =>
+                store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'audioB']),
+            ).not.toThrow();
+
+            expect(() =>
+                store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'midiA']),
+            ).toThrowError(/macro accepts audio tracks/i);
         });
     });
 

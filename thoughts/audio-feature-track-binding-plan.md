@@ -145,6 +145,10 @@ tempo mapping utilities.
 
 ### Phase 5 – Extend macro tooling and UX (Experience polish)
 
+**Status:** Complete. Macro validation respects audio track metadata, inspector panels highlight the
+combined track/descriptor workflow, the default template showcases an audio-driven macro, and public docs
+cover the end-to-end assignment flow; see [`docs/AUDIO_FEATURE_MACROS.md`](../docs/AUDIO_FEATURE_MACROS.md).
+
 **Objectives**
 
 -   Enable macros to bind audio tracks using the shared track reference type, mirroring existing MIDI workflows.【F:src/state/sceneStore.ts†L440-L520】
@@ -164,6 +168,11 @@ tempo mapping utilities.
 -   Documentation updates are published and linked from in-app help, with QA sign-off from the design team.
 
 ### Phase 6 – Testing and rollout (Quality gate)
+
+**Status:** Complete. Regression coverage now exercises mixed audio/MIDI macro scenarios, fresh fixtures
+document the new binding shape, and release collateral details migration behavior for teams and beta
+groups; release notes live in
+[`docs/RELEASE_NOTES_AUDIO_FEATURE_BINDINGS.md`](../docs/RELEASE_NOTES_AUDIO_FEATURE_BINDINGS.md).
 
 **Objectives**
 

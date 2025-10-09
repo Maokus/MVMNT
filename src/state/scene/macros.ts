@@ -16,6 +16,8 @@ export interface MacroOptions {
     step?: number;
     selectOptions?: { value: any; label: string }[];
     accept?: string;
+    allowMultiple?: boolean;
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
     [key: string]: any;
 }
 
