@@ -20,6 +20,8 @@
 - Excludes automation-driven parameter linking until the broader automation research plan lands.
 
 ## Phase 0 — Foundations & Alignment
+**Status:** Complete (2025-03-08)
+
 **Goal:** Baseline terminology, schemas, and UX references before touching runtime code.
 
 **Key Activities**
@@ -28,9 +30,9 @@
 - Produce UX references (wireframes or written flows) for cache prompts and diagnostics panels.
 
 **Acceptance Criteria**
-- Inventory documenting current single-feature properties and migration approach stored in the tracker with owners assigned.
-- Reviewed glossary copy merged to `docs/audio-feature-bindings.md`, free of roadmap codenames, and linked from this plan.
-- UX artefacts approved by design and attached to the tracker for later implementation phases.
+- ✅ Inventory documenting current single-feature properties and migration approach stored in the tracker with owners assigned (see [Audio Visualisation Phase 0 Foundations](../docs/audio-visualisation-phase0.md#single-feature-property-inventory)).
+- ✅ Reviewed glossary copy merged to `docs/audio-feature-bindings.md`, free of roadmap codenames, and linked from this plan.
+- ✅ UX artefacts approved by design and attached to the tracker for later implementation phases (documented in [Audio Visualisation Phase 0 Foundations](../docs/audio-visualisation-phase0.md#ux-reference-flows)).
 
 ## Phase 1 — Multi-Feature Analysis Architecture
 **Goal:** Extend caches and schemas so elements can request multiple descriptors per property without breaking determinism.
@@ -121,5 +123,6 @@
 
 ## Cross-References
 - [Audio Feature Bindings & Cache Reference](../docs/audio-feature-bindings.md)
+- [Audio Visualisation Phase 0 Foundations](../docs/audio-visualisation-phase0.md)
 - [Legacy Binding Shift Summary](./legacybindingshiftplan.md)
 

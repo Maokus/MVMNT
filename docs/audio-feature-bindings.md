@@ -1,8 +1,21 @@
 # Audio Feature Caches and Bindings
 
-_Last reviewed: 2025-10-10_
+_Last reviewed: 2025-03-08_
 
 ## Overview
+
+## Glossary
+
+- **Analysis profile:** Named set of analysis parameters.
+  It covers FFT size, hop length, and window settings.
+  Sample rate assumptions live in the profile so caches regenerate deterministically.
+- **Feature descriptor:** Serialized request for a single analysed signal.
+  It stores `featureKey`, optional band or channel indexes, and smoothing radius values.
+  Calculator metadata travels with the descriptor for determinism.
+- **Track reference:** Stable pointer to the audio timeline track.
+  It uses `timelineTrackRef` or a constant track ID to locate the source cache for descriptors.
+- **Channel alias:** Human-readable label (for example `Left`, `Right`, `Mid`, `Side`).
+  It maps to a channel index so selectors and inspector UI present multi-channel data clearly.
 
 Audio feature caches capture precomputed analysis of imported audio so visual elements stay in sync
 without repeating FFT or RMS work during playback. Each cache stores real-time aligned frames for one
