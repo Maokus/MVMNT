@@ -26,6 +26,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
         audioSourceId: sourceId,
         hopTicks,
         hopSeconds,
+        startTimeSeconds: 0,
         frameCount,
         analysisParams: {
             windowSize: 512,
@@ -43,6 +44,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 channels,
                 hopTicks,
                 hopSeconds,
+                startTimeSeconds: 0,
                 format: 'float32',
                 data,
             },
@@ -103,7 +105,9 @@ describe('audio feature export parity', () => {
 
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);
-        const secondsPerFrame = cache.featureTracks.rms.hopTicks / ticksPerSecond;
+        const rmsTrack = cache.featureTracks.rms;
+        const hopTicks = rmsTrack.hopTicks ?? 0;
+        const secondsPerFrame = hopTicks / ticksPerSecond;
         const frameTimes = Array.from({ length: 4 }, (_, idx) => idx * secondsPerFrame);
 
         const runtimeVectors: number[][] = [];
@@ -135,9 +139,7 @@ describe('audio feature export parity', () => {
             expectVectorsClose(vector, selectorVectors[index]);
         });
 
-        const endTick =
-            cache.featureTracks.rms.hopTicks * (frameTimes.length - 1) +
-            (cache.featureTracks.rms.hopTicks - 1);
+        const endTick = hopTicks * (frameTimes.length - 1) + (hopTicks - 1);
         const state = useTimelineStore.getState();
         const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 0, endTick);
         expect(range).toBeDefined();

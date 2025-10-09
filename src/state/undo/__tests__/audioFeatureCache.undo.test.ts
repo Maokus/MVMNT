@@ -26,10 +26,12 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 12;
     const hopTicks = 90;
     return {
-        version: 1,
+        version: 2,
         audioSourceId: sourceId,
-        hopTicks,
         hopSeconds: 0.03,
+        hopTicks,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 512,
@@ -47,6 +49,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 channels: 1,
                 hopTicks,
                 hopSeconds: 0.03,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'waveform-minmax',
                 data: { min: new Float32Array(frameCount).fill(-0.25), max: new Float32Array(frameCount).fill(0.25) },
             },

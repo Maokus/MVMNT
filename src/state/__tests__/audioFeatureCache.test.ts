@@ -9,11 +9,14 @@ import {
 
 function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): AudioFeatureCache {
     const data = Float32Array.from({ length: frameCount }, (_, idx) => idx / frameCount);
+    const hopSeconds = hopTicks / 1920;
     return {
-        version: 1,
+        version: 2,
         audioSourceId: sourceId,
+        hopSeconds,
         hopTicks,
-        hopSeconds: 0.05,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 256,
@@ -30,7 +33,9 @@ function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): Audi
                 frameCount,
                 channels: 1,
                 hopTicks,
-                hopSeconds: 0.05,
+                hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data,
             },
@@ -106,7 +111,7 @@ describe('audio feature cache integration', () => {
         useTimelineStore.getState().ingestAudioFeatureCache(sourceId, cache);
         const state = useTimelineStore.getState();
         expect(state.playbackRangeUserDefined).toBe(true);
-        expect(state.playbackRange?.endTick).toBeGreaterThan(cache.hopTicks);
+        expect(state.playbackRange?.endTick).toBeGreaterThan(cache.hopTicks ?? 0);
     });
 
     it('marks caches stale when tempo changes', () => {

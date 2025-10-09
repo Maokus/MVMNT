@@ -8,6 +8,7 @@ import type {
     AudioFeatureCacheStatusProgress,
     AudioFeatureCacheStatusState,
 } from '@audio/features/audioFeatureTypes';
+import { upgradeAudioFeatureCache } from '@audio/features/audioFeatureMigration';
 import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
@@ -164,7 +165,9 @@ export type TimelineState = {
 
 function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
     return JSON.stringify({
-        hopTicks: cache.hopTicks,
+        hopSeconds: cache.hopSeconds,
+        startTimeSeconds: cache.startTimeSeconds,
+        tempoProjection: cache.tempoProjection,
         frameCount: cache.frameCount,
         analysisParams: cache.analysisParams,
     });
@@ -887,11 +890,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
         cancelActiveAudioFeatureJob(id);
-        const sourceHash = computeFeatureCacheSourceHash(cache);
+        const upgraded = upgradeAudioFeatureCache(cache);
+        const sourceHash = computeFeatureCacheSourceHash(upgraded);
         set((s: TimelineState) => ({
             audioFeatureCaches: {
                 ...s.audioFeatureCaches,
-                [id]: cache,
+                [id]: upgraded,
             },
             audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
                 s.audioFeatureCacheStatus,

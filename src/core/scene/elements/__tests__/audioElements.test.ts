@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
@@ -7,9 +7,23 @@ import { Poly, Text } from '@core/render/render-objects';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
+let originalCanvasGetContext: ((contextId: string) => any) | undefined;
+
+beforeAll(() => {
+    originalCanvasGetContext = (HTMLCanvasElement.prototype as any).getContext;
+    (HTMLCanvasElement.prototype as any).getContext = vi.fn(() => ({
+        measureText: () => ({ width: 10 }),
+    }));
+});
+
+afterAll(() => {
+    (HTMLCanvasElement.prototype as any).getContext = originalCanvasGetContext;
+});
+
 function createWaveformCache(trackId: string): AudioFeatureCache {
     const frameCount = 32;
     const hopTicks = 60;
+    const hopSeconds = hopTicks / 1920;
     const min = new Float32Array(frameCount);
     const max = new Float32Array(frameCount);
     const denom = Math.max(1, frameCount - 1);
@@ -20,10 +34,12 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
         max[i] = value;
     }
     return {
-        version: 1,
+        version: 2,
         audioSourceId: trackId,
         hopTicks,
-        hopSeconds: 0.02,
+        hopSeconds,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 128,
@@ -40,7 +56,9 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
                 frameCount,
                 channels: 1,
                 hopTicks,
-                hopSeconds: 0.02,
+                hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'waveform-minmax',
                 data: { min, max },
             },
@@ -51,13 +69,15 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
 function createSpectrogramCache(trackId: string): AudioFeatureCache {
     const frameCount = 3;
     const hopTicks = 120;
-    const hopSeconds = 0.25;
+    const hopSeconds = hopTicks / 1920;
     const channels = 8;
     return {
-        version: 1,
+        version: 2,
         audioSourceId: trackId,
         hopTicks,
         hopSeconds,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 2048,
@@ -75,6 +95,8 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
                 channels,
                 hopTicks,
                 hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: new Float32Array([
                     -70, -62, -58, -50, -42, -35, -20, -10,
@@ -95,12 +117,14 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
 function createRmsCache(trackId: string): AudioFeatureCache {
     const frameCount = 3;
     const hopTicks = 120;
-    const hopSeconds = 0.25;
+    const hopSeconds = hopTicks / 1920;
     return {
-        version: 1,
+        version: 2,
         audioSourceId: trackId,
         hopTicks,
         hopSeconds,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 1024,
@@ -118,6 +142,8 @@ function createRmsCache(trackId: string): AudioFeatureCache {
                 channels: 1,
                 hopTicks,
                 hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: new Float32Array([0.1, 0.65, 0.3]),
             },
@@ -203,7 +229,8 @@ describe('audio scene elements', () => {
             }),
         );
         const tm = getSharedTimingManager();
-        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
+        const hopTicks = cache.hopTicks ?? 0;
+        const hopSeconds = tm.ticksToSeconds(hopTicks);
         const first = element.buildRenderObjects({}, 0);
         const second = element.buildRenderObjects({}, hopSeconds);
         const collectHeights = (objects: any[]) => {
@@ -228,7 +255,7 @@ describe('audio scene elements', () => {
                 ...state.tracks,
                 testTrack: {
                     ...state.tracks.testTrack,
-                    offsetTicks: cache.hopTicks * 2,
+                    offsetTicks: (cache.hopTicks ?? 0) * 2,
                 },
             },
         }));
@@ -251,8 +278,9 @@ describe('audio scene elements', () => {
         });
         element.setBinding('featureBinding', binding);
         const tm = getSharedTimingManager();
-        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
-        const offsetSeconds = tm.ticksToSeconds(cache.hopTicks * 2);
+        const hopTicks = cache.hopTicks ?? 0;
+        const hopSeconds = tm.ticksToSeconds(hopTicks);
+        const offsetSeconds = tm.ticksToSeconds(hopTicks * 2);
         const collectHeights = (objects: any[]) => {
             const container = objects[0] as any;
             return (container.children ?? []).slice(1).map((child: any) => child.height ?? 0);
@@ -318,7 +346,8 @@ describe('audio scene elements', () => {
             }),
         );
         const tm = getSharedTimingManager();
-        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
+        const hopTicks = cache.hopTicks ?? 0;
+        const hopSeconds = tm.ticksToSeconds(hopTicks);
         const first = element.buildRenderObjects({}, 0);
         const second = element.buildRenderObjects({}, hopSeconds);
         const getMeterHeight = (objects: any[]) => {

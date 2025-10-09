@@ -5,9 +5,11 @@ import {
     type AudioFeatureCalculatorContext,
     type AudioFeatureCache,
     type AudioFeatureCalculatorTiming,
+    type AudioFeatureTempoProjection,
     type AudioFeatureTrack,
     type AudioFeatureTrackFormat,
 } from './audioFeatureTypes';
+import { createTempoMapper } from '@core/timing';
 import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
@@ -38,14 +40,22 @@ export type SerializedAudioFeatureTrackDataRef =
           filename: string;
       };
 
+type SerializedTempoProjection = {
+    hopTicks?: number;
+    startTick?: number;
+    tempoMapHash?: string;
+};
+
 export type SerializedAudioFeatureTrack = {
     key: string;
     calculatorId: string;
     version: number;
     frameCount: number;
     channels: number;
-    hopTicks: number;
+    hopTicks?: number;
     hopSeconds: number;
+    startTimeSeconds: number;
+    tempoProjection?: SerializedTempoProjection;
     format: AudioFeatureTrackFormat;
     data?: SerializedTypedArray | SerializedWaveform;
     metadata?: Record<string, unknown>;
@@ -53,14 +63,26 @@ export type SerializedAudioFeatureTrack = {
     dataRef?: SerializedAudioFeatureTrackDataRef;
 };
 
-export interface SerializedAudioFeatureCache {
-    version: number;
+export interface SerializedAudioFeatureCacheLegacy {
+    version: 1;
     audioSourceId: string;
     hopTicks: number;
     hopSeconds: number;
     frameCount: number;
     analysisParams: AudioFeatureAnalysisParams;
     featureTracks: Record<string, SerializedAudioFeatureTrack>;
+}
+
+export interface SerializedAudioFeatureCache {
+    version: 2;
+    audioSourceId: string;
+    hopSeconds: number;
+    startTimeSeconds: number;
+    frameCount: number;
+    analysisParams: AudioFeatureAnalysisParams;
+    featureTracks: Record<string, SerializedAudioFeatureTrack>;
+    tempoProjection?: SerializedTempoProjection;
+    legacyTempoCache?: SerializedAudioFeatureCacheLegacy;
 }
 
 const DEFAULT_WINDOW_SIZE = 2048;
@@ -251,6 +273,138 @@ function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array |
     return new Int16Array();
 }
 
+function toSerializedTempoProjection(
+    projection: AudioFeatureTempoProjection | undefined,
+): SerializedTempoProjection | undefined {
+    if (!projection) {
+        return undefined;
+    }
+    return {
+        hopTicks: projection.hopTicks,
+        startTick: projection.startTick,
+        tempoMapHash: projection.tempoMapHash,
+    };
+}
+
+function fromSerializedTempoProjection(
+    projection: SerializedTempoProjection | undefined,
+): AudioFeatureTempoProjection | undefined {
+    if (!projection) {
+        return undefined;
+    }
+    const hopTicks = Math.max(1, Math.round(projection.hopTicks ?? 1));
+    return {
+        hopTicks,
+        startTick: projection.startTick ?? 0,
+        tempoMapHash: projection.tempoMapHash,
+    };
+}
+
+function resolveHopTicks(
+    track: Pick<AudioFeatureTrack, 'hopTicks' | 'tempoProjection' | 'hopSeconds'>,
+): number {
+    if (typeof track.hopTicks === 'number' && Number.isFinite(track.hopTicks) && track.hopTicks > 0) {
+        return Math.round(track.hopTicks);
+    }
+    if (typeof track.tempoProjection?.hopTicks === 'number') {
+        return Math.max(1, Math.round(track.tempoProjection.hopTicks));
+    }
+    return Math.max(1, Math.round(track.hopSeconds * 960));
+}
+
+function clonePlainObject<T>(value: T): T {
+    if (value == null) {
+        return value;
+    }
+    try {
+        return JSON.parse(JSON.stringify(value)) as T;
+    } catch {
+        return value;
+    }
+}
+
+function cloneSerializedTrackData(
+    data: SerializedAudioFeatureTrack['data'],
+): SerializedAudioFeatureTrack['data'] {
+    if (!data) {
+        return undefined;
+    }
+    if (data.type === 'waveform-minmax') {
+        const cloneValues = (values: SerializedWaveform['min']) => {
+            if (Array.isArray(values)) {
+                return values.slice();
+            }
+            if (ArrayBuffer.isView(values)) {
+                return Array.from(values as ArrayLike<number>);
+            }
+            return [];
+        };
+        return {
+            type: 'waveform-minmax',
+            min: cloneValues(data.min),
+            max: cloneValues(data.max),
+        };
+    }
+    const values = data.values as SerializedTypedArray['values'];
+    if (Array.isArray(values)) {
+        return { type: data.type, values: values.slice() };
+    }
+    if (ArrayBuffer.isView(values)) {
+        return { type: data.type, values: Array.from(values as ArrayLike<number>) };
+    }
+    return { type: data.type, values: [] };
+}
+
+function buildLegacyCache(
+    cache: AudioFeatureCache,
+    serializedTracks: Record<string, SerializedAudioFeatureTrack>,
+): SerializedAudioFeatureCacheLegacy {
+    const legacyTracks: Record<string, SerializedAudioFeatureTrack> = {};
+    for (const [key, serialized] of Object.entries(serializedTracks)) {
+        const source = cache.featureTracks[key];
+        const hopTicks = source ? resolveHopTicks(source) : Math.max(1, Math.round(serialized.hopTicks ?? 1));
+        legacyTracks[key] = {
+            key: serialized.key,
+            calculatorId: serialized.calculatorId,
+            version: serialized.version,
+            frameCount: serialized.frameCount,
+            channels: serialized.channels,
+            hopTicks,
+            hopSeconds: serialized.hopSeconds,
+            startTimeSeconds: serialized.startTimeSeconds ?? 0,
+            format: serialized.format,
+            metadata: clonePlainObject(serialized.metadata),
+            analysisParams: clonePlainObject(serialized.analysisParams),
+            data: cloneSerializedTrackData(serialized.data),
+            dataRef: serialized.dataRef ? { ...serialized.dataRef } : undefined,
+        };
+    }
+    return {
+        version: 1,
+        audioSourceId: cache.audioSourceId,
+        hopTicks: resolveHopTicks({
+            hopTicks: cache.hopTicks,
+            tempoProjection: cache.tempoProjection,
+            hopSeconds: cache.hopSeconds,
+        }),
+        hopSeconds: cache.hopSeconds,
+        frameCount: cache.frameCount,
+        analysisParams: clonePlainObject(cache.analysisParams),
+        featureTracks: legacyTracks,
+    };
+}
+
+function cloneTempoProjection(
+    projection: AudioFeatureTempoProjection,
+    hopTicks: number,
+): AudioFeatureTempoProjection {
+    return {
+        hopTicks,
+        startTick: projection.startTick,
+        tempoMapHash: projection.tempoMapHash,
+    };
+}
+
 function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
     let data: SerializedAudioFeatureTrack['data'];
     if (track.format === 'waveform-minmax') {
@@ -265,8 +419,10 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         version: track.version,
         frameCount: track.frameCount,
         channels: track.channels,
-        hopTicks: track.hopTicks,
         hopSeconds: track.hopSeconds,
+        hopTicks: track.hopTicks,
+        startTimeSeconds: track.startTimeSeconds ?? 0,
+        tempoProjection: toSerializedTempoProjection(track.tempoProjection),
         format: track.format,
         metadata: track.metadata,
         analysisParams: track.analysisParams,
@@ -301,14 +457,21 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
     } else {
         payload = deserializeTypedArray(track.data as SerializedTypedArray);
     }
+    const hopTicks = Math.max(1, Math.round(track.hopTicks ?? track.tempoProjection?.hopTicks ?? 1));
     return {
         key: track.key,
         calculatorId: track.calculatorId,
         version: track.version,
         frameCount: track.frameCount,
         channels: track.channels,
-        hopTicks: track.hopTicks,
         hopSeconds: track.hopSeconds,
+        hopTicks,
+        startTimeSeconds: track.startTimeSeconds ?? 0,
+        tempoProjection: fromSerializedTempoProjection(track.tempoProjection) ?? {
+            hopTicks,
+            startTick: 0,
+            tempoMapHash: undefined,
+        },
         format: track.format,
         metadata: track.metadata,
         analysisParams: track.analysisParams,
@@ -321,29 +484,87 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
     for (const [key, track] of Object.entries(cache.featureTracks)) {
         featureTracks[key] = serializeTrack(track);
     }
-    return {
-        version: cache.version,
+    const serialized: SerializedAudioFeatureCache = {
+        version: 2,
         audioSourceId: cache.audioSourceId,
-        hopTicks: cache.hopTicks,
         hopSeconds: cache.hopSeconds,
+        startTimeSeconds: cache.startTimeSeconds ?? 0,
         frameCount: cache.frameCount,
         analysisParams: cache.analysisParams,
         featureTracks,
+        tempoProjection: toSerializedTempoProjection(cache.tempoProjection),
+        legacyTempoCache: buildLegacyCache(cache, featureTracks),
     };
+    return serialized;
 }
 
-export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureCache): AudioFeatureCache {
+export function deserializeAudioFeatureCache(
+    serialized: SerializedAudioFeatureCache | SerializedAudioFeatureCacheLegacy,
+): AudioFeatureCache {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Invalid audio feature cache payload');
+    }
+    if (serialized.version === 2) {
+        const featureTracks: Record<string, AudioFeatureTrack> = {};
+        for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
+            featureTracks[key] = deserializeTrack(track);
+        }
+        const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
+        const hopTicks = resolveHopTicks({
+            hopTicks: serialized.tempoProjection?.hopTicks,
+            tempoProjection,
+            hopSeconds: serialized.hopSeconds,
+        });
+        return {
+            version: 2,
+            audioSourceId: serialized.audioSourceId,
+            hopTicks,
+            hopSeconds: serialized.hopSeconds,
+            startTimeSeconds: serialized.startTimeSeconds ?? 0,
+            tempoProjection,
+            frameCount: serialized.frameCount,
+            analysisParams: serialized.analysisParams,
+            featureTracks,
+        };
+    }
+    const legacy = serialized as SerializedAudioFeatureCacheLegacy;
     const featureTracks: Record<string, AudioFeatureTrack> = {};
-    for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-        featureTracks[key] = deserializeTrack(track);
+    const tempoProjection: AudioFeatureTempoProjection = {
+        hopTicks: Math.max(1, Math.round(legacy.hopTicks)),
+        startTick: 0,
+        tempoMapHash: legacy.analysisParams?.tempoMapHash,
+    };
+    for (const [key, track] of Object.entries(legacy.featureTracks || {})) {
+        const hopTicks = Math.max(1, Math.round(track.hopTicks ?? legacy.hopTicks));
+        featureTracks[key] = {
+            key: track.key,
+            calculatorId: track.calculatorId,
+            version: track.version,
+            frameCount: track.frameCount,
+            channels: track.channels,
+            hopSeconds: track.hopSeconds,
+            hopTicks,
+            startTimeSeconds: track.startTimeSeconds ?? 0,
+            tempoProjection: {
+                hopTicks,
+                startTick: 0,
+                tempoMapHash: legacy.analysisParams?.tempoMapHash,
+            },
+            format: track.format,
+            metadata: track.metadata,
+            analysisParams: track.analysisParams,
+            data: deserializeTrack(track).data,
+        };
     }
     return {
-        version: serialized.version,
-        audioSourceId: serialized.audioSourceId,
-        hopTicks: serialized.hopTicks,
-        hopSeconds: serialized.hopSeconds,
-        frameCount: serialized.frameCount,
-        analysisParams: serialized.analysisParams,
+        version: 2,
+        audioSourceId: legacy.audioSourceId,
+        hopTicks: tempoProjection.hopTicks,
+        hopSeconds: legacy.hopSeconds,
+        startTimeSeconds: 0,
+        tempoProjection,
+        frameCount: legacy.frameCount,
+        analysisParams: legacy.analysisParams,
         featureTracks,
     };
 }
@@ -418,6 +639,8 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
                 channels: binCount,
                 hopTicks,
                 hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
                 format: 'float32',
                 data: output,
                 metadata: {
@@ -484,6 +707,8 @@ function createRmsCalculator(): AudioFeatureCalculator {
                 channels: 1,
                 hopTicks,
                 hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
                 format: 'float32',
                 data: output,
                 metadata: {
@@ -506,7 +731,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
         version: 1,
         featureKey: 'waveform',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, signal } = context;
+            const { audioBuffer, analysisParams, signal, tempoMapper } = context;
             const maybeYield = createAnalysisYieldController(signal);
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const totalSamples = mono.length;
@@ -547,15 +772,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 context.reportProgress?.(frame + 1, waveformFrameCount);
             }
             await maybeYield();
-            const timingContext = createTimingContext(
-                {
-                    globalBpm: context.timing.globalBpm,
-                    beatsPerBar: context.timing.beatsPerBar,
-                    masterTempoMap: context.timing.tempoMap,
-                },
-                context.timing.ticksPerQuarter,
-            );
-            const waveformHopTicks = Math.max(1, Math.round(secondsToTicks(timingContext, waveformHopSeconds)));
+            const waveformHopTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(waveformHopSeconds)));
             return {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',
@@ -564,6 +781,8 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 channels: 1,
                 hopTicks: waveformHopTicks,
                 hopSeconds: waveformHopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: cloneTempoProjection(context.tempoProjection, waveformHopTicks),
                 format: 'waveform-minmax',
                 data: { min: minValues, max: maxValues },
                 metadata: {
@@ -619,8 +838,13 @@ export async function analyzeAudioBufferFeatures(
         },
         timingSlice.ticksPerQuarter,
     );
+    const tempoMapper = createTempoMapper({
+        ticksPerQuarter: timingSlice.ticksPerQuarter,
+        globalBpm: timingSlice.globalBpm,
+        tempoMap: options.tempoMap,
+    });
     const hopSeconds = hopSize / options.audioBuffer.sampleRate;
-    const hopTicks = Math.max(1, Math.round(secondsToTicks(timingContext, hopSeconds)));
+    const hopTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(hopSeconds)));
     const analysisParams = createAnalysisParams(
         options.audioBuffer.sampleRate,
         options.tempoMap,
@@ -628,6 +852,11 @@ export async function analyzeAudioBufferFeatures(
         windowSize,
         hopSize,
     );
+    const tempoProjection: AudioFeatureTempoProjection = {
+        hopTicks,
+        startTick: 0,
+        tempoMapHash: analysisParams.tempoMapHash,
+    };
     const featureTracks: Record<string, AudioFeatureTrack> = {};
     const progress = options.onProgress;
     const signal = options.signal;
@@ -669,6 +898,8 @@ export async function analyzeAudioBufferFeatures(
             frameCount,
             analysisParams,
             timing: timingSlice,
+            tempoProjection,
+            tempoMapper,
             prepared,
             reportProgress,
             signal,
@@ -677,6 +908,12 @@ export async function analyzeAudioBufferFeatures(
         assertSignalNotAborted(signal);
         const tracks = Array.isArray(result) ? result : [result];
         for (const track of tracks) {
+            const projectedHopTicks = resolveHopTicks(track);
+            track.hopTicks = projectedHopTicks;
+            track.startTimeSeconds = track.startTimeSeconds ?? 0;
+            track.tempoProjection = track.tempoProjection
+                ? cloneTempoProjection(track.tempoProjection, projectedHopTicks)
+                : cloneTempoProjection(tempoProjection, projectedHopTicks);
             featureTracks[track.key] = track;
         }
         completedCalculators += 1;
@@ -689,10 +926,12 @@ export async function analyzeAudioBufferFeatures(
     }
     return {
         cache: {
-            version: 1,
+            version: 2,
             audioSourceId: options.audioSourceId,
             hopTicks,
             hopSeconds,
+            startTimeSeconds: 0,
+            tempoProjection,
             frameCount,
             featureTracks,
             analysisParams,

@@ -1,4 +1,5 @@
-import { useTimelineStore } from '@state/timelineStore';
+import { createTempoMapper, type TempoMapper } from '@core/timing';
+import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import type {
     AudioFeatureCache,
@@ -40,6 +41,55 @@ export interface AudioFeatureRangeSample {
     trackStartTick: number;
     trackEndTick: number;
     sourceId: string;
+}
+
+let cachedTempoMapper: TempoMapper | null = null;
+let cachedTempoKey = '';
+
+function resolveTempoMapper(state: TimelineState): TempoMapper {
+    const tempoMap = state.timeline.masterTempoMap ?? [];
+    const bpm = state.timeline.globalBpm || 120;
+    const ticksPerQuarter = getSharedTimingManager().ticksPerQuarter;
+    const key = `${bpm}:${ticksPerQuarter}:${JSON.stringify(tempoMap)}`;
+    if (cachedTempoMapper && cachedTempoKey === key) {
+        return cachedTempoMapper;
+    }
+    cachedTempoMapper = createTempoMapper({
+        ticksPerQuarter,
+        globalBpm: bpm,
+        tempoMap,
+    });
+    cachedTempoKey = key;
+    return cachedTempoMapper;
+}
+
+function resolveHopSeconds(track: AudioFeatureTrack, cache: AudioFeatureCache): number {
+    return track.hopSeconds || cache.hopSeconds || 0.001;
+}
+
+function resolveStartSeconds(track: AudioFeatureTrack, cache: AudioFeatureCache): number {
+    if (typeof track.startTimeSeconds === 'number') {
+        return track.startTimeSeconds;
+    }
+    if (typeof cache.startTimeSeconds === 'number') {
+        return cache.startTimeSeconds;
+    }
+    return 0;
+}
+
+function resolveHopTicks(
+    track: AudioFeatureTrack,
+    cache: AudioFeatureCache,
+    tempoMapper: TempoMapper,
+): number {
+    if (typeof track.tempoProjection?.hopTicks === 'number') {
+        return Math.max(1, Math.round(track.tempoProjection.hopTicks));
+    }
+    if (typeof cache.tempoProjection?.hopTicks === 'number') {
+        return Math.max(1, Math.round(cache.tempoProjection.hopTicks));
+    }
+    const hopSeconds = resolveHopSeconds(track, cache);
+    return Math.max(1, Math.round(tempoMapper.secondsToTicks(hopSeconds)));
 }
 
 export function selectAudioFeatureCache(state: TimelineState, sourceId: string):
@@ -166,11 +216,40 @@ export function selectAudioFeatureFrame(
     const featureTrack = cache.featureTracks?.[featureKey];
     if (!featureTrack || featureTrack.frameCount <= 0) return undefined;
 
-    const hopTicks = Math.max(1, featureTrack.hopTicks || cache.hopTicks || 1);
+    const tempoMapper = resolveTempoMapper(state);
+    const hopSeconds = resolveHopSeconds(featureTrack, cache);
+    if (hopSeconds <= 0) {
+        return undefined;
+    }
+    const startSeconds = resolveStartSeconds(featureTrack, cache);
+    const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
     const offsetTicks = track.offsetTicks ?? 0;
     const regionStart = track.regionStartTick ?? 0;
     const relativeTick = tick - offsetTicks + regionStart;
-    const frameFloat = relativeTick / hopTicks;
+    const startTick = tempoMapper.secondsToTicks(startSeconds);
+
+    const buildSilentSample = (fractionalIndex: number): AudioFeatureFrameSample => {
+        const base = Number.isFinite(fractionalIndex) ? Math.floor(fractionalIndex) : 0;
+        return {
+            frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, base)),
+            fractionalIndex,
+            hopTicks,
+            values: buildSilentVector(featureTrack, options),
+            format: featureTrack.format,
+        };
+    };
+
+    if (!Number.isFinite(relativeTick) || relativeTick < startTick) {
+        const fractionalIndex = (relativeTick - startTick) / Math.max(1, hopTicks);
+        return buildSilentSample(fractionalIndex);
+    }
+
+    const relativeSeconds = tempoMapper.ticksToSeconds(relativeTick);
+    const frameFloat = (relativeSeconds - startSeconds) / hopSeconds;
+    if (!Number.isFinite(frameFloat) || frameFloat < 0 || frameFloat >= featureTrack.frameCount) {
+        return buildSilentSample(frameFloat);
+    }
+
     const baseIndex = Math.floor(frameFloat);
     const frac = frameFloat - baseIndex;
 
@@ -223,7 +302,13 @@ export function sampleAudioFeatureRange(
     const featureTrack = cache.featureTracks?.[featureKey];
     if (!featureTrack || featureTrack.frameCount <= 0) return undefined;
 
-    const hopTicks = Math.max(1, featureTrack.hopTicks || cache.hopTicks || 1);
+    const tempoMapper = resolveTempoMapper(state);
+    const hopSeconds = resolveHopSeconds(featureTrack, cache);
+    if (hopSeconds <= 0) {
+        return undefined;
+    }
+    const startSeconds = resolveStartSeconds(featureTrack, cache);
+    const hopTicks = resolveHopTicks(featureTrack, cache, tempoMapper);
     const offsetTicks = track.offsetTicks ?? 0;
     const regionStart = track.regionStartTick ?? 0;
     const regionEnd = (() => {
@@ -234,15 +319,24 @@ export function sampleAudioFeatureRange(
         if (cacheEntry && typeof cacheEntry.durationTicks === 'number') {
             return cacheEntry.durationTicks;
         }
-        return regionStart + featureTrack.frameCount * hopTicks;
+        const totalSeconds = startSeconds + featureTrack.frameCount * hopSeconds;
+        const regionDurationTicks = Math.max(
+            0,
+            tempoMapper.secondsToTicks(totalSeconds) - tempoMapper.secondsToTicks(startSeconds),
+        );
+        return regionStart + Math.round(regionDurationTicks);
     })();
     const regionLength = Math.max(0, regionEnd - regionStart);
     const trackStartTick = offsetTicks;
     const trackEndTick = trackStartTick + regionLength;
     const localStart = startTick - offsetTicks + regionStart;
     const localEnd = endTick - offsetTicks + regionStart;
-    const frameStart = Math.floor(Math.min(localStart, localEnd) / hopTicks);
-    const frameEnd = Math.floor(Math.max(localStart, localEnd) / hopTicks);
+    const localStartSeconds = tempoMapper.ticksToSeconds(localStart);
+    const localEndSeconds = tempoMapper.ticksToSeconds(localEnd);
+    const normalizedStartSeconds = (Math.min(localStartSeconds, localEndSeconds) - startSeconds) / hopSeconds;
+    const normalizedEndSeconds = (Math.max(localStartSeconds, localEndSeconds) - startSeconds) / hopSeconds;
+    const frameStart = Math.floor(normalizedStartSeconds);
+    const frameEnd = Math.floor(normalizedEndSeconds);
     const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
     const firstFrame = frameStart - padding;
     const lastFrame = frameEnd + padding;
@@ -260,7 +354,7 @@ export function sampleAudioFeatureRange(
     const data = new Float32Array(frameCount * channels);
     const frameTicks = new Float64Array(frameCount);
     const baseTick = offsetTicks - regionStart;
-    const halfHop = hopTicks / 2;
+    const halfHopSeconds = hopSeconds / 2;
     let writeIndex = 0;
     for (let frame = 0; frame < frameCount; frame += 1) {
         const sampleIndex = firstFrame + frame;
@@ -268,7 +362,8 @@ export function sampleAudioFeatureRange(
             sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
                 ? buildSilentVector(featureTrack, options)
                 : buildFrameVector(featureTrack, sampleIndex, options);
-        frameTicks[frame] = baseTick + sampleIndex * hopTicks + halfHop;
+        const frameSeconds = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
+        frameTicks[frame] = baseTick + tempoMapper.secondsToTicks(frameSeconds);
         if (isWaveform) {
             const [min, max] = vector;
             data[writeIndex++] = min ?? 0;

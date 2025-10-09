@@ -9,7 +9,7 @@ import {
     audioFeatureCalculatorRegistry,
     resetAudioFeatureCalculators,
 } from '@audio/features/audioFeatureRegistry';
-import { createTimingContext, secondsToTicks } from '@state/timelineTime';
+import { createTempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 
 function createSineBuffer(durationSeconds: number, sampleRate = 44100): AudioBuffer {
@@ -54,7 +54,11 @@ describe('audio feature analysis', () => {
         expect(cache.featureTracks.waveform).toBeDefined();
         expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(2);
         expect(cache.hopTicks).toBeGreaterThan(0);
+        expect(cache.version).toBe(2);
+        expect(cache.startTimeSeconds).toBe(0);
+        expect(cache.tempoProjection?.hopTicks).toBe(cache.hopTicks);
         const roundTrip = deserializeAudioFeatureCache(serializeAudioFeatureCache(cache));
+        expect(roundTrip.version).toBe(2);
         expect(roundTrip.featureTracks.spectrogram.channels).toBe(
             cache.featureTracks.spectrogram.channels,
         );
@@ -78,16 +82,14 @@ describe('audio feature analysis', () => {
         const waveform = cache.featureTracks.waveform;
         expect(waveform).toBeDefined();
         if (!waveform) return;
-        const timingContext = createTimingContext(
-            {
-                globalBpm,
-                beatsPerBar,
-                masterTempoMap: undefined,
-            },
-            getSharedTimingManager().ticksPerQuarter,
-        );
-        const expectedTicks = Math.max(1, Math.round(secondsToTicks(timingContext, waveform.hopSeconds)));
+        const tempoMapper = createTempoMapper({
+            ticksPerQuarter: getSharedTimingManager().ticksPerQuarter,
+            globalBpm,
+            tempoMap: undefined,
+        });
+        const expectedTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(waveform.hopSeconds)));
         expect(waveform.hopTicks).toBe(expectedTicks);
+        expect(waveform.tempoProjection?.hopTicks).toBe(expectedTicks);
     });
 
     it('scheduler resolves queued jobs and supports cancellation', async () => {
@@ -137,6 +139,7 @@ describe('audio feature analysis', () => {
                         channels: 1,
                         hopTicks: context.hopTicks,
                         hopSeconds: context.hopSeconds,
+                        startTimeSeconds: 0,
                         format: 'float32',
                         data: values,
                     };

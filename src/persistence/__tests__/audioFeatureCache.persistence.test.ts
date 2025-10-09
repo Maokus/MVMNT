@@ -9,10 +9,12 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
     const hopTicks = 120;
     return {
-        version: 1,
+        version: 2,
         audioSourceId: sourceId,
-        hopTicks,
         hopSeconds: 0.04,
+        hopTicks,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 2048,
@@ -36,6 +38,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 channels: 4,
                 hopTicks,
                 hopSeconds: 0.04,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: Float32Array.from({ length: frameCount * 4 }, (_, idx) => idx / (frameCount * 4)),
                 metadata: {
@@ -104,15 +108,22 @@ describe('audio feature cache persistence', () => {
         if (!serialized || !('analysisParams' in serialized) || !('featureTracks' in serialized)) {
             throw new Error('Expected inline audio feature cache payload');
         }
+        expect(serialized.version).toBe(2);
+        expect(serialized.startTimeSeconds).toBe(0);
+        expect(serialized.tempoProjection?.hopTicks).toBe(120);
         expect(serialized.analysisParams.windowSize).toBe(2048);
+        expect(serialized.featureTracks.spectrogram.startTimeSeconds).toBe(0);
         expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
         expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
+        expect(serialized.legacyTempoCache?.version).toBe(1);
+        expect(serialized.legacyTempoCache?.hopTicks).toBe(120);
         useTimelineStore.getState().resetTimeline();
         const importResult = await importScene(exported.json);
         expect(importResult.ok).toBe(true);
         const restored = useTimelineStore.getState().audioFeatureCaches[trackId];
         expect(restored).toBeDefined();
         expect(restored?.featureTracks.spectrogram.frameCount).toBe(10);
+        expect(restored?.tempoProjection?.hopTicks).toBe(120);
         expect(useTimelineStore.getState().audioFeatureCacheStatus[trackId]?.state).toBe('ready');
     });
 

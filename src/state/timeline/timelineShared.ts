@@ -56,7 +56,8 @@ function computeContentEndTick(state: TimelineState): number {
                     | import('@audio/features/audioFeatureTypes').AudioFeatureCache
                     | undefined;
                 if (!featureCache) continue;
-                const clipEnd = featureCache.frameCount * featureCache.hopTicks + t.offsetTicks;
+                const hopTicks = featureCache.hopTicks ?? featureCache.tempoProjection?.hopTicks ?? 0;
+                const clipEnd = featureCache.frameCount * hopTicks + t.offsetTicks;
                 if (clipEnd > max) max = clipEnd;
                 continue;
             }

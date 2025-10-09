@@ -5,3 +5,4 @@ export * from './tempo-utils';
 export { TimingManager } from './timing-manager';
 export type { TimeSignature, TimingConfig } from './timing-manager';
 export * from './time-domain';
+export * from './tempo-mapper';

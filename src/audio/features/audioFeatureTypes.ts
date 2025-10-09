@@ -1,3 +1,4 @@
+import type { TempoMapper } from '@core/timing/tempo-mapper';
 import type { TempoMapEntry } from '@state/timelineTypes';
 
 export type AudioFeatureTrackFormat =
@@ -26,10 +27,14 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     frameCount: number;
     /** Number of channels in the payload (e.g., stereo envelope). */
     channels: number;
-    /** Quantized hop duration in timeline ticks. */
-    hopTicks: number;
-    /** Quantized hop duration in seconds. */
+    /** Quantized hop duration in timeline ticks (legacy tempo-domain). */
+    hopTicks?: number;
+    /** Canonical hop duration in seconds for real-time indexing. */
     hopSeconds: number;
+    /** Absolute start of the first frame in seconds relative to the audio source. */
+    startTimeSeconds: number;
+    /** Optional tempo projection metadata for downstream consumers. */
+    tempoProjection?: AudioFeatureTempoProjection;
     /** Raw payload for the feature. */
     data: Data;
     /** Additional calculator provided metadata. */
@@ -57,10 +62,14 @@ export interface AudioFeatureAnalysisParams {
 export interface AudioFeatureCache {
     version: number;
     audioSourceId: string;
-    /** Quantized hop size shared across all feature tracks. */
-    hopTicks: number;
-    /** Hop duration in seconds. */
+    /** Quantized hop size shared across all feature tracks (legacy). */
+    hopTicks?: number;
+    /** Canonical hop duration in seconds. */
     hopSeconds: number;
+    /** Absolute start time (seconds) for the first frame. */
+    startTimeSeconds: number;
+    /** Optional tempo projection metadata shared across tracks. */
+    tempoProjection?: AudioFeatureTempoProjection;
     /** Total number of frames represented by the cache. */
     frameCount: number;
     /** Raw feature payloads keyed by feature name. */
@@ -97,6 +106,12 @@ export interface AudioFeatureCalculatorTiming {
     ticksPerQuarter: number;
 }
 
+export interface AudioFeatureTempoProjection {
+    hopTicks: number;
+    startTick: number;
+    tempoMapHash?: string;
+}
+
 export interface AudioFeatureCalculatorContext<P = unknown> {
     audioBuffer: AudioBuffer;
     /** Shared hop ticks computed for the analysis request. */
@@ -105,6 +120,8 @@ export interface AudioFeatureCalculatorContext<P = unknown> {
     frameCount: number;
     analysisParams: AudioFeatureAnalysisParams;
     timing: AudioFeatureCalculatorTiming;
+    tempoProjection: AudioFeatureTempoProjection;
+    tempoMapper: TempoMapper;
     prepared?: P;
     /** Optional progress reporter for chunk-based updates. */
     reportProgress?: (processed: number, total: number) => void;

@@ -8,12 +8,15 @@ import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 function createCache(trackId: string): AudioFeatureCache {
     const frameCount = 4;
     const hopTicks = 120;
+    const hopSeconds = hopTicks / 1920;
     const data = Float32Array.from({ length: frameCount }, (_, idx) => idx / frameCount);
     return {
-        version: 1,
+        version: 2,
         audioSourceId: trackId,
+        hopSeconds,
         hopTicks,
-        hopSeconds: 0.05,
+        startTimeSeconds: 0,
+        tempoProjection: { hopTicks, startTick: 0 },
         frameCount,
         analysisParams: {
             windowSize: 256,
@@ -30,7 +33,9 @@ function createCache(trackId: string): AudioFeatureCache {
                 frameCount,
                 channels: 1,
                 hopTicks,
-                hopSeconds: 0.05,
+                hopSeconds,
+                startTimeSeconds: 0,
+                tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data,
             },
