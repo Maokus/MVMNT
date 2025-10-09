@@ -205,7 +205,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             key: 'useChannelColors',
                             type: 'boolean',
                             label: 'Use Per-Channel Colors',
-                            default: true,
+                            default: false,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
                         {
@@ -397,12 +397,22 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             id: 'brightGuides',
                             label: 'Bright Guides',
-                            values: { showNoteGrid: true, noteGridColor: '#64748b', noteGridOpacity: 0.8, noteGridLineWidth: 1 },
+                            values: {
+                                showNoteGrid: true,
+                                noteGridColor: '#64748b',
+                                noteGridOpacity: 0.8,
+                                noteGridLineWidth: 1,
+                            },
                         },
                         {
                             id: 'subtle',
                             label: 'Subtle Lines',
-                            values: { showNoteGrid: true, noteGridColor: '#1f2937', noteGridOpacity: 0.4, noteGridLineWidth: 0.5 },
+                            values: {
+                                showNoteGrid: true,
+                                noteGridColor: '#1f2937',
+                                noteGridOpacity: 0.4,
+                                noteGridLineWidth: 0.5,
+                            },
                         },
                         { id: 'hidden', label: 'Hidden', values: { showNoteGrid: false } },
                     ],
@@ -464,7 +474,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             id: 'barsAndBeats',
                             label: 'Bars & Beats',
-                            values: { showBeatGrid: true, beatGridBarWidth: 2, beatGridBeatWidth: 1, beatGridOpacity: 0.9 },
+                            values: {
+                                showBeatGrid: true,
+                                beatGridBarWidth: 2,
+                                beatGridBeatWidth: 1,
+                                beatGridOpacity: 0.9,
+                            },
                         },
                         {
                             id: 'minimal',
@@ -538,12 +553,22 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             id: 'classicPiano',
                             label: 'Classic Piano',
-                            values: { showPiano: true, whiteKeyColor: '#f8fafc', blackKeyColor: '#111827', pianoOpacity: 1 },
+                            values: {
+                                showPiano: true,
+                                whiteKeyColor: '#f8fafc',
+                                blackKeyColor: '#111827',
+                                pianoOpacity: 1,
+                            },
                         },
                         {
                             id: 'ghostKeys',
                             label: 'Ghost Keys',
-                            values: { showPiano: true, whiteKeyColor: '#94a3b8', blackKeyColor: '#1f2937', pianoOpacity: 0.6 },
+                            values: {
+                                showPiano: true,
+                                whiteKeyColor: '#94a3b8',
+                                blackKeyColor: '#1f2937',
+                                pianoOpacity: 0.6,
+                            },
                         },
                         { id: 'hidden', label: 'No Keyboard', values: { showPiano: false } },
                     ],
@@ -768,12 +793,22 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             id: 'expand',
                             label: 'Expand',
-                            values: { animationType: 'expand', attackDuration: 0.3, decayDuration: 0.3, releaseDuration: 0.3 },
+                            values: {
+                                animationType: 'expand',
+                                attackDuration: 0.3,
+                                decayDuration: 0.3,
+                                releaseDuration: 0.3,
+                            },
                         },
                         {
                             id: 'staccato',
                             label: 'Staccato',
-                            values: { animationType: 'expand', attackDuration: 0.1, decayDuration: 0.15, releaseDuration: 0.2 },
+                            values: {
+                                animationType: 'expand',
+                                attackDuration: 0.1,
+                                decayDuration: 0.15,
+                                releaseDuration: 0.2,
+                            },
                         },
                         {
                             id: 'noAnimation',
@@ -822,12 +857,22 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         {
                             id: 'standard',
                             label: 'Standard',
-                            values: { showPlayhead: true, playheadColor: '#ff6b6b', playheadLineWidth: 2, playheadOpacity: 1 },
+                            values: {
+                                showPlayhead: true,
+                                playheadColor: '#ff6b6b',
+                                playheadLineWidth: 2,
+                                playheadOpacity: 1,
+                            },
                         },
                         {
                             id: 'thin',
                             label: 'Thin Line',
-                            values: { showPlayhead: true, playheadLineWidth: 1, playheadOpacity: 0.8, playheadColor: '#f8fafc' },
+                            values: {
+                                showPlayhead: true,
+                                playheadLineWidth: 1,
+                                playheadOpacity: 0.8,
+                                playheadColor: '#f8fafc',
+                            },
                         },
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
@@ -1370,9 +1415,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     getChannelColors(): string[] {
         const useChannelColors = this.getProperty<boolean>('useChannelColors');
         const baseColor =
-            this.getProperty<string>('noteColor') ||
-            this.getProperty<string>('channel0Color') ||
-            '#ff6b6b';
+            this.getProperty<string>('noteColor') || this.getProperty<string>('channel0Color') || '#ff6b6b';
         if (useChannelColors === false) {
             return Array.from({ length: 16 }, () => baseColor);
         }
