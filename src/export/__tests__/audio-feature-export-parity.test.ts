@@ -18,12 +18,24 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             data[offset] = base + channel * 0.1;
         }
     }
+    const tempoProjection = { hopTicks, startTick: 0 } as const;
+    const channelAliases = ['Left', 'Right', 'Center'];
+    const analysisProfiles = {
+        default: {
+            id: 'default',
+            windowSize: 512,
+            hopSize: 256,
+            overlap: 2,
+            sampleRate: 48000,
+        },
+    } as const;
     return {
-        version: 1,
+        version: 3,
         audioSourceId: sourceId,
         hopTicks,
         hopSeconds,
         startTimeSeconds: 0,
+        tempoProjection,
         frameCount,
         analysisParams: {
             windowSize: 512,
@@ -42,10 +54,16 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 hopTicks,
                 hopSeconds,
                 startTimeSeconds: 0,
+                tempoProjection,
                 format: 'float32',
                 data,
+                channelAliases,
+                analysisProfileId: 'default',
             },
         },
+        analysisProfiles,
+        defaultAnalysisProfileId: 'default',
+        channelAliases,
     };
 }
 

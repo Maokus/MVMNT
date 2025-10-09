@@ -206,46 +206,58 @@ describe('sceneStore', () => {
             index: 0,
             bindings: {
                 featureTrackId: { type: 'constant', value: 'audio-track' },
-                featureDescriptor: {
+                features: {
                     type: 'constant',
-                    value: {
-                        featureKey: 'rms',
-                        calculatorId: 'mvmnt.rms',
-                        bandIndex: null,
-                        channelIndex: null,
-                        smoothing: 0.15,
-                    },
+                    value: [
+                        {
+                            featureKey: 'rms',
+                            calculatorId: 'mvmnt.rms',
+                            bandIndex: null,
+                            channelIndex: null,
+                            channelAlias: null,
+                            smoothing: 0.15,
+                        },
+                    ],
                 },
+                analysisProfileId: { type: 'constant', value: 'default' },
             },
         });
 
         const elementBindings = store.getState().bindings.byElement['audio-element'];
         expect(elementBindings.featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
-        expect(elementBindings.featureDescriptor).toEqual({
+        expect(elementBindings.features).toEqual({
             type: 'constant',
-            value: {
-                featureKey: 'rms',
-                calculatorId: 'mvmnt.rms',
-                bandIndex: null,
-                channelIndex: null,
-                smoothing: 0.15,
-            },
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channelIndex: null,
+                    channelAlias: null,
+                    smoothing: 0.15,
+                },
+            ],
         });
+        expect(elementBindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
 
         const exported = store.getState().exportSceneDraft();
         const serialized = exported.elements.find((el) => el.id === 'audio-element');
         expect(serialized).toBeDefined();
         expect((serialized as any).featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
-        expect((serialized as any).featureDescriptor).toEqual({
+        expect((serialized as any).features).toEqual({
             type: 'constant',
-            value: {
-                featureKey: 'rms',
-                calculatorId: 'mvmnt.rms',
-                bandIndex: null,
-                channelIndex: null,
-                smoothing: 0.15,
-            },
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channelIndex: null,
+                    channelAlias: null,
+                    smoothing: 0.15,
+                },
+            ],
         });
+        expect((serialized as any).analysisProfileId).toEqual({ type: 'constant', value: 'default' });
     });
 
     it('imports audio feature macro fixtures with track bindings intact', () => {
@@ -253,11 +265,63 @@ describe('sceneStore', () => {
 
         const bindings = store.getState().bindings.byElement['spectrum'];
         expect(bindings?.featureTrackId).toEqual({ type: 'macro', macroId: 'macro.audio.track' });
-        expect(bindings?.featureDescriptor?.type).toBe('constant');
+        expect(bindings?.features?.type).toBe('constant');
+        expect(bindings?.analysisProfileId?.type).toBe('constant');
 
         const macro = store.getState().macros.byId['macro.audio.track'];
         expect(macro?.options?.allowedTrackTypes).toEqual(['audio']);
         expect(macro?.value).toBe('audio-track-1');
+    });
+
+    it('ensures imported descriptor arrays gain a default analysis profile', () => {
+        store.getState().importScene({
+            elements: [
+                {
+                    id: 'audio-element',
+                    type: 'audioSpectrum',
+                    featureTrackId: { type: 'constant', value: 'audio-track-1' },
+                    features: {
+                        type: 'constant',
+                        value: [
+                            {
+                                featureKey: 'waveform',
+                                calculatorId: 'mvmnt.waveform',
+                                bandIndex: null,
+                                channelIndex: null,
+                                channelAlias: null,
+                                smoothing: null,
+                            },
+                        ],
+                    },
+                },
+            ],
+        } as any);
+
+        const bindings = store.getState().bindings.byElement['audio-element'];
+        expect(bindings?.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+    });
+
+    it('applies a default analysis profile when descriptor arrays are assigned', () => {
+        store.getState().addElement({ id: 'audio-element', type: 'audioSpectrum' });
+
+        store.getState().updateBindings('audio-element', {
+            features: {
+                type: 'constant',
+                value: [
+                    {
+                        featureKey: 'rms',
+                        calculatorId: 'mvmnt.rms',
+                        bandIndex: null,
+                        channelIndex: null,
+                        channelAlias: null,
+                        smoothing: 0.1,
+                    },
+                ],
+            },
+        });
+
+        const bindings = store.getState().bindings.byElement['audio-element'];
+        expect(bindings?.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
     });
 
     describe('timeline track macro validation', () => {
@@ -369,16 +433,20 @@ describe('sceneStore', () => {
         const bindings = store.getState().bindings.byElement['osc'];
         expect(bindings.featureBinding).toBeUndefined();
         expect(bindings.featureTrackId).toEqual({ type: 'constant', value: 'track-1' });
-        expect(bindings.featureDescriptor).toEqual({
+        expect(bindings.features).toEqual({
             type: 'constant',
-            value: {
-                featureKey: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                bandIndex: 1,
-                channelIndex: 0,
-                smoothing: 0.25,
-            },
+            value: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    bandIndex: 1,
+                    channelIndex: 0,
+                    channelAlias: null,
+                    smoothing: 0.25,
+                },
+            ],
         });
+        expect(bindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
 
         expect(store.getState().bindings.byMacro).not.toHaveProperty('undefined');
     });

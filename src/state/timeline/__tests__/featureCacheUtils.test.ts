@@ -14,6 +14,16 @@ function createCache(options: {
     const frameCount = options.frameCount ?? 8;
     const hopTicks = options.hopTicks ?? 120;
     const hopSeconds = hopTicks / 1920;
+    const channelAliases = ['Mono'];
+    const analysisProfiles = {
+        default: {
+            id: 'default',
+            windowSize: 256,
+            hopSize: 128,
+            overlap: 2,
+            sampleRate: 48000,
+        },
+    };
     return {
         version: options.version ?? 2,
         audioSourceId: options.sourceId,
@@ -44,8 +54,13 @@ function createCache(options: {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: new Float32Array(frameCount),
+                channelAliases,
+                analysisProfileId: 'default',
             },
         },
+        analysisProfiles,
+        defaultAnalysisProfileId: 'default',
+        channelAliases,
     };
 }
 

@@ -26,6 +26,7 @@ interface LegacyAudioFeatureBindingData {
     calculatorId?: string | null;
     bandIndex?: number | null;
     channelIndex?: number | null;
+    channelAlias?: string | null;
     smoothing?: number | null;
 }
 
@@ -48,11 +49,16 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Audio
         typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing)
             ? payload.smoothing
             : null;
+    const channelAlias =
+        typeof payload.channelAlias === 'string' && payload.channelAlias.trim().length > 0
+            ? payload.channelAlias.trim()
+            : null;
     return {
         featureKey,
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
         channelIndex: coerceIndex(payload.channelIndex),
+        channelAlias,
         smoothing,
     };
 }
@@ -66,8 +72,33 @@ export function migrateLegacyAudioFeatureBinding(
     propertyKey: string,
     value: unknown,
 ): LegacyBindingMigrationResult | null {
+    if (propertyKey === 'featureDescriptor') {
+        const replacements: Record<string, BindingState> = {};
+        if ((value as ConstantBindingState | MacroBindingState | undefined)?.type === 'constant') {
+            const descriptorValue = (value as ConstantBindingState).value as
+                | AudioFeatureDescriptor
+                | null
+                | undefined;
+            const normalized = descriptorValue
+                ? {
+                      featureKey: descriptorValue.featureKey,
+                      calculatorId: descriptorValue.calculatorId ?? null,
+                      bandIndex: descriptorValue.bandIndex ?? null,
+                      channelIndex: descriptorValue.channelIndex ?? null,
+                      channelAlias: descriptorValue.channelAlias ?? null,
+                      smoothing: descriptorValue.smoothing ?? null,
+                  }
+                : null;
+            replacements.features = {
+                type: 'constant',
+                value: normalized ? [normalized] : [],
+            };
+            replacements.analysisProfileId = { type: 'constant', value: 'default' };
+        }
+        return { clearedKeys: ['featureDescriptor'], replacements };
+    }
     if (propertyKey !== 'featureBinding') return null;
-    const clearedKeys = ['featureBinding', 'featureTrackId', 'featureDescriptor'];
+    const clearedKeys = ['featureBinding', 'featureTrackId', 'featureDescriptor', 'analysisProfileId'];
     if (!isLegacyAudioFeatureBinding(value)) {
         return { clearedKeys, replacements: {} };
     }
@@ -78,7 +109,8 @@ export function migrateLegacyAudioFeatureBinding(
     }
     const descriptor = sanitizeLegacyDescriptor(value);
     if (descriptor) {
-        replacements.featureDescriptor = { type: 'constant', value: descriptor };
+        replacements.features = { type: 'constant', value: [descriptor] };
+        replacements.analysisProfileId = { type: 'constant', value: 'default' };
     }
     return { clearedKeys, replacements };
 }
@@ -272,11 +304,43 @@ function cloneBinding(binding: BindingState): BindingState {
     throw new Error(`Unsupported binding type: ${(binding as { type?: string }).type ?? 'unknown'}`);
 }
 
+function hasAudioFeatureDescriptors(binding: ConstantBindingState): boolean {
+    const value = binding.value;
+    if (!Array.isArray(value)) return false;
+    return value.some((descriptor) => {
+        if (!descriptor || typeof descriptor !== 'object') return false;
+        const key = (descriptor as { featureKey?: unknown }).featureKey;
+        return typeof key === 'string' && key.length > 0;
+    });
+}
+
+function ensureDefaultAnalysisProfileBinding(bindings: ElementBindings): boolean {
+    const featuresBinding = bindings.features;
+    if (!featuresBinding || featuresBinding.type !== 'constant') return false;
+    if (!hasAudioFeatureDescriptors(featuresBinding)) return false;
+
+    const profileBinding = bindings.analysisProfileId;
+    if (profileBinding) {
+        if (profileBinding.type === 'macro') return false;
+        if (
+            profileBinding.type === 'constant' &&
+            typeof profileBinding.value === 'string' &&
+            profileBinding.value.trim().length > 0
+        ) {
+            return false;
+        }
+    }
+
+    bindings.analysisProfileId = { type: 'constant', value: 'default' };
+    return true;
+}
+
 function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
     const result: ElementBindings = {};
     for (const [key, binding] of Object.entries(bindings)) {
         result[key] = cloneBinding(binding);
     }
+    ensureDefaultAnalysisProfileBinding(result);
     return result;
 }
 
@@ -391,6 +455,7 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
             }
         }
     }
+    ensureDefaultAnalysisProfileBinding(bindings);
     return bindings;
 }
 
@@ -907,6 +972,10 @@ const createSceneStoreState = (
                         zIndexChanged = true;
                     }
                 }
+            }
+
+            if (ensureDefaultAnalysisProfileBinding(nextBindingsForElement)) {
+                changed = true;
             }
 
             if (!changed) return state;

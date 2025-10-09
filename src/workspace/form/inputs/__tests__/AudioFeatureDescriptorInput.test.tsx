@@ -22,6 +22,8 @@ function createCache(trackId: string, channels = 1, extraFeatures: Record<string
         format: 'float32' as const,
         data: Float32Array.from({ length: frameCount * channels }, (_, idx) => idx / frameCount),
         metadata: { label: 'RMS' },
+        channelAliases: channels > 1 ? ['Left', 'Right', 'Center', 'LFE'].slice(0, channels) : ['Mono'],
+        analysisProfileId: 'default',
     };
     const featureTracks: AudioFeatureCache['featureTracks'] = {
         rms: baseTrack,
@@ -35,12 +37,25 @@ function createCache(trackId: string, channels = 1, extraFeatures: Record<string
                     channels: overrides.channels ?? baseTrack.channels,
                     format: overrides.format ?? baseTrack.format,
                     metadata: { label: overrides.metadata?.label ?? key },
+                    channelAliases: (() => {
+                        const overrideChannels = overrides.channels ?? baseTrack.channels;
+                        if (overrides.channelAliases) {
+                            return overrides.channelAliases;
+                        }
+                        if (overrideChannels > 1) {
+                            return baseTrack.channelAliases.length >= overrideChannels
+                                ? baseTrack.channelAliases.slice(0, overrideChannels)
+                                : Array.from({ length: overrideChannels }, (_, index) => `Channel ${index + 1}`);
+                        }
+                        return baseTrack.channelAliases;
+                    })(),
+                    analysisProfileId: overrides.analysisProfileId ?? 'default',
                 },
             ]),
         ),
     };
     return {
-        version: 2,
+        version: 3,
         audioSourceId: trackId,
         hopSeconds,
         hopTicks,
@@ -54,6 +69,17 @@ function createCache(trackId: string, channels = 1, extraFeatures: Record<string
             sampleRate: 48000,
             calculatorVersions: { 'mvmnt.rms': 1 },
         },
+        analysisProfiles: {
+            default: {
+                id: 'default',
+                windowSize: 256,
+                hopSize: 128,
+                overlap: 2,
+                sampleRate: 48000,
+            },
+        },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: channels > 1 ? ['Left', 'Right', 'Center', 'LFE'].slice(0, channels) : ['Mono'],
         featureTracks,
     };
 }
@@ -149,5 +175,6 @@ describe('AudioFeatureDescriptorInput', () => {
         fireEvent.change(channelSelect, { target: { value: '1' } });
         const payload = handleChange.mock.calls.at(-1)?.[0];
         expect(payload.channelIndex).toBe(1);
+        expect(payload.channelAlias).toBe('Right');
     });
 });
