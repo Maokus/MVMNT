@@ -1,10 +1,12 @@
-# Keyframe Animation Research
+# Automation Research
 
 **Status:** Research
 
+**Terminology Note:** In this document, *automation* refers to timeline-driven property changes orchestrated through keyframes. This avoids overloading "animation," which already names the runtime's note-visual effects system.
+
 ## Objectives
 - Understand the current animation-related infrastructure inside MVMNT.
-- Identify integration points for a generalized, keyframe-based property animation workflow.
+- Identify integration points for a generalized, keyframe-based property automation workflow.
 - Survey established animation workflows in other creative tools to inform UX and technical requirements.
 
 ## Current Capabilities in MVMNT
@@ -15,14 +17,14 @@
 - `AnimationController` for the time-unit piano roll derives ADSR-style phases per note by comparing the target playback time with note/window boundaries, then delegates rendering to the animation instance. It caches animation objects, clamps geometry to the window, and falls back to a neutral draw when animation is disabled.【F:src/core/scene/elements/time-unit-piano-roll/animation-controller.ts†L1-L211】
 - The moving-notes piano roll reuses the same animation registry but computes progress relative to a static playhead instead of a sliding window.【F:src/core/scene/elements/moving-notes-piano-roll/animation-controller.ts†L1-L170】
 
-**Implications:** The runtime already consumes normalized `[0,1]` progress inputs and easing functions. A keyframe system could emit compatible `AnimationContext` data for non-note properties, reusing easing math like `FloatCurve` for interpolation.【F:src/animation/anim-math.ts†L1-L87】
+**Implications:** The runtime already consumes normalized `[0,1]` progress inputs and easing functions. An automation system could emit compatible `AnimationContext` data for non-note properties, reusing easing math like `FloatCurve` for interpolation.【F:src/animation/anim-math.ts†L1-L87】
 
 ### Property Binding & Macros
 - Scene elements expose configurable properties through schemas (e.g., animation durations and types in the time-unit piano roll) that render inside the properties panel.【F:src/core/scene/elements/time-unit-piano-roll/time-unit-piano-roll.ts†L731-L833】
 - User edits dispatch `SceneCommand`s through the command gateway. The gateway normalizes bindings, supports constant values, macro references, and audio feature bindings, and ensures undo/redo fidelity.【F:src/state/scene/commandGateway.ts†L1-L523】
 - Macros provide reusable values (numbers, colors, booleans, etc.) that multiple properties can bind to, with tooling in the property panel highlighting macro-driven fields.【F:src/state/scene/macros.ts†L1-L31】【F:src/workspace/panels/properties/PropertyGroupPanel.tsx†L320-L392】
 
-**Implications:** A timeline-driven animation system will need to coexist with existing bindings. We may either introduce a new binding type (e.g., `type: 'keyframes'`) or emit macro values procedurally via an animation engine that feeds macro bindings in real time.
+**Implications:** A timeline-driven automation system will need to coexist with existing bindings. We may either introduce a new binding type (e.g., `type: 'keyframes'`) or emit macro values procedurally via an automation engine that feeds macro bindings in real time.
 
 ### Timing & Playback Foundations
 - The canonical timeline operates in ticks, with seconds derived via `TimingManager`. Playback/export rely on deterministic tick iteration, suggesting keyframe storage should align with ticks (or beats) for consistency.【F:docs/TIME_DOMAIN.md†L1-L120】
@@ -46,24 +48,53 @@
 ## Potential Integration Approach
 
 1. **Data Model Extension**
-   - Add a `keyframes` binding type representing one or more channels per property (`[{ timeTick, value, easing }]`).
+   - Add a `keyframes` binding type representing one or more automation channels per property (`[{ timeTick, value, easing, handles? }]`).
    - Store channels in the scene store alongside macros to keep serialization centralized. Each channel references property+element IDs.
-   - Reuse `FloatCurve` or expand it to support arbitrary control-point easing (Bezier, steps, hold).
+   - Expand `FloatCurve` to support arbitrary control-point easing, including cubic Bezier handles, stepped/hold segments, and potentially user-defined tangents for custom interpolation families.
 
 2. **Evaluation Engine**
-   - During playback/export, evaluate active keyframe channels at the current tick. Convert ticks to normalized progress per segment, apply easing, and emit the resulting value.
+   - During playback/export, evaluate active automation channels at the current tick. Convert ticks to normalized progress per segment, apply easing (using enhanced `FloatCurve` definitions), and emit the resulting value.
    - Expose evaluated outputs as either transient macro values (feeding existing bindings) or direct overrides inside the runtime adapter before render.
    - Cache compiled curves per element for performance; invalidate when keyframes or timing settings change.
 
 3. **Authoring Surface**
-   - Introduce a timeline panel that lists animatable properties. Use the tick-based transport as the horizontal axis for consistency with other time-based tools in MVMNT.
-   - Provide presets/easing pickers inspired by After Effects and Figma for quick results.
+   - Introduce a refreshed timeline panel that lists automatable properties. Use the tick-based transport as the horizontal axis for consistency with other time-based tools in MVMNT.
+   - Provide presets/easing pickers inspired by After Effects and Figma for quick results, while also exposing a graph view for direct control-point manipulation.
    - Support copy/paste and alignment aids (snapping to beats/bars leveraging the tick timeline).
 
 4. **Interoperability**
    - Allow keyframe channels to modulate macro values so existing macro-driven workflows benefit (e.g., animate a macro once, reuse across elements).
    - Ensure export determinism by evaluating channels deterministically per frame/tick, similar to current note animation controllers.
    - Consider bridging with audio feature bindings (e.g., combine audio-reactive modulation with keyframes via layering or blending).
+
+## Automation Binding Model
+
+### Binding Semantics
+- **Binding Types:** Extend the existing binding discriminated union with `type: 'keyframes'` (a.k.a. automation) while preserving `constant`, `macro`, and `audioFeature` options. The automation binding would reference a channel registry entry rather than inlining frames on every property instance to avoid redundant data.
+- **Channel Ownership:** Anchor channels at the scene root under a new automation registry, keyed by `{elementId}.{propertyPath}`. This enables reuse across multiple properties by pointing bindings to shared channel IDs and simplifies dependency analysis when properties are duplicated or instanced.
+- **Blending Rules:** Define how automation combines with other bindings. One proposal is: (1) evaluate automation, (2) apply macro overrides (allowing macros to modulate automation outputs multiplicatively or additively), then (3) fall back to constants when no automation exists. Documenting these semantics early avoids regressions when both systems coexist.
+
+### Authoring Flows
+- **Channel Creation:** Adding a keyframe on a property should implicitly create the automation binding and channel if absent. Conversely, removing the last keyframe should prompt to revert to the prior binding type to keep the store minimal.
+- **Copy/Reuse:** Provide UI affordances to duplicate channels across elements or promote them to macros for global reuse, similar to how After Effects allows copying animation curves between layers.
+- **Serialization Hooks:** Ensure scene export/import flows snapshot automation channels with stable IDs, keeping compatibility with existing scenes by defaulting missing channels to static values.【F:docs/SCENE_STORE.md†L1-L53】
+
+## FloatCurve Expansion Plan
+
+- **Representation:** Transition `FloatCurve` from simple easing enums to a piecewise representation: each segment references two keyframes plus optional handle data (`{ in: [x,y], out: [x,y] }`). For stepped/hold behavior, allow zero-duration tangents or explicit `mode: 'hold'` markers.
+- **Editing:** Build utilities for converting cubic Bezier control points into the normalized evaluator currently used for animations. Investigate whether we can adopt the same Hermite spline math as Blender's F-curves for consistent tangent behavior.
+- **Sampling:** Support both forward evaluation (given progress, find value) and inverse operations (given value, approximate time) to enable features like "jump to automation value" or snapping keyframes to a target output.
+- **Presets:** Maintain existing easing presets by mapping them to canonical handle positions (e.g., `easeInOut` translates to cubic handles). Provide a library so users can save custom curves and reapply them across channels.
+
+## Timeline Rework Considerations
+
+- **Single Source of Time:** Align the timeline panel, transport controls, and playback engine around the same tick/beat abstraction to avoid current desync bugs. Any scrubbing or loop ranges in the timeline should update the global transport state to keep note rendering and automation evaluation in lockstep.
+- **Track Architecture:** Instead of the current monolithic timeline, introduce discrete tracks per automatable target (e.g., element property, macro, audio feature). Allow collapsing/expanding tracks, grouping them under elements, and filtering by property type to keep large scenes manageable.
+- **Keyframe Editing UX:** Adopt a combined dope-sheet + curve view. The dope sheet supports quick positioning/duplication, while an optional curve editor pane exposes precise easing control. Provide keyboard shortcuts for nudging keyframes by musical subdivisions (e.g., bar, beat, tick) to leverage MVMNT's music-first workflow.
+- **Snapping & Quantization:** Integrate beat grid snapping with configurable strength (hard snap vs. magnetic). Offer quantize commands that can batch-align selected keyframes to chosen subdivisions, helping users maintain musical timing.
+- **State Management:** Refactor timeline state to rely on the scene store as the source of truth, minimizing local React state that can drift out of sync. Utilize memoized selectors for visible time ranges and virtualization to keep performance reasonable with dense automation data.
+- **Bug Surface Reduction:** Audit existing timeline bugs (e.g., selection persistence, scroll jitter). Consolidate event handling so pointer events centralize in a canvas-like layer rather than many nested divs; this should reduce lost drag events and improve hit testing for tightly packed keyframes.
+- **Extensibility:** Design track metadata to accommodate future automation types (e.g., boolean toggles, color ramps). Even if v1 focuses on scalar floats, ensuring the UI can switch editors based on value type avoids redesign later.
 
 ## Engineering Considerations
 - **Store Size & Performance:** Large keyframe datasets must remain efficient. Consider sparse storage (array of keyframes) with memoized curve compilation.
@@ -73,15 +104,15 @@
 - **Testing:** Add unit tests for curve interpolation and integration tests verifying deterministic exports when keyframes are present.
 
 ## Open Questions
-- How should keyframe priority resolve against manual property overrides and macro bindings? (e.g., last-write wins, blend, or layering system?)
-- Do we need multi-parameter rigs (position X/Y) with linked handles to support path-based animation, or is scalar-only acceptable initially?
-- Should easing support custom curves beyond what `FloatCurve` offers (e.g., Bezier handles, hold/step modes)?
-- What UX is required to balance simplicity (Figma-style) with power (After Effects graph editor)?
-- Can audio-reactive features blend with keyframes via modifiers (additive/multiplicative) without large performance cost?
+- How should automation priority resolve against manual property overrides and macro bindings? (e.g., last-write wins, blend, or layering system?)
+- Do we need multi-parameter rigs (position X/Y) with linked handles to support path-based motion, or is scalar-only acceptable initially?
+- What guardrails are required so power users can expose cubic handles without overwhelming newcomers (e.g., preset libraries, simplified editors)?
+- Which timeline bugs are most painful today, and can we address them opportunistically during the rework (e.g., selection loss, scroll jumps)?
+- Can audio-reactive features blend with automation via modifiers (additive/multiplicative) without large performance cost?
 
 ## Next Steps
-- Prototype a store schema for keyframe channels and update the command gateway to mutate them safely.
-- Build a minimal evaluator that drives one property (e.g., opacity) from keyframes to validate playback/export integration.
+- Prototype a store schema for automation channels and update the command gateway to mutate them safely.
+- Build a minimal evaluator that drives one property (e.g., opacity) from automation to validate playback/export integration.
 - Design timeline UI mocks referencing UX inspirations noted above; gather feedback before full implementation.
 - Audit export pipeline for additional requirements (e.g., caching evaluated frames, CLI render integration).
 
