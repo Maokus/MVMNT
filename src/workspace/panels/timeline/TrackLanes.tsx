@@ -277,13 +277,18 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         let featureStatusLabel: string | null = null;
         let featureStatusClass = '';
         if (isAudioTrack) {
+            const pendingProgress = audioFeatureStatus?.progress;
+            const pendingPercent = pendingProgress
+                ? Math.round(Math.max(0, Math.min(1, pendingProgress.value)) * 100)
+                : null;
             switch (audioFeatureStatus?.state) {
                 case 'ready':
                     featureStatusLabel = 'Analysed';
                     featureStatusClass = 'bg-emerald-500/60 text-emerald-50 border border-emerald-300/40';
                     break;
                 case 'pending':
-                    featureStatusLabel = 'Analysing…';
+                    featureStatusLabel =
+                        pendingPercent != null ? `Analysing… ${pendingPercent}%` : 'Analysing…';
                     featureStatusClass = 'bg-amber-500/60 text-amber-50 border border-amber-300/40';
                     break;
                 case 'failed':
@@ -294,13 +299,27 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                     featureStatusLabel = 'Queued';
                     featureStatusClass = 'bg-sky-500/60 text-sky-50 border border-sky-300/40';
                     break;
+                case 'idle':
+                    featureStatusLabel = 'Not analysed';
+                    featureStatusClass = 'bg-slate-600/70 text-slate-100 border border-slate-400/40';
+                    break;
                 default:
                     featureStatusLabel = 'Not analysed';
                     featureStatusClass = 'bg-slate-600/70 text-slate-100 border border-slate-400/40';
             }
         }
 
-        const featureStatusTitle = audioFeatureStatus?.message ? audioFeatureStatus.message : undefined;
+        const featureStatusTitle = useMemo(() => {
+            if (!audioFeatureStatus) return undefined;
+            const parts: string[] = [];
+            if (audioFeatureStatus.message) {
+                parts.push(audioFeatureStatus.message);
+            }
+            if (audioFeatureStatus.state === 'pending' && audioFeatureStatus.progress?.label) {
+                parts.push(`Phase: ${audioFeatureStatus.progress.label}`);
+            }
+            return parts.length ? parts.join(' • ') : undefined;
+        }, [audioFeatureStatus]);
 
         return (
             <div className="relative h-full"

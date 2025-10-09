@@ -5,6 +5,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import SceneFontManager from './SceneFontManager';
+import SceneAnalysisCachesTab from './SceneAnalysisCachesTab';
 
 interface SceneSettingsModalProps {
     onClose: () => void;
@@ -134,11 +135,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'general' | 'fonts' | 'debug' | 'metadata'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata'>('general');
 
     const tabs: Array<{ id: typeof activeTab; label: string }> = useMemo(
         () => [
             { id: 'general', label: 'General' },
+            { id: 'caches', label: 'Caches' },
             { id: 'fonts', label: 'Fonts' },
             { id: 'debug', label: 'Debug' },
             { id: 'metadata', label: 'Metadata' },
@@ -280,6 +282,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             </div>
                         </div>
                     )}
+                    {activeTab === 'caches' && <SceneAnalysisCachesTab />}
                     {activeTab === 'fonts' && (
                         <div className="flex flex-col gap-3">
                             <h3 className="m-0 text-[13px] font-semibold text-white">Fonts</h3>

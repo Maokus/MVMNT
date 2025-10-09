@@ -5,6 +5,7 @@ import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWav
 import type {
     AudioFeatureCache,
     AudioFeatureCacheStatus,
+    AudioFeatureCacheStatusProgress,
     AudioFeatureCacheStatusState,
 } from '@audio/features/audioFeatureTypes';
 import {
@@ -148,7 +149,14 @@ export type TimelineState = {
     ) => void;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
-    setAudioFeatureCacheStatus: (id: string, status: AudioFeatureCacheStatusState, message?: string) => void;
+    setAudioFeatureCacheStatus: (
+        id: string,
+        status: AudioFeatureCacheStatusState,
+        message?: string,
+        progress?: AudioFeatureCacheStatusProgress | null,
+    ) => void;
+    stopAudioFeatureAnalysis: (id: string) => void;
+    restartAudioFeatureAnalysis: (id: string) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
@@ -167,13 +175,31 @@ function buildAudioFeatureStatus(
     nextState: AudioFeatureCacheStatusState,
     message?: string,
     sourceHash?: string,
+    progress?: AudioFeatureCacheStatusProgress | null,
 ): AudioFeatureCacheStatus {
-    return {
+    const nextMessage =
+        message !== undefined
+            ? message
+            : previous?.state === nextState
+              ? previous?.message
+              : undefined;
+    const next: AudioFeatureCacheStatus = {
         state: nextState,
-        message,
+        message: nextMessage,
         sourceHash: sourceHash ?? previous?.sourceHash,
         updatedAt: Date.now(),
     };
+    if (progress === null) {
+        return next;
+    }
+    if (progress !== undefined) {
+        next.progress = progress;
+        return next;
+    }
+    if (nextState === 'pending' && previous?.state === 'pending' && previous.progress) {
+        next.progress = previous.progress;
+    }
+    return next;
 }
 
 function markAllAudioFeatureStatuses(
@@ -183,7 +209,7 @@ function markAllAudioFeatureStatuses(
 ): Record<string, AudioFeatureCacheStatus> {
     const next: Record<string, AudioFeatureCacheStatus> = { ...status };
     for (const [key, value] of Object.entries(status)) {
-        next[key] = buildAudioFeatureStatus(value, nextState, message, value.sourceHash);
+        next[key] = buildAudioFeatureStatus(value, nextState, message, value.sourceHash, null);
     }
     return next;
 }
@@ -194,10 +220,17 @@ function updateAudioFeatureStatusEntry(
     nextState: AudioFeatureCacheStatusState,
     message?: string,
     sourceHash?: string,
+    progress?: AudioFeatureCacheStatusProgress | null,
 ): Record<string, AudioFeatureCacheStatus> {
     return {
         ...status,
-        [id]: buildAudioFeatureStatus(status[id], nextState, message, sourceHash ?? status[id]?.sourceHash),
+        [id]: buildAudioFeatureStatus(
+            status[id],
+            nextState,
+            message,
+            sourceHash ?? status[id]?.sourceHash,
+            progress,
+        ),
     };
 }
 
@@ -230,6 +263,8 @@ function scheduleAudioFeatureAnalysis(
                 sourceId,
                 'stale',
                 'analysis skipped in tests',
+                undefined,
+                null,
             ),
         }));
         return;
@@ -241,6 +276,8 @@ function scheduleAudioFeatureAnalysis(
             sourceId,
             'pending',
             'analyzing audio',
+            undefined,
+            { value: 0, label: 'preparing' },
         ),
     }));
     const handle = sharedAudioFeatureAnalysisScheduler.schedule({
@@ -249,6 +286,19 @@ function scheduleAudioFeatureAnalysis(
         globalBpm: snapshot.timeline.globalBpm,
         beatsPerBar: snapshot.timeline.beatsPerBar,
         tempoMap: snapshot.timeline.masterTempoMap,
+        onProgress: (value, label) => {
+            const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+            set((state: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    state.audioFeatureCacheStatus,
+                    sourceId,
+                    'pending',
+                    undefined,
+                    undefined,
+                    { value: clamped, label },
+                ),
+            }));
+        },
     });
     activeAudioFeatureJobs.set(sourceId, handle);
     handle.promise
@@ -278,6 +328,8 @@ function scheduleAudioFeatureAnalysis(
                     sourceId,
                     'failed',
                     'analysis failed',
+                    undefined,
+                    null,
                 ),
             }));
         });
@@ -792,6 +844,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         id,
                         'pending',
                         'analyzing audio',
+                        undefined,
+                        { value: 0, label: 'preparing' },
                     );
                 }
                 return updates as TimelineState;
@@ -845,6 +899,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 'ready',
                 undefined,
                 sourceHash,
+                null,
             ),
         }));
         try {
@@ -869,12 +924,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 }
                 mutated = true;
                 const previous = nextStatus[sourceId];
-                nextStatus[sourceId] = {
-                    state: 'stale',
-                    message: 'calculator updated',
-                    updatedAt: Date.now(),
-                    sourceHash: previous?.sourceHash ?? computeFeatureCacheSourceHash(cache),
-                };
+                const sourceHash = previous?.sourceHash ?? computeFeatureCacheSourceHash(cache);
+                nextStatus[sourceId] = buildAudioFeatureStatus(
+                    previous,
+                    'stale',
+                    'calculator updated',
+                    sourceHash,
+                    null,
+                );
             }
             if (!mutated) {
                 return s;
@@ -883,10 +940,61 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
 
-    setAudioFeatureCacheStatus(id: string, status: AudioFeatureCacheStatusState, message?: string) {
+    setAudioFeatureCacheStatus(
+        id: string,
+        status: AudioFeatureCacheStatusState,
+        message?: string,
+        progress?: AudioFeatureCacheStatusProgress | null,
+    ) {
         set((s: TimelineState) => ({
-            audioFeatureCacheStatus: updateAudioFeatureStatusEntry(s.audioFeatureCacheStatus, id, status, message),
+            audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                s.audioFeatureCacheStatus,
+                id,
+                status,
+                message,
+                undefined,
+                progress,
+            ),
         }));
+    },
+
+    stopAudioFeatureAnalysis(id: string) {
+        const hadJob = activeAudioFeatureJobs.has(id);
+        cancelActiveAudioFeatureJob(id);
+        set((s: TimelineState) => {
+            const existing = s.audioFeatureCacheStatus[id];
+            if (!existing && !hadJob) {
+                return s;
+            }
+            return {
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'idle',
+                    hadJob || existing?.state === 'pending' ? 'analysis stopped' : existing?.message,
+                    undefined,
+                    null,
+                ),
+            };
+        });
+    },
+
+    restartAudioFeatureAnalysis(id: string) {
+        const buffer = get().audioCache[id]?.audioBuffer;
+        if (!buffer) {
+            set((s: TimelineState) => ({
+                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'failed',
+                    'no audio buffer available',
+                    undefined,
+                    null,
+                ),
+            }));
+            return;
+        }
+        scheduleAudioFeatureAnalysis(id, buffer, get, set);
     },
 
     clearAudioFeatureCache(id: string) {

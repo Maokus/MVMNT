@@ -71,6 +71,13 @@ export interface AudioFeatureCache {
 
 export type AudioFeatureCacheStatusState = 'idle' | 'pending' | 'ready' | 'failed' | 'stale';
 
+export interface AudioFeatureCacheStatusProgress {
+    /** Normalized completion value between 0 and 1. */
+    value: number;
+    /** Optional label describing the current analysis phase. */
+    label?: string;
+}
+
 export interface AudioFeatureCacheStatus {
     state: AudioFeatureCacheStatusState;
     /** Optional message describing failure or invalidation reason. */
@@ -79,6 +86,8 @@ export interface AudioFeatureCacheStatus {
     updatedAt: number;
     /** Hash of the source input (audio buffer + tempo map) used for this cache. */
     sourceHash?: string;
+    /** Optional progress metadata for in-flight analysis jobs. */
+    progress?: AudioFeatureCacheStatusProgress;
 }
 
 export interface AudioFeatureCalculatorTiming {
