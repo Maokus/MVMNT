@@ -18,7 +18,9 @@
 
 ## Timeline Store Responsibilities
 - `timelineStore` tracks playback metadata (`timeline`, `transport`, `timelineView`) and per-track state.
-- MIDI and audio caches are updated through `ingestMidiToCache` and `ingestAudioToCache`, which derive tick timing from tempo contexts.
+- MIDI and audio caches are updated through `ingestMidiToCache` and `ingestAudioToCache`. Hybrid audio
+  caches are normalized via `hydrateHybridAudioCache` so the real-time schema remains canonical while
+  selectors project tempo-aligned views through the shared mapper.
 - Transport helpers (`play`, `pause`, `setLoopRangeTicks`, `seekTick`) update playback status while preserving quantization semantics.
 - Mutations such as `removeTracks`, `updateTrack`, and `setTrackOffsetTicks` adjust track collections and trigger range recalculations.
 

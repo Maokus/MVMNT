@@ -1,8 +1,11 @@
 # Align audio feature bindings with macro infrastructure
 
-_Last reviewed: 2025-02-24_
+_Last reviewed: 2025-10-09_
 
-**Context update (2025-02-24):** Phases 1–4 of the [hybrid audio feature cache migration](./hybrid-cache-migration-plan.md) are complete, so real-time caches are now the canonical storage for audio feature data. Tempo-aligned reads must go through the shared tempo mapper and adapter layer delivered in that rollout.
+**Context update (2025-10-09):** Phases 1–4 of the hybrid audio feature cache migration are complete,
+so real-time caches are now the canonical storage for audio feature data. Tempo-aligned reads must go
+through the shared tempo mapper and adapter layer delivered in that rollout; see
+[`docs/HYBRID_AUDIO_CACHE.md`](../docs/HYBRID_AUDIO_CACHE.md) for the shipped architecture.
 
 ## Current binding differences
 

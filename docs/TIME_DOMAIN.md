@@ -31,6 +31,15 @@ Fast paths:
 
 Selectors & helpers centralize conversions; UI/components never perform ad‑hoc math.
 
+## Tempo Mapper Service
+
+- `TempoMapperService` wraps `TimingManager` integration utilities and exposes batch APIs used by the
+  hybrid audio cache adapter.
+- Mapper instances are stateless. They memoize tempo integrals per segment to keep conversions O(1)
+  during steady sections.
+- Audio feature selectors request tick-to-seconds projections through the mapper so real-time caches
+  stay authoritative while UI code continues to operate in ticks.
+
 ## Public Selector Surface (Seconds View)
 
 (Implemented in `state/selectors/timeDerived.ts` – examples shown)
@@ -147,4 +156,4 @@ const startSec = tm.ticksToSeconds(note.startTick + track.offsetTicks);
 
 ---
 
-Last reviewed: 2025-02-14.
+Last reviewed: 2025-10-09.
