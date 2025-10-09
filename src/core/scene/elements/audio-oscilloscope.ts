@@ -137,6 +137,10 @@ export class AudioOscilloscopeElement extends SceneElement {
         const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
         const windowStartTick = Math.min(startTick, endTick);
         const windowEndTick = Math.max(startTick, endTick);
+        const windowTickSpan = windowEndTick - windowStartTick;
+        if (windowTickSpan <= 0) {
+            return [layoutRect];
+        }
         const state = useTimelineStore.getState();
         const track = state.tracks[config.trackId] as AudioTrack | undefined;
         if (!track || track.type !== 'audio') {
@@ -169,7 +173,6 @@ export class AudioOscilloscopeElement extends SceneElement {
         const requestedFrameEnd = Math.floor(Math.max(localWindowStart, localWindowEnd) / hopTicks);
         const rangeStartFrame = Math.max(0, requestedFrameStart);
         const rangeEndFrame = Math.min(featureTrack.frameCount - 1, requestedFrameEnd);
-        const expectedFrameCount = Math.max(1, Math.floor(Math.max(0, windowEndTick - windowStartTick) / hopTicks) + 1);
         const range = sampleAudioFeatureRange(state, config.trackId, config.featureKey, startTick, endTick, {
             bandIndex: config.bandIndex ?? undefined,
             channelIndex: config.channelIndex ?? undefined,
@@ -178,13 +181,15 @@ export class AudioOscilloscopeElement extends SceneElement {
         const points: Array<{ x: number; y: number }> = [];
         const dataFrameCount = range?.frameCount ?? 0;
         const availableRangeEndFrame = range ? rangeStartFrame + dataFrameCount - 1 : rangeEndFrame;
-        for (let i = 0; i < expectedFrameCount; i += 1) {
-            const frameTick = windowStartTick + i * hopTicks;
+        const halfHop = hopTicks / 2;
+        const centerStart = Math.floor((Math.min(localWindowStart, localWindowEnd) - halfHop) / hopTicks);
+        const centerEnd = Math.floor((Math.max(localWindowStart, localWindowEnd) + halfHop) / hopTicks);
+        for (let frameIndex = centerStart; frameIndex <= centerEnd; frameIndex += 1) {
+            const localFrameCenterTick = frameIndex * hopTicks + halfHop;
+            const frameTick = localFrameCenterTick + track.offsetTicks - regionStart;
             const withinTrack = frameTick >= trackStartTick && frameTick < trackEndTick;
             let value = 0;
             if (withinTrack && range && dataFrameCount > 0) {
-                const localTick = frameTick - track.offsetTicks + regionStart;
-                const frameIndex = Math.floor(localTick / hopTicks);
                 if (frameIndex >= rangeStartFrame && frameIndex <= availableRangeEndFrame) {
                     const dataIndex = frameIndex - rangeStartFrame;
                     if (dataIndex >= 0 && dataIndex < dataFrameCount) {
@@ -199,8 +204,8 @@ export class AudioOscilloscopeElement extends SceneElement {
                 }
             }
             const normalized = Math.max(-1, Math.min(1, value));
-            const denom = Math.max(1, expectedFrameCount - 1);
-            const x = (i / denom) * width;
+            const positionRatio = (frameTick - windowStartTick) / windowTickSpan;
+            const x = Math.max(0, Math.min(width, positionRatio * width));
             const y = height / 2 - normalized * (height / 2);
             points.push({ x, y });
         }

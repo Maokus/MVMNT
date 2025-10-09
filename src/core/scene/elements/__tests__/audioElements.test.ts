@@ -10,8 +10,15 @@ import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 function createWaveformCache(trackId: string): AudioFeatureCache {
     const frameCount = 32;
     const hopTicks = 60;
-    const min = new Float32Array(frameCount).fill(-0.5);
-    const max = new Float32Array(frameCount).fill(0.5);
+    const min = new Float32Array(frameCount);
+    const max = new Float32Array(frameCount);
+    const denom = Math.max(1, frameCount - 1);
+    for (let i = 0; i < frameCount; i += 1) {
+        const t = i / denom;
+        const value = -0.8 + t * 1.6;
+        min[i] = value;
+        max[i] = value;
+    }
     return {
         version: 1,
         audioSourceId: trackId,
@@ -362,5 +369,53 @@ describe('audio scene elements', () => {
         const [start, end] = playhead?.points ?? [];
         expect(start?.x).toBeCloseTo(100, 5);
         expect(end?.x).toBeCloseTo(100, 5);
+    });
+
+    it('positions waveform samples using their actual frame timing', () => {
+        const cache = createWaveformCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const waveformTrack = cache.featureTracks.waveform!;
+        const waveformData = waveformTrack.data as { min: Float32Array; max: Float32Array };
+        const binding = new AudioFeatureBinding({
+            trackId: 'testTrack',
+            featureKey: 'waveform',
+            calculatorId: 'mvmnt.waveform',
+            bandIndex: null,
+            channelIndex: null,
+            smoothing: null,
+        });
+        const element = new AudioOscilloscopeElement('oscTiming');
+        const width = 400;
+        const height = 160;
+        const tm = getSharedTimingManager();
+        const hopTicks = waveformTrack.hopTicks ?? cache.hopTicks ?? 1;
+        const windowSeconds = tm.ticksToSeconds(hopTicks * 10);
+        element.updateConfig({ windowSeconds, width, height });
+        element.setBinding('featureBinding', binding);
+        const targetFrameIndex = Math.floor(waveformTrack.frameCount / 2);
+        const frameCenterTick = targetFrameIndex * hopTicks + hopTicks / 2;
+        const targetSeconds = tm.ticksToSeconds(frameCenterTick);
+        const renderObjects = element.buildRenderObjects({}, targetSeconds);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        expect(container.children?.[1]).toBeInstanceOf(Poly);
+        const waveform = container.children?.[1] as Poly;
+        const points = waveform.points;
+        expect(points.length).toBeGreaterThan(2);
+        const center = points.reduce<{ point: { x: number; y: number }; distance: number } | null>((acc, point) => {
+            const distance = Math.abs(point.x - width / 2);
+            if (!acc || distance < acc.distance) {
+                return { point, distance };
+            }
+            return acc;
+        }, null);
+        expect(center).not.toBeNull();
+        if (!center) return;
+        const centerPoint = center.point;
+        expect(centerPoint.x).toBeLessThanOrEqual(width / 2 + 1);
+        expect(centerPoint.x).toBeGreaterThanOrEqual(width / 2 - 1);
+        const normalizedValue = (height / 2 - centerPoint.y) / (height / 2);
+        const expectedValue = waveformData.min[targetFrameIndex] ?? 0;
+        expect(Math.abs(normalizedValue - expectedValue)).toBeLessThan(0.05);
     });
 });
