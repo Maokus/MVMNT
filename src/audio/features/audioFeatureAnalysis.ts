@@ -10,6 +10,7 @@ import {
     type AudioFeatureTrackFormat,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
+import { createFftPlan, fftRadix2 } from './fft';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
@@ -611,7 +612,7 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
 function createSpectrogramCalculator(): AudioFeatureCalculator {
     return {
         id: 'mvmnt.spectrogram',
-        version: 2,
+        version: 3,
         featureKey: 'spectrogram',
         label: 'Spectrogram',
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
@@ -619,7 +620,7 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
             const maybeYield = createAnalysisYieldController(signal);
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
             const { windowSize, hopSize } = analysisParams;
-            const fftSize = Math.max(32, windowSize);
+            const fftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
             const binCount = Math.floor(fftSize / 2) + 1;
             const window = hannWindow(windowSize);
             const output = new Float32Array(frameCount * binCount);
@@ -627,19 +628,22 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
             const magnitudeScale = 2 / Math.max(1, windowSize);
             const binYieldInterval = Math.max(1, Math.floor(binCount / 8));
             const frameYieldInterval = Math.max(1, Math.floor(frameCount / 4));
+            const fftPlan = createFftPlan(fftSize);
+            const real = new Float32Array(fftSize);
+            const imag = new Float32Array(fftSize);
 
             for (let frame = 0; frame < frameCount; frame++) {
                 const start = frame * hopSize;
+                real.fill(0);
+                imag.fill(0);
+                for (let n = 0; n < windowSize; n++) {
+                    real[n] = (mono[start + n] ?? 0) * window[n];
+                }
+                fftRadix2(real, imag, fftPlan);
                 for (let bin = 0; bin < binCount; bin++) {
-                    let real = 0;
-                    let imag = 0;
-                    for (let n = 0; n < windowSize; n++) {
-                        const sample = (mono[start + n] ?? 0) * window[n];
-                        const angle = (-2 * Math.PI * bin * n) / fftSize;
-                        real += sample * Math.cos(angle);
-                        imag += sample * Math.sin(angle);
-                    }
-                    const magnitude = Math.sqrt(real * real + imag * imag) * magnitudeScale;
+                    const realValue = real[bin];
+                    const imagValue = imag[bin];
+                    const magnitude = Math.sqrt(realValue * realValue + imagValue * imagValue) * magnitudeScale;
                     const decibels = 20 * Math.log10(magnitude + SPECTROGRAM_EPSILON);
                     const clamped = Math.max(SPECTROGRAM_MIN_DECIBELS, Math.min(SPECTROGRAM_MAX_DECIBELS, decibels));
                     output[frame * binCount + bin] = clamped;
@@ -657,7 +661,7 @@ function createSpectrogramCalculator(): AudioFeatureCalculator {
             return {
                 key: 'spectrogram',
                 calculatorId: 'mvmnt.spectrogram',
-                version: 2,
+                version: 3,
                 frameCount,
                 channels: binCount,
                 hopTicks,

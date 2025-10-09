@@ -52,7 +52,7 @@ describe('audio feature analysis', () => {
         expect(cache.featureTracks.spectrogram).toBeDefined();
         expect(cache.featureTracks.rms).toBeDefined();
         expect(cache.featureTracks.waveform).toBeDefined();
-        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(2);
+        expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
         expect(cache.hopTicks).toBeGreaterThan(0);
         expect(cache.version).toBe(2);
         expect(cache.startTimeSeconds).toBe(0);

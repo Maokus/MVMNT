@@ -73,7 +73,7 @@ describe('mergeFeatureCaches', () => {
             frameCount: 8,
             hopTicks: 180,
             version: 3,
-            calculatorVersion: 2,
+            calculatorVersion: 3,
         });
         const merged = mergeFeatureCaches(existing, incoming);
         expect(merged.featureTracks.rms).toBe(existing.featureTracks.rms);
@@ -83,7 +83,7 @@ describe('mergeFeatureCaches', () => {
         expect(merged.frameCount).toBe(8);
         expect(merged.analysisParams.calculatorVersions).toMatchObject({
             'mvmnt.rms': 1,
-            'mvmnt.spectrogram': 2,
+            'mvmnt.spectrogram': 3,
         });
     });
 

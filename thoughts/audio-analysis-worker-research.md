@@ -1,6 +1,6 @@
 # Audio Analysis Worker Research
 
-Status: Open Questions
+Status: Decisions & Follow-up Items
 
 ## Current pipeline observations
 
@@ -10,9 +10,10 @@ Status: Open Questions
 - Each calculator mixes the input `AudioBuffer` down to mono independently, so the spectrogram, RMS,
   and waveform passes traverse the same channel data three times before beginning their own loops.
   (src/audio/features/audioFeatureAnalysis.ts)
-- The spectrogram calculator implements a naïve discrete Fourier transform in nested loops over
-  frames, bins, and window samples, leading to `O(N^2)` work per frame and frequent voluntary yields.
-  (src/audio/features/audioFeatureAnalysis.ts)
+- The spectrogram calculator now constructs a reusable radix-2 FFT plan and processes each frame in
+  `O(N log N)` time, replacing the previous naïve DFT loops. The plan lives alongside the
+  calculator in `src/audio/features/fft.ts` and shares buffers across frames to minimise
+  allocations. (src/audio/features/audioFeatureAnalysis.ts)
 - Cooperative yielding relies on `requestAnimationFrame` when available; background tabs throttle or
   pause these callbacks, so long analyses progress noticeably slower when the page loses focus.
   (src/audio/features/audioFeatureAnalysis.ts)
@@ -40,9 +41,9 @@ Status: Open Questions
 
 ## GPU acceleration considerations
 
-- The current spectrogram loops compute sine and cosine per bin/sample pair. Adopting an FFT-based
-  implementation (e.g., KissFFT via WebAssembly or an existing FFT library) would reduce complexity
-  to `O(N log N)` before any GPU work and is a prerequisite for meaningful GPU gains.
+- The current implementation already performs the FFT on the CPU using a precomputed plan, so GPU
+  work would focus on accelerating the radix-2 passes or batching multiple windows once the worker
+  offload lands.
 - Libraries such as `gpu.js`, WebGPU compute shaders, or WebGL transform feedback could accelerate
   the FFT once the algorithm is vectorised. Integration would require packaging shader assets for
   Vite and providing a CPU fallback path for browsers without GPU compute.

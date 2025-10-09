@@ -25,7 +25,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             minDecibels: -80,
             maxDecibels: 0,
             calculatorVersions: {
-                'mvmnt.spectrogram': 2,
+                'mvmnt.spectrogram': 3,
                 'mvmnt.rms': 1,
             },
         },
@@ -33,7 +33,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             spectrogram: {
                 key: 'spectrogram',
                 calculatorId: 'mvmnt.spectrogram',
-                version: 2,
+                version: 3,
                 frameCount,
                 channels: 4,
                 hopTicks,
