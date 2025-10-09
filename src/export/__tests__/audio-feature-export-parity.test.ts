@@ -164,5 +164,16 @@ describe('audio feature export parity', () => {
         expect(selectorSample).toBeTruthy();
         expectVectorsClose(runtimeSample?.values ?? [], exportSample?.values ?? []);
         expectVectorsClose(runtimeSample?.values ?? [], selectorSample?.values ?? []);
+
+        useTimelineStore.getState().setHybridCacheAdapterEnabled(false, 'parity-check');
+        const legacySample = selectAudioFeatureFrame(
+            useTimelineStore.getState(),
+            'audioTrack',
+            'rms',
+            tm.secondsToTicks(midTime),
+        );
+        expect(legacySample).toBeTruthy();
+        expectVectorsClose(legacySample?.values ?? [], selectorSample?.values ?? []);
+        useTimelineStore.getState().setHybridCacheAdapterEnabled(true);
     });
 });

@@ -8,7 +8,8 @@
 
 import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
-import { selectAudioFeatureFrame, type AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
+import { type AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
+import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
 
 export type BindingType = 'constant' | 'macro' | 'audioFeature';
 
@@ -182,11 +183,27 @@ export class AudioFeatureBinding extends PropertyBinding<AudioFeatureFrameSample
         const state = useTimelineStore.getState();
         const tm = getSharedTimingManager();
         const tick = tm.secondsToTicks(Math.max(0, context.targetTime));
-        const sample = selectAudioFeatureFrame(state, this.config.trackId, this.config.featureKey, tick, {
-            bandIndex: this.config.bandIndex ?? undefined,
-            channelIndex: this.config.channelIndex ?? undefined,
-            smoothing: this.config.smoothing ?? undefined,
+        const { sample, diagnostics } = getTempoAlignedFrame(state, {
+            trackId: this.config.trackId,
+            featureKey: this.config.featureKey,
+            tick,
+            options: {
+                bandIndex: this.config.bandIndex ?? undefined,
+                channelIndex: this.config.channelIndex ?? undefined,
+                smoothing: this.config.smoothing ?? undefined,
+            },
         });
+        if (diagnostics) {
+            state.recordTempoAlignedDiagnostics?.(diagnostics.sourceId ?? this.config.trackId, diagnostics);
+            if (diagnostics.fallbackReason) {
+                state.recordHybridCacheFallback?.({
+                    trackId: this.config.trackId,
+                    sourceId: diagnostics.sourceId,
+                    featureKey: this.config.featureKey,
+                    reason: diagnostics.fallbackReason,
+                });
+            }
+        }
         this.lastSample = sample ?? null;
         return this.lastSample;
     }

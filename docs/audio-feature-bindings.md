@@ -1,6 +1,6 @@
 # Audio Feature Caches and Bindings
 
-_Last reviewed: 2025-02-17_
+_Last reviewed: 2025-02-24_
 
 ## Overview
 
@@ -33,15 +33,34 @@ serialization, and export snapshots alongside existing audio caches.
 
 ## Sampling APIs
 
-Selectors in `@state/selectors/audioFeatureSelectors` expose interpolated sampling helpers:
+Selectors in `@state/selectors/audioFeatureSelectors` proxy to the tempo-aligned adapter in
+`@audio/features/tempoAlignedViewAdapter` and expose interpolated sampling helpers:
 
 - `selectAudioFeatureFrame(state, trackId, featureKey, tick, options)` resolves a single frame using
-  tick-aligned interpolation and optional band/channel filtering.
+  tick-aligned interpolation and optional band/channel filtering. The `options` parameter now accepts
+  an `interpolation` profile: `'linear'` (default), `'hold'`, or `'spline'`.
 - `sampleAudioFeatureRange(state, trackId, featureKey, startTick, endTick, options)` returns a dense
   `Float32Array` covering a tick range, suitable for canvas previews or export pipelines.
 
 Both helpers honor track offsets, clip regions, and smoothing values. They are the single source of
 truth for runtime bindings, inspector previews, and export rendering.
+
+## Tempo-aligned adapter and diagnostics
+
+`@audio/features/tempoAlignedViewAdapter` provides the canonical entry points for consuming real-time
+caches:
+
+- `getTempoAlignedFrame(state, request)` returns a tempo-projected frame sample plus diagnostics.
+- `getTempoAlignedRange(state, request)` streams a tick-window of frames with aligned tick metadata.
+
+Diagnostics report cache hits, mapper latency (nanoseconds), interpolation mode, and fallback reasons.
+`TimelineState.recordTempoAlignedDiagnostics` stores the latest diagnostic per source so DevTools can
+surface mapper timing, and `TimelineState.hybridCacheRollout.fallbackLog` keeps a bounded audit trail
+when the adapter falls back to legacy hop-tick sampling. The rollout can be toggled at runtime with
+`setHybridCacheAdapterEnabled(enabled, reason)` to stage deployments or disable the adapter for
+troubleshooting. Hold interpolation keeps the previous frame value, linear interpolation matches the
+pre-existing behaviour, and spline interpolation uses Catmull–Rom to smooth transitions while keeping
+CPU overhead predictable.
 
 ## Property bindings and runtime consumption
 
@@ -73,10 +92,11 @@ Plug-in calculators can reuse the binding pipeline by registering with
 
 ## Export and determinism
 
-Exports reuse the same selectors used for live playback. Tests ensure `AudioFeatureBinding`
-samples match the data returned by `sampleAudioFeatureRange`, guaranteeing deterministic renders.
-The reproducibility hash (`@export/repro-hash`) already includes normalized audio track metadata, so
-feature-driven scenes stay stable across re-renders as long as caches remain unchanged.
+Exports reuse the same selectors used for live playback. Tests ensure `AudioFeatureBinding` samples
+match the data returned by `sampleAudioFeatureRange`, guaranteeing deterministic renders even when the
+adapter is toggled off. The reproducibility hash (`@export/repro-hash`) already includes normalized
+audio track metadata, so feature-driven scenes stay stable across re-renders as long as caches remain
+unchanged.
 
 ## Plug-in calculators
 

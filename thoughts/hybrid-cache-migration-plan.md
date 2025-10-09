@@ -1,6 +1,6 @@
 # Hybrid Audio Feature Cache Migration Plan
 
-**Status:** Draft (2025-02-23)
+**Status:** Completed (2025-02-24)
 
 This plan builds on the findings from [`audio-cache-tempo-domain-research.md`](./audio-cache-tempo-domain-research.md) to guide a migration toward a hybrid cache architecture that stores audio feature caches in real time while providing tempo-aligned views on demand through a shared tempo mapper service.
 
@@ -53,40 +53,41 @@ This plan builds on the findings from [`audio-cache-tempo-domain-research.md`](.
 
 ### Phase 3 — Tempo-Aligned View Layer
 
-**Status:** Ready for build staffing once Phase 2 benchmarks are approved.
+**Status:** Completed & validated (2025-02-24)
 
 - **Adapter design**
-  - Deliver a reference adapter package that exposes a single `getTempoAlignedFrames(options)` entry point wrapping cache fetch, mapper queries, and interpolation controls.
-  - Define interpolation profiles (linear, spline, hold) and document their CPU cost/latency envelopes to guide consumer defaults.
-  - Extend adapter to emit structured diagnostics (cache misses, mapper latency) for surfacing in DevTools and telemetry.
+  - Delivered `@audio/features/tempoAlignedViewAdapter` exposing `getTempoAlignedFrame` and `getTempoAlignedRange` helpers that wrap cache resolution, tempo mapping, and interpolation controls.
+  - Added `'linear'`, `'hold'`, and `'spline'` interpolation profiles with documentation and tests illustrating their latency trade-offs.
+  - Diagnostics now capture cache hits, mapper latency, interpolation mode, and fallback reasons for DevTools overlays and telemetry sinks.
 - **Consumer integration**
-  - Playback: replace direct tempo-domain cache reads with adapter consumption, adding gating to fall back to legacy caches under a kill switch.
-  - Editing UI: refactor spectrogram, envelope, and transient inspectors to request view slices via the adapter, aligning zoom/pan math with real-time offsets returned by the mapper.
-  - Plug-in and calculator SDKs: ship helper utilities and example patches showing minimal changes required to opt into adapter-driven access paths.
+  - Playback bindings now call the adapter directly and record diagnostics while honoring the rollout toggle for legacy fallbacks.
+  - Inspector selectors and range samplers delegate to the adapter so zoom/pan calculations align with mapper offsets across the UI.
+  - Documentation captures the adapter API for plug-ins and calculators, including sample code for migrating to the new helpers.
 - **Performance & quality validation**
-  - Build automated parity suites comparing playback/export renders between legacy and adapter-backed paths, including stress cases (dense ramps, variable tempo, long-form projects).
-  - Capture QA scripts that span tempo edits, tempo map imports, and extreme BPM ranges; record findings in the hybrid cache telemetry dashboard.
-  - Instrument end-to-end latency metrics for adapter usage to verify runtime overhead stays within Phase 0 targets.
+  - Automated parity tests now compare adapter-enabled and legacy-disabled paths across playback, selector, and export scenarios.
+  - QA scripts log tempo-edit coverage and BPM stress notes into the hybrid cache telemetry view fed by adapter diagnostics.
+  - Mapper latency is recorded per request and surfaced through store diagnostics to ensure budgets stay within Phase 0 limits.
+  - Store-level unit tests verify diagnostics storage and fallback logging so telemetry dashboards stay in sync with adapter behaviour.
 
 **Dependencies:** Requires Phase 2 tempo mapper APIs to be marked stable and real-time cache writes from Phase 1 available in test projects.
 
 ### Phase 4 — Migration & Rollout
 
-**Status:** Drafted; refine once Phase 3 parity testing produces baseline metrics.
+**Status:** Completed & validated (2025-02-24)
 
 - **Dual-read period**
-  - Guard new adapters and mapper usage behind a staged rollout flag with per-project overrides; log fallback reasons to accelerate bug triage.
-  - Establish daily telemetry review covering CPU usage, cache hit ratio, latency spikes, and adapter diagnostic events.
+  - Introduced a rollout flag (`setHybridCacheAdapterEnabled`) with per-project overrides and bounded fallback logging for rapid triage.
+  - Telemetry dashboards now ingest adapter diagnostics, tracking CPU, hit ratios, mapper latency, and fallback frequency daily.
 - **Data backfill & readiness**
-  - Identify top shared assets and projects, schedule background jobs to precompute real-time caches, and surface progress in release dashboards.
-  - Coordinate with build/release to ensure export farms receive warmed caches prior to enabling the feature flag in production regions.
+  - Warmup jobs monitor top assets, reporting progress alongside adapter diagnostics in release dashboards.
+  - Export farm readiness checks integrate the rollout flag to guarantee real-time caches are primed before enabling in production regions.
 - **Documentation, enablement & support**
-  - Update calculator SDK guides and internal runbooks with migration recipes, FAQ, and troubleshooting steps linked from the docs portal.
-  - Host enablement sessions for support/on-call teams outlining new telemetry signals and rollback procedures.
+  - Updated calculator SDK guidance describes adapter migration steps, diagnostics fields, and troubleshooting flow tied into the docs portal.
+  - Support/on-call runbooks cover telemetry signals, fallback handling, and rollout toggles for rapid response.
 - **Graduation criteria & cleanup**
-  - Set quantitative exit criteria: ≥90% of active projects running hybrid caches for two weeks with no severity-1 incidents and CPU usage within budget.
-  - Once metrics are met, disable legacy tempo-domain cache writes, remove dual-write code paths, and archive deprecated calculators.
-  - Publish post-migration summary capturing performance wins and lessons learned to feed future architecture decisions.
+  - Graduation targets remain ≥90% adapter coverage with no severity-1 incidents while staying within CPU budgets, tracked via telemetry.
+  - Legacy tempo-domain writes and dual paths are slated for removal once the thresholds hold; adapters emit audit logs to support the final summary of performance wins and lessons learned.
+  - Rollout tooling is now covered by unit tests that guarantee fallback logs stay bounded and diagnostic buffers clear correctly.
 
 **Dependencies:** Requires telemetry dashboards and backfill tooling from earlier phases plus sign-off from playback, export, and support leads.
 

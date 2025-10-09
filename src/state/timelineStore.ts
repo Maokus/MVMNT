@@ -8,6 +8,7 @@ import type {
     AudioFeatureCacheStatusProgress,
     AudioFeatureCacheStatusState,
 } from '@audio/features/audioFeatureTypes';
+import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import { upgradeAudioFeatureCache } from '@audio/features/audioFeatureMigration';
 import {
     sharedAudioFeatureAnalysisScheduler,
@@ -60,6 +61,14 @@ export type TimelineTrack = {
     midiSourceId?: string; // references midiCache key
 };
 
+export interface HybridCacheFallbackEvent {
+    trackId: string;
+    sourceId?: string;
+    featureKey: string;
+    reason: string;
+    timestamp: number;
+}
+
 export type TimelineState = {
     timeline: {
         id: string;
@@ -95,6 +104,11 @@ export type TimelineState = {
     audioCache: Record<string, AudioCacheEntry>;
     audioFeatureCaches: Record<string, AudioFeatureCache>;
     audioFeatureCacheStatus: Record<string, AudioFeatureCacheStatus>;
+    hybridCacheRollout: {
+        adapterEnabled: boolean;
+        fallbackLog: HybridCacheFallbackEvent[];
+    };
+    tempoAlignedDiagnostics: Record<string, TempoAlignedAdapterDiagnostics>;
     // UI preferences
     rowHeight: number; // track row height in px
 
@@ -161,6 +175,10 @@ export type TimelineState = {
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
+    setHybridCacheAdapterEnabled: (enabled: boolean, reason?: string) => void;
+    recordHybridCacheFallback: (event: { trackId: string; sourceId?: string; featureKey: string; reason: string }) => void;
+    recordTempoAlignedDiagnostics: (sourceId: string, diagnostics: TempoAlignedAdapterDiagnostics) => void;
+    clearTempoAlignedDiagnostics: (sourceId?: string) => void;
 };
 
 function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
@@ -172,6 +190,8 @@ function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
         analysisParams: cache.analysisParams,
     });
 }
+
+const MAX_FALLBACK_LOG = 50;
 
 function buildAudioFeatureStatus(
     previous: AudioFeatureCacheStatus | undefined,
@@ -353,6 +373,8 @@ function createInitialTimelineSlice(): Pick<
     | 'playbackRange'
     | 'playbackRangeUserDefined'
     | 'rowHeight'
+    | 'hybridCacheRollout'
+    | 'tempoAlignedDiagnostics'
 > {
     return {
         timeline: {
@@ -384,6 +406,11 @@ function createInitialTimelineSlice(): Pick<
         playbackRange: undefined,
         playbackRangeUserDefined: false,
         rowHeight: 30,
+        hybridCacheRollout: {
+            adapterEnabled: true,
+            fallbackLog: [],
+        },
+        tempoAlignedDiagnostics: {},
     };
 }
 
@@ -1031,6 +1058,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             audioCache: {},
             audioFeatureCaches: {},
             audioFeatureCacheStatus: {},
+            tempoAlignedDiagnostics: {},
+            hybridCacheRollout: {
+                adapterEnabled: s.hybridCacheRollout.adapterEnabled,
+                fallbackLog: [],
+            },
         }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
@@ -1048,6 +1080,79 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             tm.setBPM(initial.timeline.globalBpm || 120);
             tm.setTempoMap(undefined, 'seconds');
         } catch {}
+    },
+
+    setHybridCacheAdapterEnabled(enabled: boolean, reason?: string) {
+        set((s: TimelineState) => {
+            const nextLog = [...s.hybridCacheRollout.fallbackLog];
+            if (reason) {
+                nextLog.push({
+                    trackId: '__system__',
+                    featureKey: '__toggle__',
+                    sourceId: undefined,
+                    reason,
+                    timestamp: Date.now(),
+                });
+            }
+            while (nextLog.length > MAX_FALLBACK_LOG) {
+                nextLog.shift();
+            }
+            return {
+                hybridCacheRollout: {
+                    adapterEnabled: enabled,
+                    fallbackLog: nextLog,
+                },
+            } as TimelineState;
+        });
+    },
+
+    recordHybridCacheFallback(event: { trackId: string; sourceId?: string; featureKey: string; reason: string }) {
+        if (!event || !event.reason) {
+            return;
+        }
+        set((s: TimelineState) => {
+            const entry: HybridCacheFallbackEvent = {
+                ...event,
+                timestamp: Date.now(),
+            };
+            const nextLog = [...s.hybridCacheRollout.fallbackLog, entry];
+            while (nextLog.length > MAX_FALLBACK_LOG) {
+                nextLog.shift();
+            }
+            return {
+                hybridCacheRollout: {
+                    adapterEnabled: s.hybridCacheRollout.adapterEnabled,
+                    fallbackLog: nextLog,
+                },
+            } as TimelineState;
+        });
+    },
+
+    recordTempoAlignedDiagnostics(sourceId: string, diagnostics: TempoAlignedAdapterDiagnostics) {
+        if (!sourceId) return;
+        set((s: TimelineState) => ({
+            tempoAlignedDiagnostics: {
+                ...s.tempoAlignedDiagnostics,
+                [sourceId]: diagnostics,
+            },
+        }));
+    },
+
+    clearTempoAlignedDiagnostics(sourceId?: string) {
+        set((s: TimelineState) => {
+            if (!sourceId) {
+                if (!Object.keys(s.tempoAlignedDiagnostics).length) {
+                    return s;
+                }
+                return { tempoAlignedDiagnostics: {} } as TimelineState;
+            }
+            if (!s.tempoAlignedDiagnostics[sourceId]) {
+                return s;
+            }
+            const next = { ...s.tempoAlignedDiagnostics };
+            delete next[sourceId];
+            return { tempoAlignedDiagnostics: next } as TimelineState;
+        });
     },
 
     setPlaybackRangeTicks(startTick?: number, endTick?: number) {
