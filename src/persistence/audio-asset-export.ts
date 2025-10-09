@@ -24,10 +24,18 @@ export interface AudioAssetRecord {
     dataBase64?: string;
 }
 
+export interface WaveformDataReference {
+    type: 'float32';
+    filename: string;
+    valueCount: number;
+}
+
 export interface WaveformAssetRecord {
     version: 1;
-    channelPeaks: number[];
+    channelPeaks?: number[];
     sampleStep: number;
+    channelCount?: number;
+    dataRef?: WaveformDataReference;
 }
 
 export interface WaveformAssetReference {
@@ -71,6 +79,7 @@ const MIME_EXT: Record<string, string> = {
 };
 
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
+const WAVEFORM_BINARY_FILENAME = 'waveform.f32';
 
 function sanitizeFilename(name: string, fallback: string): string {
     const cleaned = name.replace(/[\\/:*?"<>|]+/g, '_').trim();
@@ -170,23 +179,46 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
         }
         audioIdMap[audioId] = hash;
         if (entry.waveform?.channelPeaks && entry.waveform.channelPeaks.length > 0) {
-            const waveformRecord: WaveformAssetRecord = {
-                version: 1,
-                channelPeaks: Array.from(entry.waveform.channelPeaks),
-                sampleStep: entry.waveform.sampleStep,
-            };
+            const peaksArray = entry.waveform.channelPeaks;
+            const sampleStep = entry.waveform.sampleStep;
+            const channelCount = entry.channels ?? 1;
             if (options.mode === 'zip-package') {
                 const assetId = hash;
                 const assetRef = `assets/waveforms/${assetId}/${WAVEFORM_ASSET_FILENAME}`;
+                const valueCount = peaksArray.length;
+                const metadata: WaveformAssetRecord = {
+                    version: 1,
+                    sampleStep,
+                    channelCount,
+                    dataRef: {
+                        type: 'float32',
+                        filename: WAVEFORM_BINARY_FILENAME,
+                        valueCount,
+                    },
+                };
                 waveforms[hash] = { version: 1, assetId, assetRef };
-                const payloadJson = serializeStable(waveformRecord);
-                waveformAssetPayloads.set(assetId, {
+                const payloadJson = serializeStable(metadata);
+                waveformAssetPayloads.set(`${assetId}/${WAVEFORM_ASSET_FILENAME}`, {
                     bytes: strToU8(payloadJson, true),
                     filename: WAVEFORM_ASSET_FILENAME,
                     mimeType: 'application/json',
                 });
+                const buffer = peaksArray.buffer.slice(
+                    peaksArray.byteOffset,
+                    peaksArray.byteOffset + peaksArray.byteLength,
+                );
+                waveformAssetPayloads.set(`${assetId}/${WAVEFORM_BINARY_FILENAME}`, {
+                    bytes: new Uint8Array(buffer),
+                    filename: WAVEFORM_BINARY_FILENAME,
+                    mimeType: 'application/octet-stream',
+                });
             } else {
-                waveforms[hash] = waveformRecord;
+                waveforms[hash] = {
+                    version: 1,
+                    channelPeaks: Array.from(peaksArray),
+                    sampleStep,
+                    channelCount,
+                };
             }
         }
     }

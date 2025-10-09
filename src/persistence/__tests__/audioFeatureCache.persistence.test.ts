@@ -186,8 +186,21 @@ describe('audio feature cache persistence', () => {
         expect((waveformRef as any).channelPeaks).toBeUndefined();
 
         const parsed = parseScenePackage(exported.zip);
-        expect(parsed.audioFeaturePayloads.get(encodeURIComponent(trackId))).toBeInstanceOf(Uint8Array);
-        expect(parsed.waveformPayloads.get(assetId!)).toBeInstanceOf(Uint8Array);
+        const featurePayloads = parsed.audioFeaturePayloads.get(encodeURIComponent(trackId));
+        expect(featurePayloads).toBeInstanceOf(Map);
+        expect(featurePayloads?.get('feature_caches.json')).toBeInstanceOf(Uint8Array);
+        const featureBinaryKeys = featurePayloads
+            ? Array.from(featurePayloads.keys()).filter((key) => key !== 'feature_caches.json')
+            : [];
+        expect(featureBinaryKeys.length).toBeGreaterThan(0);
+        for (const key of featureBinaryKeys) {
+            expect(featurePayloads?.get(key)).toBeInstanceOf(Uint8Array);
+        }
+
+        const waveformPayloads = parsed.waveformPayloads.get(assetId!);
+        expect(waveformPayloads).toBeInstanceOf(Map);
+        expect(waveformPayloads?.get('waveform.json')).toBeInstanceOf(Uint8Array);
+        expect(waveformPayloads?.get('waveform.f32')).toBeInstanceOf(Uint8Array);
     });
 
     it('restores ready caches without re-triggering audio analysis on import', async () => {

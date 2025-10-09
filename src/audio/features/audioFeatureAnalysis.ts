@@ -14,14 +14,29 @@ import type { TempoMapEntry } from '@state/timelineTypes';
 
 type SerializedTypedArray = {
     type: 'float32' | 'uint8' | 'int16';
-    values: number[];
+    values: number[] | Float32Array | Uint8Array | Int16Array;
 };
 
 type SerializedWaveform = {
     type: 'waveform-minmax';
-    min: number[];
-    max: number[];
+    min: number[] | Float32Array;
+    max: number[] | Float32Array;
 };
+
+export type SerializedAudioFeatureTrackDataRef =
+    | {
+          kind: 'typed-array';
+          type: 'float32' | 'uint8' | 'int16';
+          valueCount: number;
+          filename: string;
+      }
+    | {
+          kind: 'waveform-minmax';
+          type: 'float32';
+          minLength: number;
+          maxLength: number;
+          filename: string;
+      };
 
 export type SerializedAudioFeatureTrack = {
     key: string;
@@ -32,9 +47,10 @@ export type SerializedAudioFeatureTrack = {
     hopTicks: number;
     hopSeconds: number;
     format: AudioFeatureTrackFormat;
-    data: SerializedTypedArray | SerializedWaveform;
+    data?: SerializedTypedArray | SerializedWaveform;
     metadata?: Record<string, unknown>;
     analysisParams?: Record<string, unknown>;
+    dataRef?: SerializedAudioFeatureTrackDataRef;
 };
 
 export interface SerializedAudioFeatureCache {
@@ -209,13 +225,30 @@ function serializeTypedArray(array: Float32Array | Uint8Array | Int16Array): Ser
 }
 
 function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array | Uint8Array | Int16Array {
+    const values = serialized.values as typeof serialized.values &
+        (number[] | Float32Array | Uint8Array | Int16Array);
+    const sliceView = (view: ArrayBufferView) =>
+        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+
     if (serialized.type === 'float32') {
-        return Float32Array.from(serialized.values);
+        if (Array.isArray(values)) return Float32Array.from(values);
+        if (ArrayBuffer.isView(values)) {
+            return new Float32Array(sliceView(values as ArrayBufferView));
+        }
+        return new Float32Array();
     }
     if (serialized.type === 'uint8') {
-        return Uint8Array.from(serialized.values);
+        if (Array.isArray(values)) return Uint8Array.from(values);
+        if (ArrayBuffer.isView(values)) {
+            return new Uint8Array(sliceView(values as ArrayBufferView));
+        }
+        return new Uint8Array();
     }
-    return Int16Array.from(serialized.values);
+    if (Array.isArray(values)) return Int16Array.from(values);
+    if (ArrayBuffer.isView(values)) {
+        return new Int16Array(sliceView(values as ArrayBufferView));
+    }
+    return new Int16Array();
 }
 
 function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
@@ -238,16 +271,32 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         data,
+        dataRef: undefined,
     };
 }
 
 function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack {
+    if (!track.data) {
+        throw new Error(`Serialized audio feature track ${track.key} missing data payload`);
+    }
     let payload: AudioFeatureTrack['data'];
     if (track.format === 'waveform-minmax') {
         const waveform = track.data as SerializedWaveform;
+        const minValues = waveform.min;
+        const maxValues = waveform.max;
+        const toFloat32 = (values: typeof minValues) => {
+            if (Array.isArray(values)) {
+                return Float32Array.from(values);
+            }
+            if (ArrayBuffer.isView(values)) {
+                const view = values as ArrayBufferView;
+                return new Float32Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+            }
+            return new Float32Array();
+        };
         payload = {
-            min: Float32Array.from(waveform.min ?? []),
-            max: Float32Array.from(waveform.max ?? []),
+            min: toFloat32(minValues),
+            max: toFloat32(maxValues),
         };
     } else {
         payload = deserializeTypedArray(track.data as SerializedTypedArray);

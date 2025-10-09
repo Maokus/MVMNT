@@ -1,7 +1,12 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelopeV2 } from './export';
-import { deserializeAudioFeatureCache } from '@audio/features/audioFeatureAnalysis';
+import {
+    deserializeAudioFeatureCache,
+    type SerializedAudioFeatureCache,
+    type SerializedAudioFeatureTrack,
+    type SerializedAudioFeatureTrackDataRef,
+} from '@audio/features/audioFeatureAnalysis';
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
@@ -13,6 +18,9 @@ import {
     parseScenePackage,
     ScenePackageError,
 } from './scene-package';
+
+const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
+const WAVEFORM_ASSET_FILENAME = 'waveform.json';
 
 export interface ImportError {
     code?: string;
@@ -41,8 +49,8 @@ interface ParsedArtifact {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
-    waveformPayloads: Map<string, Uint8Array>;
-    audioFeaturePayloads: Map<string, Uint8Array>;
+    waveformPayloads: Map<string, Map<string, Uint8Array>>;
+    audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
 }
 
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
@@ -109,9 +117,67 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
     }
 }
 
+function hydrateAudioFeatureCacheFromAssets(
+    serialized: SerializedAudioFeatureCache,
+    payloads: Map<string, Uint8Array>,
+    cacheId: string,
+    warnings: string[],
+): SerializedAudioFeatureCache | null {
+    const hydratedTracks: Record<string, SerializedAudioFeatureTrack> = {};
+    for (const [trackKey, track] of Object.entries(serialized.featureTracks || {})) {
+        const hydrated: SerializedAudioFeatureTrack = { ...track };
+        let includeTrack = true;
+        if (hydrated.dataRef) {
+            const ref = hydrated.dataRef;
+            const binary = payloads.get(ref.filename);
+            if (!binary) {
+                warnings.push(`Missing audio feature data file for ${cacheId}:${trackKey}`);
+                includeTrack = false;
+            } else {
+                const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+                if (ref.kind === 'typed-array') {
+                    let values: Float32Array | Uint8Array | Int16Array;
+                    if (ref.type === 'float32') {
+                        values = new Float32Array(buffer);
+                    } else if (ref.type === 'uint8') {
+                        values = new Uint8Array(buffer);
+                    } else {
+                        values = new Int16Array(buffer);
+                    }
+                    if (ref.valueCount && values.length !== ref.valueCount) {
+                        warnings.push(
+                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${ref.valueCount}, got ${values.length})`,
+                        );
+                    }
+                    hydrated.data = { type: ref.type, values };
+                } else {
+                    const values = new Float32Array(buffer);
+                    const expected = (ref.minLength || 0) + (ref.maxLength || 0);
+                    if (values.length < expected) {
+                        warnings.push(`Audio feature waveform payload too small for ${cacheId}:${trackKey}`);
+                        includeTrack = false;
+                    } else {
+                        const min = values.slice(0, ref.minLength);
+                        const max = values.slice(ref.minLength, ref.minLength + ref.maxLength);
+                        hydrated.data = { type: 'waveform-minmax', min, max };
+                    }
+                }
+            }
+            delete (hydrated as { dataRef?: SerializedAudioFeatureTrackDataRef }).dataRef;
+        }
+        if (!hydrated.data) {
+            if (!includeTrack) {
+                continue;
+            }
+        }
+        hydratedTracks[trackKey] = hydrated;
+    }
+    return { ...serialized, featureTracks: hydratedTracks };
+}
+
 function buildDocumentShape(
     envelope: any,
-    audioFeaturePayloads: Map<string, Uint8Array>
+    audioFeaturePayloads: Map<string, Map<string, Uint8Array>>
 ): {
     doc: {
         timeline: any;
@@ -135,14 +201,27 @@ function buildDocumentShape(
         for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
             if (cache && typeof cache === 'object' && 'assetRef' in cache) {
                 const assetId = typeof (cache as any).assetId === 'string' ? (cache as any).assetId : encodeURIComponent(id);
-                const payload = audioFeaturePayloads.get(assetId);
-                if (!payload) {
+                const payloadGroup = audioFeaturePayloads.get(assetId);
+                if (!payloadGroup) {
                     featureWarnings.push(`Missing audio feature payload for cache ${id}`);
                     continue;
                 }
                 try {
-                    const serialized = JSON.parse(decodeSceneText(payload));
-                    featureCaches[id] = deserializeAudioFeatureCache(serialized as any);
+                    const metadataBytes = payloadGroup.get(AUDIO_FEATURE_ASSET_FILENAME);
+                    if (!metadataBytes) {
+                        featureWarnings.push(`Missing feature cache metadata for ${id}`);
+                        continue;
+                    }
+                    const serialized = JSON.parse(decodeSceneText(metadataBytes));
+                    const hydrated = hydrateAudioFeatureCacheFromAssets(
+                        serialized as SerializedAudioFeatureCache,
+                        payloadGroup,
+                        id,
+                        featureWarnings,
+                    );
+                    if (hydrated) {
+                        featureCaches[id] = deserializeAudioFeatureCache(hydrated as any);
+                    }
                 } catch (error) {
                     console.warn('[importScene] failed to parse audio feature payload', id, error);
                     featureWarnings.push(`Failed to parse audio feature payload for cache ${id}`);
@@ -264,7 +343,7 @@ function buildWaveform(record: any | undefined) {
 function resolveWaveformRecord(
     waveforms: Record<string, any>,
     assetId: string,
-    waveformPayloads: Map<string, Uint8Array>,
+    waveformPayloads: Map<string, Map<string, Uint8Array>>,
     warnings: string[]
 ): any | undefined {
     const entry = waveforms[assetId];
@@ -274,13 +353,41 @@ function resolveWaveformRecord(
     }
     if (entry && typeof entry === 'object' && 'assetRef' in entry) {
         const waveformAssetId = typeof (entry as any).assetId === 'string' ? (entry as any).assetId : assetId;
-        const payload = waveformPayloads.get(waveformAssetId);
-        if (!payload) {
+        const payloadGroup = waveformPayloads.get(waveformAssetId);
+        if (!payloadGroup) {
             warnings.push(`Missing waveform payload for asset ${assetId}`);
             return undefined;
         }
         try {
-            return JSON.parse(decodeSceneText(payload));
+            const metadataBytes = payloadGroup.get(WAVEFORM_ASSET_FILENAME);
+            if (!metadataBytes) {
+                warnings.push(`Missing waveform metadata for asset ${assetId}`);
+                return undefined;
+            }
+            const metadata = JSON.parse(decodeSceneText(metadataBytes));
+            if (metadata?.dataRef && typeof metadata.dataRef === 'object') {
+                const ref = metadata.dataRef as { filename?: string; valueCount?: number };
+                const filename = typeof ref.filename === 'string' ? ref.filename : undefined;
+                if (!filename) {
+                    warnings.push(`Waveform metadata missing filename for asset ${assetId}`);
+                    return undefined;
+                }
+                const binary = payloadGroup.get(filename);
+                if (!binary) {
+                    warnings.push(`Missing waveform data file ${filename} for asset ${assetId}`);
+                    return undefined;
+                }
+                const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+                const values = new Float32Array(buffer);
+                const expected = typeof ref.valueCount === 'number' ? ref.valueCount : values.length;
+                if (values.length < expected) {
+                    warnings.push(`Waveform data truncated for asset ${assetId}`);
+                }
+                const channelPeaks = values.slice(0, expected);
+                metadata.channelPeaks = channelPeaks;
+                delete metadata.dataRef;
+            }
+            return metadata;
         } catch (error) {
             warnings.push(`Failed to parse waveform payload for asset ${assetId}: ${(error as Error).message}`);
             return undefined;
@@ -292,7 +399,7 @@ function resolveWaveformRecord(
 async function hydrateAudioAssets(
     envelope: SceneExportEnvelopeV2,
     assetPayloads: Map<string, Uint8Array>,
-    waveformPayloads: Map<string, Uint8Array>
+    waveformPayloads: Map<string, Map<string, Uint8Array>>
 ): Promise<string[]> {
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
