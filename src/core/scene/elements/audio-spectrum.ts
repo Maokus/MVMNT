@@ -133,6 +133,15 @@ export class AudioSpectrumElement extends SceneElement {
                             step: 1,
                         },
                         {
+                            key: 'temporalSmoothing',
+                            type: 'number',
+                            label: 'Temporal Smoothing (frames)',
+                            default: 0,
+                            min: 0,
+                            max: 32,
+                            step: 1,
+                        },
+                        {
                             key: 'visualGain',
                             type: 'number',
                             label: 'Visual Gain',
@@ -338,7 +347,35 @@ export class AudioSpectrumElement extends SceneElement {
             sample = this.getProperty<AudioFeatureFrameSample | null>('featureBinding');
         }
 
-        const values = sample?.values ?? [];
+        const resolvedBinCount = (() => {
+            const metaBinCount = metadata?.binCount;
+            if (typeof metaBinCount === 'number' && Number.isFinite(metaBinCount) && metaBinCount > 0) {
+                return Math.max(1, Math.floor(metaBinCount));
+            }
+            const sampleLength = sample?.values?.length;
+            if (typeof sampleLength === 'number' && sampleLength > 0) {
+                return sampleLength;
+            }
+            return Math.max(1, bandCount);
+        })();
+
+        const resolvedMetadata: SpectrogramMetadata = {
+            sampleRate: metadata?.sampleRate ?? 44100,
+            fftSize: metadata?.fftSize ?? Math.max(2, (resolvedBinCount - 1) * 2),
+            minDecibels: metadata?.minDecibels ?? DEFAULT_MIN_DECIBELS,
+            maxDecibels: metadata?.maxDecibels ?? DEFAULT_MAX_DECIBELS,
+            binCount: resolvedBinCount,
+        };
+
+        const isOutsideAnalyzedRange =
+            !!sample && (sample.fractionalIndex < 0 || sample.fractionalIndex - sample.frameIndex >= 1);
+
+        const rawValues = sample?.values;
+        const silentValue = resolvedMetadata.minDecibels ?? DEFAULT_MIN_DECIBELS;
+        const values =
+            rawValues && rawValues.length > 0 && !isOutsideAnalyzedRange
+                ? rawValues
+                : new Array(resolvedMetadata.binCount).fill(silentValue);
         const binCount = values.length;
         const totalWidth = Math.max(1, bandCount * bandWidth + Math.max(0, bandCount - 1) * bandSpacing);
 
@@ -346,18 +383,6 @@ export class AudioSpectrumElement extends SceneElement {
         const layoutRect = new Rectangle(0, 0, totalWidth, height, null, null, 0, { includeInLayoutBounds: true });
         layoutRect.setVisible(false);
         objects.push(layoutRect);
-
-        if (!binCount) {
-            return objects;
-        }
-
-        const resolvedMetadata: SpectrogramMetadata = metadata ?? {
-            sampleRate: 44100,
-            fftSize: Math.max(2, (binCount - 1) * 2),
-            minDecibels: DEFAULT_MIN_DECIBELS,
-            maxDecibels: DEFAULT_MAX_DECIBELS,
-            binCount: binCount,
-        };
 
         const minDecibels = resolvedMetadata.minDecibels ?? DEFAULT_MIN_DECIBELS;
         const maxDecibels = resolvedMetadata.maxDecibels ?? DEFAULT_MAX_DECIBELS;

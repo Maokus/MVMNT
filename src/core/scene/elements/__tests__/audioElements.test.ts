@@ -219,6 +219,71 @@ describe('audio scene elements', () => {
         expect(secondHeights[4]).toBeGreaterThan(firstHeights[4]);
     });
 
+    it('shows minimum spectrum amplitudes before and after the track', () => {
+        const cache = createSpectrogramCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                ...state.tracks,
+                testTrack: {
+                    ...state.tracks.testTrack,
+                    offsetTicks: cache.hopTicks * 2,
+                },
+            },
+        }));
+        const element = new AudioSpectrumElement('spectrumSilent');
+        element.updateConfig({
+            bandCount: 4,
+            displayMode: 'bars',
+            sideMode: 'top',
+            useLogScale: false,
+            startFrequency: 0,
+            endFrequency: 22050,
+        });
+        const binding = new AudioFeatureBinding({
+            trackId: 'testTrack',
+            featureKey: 'spectrogram',
+            calculatorId: 'test.spectrogram',
+            bandIndex: null,
+            channelIndex: null,
+            smoothing: null,
+        });
+        element.setBinding('featureBinding', binding);
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks);
+        const offsetSeconds = tm.ticksToSeconds(cache.hopTicks * 2);
+        const collectHeights = (objects: any[]) => {
+            const container = objects[0] as any;
+            return (container.children ?? []).slice(1).map((child: any) => child.height ?? 0);
+        };
+        const before = element.buildRenderObjects({}, offsetSeconds * 0.5);
+        const after = element.buildRenderObjects({}, offsetSeconds + (cache.frameCount + 1) * hopSeconds);
+        expect(collectHeights(before).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
+        expect(collectHeights(after).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
+    });
+
+    it('applies temporal smoothing to spectrogram bindings', () => {
+        const cache = createSpectrogramCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioSpectrumElement('spectrumSmoothing');
+        element.updateConfig({ temporalSmoothing: 3 });
+        const binding = new AudioFeatureBinding({
+            trackId: 'testTrack',
+            featureKey: 'spectrogram',
+            calculatorId: 'test.spectrogram',
+            bandIndex: null,
+            channelIndex: null,
+            smoothing: null,
+        });
+        element.setBinding('featureBinding', binding);
+        element.buildRenderObjects({}, 0);
+        expect(binding.getConfig().smoothing).toBe(3);
+        element.updateConfig({ temporalSmoothing: 0 });
+        element.buildRenderObjects({}, 0);
+        expect(binding.getConfig().smoothing).toBe(0);
+    });
+
     it('builds volume meter rectangles', () => {
         const element = new AudioVolumeMeterElement('meter');
         element.setBinding(
