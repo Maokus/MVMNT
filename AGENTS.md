@@ -11,3 +11,5 @@ npm run lint
 ```
 
 If `npm run test` fails because an optional Rollup native dependency is missing, run `npm install` and rerun `npm run test` before continuing.
+
+When asked to "implement phase x" of a plan, read through the requirements and goals of the phase clearly, and do not exit until the goals are met. If the implementation of the phase requires writing code, WRITE THE CODE. DO NOT simply mark the phase as complete.
