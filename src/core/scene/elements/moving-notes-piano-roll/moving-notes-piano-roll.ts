@@ -1,6 +1,6 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
 import { SceneElement } from '@core/scene/elements/base';
-import { EnhancedConfigSchema } from '@core/types.js';
+import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -83,6 +83,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 acc[`channel${index}Color`] = color;
                 return acc;
             }, {});
+        const channelColorProperties: PropertyDefinition[] = Array.from({ length: 16 }, (_, i) => ({
+            key: `channel${i}Color`,
+            type: 'color',
+            label: `Channel ${i + 1}`,
+            default: channelColorDefaults[i],
+            visibleWhen: [
+                { key: 'showNotes', truthy: true },
+                { key: 'useChannelColors', truthy: true },
+            ],
+        }));
 
         return {
             name: 'Moving Notes Piano Roll',
@@ -193,6 +203,23 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     properties: [
                         { key: 'showNotes', type: 'boolean', label: 'Show Notes', default: true },
                         {
+                            key: 'useChannelColors',
+                            type: 'boolean',
+                            label: 'Use Per-Channel Colors',
+                            default: true,
+                            visibleWhen: [{ key: 'showNotes', truthy: true }],
+                        },
+                        {
+                            key: 'noteColor',
+                            type: 'color',
+                            label: 'Note Color',
+                            default: channelColorDefaults[0],
+                            visibleWhen: [
+                                { key: 'showNotes', truthy: true },
+                                { key: 'useChannelColors', falsy: true },
+                            ],
+                        },
+                        {
                             key: 'noteHeight',
                             type: 'number',
                             label: 'Note Height (px)',
@@ -266,6 +293,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             step: 0.05,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
+                        ...channelColorProperties,
                     ],
                     presets: [
                         {
@@ -287,6 +315,42 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
                                 noteGlowColor: 'rgba(56,189,248,0.7)',
+                            },
+                        },
+                        {
+                            id: 'perChannelRainbow',
+                            label: 'Per-Channel Rainbow',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorDefaults),
+                            },
+                        },
+                        {
+                            id: 'perChannelPastel',
+                            label: 'Per-Channel Pastel',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorPastel),
+                            },
+                        },
+                        {
+                            id: 'perChannelHeatMap',
+                            label: 'Per-Channel Heat Map',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorHeatmap),
+                            },
+                        },
+                        {
+                            id: 'singleColor',
+                            label: 'Single Color',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: false,
+                                noteColor: channelColorDefaults[0],
                             },
                         },
                     ],
@@ -721,9 +785,19 @@ export class MovingNotesPianoRollElement extends SceneElement {
     }
     // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
+        const useChannelColors = this.getProperty<boolean>('useChannelColors');
+        const baseColor =
+            this.getProperty<string>('noteColor') ||
+            this.getProperty<string>('channel0Color') ||
+            '#ff6b6b';
+        if (useChannelColors === false) {
+            return Array.from({ length: 16 }, () => baseColor);
+        }
         const colors: string[] = [];
         for (let i = 0; i < 16; i++) {
-            colors.push(this.getProperty<string>(`channel${i}Color`) || '#ffffff');
+            const key = `channel${i}Color`;
+            const channelColor = this.getProperty<string>(key) || baseColor;
+            colors.push(channelColor);
         }
         return colors;
     }

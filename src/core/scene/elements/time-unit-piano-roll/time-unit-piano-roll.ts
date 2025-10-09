@@ -1,6 +1,6 @@
 // TimeUnitPianoRoll scene element with Property Binding System
 import { SceneElement } from '@core/scene/elements/base';
-import { EnhancedConfigSchema } from '@core/types.js';
+import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
@@ -93,6 +93,16 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 acc[`channel${index}Color`] = color;
                 return acc;
             }, {});
+        const channelColorProperties: PropertyDefinition[] = Array.from({ length: 16 }, (_, i) => ({
+            key: `channel${i}Color`,
+            type: 'color',
+            label: `Channel ${i + 1}`,
+            default: channelColorDefaults[i],
+            visibleWhen: [
+                { key: 'showNotes', truthy: true },
+                { key: 'useChannelColors', truthy: true },
+            ],
+        }));
 
         return {
             name: 'Time Unit Piano Roll',
@@ -192,6 +202,23 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     properties: [
                         { key: 'showNotes', type: 'boolean', label: 'Show Notes', default: true },
                         {
+                            key: 'useChannelColors',
+                            type: 'boolean',
+                            label: 'Use Per-Channel Colors',
+                            default: true,
+                            visibleWhen: [{ key: 'showNotes', truthy: true }],
+                        },
+                        {
+                            key: 'noteColor',
+                            type: 'color',
+                            label: 'Note Color',
+                            default: channelColorDefaults[0],
+                            visibleWhen: [
+                                { key: 'showNotes', truthy: true },
+                                { key: 'useChannelColors', falsy: true },
+                            ],
+                        },
+                        {
                             key: 'noteHeight',
                             type: 'number',
                             label: 'Note Height (px)',
@@ -268,6 +295,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             step: 0.05,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
+                        ...channelColorProperties,
                     ],
                     presets: [
                         {
@@ -289,6 +317,42 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
                                 noteGlowColor: 'rgba(56,189,248,0.7)',
+                            },
+                        },
+                        {
+                            id: 'perChannelRainbow',
+                            label: 'Per-Channel Rainbow',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorDefaults),
+                            },
+                        },
+                        {
+                            id: 'perChannelPastel',
+                            label: 'Per-Channel Pastel',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorPastel),
+                            },
+                        },
+                        {
+                            id: 'perChannelHeatMap',
+                            label: 'Per-Channel Heat Map',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: true,
+                                ...createChannelPreset(channelColorHeatmap),
+                            },
+                        },
+                        {
+                            id: 'singleColor',
+                            label: 'Single Color',
+                            values: {
+                                showNotes: true,
+                                useChannelColors: false,
+                                noteColor: channelColorDefaults[0],
                             },
                         },
                     ],
@@ -766,25 +830,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             values: { showPlayhead: true, playheadLineWidth: 1, playheadOpacity: 0.8, playheadColor: '#f8fafc' },
                         },
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
-                    ],
-                },
-                {
-                    id: 'noteColors',
-                    label: 'Per-Channel Colors',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Assign colors for each MIDI channel.',
-                    properties: Array.from({ length: 16 }).map((_, i) => ({
-                        key: `channel${i}Color`,
-                        type: 'color',
-                        label: `Channel ${i + 1}`,
-                        default: channelColorDefaults[i],
-                    })),
-                    presets: [
-                        { id: 'rainbow', label: 'Rainbow', values: createChannelPreset(channelColorDefaults) },
-                        { id: 'pastel', label: 'Pastel', values: createChannelPreset(channelColorPastel) },
-                        { id: 'heatmap', label: 'Heat Map', values: createChannelPreset(channelColorHeatmap) },
-                        { id: 'mono', label: 'Monochrome', values: createChannelPreset(Array(16).fill('#f8fafc')) },
                     ],
                 },
                 ...baseAdvancedGroups,
@@ -1323,11 +1368,20 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Get channel colors for MIDI channels
      */
     getChannelColors(): string[] {
+        const useChannelColors = this.getProperty<boolean>('useChannelColors');
+        const baseColor =
+            this.getProperty<string>('noteColor') ||
+            this.getProperty<string>('channel0Color') ||
+            '#ff6b6b';
+        if (useChannelColors === false) {
+            return Array.from({ length: 16 }, () => baseColor);
+        }
+
         const colors: string[] = [];
         for (let i = 0; i < 16; i++) {
             const key = `channel${i}Color`;
-            const val = this.getProperty<string>(key);
-            colors.push(val || '#ffffff');
+            const val = this.getProperty<string>(key) || baseColor;
+            colors.push(val);
         }
         return colors;
     }
