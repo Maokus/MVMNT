@@ -436,6 +436,18 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
         if (!value || typeof value !== 'object') continue;
         const payload = value as Partial<PropertyBindingData>;
         const type = (value as { type?: string }).type;
+
+        const migration = migrateLegacyAudioFeatureBinding(key, payload);
+        if (migration) {
+            for (const clearedKey of migration.clearedKeys) {
+                delete bindings[clearedKey as keyof ElementBindings];
+            }
+            for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
+                bindings[replacementKey as keyof ElementBindings] = binding;
+            }
+            continue;
+        }
+
         if (type === 'constant') {
             const constantValue = (payload as { value?: unknown }).value;
             bindings[key] = { type: 'constant', value: constantValue };
@@ -447,10 +459,13 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
             continue;
         }
         if (type === 'audioFeature') {
-            const migration = migrateLegacyAudioFeatureBinding(key, payload);
-            if (migration) {
-                for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
-                    bindings[replacementKey] = binding;
+            const legacyMigration = migrateLegacyAudioFeatureBinding(key, payload);
+            if (legacyMigration) {
+                for (const clearedKey of legacyMigration.clearedKeys) {
+                    delete bindings[clearedKey as keyof ElementBindings];
+                }
+                for (const [replacementKey, binding] of Object.entries(legacyMigration.replacements)) {
+                    bindings[replacementKey as keyof ElementBindings] = binding;
                 }
             }
         }

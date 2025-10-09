@@ -21,6 +21,7 @@ export interface AudioFeatureDescriptor {
     calculatorId?: string | null;
     bandIndex?: number | null;
     channelIndex?: number | null;
+    channelAlias?: string | null;
     smoothing?: number | null;
 }
 
@@ -51,6 +52,10 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     analysisParams?: Record<string, unknown>;
     /** Data encoding hint to help downstream consumers deserialize. */
     format: AudioFeatureTrackFormat;
+    /** Optional alias labels for each channel (e.g., Left/Right). */
+    channelAliases?: string[] | null;
+    /** Identifier of the analysis profile used to generate this track. */
+    analysisProfileId?: string | null;
 }
 
 export interface AudioFeatureAnalysisParams {
@@ -65,6 +70,19 @@ export interface AudioFeatureAnalysisParams {
     window?: string;
     tempoMapHash?: string;
     calculatorVersions: Record<string, number>;
+}
+
+export interface AudioFeatureAnalysisProfileDescriptor {
+    id: string;
+    windowSize: number;
+    hopSize: number;
+    overlap: number;
+    sampleRate: number;
+    smoothing?: number | null;
+    fftSize?: number | null;
+    minDecibels?: number | null;
+    maxDecibels?: number | null;
+    window?: string | null;
 }
 
 export interface AudioFeatureCache {
@@ -84,6 +102,12 @@ export interface AudioFeatureCache {
     featureTracks: Record<string, AudioFeatureTrack>;
     /** Parameters used during analysis. */
     analysisParams: AudioFeatureAnalysisParams;
+    /** Available analysis profiles keyed by identifier. */
+    analysisProfiles?: Record<string, AudioFeatureAnalysisProfileDescriptor>;
+    /** Default profile identifier for downstream consumers. */
+    defaultAnalysisProfileId?: string | null;
+    /** Optional aliases describing the canonical channel order. */
+    channelAliases?: string[] | null;
 }
 
 export type AudioFeatureCacheStatusState = 'idle' | 'pending' | 'ready' | 'failed' | 'stale';

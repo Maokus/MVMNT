@@ -27,9 +27,16 @@ type FeatureOption = {
     calculatorId?: string;
 };
 
+type TrackFeatureInfo = {
+    calculatorId?: string;
+    channels: number;
+    format?: string;
+    channelAliases?: string[] | null;
+};
+
 type TrackFeatureState = {
     options: FeatureOption[];
-    featureTracks: Record<string, { calculatorId?: string; channels: number; format?: string }>;
+    featureTracks: Record<string, TrackFeatureInfo>;
     statusLabel: string;
     statusMessage?: string;
 };
@@ -70,24 +77,47 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
             const sourceId = track.audioSourceId ?? track.id;
             const cache = state.audioFeatureCaches[sourceId];
             const status = state.audioFeatureCacheStatus[sourceId];
-            const featureTracks = cache?.featureTracks ?? {};
-            const options: FeatureOption[] = Object.values(featureTracks).map((feature) => ({
-                key: feature.key,
-                label: String((feature.metadata as Record<string, unknown> | undefined)?.label ?? feature.key),
-                channels: Math.max(1, feature.channels || 1),
-                format: feature.format,
-                calculatorId: feature.calculatorId,
-            }));
-            options.sort((a, b) => a.label.localeCompare(b.label));
-            return {
-                options,
-                featureTracks: Object.fromEntries(
-                    Object.values(featureTracks).map((feature) => [feature.key, {
+            const rawFeatureTracks = cache?.featureTracks ?? {};
+            const cacheAliases = Array.isArray(cache?.channelAliases) && cache.channelAliases.length
+                ? cache.channelAliases
+                : undefined;
+            const optionList: FeatureOption[] = [];
+            const featureEntries: [string, TrackFeatureInfo][] = [];
+            for (const feature of Object.values(rawFeatureTracks)) {
+                if (!feature) continue;
+                const channels = Math.max(1, feature.channels || 1);
+                const label = String(
+                    (feature.metadata as Record<string, unknown> | undefined)?.label ?? feature.key,
+                );
+                const trackAliasSource =
+                    Array.isArray(feature.channelAliases) && feature.channelAliases.length
+                        ? feature.channelAliases
+                        : cacheAliases;
+                const normalizedAliases = trackAliasSource
+                    ? trackAliasSource.slice(0, channels)
+                    : null;
+                optionList.push({
+                    key: feature.key,
+                    label,
+                    channels,
+                    format: feature.format,
+                    calculatorId: feature.calculatorId,
+                });
+                featureEntries.push([
+                    feature.key,
+                    {
                         calculatorId: feature.calculatorId,
-                        channels: Math.max(1, feature.channels || 1),
+                        channels,
                         format: feature.format,
-                    }]),
-                ),
+                        channelAliases: normalizedAliases,
+                    },
+                ]);
+            }
+            optionList.sort((a, b) => a.label.localeCompare(b.label));
+            const featureMap = Object.fromEntries(featureEntries);
+            return {
+                options: optionList,
+                featureTracks: featureMap,
                 statusLabel: status?.state ?? (cache ? 'ready' : 'idle'),
                 statusMessage: status?.message,
             };
@@ -112,11 +142,25 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
                 return;
             }
             const trackInfo = featureTracks[nextKey];
+            const nextChannelIndex =
+                patch.channelIndex !== undefined ? patch.channelIndex : descriptor?.channelIndex ?? null;
+            let nextChannelAlias = descriptor?.channelAlias ?? null;
+            if (patch.channelAlias !== undefined) {
+                nextChannelAlias = patch.channelAlias ?? null;
+            } else if (nextChannelIndex == null) {
+                nextChannelAlias = null;
+            } else if (patch.channelIndex !== undefined || descriptor?.featureKey !== nextKey) {
+                const aliases = trackInfo?.channelAliases;
+                const aliasFromTrack =
+                    Array.isArray(aliases) && aliases[nextChannelIndex] ? aliases[nextChannelIndex] : null;
+                nextChannelAlias = aliasFromTrack ?? nextChannelAlias ?? null;
+            }
             onChange({
                 featureKey: nextKey,
                 calculatorId: trackInfo?.calculatorId ?? descriptor?.calculatorId ?? null,
                 bandIndex: patch.bandIndex ?? descriptor?.bandIndex ?? null,
-                channelIndex: patch.channelIndex ?? descriptor?.channelIndex ?? null,
+                channelIndex: nextChannelIndex,
+                channelAlias: nextChannelAlias,
                 smoothing: patch.smoothing ?? descriptor?.smoothing ?? 0,
             });
         },
@@ -162,9 +206,15 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         if (!selectedFeature) return [];
         const channels = Math.max(1, selectedFeature.channels);
         if (channels <= 1) return [];
+        const aliases =
+            Array.isArray(selectedFeature.channelAliases) && selectedFeature.channelAliases.length
+                ? selectedFeature.channelAliases
+                : null;
         const opts = [{ value: 'auto', label: 'Auto (mix)' }];
         for (let index = 0; index < channels; index += 1) {
-            opts.push({ value: String(index), label: `Channel ${index + 1}` });
+            const alias = aliases?.[index];
+            const label = alias && alias.trim().length > 0 ? alias : `Channel ${index + 1}`;
+            opts.push({ value: String(index), label });
         }
         return opts;
     }, [selectedFeature]);

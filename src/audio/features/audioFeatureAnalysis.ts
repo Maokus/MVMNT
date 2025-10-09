@@ -571,6 +571,18 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
     for (const [key, track] of Object.entries(cache.featureTracks)) {
         featureTracks[key] = serializeTrack(track);
     }
+    const normalizedProfiles =
+        cache.analysisProfiles && Object.keys(cache.analysisProfiles).length > 0
+            ? clonePlainObject(cache.analysisProfiles)
+            : buildDefaultProfile(cache.analysisParams);
+    const defaultProfileId =
+        typeof cache.defaultAnalysisProfileId === 'string' && cache.defaultAnalysisProfileId.trim().length > 0
+            ? cache.defaultAnalysisProfileId
+            : DEFAULT_ANALYSIS_PROFILE_ID;
+    const channelAliases =
+        Array.isArray(cache.channelAliases) && cache.channelAliases.length > 0
+            ? cache.channelAliases.slice()
+            : undefined;
     const serialized: SerializedAudioFeatureCache = {
         version: 3,
         audioSourceId: cache.audioSourceId,
@@ -581,9 +593,9 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
         featureTracks,
         tempoProjection: toSerializedTempoProjection(cache.tempoProjection),
         legacyTempoCache: buildLegacyCache(cache, featureTracks),
-        analysisProfiles: cache.analysisProfiles,
-        defaultAnalysisProfileId: cache.defaultAnalysisProfileId,
-        channelAliases: cache.channelAliases,
+        analysisProfiles: normalizedProfiles,
+        defaultAnalysisProfileId: defaultProfileId,
+        channelAliases,
     };
     return serialized;
 }

@@ -110,13 +110,13 @@ function resolveChannelIndexFromDescriptor(
     const normalized = alias.toLowerCase();
     const trackAliases = track.channelAliases ?? undefined;
     if (trackAliases?.length) {
-        const index = trackAliases.findIndex((entry) => entry?.toLowerCase() === normalized);
+        const index = trackAliases.findIndex((entry: string | undefined) => entry?.toLowerCase() === normalized);
         if (index >= 0) {
             return index;
         }
     }
     if (cacheAliases?.length) {
-        const index = cacheAliases.findIndex((entry) => entry?.toLowerCase() === normalized);
+        const index = cacheAliases.findIndex((entry: string | undefined) => entry?.toLowerCase() === normalized);
         if (index >= 0) {
             return index;
         }
@@ -135,7 +135,11 @@ export function resolveDescriptorChannelIndex(
     if (!context) {
         return descriptor.channelIndex ?? null;
     }
-    return resolveChannelIndexFromDescriptor(descriptor, context.featureTrack, context.cache.channelAliases);
+    return resolveChannelIndexFromDescriptor(
+        descriptor,
+        context.featureTrack,
+        context.cache.channelAliases ?? undefined,
+    );
 }
 
 function recordDiagnostics(diagnostics: TempoAlignedAdapterDiagnostics, trackId: string) {
@@ -167,7 +171,7 @@ export function sampleFeatureFrame(
     const channelIndex = resolveChannelIndexFromDescriptor(
         descriptor,
         featureTrack,
-        cache.channelAliases,
+        cache.channelAliases ?? undefined,
     );
     const cacheKey = buildSampleCacheKey(tick, {
         ...descriptor,

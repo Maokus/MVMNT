@@ -9,7 +9,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
     const hopTicks = 120;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: sourceId,
         hopSeconds: 0.04,
         hopTicks,
@@ -108,7 +108,7 @@ describe('audio feature cache persistence', () => {
         if (!serialized || !('analysisParams' in serialized) || !('featureTracks' in serialized)) {
             throw new Error('Expected inline audio feature cache payload');
         }
-        expect(serialized.version).toBe(2);
+        expect(serialized.version).toBe(3);
         expect(serialized.startTimeSeconds).toBe(0);
         expect(serialized.tempoProjection?.hopTicks).toBe(120);
         expect(serialized.analysisParams.windowSize).toBe(2048);
