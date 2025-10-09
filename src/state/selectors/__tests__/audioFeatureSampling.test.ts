@@ -71,6 +71,22 @@ describe('audio feature sampling selectors', () => {
         expect(sample?.values[0]).toBeCloseTo(0.5 / 6, 5);
     });
 
+    it('pads frame sampling with silence before the track start', () => {
+        const state = useTimelineStore.getState();
+        const tick = -120; // one frame before start
+        const sample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tick);
+        expect(sample).toBeDefined();
+        expect(sample?.values[0]).toBe(0);
+    });
+
+    it('pads frame sampling with silence after the track end', () => {
+        const state = useTimelineStore.getState();
+        const tick = 840; // one frame after last sample
+        const sample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tick);
+        expect(sample).toBeDefined();
+        expect(sample?.values[0]).toBe(0);
+    });
+
     it('averages neighbours when smoothing is applied', () => {
         const state = useTimelineStore.getState();
         const tick = 120; // exactly frame 1
@@ -86,5 +102,13 @@ describe('audio feature sampling selectors', () => {
         expect(range?.frameCount).toBeGreaterThan(0);
         expect(range?.channels).toBe(1);
         expect(range?.data.length).toBe(range?.frameCount ?? 0);
+    });
+
+    it('includes silence when sampling ranges beyond track bounds', () => {
+        const state = useTimelineStore.getState();
+        const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 720, 960);
+        expect(range).toBeDefined();
+        expect(range?.frameCount).toBe(3);
+        expect(Array.from(range?.data ?? [])).toEqual([0, 0, 0]);
     });
 });

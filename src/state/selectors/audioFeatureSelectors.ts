@@ -131,6 +131,18 @@ function buildFrameVector(
     return vector;
 }
 
+function buildSilentVector(track: AudioFeatureTrack, options: AudioFeatureFrameOptions): number[] {
+    if (track.format === 'waveform-minmax') {
+        return [0, 0];
+    }
+    const targetChannel = options.channelIndex ?? options.bandIndex ?? null;
+    if (targetChannel != null) {
+        return [0];
+    }
+    const channels = Math.max(1, track.channels || 1);
+    return Array.from({ length: channels }, () => 0);
+}
+
 export function selectAudioFeatureFrame(
     state: TimelineState,
     trackId: string,
@@ -156,18 +168,22 @@ export function selectAudioFeatureFrame(
 
     const radius = Math.max(0, Math.floor(options.smoothing ?? 0));
     const samples: number[][] = [];
+    const getVector = (index: number) => {
+        if (index < 0 || index >= featureTrack.frameCount) {
+            return buildSilentVector(featureTrack, options);
+        }
+        return buildFrameVector(featureTrack, index, options);
+    };
     for (let i = -radius; i <= radius; i += 1) {
         const idx = baseIndex + i;
-        if (idx < 0 || idx >= featureTrack.frameCount) continue;
-        samples.push(buildFrameVector(featureTrack, idx, options));
+        samples.push(getVector(idx));
     }
     if (!samples.length) {
-        samples.push(buildFrameVector(featureTrack, Math.max(0, Math.min(featureTrack.frameCount - 1, baseIndex)), options));
+        samples.push(getVector(baseIndex));
     }
     let values = averageVectors(samples);
     if (radius === 0 && frac > 1e-3 && featureTrack.format !== 'waveform-minmax') {
-        const nextIndex = Math.min(featureTrack.frameCount - 1, baseIndex + 1);
-        const nextVector = buildFrameVector(featureTrack, nextIndex, options);
+        const nextVector = getVector(baseIndex + 1);
         values = values.map((value, index) => {
             const next = nextVector[index] ?? value;
             return value + (next - value) * frac;
@@ -207,8 +223,8 @@ export function sampleAudioFeatureRange(
     const frameStart = Math.floor(Math.min(localStart, localEnd) / hopTicks);
     const frameEnd = Math.floor(Math.max(localStart, localEnd) / hopTicks);
     const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
-    const firstFrame = Math.max(0, frameStart - padding);
-    const lastFrame = Math.min(featureTrack.frameCount - 1, frameEnd + padding);
+    const firstFrame = frameStart - padding;
+    const lastFrame = frameEnd + padding;
     const frameCount = Math.max(0, lastFrame - firstFrame + 1);
     if (frameCount <= 0) {
         return undefined;
@@ -224,7 +240,10 @@ export function sampleAudioFeatureRange(
     let writeIndex = 0;
     for (let frame = 0; frame < frameCount; frame += 1) {
         const sampleIndex = firstFrame + frame;
-        const vector = buildFrameVector(featureTrack, sampleIndex, options);
+        const vector =
+            sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
+                ? buildSilentVector(featureTrack, options)
+                : buildFrameVector(featureTrack, sampleIndex, options);
         if (isWaveform) {
             const [min, max] = vector;
             data[writeIndex++] = min ?? 0;
