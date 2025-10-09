@@ -9,8 +9,8 @@ import {
     type AudioFeatureTrack,
     type AudioFeatureTrackFormat,
 } from './audioFeatureTypes';
-import { createTempoMapper } from '@core/timing';
-import { createTimingContext, secondsToTicks } from '@state/timelineTime';
+import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
+import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
 
@@ -302,14 +302,37 @@ function fromSerializedTempoProjection(
 
 function resolveHopTicks(
     track: Pick<AudioFeatureTrack, 'hopTicks' | 'tempoProjection' | 'hopSeconds'>,
+    fallbackProjection?: AudioFeatureTempoProjection,
+    tempoMapper?: TempoMapper,
 ): number {
-    if (typeof track.hopTicks === 'number' && Number.isFinite(track.hopTicks) && track.hopTicks > 0) {
-        return Math.round(track.hopTicks);
+    const direct = normalizeHopTicks(track.hopTicks);
+    if (direct != null) {
+        return direct;
     }
-    if (typeof track.tempoProjection?.hopTicks === 'number') {
-        return Math.max(1, Math.round(track.tempoProjection.hopTicks));
+    const projectionCandidate =
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
+            ? track.tempoProjection
+            : fallbackProjection;
+    if (tempoMapper) {
+        return quantizeHopTicks({
+            hopSeconds: track.hopSeconds,
+            tempoMapper,
+            tempoProjection: projectionCandidate,
+        });
     }
-    return Math.max(1, Math.round(track.hopSeconds * 960));
+    const projectionHop = normalizeHopTicks(projectionCandidate?.hopTicks);
+    if (projectionHop != null) {
+        return projectionHop;
+    }
+    const hopSeconds = track.hopSeconds;
+    if (Number.isFinite(hopSeconds) && hopSeconds > 0) {
+        const fallbackTicks = getSharedTimingManager().secondsToTicks(hopSeconds);
+        const normalized = normalizeHopTicks(fallbackTicks);
+        if (normalized != null) {
+            return normalized;
+        }
+    }
+    return 1;
 }
 
 function clonePlainObject<T>(value: T): T {
@@ -772,7 +795,10 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 context.reportProgress?.(frame + 1, waveformFrameCount);
             }
             await maybeYield();
-            const waveformHopTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(waveformHopSeconds)));
+            const waveformHopTicks = quantizeHopTicks({
+                hopSeconds: waveformHopSeconds,
+                tempoMapper,
+            });
             return {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',
@@ -830,21 +856,12 @@ export async function analyzeAudioBufferFeatures(
     const hopSize = options.hopSize ?? DEFAULT_HOP_SIZE;
     const frameCount = computeFrameCount(options.audioBuffer.length, windowSize, hopSize);
     const timingSlice = createTimingSlice(options.globalBpm, options.beatsPerBar, options.tempoMap);
-    const timingContext = createTimingContext(
-        {
-            globalBpm: timingSlice.globalBpm,
-            beatsPerBar: timingSlice.beatsPerBar,
-            masterTempoMap: timingSlice.tempoMap,
-        },
-        timingSlice.ticksPerQuarter,
-    );
     const tempoMapper = createTempoMapper({
         ticksPerQuarter: timingSlice.ticksPerQuarter,
         globalBpm: timingSlice.globalBpm,
         tempoMap: options.tempoMap,
     });
     const hopSeconds = hopSize / options.audioBuffer.sampleRate;
-    const hopTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(hopSeconds)));
     const analysisParams = createAnalysisParams(
         options.audioBuffer.sampleRate,
         options.tempoMap,
@@ -852,6 +869,10 @@ export async function analyzeAudioBufferFeatures(
         windowSize,
         hopSize,
     );
+    const hopTicks = quantizeHopTicks({
+        hopSeconds,
+        tempoMapper,
+    });
     const tempoProjection: AudioFeatureTempoProjection = {
         hopTicks,
         startTick: 0,
@@ -908,7 +929,7 @@ export async function analyzeAudioBufferFeatures(
         assertSignalNotAborted(signal);
         const tracks = Array.isArray(result) ? result : [result];
         for (const track of tracks) {
-            const projectedHopTicks = resolveHopTicks(track);
+            const projectedHopTicks = resolveHopTicks(track, tempoProjection, tempoMapper);
             track.hopTicks = projectedHopTicks;
             track.startTimeSeconds = track.startTimeSeconds ?? 0;
             track.tempoProjection = track.tempoProjection

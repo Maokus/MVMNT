@@ -17,6 +17,54 @@ export class AudioOscilloscopeElement extends SceneElement {
 
     private static readonly DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = { featureKey: 'waveform', smoothing: 0 };
 
+    private lastWindowCache:
+        | {
+              manager: ReturnType<typeof getSharedTimingManager>;
+              targetTime: number;
+              offsetSeconds: number;
+              windowSeconds: number;
+              windowStartSeconds: number;
+              windowEndSeconds: number;
+              targetTick: number;
+              startTick: number;
+              endTick: number;
+          }
+        | null = null;
+
+    private resolveWindowMetrics(
+        manager: ReturnType<typeof getSharedTimingManager>,
+        targetTime: number,
+        offsetSeconds: number,
+        windowSeconds: number,
+    ) {
+        const cached = this.lastWindowCache;
+        if (
+            cached &&
+            cached.manager === manager &&
+            cached.targetTime === targetTime &&
+            cached.offsetSeconds === offsetSeconds &&
+            cached.windowSeconds === windowSeconds
+        ) {
+            return cached;
+        }
+        const halfWindow = windowSeconds / 2;
+        const windowStartSeconds = targetTime + offsetSeconds - halfWindow;
+        const windowEndSeconds = targetTime + offsetSeconds + halfWindow;
+        const next = {
+            manager,
+            targetTime,
+            offsetSeconds,
+            windowSeconds,
+            windowStartSeconds,
+            windowEndSeconds,
+            targetTick: Math.round(manager.secondsToTicks(targetTime)),
+            startTick: Math.round(manager.secondsToTicks(windowStartSeconds)),
+            endTick: Math.round(manager.secondsToTicks(windowEndSeconds)),
+        };
+        this.lastWindowCache = next;
+        return next;
+    }
+
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
         const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
@@ -180,12 +228,8 @@ export class AudioOscilloscopeElement extends SceneElement {
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
         const offsetMs = this.getProperty<number>('offset') ?? 0;
         const offsetSeconds = offsetMs / 1000;
-        const halfWindow = windowSeconds / 2;
-        const windowStartSeconds = targetTime + offsetSeconds - halfWindow;
-        const windowEndSeconds = targetTime + offsetSeconds + halfWindow;
-        const targetTick = Math.round(tm.secondsToTicks(targetTime));
-        const startTick = Math.round(tm.secondsToTicks(windowStartSeconds));
-        const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
+        const windowMetrics = this.resolveWindowMetrics(tm, targetTime, offsetSeconds, windowSeconds);
+        const { windowStartSeconds, windowEndSeconds, targetTick, startTick, endTick } = windowMetrics;
 
         const state = useTimelineStore.getState();
         const range =
@@ -266,8 +310,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         if (showDebugTime || showDebugSample || showDebugWindow || showDebugSource) {
             const debugLines: string[] = [];
             if (showDebugTime) {
-                const targetSeconds = tm.ticksToSeconds(targetTick);
-                debugLines.push(`Target: ${targetSeconds.toFixed(3)}s (${targetTick} ticks)`);
+                debugLines.push(`Target: ${targetTime.toFixed(3)}s (${targetTick} ticks)`);
             }
 
             let nearestFrameIndex: number | null = null;
@@ -284,7 +327,7 @@ export class AudioOscilloscopeElement extends SceneElement {
 
             if (showDebugSample && nearestFrameIndex != null) {
                 const frameTick = range.frameTicks[nearestFrameIndex] ?? 0;
-                const frameSeconds = tm.ticksToSeconds(frameTick);
+                const frameSeconds = range.frameSeconds?.[nearestFrameIndex] ?? tm.ticksToSeconds(frameTick);
                 debugLines.push(`Frame: ${nearestFrameIndex} · center ${frameSeconds.toFixed(3)}s`);
                 const baseIndex = nearestFrameIndex * channels;
                 if (range.format === 'waveform-minmax' && channels >= 2) {
@@ -306,8 +349,6 @@ export class AudioOscilloscopeElement extends SceneElement {
             }
 
             if (showDebugWindow) {
-                const windowStartSeconds = tm.ticksToSeconds(range.windowStartTick);
-                const windowEndSeconds = tm.ticksToSeconds(range.windowEndTick);
                 debugLines.push(
                     `Window: ${windowStartSeconds.toFixed(3)}s → ${windowEndSeconds.toFixed(3)}s`,
                 );

@@ -6,6 +6,7 @@ import type {
     AudioFeatureTrack,
     AudioFeatureTrackFormat,
 } from './audioFeatureTypes';
+import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
 
@@ -53,6 +54,7 @@ export interface TempoAlignedRangeSample {
     format: AudioFeatureTrackFormat;
     data: Float32Array;
     frameTicks: Float64Array;
+    frameSeconds?: Float64Array;
     requestedStartTick: number;
     requestedEndTick: number;
     windowStartTick: number;
@@ -142,14 +144,24 @@ function resolveHopTicks(
     cache: AudioFeatureCache,
     tempoMapper: TempoMapper,
 ): number {
-    if (typeof track.tempoProjection?.hopTicks === 'number') {
-        return Math.max(1, Math.round(track.tempoProjection.hopTicks));
+    const direct = normalizeHopTicks(track.hopTicks);
+    if (direct != null) {
+        return direct;
     }
-    if (typeof cache.tempoProjection?.hopTicks === 'number') {
-        return Math.max(1, Math.round(cache.tempoProjection.hopTicks));
+    const cacheHop = normalizeHopTicks(cache.hopTicks);
+    if (cacheHop != null) {
+        return cacheHop;
     }
+    const projection =
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
+            ? track.tempoProjection
+            : cache.tempoProjection;
     const hopSeconds = resolveHopSeconds(track, cache);
-    return Math.max(1, Math.round(tempoMapper.secondsToTicks(hopSeconds)));
+    return quantizeHopTicks({
+        hopSeconds,
+        tempoMapper,
+        tempoProjection: projection,
+    });
 }
 
 function readNumericFrame(
@@ -641,7 +653,7 @@ export function getTempoAlignedRange(
         return Math.max(1, featureTrack.channels);
     })();
     const data = new Float32Array(frameCount * channels);
-    const frameTicks = new Float64Array(frameCount);
+    const frameSeconds = new Float64Array(frameCount);
     const baseTick = offsetTicks - regionStart;
     const halfHopSeconds = hopSeconds / 2;
     let writeIndex = 0;
@@ -651,8 +663,7 @@ export function getTempoAlignedRange(
             sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
                 ? buildSilentVector(featureTrack, options)
                 : buildFrameVector(featureTrack, sampleIndex, options);
-        const frameSeconds = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
-        frameTicks[frame] = baseTick + tempoMapper.secondsToTicks(frameSeconds);
+        frameSeconds[frame] = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
         if (isWaveform) {
             const [min, max] = vector;
             data[writeIndex++] = min ?? 0;
@@ -667,6 +678,11 @@ export function getTempoAlignedRange(
             }
         }
     }
+    const projectedTicks = tempoMapper.secondsToTicksBatch(frameSeconds);
+    const frameTicks = new Float64Array(frameCount);
+    for (let frame = 0; frame < frameCount; frame += 1) {
+        frameTicks[frame] = baseTick + (projectedTicks[frame] ?? 0);
+    }
     const mapperDurationNs = nowNs() - mapperStart;
     const range: TempoAlignedRangeSample = {
         hopTicks,
@@ -675,6 +691,7 @@ export function getTempoAlignedRange(
         format: featureTrack.format,
         data,
         frameTicks,
+        frameSeconds,
         requestedStartTick: request.startTick,
         requestedEndTick: request.endTick,
         windowStartTick: Math.min(request.startTick, request.endTick),
