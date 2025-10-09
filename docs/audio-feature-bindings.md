@@ -1,6 +1,6 @@
 # Audio Feature Caches and Bindings
 
-_Last reviewed: 2025-10-09_
+_Last reviewed: 2025-10-10_
 
 ## Overview
 
@@ -9,6 +9,11 @@ without repeating FFT or RMS work during playback. Each cache stores real-time a
 audio source and one or more feature tracks (for example spectrogram magnitudes, RMS envelopes, or
 oscilloscope windows). Scene bindings and the inspector UI consume these caches to animate spectrum,
 volume, and oscilloscope elements.
+
+> **Deprecation note:** The legacy `AudioFeatureBinding` subtype was removed in the 2025-10 binding
+> migration documented in [`thoughts/legacybindingshiftplan.md`](../thoughts/legacybindingshiftplan.md).
+> Properties now serialize neutral `{ timelineTrackRef | constantTrackId, featureDescriptor }` pairs
+> so audio-driven controls align with the standard binding runtime.
 
 Related planning notes live in [`thoughts/audio_vis_research_3.md`](../thoughts/audio_vis_research_3.md)
 and the architecture is detailed in [`HYBRID_AUDIO_CACHE.md`](./HYBRID_AUDIO_CACHE.md).
@@ -70,13 +75,15 @@ CPU overhead predictable.
 
 ## Property bindings and runtime consumption
 
-`AudioFeatureBinding` extends the property binding system so scene elements can request feature
-frames on demand. During rendering, `SceneElement` supplies a `PropertyBindingContext` containing the
-target playback time. The binding converts that time into ticks with the shared `TimingManager`, then
-invokes `selectAudioFeatureFrame` to obtain the frame vector. Elements cache the most recent sample
-so repeated property reads within a frame remain cheap.
+Property bindings now serialize either a constant audio track ID or a `timelineTrackRef` macro
+alongside a `featureDescriptor` describing the requested data (`featureKey`, channel/band selection,
+and smoothing parameters). During rendering, elements resolve the binding into `{ trackRef,
+featureDescriptor }` and forward those inputs to `selectAudioFeatureFrame` or
+`sampleAudioFeatureRange`. The descriptor is the single source of truth for smoothing and channel
+metadata; elements cache the most recent sample so repeated property reads within a frame remain
+cheap.
 
-Three built-in elements consume audio feature bindings:
+Three built-in elements consume audio feature descriptors:
 
 - **Audio Spectrum** draws bar rectangles for multi-channel magnitude data.
 - **Audio Volume Meter** renders a single bar driven by RMS energy.
@@ -89,8 +96,9 @@ Plug-in calculators can reuse the binding pipeline by registering with
 
 1. Import an audio file. Once the buffer loads, trigger analysis from the inspector or the track
    context menu. Status badges reflect `pending`, `running`, `ready`, or `failed` states.
-2. In the element inspector, choose **Audio Feature** for the relevant property. The control lets you
-   pick the source track, feature key, optional band or channel, and smoothing radius.
+2. In the element inspector, use the shared track picker to choose an audio track, then configure the
+   feature descriptor (feature key, optional band or channel, and smoothing radius). The descriptor is
+   stored separately from the binding so macros remain compatible with audio-driven controls.
 3. Preview sparklines update using `sampleAudioFeatureRange`, and retry controls surface if analysis
    fails.
 4. Bindings serialize through the scene store so save and load, undo, and export keep the feature
@@ -98,11 +106,11 @@ Plug-in calculators can reuse the binding pipeline by registering with
 
 ## Export and determinism
 
-Exports reuse the same selectors used for live playback. Tests ensure `AudioFeatureBinding` samples
-match the data returned by `sampleAudioFeatureRange`, guaranteeing deterministic renders even when the
-adapter is toggled off. The reproducibility hash (`@export/repro-hash`) already includes normalized
-audio track metadata, so feature-driven scenes stay stable across re-renders as long as caches remain
-unchanged.
+Exports reuse the same selectors used for live playback. Tests ensure descriptor sampling matches the
+data returned by `sampleAudioFeatureRange`, guaranteeing deterministic renders even when the adapter is
+toggled off. The reproducibility hash (`@export/repro-hash`) already includes normalized audio track
+metadata and descriptor payloads, so feature-driven scenes stay stable across re-renders as long as
+caches remain unchanged.
 
 ## Plug-in calculators
 

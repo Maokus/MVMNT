@@ -1,6 +1,7 @@
 # Audio Visualisation Upgrade Plan
 
-**Status:** Planning Draft (2025-10-10)
+**Status:** Planning Draft (2025-10-10) — updated to reflect the post-`AudioFeatureBinding`
+refactor completed in [Legacy Binding Shift](./legacybindingshiftplan.md).
 
 ## Purpose
 - Translate findings from the feasibility assessment into an actionable plan for improving audio-reactive scene elements before automation work begins.
@@ -8,22 +9,23 @@
 
 ## Guiding Principles
 - **Deterministic rendering:** Keep the renderer stateless; leverage precomputed feature caches for any history-dependent visuals.
-- **Composable bindings:** Allow elements to reference multiple features (e.g., left/right channels) without coupling caches to element property schemas.
+- **Composable descriptors:** Allow elements to reference multiple features (e.g., left/right channels) through the `{ trackRef, featureDescriptor }` model established during the legacy binding migration.
 - **UX clarity:** Provide intuitive cache invalidation flows and inspector controls that communicate derived vs. authorable parameters.
 
 ## Planned Improvements
 
 ### 1. Audio Feature System Enhancements
-- **Multi-channel feature bindings**
-  - Extend `AudioFeatureBinding` to support selecting multiple features per element property (e.g., `waveform:L`, `waveform:R`).
+- **Multi-channel feature descriptors**
+  - Build on the neutral binding model by letting properties hold multiple `{ trackRef, featureDescriptor }` pairs (e.g., `waveform:left`, `waveform:right`) instead of reviving the deprecated `AudioFeatureBinding` subtype.
   - Introduce lightweight channel aliases in cache metadata so elements can request `waveform.left` / `waveform.right` without duplicating cache storage.
-  - Update scene element schemas to accept an array of feature references for geometry generation (e.g., oscilloscope can request both channels and build separate polylines or Lissajous coordinates).
+  - Update scene element schemas and inspector controls to collect descriptor arrays for geometry generation (e.g., oscilloscope can request both channels and build separate polylines or Lissajous coordinates).
 - **Configurable analysis profiles**
   - Allow projects to define named analysis profiles (FFT size, hop length, window) stored alongside cache versions; elements reference a profile instead of raw FFT parameters.
   - Profiles enable deterministic cache regeneration while keeping element properties simple.
 - **Developer mental model**
   - Document feature categories (waveform, spectrum, loudness) and expose them with consistent naming, improving discoverability in the inspector.
   - Normalize units (e.g., amplitude in dBFS, frequency in Hz) and provide helper utilities for common transforms (log scaling, smoothing) so rendering code stays declarative.
+  - Reinforce the neutral binding workflow in docs by pointing to the migration summary in `docs/audio-feature-bindings.md`.
 - **Performance utilities**
   - Add optional downsample/adaptive sampling helpers that operate on cache reads, allowing high-FPS rendering without re-running analysis.
 
@@ -45,7 +47,7 @@
   - Support transfer functions (compression curves, floors) defined via reusable curve presets.
   - Integrate magnitude-driven color ramps by extending render materials to map dB values to gradient stops.
 - **Channel rendering**
-  - Allow separate left/right or mid/side traces by enabling multiple feature bindings and drawing stacked or layered bars/lines per channel.
+  - Allow separate left/right or mid/side traces by enabling multiple descriptor entries and drawing stacked or layered bars/lines per channel.
 
 ### 4. Volume Meter Enhancements
 - **Layout variants**
@@ -57,7 +59,7 @@
 
 ### 5. Oscilloscope Improvements
 - **Channel visualisation options**
-  - Enable stereo split by instantiating multiple polylines from separate channel bindings.
+  - Enable stereo split by instantiating multiple polylines from separate descriptor entries.
   - Support Lissajous mode by pairing two channel features and mapping them to X/Y coordinates during render object construction; no duplicate caches required, only shared time indices.
 - **Triggering and windowing**
   - Add zero-crossing detection utilities operating on cached waveform slices to compute frame-aligned offsets.

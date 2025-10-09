@@ -5,7 +5,8 @@
 ## Summary
 - Evaluate how the existing audio feature pipeline and scene elements map onto the spectrum, meter, and oscilloscope requirements in `audio-visualisation-specs.md`.
 - Highlight gaps that require new calculators, configuration options, or rendering effects before these visuals can match the authored video/export use cases.
-- Recommend a phased path that reuses current infrastructure (`AudioFeatureBinding`, hybrid caches, deterministic export loop) while adding production-grade controls.
+- Recommend a phased path that reuses the post-migration binding model (track refs plus feature
+  descriptors), hybrid caches, and deterministic export loop while adding production-grade controls.
 
 ## Existing Building Blocks
 - The audio feature cache system already precomputes spectrogram, RMS, and waveform data with deterministic playback/export guarantees. See [Audio Feature Caches and Bindings](../docs/audio-feature-bindings.md) for selectors, cache layout, and binding mechanics.【F:docs/audio-feature-bindings.md†L1-L78】
