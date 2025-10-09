@@ -6,3 +6,5 @@ export { Line } from './line';
 export { Image } from './image';
 export { AnimatedGif } from './animated-gif';
 export { Poly } from './poly';
+export { BezierPath } from './bezier';
+export { Arc } from './arc';
