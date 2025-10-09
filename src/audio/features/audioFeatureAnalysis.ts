@@ -509,15 +509,27 @@ function createWaveformCalculator(): AudioFeatureCalculator {
             const { audioBuffer, analysisParams, signal } = context;
             const maybeYield = createAnalysisYieldController(signal);
             const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const baseHopSize = Math.max(1, analysisParams.hopSize);
-            const waveformHopSize = Math.max(1, Math.round(baseHopSize / WAVEFORM_OVERSAMPLE_FACTOR));
-            const waveformFrameCount = computeFrameCount(mono.length, waveformHopSize, waveformHopSize);
+            const totalSamples = mono.length;
+            const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
+            const baseHopSeconds = Math.max(context.hopSeconds, analysisParams.hopSize / sampleRate);
+            const minHopSeconds = 1 / sampleRate;
+            const waveformHopSeconds = Math.max(baseHopSeconds / WAVEFORM_OVERSAMPLE_FACTOR, minHopSeconds);
+            const waveformHopSamples = Math.max(waveformHopSeconds * sampleRate, 1);
+            const waveformFrameCount = Math.max(1, Math.ceil(totalSamples / waveformHopSamples));
             const minValues = new Float32Array(waveformFrameCount);
             const maxValues = new Float32Array(waveformFrameCount);
             const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
             for (let frame = 0; frame < waveformFrameCount; frame++) {
-                const start = frame * waveformHopSize;
-                const end = Math.min(start + waveformHopSize, mono.length);
+                const frameStart = Math.floor(frame * waveformHopSamples);
+                const frameEnd =
+                    frame === waveformFrameCount - 1
+                        ? totalSamples
+                        : Math.ceil((frame + 1) * waveformHopSamples);
+                const start = Math.max(0, Math.min(totalSamples - 1, frameStart));
+                let end = Math.min(totalSamples, frameEnd);
+                if (end <= start) {
+                    end = Math.min(totalSamples, start + 1);
+                }
                 let min = Number.POSITIVE_INFINITY;
                 let max = Number.NEGATIVE_INFINITY;
                 for (let i = start; i < end; i++) {
@@ -543,11 +555,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 },
                 context.timing.ticksPerQuarter,
             );
-            const waveformHopSeconds = waveformHopSize / audioBuffer.sampleRate;
-            const waveformHopTicks = Math.max(
-                1,
-                Math.round(secondsToTicks(timingContext, waveformHopSeconds)),
-            );
+            const waveformHopTicks = Math.max(1, Math.round(secondsToTicks(timingContext, waveformHopSeconds)));
             return {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',
@@ -559,7 +567,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 format: 'waveform-minmax',
                 data: { min: minValues, max: maxValues },
                 metadata: {
-                    hopSize: waveformHopSize,
+                    hopSize: waveformHopSamples,
                     oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
                 },
             };
