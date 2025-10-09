@@ -356,7 +356,15 @@ async function hydrateAudioAssets(
             hash: payload.record.hash,
         };
         try {
-            ingest(originalId, buffer, { originalFile, waveform });
+            const timelineState = useTimelineStore.getState();
+            const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];
+            const hasReadyFeatureCache =
+                !!timelineState.audioFeatureCaches?.[originalId] && cacheStatus?.state === 'ready';
+            ingest(originalId, buffer, {
+                originalFile,
+                waveform,
+                skipAutoAnalysis: hasReadyFeatureCache,
+            });
         } catch (error) {
             warnings.push(`Failed to ingest audio ${originalId}: ${(error as Error).message}`);
         }

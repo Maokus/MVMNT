@@ -140,7 +140,11 @@ export type TimelineState = {
     ingestAudioToCache: (
         id: string,
         buffer: AudioBuffer,
-        options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }
+        options?: {
+            originalFile?: AudioCacheOriginalFile;
+            waveform?: AudioCacheWaveform;
+            skipAutoAnalysis?: boolean;
+        },
     ) => void;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
@@ -752,36 +756,46 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             autoAdjustSceneRangeIfNeeded(get, set);
         } catch {}
     },
-    ingestAudioToCache(id: string, buffer: AudioBuffer, options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform }) {
+    ingestAudioToCache(
+        id: string,
+        buffer: AudioBuffer,
+        options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform; skipAutoAnalysis?: boolean },
+    ) {
+        cancelActiveAudioFeatureJob(id);
         // Compute duration in ticks using shared timing manager
         try {
             const state = get();
             const durationTicks = Math.round(timingSecondsToTicks(createTimelineTimingContext(state), buffer.duration));
-            set((s: TimelineState) => ({
-                audioCache: {
-                    ...s.audioCache,
-                    [id]: {
-                        audioBuffer: buffer,
-                        durationTicks,
-                        sampleRate: buffer.sampleRate,
-                        channels: buffer.numberOfChannels,
-                        durationSeconds: buffer.duration,
-                        durationSamples: buffer.length,
-                        originalFile: options?.originalFile,
-                        waveform: options?.waveform,
+            set((s: TimelineState) => {
+                const updates: Partial<TimelineState> = {
+                    audioCache: {
+                        ...s.audioCache,
+                        [id]: {
+                            audioBuffer: buffer,
+                            durationTicks,
+                            sampleRate: buffer.sampleRate,
+                            channels: buffer.numberOfChannels,
+                            durationSeconds: buffer.duration,
+                            durationSamples: buffer.length,
+                            originalFile: options?.originalFile,
+                            waveform: options?.waveform,
+                        },
                     },
-                },
-                tracks: {
-                    ...s.tracks,
-                    [id]: { ...(s.tracks[id] as any), audioSourceId: id },
-                },
-                audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'pending',
-                    'analyzing audio',
-                ),
-            }));
+                    tracks: {
+                        ...s.tracks,
+                        [id]: { ...(s.tracks[id] as any), audioSourceId: id },
+                    },
+                };
+                if (!options?.skipAutoAnalysis) {
+                    updates.audioFeatureCacheStatus = updateAudioFeatureStatusEntry(
+                        s.audioFeatureCacheStatus,
+                        id,
+                        'pending',
+                        'analyzing audio',
+                    );
+                }
+                return updates as TimelineState;
+            });
             // Kick off async peak extraction (non-blocking)
             (async () => {
                 try {
@@ -809,7 +823,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     // console.debug('Peak extraction skipped', err);
                 }
             })();
-            scheduleAudioFeatureAnalysis(id, buffer, get, set);
+            if (!options?.skipAutoAnalysis) {
+                scheduleAudioFeatureAnalysis(id, buffer, get, set);
+            }
         } catch (err) {
             console.warn('Failed to ingest audio buffer', err);
         }
