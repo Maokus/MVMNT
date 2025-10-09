@@ -34,63 +34,130 @@ _Last reviewed: 2025-02-17_
 -   Reduce hidden state stored inside `AudioFeatureBinding` (e.g., cached frames, smoothing) so that
     serialization and inspector panels have a single source of truth.
 
-## Proposed implementation plan
+## Phased implementation plan
 
-### 1. Introduce track-oriented binding metadata
+### Phase 1 – Unify timeline track binding metadata (Foundations)
 
--   Add a general `TimelineTrackBindingState` (or rename the existing `midiTrackRef` type to
-    `timelineTrackRef`) so scene bindings and macros can describe any track selection—MIDI or audio—by
-    ID plus optional track kind. Update macro definitions to expose the new type while keeping
-    `midiTrackRef` as an alias for migration purposes.【F:src/state/scene/macros.ts†L1-L30】
--   Extend inspector inputs that currently handle `midiTrackRef` to support audio tracks and expose the
-    same picker UI, ensuring macro dialogs and property panels reuse the same component tree.
+**Objectives**
 
-### 2. Split audio element configuration
+-   Rename or generalize the existing `midiTrackRef` shape into a neutral `timelineTrackRef` so macros and
+    bindings can reference any track kind without custom property types.【F:src/state/scene/macros.ts†L1-L30】
+-   Update inspector inputs and macro dialogs to present the same picker UI for both audio and MIDI tracks,
+    ensuring consistent UX across property editors.
 
--   Replace `featureBinding` properties with two pieces: a track binding that resolves to a timeline
-    track ID (constant or macro) and a lightweight feature descriptor (feature key, optional calculator
-    override, band/channel index, smoothing). The descriptor stays as a regular constant property so it
-    can still participate in macros if needed.【F:src/core/scene/elements/audio-spectrum.ts†L317-L348】
--   Update audio elements to read the track ID via the binding/macro system, then call
-    `selectAudioFeatureFrame` or `sampleAudioFeatureRange` using the descriptor to fetch the desired
-    feature data each frame.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
--   Cache per-frame results inside the element instance (if needed) rather than the binding so binding
-    objects remain pure data containers.
+**Key tasks**
 
-### 3. Refactor property binding infrastructure
+-   Introduce a shared `TimelineTrackBindingState` type (or alias) and update scene schema typings to consume it.
+-   Audit existing `midiTrackRef` usages in bindings, macros, and selectors; migrate them to the new type.
+-   Extend track picker components to filter and label audio tracks appropriately while preserving MIDI
+    affordances.
+-   Document the new shared type in design notes and flag the change in macro authoring guides.
 
--   Deprecate the custom `AudioFeatureBinding` subclass. `PropertyBinding.fromSerialized` should map the
-    legacy `audioFeature` payload into the new track-binding + descriptor fields when hydrating older
-    scenes, and the scene store should write the new structure going forward.【F:src/bindings/property-bindings.ts†L64-L232】
--   Simplify `SceneRuntimeAdapter` and `sceneStore` binding serializers to stop treating audio features
-    as a special binding type once migration logic is in place.【F:src/state/sceneStore.ts†L6-L28】
--   Add migration utilities in the scene command gateway so incoming patches that still supply the old
-    `audioFeature` shape convert to the new fields before reaching the store, keeping undo/redo stable.
+**Acceptance criteria**
 
-### 4. Update persistence and export flows
+-   Inspectors render the same picker component for audio and MIDI bindings, with audio tracks clearly selectable and labeled.
+-   Macro assignment dialogs persist the neutral `timelineTrackRef` shape and continue to serialize existing MIDI macros without regression.
+-   TypeScript build passes without any remaining references to deprecated audio-only binding metadata.
 
--   Adjust timeline and scene persistence layers to persist track bindings plus feature descriptors
-    instead of the old binding payload. Reuse existing migration helpers to auto-convert legacy scenes
-    during import/export without data loss.【F:src/persistence/document-gateway.ts†L23-L135】【F:src/state/timelineStore.ts†L93-L213】
--   Ensure audio feature caches remain keyed by audio source IDs; only the binding metadata shifts to
-    store track IDs. Verify selectors continue to resolve track → source → cache transparently.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
+### Phase 2 – Split audio element configuration (Element-level refactor)
 
-### 5. Extend macro tooling and UX
+**Objectives**
 
--   Allow macros to reference audio tracks via the new track-ref type so creators can drive multiple
-    audio elements from a single macro assignment (mirroring existing MIDI workflows). Update macro
-    validation to accept strings or arrays of track IDs just like `midiTrackRef` does today.【F:src/state/sceneStore.ts†L440-L520】
--   Refresh inspector help text and default scenes so users learn that audio feature controls now bind
-    to tracks; surface feature metadata (e.g., calculator label) in the element UI instead of the
-    binding editor.
+-   Replace monolithic `featureBinding` fields with a track binding reference plus a separate feature descriptor object for calculator metadata.【F:src/core/scene/elements/audio-spectrum.ts†L317-L348】
+-   Ensure audio elements resolve track IDs via the shared binding system before sampling feature data at runtime.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
 
-### 6. Testing and rollout
+**Key tasks**
 
--   Expand unit tests covering binding serialization, macro assignments, and runtime sampling to cover
-    both track kinds. Add fixture scenes that combine MIDI and audio bindings to guard against
-    regression in undo/export flows.【F:src/state/scene/**tests**/sceneStore.test.ts†L207-L261】【F:src/export/**tests**/audio-feature-export-parity.test.ts†L1-L120】
--   Provide a migration note in release docs describing how legacy bindings are auto-upgraded and how
-    to troubleshoot missing audio analysis.
+-   Update audio element schemas and props to hold `{ trackRef, featureDescriptor }` instead of the current binding subtype.
+-   Move smoothing radius and band/channel selection into the descriptor and expose defaults for backwards compatibility.
+-   Implement helper utilities (e.g., `resolveFeatureDescriptor`) so rendering code can fetch frames using selectors without duplicating logic.
+-   Relocate any frame caching or smoothing state from bindings to element instances or memoized selectors.
+
+**Acceptance criteria**
+
+-   Audio elements render correctly when provided with the new `{ trackRef, featureDescriptor }` shape and no longer access legacy `AudioFeatureBinding` APIs.
+-   Feature descriptors persist through save/load cycles and surface in inspector panels for editing.
+-   Profiling shows no regression in frame rendering cost compared to the legacy binding cache path.
+
+### Phase 3 – Refactor property binding infrastructure (Runtime alignment)
+
+**Objectives**
+
+-   Remove the custom `AudioFeatureBinding` subclass in favor of pure data bindings.【F:src/bindings/property-bindings.ts†L64-L232】
+-   Centralize legacy-to-new structure migrations so undo/redo and macro flows stay stable.【F:src/state/sceneStore.ts†L6-L28】
+
+**Key tasks**
+
+-   Update `PropertyBinding.fromSerialized` (and related factories) to hydrate legacy payloads into the new structure.
+-   Add migration utilities in the scene command gateway to normalize incoming patches.
+-   Simplify `SceneRuntimeAdapter` to expect only constant/macro bindings without audio-specific cases.
+-   Remove redundant state (e.g., cached frames) from binding serialization and runtime caches.
+
+**Acceptance criteria**
+
+-   Scene hydration of legacy documents produces the new binding shape without losing calculator metadata or smoothing parameters.
+-   Undo/redo operations remain stable when toggling between macro- and constant-driven audio feature bindings.
+-   Property binding runtime exposes a single, generic binding subtype list with no audio-specific branches.
+
+### Phase 4 – Update persistence and export flows (Data lifecycle)
+
+**Objectives**
+
+-   Ensure document persistence, import/export, and scene/timeline stores read and write the new binding structure.【F:src/persistence/document-gateway.ts†L23-L135】【F:src/state/timelineStore.ts†L93-L213】
+-   Confirm audio feature caches still key off audio sources while bindings now reference track IDs.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
+
+**Key tasks**
+
+-   Extend persistence schemas and migration scripts to convert legacy payloads during load.
+-   Update exporters to rehydrate feature descriptors when generating external assets or timelines.
+-   Add regression tests for round-tripping documents that mix MIDI and audio feature bindings.
+-   Verify cache invalidation paths correctly translate track IDs to source IDs.
+
+**Acceptance criteria**
+
+-   Importing a legacy project automatically migrates audio feature bindings with no manual intervention.
+-   Exported scenes reference track IDs plus descriptors and re-import without diff noise.
+-   Cache profiling confirms there is no increase in stale cache misses or unnecessary re-analysis.
+
+### Phase 5 – Extend macro tooling and UX (Experience polish)
+
+**Objectives**
+
+-   Enable macros to bind audio tracks using the shared track reference type, mirroring existing MIDI workflows.【F:src/state/sceneStore.ts†L440-L520】
+-   Refresh inspector copy and tutorials so creators understand the new binding model.
+
+**Key tasks**
+
+-   Update macro validation logic to accept audio track IDs (single and multi-select) and to surface meaningful error messages when a track type mismatch occurs.
+-   Adjust inspector panels to display feature descriptors alongside track bindings with clear grouping.
+-   Review default project templates and ensure they demonstrate macro-driven audio feature bindings.
+-   Coordinate with documentation to publish guidance on the new workflow.
+
+**Acceptance criteria**
+
+-   Macro assignment UI lists audio tracks, saves assignments, and drives multiple audio elements in runtime playback.
+-   Inspector panels show track and descriptor fields separately with contextual help text.
+-   Documentation updates are published and linked from in-app help, with QA sign-off from the design team.
+
+### Phase 6 – Testing and rollout (Quality gate)
+
+**Objectives**
+
+-   Expand automated coverage for serialization, macro assignments, and runtime sampling across track types.【F:src/state/scene/**tests**/sceneStore.test.ts†L207-L261】【F:src/export/**tests**/audio-feature-export-parity.test.ts†L1-L120】
+-   Communicate migration details to the wider team and beta users.
+
+**Key tasks**
+
+-   Author unit and integration tests that exercise mixed audio/MIDI binding scenarios, including undo and export flows.
+-   Create fixture scenes representing legacy and new binding structures for regression testing.
+-   Draft release notes and migration guides highlighting automatic upgrades and troubleshooting steps.
+-   Plan a staged rollout (internal dogfood → beta → general) with monitoring hooks for binding errors.
+
+**Acceptance criteria**
+
+-   Test suite passes with new cases, and continuous integration includes regression tests for mixed bindings.
+-   Release notes ship alongside the feature with reviewed troubleshooting content.
+-   Rollout checklist is complete, including monitoring dashboards and a go/no-go review after beta.
 
 ## Anticipated developer confusions
 
@@ -125,7 +192,7 @@ _Last reviewed: 2025-02-17_
     track-level data—should they live in the descriptor or migrate into calculator-specific inspector
     controls?
 
-## Open question answers
+## Open question answers (Decisions)
 
 -   per element configuration is sufficient.
 -   migrate into calculator-specific inspector controls
