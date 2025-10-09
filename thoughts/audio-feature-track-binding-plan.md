@@ -1,6 +1,8 @@
 # Align audio feature bindings with macro infrastructure
 
-_Last reviewed: 2025-02-17_
+_Last reviewed: 2025-02-24_
+
+**Context update (2025-02-24):** Phases 1–4 of the [hybrid audio feature cache migration](./hybrid-cache-migration-plan.md) are complete, so real-time caches are now the canonical storage for audio feature data. Tempo-aligned reads must go through the shared tempo mapper and adapter layer delivered in that rollout.
 
 ## Current binding differences
 
@@ -64,18 +66,18 @@ _Last reviewed: 2025-02-17_
 **Objectives**
 
 -   Replace monolithic `featureBinding` fields with a track binding reference plus a separate feature descriptor object for calculator metadata.【F:src/core/scene/elements/audio-spectrum.ts†L317-L348】
--   Ensure audio elements resolve track IDs via the shared binding system before sampling feature data at runtime.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
+-   Ensure audio elements resolve track IDs via the shared binding system before sampling feature data through the tempo-aligned adapter backed by real-time caches.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
 
 **Key tasks**
 
 -   Update audio element schemas and props to hold `{ trackRef, featureDescriptor }` instead of the current binding subtype.
 -   Move smoothing radius and band/channel selection into the descriptor and expose defaults for backwards compatibility.
--   Implement helper utilities (e.g., `resolveFeatureDescriptor`) so rendering code can fetch frames using selectors without duplicating logic.
+-   Implement helper utilities (e.g., `resolveFeatureDescriptor`) so rendering code can fetch frames via tempo-aligned view helpers without duplicating logic.
 -   Relocate any frame caching or smoothing state from bindings to element instances or memoized selectors.
 
 **Acceptance criteria**
 
--   Audio elements render correctly when provided with the new `{ trackRef, featureDescriptor }` shape and no longer access legacy `AudioFeatureBinding` APIs.
+-   Audio elements render correctly when provided with the new `{ trackRef, featureDescriptor }` shape, requesting data through the tempo-aligned adapter, and no longer access legacy `AudioFeatureBinding` APIs.
 -   Feature descriptors persist through save/load cycles and surface in inspector panels for editing.
 -   Profiling shows no regression in frame rendering cost compared to the legacy binding cache path.
 
@@ -83,14 +85,14 @@ _Last reviewed: 2025-02-17_
 
 **Objectives**
 
--   Remove the custom `AudioFeatureBinding` subclass in favor of pure data bindings.【F:src/bindings/property-bindings.ts†L64-L232】
+-   Remove the custom `AudioFeatureBinding` subclass in favor of pure data bindings that defer sampling to the hybrid cache adapters.【F:src/bindings/property-bindings.ts†L64-L232】
 -   Centralize legacy-to-new structure migrations so undo/redo and macro flows stay stable.【F:src/state/sceneStore.ts†L6-L28】
 
 **Key tasks**
 
 -   Update `PropertyBinding.fromSerialized` (and related factories) to hydrate legacy payloads into the new structure.
 -   Add migration utilities in the scene command gateway to normalize incoming patches.
--   Simplify `SceneRuntimeAdapter` to expect only constant/macro bindings without audio-specific cases.
+-   Simplify `SceneRuntimeAdapter` to expect only constant/macro bindings without audio-specific cases, delegating feature retrieval to the tempo-aligned adapter utilities.
 -   Remove redundant state (e.g., cached frames) from binding serialization and runtime caches.
 
 **Acceptance criteria**
@@ -104,20 +106,20 @@ _Last reviewed: 2025-02-17_
 **Objectives**
 
 -   Ensure document persistence, import/export, and scene/timeline stores read and write the new binding structure.【F:src/persistence/document-gateway.ts†L23-L135】【F:src/state/timelineStore.ts†L93-L213】
--   Confirm audio feature caches still key off audio sources while bindings now reference track IDs.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
+-   Confirm audio feature caches continue to use real-time indexing while bindings now reference track IDs and rely on tempo mapper utilities for tick-based projections.【F:src/state/selectors/audioFeatureSelectors.ts†L60-L210】
 
 **Key tasks**
 
 -   Extend persistence schemas and migration scripts to convert legacy payloads during load.
--   Update exporters to rehydrate feature descriptors when generating external assets or timelines.
+-   Update exporters to rehydrate feature descriptors when generating external assets or timelines, using tempo-aligned adapters where tick-anchored data is required.
 -   Add regression tests for round-tripping documents that mix MIDI and audio feature bindings.
--   Verify cache invalidation paths correctly translate track IDs to source IDs.
+-   Verify cache invalidation paths correctly translate track IDs to source IDs and interact with real-time cache priming/tempo mapping APIs.
 
 **Acceptance criteria**
 
 -   Importing a legacy project automatically migrates audio feature bindings with no manual intervention.
--   Exported scenes reference track IDs plus descriptors and re-import without diff noise.
--   Cache profiling confirms there is no increase in stale cache misses or unnecessary re-analysis.
+-   Exported scenes reference track IDs plus descriptors, invoke tempo-aligned adapters where needed, and re-import without diff noise.
+-   Cache profiling confirms real-time caches stay authoritative with no increase in stale cache misses or unnecessary re-analysis during tempo-aligned reads.
 
 ### Phase 5 – Extend macro tooling and UX (Experience polish)
 
