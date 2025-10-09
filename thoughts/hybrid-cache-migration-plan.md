@@ -53,29 +53,42 @@ This plan builds on the findings from [`audio-cache-tempo-domain-research.md`](.
 
 ### Phase 3 — Tempo-Aligned View Layer
 
+**Status:** Ready for build staffing once Phase 2 benchmarks are approved.
+
 - **Adapter design**
-  - Implement shared view adapter capable of sampling master caches using mapper outputs with configurable interpolation (linear, spline, hold).
-  - Support multi-channel features and metadata propagation (e.g., phase offsets).
+  - Deliver a reference adapter package that exposes a single `getTempoAlignedFrames(options)` entry point wrapping cache fetch, mapper queries, and interpolation controls.
+  - Define interpolation profiles (linear, spline, hold) and document their CPU cost/latency envelopes to guide consumer defaults.
+  - Extend adapter to emit structured diagnostics (cache misses, mapper latency) for surfacing in DevTools and telemetry.
 - **Consumer integration**
-  - Update playback pipeline to source tempo-aligned frames via adapters.
-  - Modify editor visualizations (spectrogram timelines, envelope inspectors) to request views rather than direct cache access.
-  - Provide helper utilities for plug-ins to opt into tempo-aligned views with minimal code changes.
-- **Quality checks**
-  - Compare playback/export parity against legacy system using automated snapshot tests.
-  - Capture QA scenarios covering tempo edits, ramps, and extreme BPM ranges.
+  - Playback: replace direct tempo-domain cache reads with adapter consumption, adding gating to fall back to legacy caches under a kill switch.
+  - Editing UI: refactor spectrogram, envelope, and transient inspectors to request view slices via the adapter, aligning zoom/pan math with real-time offsets returned by the mapper.
+  - Plug-in and calculator SDKs: ship helper utilities and example patches showing minimal changes required to opt into adapter-driven access paths.
+- **Performance & quality validation**
+  - Build automated parity suites comparing playback/export renders between legacy and adapter-backed paths, including stress cases (dense ramps, variable tempo, long-form projects).
+  - Capture QA scripts that span tempo edits, tempo map imports, and extreme BPM ranges; record findings in the hybrid cache telemetry dashboard.
+  - Instrument end-to-end latency metrics for adapter usage to verify runtime overhead stays within Phase 0 targets.
+
+**Dependencies:** Requires Phase 2 tempo mapper APIs to be marked stable and real-time cache writes from Phase 1 available in test projects.
 
 ### Phase 4 — Migration & Rollout
 
+**Status:** Drafted; refine once Phase 3 parity testing produces baseline metrics.
+
 - **Dual-read period**
-  - Ship feature flags allowing projects to opt into hybrid caches while retaining legacy paths.
-  - Monitor telemetry for CPU usage, cache hit rates, and error reports.
-- **Data backfill**
-  - Precompute real-time caches for frequently used shared assets to mitigate on-demand conversion spikes.
-- **Documentation & support**
-  - Update calculator SDK docs with new APIs and migration steps.
-  - Publish rollout guide for production support teams.
-- **Graduation criteria**
-  - Remove legacy tempo-domain cache writes once opt-in adoption passes threshold and telemetry confirms performance targets.
+  - Guard new adapters and mapper usage behind a staged rollout flag with per-project overrides; log fallback reasons to accelerate bug triage.
+  - Establish daily telemetry review covering CPU usage, cache hit ratio, latency spikes, and adapter diagnostic events.
+- **Data backfill & readiness**
+  - Identify top shared assets and projects, schedule background jobs to precompute real-time caches, and surface progress in release dashboards.
+  - Coordinate with build/release to ensure export farms receive warmed caches prior to enabling the feature flag in production regions.
+- **Documentation, enablement & support**
+  - Update calculator SDK guides and internal runbooks with migration recipes, FAQ, and troubleshooting steps linked from the docs portal.
+  - Host enablement sessions for support/on-call teams outlining new telemetry signals and rollback procedures.
+- **Graduation criteria & cleanup**
+  - Set quantitative exit criteria: ≥90% of active projects running hybrid caches for two weeks with no severity-1 incidents and CPU usage within budget.
+  - Once metrics are met, disable legacy tempo-domain cache writes, remove dual-write code paths, and archive deprecated calculators.
+  - Publish post-migration summary capturing performance wins and lessons learned to feed future architecture decisions.
+
+**Dependencies:** Requires telemetry dashboards and backfill tooling from earlier phases plus sign-off from playback, export, and support leads.
 
 ## Risks & Mitigations
 
