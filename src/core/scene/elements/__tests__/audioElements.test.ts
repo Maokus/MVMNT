@@ -279,4 +279,27 @@ describe('audio scene elements', () => {
         expect(container.children[1]).toBeInstanceOf(Poly);
         expect(container.children[1]?.includeInLayoutBounds).toBe(false);
     });
+
+    it('aligns the oscilloscope playhead with the window center by default', () => {
+        const binding = new AudioFeatureBinding({
+            trackId: 'testTrack',
+            featureKey: 'waveform',
+            calculatorId: 'mvmnt.waveform',
+            bandIndex: null,
+            channelIndex: null,
+            smoothing: null,
+        });
+        const element = new AudioOscilloscopeElement('oscPlayhead');
+        element.updateConfig({ showPlayhead: true, width: 200 });
+        element.setBinding('featureBinding', binding);
+        const renderObjects = element.buildRenderObjects({}, 0.5);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        expect(container.children).toHaveLength(3);
+        const playhead = container.children?.[2];
+        expect(playhead).toBeInstanceOf(Poly);
+        const [start, end] = playhead?.points ?? [];
+        expect(start?.x).toBeCloseTo(100, 5);
+        expect(end?.x).toBeCloseTo(100, 5);
+    });
 });

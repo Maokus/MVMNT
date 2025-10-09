@@ -219,7 +219,8 @@ export class AudioOscilloscopeElement extends SceneElement {
         if (this.getProperty<boolean>('showPlayhead')) {
             const windowDuration = windowEndSeconds - windowStartSeconds;
             if (windowDuration > 0) {
-                const playheadPosition = (targetTime - windowStartSeconds + 0.25) / windowDuration;
+                const relativePlayheadSeconds = targetTime - windowStartSeconds;
+                const playheadPosition = relativePlayheadSeconds / windowDuration;
                 if (playheadPosition >= 0 && playheadPosition <= 1) {
                     const playheadX = playheadPosition * width;
                     const playhead = new Poly(
