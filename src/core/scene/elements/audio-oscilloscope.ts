@@ -1,7 +1,6 @@
 import { SceneElement } from './base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import type { AudioTrack } from '@audio/audioTypes';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { AudioFeatureBinding } from '@bindings/property-bindings';
@@ -155,106 +154,68 @@ export class AudioOscilloscopeElement extends SceneElement {
         if (!(binding instanceof AudioFeatureBinding)) {
             return [layoutRect];
         }
+
         const config = binding.getConfig();
         if (!config.trackId || !config.featureKey) {
             return [layoutRect];
         }
+
+        const tm = getSharedTimingManager();
         const windowSeconds = Math.max(0.05, this.getProperty<number>('windowSeconds') ?? 0.5);
         const offsetMs = this.getProperty<number>('offset') ?? 0;
         const offsetSeconds = offsetMs / 1000;
-        const tm = getSharedTimingManager();
         const halfWindow = windowSeconds / 2;
         const windowStartSeconds = targetTime + offsetSeconds - halfWindow;
         const windowEndSeconds = targetTime + offsetSeconds + halfWindow;
         const targetTick = Math.round(tm.secondsToTicks(targetTime));
         const startTick = Math.round(tm.secondsToTicks(windowStartSeconds));
         const endTick = Math.round(tm.secondsToTicks(windowEndSeconds));
-        const windowStartTick = Math.min(startTick, endTick);
-        const windowEndTick = Math.max(startTick, endTick);
-        const windowTickSpan = windowEndTick - windowStartTick;
-        if (windowTickSpan <= 0) {
-            return [layoutRect];
-        }
+
         const state = useTimelineStore.getState();
-        const track = state.tracks[config.trackId] as AudioTrack | undefined;
-        if (!track || track.type !== 'audio') {
-            return [layoutRect];
-        }
-        const sourceId = track.audioSourceId ?? config.trackId;
-        const featureCache = state.audioFeatureCaches[sourceId];
-        const featureTrack = featureCache?.featureTracks?.[config.featureKey];
-        if (!featureTrack || featureTrack.frameCount <= 0) {
-            return [layoutRect];
-        }
-        const hopTicks = Math.max(1, featureTrack.hopTicks || featureCache?.hopTicks || 1);
-        const regionStart = track.regionStartTick ?? 0;
-        const regionEnd = (() => {
-            if (typeof track.regionEndTick === 'number' && Number.isFinite(track.regionEndTick)) {
-                return track.regionEndTick;
-            }
-            const cacheEntry = state.audioCache[sourceId];
-            if (cacheEntry) {
-                return cacheEntry.durationTicks;
-            }
-            return regionStart + featureTrack.frameCount * hopTicks;
-        })();
-        const regionLength = Math.max(0, regionEnd - regionStart);
-        const trackStartTick = track.offsetTicks;
-        const trackEndTick = trackStartTick + regionLength;
-        const localWindowStart = windowStartTick - track.offsetTicks + regionStart;
-        const localWindowEnd = windowEndTick - track.offsetTicks + regionStart;
-        const requestedFrameStart = Math.floor(Math.min(localWindowStart, localWindowEnd) / hopTicks);
-        const requestedFrameEnd = Math.floor(Math.max(localWindowStart, localWindowEnd) / hopTicks);
-        const rangeStartFrame = Math.max(0, requestedFrameStart);
-        const rangeEndFrame = Math.min(featureTrack.frameCount - 1, requestedFrameEnd);
         const range = sampleAudioFeatureRange(state, config.trackId, config.featureKey, startTick, endTick, {
             bandIndex: config.bandIndex ?? undefined,
             channelIndex: config.channelIndex ?? undefined,
         });
-        const channels = range?.channels ?? featureTrack.channels ?? 1;
+        if (!range || range.frameCount <= 0) {
+            return [layoutRect];
+        }
+
+        const spanTicks = Math.max(1, range.windowEndTick - range.windowStartTick);
+        const channels = Math.max(1, range.channels);
         const points: Array<{ x: number; y: number }> = [];
-        const dataFrameCount = range?.frameCount ?? 0;
-        const availableRangeEndFrame = range ? rangeStartFrame + dataFrameCount - 1 : rangeEndFrame;
-        const halfHop = hopTicks / 2;
-        const centerStart = Math.floor((Math.min(localWindowStart, localWindowEnd) - halfHop) / hopTicks);
-        const centerEnd = Math.floor((Math.max(localWindowStart, localWindowEnd) + halfHop) / hopTicks);
-        for (let frameIndex = centerStart; frameIndex <= centerEnd; frameIndex += 1) {
-            const localFrameCenterTick = frameIndex * hopTicks + halfHop;
-            const frameTick = localFrameCenterTick + track.offsetTicks - regionStart;
-            const withinTrack = frameTick >= trackStartTick && frameTick < trackEndTick;
+        for (let frame = 0; frame < range.frameCount; frame += 1) {
+            const frameTick = range.frameTicks[frame] ?? range.windowStartTick;
+            const ratio = Math.max(0, Math.min(1, (frameTick - range.windowStartTick) / spanTicks));
+            const x = ratio * width;
+            const baseIndex = frame * channels;
             let value = 0;
-            if (withinTrack && range && dataFrameCount > 0) {
-                if (frameIndex >= rangeStartFrame && frameIndex <= availableRangeEndFrame) {
-                    const dataIndex = frameIndex - rangeStartFrame;
-                    if (dataIndex >= 0 && dataIndex < dataFrameCount) {
-                        if (range.format === 'waveform-minmax' && channels >= 2) {
-                            const min = range.data[dataIndex * channels] ?? 0;
-                            const max = range.data[dataIndex * channels + 1] ?? min;
-                            value = (min + max) / 2;
-                        } else {
-                            value = range.data[dataIndex * channels] ?? 0;
-                        }
-                    }
-                }
+            if (range.format === 'waveform-minmax' && channels >= 2) {
+                const min = range.data[baseIndex] ?? 0;
+                const max = range.data[baseIndex + 1] ?? min;
+                value = (min + max) / 2;
+            } else {
+                value = range.data[baseIndex] ?? 0;
             }
-            const normalized = Math.max(-1, Math.min(1, value));
-            const positionRatio = (frameTick - windowStartTick) / windowTickSpan;
-            const x = Math.max(0, Math.min(width, positionRatio * width));
-            const y = height / 2 - normalized * (height / 2);
+            const clamped = Math.max(-1, Math.min(1, value));
+            const y = height / 2 - clamped * (height / 2);
             points.push({ x, y });
         }
+
         if (points.length < 2) {
             return [layoutRect];
         }
+
         const line = new Poly(
             points,
             null,
             this.getProperty<string>('lineColor') ?? '#22d3ee',
-            this.getProperty<number>('lineWidth') ?? 2
+            this.getProperty<number>('lineWidth') ?? 2,
         );
         line.setClosed(false);
         line.setIncludeInLayoutBounds(false);
+
         const renderObjects: RenderObject[] = [layoutRect, line];
+
         if (this.getProperty<boolean>('showPlayhead')) {
             const windowDuration = windowEndSeconds - windowStartSeconds;
             if (windowDuration > 0) {
@@ -269,7 +230,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         ],
                         null,
                         '#f8fafc',
-                        Math.max(1, Math.floor((this.getProperty<number>('lineWidth') ?? 2) / 2))
+                        Math.max(1, Math.floor((this.getProperty<number>('lineWidth') ?? 2) / 2)),
                     );
                     playhead.setClosed(false);
                     playhead.setIncludeInLayoutBounds(false);
@@ -282,102 +243,91 @@ export class AudioOscilloscopeElement extends SceneElement {
         const showDebugSample = this.getProperty<boolean>('showDebugSample');
         const showDebugWindow = this.getProperty<boolean>('showDebugWindow');
         const showDebugSource = this.getProperty<boolean>('showDebugSource');
+
         if (showDebugTime || showDebugSample || showDebugWindow || showDebugSource) {
             const debugLines: string[] = [];
             if (showDebugTime) {
                 const targetSeconds = tm.ticksToSeconds(targetTick);
-                debugLines.push(
-                    `Target: ${targetSeconds.toFixed(3)}s (${targetTick} ticks)`
-                );
+                debugLines.push(`Target: ${targetSeconds.toFixed(3)}s (${targetTick} ticks)`);
             }
 
-            let frameIndexForTarget: number | null = null;
+            let nearestFrameIndex: number | null = null;
             if (showDebugSample || showDebugWindow || showDebugSource) {
-                const relativeFramePosition = (targetTick - track.offsetTicks + regionStart) / hopTicks;
-                const clampedFrameIndex = Math.max(
-                    0,
-                    Math.min(featureTrack.frameCount - 1, Math.floor(relativeFramePosition))
-                );
-                frameIndexForTarget = clampedFrameIndex;
-                const frameFraction = relativeFramePosition - Math.floor(relativeFramePosition);
-                const localFrameStartTick = clampedFrameIndex * hopTicks;
-                const frameStartTick = localFrameStartTick + track.offsetTicks - regionStart;
-                const frameEndTick = frameStartTick + hopTicks;
-                const frameCenterTick = localFrameStartTick + halfHop + track.offsetTicks - regionStart;
-                const frameStartSeconds = tm.ticksToSeconds(frameStartTick);
-                const frameEndSeconds = tm.ticksToSeconds(frameEndTick);
-                const frameCenterSeconds = tm.ticksToSeconds(frameCenterTick);
-                if (showDebugSample) {
-                    let sampleLine = `Frame: ${clampedFrameIndex}`;
-                    sampleLine += ` (fraction ${frameFraction.toFixed(3)})`;
-                    sampleLine += ` · center ${frameCenterSeconds.toFixed(3)}s`;
-                    debugLines.push(sampleLine);
-
-                    if (range && dataFrameCount > 0) {
-                        const dataIndex = clampedFrameIndex - rangeStartFrame;
-                        if (dataIndex >= 0 && dataIndex < dataFrameCount) {
-                            if (range.format === 'waveform-minmax' && channels >= 2) {
-                                const min = range.data[dataIndex * channels] ?? 0;
-                                const max = range.data[dataIndex * channels + 1] ?? min;
-                                debugLines.push(
-                                    `Sample min/max: ${min.toFixed(3)} / ${max.toFixed(3)}`
-                                );
-                            } else {
-                                let sum = 0;
-                                let count = 0;
-                                for (let channel = 0; channel < channels; channel += 1) {
-                                    const value = range.data[dataIndex * channels + channel];
-                                    if (Number.isFinite(value)) {
-                                        sum += value;
-                                        count += 1;
-                                    }
-                                }
-                                if (count > 0) {
-                                    const average = sum / count;
-                                    debugLines.push(`Sample avg: ${average.toFixed(3)}`);
-                                }
-                            }
-                        } else {
-                            debugLines.push('Sample: (value out of loaded range)');
-                        }
-                    } else {
-                        debugLines.push('Sample: (range unavailable)');
+                let nearestDistance = Number.POSITIVE_INFINITY;
+                for (let frame = 0; frame < range.frameCount; frame += 1) {
+                    const distance = Math.abs((range.frameTicks[frame] ?? 0) - targetTick);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestFrameIndex = frame;
                     }
                 }
+            }
 
-                if (showDebugWindow) {
+            if (showDebugSample && nearestFrameIndex != null) {
+                const frameTick = range.frameTicks[nearestFrameIndex] ?? 0;
+                const frameSeconds = tm.ticksToSeconds(frameTick);
+                debugLines.push(`Frame: ${nearestFrameIndex} · center ${frameSeconds.toFixed(3)}s`);
+                const baseIndex = nearestFrameIndex * channels;
+                if (range.format === 'waveform-minmax' && channels >= 2) {
+                    const min = range.data[baseIndex] ?? 0;
+                    const max = range.data[baseIndex + 1] ?? min;
+                    debugLines.push(`Sample min/max: ${min.toFixed(3)} / ${max.toFixed(3)}`);
+                } else {
+                    const values: number[] = [];
+                    for (let channel = 0; channel < channels; channel += 1) {
+                        values.push(range.data[baseIndex + channel] ?? 0);
+                    }
+                    if (values.length === 1) {
+                        debugLines.push(`Sample: ${values[0]?.toFixed(3) ?? '0.000'}`);
+                    } else {
+                        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+                        debugLines.push(`Sample avg: ${average.toFixed(3)}`);
+                    }
+                }
+            }
+
+            if (showDebugWindow) {
+                const windowStartSeconds = tm.ticksToSeconds(range.windowStartTick);
+                const windowEndSeconds = tm.ticksToSeconds(range.windowEndTick);
+                debugLines.push(
+                    `Window: ${windowStartSeconds.toFixed(3)}s → ${windowEndSeconds.toFixed(3)}s`,
+                );
+                debugLines.push(
+                    `Ticks: ${range.windowStartTick} → ${range.windowEndTick} (${spanTicks})`,
+                );
+                debugLines.push(
+                    `Track bounds: ${range.trackStartTick} → ${range.trackEndTick}`,
+                );
+                if (nearestFrameIndex != null) {
+                    const frameTick = range.frameTicks[nearestFrameIndex] ?? 0;
+                    const frameEndTick = frameTick + range.hopTicks;
                     debugLines.push(
-                        `Window: ${windowStartSeconds.toFixed(3)}s → ${windowEndSeconds.toFixed(3)}s`
-                    );
-                    debugLines.push(`Ticks: ${windowStartTick} → ${windowEndTick} (${windowTickSpan})`);
-                    debugLines.push(
-                        `Frames: ${rangeStartFrame} → ${rangeEndFrame} (loaded ${dataFrameCount})`
-                    );
-                    debugLines.push(
-                        `Frame bounds: ${frameStartSeconds.toFixed(3)}s → ${frameEndSeconds.toFixed(3)}s`
+                        `Frame ticks: ${Math.floor(frameTick)} → ${Math.floor(frameEndTick)}`,
                     );
                 }
             }
 
             if (showDebugSource) {
-                const hopSeconds = featureTrack.hopSeconds ?? featureCache?.hopSeconds;
-                const sampleRate = featureCache?.analysisParams?.sampleRate;
+                const cacheEntry = state.audioFeatureCaches[range.sourceId];
+                const featureTrack = cacheEntry?.featureTracks?.[config.featureKey ?? ''];
+                const hopSeconds = featureTrack?.hopSeconds ?? cacheEntry?.hopSeconds;
+                const sampleRate = cacheEntry?.analysisParams?.sampleRate;
                 debugLines.push(`Track: ${config.trackId ?? '(unbound)'}`);
                 debugLines.push(`Feature: ${config.featureKey ?? '(none)'}`);
                 debugLines.push(
-                    `Hop: ${hopTicks} ticks${
+                    `Hop: ${range.hopTicks} ticks${
                         hopSeconds ? ` (${hopSeconds.toFixed(4)}s)` : ''
-                    }`
+                    }`,
                 );
-                if (frameIndexForTarget != null) {
+                if (nearestFrameIndex != null && featureTrack) {
                     debugLines.push(
-                        `Frame index: ${frameIndexForTarget} / ${featureTrack.frameCount - 1}`
+                        `Frame index: ${nearestFrameIndex} / ${featureTrack.frameCount - 1}`,
                     );
                 }
                 if (typeof sampleRate === 'number' && Number.isFinite(sampleRate)) {
                     debugLines.push(`Sample rate: ${sampleRate} Hz`);
                 }
-                debugLines.push(`Source: ${sourceId}`);
+                debugLines.push(`Source: ${range.sourceId}`);
             }
 
             if (debugLines.length) {
@@ -388,7 +338,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                 const availableWidth = Math.max(padding * 2, width - padding * 2);
                 const overlayWidth = Math.min(
                     availableWidth,
-                    Math.max(160, Math.round(maxChars * approxCharWidth) + padding * 2)
+                    Math.max(160, Math.round(maxChars * approxCharWidth) + padding * 2),
                 );
                 const overlayHeight = debugLines.length * lineHeight + padding * 2;
                 const background = new Rectangle(
@@ -399,7 +349,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                     'rgba(15,23,42,0.75)',
                     'rgba(30,41,59,0.85)',
                     1,
-                    { includeInLayoutBounds: false }
+                    { includeInLayoutBounds: false },
                 );
                 background.setIncludeInLayoutBounds(false);
                 const overlayObjects: RenderObject[] = [background];
@@ -412,7 +362,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         '#f8fafc',
                         'left',
                         'top',
-                        { includeInLayoutBounds: false }
+                        { includeInLayoutBounds: false },
                     );
                     text.setIncludeInLayoutBounds(false);
                     overlayObjects.push(text);
@@ -420,6 +370,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                 renderObjects.push(...overlayObjects);
             }
         }
+
         return renderObjects;
     }
 }

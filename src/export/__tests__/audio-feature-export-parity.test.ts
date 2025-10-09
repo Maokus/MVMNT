@@ -142,6 +142,8 @@ describe('audio feature export parity', () => {
         const range = sampleAudioFeatureRange(state, 'audioTrack', 'rms', 0, endTick);
         expect(range).toBeDefined();
         expect(range?.frameCount).toBeGreaterThanOrEqual(frameTimes.length);
+        expect(range?.frameTicks.length).toBe(range?.frameCount ?? 0);
+        expect(range?.windowStartTick).toBeLessThanOrEqual(range?.windowEndTick ?? 0);
 
         for (let frame = 0; frame < frameTimes.length; frame += 1) {
             const frameVector: number[] = [];

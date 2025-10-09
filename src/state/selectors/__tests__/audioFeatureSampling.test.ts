@@ -102,6 +102,10 @@ describe('audio feature sampling selectors', () => {
         expect(range?.frameCount).toBeGreaterThan(0);
         expect(range?.channels).toBe(1);
         expect(range?.data.length).toBe(range?.frameCount ?? 0);
+        expect(range?.frameTicks.length).toBe(range?.frameCount ?? 0);
+        expect(range?.windowStartTick).toBeLessThan(range?.windowEndTick ?? 0);
+        expect(range?.trackStartTick).toBe(0);
+        expect(range?.trackEndTick).toBeGreaterThan(range?.trackStartTick ?? -1);
     });
 
     it('includes silence when sampling ranges beyond track bounds', () => {
@@ -110,5 +114,8 @@ describe('audio feature sampling selectors', () => {
         expect(range).toBeDefined();
         expect(range?.frameCount).toBe(3);
         expect(Array.from(range?.data ?? [])).toEqual([0, 0, 0]);
+        expect(range?.frameTicks.length).toBe(range?.frameCount ?? 0);
+        expect(range?.windowStartTick).toBeLessThanOrEqual(range?.windowEndTick ?? 0);
+        expect(range?.windowEndTick).toBeGreaterThanOrEqual(range?.trackEndTick ?? 0);
     });
 });

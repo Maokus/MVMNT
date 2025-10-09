@@ -32,6 +32,14 @@ export interface AudioFeatureRangeSample {
     channels: number;
     format: AudioFeatureTrackFormat;
     data: Float32Array;
+    frameTicks: Float64Array;
+    requestedStartTick: number;
+    requestedEndTick: number;
+    windowStartTick: number;
+    windowEndTick: number;
+    trackStartTick: number;
+    trackEndTick: number;
+    sourceId: string;
 }
 
 export function selectAudioFeatureCache(state: TimelineState, sourceId: string):
@@ -218,6 +226,19 @@ export function sampleAudioFeatureRange(
     const hopTicks = Math.max(1, featureTrack.hopTicks || cache.hopTicks || 1);
     const offsetTicks = track.offsetTicks ?? 0;
     const regionStart = track.regionStartTick ?? 0;
+    const regionEnd = (() => {
+        if (typeof track.regionEndTick === 'number' && Number.isFinite(track.regionEndTick)) {
+            return track.regionEndTick;
+        }
+        const cacheEntry = state.audioCache?.[sourceId];
+        if (cacheEntry && typeof cacheEntry.durationTicks === 'number') {
+            return cacheEntry.durationTicks;
+        }
+        return regionStart + featureTrack.frameCount * hopTicks;
+    })();
+    const regionLength = Math.max(0, regionEnd - regionStart);
+    const trackStartTick = offsetTicks;
+    const trackEndTick = trackStartTick + regionLength;
     const localStart = startTick - offsetTicks + regionStart;
     const localEnd = endTick - offsetTicks + regionStart;
     const frameStart = Math.floor(Math.min(localStart, localEnd) / hopTicks);
@@ -237,6 +258,9 @@ export function sampleAudioFeatureRange(
         return Math.max(1, featureTrack.channels);
     })();
     const data = new Float32Array(frameCount * channels);
+    const frameTicks = new Float64Array(frameCount);
+    const baseTick = offsetTicks - regionStart;
+    const halfHop = hopTicks / 2;
     let writeIndex = 0;
     for (let frame = 0; frame < frameCount; frame += 1) {
         const sampleIndex = firstFrame + frame;
@@ -244,6 +268,7 @@ export function sampleAudioFeatureRange(
             sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
                 ? buildSilentVector(featureTrack, options)
                 : buildFrameVector(featureTrack, sampleIndex, options);
+        frameTicks[frame] = baseTick + sampleIndex * hopTicks + halfHop;
         if (isWaveform) {
             const [min, max] = vector;
             data[writeIndex++] = min ?? 0;
@@ -265,6 +290,14 @@ export function sampleAudioFeatureRange(
         channels,
         format: featureTrack.format,
         data,
+        frameTicks,
+        requestedStartTick: startTick,
+        requestedEndTick: endTick,
+        windowStartTick: Math.min(startTick, endTick),
+        windowEndTick: Math.max(startTick, endTick),
+        trackStartTick,
+        trackEndTick,
+        sourceId,
     };
 }
 
