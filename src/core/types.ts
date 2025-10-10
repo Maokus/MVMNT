@@ -206,7 +206,8 @@ export interface ConfigSchemaProperty {
         | 'file-midi'
         | 'file-image'
         | 'timelineTrackRef'
-        | 'audioFeatureDescriptor';
+        | 'audioFeatureDescriptor'
+        | 'audioAnalysisProfile';
     label: string;
     default: any;
     min?: number;
@@ -260,7 +261,8 @@ export interface PropertyDefinition {
         | 'file-image'
         | 'font'
         | 'timelineTrackRef'
-        | 'audioFeatureDescriptor';
+        | 'audioFeatureDescriptor'
+        | 'audioAnalysisProfile';
     label: string;
     default?: any;
     min?: number;
@@ -278,6 +280,13 @@ export interface PropertyDefinition {
     // Audio feature bindings can declare a required feature key and label.
     requiredFeatureKey?: string;
     autoFeatureLabel?: string;
+    // Link descriptor editors to the property storing the analysis profile.
+    profilePropertyKey?: string;
+    // Optional glossary anchors used for tooltip copy in the inspector.
+    glossaryTerms?: {
+        featureDescriptor?: string;
+        analysisProfile?: string;
+    };
     // Optional visibility rules for progressive disclosure
     visibleWhen?: PropertyVisibilityCondition[];
 }

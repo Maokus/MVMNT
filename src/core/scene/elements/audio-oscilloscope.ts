@@ -5,7 +5,7 @@ import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import {
-    coerceFeatureDescriptor,
+    coerceFeatureDescriptors,
     resolveFeatureContext,
     resolveTimelineTrackRefValue,
 } from './audioFeatureUtils';
@@ -91,13 +91,28 @@ export class AudioOscilloscopeElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'featureDescriptor',
+                            key: 'features',
                             type: 'audioFeatureDescriptor',
-                            label: 'Feature Descriptor',
-                            default: null,
+                            label: 'Audio Features',
+                            default: [],
                             requiredFeatureKey: 'waveform',
                             autoFeatureLabel: 'Waveform',
                             trackPropertyKey: 'featureTrackId',
+                            profilePropertyKey: 'analysisProfileId',
+                            glossaryTerms: {
+                                featureDescriptor: 'feature-descriptor',
+                                analysisProfile: 'analysis-profile',
+                            },
+                        },
+                        {
+                            key: 'analysisProfileId',
+                            type: 'audioAnalysisProfile',
+                            label: 'Analysis Profile',
+                            default: 'default',
+                            trackPropertyKey: 'featureTrackId',
+                            glossaryTerms: {
+                                analysisProfile: 'analysis-profile',
+                            },
                         },
                         {
                             key: 'windowSeconds',
@@ -216,11 +231,12 @@ export class AudioOscilloscopeElement extends SceneElement {
 
         const trackBinding = this.getBinding('featureTrackId');
         const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
-        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
-        const descriptor = coerceFeatureDescriptor(
-            descriptorValue,
+        const descriptorsValue = this.getProperty<AudioFeatureDescriptor[] | null>('features');
+        const descriptors = coerceFeatureDescriptors(
+            descriptorsValue,
             AudioOscilloscopeElement.DEFAULT_DESCRIPTOR,
         );
+        const descriptor = descriptors[0] ?? AudioOscilloscopeElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
         const featureKey = descriptor.featureKey;
 

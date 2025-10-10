@@ -4,7 +4,7 @@ import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import type { AudioFeatureDescriptor, AudioFeatureTrack, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import {
-    coerceFeatureDescriptor,
+    coerceFeatureDescriptors,
     resolveFeatureContext,
     resolveTimelineTrackRefValue,
     sampleFeatureFrame,
@@ -105,13 +105,28 @@ export class AudioSpectrumElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'featureDescriptor',
+                            key: 'features',
                             type: 'audioFeatureDescriptor',
-                            label: 'Feature Descriptor',
-                            default: null,
+                            label: 'Audio Features',
+                            default: [],
                             requiredFeatureKey: 'spectrogram',
                             autoFeatureLabel: 'Spectrogram',
                             trackPropertyKey: 'featureTrackId',
+                            profilePropertyKey: 'analysisProfileId',
+                            glossaryTerms: {
+                                featureDescriptor: 'feature-descriptor',
+                                analysisProfile: 'analysis-profile',
+                            },
+                        },
+                        {
+                            key: 'analysisProfileId',
+                            type: 'audioAnalysisProfile',
+                            label: 'Analysis Profile',
+                            default: 'default',
+                            trackPropertyKey: 'featureTrackId',
+                            glossaryTerms: {
+                                analysisProfile: 'analysis-profile',
+                            },
                         },
                         {
                             key: 'startFrequency',
@@ -326,8 +341,9 @@ export class AudioSpectrumElement extends SceneElement {
 
         const trackRefBinding = this.getBinding('featureTrackId');
         const trackRefValue = this.getProperty<string | string[] | null>('featureTrackId');
-        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
-        const descriptor = coerceFeatureDescriptor(descriptorValue, DEFAULT_DESCRIPTOR);
+        const descriptorsValue = this.getProperty<AudioFeatureDescriptor[] | null>('features');
+        const descriptors = coerceFeatureDescriptors(descriptorsValue, DEFAULT_DESCRIPTOR);
+        const descriptor = descriptors[0] ?? DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackRefBinding, trackRefValue);
 
         if (trackId && descriptor.featureKey) {

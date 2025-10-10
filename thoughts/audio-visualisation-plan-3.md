@@ -61,6 +61,8 @@
 
 ## Phase 2 — Authoring UX & Validation
 
+**Status:** Complete (2025-10-10)
+
 **Goal:** Provide inspector workflows for selecting tracks, features, and profiles with inline validation.
 
 **Key Activities**
@@ -72,10 +74,10 @@
 
 **Acceptance Criteria**
 
--   QA scripts confirm that editing selections updates scene JSON deterministically and persists across save/load.
--   Validation messaging blocks invalid combinations and links to cache regeneration guidance.
--   Tooltips and help text reuse glossary language and pass documentation review.
--   Telemetry (if enabled) or logging captures selector usage for future UX tuning without leaking user content.
+-   ✅ QA scripts confirm that editing selections updates scene JSON deterministically and persists across save/load.
+-   ✅ Validation messaging blocks invalid combinations and links to cache regeneration guidance.
+-   ✅ Tooltips and help text reuse glossary language and pass documentation review.
+-   ✅ Telemetry (if enabled) or logging captures selector usage for future UX tuning without leaking user content.
 
 ## Phase 3 — Cache Intents & Diagnostics
 

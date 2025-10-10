@@ -3,7 +3,35 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import AudioFeatureDescriptorInput from '@workspace/form/inputs/AudioFeatureDescriptorInput';
 import { useTimelineStore } from '@state/timelineStore';
-import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import type { AudioFeatureCache, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+
+function renderControlled(
+    initialValue: AudioFeatureDescriptor[] | null,
+    schema: Parameters<typeof AudioFeatureDescriptorInput>[0]['schema'],
+    handleChange: ReturnType<typeof vi.fn>,
+) {
+    const Controlled: React.FC = () => {
+        const [currentValue, setCurrentValue] = React.useState<AudioFeatureDescriptor[] | null>(initialValue);
+        return (
+            <AudioFeatureDescriptorInput
+                id="descriptor"
+                value={currentValue}
+                schema={schema}
+                onChange={(payload) => {
+                    if (Array.isArray(payload) || payload === null) {
+                        setCurrentValue(payload);
+                        handleChange(payload);
+                    } else if (payload && typeof payload === 'object' && 'value' in payload) {
+                        const nextValue = payload.value as AudioFeatureDescriptor[] | null;
+                        setCurrentValue(nextValue);
+                        handleChange(payload);
+                    }
+                }}
+            />
+        );
+    };
+    render(<Controlled />);
+}
 
 function createCache(trackId: string, channels = 1, extraFeatures: Record<string, Partial<AudioFeatureCache['featureTracks'][string]>> = {}): AudioFeatureCache {
     const frameCount = 4;
@@ -113,68 +141,108 @@ beforeEach(() => {
 describe('AudioFeatureDescriptorInput', () => {
     it('renders smoothing control and status for the current descriptor', () => {
         const handleChange = vi.fn();
-        render(
-            <AudioFeatureDescriptorInput
-                id="descriptor"
-                value={{ featureKey: 'rms', smoothing: 4, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null }}
-                schema={{ trackId: 'audioTrack', requiredFeatureKey: 'rms' }}
-                onChange={handleChange}
-            />,
+        renderControlled(
+            [{ featureKey: 'rms', smoothing: 4, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null }],
+            { trackId: 'audioTrack', requiredFeatureKey: 'rms' },
+            handleChange,
         );
         const slider = screen.getByRole('slider') as HTMLInputElement;
         expect(slider.value).toBe('4');
-        const statusNode = screen.getByText(/Status:/i);
-        expect(statusNode.textContent).toMatch(/ready/i);
+        expect(screen.getByText(/Status:/i).textContent).toMatch(/ready/i);
     });
 
-    it('invokes onChange when smoothing value changes', () => {
+    it('invokes onChange with updated smoothing for all descriptors', () => {
         const handleChange = vi.fn();
-        render(
-            <AudioFeatureDescriptorInput
-                id="descriptor"
-                value={{ featureKey: 'rms', smoothing: 2, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null }}
-                schema={{ trackId: 'audioTrack' }}
-                onChange={handleChange}
-            />,
+        renderControlled(
+            [
+                { featureKey: 'rms', smoothing: 2, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null },
+                { featureKey: 'waveform', smoothing: 2, calculatorId: 'calc.waveform', channelIndex: 0, bandIndex: null },
+            ],
+            { trackId: 'audioTrack' },
+            handleChange,
         );
+        handleChange.mockClear();
         const slider = screen.getByRole('slider');
         fireEvent.change(slider, { target: { value: '6' } });
-        const payload = handleChange.mock.calls.at(-1)?.[0];
-        expect(payload).toMatchObject({ featureKey: 'rms', smoothing: 6 });
+        const payload = handleChange.mock.calls.at(-1)?.[0] as AudioFeatureDescriptor[];
+        expect(Array.isArray(payload)).toBe(true);
+        expect(payload).toHaveLength(2);
+        expect(payload.every((descriptor) => descriptor.smoothing === 6)).toBe(true);
     });
 
-    it('allows selecting alternate features when available', () => {
+    it('adds descriptors when selecting alternate features', () => {
         const handleChange = vi.fn();
-        render(
-            <AudioFeatureDescriptorInput
-                id="descriptor"
-                value={{ featureKey: 'rms', smoothing: 0, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null }}
-                schema={{ trackId: 'audioTrack' }}
-                onChange={handleChange}
-            />,
+        renderControlled(
+            [{ featureKey: 'rms', smoothing: 0, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null }],
+            { trackId: 'audioTrack' },
+            handleChange,
         );
-        const featureSelect = screen.getByLabelText(/Feature/i) as HTMLSelectElement;
+        handleChange.mockClear();
+        const featureSelect = screen.getByLabelText(/Feature descriptor/i) as HTMLSelectElement;
         fireEvent.change(featureSelect, { target: { value: 'waveform' } });
-        const payload = handleChange.mock.calls.at(-1)?.[0];
-        expect(payload.featureKey).toBe('waveform');
-        expect(payload.calculatorId).toBeDefined();
+        const payload = handleChange.mock.calls.at(-1)?.[0] as AudioFeatureDescriptor[];
+        expect(payload).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ featureKey: 'rms' }),
+                expect.objectContaining({ featureKey: 'waveform' }),
+            ]),
+        );
     });
 
-    it('exposes channel selector when feature has multiple channels', () => {
+    it('supports multi-channel selection with alias chips', () => {
         const handleChange = vi.fn();
-        render(
-            <AudioFeatureDescriptorInput
-                id="descriptor"
-                value={{ featureKey: 'waveform', smoothing: 0, calculatorId: 'calc.waveform', channelIndex: null, bandIndex: null }}
-                schema={{ trackId: 'audioTrack' }}
-                onChange={handleChange}
-            />,
+        renderControlled(
+            [{ featureKey: 'waveform', smoothing: 0, calculatorId: 'calc.waveform', channelIndex: null, bandIndex: null }],
+            { trackId: 'audioTrack' },
+            handleChange,
         );
-        const channelSelect = screen.getByLabelText(/Channel/i) as HTMLSelectElement;
-        expect(channelSelect.options.length).toBeGreaterThan(1);
-        fireEvent.change(channelSelect, { target: { value: '1' } });
-        const payload = handleChange.mock.calls.at(-1)?.[0];
-        expect(payload.channelIndex).toBe(1);
-        expect(payload.channelAlias).toBe('Right');
+        handleChange.mockClear();
+        const leftCheckbox = screen.getByLabelText('Left') as HTMLInputElement;
+        fireEvent.click(leftCheckbox);
+        const rightCheckbox = screen.getByLabelText('Right') as HTMLInputElement;
+        fireEvent.click(rightCheckbox);
+        const matchedCall = handleChange.mock.calls.find(([arg]) => {
+            if (!Array.isArray(arg)) return false;
+            const hasLeft = arg.some(
+                (descriptor) => descriptor.featureKey === 'waveform' && descriptor.channelIndex === 0,
+            );
+            const hasRight = arg.some(
+                (descriptor) => descriptor.featureKey === 'waveform' && descriptor.channelIndex === 1,
+            );
+            return hasLeft && hasRight;
+        });
+        expect(matchedCall).toBeDefined();
+        expect(screen.getByText(/Waveform – Left/i)).toBeInTheDocument();
+        expect(screen.getByText(/Waveform – Right/i)).toBeInTheDocument();
+    });
+
+    it('emits profile suggestions when cache analysis profile differs', () => {
+        const handleChange = vi.fn();
+        useTimelineStore.getState().ingestAudioFeatureCache(
+            'audioTrack',
+            createCache('audioTrack', 1, {
+                loudness: { metadata: { label: 'Loudness' }, analysisProfileId: 'wideband' },
+            }),
+        );
+        renderControlled(
+            null,
+            { trackId: 'audioTrack', profileValue: 'default', profilePropertyKey: 'analysisProfileId' },
+            handleChange,
+        );
+        handleChange.mockClear();
+        const featureSelect = screen.getByLabelText(/Feature descriptor/i) as HTMLSelectElement;
+        fireEvent.change(featureSelect, { target: { value: 'loudness' } });
+        const suggestionCall = handleChange.mock.calls.find(([arg]) => {
+            return (
+                arg &&
+                typeof arg === 'object' &&
+                !Array.isArray(arg) &&
+                'meta' in arg &&
+                (arg as { meta?: { linkedUpdates?: Record<string, string> } }).meta?.linkedUpdates?.analysisProfileId ===
+                    'wideband'
+            );
+        }) as { value: AudioFeatureDescriptor[]; meta?: { linkedUpdates?: Record<string, string> } } | undefined;
+        expect(suggestionCall).toBeDefined();
+        expect(screen.getAllByText(/analysis profile/i).length).toBeGreaterThan(0);
     });
 });

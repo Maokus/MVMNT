@@ -89,14 +89,14 @@ CPU overhead predictable.
 ## Property bindings and runtime consumption
 
 Property bindings now serialize either a constant audio track ID or a `timelineTrackRef` macro
-alongside a `featureDescriptor` describing the requested data (`featureKey`, channel/band selection,
-and smoothing parameters). During rendering, elements resolve the binding into `{ trackRef,
-featureDescriptor }` and forward those inputs to `selectAudioFeatureFrame` or
-`sampleAudioFeatureRange`. The descriptor is the single source of truth for smoothing and channel
-metadata; elements cache the most recent sample so repeated property reads within a frame remain
-cheap.
+alongside a `features[]` array describing the requested data. Each descriptor entry stores a
+`featureKey`, optional band or channel selection, calculator metadata, and a smoothing radius. During
+rendering, elements resolve the binding into `{ trackRef, features[], analysisProfileId }` and forward
+those inputs to `selectAudioFeatureFrame` or `sampleAudioFeatureRange`. Descriptors remain the single
+source of truth for smoothing and channel metadata; elements cache the most recent sample so repeated
+property reads within a frame remain cheap.
 
-Three built-in elements consume audio feature descriptors:
+Three built-in elements consume audio feature descriptors today:
 
 - **Audio Spectrum** draws bar rectangles for multi-channel magnitude data.
 - **Audio Volume Meter** renders a single bar driven by RMS energy.
@@ -110,12 +110,15 @@ Plug-in calculators can reuse the binding pipeline by registering with
 1. Import an audio file. Once the buffer loads, trigger analysis from the inspector or the track
    context menu. Status badges reflect `pending`, `running`, `ready`, or `failed` states.
 2. In the element inspector, use the shared track picker to choose an audio track, then configure the
-   feature descriptor (feature key, optional band or channel, and smoothing radius). The descriptor is
-   stored separately from the binding so macros remain compatible with audio-driven controls.
-3. Preview sparklines update using `sampleAudioFeatureRange`, and retry controls surface if analysis
-   fails.
-4. Bindings serialize through the scene store so save and load, undo, and export keep the feature
-   selection intact.
+   feature descriptors. The selector groups analysed features by category, supports multi-channel
+   checkboxes, and shows glossary-backed tooltips for descriptors and analysis profiles. Authors can
+   add multiple descriptors per element—stereo waveform selections render as individual chips—and the
+   inspector surfaces recommended `analysisProfileId` updates when cache metadata diverges from the
+   current binding.
+3. Preview sparklines update using `sampleAudioFeatureRange`, retry controls surface if analysis fails,
+   and the "Use &lt;profile&gt;" action applies suggested profiles without leaving the inspector.
+4. Bindings serialize through the scene store so save/load, undo, telemetry, and export keep the feature
+   selection and profile choices intact.
 
 ## Export and determinism
 

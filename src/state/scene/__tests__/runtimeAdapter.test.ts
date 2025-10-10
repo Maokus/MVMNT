@@ -66,25 +66,30 @@ describe('SceneRuntimeAdapter', () => {
             index: store.getState().order.length,
             bindings: {
                 featureTrackId: { type: 'constant', value: 'track-1' },
-                featureDescriptor: {
+                features: {
                     type: 'constant',
-                    value: {
-                        featureKey: 'waveform',
-                        calculatorId: 'mvmnt.waveform',
-                        bandIndex: null,
-                        channelIndex: null,
-                        smoothing: 0.1,
-                    },
+                    value: [
+                        {
+                            featureKey: 'waveform',
+                            calculatorId: 'mvmnt.waveform',
+                            bandIndex: null,
+                            channelIndex: null,
+                            smoothing: 0.1,
+                        },
+                    ],
                 },
+                analysisProfileId: { type: 'constant', value: 'default' },
             },
         });
 
         const runtimeElement = adapter.getElements().find((element) => element.id === 'osc');
         expect(runtimeElement).toBeDefined();
         const trackBinding = runtimeElement?.getBinding('featureTrackId');
-        const descriptorBinding = runtimeElement?.getBinding('featureDescriptor');
+        const descriptorBinding = runtimeElement?.getBinding('features');
         expect(trackBinding?.getValue()).toBe('track-1');
-        expect(descriptorBinding?.getValue()).toMatchObject({ featureKey: 'waveform' });
+        expect(descriptorBinding?.getValue()).toEqual([
+            expect.objectContaining({ featureKey: 'waveform' }),
+        ]);
     });
 });
 

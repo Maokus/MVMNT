@@ -183,13 +183,16 @@ describe('audio scene elements', () => {
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'spectrogram',
-                calculatorId: 'test.spectrogram',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
@@ -214,13 +217,16 @@ describe('audio scene elements', () => {
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'spectrogram',
-                calculatorId: 'test.spectrogram',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
@@ -262,13 +268,16 @@ describe('audio scene elements', () => {
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'spectrogram',
-                calculatorId: 'test.spectrogram',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
@@ -298,13 +307,16 @@ describe('audio scene elements', () => {
         const element = new AudioVolumeMeterElement('meterDynamic');
         element.updateConfig({
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'rms',
-                calculatorId: 'test.rms',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'test.rms',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const tm = getSharedTimingManager();
         const hopTicks = cache.hopTicks ?? 0;
@@ -344,13 +356,16 @@ describe('audio scene elements', () => {
             showText: true,
             textLocation: 'track',
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'rms',
-                calculatorId: 'test.rms',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'test.rms',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
 
         const first = element.buildRenderObjects({}, 0);
@@ -371,13 +386,16 @@ describe('audio scene elements', () => {
         const element = new AudioOscilloscopeElement('osc');
         element.updateConfig({
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const renderObjects = element.buildRenderObjects({}, 0.25);
         expect(renderObjects.length).toBe(1);
@@ -394,13 +412,16 @@ describe('audio scene elements', () => {
             showPlayhead: true,
             width: 200,
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const renderObjects = element.buildRenderObjects({}, 0.5);
         expect(renderObjects.length).toBe(1);
@@ -429,13 +450,16 @@ describe('audio scene elements', () => {
             width,
             height,
             featureTrackId: 'testTrack',
-            featureDescriptor: {
-                featureKey: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                smoothing: 0,
-                bandIndex: null,
-                channelIndex: null,
-            },
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
         });
         const targetFrameIndex = Math.floor(waveformTrack.frameCount / 2);
         const frameCenterTick = targetFrameIndex * hopTicks + hopTicks / 2;

@@ -221,7 +221,12 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const handleValueChange = useCallback(
         (key: string, value: any, meta?: FormInputChange['meta']) => {
-            setPropertyValues((prev) => ({ ...prev, [key]: value }));
+            const linked = meta?.linkedUpdates ?? undefined;
+            setPropertyValues((prev) => ({
+                ...prev,
+                [key]: value,
+                ...(linked ?? {}),
+            }));
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
                 const session = meta?.mergeSession;
@@ -236,11 +241,21 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                             Object.prototype.hasOwnProperty.call(other.command.patch ?? {}, key),
                     };
                 }
-                let nextValue = value;
-                if (isAngleProperty(key) && typeof value === 'number') {
-                    nextValue = value * DEG_TO_RAD;
+                const patch: Record<string, any> = {};
+                const assignValue = (targetKey: string, targetValue: any) => {
+                    if (isAngleProperty(targetKey) && typeof targetValue === 'number') {
+                        patch[targetKey] = targetValue * DEG_TO_RAD;
+                    } else {
+                        patch[targetKey] = targetValue;
+                    }
+                };
+                assignValue(key, value);
+                if (linked) {
+                    Object.entries(linked).forEach(([linkedKey, linkedValue]) => {
+                        assignValue(linkedKey, linkedValue);
+                    });
                 }
-                onConfigChange(elementId, { [key]: nextValue }, options);
+                onConfigChange(elementId, patch, options);
             }
         },
         [elementId, onConfigChange],

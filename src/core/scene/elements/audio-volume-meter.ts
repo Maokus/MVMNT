@@ -3,12 +3,7 @@ import { Rectangle, Text, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
-import {
-    coerceFeatureDescriptor,
-    resolveFeatureContext,
-    resolveTimelineTrackRefValue,
-    sampleFeatureFrame,
-} from './audioFeatureUtils';
+import { coerceFeatureDescriptors, resolveTimelineTrackRefValue, sampleFeatureFrame } from './audioFeatureUtils';
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
@@ -43,13 +38,28 @@ export class AudioVolumeMeterElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'featureDescriptor',
+                            key: 'features',
                             type: 'audioFeatureDescriptor',
-                            label: 'Feature Descriptor',
-                            default: null,
+                            label: 'Audio Features',
+                            default: [],
                             requiredFeatureKey: 'rms',
                             autoFeatureLabel: 'Volume (RMS)',
                             trackPropertyKey: 'featureTrackId',
+                            profilePropertyKey: 'analysisProfileId',
+                            glossaryTerms: {
+                                featureDescriptor: 'feature-descriptor',
+                                analysisProfile: 'analysis-profile',
+                            },
+                        },
+                        {
+                            key: 'analysisProfileId',
+                            type: 'audioAnalysisProfile',
+                            label: 'Analysis Profile',
+                            default: 'default',
+                            trackPropertyKey: 'featureTrackId',
+                            glossaryTerms: {
+                                analysisProfile: 'analysis-profile',
+                            },
                         },
                         { key: 'meterColor', type: 'color', label: 'Meter Color', default: '#f472b6' },
                         {
@@ -133,11 +143,12 @@ export class AudioVolumeMeterElement extends SceneElement {
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const trackBinding = this.getBinding('featureTrackId');
         const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
-        const descriptorValue = this.getProperty<AudioFeatureDescriptor | null>('featureDescriptor');
-        const descriptor = coerceFeatureDescriptor(
-            descriptorValue,
+        const descriptorsValue = this.getProperty<AudioFeatureDescriptor[] | null>('features');
+        const descriptors = coerceFeatureDescriptors(
+            descriptorsValue,
             AudioVolumeMeterElement.DEFAULT_DESCRIPTOR,
         );
+        const descriptor = descriptors[0] ?? AudioVolumeMeterElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
 
         const sample: AudioFeatureFrameSample | null =

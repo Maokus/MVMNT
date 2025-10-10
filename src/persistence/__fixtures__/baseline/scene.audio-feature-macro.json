@@ -16,16 +16,19 @@
       "elementSkewX": { "type": "constant", "value": 0 },
       "elementSkewY": { "type": "constant", "value": 0 },
       "featureTrackId": { "type": "macro", "macroId": "macro.audio.track" },
-      "featureDescriptor": {
+      "features": {
         "type": "constant",
-        "value": {
-          "featureKey": "spectrogram",
-          "calculatorId": "mvmnt.spectrogram",
-          "bandIndex": null,
-          "channelIndex": null,
-          "smoothing": 4
-        }
+        "value": [
+          {
+            "featureKey": "spectrogram",
+            "calculatorId": "mvmnt.spectrogram",
+            "bandIndex": null,
+            "channelIndex": null,
+            "smoothing": 4
+          }
+        ]
       },
+      "analysisProfileId": { "type": "constant", "value": "default" },
       "startFrequency": { "type": "constant", "value": 80 },
       "endFrequency": { "type": "constant", "value": 16000 },
       "useLogScale": { "type": "constant", "value": true },

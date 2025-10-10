@@ -292,10 +292,29 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             property.type === 'audioFeatureDescriptor'
                 ? values[property.trackPropertyKey ?? 'featureTrackId'] ?? null
                 : null;
-        const schemaForInput =
-            property.type === 'audioFeatureDescriptor'
-                ? { ...property, trackId: descriptorTrackId }
-                : property;
+        const profileValue =
+            property.type === 'audioFeatureDescriptor' && property.profilePropertyKey
+                ? values[property.profilePropertyKey] ?? null
+                : null;
+        const schemaForInput = (() => {
+            if (property.type === 'audioFeatureDescriptor') {
+                return {
+                    ...property,
+                    trackId: descriptorTrackId,
+                    profileValue,
+                };
+            }
+            if (property.type === 'audioAnalysisProfile') {
+                const trackRef = property.trackPropertyKey
+                    ? values[property.trackPropertyKey] ?? null
+                    : values.featureTrackId ?? null;
+                return {
+                    ...property,
+                    trackId: trackRef,
+                };
+            }
+            return property;
+        })();
 
         const commonProps = {
             id: `config-${property.key}`,
