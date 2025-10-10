@@ -245,4 +245,33 @@ describe('AudioFeatureDescriptorInput', () => {
         expect(suggestionCall).toBeDefined();
         expect(screen.getAllByText(/analysis profile/i).length).toBeGreaterThan(0);
     });
+
+    it('shows conflict messaging when selected features require different analysis profiles', () => {
+        const handleChange = vi.fn();
+        const cache = createCache('audioTrack', 1, {
+            loudness: { metadata: { label: 'Loudness' }, analysisProfileId: 'wideband' },
+        });
+        cache.analysisProfiles = {
+            ...(cache.analysisProfiles ?? {}),
+            wideband: {
+                id: 'wideband',
+                windowSize: 512,
+                hopSize: 256,
+                overlap: 2,
+                sampleRate: 48000,
+            },
+        };
+        useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', cache);
+        renderControlled(
+            [
+                { featureKey: 'rms', smoothing: 0, calculatorId: 'mvmnt.rms', channelIndex: null, bandIndex: null },
+                { featureKey: 'loudness', smoothing: 0, calculatorId: 'calc.loudness', channelIndex: null, bandIndex: null },
+            ],
+            { trackId: 'audioTrack' },
+            handleChange,
+        );
+        expect(
+            screen.getByText(/Selected features require different analysis profiles/i),
+        ).toBeInTheDocument();
+    });
 });

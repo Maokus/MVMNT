@@ -11,6 +11,7 @@ type DescriptorSchema = {
     requiredFeatureKey?: string;
     autoFeatureLabel?: string;
     trackId?: string | string[] | null;
+    trackPropertyKey?: string;
     profileValue?: string | null;
     profilePropertyKey?: string;
     glossaryTerms?: {
@@ -760,6 +761,8 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
                         backgroundColor: 'rgba(251, 191, 36, 0.12)',
                         color: '#fbbf24',
                     }}
+                    role="status"
+                    aria-live="polite"
                     title={profileTooltip}
                 >
                     {profileConflict && (
