@@ -153,3 +153,4 @@
 -   [Audio Feature Bindings & Cache Reference](../docs/audio-feature-bindings.md)
 -   [Audio Visualisation Phase 0 Foundations](../docs/audio-visualisation-phase0.md)
 -   [Legacy Binding Shift Summary](./legacybindingshiftplan.md)
+-   [Audio Visualisation Shared Infrastructure](../docs/audio-visualisation-shared-infrastructure.md)

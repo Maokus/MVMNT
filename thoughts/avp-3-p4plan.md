@@ -33,6 +33,8 @@ Phase 4 extends the spectrum, volume meter, and oscilloscope elements so they ta
 
 Deliverables: shared utilities with unit coverage, documentation snippets for element owners, and integration hooks consumed in Workstreams B–D.
 
+**Implementation Notes (2025-10-22):** Transfer, history, glow, and channel palette helpers now live in `src/utils/audioVisualization` with Vitest coverage (`src/utils/__tests__/audioVisualization.test.ts`). Element owners can reference [Audio Visualisation Shared Infrastructure](../docs/audio-visualisation-shared-infrastructure.md) for usage guidance.
+
 ## Workstream B — Spectrum Enhancements
 
 ### B1. Frequency Scale Expansion
