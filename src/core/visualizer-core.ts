@@ -8,6 +8,7 @@ import type {
     RenderObject,
 } from './render/renderer-contract';
 import { WebGLRenderer } from './render/webgl/webgl-renderer';
+import { attachContextLossHandlers } from './render/webgl/context';
 import type { WebGLRenderPrimitive, RendererDiagnostics } from './render/webgl/types';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
@@ -18,6 +19,9 @@ import { useSceneStore, type SceneRendererType } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import type { SnapGuide } from '@core/interaction/snapping';
 import { isCanvasRendererAllowed } from '@utils/renderEnvironment';
+import { Rectangle } from './render/render-objects/rectangle';
+import { Line } from './render/render-objects/line';
+import { Arc } from './render/render-objects/arc';
 
 type WebGLRendererContract = RendererContract<WebGLRenderPrimitive | RenderObject> & {
     diagnostics?: RendererDiagnostics | null;
@@ -36,7 +40,6 @@ export interface MIDIVisualizerCoreOptions {
 
 export class MIDIVisualizerCore {
     canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
     events: any[] = [];
     duration = 0;
     isPlaying = false;
@@ -55,8 +58,13 @@ export class MIDIVisualizerCore {
     };
     private readonly _allowCanvasFallback: boolean;
     private _rendererPreference: SceneRendererType = 'webgl';
-    private _rendererContext: RendererContextType = 'canvas2d';
-    private _webglSurface: HTMLCanvasElement | null = null;
+    private _rendererContext: RendererContextType = 'webgl';
+    private _canvas2dContext: CanvasRenderingContext2D | null = null;
+    private _webglContext: WebGLRenderingContext | WebGL2RenderingContext | null = null;
+    private _contextLossUnsubscribe?: () => void;
+    private _devicePixelRatio = 1;
+    private _viewportWidth = 0;
+    private _viewportHeight = 0;
     private _settingsUnsubscribe?: () => void;
     private _needsRender = true;
     private _lastRenderTime = -1;
@@ -80,10 +88,8 @@ export class MIDIVisualizerCore {
     private _playRangeStartSec: number | null = null;
     private _playRangeEndSec: number | null = null;
     private _diagnosticLogState = {
-        compositor: false,
-        webglSurface: false,
         webglContext: false,
-        blitSample: false,
+        viewport: false,
     };
     constructor(canvas: HTMLCanvasElement, timingManager: any = null, options?: MIDIVisualizerCoreOptions) {
         if (!canvas) throw new Error('Canvas element is required');
@@ -94,17 +100,7 @@ export class MIDIVisualizerCore {
             createCanvasRenderer: factories.createCanvasRenderer ?? (() => new ModularRenderer()),
             createWebGLRenderer: factories.createWebGLRenderer ?? (() => new WebGLRenderer()),
         };
-        const compositorInit = this._initCompositor();
-        this.ctx = compositorInit.context as CanvasRenderingContext2D;
-        this._rendererContext = compositorInit.contextType;
-        if (this._allowCanvasFallback) {
-            this.modularRenderer = this._rendererFactories.createCanvasRenderer();
-            const canvasInit = this.modularRenderer.init({ canvas: this.canvas, context: this.ctx });
-            if (canvasInit.contextType !== 'canvas2d') {
-                throw new Error('MIDIVisualizerCore requires a canvas2d renderer implementation');
-            }
-            this.renderer = this.modularRenderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
-        }
+        this._initializeViewportDimensions();
         this._setupImageLoadedListener();
         try {
             this.runtimeAdapter = new SceneRuntimeAdapter();
@@ -124,18 +120,99 @@ export class MIDIVisualizerCore {
         return isCanvasRendererAllowed();
     }
 
-    private _initCompositor(): RendererInitResult {
-        const context = this.canvas.getContext('2d');
-        if (!context) {
-            throw new Error('MIDIVisualizerCore requires a 2D canvas for compositing');
+    private _initializeViewportDimensions(): void {
+        const cssWidth = Math.max(1, Math.floor(this.canvas.clientWidth || this.canvas.width || 1));
+        const cssHeight = Math.max(1, Math.floor(this.canvas.clientHeight || this.canvas.height || 1));
+        this._viewportWidth = cssWidth;
+        this._viewportHeight = cssHeight;
+        this._devicePixelRatio = this._resolveDevicePixelRatio();
+        this._applyBackingStoreDimensions(cssWidth, cssHeight, this._devicePixelRatio);
+    }
+
+    private _resolveDevicePixelRatio(): number {
+        if (typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number') {
+            const ratio = window.devicePixelRatio;
+            if (Number.isFinite(ratio) && ratio > 0) return ratio;
         }
-        const result = { canvas: this.canvas, context, contextType: 'canvas2d' } as const;
-        this._logRendererEvent('compositor-context-acquired', {
-            contextType: result.contextType,
-            width: this.canvas.width,
-            height: this.canvas.height,
+        return 1;
+    }
+
+    private _normalizeDevicePixelRatio(value?: number): number {
+        const ratio = typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : this._resolveDevicePixelRatio();
+        return Math.max(0.5, Math.min(8, ratio));
+    }
+
+    private _applyBackingStoreDimensions(width: number, height: number, devicePixelRatio: number): void {
+        const pixelWidth = Math.max(1, Math.round(width * devicePixelRatio));
+        const pixelHeight = Math.max(1, Math.round(height * devicePixelRatio));
+        if (this.canvas.width !== pixelWidth) {
+            this.canvas.width = pixelWidth;
+        }
+        if (this.canvas.height !== pixelHeight) {
+            this.canvas.height = pixelHeight;
+        }
+    }
+
+    private _ensureWebGLContext(): WebGLRenderingContext | WebGL2RenderingContext {
+        if (this._webglContext && typeof (this._webglContext as WebGLRenderingContext).isContextLost === 'function') {
+            if (!(this._webglContext as WebGLRenderingContext).isContextLost()) {
+                return this._webglContext;
+            }
+            this._webglContext = null;
+        }
+        const attributes: WebGLContextAttributes = { antialias: true, premultipliedAlpha: true, preserveDrawingBuffer: false };
+        let context: WebGLRenderingContext | WebGL2RenderingContext | null =
+            (this.canvas.getContext('webgl2', attributes) as WebGL2RenderingContext | null) ?? null;
+        let kind: RendererContextType = 'webgl2';
+        if (!context) {
+            context =
+                (this.canvas.getContext('webgl', attributes) as WebGLRenderingContext | null) ??
+                (this.canvas.getContext('experimental-webgl', attributes) as WebGLRenderingContext | null) ??
+                null;
+            kind = 'webgl';
+        }
+        if (!context) {
+            throw new Error('Unable to acquire a WebGL rendering context for the preview canvas.');
+        }
+        this._webglContext = context;
+        this._rendererContext = kind;
+        return context;
+    }
+
+    private _bindContextLossHandlers(): void {
+        this._contextLossUnsubscribe?.();
+        this._contextLossUnsubscribe = attachContextLossHandlers(this.canvas, {
+            onLost: (event) => {
+                void event;
+                this._handleWebGLContextLost();
+            },
+            onRestored: () => {
+                this._handleWebGLContextRestored();
+            },
         });
-        return result;
+    }
+
+    private _handleWebGLContextLost(): void {
+        this._webglContext = null;
+        this._needsRender = true;
+        try {
+            this._recordRenderError(new Error('WebGL context lost'));
+        } catch {}
+    }
+
+    private _handleWebGLContextRestored(): void {
+        this._webglContext = null;
+        if (this._rendererPreference === 'webgl') {
+            try {
+                const dpr = this._resolveDevicePixelRatio();
+                this._devicePixelRatio = dpr;
+                this._applyBackingStoreDimensions(this._viewportWidth, this._viewportHeight, dpr);
+                this._resizeRendererSurfaces(this._viewportWidth, this._viewportHeight, dpr);
+                this.invalidateRender();
+            } catch (error) {
+                this._recordRenderError(error);
+            }
+        }
     }
 
     private _resolveInitialRendererPreference(initial?: SceneRendererType | null): SceneRendererType {
@@ -175,27 +252,32 @@ export class MIDIVisualizerCore {
             this._activateWebGLRenderer(options);
             return;
         }
-        this._deactivateWebGLRenderer();
+        this._activateCanvasRenderer();
     }
 
     private _activateWebGLRenderer(options?: { recordFailure?: boolean }): void {
-        const surface = this._ensureWebGLSurface();
-        this.webglRenderer?.teardown();
-        this.webglRenderer = null;
+        this._shutdownWebGLRenderer();
         let renderer: WebGLRendererContract | null = null;
         try {
+            const gl = this._ensureWebGLContext();
             renderer = this._rendererFactories.createWebGLRenderer();
-            const initResult = renderer.init({ canvas: surface });
+            const initResult = renderer.init({
+                canvas: this.canvas,
+                context: gl,
+                devicePixelRatio: this._devicePixelRatio,
+            });
             this.webglRenderer = renderer;
             this.renderer = renderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
             this._rendererPreference = 'webgl';
             this._rendererContext = initResult.contextType === 'webgl2' ? 'webgl2' : 'webgl';
+            this._webglContext = initResult.context as WebGLRenderingContext | WebGL2RenderingContext;
+            this._bindContextLossHandlers();
             this._logRendererEvent('webgl-context-acquired', {
                 contextType: this._rendererContext,
-                width: surface.width,
-                height: surface.height,
+                framebufferWidth: this.canvas.width,
+                framebufferHeight: this.canvas.height,
             });
-            this._syncWebGLSurfaceSize();
+            this._resizeRendererSurfaces(this._viewportWidth, this._viewportHeight, this._devicePixelRatio);
         } catch (error) {
             try {
                 renderer?.teardown();
@@ -206,89 +288,58 @@ export class MIDIVisualizerCore {
                 this._recordRenderError(error);
                 this._rendererPreference = previousPreference;
             }
-            if (this._allowCanvasFallback && this.modularRenderer) {
-                this._deactivateWebGLRenderer();
+            if (this._allowCanvasFallback) {
                 console.warn('[MIDIVisualizerCore] failed to initialize WebGL renderer, falling back to canvas', error);
+                this._activateCanvasRenderer();
             } else {
                 this.renderer = null;
                 this.webglRenderer = null;
-                this._releaseWebGLSurface();
                 throw error;
             }
         }
     }
 
-    private _deactivateWebGLRenderer(): void {
+    private _activateCanvasRenderer(): void {
+        if (!this._allowCanvasFallback) {
+            throw new Error('Canvas renderer fallback is disabled.');
+        }
+        this._shutdownWebGLRenderer();
+        if (!this._canvas2dContext) {
+            const ctx = this.canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Unable to acquire a 2D context for fallback rendering.');
+            }
+            this._canvas2dContext = ctx;
+        }
+        if (!this.modularRenderer) {
+            this.modularRenderer = this._rendererFactories.createCanvasRenderer();
+            const init = this.modularRenderer.init({ canvas: this.canvas, context: this._canvas2dContext });
+            if (init.contextType !== 'canvas2d') {
+                throw new Error('Canvas renderer must provide a canvas2d context.');
+            }
+        }
+        this.renderer = this.modularRenderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
+        this._rendererPreference = 'canvas2d';
+        this._rendererContext = 'canvas2d';
+        this._resizeRendererSurfaces(this._viewportWidth, this._viewportHeight, this._devicePixelRatio);
+    }
+
+    private _shutdownWebGLRenderer(): void {
+        this._contextLossUnsubscribe?.();
+        this._contextLossUnsubscribe = undefined;
         if (this.webglRenderer) {
             try {
                 this.webglRenderer.teardown();
             } catch {}
         }
         this.webglRenderer = null;
-        if (this.modularRenderer && this._allowCanvasFallback) {
-            this.renderer = this.modularRenderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
-            this._rendererPreference = 'canvas2d';
-            this._rendererContext = 'canvas2d';
-        } else {
+        if (this._rendererPreference === 'webgl') {
             this.renderer = null;
-            this._rendererPreference = 'webgl';
         }
-        this._releaseWebGLSurface();
     }
 
-    private _ensureWebGLSurface(): HTMLCanvasElement {
-        if (this._webglSurface) {
-            return this._webglSurface;
-        }
-        const surface = this.canvas.ownerDocument?.createElement?.('canvas') ?? document.createElement('canvas');
-        surface.width = this.canvas.width;
-        surface.height = this.canvas.height;
-        this._webglSurface = surface;
-        this._logRendererEvent('webgl-surface-created', {
-            width: surface.width,
-            height: surface.height,
-        });
-        return surface;
-    }
-
-    private _syncWebGLSurfaceSize(): void {
-        if (!this._webglSurface) return;
-        if (this._webglSurface.width !== this.canvas.width) {
-            this._webglSurface.width = this.canvas.width;
-        }
-        if (this._webglSurface.height !== this.canvas.height) {
-            this._webglSurface.height = this.canvas.height;
-        }
-        this.webglRenderer?.resize({ width: this.canvas.width, height: this.canvas.height });
-    }
-
-    private _releaseWebGLSurface(): void {
-        if (!this._webglSurface) return;
-        this._webglSurface = null;
-    }
-
-    private _resolveRendererCanvas(): HTMLCanvasElement {
-        if (this._rendererPreference === 'webgl' && this._webglSurface) {
-            return this._webglSurface;
-        }
-        return this.canvas;
-    }
-
-    private _blitWebGLSurface(): void {
-        if (!this._webglSurface) return;
-        const start = this._now();
-        try {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.drawImage(this._webglSurface, 0, 0, this.canvas.width, this.canvas.height);
-            const elapsed = this._now() - start;
-            this._logRendererEvent('webgl-surface-blitted', {
-                durationMs: elapsed,
-                width: this.canvas.width,
-                height: this.canvas.height,
-            });
-        } catch (error) {
-            console.warn('[MIDIVisualizerCore] failed to composite WebGL surface onto canvas', error);
-        }
+    private _deactivateWebGLRenderer(): void {
+        this._shutdownWebGLRenderer();
     }
 
     private _recordRenderDiagnostics(
@@ -332,18 +383,12 @@ export class MIDIVisualizerCore {
     }
 
     private _logRendererEvent(
-        event:
-            | 'compositor-context-acquired'
-            | 'webgl-surface-created'
-            | 'webgl-context-acquired'
-            | 'webgl-surface-blitted',
+        event: 'webgl-context-acquired' | 'webgl-viewport-updated',
         payload: Record<string, unknown>
     ): void {
         const keyMap: Record<typeof event, keyof typeof this._diagnosticLogState> = {
-            'compositor-context-acquired': 'compositor',
-            'webgl-surface-created': 'webglSurface',
             'webgl-context-acquired': 'webglContext',
-            'webgl-surface-blitted': 'blitSample',
+            'webgl-viewport-updated': 'viewport',
         };
         const stateKey = keyMap[event];
         if (this._diagnosticLogState[stateKey]) {
@@ -362,15 +407,9 @@ export class MIDIVisualizerCore {
         return Date.now();
     }
 
-    private _resizeRendererSurfaces(width: number, height: number): void {
-        this.modularRenderer?.resize({ width, height });
-        if (this._rendererPreference === 'webgl') {
-            if (this._webglSurface) {
-                this._webglSurface.width = width;
-                this._webglSurface.height = height;
-            }
-            this.webglRenderer?.resize({ width, height });
-        }
+    private _resizeRendererSurfaces(width: number, height: number, devicePixelRatio: number): void {
+        this.modularRenderer?.resize({ width, height, devicePixelRatio });
+        this.webglRenderer?.resize({ width, height, devicePixelRatio });
     }
 
     updateSceneElementTimingManager() {
@@ -596,10 +635,10 @@ export class MIDIVisualizerCore {
     renderAtTime(targetTime: number) {
         const config = this.getSceneConfig();
         const renderObjects = this._buildSceneRenderObjects(config, targetTime);
-        this._renderFrame({ renderObjects, sceneConfig: config, timeSec: targetTime });
-        try {
-            this._renderInteractionOverlays(targetTime, config);
-        } catch {}
+        const overlays = this._buildInteractionOverlayObjects(targetTime, config);
+        const frameObjects =
+            overlays.length > 0 ? ([] as Array<RenderObject | WebGLRenderPrimitive>).concat(renderObjects, overlays) : renderObjects;
+        this._renderFrame({ renderObjects: frameObjects, sceneConfig: config, timeSec: targetTime });
     }
     _setupImageLoadedListener() {
         document.removeEventListener('imageLoaded', this._handleImageLoaded);
@@ -616,10 +655,24 @@ export class MIDIVisualizerCore {
         };
         document.addEventListener('imageLoaded', this._handleImageLoaded);
     }
-    resize(width: number, height: number) {
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this._resizeRendererSurfaces(width, height);
+    resize(width: number, height: number, options?: { devicePixelRatio?: number }): void {
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+            console.warn('[MIDIVisualizerCore] resize invoked with invalid dimensions', { width, height });
+            return;
+        }
+        const devicePixelRatio = this._normalizeDevicePixelRatio(options?.devicePixelRatio);
+        this._devicePixelRatio = devicePixelRatio;
+        this._viewportWidth = width;
+        this._viewportHeight = height;
+        this._applyBackingStoreDimensions(width, height, devicePixelRatio);
+        this._resizeRendererSurfaces(width, height, devicePixelRatio);
+        this._logRendererEvent('webgl-viewport-updated', {
+            width,
+            height,
+            devicePixelRatio,
+            framebufferWidth: this.canvas.width,
+            framebufferHeight: this.canvas.height,
+        });
         this.invalidateRender();
         try {
             if (!this.isPlaying) {
@@ -637,6 +690,12 @@ export class MIDIVisualizerCore {
     getIsPlaying() {
         return this.isPlaying;
     }
+    getViewportSize(): { width: number; height: number } {
+        return { width: this._viewportWidth, height: this._viewportHeight };
+    }
+    getDevicePixelRatio(): number {
+        return this._devicePixelRatio;
+    }
     getRenderObjects(targetTime = this.currentTime) {
         const config = this.getSceneConfig();
         return this._buildSceneRenderObjects(config, targetTime);
@@ -644,7 +703,8 @@ export class MIDIVisualizerCore {
     renderWithCustomObjects(customRenderObjects: any[], targetTime = this.currentTime) {
         const config = this.getSceneConfig();
         const base = this._buildSceneRenderObjects(config, targetTime);
-        const all = [...base, ...customRenderObjects];
+        const overlays = this._buildInteractionOverlayObjects(targetTime, config);
+        const all = ([] as Array<RenderObject | WebGLRenderPrimitive>).concat(base, customRenderObjects ?? [], overlays);
         this._renderFrame({ renderObjects: all, sceneConfig: config, timeSec: targetTime });
     }
     getSceneConfig() {
@@ -665,6 +725,10 @@ export class MIDIVisualizerCore {
             isPlaying: this.isPlaying,
             backgroundColor: '#000000',
             showAnchorPoints: this.debugSettings.showAnchorPoints,
+            viewportWidth: this._viewportWidth,
+            viewportHeight: this._viewportHeight,
+            devicePixelRatio: this._devicePixelRatio,
+            rendererContext: this._rendererContext,
             ...themeColors,
         };
     }
@@ -721,47 +785,38 @@ export class MIDIVisualizerCore {
         }
         return results;
     }
-    _renderInteractionOverlays(targetTime: number, config: any) {
-        if (!this._interactionState) return;
+    private _buildInteractionOverlayObjects(targetTime: number, config: any): RenderObject[] {
+        if (!this._interactionState) return [];
         const { hoverElementId, selectedElementId, draggingElementId, activeHandle, snapGuides } =
             this._interactionState;
         const guides = Array.isArray(snapGuides) ? (snapGuides as SnapGuide[]) : [];
-        if (!hoverElementId && !selectedElementId && !draggingElementId && guides.length === 0) return;
-        const ctx = this.ctx;
-        ctx.save();
+        if (!hoverElementId && !selectedElementId && !draggingElementId && guides.length === 0) return [];
+
+        const overlays: RenderObject[] = [];
         const boundsList = this.getElementBoundsAtTime(targetTime);
-        const draw = (id: string, strokeStyle: string) => {
-            if (!id) return;
-            const rec: any = boundsList.find((r) => r.id === id);
-            if (!rec) return;
-            ctx.strokeStyle = strokeStyle;
-            if (rec.corners && rec.corners.length === 4) {
-                ctx.beginPath();
-                ctx.moveTo(rec.corners[0].x, rec.corners[0].y);
-                for (let i = 1; i < rec.corners.length; i++) ctx.lineTo(rec.corners[i].x, rec.corners[i].y);
-                ctx.closePath();
-                ctx.stroke();
-            } else {
-                const b = rec.bounds;
-                ctx.strokeRect(b.x, b.y, b.width, b.height);
-            }
-        };
+        const boundsMap = new Map<string, any>();
+        for (const record of boundsList) {
+            boundsMap.set(record.id, record);
+        }
+
+        const viewportWidth = this._viewportWidth || config?.canvas?.width || this.canvas.width;
+        const viewportHeight = this._viewportHeight || config?.canvas?.height || this.canvas.height;
+
         if (guides.length) {
-            ctx.save();
-            ctx.setLineDash([]);
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = '#4C9AFF';
-            ctx.globalAlpha = 0.9;
             for (const guide of guides) {
-                ctx.beginPath();
                 if (guide.orientation === 'vertical') {
-                    ctx.moveTo(guide.position, 0);
-                    ctx.lineTo(guide.position, this.canvas.height);
+                    const line = new Line(guide.position, 0, guide.position, viewportHeight, '#4C9AFF', 1.5, {
+                        includeInLayoutBounds: false,
+                    });
+                    line.setOpacity(0.9);
+                    overlays.push(line);
                 } else {
-                    ctx.moveTo(0, guide.position);
-                    ctx.lineTo(this.canvas.width, guide.position);
+                    const line = new Line(0, guide.position, viewportWidth, guide.position, '#4C9AFF', 1.5, {
+                        includeInLayoutBounds: false,
+                    });
+                    line.setOpacity(0.9);
+                    overlays.push(line);
                 }
-                ctx.stroke();
             }
             const snapSourceIds = new Set<string>();
             for (const guide of guides) {
@@ -769,24 +824,28 @@ export class MIDIVisualizerCore {
                     snapSourceIds.add(guide.sourceElementId);
                 }
             }
-            if (snapSourceIds.size) {
-                ctx.save();
-                ctx.setLineDash([4, 2]);
-                ctx.lineWidth = 1.5;
-                ctx.globalAlpha = 0.9;
-                for (const id of snapSourceIds) {
-                    draw(id, '#4C9AFF');
-                }
-                ctx.restore();
+            for (const id of snapSourceIds) {
+                const record = boundsMap.get(id);
+                if (!record) continue;
+                overlays.push(
+                    ...this._createSelectionOutline(record, '#4C9AFF', [4, 2], 1.5, 0.9)
+                );
             }
-            ctx.restore();
         }
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#00FFFF');
-        if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
-            draw(hoverElementId, '#FFFF00');
-        if (draggingElementId) draw(draggingElementId, '#FF00FF');
+
+        if (selectedElementId && selectedElementId !== draggingElementId) {
+            const record = boundsMap.get(selectedElementId);
+            if (record) overlays.push(...this._createSelectionOutline(record, '#00FFFF', [6, 4], 2));
+        }
+        if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId) {
+            const record = boundsMap.get(hoverElementId);
+            if (record) overlays.push(...this._createSelectionOutline(record, '#FFFF00', [6, 4], 2));
+        }
+        if (draggingElementId) {
+            const record = boundsMap.get(draggingElementId);
+            if (record) overlays.push(...this._createSelectionOutline(record, '#FF00FF', [6, 4], 2));
+        }
+
         if (selectedElementId) {
             try {
                 const handles = this.getSelectionHandlesAtTime(selectedElementId, targetTime);
@@ -794,51 +853,139 @@ export class MIDIVisualizerCore {
                     const rotHandle = handles.find((h: any) => h.type === 'rotate');
                     const anchorHandle = handles.find((h: any) => h.type === 'anchor');
                     if (rotHandle && anchorHandle) {
-                        ctx.save();
-                        ctx.setLineDash([]);
-                        ctx.strokeStyle = '#FFA500';
-                        ctx.lineWidth = 1.5;
-                        ctx.beginPath();
-                        ctx.moveTo(anchorHandle.cx, anchorHandle.cy - anchorHandle.size * 0.5);
-                        ctx.lineTo(rotHandle.cx, rotHandle.cy);
-                        ctx.stroke();
-                        ctx.restore();
+                        const connector = new Line(
+                            anchorHandle.cx,
+                            anchorHandle.cy - anchorHandle.size * 0.5,
+                            rotHandle.cx,
+                            rotHandle.cy,
+                            '#FFA500',
+                            1.5,
+                            { includeInLayoutBounds: false }
+                        );
+                        connector.setLineCap('round');
+                        overlays.push(connector);
                     }
-                    for (const h of handles) {
-                        ctx.save();
-                        ctx.setLineDash([]);
-                        let fill = '#222';
-                        let stroke = '#FFF';
-                        if (h.type.startsWith('scale')) {
-                            fill = '#00AAFF';
-                            stroke = '#FFFFFF';
-                        } else if (h.type === 'rotate') {
-                            fill = '#FFA500';
-                            stroke = '#FFFFFF';
-                        } else if (h.type === 'anchor') {
-                            fill = '#FFFF00';
-                            stroke = '#333333';
-                        }
-                        if (activeHandle === h.id) stroke = '#FF00FF';
-                        ctx.strokeStyle = stroke;
-                        ctx.fillStyle = fill;
-                        if (h.shape === 'circle') {
-                            ctx.beginPath();
-                            ctx.arc(h.cx, h.cy, h.r, 0, Math.PI * 2);
-                            ctx.fill();
-                            ctx.stroke();
+                    for (const handle of handles) {
+                        const isActive = activeHandle === handle.id;
+                        if (handle.shape === 'circle') {
+                            const arc = new Arc(handle.cx, handle.cy, handle.r ?? handle.size * 0.5, 0, Math.PI * 2, false, {
+                                fillColor: '#FFA500',
+                                strokeColor: isActive ? '#FF00FF' : '#FFFFFF',
+                                strokeWidth: 2,
+                                includeInLayoutBounds: false,
+                            });
+                            arc.setOpacity(0.95);
+                            overlays.push(arc);
                         } else {
-                            ctx.beginPath();
-                            ctx.rect(h.cx - h.size * 0.5, h.cy - h.size * 0.5, h.size, h.size);
-                            ctx.fill();
-                            ctx.stroke();
+                            let fill = '#222222';
+                            let stroke = '#FFFFFF';
+                            if (handle.type.startsWith('scale')) {
+                                fill = '#00AAFF';
+                            } else if (handle.type === 'anchor') {
+                                fill = '#FFFF00';
+                                stroke = '#333333';
+                            }
+                            if (handle.type === 'rotate') {
+                                fill = '#FFA500';
+                            }
+                            if (isActive) {
+                                stroke = '#FF00FF';
+                            }
+                            const rect = new Rectangle(
+                                handle.cx - handle.size * 0.5,
+                                handle.cy - handle.size * 0.5,
+                                handle.size,
+                                handle.size,
+                                fill,
+                                stroke,
+                                2,
+                                { includeInLayoutBounds: false }
+                            );
+                            rect.setOpacity(0.95);
+                            overlays.push(rect);
                         }
-                        ctx.restore();
                     }
                 }
             } catch {}
         }
-        ctx.restore();
+
+        return overlays;
+    }
+
+    private _createSelectionOutline(
+        record: any,
+        color: string,
+        dashPattern: number[],
+        lineWidth: number,
+        opacity = 1
+    ): RenderObject[] {
+        const overlays: RenderObject[] = [];
+        const corners =
+            record?.corners && record.corners.length === 4
+                ? record.corners
+                : [
+                      { x: record.bounds.x, y: record.bounds.y },
+                      { x: record.bounds.x + record.bounds.width, y: record.bounds.y },
+                      { x: record.bounds.x + record.bounds.width, y: record.bounds.y + record.bounds.height },
+                      { x: record.bounds.x, y: record.bounds.y + record.bounds.height },
+                  ];
+        if (!corners || corners.length !== 4) return overlays;
+        for (let i = 0; i < corners.length; i++) {
+            const start = corners[i];
+            const end = corners[(i + 1) % corners.length];
+            overlays.push(...this._createDashedLineSegments(start, end, color, lineWidth, dashPattern, opacity));
+        }
+        return overlays;
+    }
+
+    private _createDashedLineSegments(
+        start: { x: number; y: number },
+        end: { x: number; y: number },
+        color: string,
+        lineWidth: number,
+        dashPattern: number[],
+        opacity = 1
+    ): Line[] {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.hypot(dx, dy);
+        if (!Number.isFinite(length) || length <= 0.0001) return [];
+        if (!dashPattern || dashPattern.length === 0) {
+            const line = new Line(start.x, start.y, end.x, end.y, color, lineWidth, { includeInLayoutBounds: false });
+            line.setOpacity(opacity);
+            return [line];
+        }
+        const segments: Line[] = [];
+        let distance = 0;
+        let patternIndex = 0;
+        let draw = true;
+        const safePattern = dashPattern.map((value) => Math.max(0, value));
+        while (distance < length - 1e-6) {
+            const segmentLength = safePattern[patternIndex % safePattern.length] || 0;
+            if (segmentLength <= 0) {
+                // Avoid zero-length loops by nudging forward slightly.
+                distance += length * 1e-6;
+                patternIndex += 1;
+                draw = !draw;
+                continue;
+            }
+            const startRatio = distance / length;
+            const endDistance = Math.min(length, distance + segmentLength);
+            const endRatio = endDistance / length;
+            if (draw) {
+                const sx = start.x + dx * startRatio;
+                const sy = start.y + dy * startRatio;
+                const ex = start.x + dx * endRatio;
+                const ey = start.y + dy * endRatio;
+                const line = new Line(sx, sy, ex, ey, color, lineWidth, { includeInLayoutBounds: false });
+                line.setOpacity(opacity);
+                segments.push(line);
+            }
+            distance = endDistance;
+            patternIndex += 1;
+            draw = !draw;
+        }
+        return segments;
     }
     getSelectionHandlesAtTime(elementId: string, targetTime = this.currentTime) {
         if (!elementId) return [];
@@ -1029,17 +1176,21 @@ export class MIDIVisualizerCore {
     private _renderFrame(input: RendererFrameInput<RenderObject | WebGLRenderPrimitive>) {
         const renderer = this.renderer;
         if (!renderer) return;
-        const frameCanvas = this._resolveRendererCanvas();
+        const sceneConfig = {
+            ...input.sceneConfig,
+            canvas: this.canvas,
+            viewportWidth: this._viewportWidth,
+            viewportHeight: this._viewportHeight,
+            devicePixelRatio: this._devicePixelRatio,
+            rendererContext: this._rendererContext,
+        };
         const frameInput: RendererFrameInput<WebGLRenderPrimitive | RenderObject> = {
             ...input,
-            sceneConfig: { ...input.sceneConfig, canvas: frameCanvas },
+            sceneConfig,
         };
         const start = this._now();
         try {
             renderer.renderFrame(frameInput);
-            if (this._rendererPreference === 'webgl') {
-                this._blitWebGLSurface();
-            }
             const elapsed = this._now() - start;
             this._recordRenderDiagnostics(frameInput, elapsed);
         } catch (error) {

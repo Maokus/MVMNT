@@ -88,6 +88,16 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         };
     }, [handleCanvasMouseMoveWindow, handleCanvasMouseUpWindow]);
 
+    useEffect(() => {
+        if (!visualizerInstance) return;
+        if (!displaySize.w || !displaySize.h) return;
+        try {
+            visualizerInstance.resize(displaySize.w, displaySize.h);
+        } catch (error) {
+            console.warn('[PreviewPanel] Failed to resize visualizer preview', error);
+        }
+    }, [visualizerInstance, displaySize.w, displaySize.h]);
+
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
         draggingRef.current = true;
         window.addEventListener('mousemove', handleCanvasMouseMoveWindow);

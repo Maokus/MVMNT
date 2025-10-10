@@ -44,6 +44,13 @@ function createMock2dContext(canvas: HTMLCanvasElement): CanvasCtx {
     return ctx;
 }
 
+function createMockWebGLContext(): WebGLRenderingContext {
+    return {
+        canvas: {} as HTMLCanvasElement,
+        isContextLost: vi.fn(() => false),
+    } as unknown as WebGLRenderingContext;
+}
+
 class FakeCanvasRenderer implements RendererContract<RenderObject> {
     public readonly renderFrames: RendererFrameInput<RenderObject>[] = [];
     constructor(private readonly ctx: CanvasRenderingContext2D) {}
@@ -65,6 +72,8 @@ class FakeWebGLRenderer implements RendererContract<WebGLRenderPrimitive | Rende
     public resizeCalls = 0;
     public teardownCalls = 0;
     public initCanvas: HTMLCanvasElement | null = null;
+    public initContext: (WebGLRenderingContext | WebGL2RenderingContext) | null = null;
+    public lastResizePayload: RendererResizePayload | null = null;
     public diagnostics: RendererDiagnostics | null = {
         frameHash: 'facefeed',
         drawCalls: 2,
@@ -73,14 +82,16 @@ class FakeWebGLRenderer implements RendererContract<WebGLRenderPrimitive | Rende
     };
     init(options: RendererInitOptions): RendererInitResult {
         this.initCanvas = options.canvas;
+        this.initContext = (options.context ?? null) as WebGLRenderingContext | WebGL2RenderingContext | null;
         return {
             canvas: options.canvas,
             context: {} as WebGLRenderingContext,
             contextType: 'webgl',
         };
     }
-    resize(_payload: RendererResizePayload): void {
+    resize(payload: RendererResizePayload): void {
         this.resizeCalls += 1;
+        this.lastResizePayload = payload;
     }
     renderFrame(input: RendererFrameInput<WebGLRenderPrimitive | RenderObject>): void {
         this.renderCalls.push(input);
@@ -125,28 +136,54 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         const canvas = document.createElement('canvas');
         canvas.width = 320;
         canvas.height = 180;
-        const ctx2d = createMock2dContext(canvas);
-        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        const mockGl = createMockWebGLContext();
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) =>
+            type === 'webgl2' || type === 'webgl' ? (mockGl as unknown as RenderingContext) : null
+        );
         useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS, renderer: 'webgl' } });
-        const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
         const fakeWebGLRenderer = new FakeWebGLRenderer();
         const vis = new MIDIVisualizerCore(canvas, null, {
             allowCanvasFallback: false,
             rendererFactories: {
-                createCanvasRenderer: () => fakeCanvasRenderer,
                 createWebGLRenderer: () => fakeWebGLRenderer,
             },
         });
         vis.renderWithCustomObjects([], 0);
         expect(fakeWebGLRenderer.renderCalls).toHaveLength(1);
-        expect(fakeCanvasRenderer.renderFrames).toHaveLength(0);
-        expect(fakeWebGLRenderer.initCanvas).not.toBe(canvas);
-        expect(fakeWebGLRenderer.renderCalls[0].sceneConfig.canvas).toBe(fakeWebGLRenderer.initCanvas);
-        expect(ctx2d.drawImage).toHaveBeenCalled();
+        expect(fakeWebGLRenderer.initCanvas).toBe(canvas);
+        expect(fakeWebGLRenderer.initContext).toBe(mockGl);
+        expect(fakeWebGLRenderer.renderCalls[0].sceneConfig.canvas).toBe(canvas);
         const diagnostics = useRenderDiagnosticsStore.getState().lastFrame;
         expect(diagnostics?.renderer).toBe('webgl');
         expect(diagnostics?.frameHash).toBe('facefeed');
         expect(diagnostics?.drawCalls).toBe(2);
+        vis.cleanup();
+    });
+
+    it('updates backing store and viewport when resized with a device pixel ratio', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 100;
+        canvas.height = 50;
+        const mockGl = createMockWebGLContext();
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) =>
+            type === 'webgl2' || type === 'webgl' ? (mockGl as unknown as RenderingContext) : null
+        );
+        const fakeWebGLRenderer = new FakeWebGLRenderer();
+        const vis = new MIDIVisualizerCore(canvas, null, {
+            allowCanvasFallback: false,
+            rendererFactories: {
+                createWebGLRenderer: () => fakeWebGLRenderer,
+            },
+        });
+
+        vis.resize(200, 100, { devicePixelRatio: 2 });
+
+        expect(canvas.width).toBe(400);
+        expect(canvas.height).toBe(200);
+        expect(fakeWebGLRenderer.lastResizePayload).toEqual(
+            expect.objectContaining({ width: 200, height: 100, devicePixelRatio: 2 })
+        );
+
         vis.cleanup();
     });
 
@@ -155,7 +192,12 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         canvas.width = 256;
         canvas.height = 144;
         const ctx2d = createMock2dContext(canvas);
-        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        const mockGl = createMockWebGLContext();
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+            if (type === '2d') return ctx2d as unknown as RenderingContext;
+            if (type === 'webgl2' || type === 'webgl') return mockGl as unknown as RenderingContext;
+            return null;
+        });
         useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS, renderer: 'webgl' } });
         setCanvasRendererOverride('enable');
         const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
@@ -181,7 +223,12 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         canvas.width = 320;
         canvas.height = 180;
         const ctx2d = createMock2dContext(canvas);
-        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        const mockGl = createMockWebGLContext();
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => {
+            if (type === '2d') return ctx2d as unknown as RenderingContext;
+            if (type === 'webgl2' || type === 'webgl') return mockGl as unknown as RenderingContext;
+            return null;
+        });
         setCanvasRendererOverride('enable');
         useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS, renderer: 'webgl' } });
         const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
@@ -211,8 +258,10 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 144;
-        const ctx2d = createMock2dContext(canvas);
-        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        const mockGl = createMockWebGLContext();
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) =>
+            type === 'webgl2' || type === 'webgl' ? (mockGl as unknown as RenderingContext) : null
+        );
         setCanvasRendererOverride('disable');
         expect(() => {
             new MIDIVisualizerCore(canvas, null, {

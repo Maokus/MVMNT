@@ -108,6 +108,17 @@ export class VideoExporter {
 
         const originalWidth = this.canvas.width;
         const originalHeight = this.canvas.height;
+        const originalViewport =
+            typeof this.visualizer.getViewportSize === 'function'
+                ? this.visualizer.getViewportSize()
+                : {
+                      width: this.canvas.clientWidth || this.canvas.width,
+                      height: this.canvas.clientHeight || this.canvas.height,
+                  };
+        const originalDevicePixelRatio =
+            typeof this.visualizer.getDevicePixelRatio === 'function'
+                ? this.visualizer.getDevicePixelRatio()
+                : 1;
 
         try {
             // Resolve current playback range (seconds) up-front (needed both for frame logic & optional audio delegation)
@@ -192,8 +203,7 @@ export class VideoExporter {
                 }
             }
             // Resize for export resolution
-            this.canvas.width = width;
-            this.canvas.height = height;
+            this.visualizer.resize(width, height, { devicePixelRatio: 1 });
             // Derive total frames from current visualizer duration (external playback range aware)
             const durationSec = this.visualizer.getCurrentDuration?.() || 0;
             const totalFrames = Math.ceil(durationSec * fps);
@@ -305,7 +315,9 @@ export class VideoExporter {
             // restore canvas
             this.canvas.width = originalWidth;
             this.canvas.height = originalHeight;
-            this.visualizer.resize(originalWidth, originalHeight);
+            this.visualizer.resize(originalViewport.width, originalViewport.height, {
+                devicePixelRatio: originalDevicePixelRatio,
+            });
             this.isExporting = false;
         }
     }

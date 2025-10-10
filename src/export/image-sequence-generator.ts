@@ -69,18 +69,27 @@ export class ImageSequenceGenerator {
             throw new Error('Image sequence generation already in progress');
         }
 
-        // Store original canvas dimensions at the start
-        const originalWidth = this.canvas.width;
-        const originalHeight = this.canvas.height;
+        // Store original canvas viewport/dpr so we can restore after export
+        const originalViewport =
+            typeof this.visualizer.getViewportSize === 'function'
+                ? this.visualizer.getViewportSize()
+                : {
+                      width: this.canvas.clientWidth || this.canvas.width,
+                      height: this.canvas.clientHeight || this.canvas.height,
+                  };
+        const originalDevicePixelRatio =
+            typeof this.visualizer.getDevicePixelRatio === 'function'
+                ? this.visualizer.getDevicePixelRatio()
+                : 1;
+        const originalCanvasWidth = this.canvas.width;
+        const originalCanvasHeight = this.canvas.height;
 
         this.isGenerating = true;
         this.imageBlobs = [];
 
         try {
             // Resize canvas to target resolution
-            this.canvas.width = width;
-            this.canvas.height = height;
-            this.visualizer.resize(width, height);
+            this.visualizer.resize(width, height, { devicePixelRatio: 1 });
 
             const duration = this.visualizer.getCurrentDuration
                 ? this.visualizer.getCurrentDuration()
@@ -118,9 +127,11 @@ export class ImageSequenceGenerator {
             this.downloadImageSequence(zipBlob, ensured.replace(/[^a-z0-9_.\-]/gi, '_'));
 
             // Restore original canvas size
-            this.canvas.width = originalWidth;
-            this.canvas.height = originalHeight;
-            this.visualizer.resize(originalWidth, originalHeight);
+            this.visualizer.resize(originalViewport.width, originalViewport.height, {
+                devicePixelRatio: originalDevicePixelRatio,
+            });
+            this.canvas.width = originalCanvasWidth;
+            this.canvas.height = originalCanvasHeight;
 
             onComplete(zipBlob);
             this.isGenerating = false;
@@ -129,9 +140,11 @@ export class ImageSequenceGenerator {
             this.isGenerating = false;
             this.imageBlobs = []; // Clear memory
             // Restore original canvas size on error
-            this.canvas.width = originalWidth;
-            this.canvas.height = originalHeight;
-            this.visualizer.resize(originalWidth, originalHeight);
+            this.visualizer.resize(originalViewport.width, originalViewport.height, {
+                devicePixelRatio: originalDevicePixelRatio,
+            });
+            this.canvas.width = originalCanvasWidth;
+            this.canvas.height = originalCanvasHeight;
             throw error;
         }
     }

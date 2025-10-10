@@ -126,11 +126,20 @@ export class AVExporter {
 
         const originalWidth = this.canvas.width;
         const originalHeight = this.canvas.height;
+        const originalViewport =
+            typeof this.visualizer.getViewportSize === 'function'
+                ? this.visualizer.getViewportSize()
+                : {
+                      width: this.canvas.clientWidth || this.canvas.width,
+                      height: this.canvas.clientHeight || this.canvas.height,
+                  };
+        const originalDevicePixelRatio =
+            typeof this.visualizer.getDevicePixelRatio === 'function'
+                ? this.visualizer.getDevicePixelRatio()
+                : 1;
 
         try {
-            this.canvas.width = width;
-            this.canvas.height = height;
-            this.visualizer.resize(width, height);
+            this.visualizer.resize(width, height, { devicePixelRatio: 1 });
             onProgress(0, 'Preparing export...');
 
             const tm = getSharedTimingManager();
@@ -373,7 +382,9 @@ export class AVExporter {
         } finally {
             this.canvas.width = originalWidth;
             this.canvas.height = originalHeight;
-            this.visualizer.resize(originalWidth, originalHeight);
+            this.visualizer.resize(originalViewport.width, originalViewport.height, {
+                devicePixelRatio: originalDevicePixelRatio,
+            });
             this.isExporting = false;
         }
     }
