@@ -79,6 +79,15 @@ class FakeWebGLRenderer implements RendererContract<WebGLRenderPrimitive | Rende
         drawCalls: 2,
         bytesHashed: 128,
         contextType: 'webgl',
+        atlas: {
+            totalGlyphs: 0,
+            queueLength: 0,
+            pendingArea: 0,
+            uploadsThisFrame: 0,
+            uploadedArea: 0,
+            textureBytes: 0,
+            pages: [],
+        },
     };
     init(options: RendererInitOptions): RendererInitResult {
         this.initCanvas = options.canvas;
@@ -157,6 +166,7 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         expect(diagnostics?.renderer).toBe('webgl');
         expect(diagnostics?.frameHash).toBe('facefeed');
         expect(diagnostics?.drawCalls).toBe(2);
+        expect(diagnostics?.atlas?.uploadsThisFrame).toBe(0);
         vis.cleanup();
     });
 

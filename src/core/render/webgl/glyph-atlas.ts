@@ -5,14 +5,21 @@ export interface GlyphAtlasPage {
     id: string;
     width: number;
     height: number;
-    dirty: boolean;
-    version: number;
     canvas: HTMLCanvasElement | OffscreenCanvas | null;
     context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-    data: Uint8ClampedArray | null;
+    data: Uint8Array | null;
     cursorX: number;
     cursorY: number;
     rowHeight: number;
+    glyphCount: number;
+    areaUsed: number;
+    pendingRect: GlyphUploadRect | null;
+    lastUploadArea: number;
+    lastUploadAt: number | null;
+    lastUploadWallClock: number | null;
+    version: number;
+    evictionCount: number;
+    glyphKeys: Set<string>;
 }
 
 interface GlyphInfo {
@@ -62,10 +69,45 @@ interface LayoutOptions {
 const DEFAULT_PAGE_SIZE = 1024;
 const GLYPH_PADDING = 2;
 
+export interface GlyphUploadRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+export interface GlyphAtlasUpload {
+    pageId: string;
+    pageWidth: number;
+    pageHeight: number;
+    rect: GlyphUploadRect;
+    data: Uint8Array;
+}
+
+export interface GlyphAtlasDiagnosticsSummary {
+    totalGlyphs: number;
+    totalPages: number;
+    pendingUploads: number;
+    pendingArea: number;
+    pages: Array<{
+        id: string;
+        width: number;
+        height: number;
+        glyphCount: number;
+        occupancy: number;
+        evictions: number;
+        pendingArea: number;
+        version: number;
+        lastUploadArea: number;
+        lastUploadAt: number | null;
+        lastUploadWallClock: number | null;
+    }>;
+}
+
 function createCanvas(width: number, height: number): {
     canvas: HTMLCanvasElement | OffscreenCanvas | null;
     context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-    data: Uint8ClampedArray | null;
+    data: Uint8Array | null;
 } {
     try {
         const has2DContext = typeof CanvasRenderingContext2D !== 'undefined';
@@ -97,7 +139,7 @@ function createCanvas(width: number, height: number): {
     } catch {
         // fallthrough
     }
-    return { canvas: null, context: null, data: new Uint8ClampedArray(width * height) };
+    return { canvas: null, context: null, data: new Uint8Array(width * height) };
 }
 
 function glyphKey(font: string, character: string): string {
@@ -107,6 +149,8 @@ function glyphKey(font: string, character: string): string {
 export class GlyphAtlas {
     private readonly glyphs = new Map<string, GlyphInfo>();
     private readonly pages: GlyphAtlasPage[] = [];
+    private readonly pageMap = new Map<string, GlyphAtlasPage>();
+    private readonly pendingPages = new Set<string>();
     private readonly pageSize: number;
 
     constructor(pageSize = DEFAULT_PAGE_SIZE) {
@@ -159,43 +203,114 @@ export class GlyphAtlas {
             penX += glyph.advance;
         }
 
-        this.flushPage(context, page);
+        this.queuePendingPage(page);
 
         // Alignment adjustments in clip space handled by transform; return geometry ready for upload.
         const vertexCount = quads.length * 3;
         return { quads, color: parsedColor, page, vertexCount, width: totalWidth, ascent, descent };
     }
 
-    getDirtyPages(): GlyphAtlasPage[] {
-        return this.pages.filter((page) => page.dirty);
+    prepareUploads(limit: number): GlyphAtlasUpload[] {
+        const uploads: GlyphAtlasUpload[] = [];
+        for (const pageId of this.pendingPages) {
+            if (uploads.length >= limit) break;
+            const page = this.pageMap.get(pageId);
+            if (!page || !page.pendingRect) {
+                this.pendingPages.delete(pageId);
+                continue;
+            }
+            const rect = page.pendingRect;
+            const data = this.extractRegion(page, rect);
+            uploads.push({
+                pageId: page.id,
+                pageWidth: page.width,
+                pageHeight: page.height,
+                rect,
+                data,
+            });
+            this.pendingPages.delete(pageId);
+        }
+        return uploads;
     }
 
-    markClean(page: GlyphAtlasPage): void {
-        page.dirty = false;
+    completeUpload(pageId: string, rect: GlyphUploadRect): void {
+        const page = this.pageMap.get(pageId);
+        if (!page) return;
+        if (page.pendingRect && this.rectEquals(page.pendingRect, rect)) {
+            page.pendingRect = null;
+        }
         page.version += 1;
+        const area = rect.width * rect.height;
+        page.lastUploadArea = area;
+        if (typeof performance !== 'undefined') {
+            page.lastUploadAt = performance.now();
+        } else {
+            page.lastUploadAt = null;
+        }
+        page.lastUploadWallClock = Date.now();
+    }
+
+    getDiagnostics(): GlyphAtlasDiagnosticsSummary {
+        let totalGlyphs = 0;
+        let pendingArea = 0;
+        const pages = this.pages.map((page) => {
+            totalGlyphs += page.glyphCount;
+            const area = page.pendingRect ? page.pendingRect.width * page.pendingRect.height : 0;
+            pendingArea += area;
+            const occupancy = page.width * page.height === 0 ? 0 : page.areaUsed / (page.width * page.height);
+            return {
+                id: page.id,
+                width: page.width,
+                height: page.height,
+                glyphCount: page.glyphCount,
+                occupancy: Math.max(0, Math.min(1, occupancy)),
+                evictions: page.evictionCount,
+                pendingArea: area,
+                version: page.version,
+                lastUploadArea: page.lastUploadArea,
+                lastUploadAt: page.lastUploadAt,
+                lastUploadWallClock: page.lastUploadWallClock,
+            };
+        });
+        return {
+            totalGlyphs,
+            totalPages: this.pages.length,
+            pendingUploads: this.pendingPages.size,
+            pendingArea,
+            pages,
+        };
     }
 
     dispose(): void {
         this.glyphs.clear();
         this.pages.length = 0;
+        this.pageMap.clear();
+        this.pendingPages.clear();
     }
 
     private ensurePage(options: EnsurePageOptions): GlyphAtlasPage {
-        let page = this.pages.find((entry) => entry.id === options.pageKey);
+        let page = this.pageMap.get(options.pageKey);
         if (page) return page;
         const { canvas, context, data } = createCanvas(this.pageSize, this.pageSize);
         page = {
             id: options.pageKey,
             width: this.pageSize,
             height: this.pageSize,
-            dirty: true,
-            version: 0,
             canvas,
             context,
             data,
             cursorX: GLYPH_PADDING,
             cursorY: GLYPH_PADDING,
             rowHeight: 0,
+            glyphCount: 0,
+            areaUsed: 0,
+            pendingRect: null,
+            lastUploadArea: 0,
+            lastUploadAt: null,
+            lastUploadWallClock: null,
+            version: 0,
+            evictionCount: 0,
+            glyphKeys: new Set<string>(),
         };
         if (context) {
             context.font = options.pageKey;
@@ -203,6 +318,8 @@ export class GlyphAtlas {
             context.fillStyle = 'white';
         }
         this.pages.push(page);
+        this.pageMap.set(page.id, page);
+        this.pendingPages.add(page.id);
         return page;
     }
 
@@ -223,9 +340,7 @@ export class GlyphAtlas {
             page.rowHeight = 0;
         }
         if (page.cursorY + height + GLYPH_PADDING > page.height) {
-            page.cursorX = GLYPH_PADDING;
-            page.cursorY = GLYPH_PADDING;
-            page.rowHeight = 0;
+            this.resetPage(page);
         }
 
         const drawX = page.cursorX;
@@ -245,6 +360,13 @@ export class GlyphAtlas {
         } else if (page.data) {
             this.blitBitmap(page, drawX, drawY, width, height, bitmap);
         }
+        this.markPageUsage(page, width, height, key);
+        this.markRegionDirty(page, {
+            x: drawX,
+            y: drawY,
+            width,
+            height,
+        });
 
         const info: GlyphInfo = {
             pageId: page.id,
@@ -261,7 +383,6 @@ export class GlyphAtlas {
             descent,
         };
         this.glyphs.set(key, info);
-        page.dirty = true;
         return info;
     }
 
@@ -338,15 +459,80 @@ export class GlyphAtlas {
         }
     }
 
-    private flushPage(
-        context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null,
-        page: GlyphAtlasPage
-    ): void {
-        if (!context && page.data) {
-            // Nothing to do; data kept in memory.
-            return;
+    private markRegionDirty(page: GlyphAtlasPage, rect: GlyphUploadRect): void {
+        const existing = page.pendingRect;
+        if (!existing) {
+            page.pendingRect = { ...rect };
+        } else {
+            const minX = Math.min(existing.x, rect.x);
+            const minY = Math.min(existing.y, rect.y);
+            const maxX = Math.max(existing.x + existing.width, rect.x + rect.width);
+            const maxY = Math.max(existing.y + existing.height, rect.y + rect.height);
+            page.pendingRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
         }
-        page.dirty = true;
+        this.pendingPages.add(page.id);
+    }
+
+    private queuePendingPage(page: GlyphAtlasPage): void {
+        if (page.pendingRect) {
+            this.pendingPages.add(page.id);
+        }
+    }
+
+    private extractRegion(page: GlyphAtlasPage, rect: GlyphUploadRect): Uint8Array {
+        if (page.context) {
+            const { x, y, width, height } = rect;
+            const imageData = page.context.getImageData(x, y, width, height);
+            const data = new Uint8Array(width * height);
+            const source = imageData.data;
+            for (let i = 0; i < width * height; i += 1) {
+                data[i] = source[i * 4 + 3];
+            }
+            return data;
+        }
+        if (page.data) {
+            const data = new Uint8Array(rect.width * rect.height);
+            for (let row = 0; row < rect.height; row += 1) {
+                const srcOffset = (rect.y + row) * page.width + rect.x;
+                const destOffset = row * rect.width;
+                data.set(page.data.subarray(srcOffset, srcOffset + rect.width), destOffset);
+            }
+            return data;
+        }
+        return new Uint8Array(rect.width * rect.height);
+    }
+
+    private markPageUsage(page: GlyphAtlasPage, width: number, height: number, glyphKeyValue: string): void {
+        page.glyphCount += 1;
+        page.areaUsed += width * height;
+        page.glyphKeys.add(glyphKeyValue);
+    }
+
+    private resetPage(page: GlyphAtlasPage): void {
+        page.evictionCount += 1;
+        page.cursorX = GLYPH_PADDING;
+        page.cursorY = GLYPH_PADDING;
+        page.rowHeight = 0;
+        page.glyphCount = 0;
+        page.areaUsed = 0;
+        page.glyphKeys.forEach((key) => this.glyphs.delete(key));
+        page.glyphKeys.clear();
+        if (page.context) {
+            page.context.clearRect(0, 0, page.width, page.height);
+        }
+        if (page.data) {
+            page.data.fill(0);
+        }
+        page.pendingRect = { x: 0, y: 0, width: page.width, height: page.height };
+        page.lastUploadArea = 0;
+        page.lastUploadAt = null;
+        page.lastUploadWallClock = null;
+        this.pendingPages.add(page.id);
+    }
+
+    private rectEquals(a: GlyphUploadRect | null, b: GlyphUploadRect): boolean {
+        if (!a) return false;
+        return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
     }
 
     private estimateAdvance(font: string, character: string): number {

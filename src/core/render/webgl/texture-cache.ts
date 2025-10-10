@@ -13,6 +13,16 @@ export interface TextureHandle {
     dirty: boolean;
 }
 
+export interface AtlasRegionUpload {
+    pageWidth: number;
+    pageHeight: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    data: Uint8Array;
+}
+
 export class TextureCache {
     private readonly imageTextures = new WeakMap<CanvasImageSource, TextureHandle>();
     private readonly imageHandles = new Set<TextureHandle>();
@@ -54,26 +64,36 @@ export class TextureCache {
         handle.dirty = false;
     }
 
-    uploadAtlasData(
-        handle: TextureHandle,
-        width: number,
-        height: number,
-        data: Uint8ClampedArray | Uint8Array | CanvasImageSource
-    ): void {
+    ensureAtlasCapacity(handle: TextureHandle, width: number, height: number): void {
         const { gl } = this;
         gl.bindTexture(gl.TEXTURE_2D, handle.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        if (data instanceof Uint8Array || data instanceof Uint8ClampedArray) {
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, width, height, 0, gl.ALPHA, gl.UNSIGNED_BYTE, data);
-        } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data as any);
+        if (handle.dirty || handle.width !== width || handle.height !== height) {
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, width, height, 0, gl.ALPHA, gl.UNSIGNED_BYTE, null);
+            this.updateHandleSize(handle, width, height);
+            handle.dirty = false;
         }
-        this.updateHandleSize(handle, width, height);
-        handle.dirty = false;
+    }
+
+    uploadAtlasRegion(handle: TextureHandle, payload: AtlasRegionUpload): void {
+        const { gl } = this;
+        this.ensureAtlasCapacity(handle, payload.pageWidth, payload.pageHeight);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            payload.x,
+            payload.y,
+            payload.width,
+            payload.height,
+            gl.ALPHA,
+            gl.UNSIGNED_BYTE,
+            payload.data
+        );
     }
 
     markDirty(handle: TextureHandle): void {
@@ -97,6 +117,16 @@ export class TextureCache {
             textureCount: this.imageHandles.size + this.atlasTextures.size,
             textureBytes: this.bytesAllocated,
         };
+    }
+
+    get atlasDiagnostics(): { totalBytes: number; entries: Array<{ id: string; width: number; height: number; bytes: number }> } {
+        const entries: Array<{ id: string; width: number; height: number; bytes: number }> = [];
+        let totalBytes = 0;
+        for (const [id, handle] of this.atlasTextures.entries()) {
+            entries.push({ id, width: handle.width, height: handle.height, bytes: handle.bytes });
+            totalBytes += handle.bytes;
+        }
+        return { totalBytes, entries };
     }
 
     private createTexture(): TextureHandle {

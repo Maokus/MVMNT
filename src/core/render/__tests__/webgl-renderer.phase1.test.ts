@@ -82,6 +82,7 @@ function createMockGL(): MockGL {
         disable: vi.fn(),
         enable: vi.fn(),
         blendFunc: vi.fn(),
+        pixelStorei: vi.fn(),
         readPixels: vi.fn((x: number, y: number, width: number, height: number, format: number, type: number, pixels: ArrayBufferView) => {
             if (pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray) {
                 for (let i = 0; i < width * height * 4; i += 1) {
@@ -92,6 +93,7 @@ function createMockGL(): MockGL {
         }),
         getError: vi.fn(() => 0),
         getParameter: vi.fn(() => 0),
+        texSubImage2D: vi.fn(),
     } as unknown as WebGLRenderingContext;
 
     return {

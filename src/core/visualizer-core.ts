@@ -8,6 +8,7 @@ import type {
     RenderObject,
 } from './render/renderer-contract';
 import { WebGLRenderer } from './render/webgl/webgl-renderer';
+import { guardCanvasAgainst2D, type CanvasGuardHandle } from './render/webgl/canvas-context-guard';
 import { attachContextLossHandlers } from './render/webgl/context';
 import type { WebGLRenderPrimitive, RendererDiagnostics } from './render/webgl/types';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
@@ -91,9 +92,15 @@ export class MIDIVisualizerCore {
         webglContext: false,
         viewport: false,
     };
+    private _canvasGuard: CanvasGuardHandle | null = null;
     constructor(canvas: HTMLCanvasElement, timingManager: any = null, options?: MIDIVisualizerCoreOptions) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
+        try {
+            this._canvasGuard = guardCanvasAgainst2D(canvas, { label: 'preview-surface' });
+        } catch (error) {
+            console.warn('[MIDIVisualizerCore] failed to install canvas guard', error);
+        }
         this._allowCanvasFallback = this._resolveCanvasFallbackAllowance(options);
         const factories = options?.rendererFactories ?? {};
         this._rendererFactories = {
@@ -305,7 +312,10 @@ export class MIDIVisualizerCore {
         }
         this._shutdownWebGLRenderer();
         if (!this._canvas2dContext) {
-            const ctx = this.canvas.getContext('2d');
+            const acquireContext = () => this.canvas.getContext('2d');
+            const ctx = this._canvasGuard
+                ? this._canvasGuard.temporarilyAllow2D('canvas-fallback', acquireContext)
+                : acquireContext();
             if (!ctx) {
                 throw new Error('Unable to acquire a 2D context for fallback rendering.');
             }
@@ -359,6 +369,7 @@ export class MIDIVisualizerCore {
                 timestamp: Date.now(),
                 target: input.target,
                 resources: rendererDiagnostics?.resources,
+                atlas: rendererDiagnostics?.atlas,
             });
         } catch {}
     }
@@ -1172,6 +1183,8 @@ export class MIDIVisualizerCore {
         } catch {}
         this._deactivateWebGLRenderer();
         this.modularRenderer?.teardown();
+        this._canvasGuard?.release();
+        this._canvasGuard = null;
     }
     private _renderFrame(input: RendererFrameInput<RenderObject | WebGLRenderPrimitive>) {
         const renderer = this.renderer;

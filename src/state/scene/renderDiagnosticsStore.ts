@@ -16,6 +16,7 @@ export interface RenderFrameDiagnosticsSnapshot {
     timestamp: number;
     target?: RendererFrameTarget;
     resources?: RendererDiagnostics['resources'];
+    atlas?: RendererDiagnostics['atlas'];
 }
 
 export interface RenderDeterminismIssue {

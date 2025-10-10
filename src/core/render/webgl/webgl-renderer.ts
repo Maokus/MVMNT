@@ -192,8 +192,10 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
                     unsupported: adapterResult.diagnostics.unsupportedCount,
                 },
             };
-        } else if (diagnostics.resources) {
+            diagnostics.atlas = adapterResult.diagnostics.atlas;
+        } else {
             diagnostics.resources = undefined;
+            diagnostics.atlas = undefined;
         }
         this.state.diagnostics = diagnostics;
     }

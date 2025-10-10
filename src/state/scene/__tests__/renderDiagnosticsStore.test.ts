@@ -21,6 +21,7 @@ describe('useRenderDiagnosticsStore', () => {
         expect(snapshot?.renderer).toBe('canvas2d');
         expect(snapshot?.frameTimeMs).toBeCloseTo(4.2);
         expect(snapshot?.drawCalls).toBeNull();
+        expect(snapshot?.atlas).toBeUndefined();
         expect(useRenderDiagnosticsStore.getState().determinismIssues).toHaveLength(0);
     });
 

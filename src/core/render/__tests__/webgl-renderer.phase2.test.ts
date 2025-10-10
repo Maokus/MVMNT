@@ -107,6 +107,8 @@ function createExtendedMockGL(): MockGLContext {
         bindTexture: vi.fn(),
         texParameteri: vi.fn(),
         texImage2D: vi.fn(),
+        texSubImage2D: vi.fn(),
+        pixelStorei: vi.fn(),
         activeTexture: vi.fn(),
     } as unknown as WebGLRenderingContext;
     return {
@@ -179,6 +181,12 @@ describe('WebGLRenderer phase 2 integration', () => {
         expect(diagnostics?.resources?.primitives.texts).toBeGreaterThanOrEqual(1);
         expect(diagnostics?.resources?.primitives.images).toBeGreaterThanOrEqual(1);
         expect(diagnostics?.resources?.geometryBytes).toBeGreaterThan(0);
+        expect(diagnostics?.atlas?.uploadsThisFrame).toBeLessThanOrEqual(1);
+        const subImageCalls = (mock.context.texSubImage2D as Mock).mock.calls;
+        expect(subImageCalls.length).toBeLessThanOrEqual(1);
+        if (subImageCalls.length > 0) {
+            expect(subImageCalls[0]?.[8]).toBeInstanceOf(Uint8Array);
+        }
     });
 
     it('continues to render existing WebGL primitives without re-adapting', () => {

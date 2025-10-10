@@ -1,8 +1,9 @@
 import React from 'react';
 import { getTransportCoordinator } from '@audio/transport-coordinator';
-import { registerSceneCommandListener } from '@state/scene';
+import { registerSceneCommandListener, useRenderDiagnosticsStore } from '@state/scene';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
 import type { DebugSettings } from '@context/visualizer/types';
+import type { AtlasPageDiagnostics } from '@core/render/webgl/types';
 
 interface RecentCommand {
     id: number;
@@ -70,6 +71,41 @@ const formatAge = (ms: number | undefined) => {
     if (minutes < 60) return `${minutes.toFixed(1)}m ago`;
     const hours = minutes / 60;
     return `${hours.toFixed(1)}h ago`;
+};
+
+const formatPercentage = (value: number | undefined) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+    return `${(value * 100).toFixed(1)}%`;
+};
+
+const formatBytes = (bytes: number | undefined) => {
+    if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let index = 0;
+    while (value >= 1024 && index < units.length - 1) {
+        value /= 1024;
+        index += 1;
+    }
+    const decimals = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+    return `${value.toFixed(decimals)} ${units[index]}`;
+};
+
+const formatPixels = (value: number | undefined) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '0 px²';
+    return `${Math.round(value).toLocaleString()} px²`;
+};
+
+const describeAtlasAge = (page: AtlasPageDiagnostics): string => {
+    if (page.lastUploadWallClock) {
+        const ageMs = Date.now() - page.lastUploadWallClock;
+        return formatAge(ageMs);
+    }
+    if (typeof performance !== 'undefined' && page.lastUploadAt != null) {
+        const ageMs = performance.now() - page.lastUploadAt;
+        return formatAge(ageMs);
+    }
+    return '—';
 };
 
 type SectionProps = {
@@ -193,9 +229,11 @@ export const TransportStatusDev: React.FC = () => {
         transport: true,
         scene: false,
         timeline: false,
+        renderer: false,
         undo: false,
     });
     const [undoSummary, setUndoSummary] = React.useState<UndoSummary | null>(() => collectUndoSummary());
+    const renderDiagnostics = useRenderDiagnosticsStore((state) => state.lastFrame);
 
     const toggleSection = (key: keyof typeof sectionsOpen) => {
         setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -394,6 +432,84 @@ export const TransportStatusDev: React.FC = () => {
                     </div>
                 ) : null}
                 {renderRecentList(timelineMetrics.recent, 'No timeline commands yet.')}
+            </Section>
+
+            <Section
+                title="Renderer Telemetry"
+                open={sectionsOpen.renderer}
+                onToggle={() => toggleSection('renderer')}
+                subtitle={`${renderDiagnostics?.contextType ?? 'unknown'}`}
+            >
+                <div>
+                    Backend:{' '}
+                    <span>{renderDiagnostics?.renderer ?? 'unknown'}</span>
+                </div>
+                <div>
+                    Draw calls:{' '}
+                    <span>{renderDiagnostics?.drawCalls ?? '—'}</span>
+                </div>
+                <div>
+                    Frame time:{' '}
+                    <span>{formatMs(renderDiagnostics?.frameTimeMs)}</span>
+                </div>
+                <div>
+                    Frame hash:{' '}
+                    <span>{renderDiagnostics?.frameHash ?? '—'}</span>
+                </div>
+                {renderDiagnostics?.atlas ? (
+                    <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+                        <div>
+                            Atlas uploads/frame:{' '}
+                            <span>{renderDiagnostics.atlas.uploadsThisFrame}</span>
+                            <span style={{ marginLeft: 8, opacity: 0.7 }}>
+                                queued {renderDiagnostics.atlas.queueLength} · pending {formatPixels(renderDiagnostics.atlas.pendingArea)}
+                            </span>
+                        </div>
+                        <div>
+                            GPU memory: <span>{formatBytes(renderDiagnostics.atlas.textureBytes)}</span>
+                        </div>
+                        <div>
+                            Uploaded area (frame): <span>{formatPixels(renderDiagnostics.atlas.uploadedArea)}</span>
+                        </div>
+                        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Pages</div>
+                        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+                            {renderDiagnostics.atlas.pages.slice(0, 4).map((page) => (
+                                <li
+                                    key={page.id}
+                                    style={{
+                                        border: '1px solid rgba(148, 163, 184, 0.25)',
+                                        borderRadius: 4,
+                                        padding: '6px 8px',
+                                        background: 'rgba(30, 41, 59, 0.35)',
+                                        display: 'grid',
+                                        gap: 4,
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                                        <span>{page.id}</span>
+                                        <span>{page.width}×{page.height}</span>
+                                    </div>
+                                    <div style={{ fontSize: 11 }}>
+                                        glyphs {page.glyphCount} · occ {formatPercentage(page.occupancy)} · evict {page.evictions}
+                                    </div>
+                                    <div style={{ fontSize: 11 }}>
+                                        pending {formatPixels(page.pendingArea)} · bytes {formatBytes(page.textureBytes)}
+                                    </div>
+                                    <div style={{ fontSize: 10, opacity: 0.7 }}>
+                                        last upload {formatPixels(page.lastUploadArea)} · {describeAtlasAge(page)}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                        {renderDiagnostics.atlas.pages.length > 4 ? (
+                            <div style={{ fontSize: 10, opacity: 0.65 }}>
+                                Showing first 4 of {renderDiagnostics.atlas.pages.length} pages.
+                            </div>
+                        ) : null}
+                    </div>
+                ) : (
+                    <div style={{ opacity: 0.65, fontSize: 11, marginTop: 6 }}>Atlas inactive.</div>
+                )}
             </Section>
 
             <Section

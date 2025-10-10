@@ -7,7 +7,7 @@ import { ParticleSystem } from '../render-objects/particle-system';
 import { matrixFromTransform, multiplyMatrices, Matrix3, IDENTITY_MATRIX, applyMatrix } from './math';
 import { parseCssColor, multiplyColorAlpha } from './color';
 import type { WebGLContext } from './buffers';
-import type { WebGLGeometrySource, WebGLRenderPrimitive } from './types';
+import type { WebGLGeometrySource, WebGLRenderPrimitive, AtlasDiagnostics } from './types';
 import { TextureCache, type TextureResourceDiagnostics, type TextureHandle } from './texture-cache';
 import { GlyphAtlas } from './glyph-atlas';
 import {
@@ -33,6 +33,7 @@ export interface AdapterDiagnostics {
     unsupportedCount: number;
     geometryBytes: number;
     textures: TextureResourceDiagnostics;
+    atlas: AtlasDiagnostics;
 }
 
 interface AdaptResult {
@@ -62,6 +63,8 @@ interface ImagePrimitiveEntry {
 export class WebGLRenderAdapter {
     private readonly textureCache: TextureCache;
     private readonly glyphAtlas = new GlyphAtlas();
+    private atlasUploadsThisFrame = 0;
+    private atlasUploadArea = 0;
 
     private fillVertices: number[] = [];
     private fillVertexCount = 0;
@@ -107,6 +110,7 @@ export class WebGLRenderAdapter {
             unsupportedCount: this.unsupportedCount,
             geometryBytes: this.geometryBytes,
             textures: this.textureCache.diagnostics,
+            atlas: this.buildAtlasDiagnostics(),
         };
         return { primitives, diagnostics };
     }
@@ -139,6 +143,8 @@ export class WebGLRenderAdapter {
         this.geometryBytes = 0;
         this.frameWidth = frame.width;
         this.frameHeight = frame.height;
+        this.atlasUploadsThisFrame = 0;
+        this.atlasUploadArea = 0;
     }
 
     private traverse(objects: readonly RenderObject[], parent: TraversalState): void {
@@ -505,15 +511,56 @@ export class WebGLRenderAdapter {
     }
 
     private uploadGlyphAtlases(): void {
-        for (const page of this.glyphAtlas.getDirtyPages()) {
-            const handle = this.textureCache.resolveAtlasTexture(page.id);
-            if (page.canvas) {
-                this.textureCache.uploadAtlasData(handle, page.width, page.height, page.canvas);
-            } else if (page.data) {
-                this.textureCache.uploadAtlasData(handle, page.width, page.height, page.data);
-            }
-            this.glyphAtlas.markClean(page);
+        const uploads = this.glyphAtlas.prepareUploads(1);
+        this.atlasUploadsThisFrame = uploads.length;
+        this.atlasUploadArea = 0;
+        for (const upload of uploads) {
+            const handle = this.textureCache.resolveAtlasTexture(upload.pageId);
+            this.textureCache.uploadAtlasRegion(handle, {
+                pageWidth: upload.pageWidth,
+                pageHeight: upload.pageHeight,
+                x: upload.rect.x,
+                y: upload.rect.y,
+                width: upload.rect.width,
+                height: upload.rect.height,
+                data: upload.data,
+            });
+            this.glyphAtlas.completeUpload(upload.pageId, upload.rect);
+            this.atlasUploadArea += upload.rect.width * upload.rect.height;
         }
+    }
+
+    private buildAtlasDiagnostics(): AtlasDiagnostics {
+        const glyphDiagnostics = this.glyphAtlas.getDiagnostics();
+        const textureDiagnostics = this.textureCache.atlasDiagnostics;
+        const textureMap = new Map(
+            textureDiagnostics.entries.map((entry) => [entry.id, { width: entry.width, height: entry.height, bytes: entry.bytes }])
+        );
+        return {
+            totalGlyphs: glyphDiagnostics.totalGlyphs,
+            queueLength: glyphDiagnostics.pendingUploads,
+            pendingArea: glyphDiagnostics.pendingArea,
+            uploadsThisFrame: this.atlasUploadsThisFrame,
+            uploadedArea: this.atlasUploadArea,
+            textureBytes: textureDiagnostics.totalBytes,
+            pages: glyphDiagnostics.pages.map((page) => {
+                const textureInfo = textureMap.get(page.id);
+                return {
+                    id: page.id,
+                    width: page.width,
+                    height: page.height,
+                    glyphCount: page.glyphCount,
+                    occupancy: page.occupancy,
+                    evictions: page.evictions,
+                    pendingArea: page.pendingArea,
+                    version: page.version,
+                    lastUploadArea: page.lastUploadArea,
+                    lastUploadAt: page.lastUploadAt,
+                    textureBytes: textureInfo?.bytes ?? 0,
+                    lastUploadWallClock: page.lastUploadWallClock,
+                };
+            }),
+        };
     }
 
     private resolveImageDrawParams(image: ImageObject): {
