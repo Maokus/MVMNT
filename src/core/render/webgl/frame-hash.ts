@@ -27,7 +27,9 @@ export function hashFrame(
     if (pixels.length < width * height * 4) {
         throw new Error('Frame hash buffer is smaller than the required pixel count.');
     }
+    const start = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    logReadPixelsDuration(width, height, start);
     const hash = fnv1a(pixels.subarray(0, width * height * 4)).toString(16).padStart(8, '0');
     return { hash, bytesSampled: width * height * 4 };
 }
@@ -42,4 +44,21 @@ export function hashFromSummary(summary: string): FrameHashResult {
     const bytes = encoder.encode(summary);
     const hash = fnv1a(bytes).toString(16).padStart(8, '0');
     return { hash, bytesSampled: bytes.length };
+}
+
+let readPixelsLogged = false;
+
+function logReadPixelsDuration(width: number, height: number, start: number): void {
+    if (readPixelsLogged) {
+        return;
+    }
+    const end = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+    readPixelsLogged = true;
+    try {
+        console.info('[RendererDiagnostics] webgl-readpixels', {
+            width,
+            height,
+            durationMs: end - start,
+        });
+    } catch {}
 }

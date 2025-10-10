@@ -34,7 +34,7 @@ The workspace currently instantiates the WebGL workflow by default but composite
 3. **Measure copy costs.** Use performance marks around any `gl.readPixels`, `texSubImage2D` with DOM sources, or `ctx.drawImage` bridging WebGL → Canvas 2D. Capture flamecharts via Chrome DevTools.
 4. **Validate device pixel ratio handling.** Check how DPI and responsive resizing propagate. Confirm CSS vs. backing store sizes and the effect on the quarter-size rendering.
 
-_Deliverables:_ Debug report summarizing actual context acquisition, framebuffer flow, and timing data. This should graduate into `/thoughts/webgl-runtime-notes.md` once confirmed.
+_Deliverables:_ Debug report summarizing actual context acquisition, framebuffer flow, and timing data. This should graduate into `/thoughts/webgl-runtime-notes.md` once confirmed. See [WebGL Polish Phase A Report](./webgl-polish-phase-a-report.md) for current findings and instrumentation notes.
 
 ## Direct WebGL2 Rendering (Phase B)
 

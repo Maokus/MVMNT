@@ -79,6 +79,12 @@ export class MIDIVisualizerCore {
     // Explicit user-defined playback window (start/end in seconds). When set, replaces any scene-duration concept.
     private _playRangeStartSec: number | null = null;
     private _playRangeEndSec: number | null = null;
+    private _diagnosticLogState = {
+        compositor: false,
+        webglSurface: false,
+        webglContext: false,
+        blitSample: false,
+    };
     constructor(canvas: HTMLCanvasElement, timingManager: any = null, options?: MIDIVisualizerCoreOptions) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
@@ -123,7 +129,13 @@ export class MIDIVisualizerCore {
         if (!context) {
             throw new Error('MIDIVisualizerCore requires a 2D canvas for compositing');
         }
-        return { canvas: this.canvas, context, contextType: 'canvas2d' };
+        const result = { canvas: this.canvas, context, contextType: 'canvas2d' } as const;
+        this._logRendererEvent('compositor-context-acquired', {
+            contextType: result.contextType,
+            width: this.canvas.width,
+            height: this.canvas.height,
+        });
+        return result;
     }
 
     private _resolveInitialRendererPreference(initial?: SceneRendererType | null): SceneRendererType {
@@ -178,6 +190,11 @@ export class MIDIVisualizerCore {
             this.renderer = renderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
             this._rendererPreference = 'webgl';
             this._rendererContext = initResult.contextType === 'webgl2' ? 'webgl2' : 'webgl';
+            this._logRendererEvent('webgl-context-acquired', {
+                contextType: this._rendererContext,
+                width: surface.width,
+                height: surface.height,
+            });
             this._syncWebGLSurfaceSize();
         } catch (error) {
             try {
@@ -227,6 +244,10 @@ export class MIDIVisualizerCore {
         surface.width = this.canvas.width;
         surface.height = this.canvas.height;
         this._webglSurface = surface;
+        this._logRendererEvent('webgl-surface-created', {
+            width: surface.width,
+            height: surface.height,
+        });
         return surface;
     }
 
@@ -255,9 +276,16 @@ export class MIDIVisualizerCore {
 
     private _blitWebGLSurface(): void {
         if (!this._webglSurface) return;
+        const start = this._now();
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             this.ctx.drawImage(this._webglSurface, 0, 0, this.canvas.width, this.canvas.height);
+            const elapsed = this._now() - start;
+            this._logRendererEvent('webgl-surface-blitted', {
+                durationMs: elapsed,
+                width: this.canvas.width,
+                height: this.canvas.height,
+            });
         } catch (error) {
             console.warn('[MIDIVisualizerCore] failed to composite WebGL surface onto canvas', error);
         }
@@ -300,6 +328,30 @@ export class MIDIVisualizerCore {
         try {
             const err = error instanceof Error ? error : new Error(String(error));
             useRenderDiagnosticsStore.getState().recordError(err, { renderer: this._rendererPreference });
+        } catch {}
+    }
+
+    private _logRendererEvent(
+        event:
+            | 'compositor-context-acquired'
+            | 'webgl-surface-created'
+            | 'webgl-context-acquired'
+            | 'webgl-surface-blitted',
+        payload: Record<string, unknown>
+    ): void {
+        const keyMap: Record<typeof event, keyof typeof this._diagnosticLogState> = {
+            'compositor-context-acquired': 'compositor',
+            'webgl-surface-created': 'webglSurface',
+            'webgl-context-acquired': 'webglContext',
+            'webgl-surface-blitted': 'blitSample',
+        };
+        const stateKey = keyMap[event];
+        if (this._diagnosticLogState[stateKey]) {
+            return;
+        }
+        this._diagnosticLogState[stateKey] = true;
+        try {
+            console.info(`[RendererDiagnostics] ${event}`, payload);
         } catch {}
     }
 

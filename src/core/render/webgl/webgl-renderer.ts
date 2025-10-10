@@ -28,6 +28,11 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
     private scratchPixels: Uint8Array | null = null;
     private contextLost = false;
     private adapter: WebGLRenderAdapter | null = null;
+    private diagnosticsLogged = {
+        context: false,
+        viewport: false,
+        framebuffer: false,
+    };
 
     init(options: RendererInitOptions): RendererInitResult {
         const { canvas, context, devicePixelRatio } = options;
@@ -67,6 +72,11 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
 
         this.initializeGLState(gl);
         this.resize({ width: canvas.clientWidth || canvas.width, height: canvas.clientHeight || canvas.height });
+        this.logOnce('webgl-context-ready', {
+            contextType: this.contextType,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+        });
 
         return { canvas, context: gl, contextType };
     }
@@ -82,6 +92,13 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
         if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
         gl.viewport(0, 0, pixelWidth, pixelHeight);
+        this.logOnce('webgl-viewport-initialized', {
+            cssWidth: width,
+            cssHeight: height,
+            devicePixelRatio: resolvedDpr,
+            framebufferWidth: pixelWidth,
+            framebufferHeight: pixelHeight,
+        });
     }
 
     renderFrame(input: RendererFrameInput<WebGLRenderPrimitive | RenderObject>): void {
@@ -117,6 +134,8 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         if (!registry || !cache) {
             throw new Error('WebGLRenderer caches are not initialized.');
         }
+
+        this.logFramebufferBinding(gl);
 
         for (const primitive of primitives) {
             const program = registry.resolve(primitive.material);
@@ -301,5 +320,38 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         if (!object || typeof object !== 'object') return false;
         const candidate = object as Partial<WebGLRenderPrimitive>;
         return Boolean(candidate.geometry && candidate.material && typeof candidate.vertexCount === 'number');
+    }
+
+    private logOnce(
+        event: 'webgl-context-ready' | 'webgl-viewport-initialized' | 'webgl-framebuffer-binding',
+        payload: Record<string, unknown>
+    ): void {
+        const flagMap: Record<typeof event, keyof typeof this.diagnosticsLogged> = {
+            'webgl-context-ready': 'context',
+            'webgl-viewport-initialized': 'viewport',
+            'webgl-framebuffer-binding': 'framebuffer',
+        };
+        const key = flagMap[event];
+        if (this.diagnosticsLogged[key]) {
+            return;
+        }
+        this.diagnosticsLogged[key] = true;
+        try {
+            console.info(`[RendererDiagnostics] ${event}`, payload);
+        } catch {}
+    }
+
+    private logFramebufferBinding(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
+        if (this.diagnosticsLogged.framebuffer) {
+            return;
+        }
+        try {
+            const binding = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+            this.logOnce('webgl-framebuffer-binding', {
+                framebuffer: binding ?? 'default-framebuffer',
+            });
+        } catch {
+            /* ignore */
+        }
     }
 }
