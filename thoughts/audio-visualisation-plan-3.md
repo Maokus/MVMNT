@@ -100,26 +100,6 @@
 -   Export snapshots before/after regeneration remain identical when descriptors are unchanged.
 -   Cache history logging is accessible in developer tooling without bloating project files.
 
-## Phase 3.5 — WebGL Renderer Migration
-
-**Goal:** Swap the CPU rasteriser for a deterministic WebGL pipeline so Phase 4 visuals can rely on GPU textures, shared materials, and history sampling.
-
-**Key Activities**
-
--   Capture a renderer contract summarising inputs from Phases 1–3 (descriptor payloads, smoothing utilities, cache intents) and validate it against reference scenes.
--   Implement the core WebGL render service with texture/resource lifecycle management, deterministic shader/material abstractions, and a CPU fallback path.
--   Port existing spectrum, meter, and oscilloscope baselines to the new pipeline and record parity render snapshots.
--   Stand up regression tests measuring frame determinism, performance budgets, and error reporting when GPU features are unavailable.
--   Document the migration in [WebGL Render Migration Plan](./webgl-render-migration-plan.md) and surface integration notes for Phase 4 authors.
-
-**Acceptance Criteria**
-
--   Renderer contract doc published and linked from this plan, signed off by runtime and tooling owners.
--   Automated snapshot comparisons confirm visual parity with the pre-migration renderer across baseline scenes.
--   Performance profiling demonstrates equal or improved frame times under target workloads with GPU acceleration enabled.
--   CPU fallback remains functional and deterministic for environments without WebGL access (verified by tests).
--   Migration notes enumerate APIs and extension points Phase 4 will consume, including texture slot allocations and material hooks.
-
 ## Phase 4 — Element Rendering Enhancements
 
 **Goal:** Leverage multi-feature bindings to unlock the spectrum, meter, and oscilloscope treatments described in the specs.
