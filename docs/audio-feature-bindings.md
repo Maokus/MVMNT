@@ -86,6 +86,19 @@ troubleshooting. Hold interpolation keeps the previous frame value, linear inter
 pre-existing behaviour, and spline interpolation uses Catmull–Rom to smooth transitions while keeping
 CPU overhead predictable.
 
+## Cache regeneration diagnostics
+
+- When the cache diffing pipeline detects missing or stale descriptors, the workspace surfaces a
+  non-blocking banner with actions to regenerate everything or open a dedicated diagnostics panel.
+- The diagnostics panel groups descriptors by track and analysis profile, lists their current status
+  (Current, Missing, Stale, Extraneous, Regenerating), and provides scoped actions to rerun analysis or
+  dismiss extraneous cache entries. Panel visibility is remembered in user preferences.
+- Each regeneration request is queued deterministically. Results and failures are appended to the audio
+  analysis history log, which is exposed via developer tools and attached to export manifests as
+  `exports/<sceneId>/analysis-history.json` when the feature flag is enabled.
+- History retention is bounded (1000 entries by default) so developer tooling can inspect the most
+  recent regenerations without bloating project files or exports.
+
 ## Property bindings and runtime consumption
 
 Property bindings now serialize either a constant audio track ID or a `timelineTrackRef` macro

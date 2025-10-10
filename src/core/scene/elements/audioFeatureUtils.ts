@@ -6,6 +6,7 @@ import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelec
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import type { AudioTrack } from '@audio/audioTypes';
 import type { TimelineTrack } from '@state/timelineStore';
+import { publishAnalysisIntent, clearAnalysisIntent } from '@audio/features/analysisIntents';
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
@@ -69,6 +70,22 @@ export function coerceFeatureDescriptors(
         return [coerceFeatureDescriptor(input, fallback)];
     }
     return [coerceFeatureDescriptor(null, fallback)];
+}
+
+export function emitAnalysisIntent(
+    element: { id: string | null; type: string },
+    trackRef: string | null,
+    analysisProfileId: string | null,
+    descriptors: AudioFeatureDescriptor[],
+): void {
+    if (!element?.id) {
+        return;
+    }
+    if (!trackRef || !descriptors.length) {
+        clearAnalysisIntent(element.id);
+        return;
+    }
+    publishAnalysisIntent(element.id, element.type, trackRef, analysisProfileId, descriptors);
 }
 
 export function resolveFeatureContext(trackId: string | null, featureKey: string | null) {

@@ -1,6 +1,6 @@
 # Audio Visualisation Phase 3 — Cache Intents & Diagnostics Spec
 
-**Status:** Draft for Review (2025-10-12)
+**Status:** Complete (2025-10-15)
 
 This document elaborates the implementation details for Phase 3 of the consolidated [Audio Visualisation Implementation Plan (Phase Consolidation)](./audio-visualisation-plan-3.md). Phase 3 focuses on cache intent surfacing, diff-aware regeneration UX, and diagnostics tooling to keep audio feature caches deterministic and recoverable.
 

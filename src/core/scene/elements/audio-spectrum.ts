@@ -5,6 +5,7 @@ import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelec
 import type { AudioFeatureDescriptor, AudioFeatureTrack, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import {
     coerceFeatureDescriptors,
+    emitAnalysisIntent,
     resolveFeatureContext,
     resolveTimelineTrackRefValue,
     sampleFeatureFrame,
@@ -345,6 +346,9 @@ export class AudioSpectrumElement extends SceneElement {
         const descriptors = coerceFeatureDescriptors(descriptorsValue, DEFAULT_DESCRIPTOR);
         const descriptor = descriptors[0] ?? DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackRefBinding, trackRefValue);
+        const analysisProfileId = this.getProperty<string>('analysisProfileId') ?? null;
+
+        emitAnalysisIntent(this, trackId, analysisProfileId, descriptors);
 
         if (trackId && descriptor.featureKey) {
             sample = sampleFeatureFrame(trackId, descriptor, targetTime);

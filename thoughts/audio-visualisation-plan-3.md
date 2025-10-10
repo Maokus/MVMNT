@@ -81,6 +81,8 @@
 
 ## Phase 3 — Cache Intents & Diagnostics
 
+**Status:** Complete (2025-10-15)
+
 **Goal:** Ensure cache regeneration is explicit, diff-aware, and recoverable when descriptors or profiles change.
 
 **Key Activities**

@@ -3,7 +3,12 @@ import { Rectangle, Text, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
-import { coerceFeatureDescriptors, resolveTimelineTrackRefValue, sampleFeatureFrame } from './audioFeatureUtils';
+import {
+    coerceFeatureDescriptors,
+    emitAnalysisIntent,
+    resolveTimelineTrackRefValue,
+    sampleFeatureFrame,
+} from './audioFeatureUtils';
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
@@ -150,6 +155,9 @@ export class AudioVolumeMeterElement extends SceneElement {
         );
         const descriptor = descriptors[0] ?? AudioVolumeMeterElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
+        const analysisProfileId = this.getProperty<string>('analysisProfileId') ?? null;
+
+        emitAnalysisIntent(this, trackId, analysisProfileId, descriptors);
 
         const sample: AudioFeatureFrameSample | null =
             trackId && descriptor.featureKey ? sampleFeatureFrame(trackId, descriptor, targetTime) : null;

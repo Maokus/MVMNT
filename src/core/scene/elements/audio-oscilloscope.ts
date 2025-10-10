@@ -6,6 +6,7 @@ import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors'
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import {
     coerceFeatureDescriptors,
+    emitAnalysisIntent,
     resolveFeatureContext,
     resolveTimelineTrackRefValue,
 } from './audioFeatureUtils';
@@ -238,6 +239,9 @@ export class AudioOscilloscopeElement extends SceneElement {
         );
         const descriptor = descriptors[0] ?? AudioOscilloscopeElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
+        const analysisProfileId = this.getProperty<string>('analysisProfileId') ?? null;
+
+        emitAnalysisIntent(this, trackId, analysisProfileId, descriptors);
         const featureKey = descriptor.featureKey;
 
         const tm = getSharedTimingManager();
