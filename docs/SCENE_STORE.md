@@ -28,6 +28,10 @@ Undo middleware instruments the gateway so history replay stays in lockstep with
 ## Selectors & Hooks
 `src/state/scene/selectors.ts` exposes memoized selectors (`createSceneSelectors`) that power UI hooks (`useSceneElements`, `useSceneSelection`, macro selectors, etc.). These selectors compose ordered element views, macro assignments, and settings snapshots while keeping references stable across unrelated updates. Components import hooks from `@state/scene` to stay decoupled from underlying Zustand plumbing.
 
+The `settings.renderer` flag toggles the active runtime backend (`canvas2d` or `webgl`). Runtime adapters
+subscribe to that property so the visualizer can swap renderers without rehydrating scene elements or losing
+determinism instrumentation.
+
 ## Runtime & Persistence Integration
 - `SceneRuntimeAdapter` subscribes to the store, hydrates runtime element instances, and invalidates caches based on per-element revision counters.
 - `DocumentGateway` serializes from the store and hydrates it without relying on legacy builders or global singletons.

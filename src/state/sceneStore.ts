@@ -122,12 +122,15 @@ export interface MacroBindingAssignment {
 
 export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
 
+export type SceneRendererType = 'canvas2d' | 'webgl';
+
 export interface SceneSettingsState {
     fps: number;
     width: number;
     height: number;
     tempo: number;
     beatsPerBar: number;
+    renderer: SceneRendererType;
     [key: string]: unknown;
 }
 
@@ -279,6 +282,7 @@ export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     height: 1500,
     tempo: 120,
     beatsPerBar: 4,
+    renderer: 'canvas2d',
 };
 
 function createInitialInteractionState(): SceneInteractionState {

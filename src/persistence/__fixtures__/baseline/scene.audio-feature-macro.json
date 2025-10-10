@@ -43,7 +43,8 @@
     "width": 1920,
     "height": 1080,
     "tempo": 128,
-    "beatsPerBar": 4
+    "beatsPerBar": 4,
+    "renderer": "canvas2d"
   },
   "macros": {
     "macros": {

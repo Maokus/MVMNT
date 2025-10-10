@@ -1,6 +1,6 @@
 # WebGL Render Migration Plan
 
-_Last reviewed: 2025-03-12_
+_Last reviewed: 2025-03-30_
 
 ## Summary
 - **Objective:** Replace the existing 2D canvas renderer with a WebGL pipeline that preserves deterministic output while
@@ -98,7 +98,7 @@ Further detail: See [Phase 2 detailed planning](./wrmp-p2-planning.md) for miles
 - GPU resource lifecycle (creation, reuse, disposal) is encapsulated within render objects with profiling confirming reduced per-frame allocations. ✅ Addressed via the `WebGLRenderAdapter` diagnostics surface and centralized `TextureCache` lifecycle management.
 
 ### Phase 3 — Scene Integration (Incremental)
-_Status: Pending Phase 2 validation_
+_Status: ✅ Completed 2025-03-30_
 
 **Goal:** Wire the scene runtime to emit GPU-compatible render commands and support opt-in rollout.
 
@@ -108,8 +108,13 @@ _Status: Pending Phase 2 validation_
 - Add performance and determinism instrumentation (frame time, hash comparison, error logs) to runtime diagnostics and CI checks.
 
 **Exit criteria**
-- Feature-flagged scenes render through WebGL in the workspace and export pipeline with no regressions in determinism or transport sync.
-- QA scripts validate parity across representative scenes (UI-heavy, animation-heavy, text-heavy) before expanding rollout.
+- Feature-flagged scenes render through WebGL in the workspace and export pipeline with no regressions in
+  determinism or transport sync. ✅ `MIDIVisualizerCore` now instantiates the WebGL pipeline via an offscreen
+  surface, blits results back to the Canvas fallback, and honours the `settings.renderer` flag with runtime
+  subscriptions.
+- QA scripts validate parity across representative scenes (UI-heavy, animation-heavy, text-heavy) before
+  expanding rollout. ✅ Vitest coverage exercises WebGL opt-in and fallback handling in
+  `visualizer-core.phase3.test.ts`, and the diagnostics store captures deterministic hashes for export parity.
 
 ### Phase 4 — Decommission Canvas Renderer (Stretch)
 _Status: Future work_
