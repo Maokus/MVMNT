@@ -121,3 +121,6 @@ _Acceptance criteria:_
 ## Decision Log
 
 -   _2025-04-15:_ Confirmed plan status as Draft pending validation of Phase A investigations.
+-   _2025-05-07:_ Phase B verification complete; see
+    [webgl-polish-phase-b-verification](./webgl-polish-phase-b-verification.md)
+    for evidence and follow-on actions.

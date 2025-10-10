@@ -90,13 +90,24 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
 
     useEffect(() => {
         if (!visualizerInstance) return;
-        if (!displaySize.w || !displaySize.h) return;
+        if (!width || !height) return;
         try {
-            visualizerInstance.resize(displaySize.w, displaySize.h);
+            const devicePixelRatio =
+                typeof window !== 'undefined' && typeof window.devicePixelRatio === 'number'
+                    ? window.devicePixelRatio
+                    : undefined;
+            visualizerInstance.resize(width, height, { devicePixelRatio });
         } catch (error) {
-            console.warn('[PreviewPanel] Failed to resize visualizer preview', error);
+            console.warn('[PreviewPanel] Failed to resize visualizer viewport', error);
         }
-    }, [visualizerInstance, displaySize.w, displaySize.h]);
+    }, [visualizerInstance, width, height]);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !width || !height) return;
+        canvas.dataset.logicalWidth = String(width);
+        canvas.dataset.logicalHeight = String(height);
+    }, [canvasRef, width, height]);
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
         draggingRef.current = true;
@@ -122,6 +133,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                     ref={canvasRef}
                     width={width}
                     height={height}
+                    data-logical-width={width || undefined}
+                    data-logical-height={height || undefined}
                     style={{
                         // Maintain aspect ratio and fit: intrinsic buffer size (width/height attrs) sets resolution, below sets on-screen size
                         width: `${displaySize.w}px`,
