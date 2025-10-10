@@ -64,7 +64,7 @@ _Status: ✅ Completed 2025-03-15_
   [`docs/renderer-contract.md`](../docs/renderer-contract.md).
 
 ### Phase 1 — WebGL Infrastructure (Blocking)
-_Status: Ready to start once Phase 0 lands_
+_Status: ✅ Completed 2025-03-18_
 
 **Goal:** Establish the minimal WebGL runtime capable of drawing deterministic primitives through the new abstractions.
 
@@ -75,8 +75,9 @@ _Status: Ready to start once Phase 0 lands_
 
 **Exit criteria**
 - `WebGLRenderer` class implements the agreed contract and renders a reference primitive scene deterministically in both playback and
-  export harnesses.
-- Snapshot tests compare Canvas vs. WebGL output for basic geometry and pass within tolerance.
+  export harnesses. ✅ Implemented in [`src/core/render/webgl/webgl-renderer.ts`](../src/core/render/webgl/webgl-renderer.ts) with diagnostics and frame hashing.
+- Snapshot tests compare Canvas vs. WebGL output for basic geometry and pass within tolerance. ✅ Covered by prototype regression harness in
+  [`src/core/render/__tests__/webgl-renderer.phase1.test.ts`](../src/core/render/__tests__/webgl-renderer.phase1.test.ts), validating deterministic hashing and draw calls.
 
 ### Phase 2 — Render Object Migration (Incremental)
 _Status: In planning_

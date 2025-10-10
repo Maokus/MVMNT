@@ -23,6 +23,7 @@ export { loadDefaultScene, resetToDefaultScene } from './default-scene-loader';
 // ==========================================
 export { MIDIVisualizerCore as MIDIVisualizer } from './visualizer-core.js';
 export { ModularRenderer } from './render/modular-renderer.js';
+export { WebGLRenderer } from './render/webgl/webgl-renderer.js';
 
 // Scene management exports
 export { SceneElementRegistry, sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
