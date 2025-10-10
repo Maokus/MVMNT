@@ -1,6 +1,6 @@
 # Renderer Contract
 
-_Last reviewed: 2025-03-15_
+_Last reviewed: 2025-04-05_
 
 ## Overview
 The `RendererContract` describes the lifecycle that both the legacy Canvas renderer and the
@@ -9,8 +9,8 @@ frame submission, export capture, and teardown so `MIDIVisualizerCore` can swap 
 without changing its call sites.
 
 - **Interface location:** `src/core/render/renderer-contract.ts`
-- **Current implementers:** `ModularRenderer` (Canvas 2D)
-- **Consumers:** `MIDIVisualizerCore`, export pipelines, and forthcoming WebGL runtime utilities
+- **Current implementers:** `ModularRenderer` (Canvas 2D), `WebGLRenderer`
+- **Consumers:** `MIDIVisualizerCore`, export pipelines, and WebGL runtime diagnostics
 
 ## Lifecycle methods
 All renderers MUST implement the following lifecycle entry points.
@@ -48,8 +48,8 @@ Exports reuse the same contract with explicit metadata:
 - `renderFrame` runs with `target.mode = 'export'` to signal deterministic timing semantics.
 - `captureFrame` provides the artifact required by image or video encoders while preserving the
   hashable pixel buffer.
-- Implementations should emit debug traces (context loss, buffer rebuilds, frame hashes) via a shared
-  instrumentation hook that Phase 1 will introduce.
+- Implementations should emit debug traces (context loss, buffer rebuilds, frame hashes) via the shared
+  instrumentation utilities shipped with the WebGL renderer rollout.
 
 ## Render object taxonomy
 Render objects fall into four categories, each mapping to future GPU abstractions:
@@ -68,11 +68,12 @@ hashing stay consistent across renderers.
 Runtime and export owners agreed to the following scaffolding for parity checks:
 
 - **Snapshot comparison:** Use existing Canvas captures as the baseline, diff against WebGL output
-  with a pixel tolerance threshold agreed during Phase 1.
+  with the tolerance thresholds codified in the parity harness.
 - **Frame hashing:** Compute a stable hash across RGBA buffers in both playback and export modes to
-  detect divergence without full image diffs.
+  detect divergence without full image diffs. Surface hashes through the diagnostics store for CI.
 - **Scene fixtures:** Reuse the `failedtests` and `src/persistence/__fixtures__` assets to pin common
-  geometry, text, and particle scenarios for deterministic testing.
+  geometry, text, and particle scenarios for deterministic testing. Extend fixtures when onboarding
+  new GPU-centric primitives.
 
 These hooks unlock WebGL regression coverage without blocking Canvas while the migration proceeds.
 
