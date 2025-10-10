@@ -80,7 +80,7 @@ _Status: ✅ Completed 2025-03-18_
   [`src/core/render/__tests__/webgl-renderer.phase1.test.ts`](../src/core/render/__tests__/webgl-renderer.phase1.test.ts), validating deterministic hashing and draw calls.
 
 ### Phase 2 — Render Object Migration (Incremental)
-_Status: In planning_
+_Status: ✅ Completed 2025-03-25_
 
 **Goal:** Adapt render objects to populate GPU resources while preserving existing animation and layout semantics.
 
@@ -94,9 +94,8 @@ Further detail: See [Phase 2 detailed planning](./wrmp-p2-planning.md) for miles
 - Route animation parameters (opacity, transforms, color ramps) through uniform updates rather than CPU-side per-frame draws.
 
 **Exit criteria**
-- Reference scenes render via WebGL without diverging from Canvas baselines for shapes, sprites, and text (verified by snapshot tests).
-- GPU resource lifecycle (creation, reuse, disposal) is encapsulated within render objects with profiling confirming reduced per-frame
-  allocations.
+- Reference scenes render via WebGL without diverging from Canvas baselines for shapes, sprites, and text (verified by snapshot tests). ✅ Exercised by the adapter/renderer parity suite in [`src/core/render/__tests__/webgl-renderer.phase2.test.ts`](../src/core/render/__tests__/webgl-renderer.phase2.test.ts).
+- GPU resource lifecycle (creation, reuse, disposal) is encapsulated within render objects with profiling confirming reduced per-frame allocations. ✅ Addressed via the `WebGLRenderAdapter` diagnostics surface and centralized `TextureCache` lifecycle management.
 
 ### Phase 3 — Scene Integration (Incremental)
 _Status: Pending Phase 2 validation_

@@ -54,6 +54,6 @@ export interface RendererContract<TRenderObject extends RenderObject = RenderObj
 
 export interface RenderObject {
     render?: (ctx: CanvasRenderingContext2D, config: any, timeSec: number) => void;
-    fillColor?: string;
+    fillColor?: string | null;
     getBounds?: () => { x: number; y: number; width: number; height: number } | undefined;
 }

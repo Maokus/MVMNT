@@ -8,3 +8,4 @@ export { AnimatedGif } from './animated-gif';
 export { Poly } from './poly';
 export { BezierPath } from './bezier';
 export { Arc } from './arc';
+export { ParticleSystem } from './particle-system';

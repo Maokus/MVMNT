@@ -1,5 +1,7 @@
 These are parallel safe prompts with non overlapping workstreams and explicit file ownership. Respect constraints. WRMP stands for webgl render migration plan, avp stands for audio visualisation plan. If you need the big picture, read the relevant documents in /thoughts.
 
+**Shared-document handoff:** Implementation prompts should not edit `wrmp-p2-planning.md`, `renderer-contract.md`, or release notes directly. Instead, drop structured notes into per-prompt files (e.g. `thoughts/wrmp-p2-notes/prompt-<letter>.md`, `docs/renderer-contract/drafts/prompt-<letter>.md`, `docs/release-notes-drafts/prompt-<letter>.md`). Dedicated documentation prompts later in the sequence will merge those drafts, ensuring a single-writer flow.
+
 ## Phase: WRMP P2 Implementation
 
 ### Prompt A — Adapter Interfaces & Geometry Types
@@ -7,14 +9,14 @@ These are parallel safe prompts with non overlapping workstreams and explicit fi
 -   **Objective:** Finalize and land the adapter interface that maps legacy `RenderObject` properties to GPU payloads.
 -   **Scope:** Work in `src/core/render/webgl/adapters/*`, define TypeScript interfaces for geometry payloads (rect, line, sprite, particle), document buffer usage patterns. Update or create focused unit tests under `src/core/render/__tests__/webgl-adapters`.
 -   **Constraints:** Avoid touching primitive-specific render code (`webgl/primitives/*`) or text pipeline files. Coordinate TypeScript definitions via renderer-contract.md appendices if needed.
--   **Deliverables:** Merged adapter interfaces behind feature flag, passing tests, brief summary in wrmp-p2-planning.md Milestone A notes.
+-   **Deliverables:** Merged adapter interfaces behind feature flag, passing tests, structured summary dropped in `thoughts/wrmp-p2-notes/prompt-a.md` (new file, follow shared template).
 
 ### Prompt B — Rectangle & Line Primitive Ports
 
 -   **Objective:** Port rectangle and line render objects to WebGL instanced buffers with shared shaders.
 -   **Scope:** Implement in `src/core/render/webgl/primitives/rect.ts` and `line.ts`, adjust related shader sources under `src/core/render/webgl/shaders`. Update regression scenes or fixtures specific to these shapes if required.
 -   **Constraints:** Do not modify adapter interfaces (Prompt A) or image/particle/text primitives. Share shader constants via newly created module if absent.
--   **Deliverables:** Deterministic rendering verified via existing snapshot harness (`webgl-renderer.phase1.test.ts`) extended with new cases, performance notes logged in wrmp-p2-planning.md Milestone B.
+-   **Deliverables:** Deterministic rendering verified via existing snapshot harness (`webgl-renderer.phase1.test.ts`) extended with new cases, performance notes captured in `thoughts/wrmp-p2-notes/prompt-b.md` for the synthesizer.
 
 ### Prompt C — Image & Atlas-Based Sprites
 
@@ -28,21 +30,21 @@ These are parallel safe prompts with non overlapping workstreams and explicit fi
 -   **Objective:** Introduce per-instance attribute buffers for particle render objects.
 -   **Scope:** Update `src/core/render/webgl/primitives/particle.ts`, scheduler hooks under `src/core/render/webgl/runtime`, and add simulation fixtures/tests.
 -   **Constraints:** No changes to glyph/text files, adapters established by Prompt A, or shared shader code owned by Prompt B unless new uniforms are required (coordinate via shared module).
--   **Deliverables:** Passing deterministic tests for particle scenes, performance telemetry recorded in wrmp-p2-planning.md Milestone B.
+-   **Deliverables:** Passing deterministic tests for particle scenes, telemetry and perf deltas recorded in `thoughts/wrmp-p2-notes/prompt-d.md`.
 
 ### Prompt E — Glyph Atlas Text Pipeline
 
 -   **Objective:** Build WebGL text rendering using glyph atlases.
 -   **Scope:** Implement in `src/core/render/webgl/text/*`, integrate with existing font loader, add atlas eviction metrics. Extend tests in `__tests__/webgl-text-pipeline`.
 -   **Constraints:** Do not modify primitive adapters or non-text primitives. Any shared constants go through a new `webgl/text/constants.ts`.
--   **Deliverables:** Snapshot parity for text-heavy scenes, diagnostics notes appended to Milestone C in wrmp-p2-planning.md.
+-   **Deliverables:** Snapshot parity for text-heavy scenes, diagnostics notes captured in `thoughts/wrmp-p2-notes/prompt-e.md`.
 
 ### Prompt F — Resource Diagnostics & Tooling
 
 -   **Objective:** Instrument buffer/texture lifecycle and surface diagnostics.
 -   **Scope:** Focus on `src/core/render/webgl/diagnostics/*`, create overlays or CLI tooling if needed, add automated leak tests.
 -   **Constraints:** Avoid editing primitive implementations unless adding hook points; request adapters via dependency injection where necessary.
--   **Deliverables:** Diagnostics overlay/screens documented in renderer-contract.md appendix and Milestone D updates in planning doc.
+-   **Deliverables:** Diagnostics overlay/screens landed with automated tests, raw documentation draft saved to `docs/renderer-contract/drafts/prompt-f.md` and planning roll-up notes in `thoughts/wrmp-p2-notes/prompt-f.md`.
 
 _Run all updated unit tests relevant to each workstream; if a prompt adds new primitives or shaders, ensure snapshot tests are updated without altering others’ fixtures._
 
@@ -51,9 +53,9 @@ _Run all updated unit tests relevant to each workstream; if a prompt adds new pr
 ### Prompt G — Scene Integration Planning Packet
 
 -   **Objective:** Produce the detailed plan for Phase 3 integration, covering feature flags, runtime wiring, and testing strategy.
--   **Scope:** Work solely in webgl-render-migration-plan.md (Phase 3 section), wrmp-p2-planning.md (wrap-up), and optionally draft supporting diagrams in docs.
--   **Constraints:** No code changes; gather requirements from existing docs only.
--   **Deliverables:** Reviewed and cross-linked plan with clearly enumerated tasks, dependencies, and success criteria.
+-   **Scope:** Work solely in the Phase 3 section of `webgl-render-migration-plan.md` and optionally draft supporting diagrams in docs. Pull P2 outcomes from `thoughts/wrmp-p2-notes/*` as references without editing those sources.
+-   **Constraints:** No code changes; limit edits in the planning doc to the Phase 3 section.
+-   **Deliverables:** Reviewed and cross-linked plan with clearly enumerated tasks, dependencies, and success criteria, plus a synthesized wrap-up exported to `thoughts/wrmp-p2-notes/synth-phase2.md` for handoff.
 
 ### Prompt H — Feature Flag Rollout Spec
 
@@ -67,32 +69,32 @@ _Run all updated unit tests relevant to each workstream; if a prompt adds new pr
 ### Prompt I — SceneRuntimeAdapter Integration
 
 -   **Objective:** Update `SceneRuntimeAdapter` to target the shared renderer contract and expose the WebGL flag.
--   **Scope:** Modify `src/core/runtime/scene-runtime-adapter.ts`, related config files, and add tests ensuring dual renderer support.
--   **Constraints:** Avoid touching renderer primitives (Phase 2 outputs); coordinate flag naming with Prompt J via comments or shared constants.
--   **Deliverables:** Passing tests, integration notes documented in renderer-contract.md.
+-   **Scope:** Modify `src/core/runtime/scene-runtime-adapter.ts`, introduce shared flag constants in `src/core/runtime/renderer-flags.ts`, update related config files, and add tests ensuring dual renderer support.
+-   **Constraints:** Avoid touching renderer primitives (Phase 2 outputs); publish the flag name exclusively through `renderer-flags.ts` for Prompt J to consume.
+-   **Deliverables:** Passing tests, integration notes captured in `docs/renderer-contract/drafts/prompt-i.md` for consolidation.
 
 ### Prompt J — VisualizerCore Wiring & Diagnostics
 
 -   **Objective:** Wire `VisualizerCore` to switch renderers and emit instrumentation (frame time, hashes).
 -   **Scope:** Touch visualizer-core.ts, diagnostics modules, and add telemetry test coverage.
--   **Constraints:** No modifications to SceneRuntimeAdapter logic implemented by Prompt I; use shared flag constants.
--   **Deliverables:** Instrumented runtime with deterministic metrics, docs update in renderer-contract.md diagnostics section.
+-   **Constraints:** No modifications to SceneRuntimeAdapter logic implemented by Prompt I; import the shared flag constant from `src/core/runtime/renderer-flags.ts` without redefining it.
+-   **Deliverables:** Instrumented runtime with deterministic metrics, docs draft stored in `docs/renderer-contract/drafts/prompt-j.md` outlining telemetry hooks.
 
 ### Prompt K — Export Pipeline Compatibility
 
 -   **Objective:** Ensure export flows use WebGL renderer deterministically.
 -   **Scope:** Update exporter modules under `src/export/*`, add regression tests comparing Canvas vs. WebGL exports.
 -   **Constraints:** Do not edit runtime wiring from Prompts I/J; reuse renderer factory APIs.
--   **Deliverables:** Passing export determinism tests, release notes draft snippet capturing impact.
+-   **Deliverables:** Passing export determinism tests, release-note draft written to `docs/release-notes-drafts/prompt-k.md`.
 
 ## Phase: WRMP Documentation (P1–P3)
 
 ### Prompt L — Technical Documentation Consolidation
 
--   **Objective:** Compile completed work into comprehensive documentation.
--   **Scope:** Update renderer-contract.md, create new sections summarizing P1–P3 outcomes, add diagrams if needed.
--   **Constraints:** No edits to thoughts/plan documents handled in earlier prompts; hyperlink instead.
--   **Deliverables:** Polished doc ready for internal review, changelog entry in RELEASE_NOTES_AUDIO_FEATURE_BINDINGS.md if impacted.
+-   **Objective:** Compile completed work into comprehensive documentation and merge note files from earlier prompts.
+-   **Scope:** Read all drafts under `thoughts/wrmp-p2-notes/`, `docs/renderer-contract/drafts/`, and `docs/release-notes-drafts/`, then apply curated updates to `wrmp-p2-planning.md`, `renderer-contract.md`, and release notes. Add diagrams if needed.
+-   **Constraints:** Treat this as the sole writer for those shared docs; trim or archive consumed drafts once merged to keep the queue clear.
+-   **Deliverables:** Polished documentation committed, redundant drafts removed or marked processed, changelog entry in `RELEASE_NOTES_AUDIO_FEATURE_BINDINGS.md` if impacted.
 
 ### Prompt M — Developer Onboarding Guide
 

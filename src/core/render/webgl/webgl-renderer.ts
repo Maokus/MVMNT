@@ -1,5 +1,6 @@
 import type {
     FrameCaptureRequest,
+    RenderObject,
     RendererCaptureResult,
     RendererContract,
     RendererFrameInput,
@@ -12,8 +13,10 @@ import { GeometryBatchCache } from './primitive-batcher';
 import { MaterialRegistry } from './material';
 import { hashFrame, hashFromSummary } from './frame-hash';
 import type { RendererDiagnostics, WebGLRenderPrimitive, WebGLRendererState } from './types';
+import { WebGLRenderAdapter } from './adapter';
+import type { AdaptResult } from './adapter';
 
-export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
+export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | RenderObject> {
     private canvas: HTMLCanvasElement | null = null;
     private gl: WebGLRenderingContext | WebGL2RenderingContext | null = null;
     private contextType: 'webgl' | 'webgl2' = 'webgl';
@@ -24,6 +27,7 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
     private state: WebGLRendererState = { diagnostics: null };
     private scratchPixels: Uint8Array | null = null;
     private contextLost = false;
+    private adapter: WebGLRenderAdapter | null = null;
 
     init(options: RendererInitOptions): RendererInitResult {
         const { canvas, context, devicePixelRatio } = options;
@@ -33,6 +37,7 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
         this.contextType = contextType === 'webgl2' ? 'webgl2' : 'webgl';
         this.materialRegistry = new MaterialRegistry(gl);
         this.geometryCache = new GeometryBatchCache(gl);
+        this.adapter = new WebGLRenderAdapter(gl);
         this.dpr = devicePixelRatio ?? this.resolveDevicePixelRatio();
 
         this.detachContextListeners?.();
@@ -47,6 +52,7 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
                 this.contextType = acquisition.contextType === 'webgl2' ? 'webgl2' : 'webgl';
                 this.materialRegistry = new MaterialRegistry(this.gl);
                 this.geometryCache = new GeometryBatchCache(this.gl);
+                this.adapter = this.gl ? new WebGLRenderAdapter(this.gl) : null;
                 this.contextLost = false;
                 const glRestored = this.gl;
                 if (!glRestored) return;
@@ -78,7 +84,7 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
         gl.viewport(0, 0, pixelWidth, pixelHeight);
     }
 
-    renderFrame(input: RendererFrameInput<WebGLRenderPrimitive>): void {
+    renderFrame(input: RendererFrameInput<WebGLRenderPrimitive | RenderObject>): void {
         const gl = this.gl;
         const canvas = this.canvas;
         if (!gl || !canvas) {
@@ -89,6 +95,18 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
         }
 
         const { renderObjects, sceneConfig } = input;
+        const adapter = this.adapter;
+        let primitives = renderObjects as readonly WebGLRenderPrimitive[];
+        let adapterResult: AdaptResult | null = null;
+        if (renderObjects.length > 0 && !this.isPrimitive(renderObjects[0])) {
+            if (!adapter) throw new WebGLContextError('WebGL render adapter is not initialized.');
+            adapterResult = adapter.adapt(renderObjects as RenderObject[], {
+                width: canvas.width,
+                height: canvas.height,
+            });
+            primitives = adapterResult.primitives;
+        }
+
         const [r, g, b, a] = this.resolveBackgroundColor(sceneConfig);
         gl.clearColor(r, g, b, a);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -100,7 +118,7 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
             throw new Error('WebGLRenderer caches are not initialized.');
         }
 
-        for (const primitive of renderObjects) {
+        for (const primitive of primitives) {
             const program = registry.resolve(primitive.material);
             program.use();
             const batch = cache.resolve(primitive.geometry);
@@ -123,15 +141,37 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
                     program.setUniform(name, value);
                 }
             }
+            if (primitive.textureHandle) {
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, primitive.textureHandle.texture);
+            }
             const mode = primitive.mode ?? program.drawMode;
             gl.drawArrays(mode, 0, primitive.vertexCount);
             drawCalls += 1;
         }
 
-        this.state.diagnostics = this.computeDiagnostics(gl, canvas.width, canvas.height, drawCalls, [r, g, b, a]);
+        const diagnostics = this.computeDiagnostics(gl, canvas.width, canvas.height, drawCalls, [r, g, b, a]);
+        if (adapterResult) {
+            diagnostics.resources = {
+                geometryBytes: adapterResult.diagnostics.geometryBytes,
+                textures: adapterResult.diagnostics.textures,
+                primitives: {
+                    fills: adapterResult.diagnostics.fillCount,
+                    strokes: adapterResult.diagnostics.strokeCount,
+                    shadows: adapterResult.diagnostics.shadowCount,
+                    images: adapterResult.diagnostics.imageCount,
+                    texts: adapterResult.diagnostics.textCount,
+                    particles: adapterResult.diagnostics.particleCount,
+                    unsupported: adapterResult.diagnostics.unsupportedCount,
+                },
+            };
+        } else if (diagnostics.resources) {
+            diagnostics.resources = undefined;
+        }
+        this.state.diagnostics = diagnostics;
     }
 
-    captureFrame(request: FrameCaptureRequest<WebGLRenderPrimitive>): RendererCaptureResult {
+    captureFrame(request: FrameCaptureRequest<WebGLRenderPrimitive | RenderObject>): RendererCaptureResult {
         const gl = this.gl;
         const canvas = this.canvas;
         if (!gl || !canvas) throw new WebGLContextError('WebGLRenderer has not been initialized.');
@@ -169,6 +209,8 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
         this.materialRegistry = null;
         this.geometryCache?.dispose();
         this.geometryCache = null;
+        this.adapter?.dispose();
+        this.adapter = null;
         this.canvas = null;
         this.gl = null;
         this.scratchPixels = null;
@@ -253,5 +295,11 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive> {
             return new Uint8Array(required);
         }
         return existing;
+    }
+
+    private isPrimitive(object: unknown): object is WebGLRenderPrimitive {
+        if (!object || typeof object !== 'object') return false;
+        const candidate = object as Partial<WebGLRenderPrimitive>;
+        return Boolean(candidate.geometry && candidate.material && typeof candidate.vertexCount === 'number');
     }
 }

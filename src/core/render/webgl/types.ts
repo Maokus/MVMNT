@@ -1,5 +1,7 @@
 import type { RenderObject } from '../renderer-contract';
 import type { MaterialDescriptor, UniformValue } from './material';
+import type { GlyphAtlasPage } from './glyph-atlas';
+import type { TextureHandle, TextureResourceDiagnostics } from './texture-cache';
 
 export interface WebGLGeometrySource {
     id: string;
@@ -21,6 +23,9 @@ export interface WebGLRenderPrimitive extends RenderObject {
     uniforms?: Record<string, UniformValue>;
     vertexCount: number;
     mode?: number;
+    textureSource?: CanvasImageSource | GlyphAtlasPage;
+    atlasPageId?: string;
+    textureHandle?: TextureHandle;
 }
 
 export interface RendererDiagnostics {
@@ -28,6 +33,19 @@ export interface RendererDiagnostics {
     drawCalls: number;
     bytesHashed: number;
     contextType: 'webgl' | 'webgl2';
+    resources?: {
+        geometryBytes: number;
+        textures: TextureResourceDiagnostics;
+        primitives: {
+            fills: number;
+            strokes: number;
+            shadows: number;
+            images: number;
+            texts: number;
+            particles: number;
+            unsupported: number;
+        };
+    };
 }
 
 export interface WebGLRendererState {
