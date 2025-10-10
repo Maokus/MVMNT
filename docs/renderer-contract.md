@@ -1,15 +1,16 @@
 # Renderer Contract
 
-_Last reviewed: 2025-04-05_
+_Last reviewed: 2025-04-12_
 
 ## Overview
-The `RendererContract` describes the lifecycle that both the legacy Canvas renderer and the
-upcoming WebGL renderer must implement. It anchors shared responsibilities for context management,
-frame submission, export capture, and teardown so `MIDIVisualizerCore` can swap implementations
-without changing its call sites.
+The `RendererContract` describes the lifecycle that renderer implementations for the
+`MIDIVisualizerCore` must follow. The `WebGLRenderer` is the sole production renderer and the
+`ModularRenderer` now serves as a development-only fallback for diagnostics and parity harnesses.
+The contract anchors context management, frame submission, export capture, and teardown so the
+runtime can continue to swap implementations without altering call sites.
 
 - **Interface location:** `src/core/render/renderer-contract.ts`
-- **Current implementers:** `ModularRenderer` (Canvas 2D), `WebGLRenderer`
+- **Current implementers:** `WebGLRenderer` (production), `ModularRenderer` (development fallback)
 - **Consumers:** `MIDIVisualizerCore`, export pipelines, and WebGL runtime diagnostics
 
 ## Lifecycle methods
@@ -67,15 +68,16 @@ hashing stay consistent across renderers.
 ## Test harness scaffolding
 Runtime and export owners agreed to the following scaffolding for parity checks:
 
-- **Snapshot comparison:** Use existing Canvas captures as the baseline, diff against WebGL output
-  with the tolerance thresholds codified in the parity harness.
+- **Snapshot comparison:** Use the archived Canvas captures as the historical baseline and diff
+  against WebGL output with the tolerance thresholds codified in the parity harness.
 - **Frame hashing:** Compute a stable hash across RGBA buffers in both playback and export modes to
   detect divergence without full image diffs. Surface hashes through the diagnostics store for CI.
 - **Scene fixtures:** Reuse the `failedtests` and `src/persistence/__fixtures__` assets to pin common
   geometry, text, and particle scenarios for deterministic testing. Extend fixtures when onboarding
   new GPU-centric primitives.
 
-These hooks unlock WebGL regression coverage without blocking Canvas while the migration proceeds.
+These hooks keep WebGL regression coverage dependable while the Canvas fallback remains available
+only for development troubleshooting.
 
 ## Sign-off
 - Runtime owner (✅ 2025-03-15)

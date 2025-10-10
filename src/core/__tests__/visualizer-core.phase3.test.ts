@@ -13,6 +13,7 @@ import type {
     RenderObject,
 } from '@core/render/renderer-contract';
 import type { RendererDiagnostics, WebGLRenderPrimitive } from '@core/render/webgl/types';
+import { setCanvasRendererOverride } from '@utils/renderEnvironment';
 
 type CanvasCtx = CanvasRenderingContext2D & {
     clearRect: ReturnType<typeof vi.fn>;
@@ -108,6 +109,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+    setCanvasRendererOverride('disable');
     useSceneStore.getState().clearScene();
     useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS } });
     useRenderDiagnosticsStore.getState().reset();
@@ -115,6 +117,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.restoreAllMocks();
+    setCanvasRendererOverride(null);
 });
 
 describe('MIDIVisualizerCore phase 3 integration', () => {
@@ -128,6 +131,7 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
         const fakeWebGLRenderer = new FakeWebGLRenderer();
         const vis = new MIDIVisualizerCore(canvas, null, {
+            allowCanvasFallback: false,
             rendererFactories: {
                 createCanvasRenderer: () => fakeCanvasRenderer,
                 createWebGLRenderer: () => fakeWebGLRenderer,
@@ -153,9 +157,11 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         const ctx2d = createMock2dContext(canvas);
         vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
         useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS, renderer: 'webgl' } });
+        setCanvasRendererOverride('enable');
         const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
         const failingRenderer = new FailingWebGLRenderer();
         const vis = new MIDIVisualizerCore(canvas, null, {
+            allowCanvasFallback: true,
             rendererFactories: {
                 createCanvasRenderer: () => fakeCanvasRenderer,
                 createWebGLRenderer: () => failingRenderer,
@@ -176,10 +182,12 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         canvas.height = 180;
         const ctx2d = createMock2dContext(canvas);
         vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        setCanvasRendererOverride('enable');
         useSceneStore.setState({ settings: { ...DEFAULT_SCENE_SETTINGS, renderer: 'webgl' } });
         const fakeCanvasRenderer = new FakeCanvasRenderer(ctx2d);
         const fakeWebGLRenderer = new FakeWebGLRenderer();
         const vis = new MIDIVisualizerCore(canvas, null, {
+            allowCanvasFallback: true,
             rendererFactories: {
                 createCanvasRenderer: () => fakeCanvasRenderer,
                 createWebGLRenderer: () => fakeWebGLRenderer,
@@ -197,5 +205,22 @@ describe('MIDIVisualizerCore phase 3 integration', () => {
         expect(useRenderDiagnosticsStore.getState().lastFrame?.renderer).toBe('canvas2d');
 
         vis.cleanup();
+    });
+
+    it('throws when WebGL initialization fails without a canvas fallback', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 144;
+        const ctx2d = createMock2dContext(canvas);
+        vi.spyOn(canvas, 'getContext').mockImplementation((type: string) => (type === '2d' ? ctx2d : null));
+        setCanvasRendererOverride('disable');
+        expect(() => {
+            new MIDIVisualizerCore(canvas, null, {
+                allowCanvasFallback: false,
+                rendererFactories: {
+                    createWebGLRenderer: () => new FailingWebGLRenderer(),
+                },
+            });
+        }).toThrowError('no webgl context available');
     });
 });

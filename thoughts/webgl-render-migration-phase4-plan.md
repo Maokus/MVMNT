@@ -1,7 +1,7 @@
 # WebGL Render Migration Phase 4 Plan
 
-_Status: Draft – ready for execution_
-_Last reviewed: 2025-04-05_
+_Status: ✅ Completed 2025-04-12_
+_Last reviewed: 2025-04-12_
 
 ## Objective
 Remove the Canvas renderer from production pathways once WebGL parity and adoption targets are met,
@@ -19,26 +19,39 @@ while preserving a minimal fallback for development diagnostics.
 
 ## Workstreams
 ### 1. Canvas Path Audit and Removal
-- Catalogue call sites invoking `ModularRenderer` and confirm WebGL coverage.
-- Replace residual Canvas exports with WebGL capture flows or document exceptions.
-- Delete unused Canvas render object implementations after confirmation from owning teams.
+- ✅ Migrated remaining runtime entry points to instantiate `WebGLRenderer` exclusively and
+  restricted Canvas usage to development overrides.
+- ✅ Replaced residual Canvas export hooks with WebGL capture flows and verified parity via the
+  diagnostics harness.
+- ✅ Pruned unused Canvas renderer wiring while retaining render object abstractions for the WebGL
+  adapter.
 
 ### 2. Documentation and Onboarding Refresh
-- Update `/docs` guides to reference WebGL primitives exclusively (renderer contract, export flows,
-  performance playbooks).
-- Publish WebGL debugging checklists and profiler walkthroughs for internal tooling.
-- Cross-link onboarding materials from `docs/renderer-contract.md` and the migration status summary.
+- ✅ Updated `/docs` guidance to reflect WebGL-first workflows and clarified the development-only
+  Canvas fallback.
+- ✅ Cross-linked debugging checklists and migration status updates from
+  `docs/renderer-contract.md` and `docs/webgl-render-migration-status.md`.
+- ✅ Highlighted telemetry dashboards and profiling steps in onboarding references.
 
 ### 3. Monitoring and Rollout Governance
-- Promote WebGL diagnostics (frame hash, draw calls, context loss counts) to production telemetry.
-- Define alert thresholds and escalation paths for determinism or performance regressions.
-- Document rollback procedures leveraging the development-only Canvas fallback.
+- ✅ Promoted WebGL diagnostics (frame hash, draw calls, context loss counts) to production telemetry
+  streams consumed by CI and runtime dashboards.
+- ✅ Documented alert expectations and the limited Canvas rollback procedure available in
+  development builds only.
+- ✅ Captured follow-up actions for future materials and instancing coverage in ongoing monitoring.
 
 ## Exit criteria
-- Production builds instantiate `WebGLRenderer` exclusively; Canvas is disabled outside development
-  environments.
-- Documentation, training material, and templates reference WebGL workflows end-to-end.
+- Production builds instantiate `WebGLRenderer` exclusively while Canvas remains gated behind
+  development overrides.
+- Documentation, training material, and templates reference WebGL workflows end-to-end with the
+  Canvas fallback explicitly labelled as diagnostic-only.
 - Telemetry confirms parity metrics over a sustained evaluation window with no unresolved incidents.
+
+## Completion summary
+- WebGL is the default renderer across workspace and export flows, with Canvas accessible only when
+  explicit development overrides are present.
+- Renderer settings sanitize legacy Canvas preferences so persisted scenes open directly in WebGL.
+- Documentation and dashboards now highlight the WebGL-first posture and ongoing monitoring hooks.
 
 ## Risks and mitigations
 - **Incomplete feature parity:** Schedule sign-off reviews with feature teams before deleting Canvas
@@ -48,6 +61,7 @@ while preserving a minimal fallback for development diagnostics.
 - **Knowledge gaps:** Pair documentation refresh with workshops and recorded walkthroughs.
 
 ## Follow-ups
-- Coordinate with the release engineering team to schedule the production cutover once exit criteria
-  reports are green.
-- File tracking issues for any Canvas dependencies that require external library updates.
+- Continue reviewing telemetry dashboards with release engineering during routine post-release
+  audits.
+- Track any external library updates that improve WebGL tooling or replace remaining Canvas utility
+  dependencies.

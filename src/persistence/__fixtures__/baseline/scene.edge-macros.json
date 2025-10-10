@@ -3,40 +3,127 @@
     {
       "id": "title",
       "type": "textOverlay",
-      "visible": { "type": "constant", "value": true },
-      "zIndex": { "type": "constant", "value": 0 },
-      "elementOpacity": { "type": "constant", "value": 1 },
-      "offsetX": { "type": "constant", "value": 0 },
-      "offsetY": { "type": "constant", "value": 0 },
-      "anchorX": { "type": "constant", "value": 0.5 },
-      "anchorY": { "type": "constant", "value": 0.5 },
-      "elementScaleX": { "type": "constant", "value": 1 },
-      "elementScaleY": { "type": "constant", "value": 1 },
-      "elementRotation": { "type": "constant", "value": 0 },
-      "elementSkewX": { "type": "constant", "value": 0 },
-      "elementSkewY": { "type": "constant", "value": 0 },
-      "text": { "type": "constant", "value": "Baseline Scene" },
-      "fontFamily": { "type": "constant", "value": "Inter" },
-      "fontSize": { "type": "macro", "macroId": "macro.fontSize" },
-      "color": { "type": "macro", "macroId": "macro.color.primary" },
+      "visible": {
+        "type": "constant",
+        "value": true
+      },
+      "zIndex": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementOpacity": {
+        "type": "constant",
+        "value": 1
+      },
+      "offsetX": {
+        "type": "constant",
+        "value": 0
+      },
+      "offsetY": {
+        "type": "constant",
+        "value": 0
+      },
+      "anchorX": {
+        "type": "constant",
+        "value": 0.5
+      },
+      "anchorY": {
+        "type": "constant",
+        "value": 0.5
+      },
+      "elementScaleX": {
+        "type": "constant",
+        "value": 1
+      },
+      "elementScaleY": {
+        "type": "constant",
+        "value": 1
+      },
+      "elementRotation": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementSkewX": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementSkewY": {
+        "type": "constant",
+        "value": 0
+      },
+      "text": {
+        "type": "constant",
+        "value": "Baseline Scene"
+      },
+      "fontFamily": {
+        "type": "constant",
+        "value": "Inter"
+      },
+      "fontSize": {
+        "type": "macro",
+        "macroId": "macro.fontSize"
+      },
+      "color": {
+        "type": "macro",
+        "macroId": "macro.color.primary"
+      },
       "index": 0
     },
     {
       "id": "background",
       "type": "background",
-      "visible": { "type": "constant", "value": true },
-      "zIndex": { "type": "constant", "value": -1000 },
-      "elementOpacity": { "type": "constant", "value": 1 },
-      "offsetX": { "type": "constant", "value": 0 },
-      "offsetY": { "type": "constant", "value": 0 },
-      "anchorX": { "type": "constant", "value": 0 },
-      "anchorY": { "type": "constant", "value": 0 },
-      "elementScaleX": { "type": "constant", "value": 1 },
-      "elementScaleY": { "type": "constant", "value": 1 },
-      "elementRotation": { "type": "constant", "value": 0 },
-      "elementSkewX": { "type": "constant", "value": 0 },
-      "elementSkewY": { "type": "constant", "value": 0 },
-      "backgroundColor": { "type": "macro", "macroId": "macro.color.background" },
+      "visible": {
+        "type": "constant",
+        "value": true
+      },
+      "zIndex": {
+        "type": "constant",
+        "value": -1000
+      },
+      "elementOpacity": {
+        "type": "constant",
+        "value": 1
+      },
+      "offsetX": {
+        "type": "constant",
+        "value": 0
+      },
+      "offsetY": {
+        "type": "constant",
+        "value": 0
+      },
+      "anchorX": {
+        "type": "constant",
+        "value": 0
+      },
+      "anchorY": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementScaleX": {
+        "type": "constant",
+        "value": 1
+      },
+      "elementScaleY": {
+        "type": "constant",
+        "value": 1
+      },
+      "elementRotation": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementSkewX": {
+        "type": "constant",
+        "value": 0
+      },
+      "elementSkewY": {
+        "type": "constant",
+        "value": 0
+      },
+      "backgroundColor": {
+        "type": "macro",
+        "macroId": "macro.color.background"
+      },
       "index": 1
     }
   ],
@@ -46,7 +133,7 @@
     "height": 1500,
     "tempo": 120,
     "beatsPerBar": 4,
-    "renderer": "canvas2d"
+    "renderer": "webgl"
   },
   "macros": {
     "macros": {
@@ -64,7 +151,11 @@
         "type": "number",
         "value": 42,
         "defaultValue": 42,
-        "options": { "min": 12, "max": 96, "step": 2 },
+        "options": {
+          "min": 12,
+          "max": 96,
+          "step": 2
+        },
         "createdAt": 1700000000000,
         "lastModified": 1700000000000
       },
@@ -84,9 +175,18 @@
         "defaultValue": "bold",
         "options": {
           "selectOptions": [
-            { "value": "bold", "label": "Bold" },
-            { "value": "minimal", "label": "Minimal" },
-            { "value": "retro", "label": "Retro" }
+            {
+              "value": "bold",
+              "label": "Bold"
+            },
+            {
+              "value": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "value": "retro",
+              "label": "Retro"
+            }
           ]
         },
         "createdAt": 1700000000000,
@@ -97,14 +197,18 @@
         "type": "file-image",
         "value": "assets/covers/default.png",
         "defaultValue": "",
-        "options": { "accept": "image/*" },
+        "options": {
+          "accept": "image/*"
+        },
         "createdAt": 1700000000000,
         "lastModified": 1700000000000
       },
       "macro.midi.track": {
         "name": "macro.midi.track",
         "type": "timelineTrackRef",
-        "value": ["track-1"],
+        "value": [
+          "track-1"
+        ],
         "defaultValue": [],
         "options": {},
         "createdAt": 1700000000000,

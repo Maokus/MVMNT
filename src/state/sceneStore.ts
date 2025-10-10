@@ -4,6 +4,7 @@ import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { useTimelineStore } from '@state/timelineStore';
+import { isCanvasRendererAllowed } from '@utils/renderEnvironment';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -123,6 +124,13 @@ export interface MacroBindingAssignment {
 export type MacroBindingsIndex = Record<string, MacroBindingAssignment[]>;
 
 export type SceneRendererType = 'canvas2d' | 'webgl';
+
+function sanitizeRendererPreference(value: unknown): SceneRendererType {
+    if (value === 'canvas2d' && isCanvasRendererAllowed()) {
+        return 'canvas2d';
+    }
+    return 'webgl';
+}
 
 export interface SceneSettingsState {
     fps: number;
@@ -282,7 +290,7 @@ export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     height: 1500,
     tempo: 120,
     beatsPerBar: 4,
-    renderer: 'canvas2d',
+    renderer: sanitizeRendererPreference('webgl'),
 };
 
 function createInitialInteractionState(): SceneInteractionState {
@@ -917,11 +925,17 @@ const createSceneStoreState = (
     },
 
     updateSettings: (patch) => {
-        set((state) => ({
-            ...state,
-            settings: { ...state.settings, ...patch },
-            runtimeMeta: markDirty(state, 'updateSettings'),
-        }));
+        set((state) => {
+            const nextSettings: SceneSettingsState = { ...state.settings, ...patch };
+            if ('renderer' in patch) {
+                nextSettings.renderer = sanitizeRendererPreference(patch.renderer);
+            }
+            return {
+                ...state,
+                settings: nextSettings,
+                runtimeMeta: markDirty(state, 'updateSettings'),
+            };
+        });
     },
 
     updateBindings: (elementId, patch) => {
@@ -1345,6 +1359,7 @@ const createSceneStoreState = (
                 ...DEFAULT_SCENE_SETTINGS,
                 ...(payload.sceneSettings ?? {}),
             } satisfies SceneSettingsState;
+            nextSettings.renderer = sanitizeRendererPreference(nextSettings.renderer);
 
             const importTimestamp = Date.now();
 

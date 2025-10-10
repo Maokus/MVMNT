@@ -17,6 +17,7 @@ import { dispatchSceneCommand, SceneRuntimeAdapter, useRenderDiagnosticsStore } 
 import { useSceneStore, type SceneRendererType } from '@state/sceneStore';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import type { SnapGuide } from '@core/interaction/snapping';
+import { isCanvasRendererAllowed } from '@utils/renderEnvironment';
 
 type WebGLRendererContract = RendererContract<WebGLRenderPrimitive | RenderObject> & {
     diagnostics?: RendererDiagnostics | null;
@@ -30,6 +31,7 @@ interface MIDIVisualizerRendererFactories {
 export interface MIDIVisualizerCoreOptions {
     rendererFactories?: MIDIVisualizerRendererFactories;
     initialRenderer?: SceneRendererType;
+    allowCanvasFallback?: boolean;
 }
 
 export class MIDIVisualizerCore {
@@ -43,15 +45,16 @@ export class MIDIVisualizerCore {
     currentTime = -0.5;
     exportSettings: any = { fullDuration: true };
     debugSettings: any = { showAnchorPoints: false, showDevelopmentOverlay: false };
-    modularRenderer: RendererContract<RenderObject>;
-    renderer: RendererContract<WebGLRenderPrimitive | RenderObject>;
+    modularRenderer: RendererContract<RenderObject> | null = null;
+    renderer: RendererContract<WebGLRenderPrimitive | RenderObject> | null = null;
     webglRenderer: WebGLRendererContract | null = null;
     runtimeAdapter: SceneRuntimeAdapter | null = null;
     private readonly _rendererFactories: {
         createCanvasRenderer: () => RendererContract<RenderObject>;
         createWebGLRenderer: () => WebGLRendererContract;
     };
-    private _rendererPreference: SceneRendererType = 'canvas2d';
+    private readonly _allowCanvasFallback: boolean;
+    private _rendererPreference: SceneRendererType = 'webgl';
     private _rendererContext: RendererContextType = 'canvas2d';
     private _webglSurface: HTMLCanvasElement | null = null;
     private _settingsUnsubscribe?: () => void;
@@ -79,15 +82,23 @@ export class MIDIVisualizerCore {
     constructor(canvas: HTMLCanvasElement, timingManager: any = null, options?: MIDIVisualizerCoreOptions) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
+        this._allowCanvasFallback = this._resolveCanvasFallbackAllowance(options);
         const factories = options?.rendererFactories ?? {};
         this._rendererFactories = {
             createCanvasRenderer: factories.createCanvasRenderer ?? (() => new ModularRenderer()),
             createWebGLRenderer: factories.createWebGLRenderer ?? (() => new WebGLRenderer()),
         };
-        this.modularRenderer = this._rendererFactories.createCanvasRenderer();
-        this.renderer = this.modularRenderer;
-        const initResult = this._initRenderer();
-        this.ctx = initResult.context as CanvasRenderingContext2D;
+        const compositorInit = this._initCompositor();
+        this.ctx = compositorInit.context as CanvasRenderingContext2D;
+        this._rendererContext = compositorInit.contextType;
+        if (this._allowCanvasFallback) {
+            this.modularRenderer = this._rendererFactories.createCanvasRenderer();
+            const canvasInit = this.modularRenderer.init({ canvas: this.canvas, context: this.ctx });
+            if (canvasInit.contextType !== 'canvas2d') {
+                throw new Error('MIDIVisualizerCore requires a canvas2d renderer implementation');
+            }
+            this.renderer = this.modularRenderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
+        }
         this._setupImageLoadedListener();
         try {
             this.runtimeAdapter = new SceneRuntimeAdapter();
@@ -100,13 +111,19 @@ export class MIDIVisualizerCore {
         this._settingsUnsubscribe = this._subscribeToRendererPreference();
         (window as any).vis = this; // debug helper
     }
-    private _initRenderer(): RendererInitResult {
-        const initResult = this.modularRenderer.init({ canvas: this.canvas });
-        if (initResult.contextType !== 'canvas2d') {
-            throw new Error('MIDIVisualizerCore requires a canvas2d renderer implementation');
+    private _resolveCanvasFallbackAllowance(options?: MIDIVisualizerCoreOptions): boolean {
+        if (typeof options?.allowCanvasFallback === 'boolean') {
+            return options.allowCanvasFallback;
         }
-        this._rendererContext = initResult.contextType;
-        return initResult;
+        return isCanvasRendererAllowed();
+    }
+
+    private _initCompositor(): RendererInitResult {
+        const context = this.canvas.getContext('2d');
+        if (!context) {
+            throw new Error('MIDIVisualizerCore requires a 2D canvas for compositing');
+        }
+        return { canvas: this.canvas, context, contextType: 'canvas2d' };
     }
 
     private _resolveInitialRendererPreference(initial?: SceneRendererType | null): SceneRendererType {
@@ -115,12 +132,16 @@ export class MIDIVisualizerCore {
             const settings = useSceneStore.getState().settings;
             return this._normalizeRendererPreference(settings?.renderer);
         } catch {
-            return 'canvas2d';
+            return 'webgl';
         }
     }
 
     private _normalizeRendererPreference(value: unknown): SceneRendererType {
-        return value === 'webgl' ? 'webgl' : 'canvas2d';
+        if (value === 'webgl') return 'webgl';
+        if (value === 'canvas2d' && this._allowCanvasFallback) {
+            return 'canvas2d';
+        }
+        return 'webgl';
     }
 
     private _subscribeToRendererPreference(): (() => void) | undefined {
@@ -168,8 +189,15 @@ export class MIDIVisualizerCore {
                 this._recordRenderError(error);
                 this._rendererPreference = previousPreference;
             }
-            this._deactivateWebGLRenderer();
-            console.warn('[MIDIVisualizerCore] failed to initialize WebGL renderer, falling back to canvas', error);
+            if (this._allowCanvasFallback && this.modularRenderer) {
+                this._deactivateWebGLRenderer();
+                console.warn('[MIDIVisualizerCore] failed to initialize WebGL renderer, falling back to canvas', error);
+            } else {
+                this.renderer = null;
+                this.webglRenderer = null;
+                this._releaseWebGLSurface();
+                throw error;
+            }
         }
     }
 
@@ -180,9 +208,14 @@ export class MIDIVisualizerCore {
             } catch {}
         }
         this.webglRenderer = null;
-        this.renderer = this.modularRenderer;
-        this._rendererPreference = 'canvas2d';
-        this._rendererContext = 'canvas2d';
+        if (this.modularRenderer && this._allowCanvasFallback) {
+            this.renderer = this.modularRenderer as RendererContract<WebGLRenderPrimitive | RenderObject>;
+            this._rendererPreference = 'canvas2d';
+            this._rendererContext = 'canvas2d';
+        } else {
+            this.renderer = null;
+            this._rendererPreference = 'webgl';
+        }
         this._releaseWebGLSurface();
     }
 
@@ -278,7 +311,7 @@ export class MIDIVisualizerCore {
     }
 
     private _resizeRendererSurfaces(width: number, height: number): void {
-        this.modularRenderer.resize({ width, height });
+        this.modularRenderer?.resize({ width, height });
         if (this._rendererPreference === 'webgl') {
             if (this._webglSurface) {
                 this._webglSurface.width = width;
@@ -850,7 +883,7 @@ export class MIDIVisualizerCore {
         });
         return handles;
     }
-    getModularRenderer() {
+    getModularRenderer(): RendererContract<RenderObject> | null {
         return this.modularRenderer;
     }
     getAvailableSceneElementTypes() {
@@ -939,7 +972,7 @@ export class MIDIVisualizerCore {
             useRenderDiagnosticsStore.getState().reset();
         } catch {}
         this._deactivateWebGLRenderer();
-        this.modularRenderer.teardown();
+        this.modularRenderer?.teardown();
     }
     private _renderFrame(input: RendererFrameInput<RenderObject | WebGLRenderPrimitive>) {
         const renderer = this.renderer;

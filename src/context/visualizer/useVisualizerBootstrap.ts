@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { VideoExporter } from '@export/video-exporter.js';
 import { useSceneStore } from '@state/sceneStore';
+import { isCanvasRendererAllowed } from '@utils/renderEnvironment';
 import type { ExportSettings } from './types';
 
 type VisualizerModules = {
@@ -74,7 +75,9 @@ export function useVisualizerBootstrap({
                 if (cancelled || !canvasRef.current) {
                     return;
                 }
-                const vis = new MIDIVisualizerCore(canvasRef.current);
+                const vis = new MIDIVisualizerCore(canvasRef.current, null, {
+                    allowCanvasFallback: isCanvasRendererAllowed(),
+                });
                 vis.render();
                 setVisualizer(vis);
                 const gen = new ImageSequenceGenerator(canvasRef.current, vis);

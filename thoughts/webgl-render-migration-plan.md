@@ -1,24 +1,24 @@
 # WebGL Render Migration Plan
 
-_Last reviewed: 2025-04-05_
+_Last reviewed: 2025-04-12_
 
 ## Summary
 - **Objective:** Replace the existing 2D canvas renderer with a WebGL pipeline that preserves deterministic output while
   unlocking GPU-accelerated materials and batching.
 - **Scope:** Renderer contract, renderable object abstractions, material system, batching, compatibility layers, and
   regression tooling for parity validation.
-- **Status:** Phases 0–3 complete; Phase 4 ready to begin pending execution of the decommission plan.
+- **Status:** Phases 0–4 complete; Canvas fallback retained as a development-only diagnostic path.
 - **Related plans:** Aligns with [Audio Visualisation Implementation Plan (Phase Consolidation)](./audio-visualisation-plan-3.md)
   and its Phase 3.5 deliverables.
 
-## Context Update (2025-04-05)
-- The current runtime relies on `ModularRenderer` (`src/core/render/modular-renderer.ts`) invoking Canvas 2D `RenderObject`
-  subclasses (`src/core/render/render-objects/*`). Rendering is CPU-bound and tightly coupled to the scene graph produced by
-  `SceneRuntimeAdapter` and `VisualizerCore`.【F:src/core/render/modular-renderer.ts†L1-L71】【F:src/core/render/render-objects/base.ts†L1-L119】
-- Export flows reuse the same Canvas renderer and populate sequences through repeated draw calls, so WebGL must integrate with
-  export determinism guarantees documented in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
-- Runtime plans for audio visualisation expect deterministic shader/material primitives, so this migration unblocks later
-  GPU-dependent visuals while keeping the Canvas fallback viable.
+## Context Update (2025-04-12)
+- `MIDIVisualizerCore` instantiates `WebGLRenderer` by default, compositing onto the display canvas while retaining the
+  `ModularRenderer` only for development overrides. Render objects remain the shared abstraction consumed by the WebGL adapter
+  and diagnostics surfaces.【F:src/core/visualizer-core.ts†L1-L226】
+- Export flows reuse the WebGL renderer for deterministic capture while retaining the development fallback as an emergency
+  diagnostic aid documented in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
+- Runtime plans for audio visualisation continue to rely on deterministic shader/material primitives unlocked by the WebGL
+  pipeline.
 
 ## Dependencies & References
 - [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) — runtime contract, SceneRuntimeAdapter ownership, and export guarantees.
@@ -27,8 +27,8 @@ _Last reviewed: 2025-04-05_
 - [`thoughts/audio-visualisation-plan-3.md`](./audio-visualisation-plan-3.md) — downstream consumers of the WebGL renderer.
 
 ## Current Challenges
-- Sustain determinism and performance telemetry as WebGL becomes the default renderer.
-- Complete parity validation for any outstanding Canvas-only features prior to removal.
+- Sustain determinism and performance telemetry now that WebGL is the sole production renderer.
+- Expand fixtures and monitoring for GPU materials and instancing without relying on Canvas parity paths.
 - Deliver onboarding and debugging guidance tailored to WebGL workflows.
 
 ## Architectural Decisions
@@ -116,12 +116,13 @@ _Status: ✅ Completed 2025-03-30_
   `visualizer-core.phase3.test.ts`, and the diagnostics store captures deterministic hashes for export parity.
 
 ### Phase 4 — Decommission Canvas Renderer (Stretch)
-_Status: Ready for kickoff_
+_Status: ✅ Completed 2025-04-12_
 
 **Goal:** Remove the Canvas implementation once parity metrics are met and teams have migrated their scenes.
 
-**Detailed plan:** See [WebGL Render Migration Phase 4 Plan](./webgl-render-migration-phase4-plan.md) for workstreams, exit criteria, and risk
-management.
+**Outcome:** Canvas renderer entry points are no longer available in production builds. Renderer preferences sanitize legacy
+Canvas selections, documentation now reflects WebGL-first workflows, and telemetry dashboards track determinism without the
+legacy fallback. Completion details captured in [WebGL Render Migration Phase 4 Plan](./webgl-render-migration-phase4-plan.md).
 
 ## Decisions & Open Questions
 
@@ -147,9 +148,11 @@ management.
 - Delivered WebGL infrastructure with deterministic hashing and prototype parity tests (Phase 1).
 - Migrated render objects to GPU buffers with lifecycle diagnostics (Phase 2).
 - Integrated WebGL into runtime and export flows behind feature flags with telemetry instrumentation (Phase 3).
+- Decommissioned the Canvas renderer outside development diagnostics and refreshed documentation (Phase 4).
 - Summary available in [WebGL Render Migration Status](../docs/webgl-render-migration-status.md).
 
 ## Next Steps
-- Execute Phase 4 per the [Phase 4 Plan](./webgl-render-migration-phase4-plan.md).
-- Coordinate with feature teams to confirm there are no remaining Canvas-only dependencies before removal.
-- Promote WebGL telemetry dashboards and rollout governance defined for Phase 4.
+- Monitor telemetry dashboards for determinism or performance regressions and adjust alert thresholds with release engineering
+  as new scenes land.
+- Continue onboarding support for teams shipping GPU materials and instancing-heavy features.
+- Track external dependencies that still expect Canvas utilities and plan replacements where necessary.
