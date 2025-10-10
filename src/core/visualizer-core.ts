@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
+import type { RendererContract, RendererFrameInput, RendererInitResult, RenderObject } from './render/renderer-contract';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
 import { CANONICAL_PPQ } from './timing/ppq';
@@ -20,7 +21,7 @@ export class MIDIVisualizerCore {
     currentTime = -0.5;
     exportSettings: any = { fullDuration: true };
     debugSettings: any = { showAnchorPoints: false, showDevelopmentOverlay: false };
-    modularRenderer = new ModularRenderer();
+    modularRenderer: RendererContract<RenderObject>;
     runtimeAdapter: SceneRuntimeAdapter | null = null;
     private _needsRender = true;
     private _lastRenderTime = -1;
@@ -46,9 +47,9 @@ export class MIDIVisualizerCore {
     constructor(canvas: HTMLCanvasElement, timingManager: any = null) {
         if (!canvas) throw new Error('Canvas element is required');
         this.canvas = canvas;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Could not get 2D context from canvas');
-        this.ctx = ctx;
+        this.modularRenderer = new ModularRenderer();
+        const initResult = this._initRenderer();
+        this.ctx = initResult.context as CanvasRenderingContext2D;
         this._setupImageLoadedListener();
         try {
             this.runtimeAdapter = new SceneRuntimeAdapter();
@@ -57,6 +58,13 @@ export class MIDIVisualizerCore {
             this.runtimeAdapter = null;
         }
         (window as any).vis = this; // debug helper
+    }
+    private _initRenderer(): RendererInitResult {
+        const initResult = this.modularRenderer.init({ canvas: this.canvas });
+        if (initResult.contextType !== 'canvas2d') {
+            throw new Error('MIDIVisualizerCore requires a canvas2d renderer implementation');
+        }
+        return initResult;
     }
     updateSceneElementTimingManager() {
         void loadDefaultScene('MIDIVisualizerCore.updateSceneElementTimingManager').then((loaded) => {
@@ -281,7 +289,7 @@ export class MIDIVisualizerCore {
     renderAtTime(targetTime: number) {
         const config = this.getSceneConfig();
         const renderObjects = this._buildSceneRenderObjects(config, targetTime);
-        this.modularRenderer.render(this.ctx, renderObjects, config, targetTime);
+        this._renderFrame({ renderObjects, sceneConfig: config, timeSec: targetTime });
         try {
             this._renderInteractionOverlays(targetTime, config);
         } catch {}
@@ -329,7 +337,7 @@ export class MIDIVisualizerCore {
         const config = this.getSceneConfig();
         const base = this._buildSceneRenderObjects(config, targetTime);
         const all = [...base, ...customRenderObjects];
-        this.modularRenderer.render(this.ctx, all, config, targetTime);
+        this._renderFrame({ renderObjects: all, sceneConfig: config, timeSec: targetTime });
     }
     getSceneConfig() {
         const themeColors = {
@@ -702,6 +710,10 @@ export class MIDIVisualizerCore {
             cancelAnimationFrame(this._pendingRenderRAF);
             this._pendingRenderRAF = null;
         }
+        this.modularRenderer.teardown();
+    }
+    private _renderFrame(input: RendererFrameInput<RenderObject>) {
+        this.modularRenderer.renderFrame(input);
     }
     getSceneElement(elementId: string) {
         try {

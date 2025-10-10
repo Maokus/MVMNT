@@ -1,6 +1,6 @@
 import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
-import type { RenderObject } from '@core/render/modular-renderer';
+import type { RenderObject } from '@core/render/renderer-contract';
 import { serializeStable } from '@persistence/stable-stringify';
 import {
     useSceneStore,

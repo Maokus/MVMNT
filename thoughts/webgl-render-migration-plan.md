@@ -46,7 +46,7 @@ _Last reviewed: 2025-03-12_
 
 ## Migration Phases
 ### Phase 0 — Foundation (Blocking)
-_Status: Pending sign-off_
+_Status: ✅ Completed 2025-03-15_
 
 **Goal:** Capture the renderer contract and classify render object responsibilities before introducing GPU abstractions.
 
@@ -58,8 +58,10 @@ _Status: Pending sign-off_
   the same surface.
 
 **Exit criteria**
-- Contract and object taxonomy published in `/docs` with sign-off from runtime and export owners.
-- Test harness scaffolding agreed upon (snapshot comparison, frame hashing) to reuse during later phases.
+- Contract and object taxonomy published in `/docs` with sign-off from runtime and export owners. ✅ See
+  [`docs/renderer-contract.md`](../docs/renderer-contract.md).
+- Test harness scaffolding agreed upon (snapshot comparison, frame hashing) to reuse during later phases. ✅ Documented in
+  [`docs/renderer-contract.md`](../docs/renderer-contract.md).
 
 ### Phase 1 — WebGL Infrastructure (Blocking)
 _Status: Ready to start once Phase 0 lands_
