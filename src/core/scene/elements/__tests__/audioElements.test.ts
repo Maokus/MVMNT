@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, beforeAll, afterAll, vi } from 'vites
 import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
-import { Poly, Text } from '@core/render/render-objects';
+import { Arc, Line, Poly, Rectangle, Text } from '@core/render/render-objects';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
@@ -325,7 +325,10 @@ describe('audio scene elements', () => {
         const second = element.buildRenderObjects({}, hopSeconds);
         const getMeterHeight = (objects: any[]) => {
             const container = objects[0] as any;
-            const meter = container.children?.[1];
+            const rectangles = (container.children ?? []).filter(
+                (child: any) => child instanceof Rectangle && child.includeInLayoutBounds === false,
+            );
+            const meter = rectangles[rectangles.length - 1];
             return meter?.height ?? 0;
         };
         const firstHeight = getMeterHeight(first);
@@ -336,12 +339,12 @@ describe('audio scene elements', () => {
 
     it('renders volume text when enabled', () => {
         const element = new AudioVolumeMeterElement('meterText');
-        element.updateConfig({ showText: true, textLocation: 'bottom' });
+        element.updateConfig({ labelMode: 'decibels', textLocation: 'bottom' });
 
         const renderObjects = element.buildRenderObjects({}, 0);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
-        const text = container.children?.[2];
+        const text = (container.children ?? []).find((child: any) => child instanceof Text);
         expect(text).toBeInstanceOf(Text);
         expect(text?.text).toContain('dB');
         const layoutRect = container.children?.[0];
@@ -353,7 +356,7 @@ describe('audio scene elements', () => {
         useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
         const element = new AudioVolumeMeterElement('meterTrackText');
         element.updateConfig({
-            showText: true,
+            labelMode: 'decibels',
             textLocation: 'track',
             featureTrackId: 'testTrack',
             features: [
@@ -370,16 +373,82 @@ describe('audio scene elements', () => {
 
         const first = element.buildRenderObjects({}, 0);
         const firstContainer = first[0] as any;
-        const firstText = firstContainer.children?.[2];
+        const firstText = (firstContainer.children ?? []).find((child: any) => child instanceof Text);
         expect(firstText).toBeInstanceOf(Text);
 
         const tm = getSharedTimingManager();
         const hopSeconds = tm.ticksToSeconds(cache.hopTicks ?? 0);
         const second = element.buildRenderObjects({}, hopSeconds);
         const secondContainer = second[0] as any;
-        const secondText = secondContainer.children?.[2];
+        const secondText = (secondContainer.children ?? []).find((child: any) => child instanceof Text);
         expect(secondText).toBeInstanceOf(Text);
         expect((secondText?.y as number) < (firstText?.y as number)).toBe(true);
+    });
+
+    it('supports horizontal orientation', () => {
+        const cache = createRmsCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioVolumeMeterElement('meterHorizontal');
+        element.updateConfig({
+            orientation: 'horizontal',
+            width: 180,
+            height: 32,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'test.rms',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks ?? 0);
+        const first = element.buildRenderObjects({}, 0);
+        const second = element.buildRenderObjects({}, hopSeconds);
+        const getMeterWidth = (objects: any[]) => {
+            const container = objects[0] as any;
+            const rectangles = (container.children ?? []).filter(
+                (child: any) => child instanceof Rectangle && child.includeInLayoutBounds === false,
+            );
+            const meter = rectangles[rectangles.length - 1];
+            return meter?.width ?? 0;
+        };
+        expect(getMeterWidth(second)).toBeGreaterThan(getMeterWidth(first));
+    });
+
+    it('renders radial orientation with peak marker', () => {
+        const cache = createRmsCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioVolumeMeterElement('meterRadial');
+        element.updateConfig({
+            orientation: 'radial',
+            width: 200,
+            height: 200,
+            radialThickness: 20,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'test.rms',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const tm = getSharedTimingManager();
+        const hopSeconds = tm.ticksToSeconds(cache.hopTicks ?? 0);
+        const objects = element.buildRenderObjects({}, hopSeconds);
+        const container = objects[0] as any;
+        const arcs = (container.children ?? []).filter((child: any) => child instanceof Arc);
+        expect(arcs.length).toBeGreaterThan(0);
+        const lines = (container.children ?? []).filter((child: any) => child instanceof Line);
+        expect(lines.some((line: Line) => line.lineWidth > 0)).toBe(true);
     });
 
     it('samples waveform data for oscilloscope element', () => {

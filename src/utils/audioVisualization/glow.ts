@@ -1,4 +1,4 @@
-import { Line, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
+import { Arc, Line, Poly, Rectangle, type RenderObject } from '@core/render/render-objects';
 
 export type GlowOpacityFalloff = 'linear' | 'quadratic';
 
@@ -238,5 +238,62 @@ export function applyGlowToRectangle(rect: Rectangle, glow: GlowStyle | null | u
     }
 
     results.push(rect);
+    return results;
+}
+
+export function applyGlowToArc(arc: Arc, glow: GlowStyle | null | undefined): Arc[] {
+    if (!glow || glow.opacity <= 0) {
+        if (glow) {
+            applyShadowToBase(arc, glow);
+        }
+        return [arc];
+    }
+
+    applyShadowToBase(arc, glow);
+
+    const layerCount = Math.max(0, Math.floor(glow.layerCount ?? 0));
+    if (layerCount <= 0) {
+        return [arc];
+    }
+
+    const results: Arc[] = [];
+    const spread = Math.max(0, glow.layerSpread ?? Math.max(1, arc.strokeWidth));
+
+    for (let i = 0; i < layerCount; i += 1) {
+        const layerOpacity = computeLayerOpacity(glow, i, layerCount);
+        if (layerOpacity <= 0) {
+            continue;
+        }
+
+        const expansion = spread * (layerCount - i);
+        const radius = Math.max(0, arc.radius + expansion);
+        const fillColor = arc.fillColor ? withOpacity(glow.color, layerOpacity) : null;
+        const strokeColor = arc.strokeColor ? withOpacity(glow.color, layerOpacity) : null;
+        const strokeWidth = Math.max(arc.strokeWidth, arc.strokeWidth + expansion * 0.5);
+
+        const glowArc = new Arc(
+            arc.x,
+            arc.y,
+            radius,
+            arc.startAngle,
+            arc.endAngle,
+            arc.anticlockwise,
+            {
+                fillColor,
+                strokeColor,
+                strokeWidth,
+                fillRule: arc.fillRule,
+                includeInLayoutBounds: false,
+            },
+        );
+        glowArc.setLineCap(arc.lineCap);
+        glowArc.setLineDash([...arc.lineDash]);
+        glowArc.setGlobalAlpha(arc.globalAlpha);
+        glowArc.setShadow(withOpacity(glow.color, layerOpacity), glow.blur, 0, 0);
+        syncTransforms(arc, glowArc);
+        results.push(glowArc);
+    }
+
+    results.push(arc);
     return results;
 }
