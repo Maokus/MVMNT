@@ -1,6 +1,6 @@
-# Audio Feature Caches and Bindings
+# Audio feature caches and bindings
 
-_Last reviewed: 2025-03-08_
+_Last reviewed: 2025-10-15_
 
 ## Overview
 
@@ -23,13 +23,18 @@ audio source and one or more feature tracks (for example spectrogram magnitudes,
 oscilloscope windows). Scene bindings and the inspector UI consume these caches to animate spectrum,
 volume, and oscilloscope elements.
 
-> **Deprecation note:** The legacy `AudioFeatureBinding` subtype was removed in the 2025-10 binding
-> migration documented in [`thoughts/legacybindingshiftplan.md`](../thoughts/legacybindingshiftplan.md).
-> Properties now serialize neutral `{ timelineTrackRef | constantTrackId, featureDescriptor }` pairs
-> so audio-driven controls align with the standard binding runtime.
-
 Related planning notes live in [`thoughts/audio_vis_research_3.md`](../thoughts/audio_vis_research_3.md)
 and the architecture is detailed in [`HYBRID_AUDIO_CACHE.md`](./HYBRID_AUDIO_CACHE.md).
+
+## Binding shift summary
+- Legacy `AudioFeatureBinding` payloads have been replaced with neutral `{ trackRef, featureDescriptor }`
+  pairs so audio-driven properties behave like other binding types.
+- `PropertyBinding.fromSerialized` migrates historical documents at load time, and persistence/export
+  flows read and write the new structure. See [`src/bindings/property-bindings.ts`](../src/bindings/property-bindings.ts)
+  and [`src/persistence/document-gateway.ts`](../src/persistence/document-gateway.ts) for the shipping
+  runtime.
+- Inspector UX, macro tooling, and templates now rely on the shared track reference type introduced by
+  the binding shift. Guidance in this file supersedes the retired `legacybindingshiftplan.md` notes.
 
 ## Cache structure
 
@@ -132,6 +137,40 @@ Plug-in calculators can reuse the binding pipeline by registering with
    and the "Use &lt;profile&gt;" action applies suggested profiles without leaving the inspector.
 4. Bindings serialize through the scene store so save/load, undo, telemetry, and export keep the feature
    selection and profile choices intact.
+
+## Macro assignments
+### Assigning audio tracks to macros
+1. Select an audio-reactive element (for example, **Audio Spectrum**) in the inspector.
+2. Choose an audio track within the **Audio binding** group, configure the desired descriptors, then click
+   the link icon to create or reuse a macro.
+3. Newly created macros set `allowedTrackTypes: ['audio']`, so macro dialogs and timeline selectors filter
+   to audio tracks automatically.
+4. Reuse the macro on any element that expects an audio track reference; descriptor editing stays scoped to
+   the element so creators can fine-tune smoothing and channel preferences without editing the macro.
+
+### Inspector layout
+- The inspector groups the track selector and descriptor editor together with inline guidance so creators
+  understand how descriptors pair with shared track references.
+- When an element is macro-bound, descriptor controls remain interactive and write changes back to the
+  element while leaving macro payloads untouched.
+
+### Validation rules
+- Macro assignments validate against the timeline store. If an audio-only macro receives a MIDI track
+  (or vice versa) the inspector surfaces an error describing the mismatch.
+- Existing macros referencing missing tracks remain valid, preserving backward compatibility for older
+  projects.
+
+### Template spotlight
+- The bundled `default.mvt` template includes an `audioSpectrumMacro` element wired to the
+  `audioFeatureTrack` macro, demonstrating audio-driven macros immediately after project creation.
+
+## Recent updates
+- Audio track macros share the standard track reference model, giving parity with MIDI-driven macros while
+  keeping descriptor editing local to each element.
+- Inspector panels display the combined track-and-descriptor editor with glossary-aligned copy to explain
+  cache regeneration workflows.
+- Migration utilities convert legacy scenes automatically; macros without `allowedTrackTypes` default to
+  MIDI behaviour until authors opt into audio track assignments.
 
 ## Export and determinism
 

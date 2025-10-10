@@ -71,8 +71,3 @@ _Last reviewed: 2025-03-08_
 4. Hovering a descriptor highlights bound elements in the scene outline for dependency tracing.
 5. Design review: Approved by Design Systems on 2025-03-07 with tracker annotations.
 
-## Tracker linkage
-
-- Tracker entry: `A11Y-AudioViz-Phase0`
-- Inventory owner sync: Scene Runtime Guild weekly stand-up
-- Design artefacts: Attached Figma frames (`AVIZ-CachePrompts`, `AVIZ-Diagnostics`)
