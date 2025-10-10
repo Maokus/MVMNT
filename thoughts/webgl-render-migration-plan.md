@@ -84,6 +84,8 @@ _Status: In planning_
 
 **Goal:** Adapt render objects to populate GPU resources while preserving existing animation and layout semantics.
 
+Further detail: See [Phase 2 detailed planning](./wrmp-p2-planning.md) for milestone breakdowns, risks, and owners.
+
 **Key activities**
 - Create adapters that translate current `RenderObject` properties into vertex buffers, uniform blocks, or texture updates.
 - Port rectangle, line, image, and particle primitives to instanced or batched WebGL draws, matching Canvas ordering and blending.
