@@ -584,6 +584,163 @@ describe('audio scene elements', () => {
         expect(container.children[1]?.includeInLayoutBounds).toBe(false);
     });
 
+    it('renders split channel traces with vertical separation', () => {
+        const element = new AudioOscilloscopeElement('oscSplit');
+        element.updateConfig({
+            channelMode: 'split',
+            height: 200,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: 0,
+                },
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: 1,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const renderObjects = element.buildRenderObjects({}, 0.5);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        const lines = (container.children ?? []).filter((child: any) => child instanceof Poly) as Poly[];
+        expect(lines.length).toBeGreaterThanOrEqual(2);
+        const [firstLine, secondLine] = lines;
+        expect(firstLine.points.length).toBeGreaterThan(2);
+        expect(secondLine.points.length).toBeGreaterThan(2);
+        const firstBaselineY = firstLine.points[0]?.y ?? 0;
+        const secondBaselineY = secondLine.points[0]?.y ?? 0;
+        expect(firstBaselineY).toBeLessThan(secondBaselineY);
+        const layoutRect = container.children?.[0];
+        const layoutHeight = layoutRect?.height ?? 0;
+        expect(firstBaselineY).toBeLessThan(layoutHeight / 2);
+        expect(secondBaselineY).toBeGreaterThan(layoutHeight / 2);
+    });
+
+    it('aligns trace start when zero-cross triggering is enabled', () => {
+        const freeRun = new AudioOscilloscopeElement('oscFree');
+        freeRun.updateConfig({
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const zeroCross = new AudioOscilloscopeElement('oscZero');
+        zeroCross.updateConfig({
+            triggerMode: 'zeroCross',
+            triggerThreshold: 0.02,
+            triggerDirection: 'rising',
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const freeObjects = freeRun.buildRenderObjects({}, 0.5);
+        const zeroObjects = zeroCross.buildRenderObjects({}, 0.5);
+        const freeContainer = freeObjects[0] as any;
+        const zeroContainer = zeroObjects[0] as any;
+        const freeLine = (freeContainer.children ?? []).find((child: any) => child instanceof Poly) as Poly;
+        const zeroLine = (zeroContainer.children ?? []).find((child: any) => child instanceof Poly) as Poly;
+        expect(freeLine).toBeInstanceOf(Poly);
+        expect(zeroLine).toBeInstanceOf(Poly);
+        const layoutRect = zeroContainer.children?.[0];
+        const baselineY = (layoutRect?.height ?? 0) / 2;
+        const freeStart = freeLine.points[0]?.y ?? 0;
+        const zeroStart = zeroLine.points[0]?.y ?? 0;
+        expect(Math.abs(zeroStart - baselineY)).toBeLessThanOrEqual(Math.abs(freeStart - baselineY));
+    });
+
+    it('renders Lissajous mode within viewport bounds', () => {
+        const width = 180;
+        const height = 180;
+        const element = new AudioOscilloscopeElement('oscLissajous');
+        element.updateConfig({
+            channelMode: 'lissajous',
+            width,
+            height,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: 0,
+                },
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: 1,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const renderObjects = element.buildRenderObjects({}, 0.5);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        const trace = (container.children ?? []).find((child: any) => child instanceof Poly) as Poly;
+        expect(trace).toBeInstanceOf(Poly);
+        expect(trace.closed).toBe(false);
+        expect(trace.points.length).toBeGreaterThan(2);
+        trace.points.forEach((point) => {
+            expect(point.x).toBeGreaterThanOrEqual(0);
+            expect(point.x).toBeLessThanOrEqual(width);
+            expect(point.y).toBeGreaterThanOrEqual(0);
+            expect(point.y).toBeLessThanOrEqual(height);
+        });
+    });
+
+    it('applies persistence trails with fading opacity', () => {
+        const element = new AudioOscilloscopeElement('oscPersistence');
+        element.updateConfig({
+            persistenceDuration: 1,
+            persistenceOpacity: 0.4,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    smoothing: 0,
+                    bandIndex: null,
+                    channelIndex: null,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const renderObjects = element.buildRenderObjects({}, 1);
+        expect(renderObjects.length).toBe(1);
+        const container = renderObjects[0] as any;
+        const lines = (container.children ?? []).filter((child: any) => child instanceof Poly) as Poly[];
+        expect(lines.length).toBeGreaterThanOrEqual(2);
+        const alphas = lines.map((poly) => poly.globalAlpha ?? 1);
+        expect(alphas.some((alpha) => alpha > 0 && alpha < 1)).toBe(true);
+        expect(Math.max(...alphas)).toBeGreaterThanOrEqual(0.99);
+    });
+
     it('aligns the oscilloscope playhead with the window center by default', () => {
         const element = new AudioOscilloscopeElement('oscPlayhead');
         element.updateConfig({
@@ -604,8 +761,12 @@ describe('audio scene elements', () => {
         const renderObjects = element.buildRenderObjects({}, 0.5);
         expect(renderObjects.length).toBe(1);
         const container = renderObjects[0] as any;
-        expect(container.children).toHaveLength(3);
-        const playhead = container.children?.[2];
+        expect((container.children ?? []).length).toBeGreaterThanOrEqual(3);
+        const playhead = (container.children ?? []).find((child: any) => {
+            if (!(child instanceof Poly)) return false;
+            const pointCount = child.points?.length ?? 0;
+            return pointCount === 2;
+        }) as Poly | undefined;
         expect(playhead).toBeInstanceOf(Poly);
         const [start, end] = playhead?.points ?? [];
         expect(start?.x).toBeCloseTo(100, 5);
