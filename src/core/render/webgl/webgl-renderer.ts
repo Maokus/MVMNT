@@ -117,9 +117,17 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         let adapterResult: AdaptResult | null = null;
         if (renderObjects.length > 0 && !this.isPrimitive(renderObjects[0])) {
             if (!adapter) throw new WebGLContextError('WebGL render adapter is not initialized.');
+            const logicalWidth = this.resolveFrameDimension(
+                (sceneConfig as { viewportWidth?: unknown })?.viewportWidth,
+                canvas.width
+            );
+            const logicalHeight = this.resolveFrameDimension(
+                (sceneConfig as { viewportHeight?: unknown })?.viewportHeight,
+                canvas.height
+            );
             adapterResult = adapter.adapt(renderObjects as RenderObject[], {
-                width: canvas.width,
-                height: canvas.height,
+                width: logicalWidth,
+                height: logicalHeight,
             });
             primitives = adapterResult.primitives;
         }
@@ -202,7 +210,15 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         renderer.init({ canvas: offscreen, context: offscreenGl });
         renderer.renderFrame(request);
         const pixelBuffer = new Uint8Array(offscreen.width * offscreen.height * 4);
-        offscreenGl.readPixels(0, 0, offscreen.width, offscreen.height, offscreenGl.RGBA, offscreenGl.UNSIGNED_BYTE, pixelBuffer);
+        offscreenGl.readPixels(
+            0,
+            0,
+            offscreen.width,
+            offscreen.height,
+            offscreenGl.RGBA,
+            offscreenGl.UNSIGNED_BYTE,
+            pixelBuffer
+        );
         const imageData = new ImageData(new Uint8ClampedArray(pixelBuffer), offscreen.width, offscreen.height);
         const ctx = offscreen.getContext('2d');
         if (ctx) {
@@ -353,5 +369,14 @@ export class WebGLRenderer implements RendererContract<WebGLRenderPrimitive | Re
         } catch {
             /* ignore */
         }
+    }
+
+    private resolveFrameDimension(viewportDimension: unknown, framebufferDimension: number): number {
+        if (typeof viewportDimension === 'number' && Number.isFinite(viewportDimension) && viewportDimension > 0) {
+            return viewportDimension;
+        }
+        const dpr = this.dpr > 0 ? this.dpr : 1;
+        const logical = framebufferDimension / dpr;
+        return logical > 0 ? logical : framebufferDimension;
     }
 }
