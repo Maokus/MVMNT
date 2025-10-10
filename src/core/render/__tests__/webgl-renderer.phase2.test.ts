@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { WebGLRenderAdapter } from '../webgl/adapter';
 import { WebGLRenderer } from '../webgl/webgl-renderer';
 import { Rectangle } from '../render-objects/rectangle';
@@ -7,6 +7,7 @@ import { Text } from '../render-objects/text';
 import { Image as ImageObject } from '../render-objects/image';
 import { ParticleSystem } from '../render-objects/particle-system';
 import type { WebGLRenderPrimitive } from '../webgl/types';
+import type { MaterialDescriptor } from '../webgl/material';
 
 if (typeof ImageData === 'undefined') {
     class SimpleImageData {
@@ -27,11 +28,13 @@ if (typeof ImageData === 'undefined') {
 interface MockGLContext {
     context: WebGLRenderingContext;
     getPixels: () => Uint8Array | null;
+    bufferData: Mock;
 }
 
 function createExtendedMockGL(): MockGLContext {
     const mockUniformLocation = {} as WebGLUniformLocation;
     let lastPixels: Uint8Array | null = null;
+    const bufferData = vi.fn();
     const gl = {
         ARRAY_BUFFER: 0x8892,
         STATIC_DRAW: 0x88e4,
@@ -52,7 +55,7 @@ function createExtendedMockGL(): MockGLContext {
         ONE_MINUS_SRC_ALPHA: 0x0303,
         createBuffer: vi.fn(() => ({} as WebGLBuffer)),
         bindBuffer: vi.fn(),
-        bufferData: vi.fn(),
+        bufferData,
         bufferSubData: vi.fn(),
         deleteBuffer: vi.fn(),
         createShader: vi.fn(() => ({} as WebGLShader)),
@@ -109,6 +112,7 @@ function createExtendedMockGL(): MockGLContext {
     return {
         context: gl,
         getPixels: () => lastPixels,
+        bufferData,
     };
 }
 
@@ -197,5 +201,54 @@ describe('WebGLRenderer phase 2 integration', () => {
         };
         renderer.renderFrame({ timeSec: 0, sceneConfig: { backgroundColor: '#ffffff' }, renderObjects: [primitive] });
         expect(mock.context.drawArrays).toHaveBeenCalled();
+    });
+
+    it('reuploads geometry data when a cached source is replaced', () => {
+        const renderer = new WebGLRenderer();
+        renderer.init({ canvas });
+        const material: MaterialDescriptor = {
+            id: 'basic',
+            vertexSource: 'attribute vec2 a_position; void main() { gl_Position = vec4(a_position, 0.0, 1.0); }',
+            fragmentSource: 'precision mediump float; void main() { gl_FragColor = vec4(1.0); }',
+            attributes: [{ name: 'a_position', size: 2, stride: 0, offset: 0 }],
+        };
+        const firstGeometry = {
+            id: 'manual',
+            data: new Float32Array([0, 0, 1, 0, 0, 1]),
+            attributes: [{ name: 'a_position', size: 2, stride: 0, offset: 0 }],
+        };
+        const firstPrimitive: WebGLRenderPrimitive = {
+            geometry: firstGeometry,
+            material,
+            vertexCount: 3,
+        };
+        renderer.renderFrame({
+            timeSec: 0,
+            sceneConfig: { backgroundColor: '#000000' },
+            renderObjects: [firstPrimitive],
+        });
+
+        const updatedGeometry = {
+            id: 'manual',
+            data: new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]),
+            attributes: [{ name: 'a_position', size: 2, stride: 0, offset: 0 }],
+        };
+        const updatedPrimitive: WebGLRenderPrimitive = {
+            geometry: updatedGeometry,
+            material,
+            vertexCount: 6,
+        };
+
+        mock.bufferData.mockClear();
+
+        renderer.renderFrame({
+            timeSec: 1,
+            sceneConfig: { backgroundColor: '#000000' },
+            renderObjects: [updatedPrimitive],
+        });
+
+        expect(mock.bufferData).toHaveBeenCalledTimes(1);
+        const [, uploaded] = mock.bufferData.mock.calls[0];
+        expect(uploaded).toBe(updatedGeometry.data);
     });
 });

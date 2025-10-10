@@ -5,9 +5,11 @@ export class GeometryBatch {
     private readonly buffer: GLBuffer;
     private version = 0;
     private lastData: Float32Array | null = null;
+    private geometry: WebGLGeometrySource;
 
-    constructor(private readonly gl: WebGLContext, private readonly geometry: WebGLGeometrySource) {
+    constructor(private readonly gl: WebGLContext, geometry: WebGLGeometrySource) {
         this.buffer = new GLBuffer(gl, gl.ARRAY_BUFFER);
+        this.geometry = geometry;
     }
 
     bind(): void {
@@ -32,6 +34,13 @@ export class GeometryBatch {
         }
     }
 
+    updateSource(source: WebGLGeometrySource): void {
+        if (this.geometry === source) return;
+        this.geometry = source;
+        this.lastData = null;
+        this.version = 0;
+    }
+
     dispose(): void {
         this.buffer.dispose();
         this.lastData = null;
@@ -46,7 +55,10 @@ export class GeometryBatchCache {
 
     resolve(source: WebGLGeometrySource): GeometryBatch {
         const existing = this.batches.get(source.id);
-        if (existing) return existing;
+        if (existing) {
+            existing.updateSource(source);
+            return existing;
+        }
         const batch = new GeometryBatch(this.gl, source);
         this.batches.set(source.id, batch);
         return batch;
