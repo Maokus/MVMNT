@@ -1,11 +1,14 @@
 import type { PropertyDefinition } from '@core/types';
 
-export type TransferFunctionId = 'linear' | 'log' | 'power';
+export type TransferFunctionId = 'linear' | 'log' | 'power' | 'db';
 
 export interface TransferFunctionOptions {
     exponent?: number;
     base?: number;
     epsilon?: number;
+    decibelValue?: number;
+    referenceDecibels?: number;
+    gain?: number;
 }
 
 const EPSILON = 1e-6;
@@ -46,6 +49,20 @@ function applyPower(value: number, options: TransferFunctionOptions = {}): numbe
     return clampNormalized(result);
 }
 
+function applyDecibel(_value: number, options: TransferFunctionOptions = {}): number {
+    if (!Number.isFinite(options.decibelValue) || !Number.isFinite(options.referenceDecibels)) {
+        return 0;
+    }
+    const gain = Number.isFinite(options.gain) ? Math.max(0, options.gain ?? 1) : 1;
+    const decibelValue = options.decibelValue as number;
+    const reference = options.referenceDecibels as number;
+    const amplitude = Math.pow(10, (decibelValue - reference) / 20);
+    if (!Number.isFinite(amplitude)) {
+        return 0;
+    }
+    return clampNormalized(amplitude * gain);
+}
+
 export function applyTransferFunction(
     value: number,
     type: TransferFunctionId,
@@ -56,6 +73,8 @@ export function applyTransferFunction(
             return applyLogarithmic(value, options);
         case 'power':
             return applyPower(value, options);
+        case 'db':
+            return applyDecibel(value, options);
         case 'linear':
         default:
             return applyLinear(value);
@@ -74,6 +93,7 @@ export const TRANSFER_FUNCTION_LABELS: Record<TransferFunctionId, string> = {
     linear: 'Linear',
     log: 'Logarithmic',
     power: 'Power',
+    db: 'Decibel',
 };
 
 export interface TransferFunctionPropertyConfig {

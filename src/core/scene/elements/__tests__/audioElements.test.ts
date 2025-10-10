@@ -179,7 +179,7 @@ describe('audio scene elements', () => {
             bandCount: 3,
             sideMode: 'top',
             displayMode: 'bars',
-            useLogScale: false,
+            frequencyScale: 'linear',
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
@@ -213,7 +213,7 @@ describe('audio scene elements', () => {
             bandCount: 5,
             displayMode: 'bars',
             sideMode: 'top',
-            useLogScale: false,
+            frequencyScale: 'linear',
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
@@ -264,7 +264,11 @@ describe('audio scene elements', () => {
             bandCount: 4,
             displayMode: 'bars',
             sideMode: 'top',
-            useLogScale: false,
+            colorMode: 'magnitude',
+            colorRampUseMid: false,
+            colorRampLowColor: '#111111',
+            colorRampHighColor: '#eeeeee',
+            frequencyScale: 'linear',
             startFrequency: 0,
             endFrequency: 22050,
             featureTrackId: 'testTrack',
@@ -287,10 +291,115 @@ describe('audio scene elements', () => {
             const container = objects[0] as any;
             return (container.children ?? []).slice(1).map((child: any) => child.height ?? 0);
         };
+        const collectColors = (objects: any[]) => {
+            const container = objects[0] as any;
+            return (container.children ?? []).slice(1).map((child: any) => child.fillColor ?? null);
+        };
         const before = element.buildRenderObjects({}, offsetSeconds * 0.5);
         const after = element.buildRenderObjects({}, offsetSeconds + (cache.frameCount + 1) * hopSeconds);
         expect(collectHeights(before).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
         expect(collectHeights(after).every((value: number) => Math.abs(value) <= 1e-6)).toBe(true);
+        expect(collectColors(before).every((color: string | null) => color === '#111111')).toBe(true);
+        expect(collectColors(after).every((color: string | null) => color === '#111111')).toBe(true);
+    });
+
+    it('applies channel palette colors and stacked layout for layered spectra', () => {
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', createSpectrogramCache('testTrack'));
+        const element = new AudioSpectrumElement('spectrumLayers');
+        element.updateConfig({
+            bandCount: 2,
+            layerMode: 'stacked',
+            height: 80,
+            sideMode: 'top',
+            frequencyScale: 'linear',
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    channelAlias: 'Left',
+                },
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    channelAlias: 'Right',
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const renderObjects = element.buildRenderObjects({}, 0);
+        const container = renderObjects[0] as any;
+        const layoutRect = container.children?.[0];
+        expect(layoutRect?.height).toBeCloseTo(160);
+        const bars = (container.children ?? []).slice(1);
+        expect(bars).toHaveLength(4);
+        expect(bars[0]?.fillColor).toBe('#38bdf8');
+        expect(bars[2]?.fillColor).toBe('#f472b6');
+    });
+
+    it('doubles layout height for mirror layer mode', () => {
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', createSpectrogramCache('testTrack'));
+        const element = new AudioSpectrumElement('spectrumMirror');
+        element.updateConfig({
+            bandCount: 2,
+            layerMode: 'mirror',
+            height: 90,
+            sideMode: 'both',
+            frequencyScale: 'linear',
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    channelAlias: 'Left',
+                },
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                    channelAlias: 'Right',
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const renderObjects = element.buildRenderObjects({}, 0);
+        const container = renderObjects[0] as any;
+        const layoutRect = container.children?.[0];
+        expect(layoutRect?.height).toBeCloseTo(180);
+    });
+
+    it('draws history layers when enabled', () => {
+        const cache = createSpectrogramCache('testTrack');
+        useTimelineStore.getState().ingestAudioFeatureCache('testTrack', cache);
+        const element = new AudioSpectrumElement('spectrumHistory');
+        element.updateConfig({
+            bandCount: 3,
+            sideMode: 'top',
+            displayMode: 'bars',
+            frequencyScale: 'linear',
+            historyFrameCount: 2,
+            historyOpacity: 0.8,
+            historyFade: 1,
+            historySoftness: 0,
+            featureTrackId: 'testTrack',
+            features: [
+                {
+                    featureKey: 'spectrogram',
+                    calculatorId: 'test.spectrogram',
+                    smoothing: 0,
+                },
+            ],
+            analysisProfileId: 'default',
+        });
+        const tm = getSharedTimingManager();
+        const hopTicks = cache.hopTicks ?? 0;
+        const targetSeconds = tm.ticksToSeconds(hopTicks * 2);
+        const renderObjects = element.buildRenderObjects({}, targetSeconds);
+        const container = renderObjects[0] as any;
+        expect(container.children).toHaveLength(10);
     });
 
     it('builds volume meter rectangles', () => {
