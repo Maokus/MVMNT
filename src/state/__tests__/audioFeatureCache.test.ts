@@ -10,8 +10,20 @@ import {
 function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): AudioFeatureCache {
     const data = Float32Array.from({ length: frameCount }, (_, idx) => idx / frameCount);
     const hopSeconds = hopTicks / 1920;
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 256,
+        hopSize: 128,
+        overlap: 2,
+        sampleRate: 48000,
+        smoothing: null,
+        fftSize: null,
+        minDecibels: null,
+        maxDecibels: null,
+        window: null,
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: sourceId,
         hopSeconds,
         hopTicks,
@@ -38,8 +50,13 @@ function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): Audi
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data,
+                channelAliases: null,
+                analysisProfileId: 'default',
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: undefined,
     };
 }
 

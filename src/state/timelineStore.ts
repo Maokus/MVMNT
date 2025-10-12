@@ -9,7 +9,6 @@ import type {
     AudioFeatureCacheStatusState,
 } from '@audio/features/audioFeatureTypes';
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
-import { upgradeAudioFeatureCache } from '@audio/features/audioFeatureMigration';
 import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
@@ -933,12 +932,20 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
         cancelActiveAudioFeatureJob(id);
-        const upgraded = upgradeAudioFeatureCache(cache);
-        const sourceHash = computeFeatureCacheSourceHash(upgraded);
+        if (cache.version !== 3) {
+            throw new Error(`Unsupported audio feature cache version: ${cache.version}`);
+        }
+        const normalized: AudioFeatureCache = {
+            ...cache,
+            featureTracks: { ...cache.featureTracks },
+            analysisProfiles: cache.analysisProfiles ? { ...cache.analysisProfiles } : undefined,
+            channelAliases: cache.channelAliases ? cache.channelAliases.slice() : undefined,
+        };
+        const sourceHash = computeFeatureCacheSourceHash(normalized);
         set((s: TimelineState) => ({
             audioFeatureCaches: {
                 ...s.audioFeatureCaches,
-                [id]: upgraded,
+                [id]: normalized,
             },
             audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
                 s.audioFeatureCacheStatus,

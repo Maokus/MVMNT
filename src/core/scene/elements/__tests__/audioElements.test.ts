@@ -32,8 +32,20 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
         min[i] = value;
         max[i] = value;
     }
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 128,
+        hopSize: 64,
+        overlap: 2,
+        sampleRate: 44100,
+        smoothing: null,
+        fftSize: null,
+        minDecibels: null,
+        maxDecibels: null,
+        window: null,
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: trackId,
         hopTicks,
         hopSeconds,
@@ -60,8 +72,13 @@ function createWaveformCache(trackId: string): AudioFeatureCache {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'waveform-minmax',
                 data: { min, max },
+                analysisProfileId: 'default',
+                channelAliases: null,
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: undefined,
     };
 }
 
@@ -70,8 +87,20 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
     const hopTicks = 120;
     const hopSeconds = hopTicks / 1920;
     const channels = 8;
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 2048,
+        hopSize: 512,
+        overlap: 4,
+        sampleRate: 44100,
+        smoothing: null,
+        fftSize: 2048,
+        minDecibels: -80,
+        maxDecibels: 0,
+        window: 'hann',
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: trackId,
         hopTicks,
         hopSeconds,
@@ -108,8 +137,21 @@ function createSpectrogramCache(trackId: string): AudioFeatureCache {
                     minDecibels: -80,
                     maxDecibels: 0,
                 },
+                analysisParams: {
+                    fftSize: 2048,
+                    windowSize: 2048,
+                    hopSize: 512,
+                    minDecibels: -80,
+                    maxDecibels: 0,
+                    window: 'hann',
+                },
+                analysisProfileId: 'default',
+                channelAliases: null,
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: undefined,
     };
 }
 
@@ -117,8 +159,20 @@ function createRmsCache(trackId: string): AudioFeatureCache {
     const frameCount = 3;
     const hopTicks = 120;
     const hopSeconds = hopTicks / 1920;
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 1024,
+        hopSize: 512,
+        overlap: 2,
+        sampleRate: 44100,
+        smoothing: null,
+        fftSize: null,
+        minDecibels: null,
+        maxDecibels: null,
+        window: null,
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: trackId,
         hopTicks,
         hopSeconds,
@@ -145,8 +199,13 @@ function createRmsCache(trackId: string): AudioFeatureCache {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data: new Float32Array([0.1, 0.65, 0.3]),
+                analysisProfileId: 'default',
+                channelAliases: ['L'],
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: ['L'],
     };
 }
 

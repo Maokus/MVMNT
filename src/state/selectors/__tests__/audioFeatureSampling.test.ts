@@ -12,8 +12,20 @@ function createCache(trackId: string): AudioFeatureCache {
     const hopTicks = 120;
     const hopSeconds = hopTicks / 1920;
     const data = Float32Array.from({ length: frameCount }, (_, index) => index / frameCount);
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 256,
+        hopSize: 128,
+        overlap: 2,
+        sampleRate: 48000,
+        smoothing: null,
+        fftSize: null,
+        minDecibels: null,
+        maxDecibels: null,
+        window: null,
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: trackId,
         hopSeconds,
         hopTicks,
@@ -40,8 +52,13 @@ function createCache(trackId: string): AudioFeatureCache {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data,
+                analysisProfileId: 'default',
+                channelAliases: null,
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: undefined,
     };
 }
 

@@ -25,8 +25,20 @@ function createAudioBufferStub(lengthSeconds: number, sampleRate = 48000): Audio
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 12;
     const hopTicks = 90;
+    const analysisProfile = {
+        id: 'default',
+        windowSize: 512,
+        hopSize: 256,
+        overlap: 2,
+        sampleRate: 48000,
+        smoothing: null,
+        fftSize: null,
+        minDecibels: null,
+        maxDecibels: null,
+        window: null,
+    } as const;
     return {
-        version: 2,
+        version: 3,
         audioSourceId: sourceId,
         hopSeconds: 0.03,
         hopTicks,
@@ -53,8 +65,13 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'waveform-minmax',
                 data: { min: new Float32Array(frameCount).fill(-0.25), max: new Float32Array(frameCount).fill(0.25) },
+                analysisProfileId: 'default',
+                channelAliases: null,
             },
         },
+        analysisProfiles: { default: analysisProfile },
+        defaultAnalysisProfileId: 'default',
+        channelAliases: undefined,
     };
 }
 

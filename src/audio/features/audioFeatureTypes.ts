@@ -36,7 +36,7 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     frameCount: number;
     /** Number of channels in the payload (e.g., stereo envelope). */
     channels: number;
-    /** Quantized hop duration in timeline ticks (legacy tempo-domain). */
+    /** Quantized hop duration in timeline ticks for tempo alignment. */
     hopTicks?: number;
     /** Canonical hop duration in seconds for real-time indexing. */
     hopSeconds: number;
@@ -88,7 +88,7 @@ export interface AudioFeatureAnalysisProfileDescriptor {
 export interface AudioFeatureCache {
     version: number;
     audioSourceId: string;
-    /** Quantized hop size shared across all feature tracks (legacy). */
+    /** Quantized hop size shared across all feature tracks. */
     hopTicks?: number;
     /** Canonical hop duration in seconds. */
     hopSeconds: number;

@@ -115,8 +115,6 @@ describe('audio feature cache persistence', () => {
         expect(serialized.featureTracks.spectrogram.startTimeSeconds).toBe(0);
         expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
         expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
-        expect(serialized.legacyTempoCache?.version).toBe(1);
-        expect(serialized.legacyTempoCache?.hopTicks).toBe(120);
         useTimelineStore.getState().resetTimeline();
         const importResult = await importScene(exported.json);
         expect(importResult.ok).toBe(true);

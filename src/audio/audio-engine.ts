@@ -247,7 +247,7 @@ export class AudioEngine {
                 playedDurationTicks = regionDurationTicks - ticksIntoRegion;
             }
 
-            const offsetSeconds = (playbackBufferOffsetTicks - regionStart) / ticksPerSecond; // relative offset within region used for gain ramp comment (legacy variable)
+            const offsetSeconds = (playbackBufferOffsetTicks - regionStart) / ticksPerSecond; // relative offset within region used for gain ramp comment
             const bufferRegionStartSeconds = regionStart / ticksPerSecond;
             const playbackBufferOffsetSeconds = playbackBufferOffsetTicks / ticksPerSecond;
             const durationSeconds = playedDurationTicks / ticksPerSecond;

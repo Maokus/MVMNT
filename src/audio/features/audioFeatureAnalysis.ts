@@ -69,31 +69,6 @@ export type SerializedAudioFeatureTrack = {
     dataRef?: SerializedAudioFeatureTrackDataRef;
 };
 
-export interface SerializedAudioFeatureCacheLegacy {
-    version: 1;
-    audioSourceId: string;
-    hopTicks: number;
-    hopSeconds: number;
-    frameCount: number;
-    analysisParams: AudioFeatureAnalysisParams;
-    featureTracks: Record<string, SerializedAudioFeatureTrack>;
-}
-
-export interface SerializedAudioFeatureCacheV2 {
-    version: 2;
-    audioSourceId: string;
-    hopTicks: number;
-    hopSeconds: number;
-    startTimeSeconds?: number;
-    tempoProjection?: SerializedTempoProjection;
-    frameCount: number;
-    analysisParams: AudioFeatureAnalysisParams;
-    featureTracks: Record<string, SerializedAudioFeatureTrack>;
-    analysisProfiles?: Record<string, AudioFeatureAnalysisProfileDescriptor>;
-    defaultAnalysisProfileId?: string | null;
-    channelAliases?: string[] | null;
-}
-
 export interface SerializedAudioFeatureCache {
     version: 3;
     audioSourceId: string;
@@ -103,7 +78,6 @@ export interface SerializedAudioFeatureCache {
     analysisParams: AudioFeatureAnalysisParams;
     featureTracks: Record<string, SerializedAudioFeatureTrack>;
     tempoProjection?: SerializedTempoProjection;
-    legacyTempoCache?: SerializedAudioFeatureCacheLegacy;
     analysisProfiles: Record<string, AudioFeatureAnalysisProfileDescriptor>;
     defaultAnalysisProfileId: string;
     channelAliases?: string[];
@@ -406,77 +380,6 @@ function buildDefaultProfile(
     return { [id]: descriptor };
 }
 
-function cloneSerializedTrackData(
-    data: SerializedAudioFeatureTrack['data'],
-): SerializedAudioFeatureTrack['data'] {
-    if (!data) {
-        return undefined;
-    }
-    if (data.type === 'waveform-minmax') {
-        const cloneValues = (values: SerializedWaveform['min']) => {
-            if (Array.isArray(values)) {
-                return values.slice();
-            }
-            if (ArrayBuffer.isView(values)) {
-                return Array.from(values as ArrayLike<number>);
-            }
-            return [];
-        };
-        return {
-            type: 'waveform-minmax',
-            min: cloneValues(data.min),
-            max: cloneValues(data.max),
-        };
-    }
-    const values = data.values as SerializedTypedArray['values'];
-    if (Array.isArray(values)) {
-        return { type: data.type, values: values.slice() };
-    }
-    if (ArrayBuffer.isView(values)) {
-        return { type: data.type, values: Array.from(values as ArrayLike<number>) };
-    }
-    return { type: data.type, values: [] };
-}
-
-function buildLegacyCache(
-    cache: AudioFeatureCache,
-    serializedTracks: Record<string, SerializedAudioFeatureTrack>,
-): SerializedAudioFeatureCacheLegacy {
-    const legacyTracks: Record<string, SerializedAudioFeatureTrack> = {};
-    for (const [key, serialized] of Object.entries(serializedTracks)) {
-        const source = cache.featureTracks[key];
-        const hopTicks = source ? resolveHopTicks(source) : Math.max(1, Math.round(serialized.hopTicks ?? 1));
-        legacyTracks[key] = {
-            key: serialized.key,
-            calculatorId: serialized.calculatorId,
-            version: serialized.version,
-            frameCount: serialized.frameCount,
-            channels: serialized.channels,
-            hopTicks,
-            hopSeconds: serialized.hopSeconds,
-            startTimeSeconds: serialized.startTimeSeconds ?? 0,
-            format: serialized.format,
-            metadata: clonePlainObject(serialized.metadata),
-            analysisParams: clonePlainObject(serialized.analysisParams),
-            data: cloneSerializedTrackData(serialized.data),
-            dataRef: serialized.dataRef ? { ...serialized.dataRef } : undefined,
-        };
-    }
-    return {
-        version: 1,
-        audioSourceId: cache.audioSourceId,
-        hopTicks: resolveHopTicks({
-            hopTicks: cache.hopTicks,
-            tempoProjection: cache.tempoProjection,
-            hopSeconds: cache.hopSeconds,
-        }),
-        hopSeconds: cache.hopSeconds,
-        frameCount: cache.frameCount,
-        analysisParams: clonePlainObject(cache.analysisParams),
-        featureTracks: legacyTracks,
-    };
-}
-
 function cloneTempoProjection(
     projection: AudioFeatureTempoProjection,
     hopTicks: number,
@@ -592,7 +495,6 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
         analysisParams: cache.analysisParams,
         featureTracks,
         tempoProjection: toSerializedTempoProjection(cache.tempoProjection),
-        legacyTempoCache: buildLegacyCache(cache, featureTracks),
         analysisProfiles: normalizedProfiles,
         defaultAnalysisProfileId: defaultProfileId,
         channelAliases,
@@ -600,120 +502,39 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
     return serialized;
 }
 
-export function deserializeAudioFeatureCache(
-    serialized:
-        | SerializedAudioFeatureCache
-        | SerializedAudioFeatureCacheV2
-        | SerializedAudioFeatureCacheLegacy,
-): AudioFeatureCache {
+export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureCache): AudioFeatureCache {
     if (!serialized || typeof serialized !== 'object') {
         throw new Error('Invalid audio feature cache payload');
     }
-    if (serialized.version === 3) {
-        const featureTracks: Record<string, AudioFeatureTrack> = {};
-        for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-            featureTracks[key] = deserializeTrack(track);
-        }
-        const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
-        const hopTicks = resolveHopTicks({
-            hopTicks: serialized.tempoProjection?.hopTicks,
-            tempoProjection,
-            hopSeconds: serialized.hopSeconds,
-        });
-        return {
-            version: 3,
-            audioSourceId: serialized.audioSourceId,
-            hopTicks,
-            hopSeconds: serialized.hopSeconds,
-            startTimeSeconds: serialized.startTimeSeconds ?? 0,
-            tempoProjection,
-            frameCount: serialized.frameCount,
-            analysisParams: serialized.analysisParams,
-            featureTracks,
-            analysisProfiles:
-                Object.keys(serialized.analysisProfiles || {}).length > 0
-                    ? clonePlainObject(serialized.analysisProfiles)
-                    : buildDefaultProfile(serialized.analysisParams),
-            defaultAnalysisProfileId: serialized.defaultAnalysisProfileId || DEFAULT_ANALYSIS_PROFILE_ID,
-            channelAliases: serialized.channelAliases ? serialized.channelAliases.slice() : undefined,
-        };
+    if (serialized.version !== 3) {
+        throw new Error(`Unsupported audio feature cache version: ${serialized.version}`);
     }
-    if (serialized.version === 2) {
-        const featureTracks: Record<string, AudioFeatureTrack> = {};
-        for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-            const hydrated = deserializeTrack(track);
-            featureTracks[key] = {
-                ...hydrated,
-                analysisProfileId: hydrated.analysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID,
-                channelAliases: hydrated.channelAliases ?? null,
-            };
-        }
-        const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
-        const hopTicks = resolveHopTicks({
-            hopTicks: serialized.tempoProjection?.hopTicks,
-            tempoProjection,
-            hopSeconds: serialized.hopSeconds,
-        });
-        return {
-            version: 3,
-            audioSourceId: serialized.audioSourceId,
-            hopTicks,
-            hopSeconds: serialized.hopSeconds,
-            startTimeSeconds: serialized.startTimeSeconds ?? 0,
-            tempoProjection,
-            frameCount: serialized.frameCount,
-            analysisParams: serialized.analysisParams,
-            featureTracks,
-            analysisProfiles: buildDefaultProfile(serialized.analysisParams),
-            defaultAnalysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID,
-            channelAliases: undefined,
-        };
-    }
-    const legacy = serialized as SerializedAudioFeatureCacheLegacy;
     const featureTracks: Record<string, AudioFeatureTrack> = {};
-    const defaultProfileId = DEFAULT_ANALYSIS_PROFILE_ID;
-    const tempoProjection: AudioFeatureTempoProjection = {
-        hopTicks: Math.max(1, Math.round(legacy.hopTicks)),
-        startTick: 0,
-        tempoMapHash: legacy.analysisParams?.tempoMapHash,
-    };
-    for (const [key, track] of Object.entries(legacy.featureTracks || {})) {
-        const hopTicks = Math.max(1, Math.round(track.hopTicks ?? legacy.hopTicks));
-        featureTracks[key] = {
-            key: track.key,
-            calculatorId: track.calculatorId,
-            version: track.version,
-            frameCount: track.frameCount,
-            channels: track.channels,
-            hopSeconds: track.hopSeconds,
-            hopTicks,
-            startTimeSeconds: track.startTimeSeconds ?? 0,
-            tempoProjection: {
-                hopTicks,
-                startTick: 0,
-                tempoMapHash: legacy.analysisParams?.tempoMapHash,
-            },
-            format: track.format,
-            metadata: track.metadata,
-            analysisParams: track.analysisParams,
-            data: deserializeTrack(track).data,
-            analysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID,
-            channelAliases: null,
-        };
+    for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
+        featureTracks[key] = deserializeTrack(track);
     }
+    const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
+    const hopTicks = resolveHopTicks({
+        hopTicks: serialized.tempoProjection?.hopTicks,
+        tempoProjection,
+        hopSeconds: serialized.hopSeconds,
+    });
     return {
         version: 3,
-        audioSourceId: legacy.audioSourceId,
-        hopTicks: tempoProjection.hopTicks,
-        hopSeconds: legacy.hopSeconds,
-        startTimeSeconds: 0,
+        audioSourceId: serialized.audioSourceId,
+        hopTicks,
+        hopSeconds: serialized.hopSeconds,
+        startTimeSeconds: serialized.startTimeSeconds ?? 0,
         tempoProjection,
-        frameCount: legacy.frameCount,
-        analysisParams: legacy.analysisParams,
+        frameCount: serialized.frameCount,
+        analysisParams: serialized.analysisParams,
         featureTracks,
-        analysisProfiles: buildDefaultProfile(legacy.analysisParams),
-        defaultAnalysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID,
-        channelAliases: undefined,
+        analysisProfiles:
+            Object.keys(serialized.analysisProfiles || {}).length > 0
+                ? clonePlainObject(serialized.analysisProfiles)
+                : buildDefaultProfile(serialized.analysisParams),
+        defaultAnalysisProfileId: serialized.defaultAnalysisProfileId || DEFAULT_ANALYSIS_PROFILE_ID,
+        channelAliases: serialized.channelAliases ? serialized.channelAliases.slice() : undefined,
     };
 }
 
