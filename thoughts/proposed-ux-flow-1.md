@@ -42,7 +42,7 @@
 
     -   Appears in the **bottom-left corner** of the UI:
 
-        > “<Feature Name> analysis required. Analyse?”
+        > “<Audiotrack>/<Feature Name>, <Audiotrack>/<Feature Name>, etc analysis required. Analyse?”
 
     -   Includes a button: **[Analyse]**
 
@@ -50,6 +50,7 @@
 
     -   The status chip on the corresponding audio track changes from **“Analyzed” → “Pending”**.
     -   Hovering over it shows which features are pending analysis.
+    -   The analyse button triggers all pending analyses
 
 -   **Action:**
 
@@ -118,3 +119,5 @@
 -   less performance heavy calculations (like the conversion from L/R channels to M/S channels) should be done within the scene element rather than by creating a new feature track
 -   Analysed features could have their own return types to reduce clutter (rather than having the spectrogram return 1024 channels, it could return one SpectrogramFrame object that has numBins and a data array).
 -   Ensure the developer interface for scene element developers is also intuitive.
+-   add explicit UI feedback (“Analysis failed — Retry / View log”).
+-   Multi source AREs are currently out of scope, there is no need to worry about them.
