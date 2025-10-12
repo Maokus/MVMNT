@@ -1,101 +1,174 @@
 # Audio cache system
 
-## Overview
-- The audio cache pipeline converts ingested audio buffers into reusable feature caches that power the
-  timeline UI and scene surfaces. Timeline state stores the normalized caches alongside per-source
-  status metadata so analysis jobs can be restarted, merged, or cleared without rebuilding the entire
-  scene graph.【F:src/state/timelineStore.ts†L880-L1088】
-- Analysis jobs run through a shared scheduler that executes registered audio feature calculators and
-  reports progress back to the store, allowing UI components to reflect pending, ready, stale, or
-  failed states for each audio source.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
-- Scene elements declare their feature dependencies through analysis intents and sampling helpers so
-  diagnostics tools and authoring surfaces can coordinate which descriptors are required at any
-  moment.【F:src/core/scene/elements/audioFeatureUtils.ts†L75-L101】【F:src/audio/features/analysisIntents.ts†L80-L133】
+## Architecture overview
+- The audio cache converts decoded `AudioBuffer` data into tempo-aware feature tracks that power the
+  timeline, diagnostics tools, and runtime scene elements. The timeline store owns the cache map,
+  per-source status, and decoded buffers so analysis can be retried or merged without reloading audio
+  files.【F:src/state/timelineStore.ts†L880-L1088】
+- Analysis jobs are scheduled through a shared worker that executes registered calculators one at a
+  time, reports progress, and honours cancellation tokens so UI flows remain responsive when a user
+  stops a run.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
+- Scene elements describe the feature data they need via analysis intents. The intent bus
+  deduplicates requests, informs diagnostics tooling, and allows multiple surfaces to share the same
+  cache entry without triggering duplicate analysis work.【F:src/audio/features/analysisIntents.ts†L80-L133】
 
-## Data model and storage
-- Each audio feature cache contains tempo-aware metadata, per-feature tracks, and the analysis
-  parameters used to generate them. Feature tracks include hop durations, optional tempo projections,
-  channel aliases, calculator identifiers, and raw payloads that may be typed arrays or waveform
-  min/max envelopes.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
-- Cache status entries track the lifecycle of each source (idle, pending, ready, failed, stale) with
-  timestamps, messages, and optional progress values. These statuses enable UI feedback and drive
-  reanalysis flows when calculators change or audio buffers are updated.【F:src/audio/features/audioFeatureTypes.ts†L113-L132】【F:src/state/timelineStore.ts†L283-L375】
-- When an audio buffer is ingested, the timeline store stores the decoded buffer, schedules feature
-  analysis, and marks the initial status as pending. Successful analysis upgrades or merges existing
-  caches and records a hash of the source input so later invalidations can detect drift.【F:src/state/timelineStore.ts†L880-L955】
-- Timeline actions can stop, restart, or re-run specific calculators. Restarting ensures a buffer is
-  available, while targeted reanalysis merges new tracks into the existing cache so other features
-  remain intact.【F:src/state/timelineStore.ts†L1008-L1071】
-- Cache invalidation occurs automatically when calculator implementations register a new version; the
-  store marks affected caches as stale so diagnostics and UI can prompt the user to regenerate the
-  data.【F:src/audio/features/audioFeatureRegistry.ts†L6-L33】【F:src/state/timelineStore.ts†L957-L987】
-- Caches are versioned and migrated forward. Legacy payloads are normalized to the current structure
-  before storage, ensuring downstream consumers always read tempo projections and track metadata in a
-  consistent format.【F:src/audio/features/audioFeatureMigration.ts†L1-L37】【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
+## Cache lifecycle and storage
+- When an audio track is bound in the timeline, the store persists the decoded buffer, creates a
+  cache status entry, and schedules an analysis pass. Statuses progress from `idle` to `pending` and
+  then to `ready`, or `failed` if the calculators throw an error. Reanalysis marks caches as `stale`
+  and records why the previous data is obsolete.【F:src/state/timelineStore.ts†L880-L987】【F:src/audio/features/audioFeatureTypes.ts†L113-L132】
+- Every cache records canonical hop duration, tempo projection, and analysis parameters alongside the
+  generated feature tracks. Track metadata stores calculator identifiers, channel counts, aliases,
+  and optional per-track window configuration so downstream consumers can render results without
+  guessing at FFT sizes or smoothing strategies.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
+- Cache serialization utilities flatten typed arrays into JSON-safe payloads, attach default analysis
+  profiles, and migrate legacy caches forward so saved projects stay compatible with the current
+  runtime.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
 
-## Analysis pipeline
-- The shared scheduler serializes jobs, applies cancellation tokens, and translates optional abort
-  signals from callers. Completed jobs resolve with a normalized cache, while cancellations report a
-  dedicated abort error.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】
-- `analyzeAudioBufferFeatures` prepares the analysis context by quantizing hop sizes, constructing a
-  tempo mapper, and building an analysis profile descriptor that documents the window and FFT
-  settings. Progress callbacks are invoked per calculator to update pending statuses in the store.【F:src/audio/features/audioFeatureAnalysis.ts†L980-L1109】【F:src/state/timelineStore.ts†L283-L375】
-- Built-in calculators provide spectrogram, RMS loudness, and waveform min/max tracks. Each calculator
-  mixes the buffer to mono, applies windowing, yields control periodically to remain responsive, and
-  emits tempo-projected tracks with metadata suitable for visualization.【F:src/audio/features/audioFeatureAnalysis.ts†L736-L961】
-- Additional calculators can be registered at runtime through the registry. Registration automatically
-  invalidates caches created with older versions so they are reanalysed with the new implementation.【F:src/audio/features/audioFeatureRegistry.ts†L6-L33】
-- Serialization helpers export caches to JSON-safe payloads and back again, attaching legacy views and
-  default analysis profiles so persisted documents can be reopened without rerunning analysis.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
+## Audio descriptors and channel routing
+Audio descriptors are the contract between scene elements and the cache. They describe which track,
+channel, and calculator output is required for a render pass.【F:src/audio/features/audioFeatureTypes.ts†L19-L58】
 
-## Feature descriptors and intent bus
-- Feature descriptors specify the feature key, calculator, channel selection, smoothing, and optional
-  aliases. Descriptors can be grouped under match keys to deduplicate requests for the same feature or
-  channel across surfaces.【F:src/audio/features/audioFeatureTypes.ts†L19-L58】【F:src/audio/features/analysisIntents.ts†L51-L70】
-- Scene elements publish analysis intents describing which track, profile, and descriptors they need.
-  The bus deduplicates intents per element, emits publish/clear events, and stores the last hash to
-  avoid noisy updates.【F:src/audio/features/analysisIntents.ts†L80-L133】
-- Diagnostics state subscribes to the intent stream, queues regeneration jobs, and records history.
-  When an intent arrives, the diagnostics store groups descriptors by track/profile and triggers
-  reanalysis through timeline actions when a user requests regeneration.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
-- Descriptor helpers normalize incoming values, resolve channel indexes by alias, and ensure intents
-  are cleared when a surface disconnects or loses its track binding.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L160】
+```ts
+import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 
-## UI integration
-- The `AudioFeatureDescriptorInput` pulls available features from the timeline store, auto-sorts them
-  into categories, and suggests analysis profiles when descriptors require a specific calculator
-  configuration. It emits linked updates when a new descriptor implies a different analysis profile
-  should be selected for the track.【F:src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx†L237-L391】【F:src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx†L351-L375】
-- Category and channel selection tools in the input enforce unique descriptors per feature, map auto
-  selections to channel aliases, and update smoothing or linked form fields in tandem with the
-  descriptor list.【F:src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx†L394-L520】
-- The Scene Analysis Caches tab presents per-track cache status, progress, and available feature
-  tracks. Users can stop, restart, or reanalyze individual calculators, with buttons disabled when
-  buffers are missing or jobs are already running.【F:src/workspace/layout/SceneAnalysisCachesTab.tsx†L91-L200】
-- Diagnostics panels (via the audio diagnostics store) surface pending descriptors, job history, and
-  regeneration utilities, keeping state in sync with timeline caches and active intents.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
+const rmsDescriptor: AudioFeatureDescriptor = {
+    featureKey: 'rms',
+    calculatorId: 'mvmnt.rms',
+    channelAlias: 'L',
+    smoothing: 0.25,
+};
+```
 
-## Scene surfaces and sampling utilities
-- `audioFeatureUtils` resolves track bindings for scene elements, coerces descriptors, publishes
-  intents, and caches sampled frames so repeated renders reuse values. Channel indices can be derived
-  from aliases provided either by the track or the cache metadata.【F:src/core/scene/elements/audioFeatureUtils.ts†L18-L200】
-- The tempo-aligned adapter maps feature frames into timeline ticks or seconds. It reuses a cached
-  tempo mapper, handles interpolation strategies, and exposes range sampling helpers used by history
-  visualizations and diagnostics.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
-- History sampling utilities convert descriptor requests into evenly spaced time windows, query the
-  tempo-aligned range adapter, and return timestamped values for visual decay effects such as peak
-  meters or spectrogram trails.【F:src/utils/audioVisualization/history.ts†L1-L99】【F:src/utils/audioVisualization/history.ts†L100-L169】
-- Scene elements such as the spectrum, volume meter, and oscilloscope publish intents, sample frames,
-  and blend historical data to render their visuals. They respect per-descriptor analysis profiles and
-  palette data derived from cache metadata so multi-layer visualizations stay in sync with analysis
-  results.【F:src/core/scene/elements/audio-spectrum.ts†L903-L1019】【F:src/core/scene/elements/audio-volume-meter.ts†L378-L470】
+- `channelIndex` explicitly chooses a zero-based channel. `channelAlias` lets descriptors follow
+  semantic labels (`L`, `R`, `Mid`) that are resolved against track metadata or cache-level aliases.
+  When only one channel exists, the helpers leave the channel unset and the calculators fall back to
+  mono processing.【F:src/audio/features/audioFeatureTypes.ts†L25-L48】【F:src/core/scene/elements/audioFeatureUtils.ts†L79-L146】
+- Descriptor coercion utilities fill in defaults, merge smoothing hints, and map aliases to concrete
+  indices so a surface can accept partial user input yet still emit deterministic analysis intents.
+  Channel resolution prefers track-specific aliases and falls back to cache aliases when necessary,
+  keeping multi-channel caches consistent across calculators.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L164】
+- Descriptors can be grouped under a match key. Elements that request the same feature and channel
+  share analysis work even if they originate from different UI components, reducing duplicate cache
+  entries.【F:src/audio/features/analysisIntents.ts†L25-L67】
 
-## Extending the system
-- Register new calculators through the registry before scheduling analysis to make their feature
-  tracks available to UI selectors and scene surfaces. The scheduler automatically reuses the
-  registry’s calculators list for future jobs.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L733】
-- To reanalyse features programmatically, call the timeline store’s restart or reanalysis methods; the
-  scheduler merges new tracks when requested so partial updates do not discard existing data.【F:src/state/timelineStore.ts†L1008-L1071】
-- When adding new surfaces, use the descriptor helpers and intent bus so diagnostics and auto-analysis
-  tools stay aware of feature requirements. Sampling should go through the tempo-aligned utilities to
-  respect hop spacing, tempo projections, and cache alignment.【F:src/core/scene/elements/audioFeatureUtils.ts†L75-L200】【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+## Calculator pipeline
+- Calculators transform audio buffers into `AudioFeatureTrack` payloads. Each calculator declares an
+  id, version, feature key, and `calculate` function that receives windowing parameters, hop size, and
+  tempo projection metadata for the request.【F:src/audio/features/audioFeatureTypes.ts†L160-L213】
+- During analysis the system registers built-in calculators (spectrogram, RMS loudness, waveform) and
+  invokes them sequentially. Calculators may yield periodically to avoid blocking the UI and call the
+  provided `reportProgress` callback with frame counts for status updates.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L841】
+- Results include tempo-projected metadata, channel aliases, analysis profile identifiers, and an
+  optional serializer so tracks can be saved and restored without rerunning expensive FFT work.
+  Registering a calculator automatically invalidates caches created with older versions to keep data
+  aligned with the implementation.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L880】【F:src/audio/features/audioFeatureRegistry.ts†L1-L36】
+
+### Registering a custom calculator
+Use the calculator registry to add bespoke features before analysis runs. The timeline store will
+invalidate caches that were produced with an older version of the same calculator id.
+
+```ts
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+import type {
+    AudioFeatureCalculator,
+    AudioFeatureCalculatorContext,
+    AudioFeatureTrack,
+} from '@audio/features/audioFeatureTypes';
+
+const peakHoldCalculator: AudioFeatureCalculator = {
+    id: 'example.peak-hold',
+    version: 1,
+    featureKey: 'peakHold',
+    async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
+        const { audioBuffer, hopSeconds, hopTicks, frameCount } = context;
+        const channelCount = audioBuffer.numberOfChannels || 1;
+        const peaks = new Float32Array(frameCount * channelCount);
+        for (let frame = 0; frame < frameCount; frame++) {
+            for (let channel = 0; channel < channelCount; channel++) {
+                const channelData = audioBuffer.getChannelData(channel);
+                const sampleIndex = frame * context.analysisParams.hopSize;
+                peaks[frame * channelCount + channel] = Math.abs(channelData[sampleIndex] ?? 0);
+            }
+            context.reportProgress?.(frame + 1, frameCount);
+        }
+        return {
+            key: 'peakHold',
+            calculatorId: 'example.peak-hold',
+            version: 1,
+            frameCount,
+            channels: channelCount,
+            hopSeconds,
+            hopTicks,
+            startTimeSeconds: 0,
+            format: 'float32',
+            data: peaks,
+            channelAliases: null,
+        };
+    },
+};
+
+audioFeatureCalculatorRegistry.register(peakHoldCalculator);
+```
+
+## Requesting and sampling feature data in scene elements
+Scene elements rely on helpers that publish intents, resolve channel aliases, and sample tempo-aligned
+frames from caches.【F:src/core/scene/elements/audioFeatureUtils.ts†L1-L205】
+
+```ts
+import { useEffect, useMemo } from 'react';
+import {
+    coerceFeatureDescriptors,
+    emitAnalysisIntent,
+    resolveDescriptorChannelIndex,
+    sampleFeatureFrame,
+} from '@core/scene/elements/audioFeatureUtils';
+
+function useSpectrumFeature(element: { id: string | null; type: string }, trackRef: string | null) {
+    const descriptors = useMemo(
+        () => coerceFeatureDescriptors({ featureKey: 'spectrogram' }, { featureKey: 'spectrogram' }),
+        [],
+    );
+
+    useEffect(() => {
+        emitAnalysisIntent(element, trackRef, 'default', descriptors);
+        return () => emitAnalysisIntent(element, null, null, []);
+    }, [element, trackRef, descriptors]);
+
+    return (timeSeconds: number) => {
+        const descriptor = descriptors[0];
+        const channelIndex = resolveDescriptorChannelIndex(trackRef, descriptor);
+        return sampleFeatureFrame(trackRef!, { ...descriptor, channelIndex }, timeSeconds);
+    };
+}
+```
+
+- `emitAnalysisIntent` notifies the bus when an element binds to a track and needs feature data. The
+  bus deduplicates descriptors, and diagnostics subscribers enqueue reanalysis when caches are stale.
+  Clearing the intent when an element unmounts keeps the dependency graph accurate.【F:src/audio/features/analysisIntents.ts†L80-L133】【F:src/state/audioDiagnosticsStore.ts†L520-L635】
+- `sampleFeatureFrame` fetches tempo-aligned data for the requested descriptor, caching recent
+  samples per track so repeated renders reuse values. Diagnostics hooks capture fallbacks when caches
+  are missing or descriptors cannot be resolved to a channel.【F:src/core/scene/elements/audioFeatureUtils.ts†L147-L213】
+- Additional utilities such as `getTempoAlignedFrame` provide range sampling and interpolation tools
+  for history visualisations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】【F:src/utils/audioVisualization/history.ts†L1-L169】
+
+## Tooling, diagnostics, and UI integration
+- The Audio Feature Descriptor input form surfaces available tracks from the store, enforces unique
+  descriptors, and links selections to compatible analysis profiles so authors cannot request a
+  calculator with incompatible parameters.【F:src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx†L237-L520】
+- The Scene Analysis Caches panel lists cache states, progress, and controls for restarting or
+  reanalysing individual calculators, respecting whether buffers are available and if jobs are already
+  running.【F:src/workspace/layout/SceneAnalysisCachesTab.tsx†L91-L200】
+- Diagnostics state subscribes to the intent bus, records job history, and coordinates regeneration
+  actions. When a descriptor is published for a track with stale data, the diagnostics store prompts
+  the user to re-run the necessary calculators.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
+
+## Extending and maintaining the system
+- Register calculators before scheduling analysis so new feature keys appear in selector UIs and
+  scene elements. Updating a calculator version will automatically mark affected caches as stale and
+  queue reanalysis when intents arrive.【F:src/audio/features/audioFeatureAnalysis.ts†L720-L880】【F:src/audio/features/audioFeatureRegistry.ts†L1-L36】
+- Reanalyse buffers programmatically through the timeline store. Restart operations ensure buffers
+  exist, while targeted runs merge new tracks into the cache so other feature payloads remain valid.
+  This keeps interactive edits fast without discarding expensive calculations.【F:src/state/timelineStore.ts†L1008-L1071】
+- When adding new scene surfaces, always channel feature requests through descriptors and the intent
+  bus so diagnostics, cache invalidation, and tempo-aligned sampling remain in sync across the app.
