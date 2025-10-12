@@ -146,28 +146,11 @@ export class AudioVolumeMeterElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'features',
-                            type: 'audioFeatureDescriptor',
-                            label: 'Audio Features',
-                            default: [],
-                            requiredFeatureKey: 'rms',
-                            autoFeatureLabel: 'Volume (RMS)',
-                            trackPropertyKey: 'featureTrackId',
-                            profilePropertyKey: 'analysisProfileId',
-                            glossaryTerms: {
-                                featureDescriptor: 'feature-descriptor',
-                                analysisProfile: 'analysis-profile',
-                            },
-                        },
-                        {
                             key: 'analysisProfileId',
                             type: 'audioAnalysisProfile',
                             label: 'Analysis Profile',
                             default: 'default',
                             trackPropertyKey: 'featureTrackId',
-                            glossaryTerms: {
-                                analysisProfile: 'analysis-profile',
-                            },
                         },
                         { key: 'meterColor', type: 'color', label: 'Meter Color', default: '#f472b6' },
                         {
@@ -379,10 +362,7 @@ export class AudioVolumeMeterElement extends SceneElement {
         const trackBinding = this.getBinding('featureTrackId');
         const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
         const descriptorsValue = this.getProperty<AudioFeatureDescriptor[] | null>('features');
-        const descriptors = coerceFeatureDescriptors(
-            descriptorsValue,
-            AudioVolumeMeterElement.DEFAULT_DESCRIPTOR,
-        );
+        const descriptors = coerceFeatureDescriptors(descriptorsValue, AudioVolumeMeterElement.DEFAULT_DESCRIPTOR);
         const descriptor = descriptors[0] ?? AudioVolumeMeterElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
         const analysisProfileId = this.getProperty<string>('analysisProfileId') ?? null;
@@ -403,14 +383,10 @@ export class AudioVolumeMeterElement extends SceneElement {
         const opacityExponent = this.getProperty<number>('opacityCurveExponent');
         const labelModeProperty = (this.getProperty<string>('labelMode') ?? 'off') as LabelMode;
         const legacyShowText = this.getProperty<boolean>('showText') ?? false;
-        const labelMode: LabelMode =
-            labelModeProperty === 'off' && legacyShowText ? 'decibels' : labelModeProperty;
+        const labelMode: LabelMode = labelModeProperty === 'off' && legacyShowText ? 'decibels' : labelModeProperty;
         const labelSource = (this.getProperty<string>('labelSource') ?? 'static') as LabelSource;
         const labelTextValue = this.getProperty<string>('labelText') ?? 'Volume';
-        const textLocation = (this.getProperty<string>('textLocation') ?? 'bottom') as
-            | 'bottom'
-            | 'top'
-            | 'track';
+        const textLocation = (this.getProperty<string>('textLocation') ?? 'bottom') as 'bottom' | 'top' | 'track';
         const holdTime = Math.max(0, this.getProperty<number>('peakHoldTime') ?? 1);
         const fallSpeed = Math.max(0, this.getProperty<number>('peakFallSpeed') ?? 12);
 
@@ -420,13 +396,18 @@ export class AudioVolumeMeterElement extends SceneElement {
                 return 1;
             }
             const curve = opacityCurve as TransferFunctionId;
-            const options = curve === 'power'
-                ? { exponent: Number.isFinite(opacityExponent) ? (opacityExponent as number) : 2 }
-                : undefined;
+            const options =
+                curve === 'power'
+                    ? { exponent: Number.isFinite(opacityExponent) ? (opacityExponent as number) : 2 }
+                    : undefined;
             return clamp01(applyTransferFunction(clamp01(value), curve, options));
         };
         const fillAlpha = resolveAlpha(normalized);
-        const glowStyle = createGlowStyle(Number.isFinite(glowStrength) ? (glowStrength as number) : 0, color, fillAlpha);
+        const glowStyle = createGlowStyle(
+            Number.isFinite(glowStrength) ? (glowStrength as number) : 0,
+            color,
+            fillAlpha
+        );
 
         const objects: RenderObject[] = [];
         const layoutRect = new Rectangle(0, 0, width, height, null, null, 0, { includeInLayoutBounds: true });
@@ -532,15 +513,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     baseline = 'middle';
                 }
 
-                const text = new Text(
-                    textX,
-                    textY,
-                    labelText,
-                    '12px Arial, sans-serif',
-                    '#ffffff',
-                    align,
-                    baseline,
-                );
+                const text = new Text(textX, textY, labelText, '12px Arial, sans-serif', '#ffffff', align, baseline);
                 text.setIncludeInLayoutBounds(false);
                 objects.push(text);
             }
@@ -583,15 +556,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     align = 'center';
                 }
 
-                const text = new Text(
-                    textX,
-                    textY,
-                    labelText,
-                    '12px Arial, sans-serif',
-                    '#ffffff',
-                    align,
-                    baseline,
-                );
+                const text = new Text(textX, textY, labelText, '12px Arial, sans-serif', '#ffffff', align, baseline);
                 text.setIncludeInLayoutBounds(false);
                 objects.push(text);
             }
@@ -645,7 +610,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     centerY + Math.sin(markerAngle) * outerRadius,
                     peakMarkerColor,
                     Math.max(1.5, thickness * 0.15),
-                    { includeInLayoutBounds: false },
+                    { includeInLayoutBounds: false }
                 );
                 marker.setLineCap('round');
                 if (!hasSample && peakNormalized <= 0) {
@@ -672,15 +637,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                     textY = centerY + Math.sin(angle) * textRadius;
                 }
 
-                const text = new Text(
-                    textX,
-                    textY,
-                    labelText,
-                    '12px Arial, sans-serif',
-                    '#ffffff',
-                    align,
-                    baseline,
-                );
+                const text = new Text(textX, textY, labelText, '12px Arial, sans-serif', '#ffffff', align, baseline);
                 text.setIncludeInLayoutBounds(false);
                 objects.push(text);
             }

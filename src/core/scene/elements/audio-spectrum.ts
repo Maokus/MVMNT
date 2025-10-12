@@ -174,7 +174,7 @@ function computeFrequencyForScale(
     scale: FrequencyScale,
     start: number,
     end: number,
-    noteBins?: number[],
+    noteBins?: number[]
 ): number {
     const ratio = clamp(positionRatio, 0, 1);
     if (scale === 'log') {
@@ -216,7 +216,7 @@ function buildBandDefinitions(
     bandSpacing: number,
     scale: FrequencyScale,
     startFrequency: number,
-    endFrequency: number,
+    endFrequency: number
 ): BandDefinition[] {
     const definitions: BandDefinition[] = [];
     const bandStep = bandWidth + bandSpacing;
@@ -246,7 +246,7 @@ function resolveLayerColor(
     layerIndex: number,
     palette: ReturnType<typeof channelColorPalette>,
     primaryColor: string,
-    secondaryColor: string,
+    secondaryColor: string
 ): string {
     const alias = descriptor.channelAlias?.trim().toLowerCase() ?? null;
     if (alias) {
@@ -272,7 +272,7 @@ function createColorStrategy(
     colorMode: SpectrumColorMode,
     layerColor: string,
     secondaryColor: string,
-    ramp: ColorRampConfig | null,
+    ramp: ColorRampConfig | null
 ): (band: BandDefinition, normalized: number, magnitude: number) => string {
     if (colorMode === 'gradient') {
         return (band) => mixColors(layerColor, secondaryColor, band.indexRatio);
@@ -303,17 +303,13 @@ function computeLayerGeometry(
     baseHeight: number,
     totalHeight: number,
     layerIndex: number,
-    layerCount: number,
+    layerCount: number
 ): SpectrumLayerGeometry {
     if (layerMode === 'stacked') {
         const offsetY = baseHeight * layerIndex;
         const layerHeight = baseHeight;
         const baseline =
-            sideMode === 'top'
-                ? offsetY + layerHeight
-                : sideMode === 'bottom'
-                ? offsetY
-                : offsetY + layerHeight / 2;
+            sideMode === 'top' ? offsetY + layerHeight : sideMode === 'bottom' ? offsetY : offsetY + layerHeight / 2;
         const amplitudeBase = sideMode === 'both' ? layerHeight / 2 : layerHeight;
         return { offsetY, height: layerHeight, baseline, amplitudeBase, sideMode };
     }
@@ -330,8 +326,7 @@ function computeLayerGeometry(
         };
     }
     const amplitudeBase = sideMode === 'both' ? totalHeight / 2 : totalHeight;
-    const baseline =
-        sideMode === 'top' ? totalHeight : sideMode === 'bottom' ? 0 : totalHeight / 2;
+    const baseline = sideMode === 'top' ? totalHeight : sideMode === 'bottom' ? 0 : totalHeight / 2;
     return { offsetY: 0, height: totalHeight, baseline, amplitudeBase, sideMode };
 }
 
@@ -341,7 +336,7 @@ function computeBandGeometry(
     metadata: SpectrogramMetadata,
     geometry: SpectrumLayerGeometry,
     colorStrategy: (band: BandDefinition, normalized: number, magnitude: number) => string,
-    transfer: TransferConfig,
+    transfer: TransferConfig
 ): BandGeometry[] {
     const results: BandGeometry[] = [];
     const fftSize = metadata.fftSize > 0 ? metadata.fftSize : Math.max(2, (metadata.binCount - 1) * 2);
@@ -472,28 +467,11 @@ export class AudioSpectrumElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'features',
-                            type: 'audioFeatureDescriptor',
-                            label: 'Audio Features',
-                            default: [],
-                            requiredFeatureKey: 'spectrogram',
-                            autoFeatureLabel: 'Spectrogram',
-                            trackPropertyKey: 'featureTrackId',
-                            profilePropertyKey: 'analysisProfileId',
-                            glossaryTerms: {
-                                featureDescriptor: 'feature-descriptor',
-                                analysisProfile: 'analysis-profile',
-                            },
-                        },
-                        {
                             key: 'analysisProfileId',
                             type: 'audioAnalysisProfile',
                             label: 'Analysis Profile',
                             default: 'default',
                             trackPropertyKey: 'featureTrackId',
-                            glossaryTerms: {
-                                analysisProfile: 'analysis-profile',
-                            },
                         },
                         {
                             key: 'startFrequency',
@@ -834,7 +812,7 @@ export class AudioSpectrumElement extends SceneElement {
 
     private _resolveSpectrogramMetadata(
         cache: AudioFeatureCache | undefined,
-        featureTrack: AudioFeatureTrack | undefined,
+        featureTrack: AudioFeatureTrack | undefined
     ): SpectrogramMetadata | null {
         if (!cache || !featureTrack) {
             return null;
@@ -882,11 +860,7 @@ export class AudioSpectrumElement extends SceneElement {
             const fromMetadata = Array.isArray((rawMetadata as any).channelAliases)
                 ? ((rawMetadata as any).channelAliases as unknown[])
                 : null;
-            const source = fromTrack?.length
-                ? fromTrack
-                : fromCache?.length
-                ? fromCache
-                : fromMetadata ?? [];
+            const source = fromTrack?.length ? fromTrack : fromCache?.length ? fromCache : fromMetadata ?? [];
             return source.map((alias) => (typeof alias === 'string' && alias.trim() ? alias : null));
         })();
         return {
@@ -926,7 +900,7 @@ export class AudioSpectrumElement extends SceneElement {
         const historyFade = clamp(this.getProperty<number>('historyFade') ?? 0.6, 0, 1);
         const historySoftness = Math.max(
             0,
-            this.getProperty<number>('historySoftness') ?? (baseSoftness > 0 ? baseSoftness : 8),
+            this.getProperty<number>('historySoftness') ?? (baseSoftness > 0 ? baseSoftness : 8)
         );
         const rampUseMid = this.getProperty<boolean>('colorRampUseMid') ?? true;
         const rampConfig: ColorRampConfig | null =
@@ -977,7 +951,14 @@ export class AudioSpectrumElement extends SceneElement {
             }
         }
 
-        const bandDefinitions = buildBandDefinitions(bandCount, bandWidth, bandSpacing, frequencyScale, startFrequency, endFrequency);
+        const bandDefinitions = buildBandDefinitions(
+            bandCount,
+            bandWidth,
+            bandSpacing,
+            frequencyScale,
+            startFrequency,
+            endFrequency
+        );
         const totalWidth = Math.max(1, bandCount * bandWidth + Math.max(0, bandCount - 1) * bandSpacing);
         const layerCount = Math.max(1, descriptors.length);
 
@@ -1010,10 +991,7 @@ export class AudioSpectrumElement extends SceneElement {
             const resolvedBinCount = Math.max(1, valuesSource?.length ?? Math.floor(fallbackBinCount));
             const resolvedMetadata: SpectrogramMetadata = {
                 sampleRate: layerMetadata?.sampleRate ?? sampleRate,
-                fftSize:
-                    layerMetadata?.fftSize ??
-                    primaryMetadata?.fftSize ??
-                    Math.max(2, (resolvedBinCount - 1) * 2),
+                fftSize: layerMetadata?.fftSize ?? primaryMetadata?.fftSize ?? Math.max(2, (resolvedBinCount - 1) * 2),
                 minDecibels: layerMetadata?.minDecibels ?? referenceMinDb,
                 maxDecibels: layerMetadata?.maxDecibels ?? referenceMaxDb,
                 binCount: resolvedBinCount,
@@ -1038,7 +1016,7 @@ export class AudioSpectrumElement extends SceneElement {
             const layerNoiseFloor = clamp(
                 noiseFloor,
                 resolvedMetadata.minDecibels ?? DEFAULT_MIN_DECIBELS,
-                resolvedMetadata.maxDecibels ?? DEFAULT_MAX_DECIBELS,
+                resolvedMetadata.maxDecibels ?? DEFAULT_MAX_DECIBELS
             );
             const bandData = computeBandGeometry(bandDefinitions, values, resolvedMetadata, geometry, colorStrategy, {
                 id: transferFunction,
@@ -1061,7 +1039,12 @@ export class AudioSpectrumElement extends SceneElement {
             });
 
             if (historyCount > 0 && trackId && layer.descriptor.featureKey) {
-                const frames = sampleFeatureHistory(trackId, layer.descriptor, targetTime, Math.min(historyCount, 8) + 1);
+                const frames = sampleFeatureHistory(
+                    trackId,
+                    layer.descriptor,
+                    targetTime,
+                    Math.min(historyCount, 8) + 1
+                );
                 if (frames.length > 1) {
                     const framesToRender = frames.slice(0, frames.length - 1);
                     for (let i = 0; i < framesToRender.length; i += 1) {
@@ -1088,7 +1071,7 @@ export class AudioSpectrumElement extends SceneElement {
                                 minDecibels: historyMetadata.minDecibels ?? DEFAULT_MIN_DECIBELS,
                                 maxDecibels: historyMetadata.maxDecibels ?? DEFAULT_MAX_DECIBELS,
                                 noiseFloor: layerNoiseFloor,
-                            },
+                            }
                         );
                         historyDatasets.push({
                             bandData: historyBandData,
@@ -1132,7 +1115,7 @@ export class AudioSpectrumElement extends SceneElement {
                             dataset.baseline,
                             dataset.bandWidth,
                             band.bottomHeight,
-                            band.color,
+                            band.color
                         );
                         rect.setIncludeInLayoutBounds(false);
                         if (dataset.softness > 0) {
@@ -1157,7 +1140,14 @@ export class AudioSpectrumElement extends SceneElement {
                     const blendedTop = mixColors(current.color, next.color, 0.5);
                     const lineColorTop = dataset.alpha < 1 ? colorWithAlpha(blendedTop, dataset.alpha) : blendedTop;
                     if (dataset.sideMode === 'top' || dataset.sideMode === 'both') {
-                        const line = new Line(current.centerX, current.topY, next.centerX, next.topY, lineColorTop, lineThickness);
+                        const line = new Line(
+                            current.centerX,
+                            current.topY,
+                            next.centerX,
+                            next.topY,
+                            lineColorTop,
+                            lineThickness
+                        );
                         line.setIncludeInLayoutBounds(false);
                         line.setLineCap('round');
                         if (dataset.softness > 0) {
@@ -1175,7 +1165,7 @@ export class AudioSpectrumElement extends SceneElement {
                             next.centerX,
                             Math.min(dataset.maxY, dataset.baseline + next.bottomHeight),
                             lineColorBottom,
-                            lineThickness,
+                            lineThickness
                         );
                         line.setIncludeInLayoutBounds(false);
                         line.setLineCap('round');

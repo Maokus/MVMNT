@@ -19,7 +19,8 @@
 
     -   The ARE is added to the scene graph/element list.
     -   The properties panel for the ARE becomes active.
-    -   The properties for audio-related stuff (smoothing, audio track selection) look NO DIFFERENT from any other properties. Audio descriptors and channel handling are all done internally.
+    -   The properties for audio-related stuff (smoothing, audio track selection) look NO DIFFERENT from any other properties.
+    -   Audio descriptors and channel handling are all done internally, the user should not be able to manually select channels or descriptors.
 
 ---
 

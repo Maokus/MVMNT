@@ -75,14 +75,15 @@ function normalizeColorAlpha(color: string, alpha: number): string {
     if (trimmed.startsWith('#')) {
         const hex = trimmed.slice(1);
         if (hex.length === 3 || hex.length === 6 || hex.length === 8) {
-            const normalized = hex.length === 3
-                ? hex
-                      .split('')
-                      .map((ch) => ch + ch)
-                      .join('')
-                : hex.length === 6
-                ? hex
-                : hex.slice(0, 6);
+            const normalized =
+                hex.length === 3
+                    ? hex
+                          .split('')
+                          .map((ch) => ch + ch)
+                          .join('')
+                    : hex.length === 6
+                    ? hex
+                    : hex.slice(0, 6);
             const base = Number.parseInt(normalized, 16);
             const r = (base >> 16) & 0xff;
             const g = (base >> 8) & 0xff;
@@ -111,11 +112,7 @@ function computeSeriesLabel(descriptor: AudioFeatureDescriptor, fallbackIndex: n
     return `Channel ${fallbackIndex + 1}`;
 }
 
-function findZeroCrossIndex(
-    values: number[],
-    threshold: number,
-    direction: TriggerDirection,
-): number | null {
+function findZeroCrossIndex(values: number[], threshold: number, direction: TriggerDirection): number | null {
     if (values.length < 3) {
         return null;
     }
@@ -142,25 +139,23 @@ export class AudioOscilloscopeElement extends SceneElement {
 
     private static readonly DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = { featureKey: 'waveform', smoothing: 0 };
 
-    private lastWindowCache:
-        | {
-              manager: ReturnType<typeof getSharedTimingManager>;
-              targetTime: number;
-              offsetSeconds: number;
-              windowSeconds: number;
-              windowStartSeconds: number;
-              windowEndSeconds: number;
-              targetTick: number;
-              startTick: number;
-              endTick: number;
-          }
-        | null = null;
+    private lastWindowCache: {
+        manager: ReturnType<typeof getSharedTimingManager>;
+        targetTime: number;
+        offsetSeconds: number;
+        windowSeconds: number;
+        windowStartSeconds: number;
+        windowEndSeconds: number;
+        targetTick: number;
+        startTick: number;
+        endTick: number;
+    } | null = null;
 
     private resolveWindowMetrics(
         manager: ReturnType<typeof getSharedTimingManager>,
         targetTime: number,
         offsetSeconds: number,
-        windowSeconds: number,
+        windowSeconds: number
     ) {
         const cached = this.lastWindowCache;
         if (
@@ -215,14 +210,15 @@ export class AudioOscilloscopeElement extends SceneElement {
         baseColor: string,
         zeroCross: { mode: TriggerMode; threshold: number; direction: TriggerDirection },
         tm: ReturnType<typeof getSharedTimingManager>,
-        context: ReturnType<typeof resolveFeatureContext> | null,
+        context: ReturnType<typeof resolveFeatureContext> | null
     ): TraceResult | null {
         if (!trackId || !descriptors.length) {
             return null;
         }
 
         const state = useTimelineStore.getState();
-        const paletteSource = context?.featureTrack?.channelAliases ?? context?.cache.channelAliases ?? descriptors.length;
+        const paletteSource =
+            context?.featureTrack?.channelAliases ?? context?.cache.channelAliases ?? descriptors.length;
         const palette = channelColorPalette(paletteSource);
         const startTick = Math.min(windowMetrics.startTick, windowMetrics.endTick);
         const endTick = Math.max(windowMetrics.startTick, windowMetrics.endTick);
@@ -360,10 +356,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                     const info = baseRangeInfo as SampleRangeInfo;
                     const dataChannels = Math.max(1, info.channels || 1);
                     const startOffset = zeroIndex * dataChannels;
-                    info.data = info.data.slice(
-                        startOffset,
-                        startOffset + frameCount * dataChannels,
-                    );
+                    info.data = info.data.slice(startOffset, startOffset + frameCount * dataChannels);
                     info.windowStartTick = frameTicks[0] ?? info.windowStartTick;
                 }
             }
@@ -415,7 +408,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         baselineWidth: number,
         baselineColor: string,
         baseColor: string,
-        options: { alphaScale?: number; skipFill?: boolean; skipBaseline?: boolean; glowScale?: number } = {},
+        options: { alphaScale?: number; skipFill?: boolean; skipBaseline?: boolean; glowScale?: number } = {}
     ): RenderObject[] {
         const alphaScale = clamp(options.alphaScale ?? 1, 0, 1);
         const renderObjects: RenderObject[] = [];
@@ -571,7 +564,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         baseColor: string,
         zeroCross: { mode: TriggerMode; threshold: number; direction: TriggerDirection },
         tm: ReturnType<typeof getSharedTimingManager>,
-        context: ReturnType<typeof resolveFeatureContext> | null,
+        context: ReturnType<typeof resolveFeatureContext> | null
     ): TraceResult[] {
         if (!trackId || !descriptors.length || durationSeconds <= 0) {
             return [];
@@ -582,7 +575,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         }
         const windowCount = Math.min(
             MAX_PERSISTENCE_WINDOWS,
-            Math.max(0, Math.floor(durationSeconds / Math.max(windowSeconds, 0.001))),
+            Math.max(0, Math.floor(durationSeconds / Math.max(windowSeconds, 0.001)))
         );
         if (windowCount <= 0) {
             return [];
@@ -591,9 +584,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         if (!historyFrames.length) {
             return [];
         }
-        const frames = historyFrames
-            .filter((frame) => frame.timeSeconds < targetTime - 1e-6)
-            .slice(-windowCount);
+        const frames = historyFrames.filter((frame) => frame.timeSeconds < targetTime - 1e-6).slice(-windowCount);
         const traces: TraceResult[] = [];
         frames.forEach((frame) => {
             const metrics = this.resolveWindowMetrics(tm, frame.timeSeconds, offsetSeconds, windowSeconds);
@@ -631,28 +622,11 @@ export class AudioOscilloscopeElement extends SceneElement {
                             allowedTrackTypes: ['audio'],
                         },
                         {
-                            key: 'features',
-                            type: 'audioFeatureDescriptor',
-                            label: 'Audio Features',
-                            default: [],
-                            requiredFeatureKey: 'waveform',
-                            autoFeatureLabel: 'Waveform',
-                            trackPropertyKey: 'featureTrackId',
-                            profilePropertyKey: 'analysisProfileId',
-                            glossaryTerms: {
-                                featureDescriptor: 'feature-descriptor',
-                                analysisProfile: 'analysis-profile',
-                            },
-                        },
-                        {
                             key: 'analysisProfileId',
                             type: 'audioAnalysisProfile',
                             label: 'Analysis Profile',
                             default: 'default',
                             trackPropertyKey: 'featureTrackId',
-                            glossaryTerms: {
-                                analysisProfile: 'analysis-profile',
-                            },
                         },
                         {
                             key: 'windowSeconds',
@@ -853,7 +827,13 @@ export class AudioOscilloscopeElement extends SceneElement {
                         {
                             id: 'wideAnalyzer',
                             label: 'Wide Analyzer',
-                            values: { windowSeconds: 1.2, width: 720, height: 200, lineWidth: 1.5, lineColor: '#f59e0b' },
+                            values: {
+                                windowSeconds: 1.2,
+                                width: 720,
+                                height: 200,
+                                lineWidth: 1.5,
+                                lineColor: '#f59e0b',
+                            },
                         },
                         {
                             id: 'microWave',
@@ -909,10 +889,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         const trackBinding = this.getBinding('featureTrackId');
         const trackValue = this.getProperty<string | string[] | null>('featureTrackId');
         const descriptorsValue = this.getProperty<AudioFeatureDescriptor[] | null>('features');
-        const descriptors = coerceFeatureDescriptors(
-            descriptorsValue,
-            AudioOscilloscopeElement.DEFAULT_DESCRIPTOR,
-        );
+        const descriptors = coerceFeatureDescriptors(descriptorsValue, AudioOscilloscopeElement.DEFAULT_DESCRIPTOR);
         const descriptor = descriptors[0] ?? AudioOscilloscopeElement.DEFAULT_DESCRIPTOR;
         const trackId = resolveTimelineTrackRefValue(trackBinding, trackValue);
         const analysisProfileId = this.getProperty<string>('analysisProfileId') ?? null;
@@ -949,7 +926,8 @@ export class AudioOscilloscopeElement extends SceneElement {
         const fillMode: FillMode = channelMode === 'lissajous' ? 'none' : requestedFillMode;
         const fillOpacity = clamp(this.getProperty<number>('fillOpacity') ?? 0.2, 0, 1);
         const lineWidth = Math.max(0.5, this.getProperty<number>('lineWidth') ?? 2);
-        const baselineWidth = channelMode === 'lissajous' ? 0 : Math.max(0, this.getProperty<number>('baselineWidth') ?? 0);
+        const baselineWidth =
+            channelMode === 'lissajous' ? 0 : Math.max(0, this.getProperty<number>('baselineWidth') ?? 0);
         const baselineColor = this.getProperty<string>('baselineColor') ?? '#1e293b';
         const persistenceDuration = Math.max(0, this.getProperty<number>('persistenceDuration') ?? 0);
         const persistenceOpacity = clamp(this.getProperty<number>('persistenceOpacity') ?? 0.35, 0, 1);
@@ -967,7 +945,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                 baseColor,
                 zeroCross,
                 tm,
-                context,
+                context
             );
             if (persistenceTraces.length) {
                 const count = persistenceTraces.length;
@@ -988,7 +966,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         0,
                         baselineColor,
                         baseColor,
-                        { alphaScale: alpha, skipFill: true, skipBaseline: true, glowScale: alpha },
+                        { alphaScale: alpha, skipFill: true, skipBaseline: true, glowScale: alpha }
                     );
                     renderObjects.push(...objects);
                 });
@@ -1006,7 +984,7 @@ export class AudioOscilloscopeElement extends SceneElement {
             baselineWidth,
             baselineColor,
             baseColor,
-            { glowScale: 1 },
+            { glowScale: 1 }
         );
         renderObjects.push(...baseObjects);
 
@@ -1025,7 +1003,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         null,
                         '#f8fafc',
                         Math.max(1, Math.floor(lineWidth / 2)),
-                        { includeInLayoutBounds: false },
+                        { includeInLayoutBounds: false }
                     );
                     playhead.setClosed(false);
                     playhead.setIncludeInLayoutBounds(false);
@@ -1060,8 +1038,7 @@ export class AudioOscilloscopeElement extends SceneElement {
 
             if (showDebugSample && nearestFrameIndex != null) {
                 const frameTick = trace.frameTicks[nearestFrameIndex] ?? trace.windowStartTick;
-                const frameSeconds =
-                    trace.frameSeconds?.[nearestFrameIndex] ?? tm.ticksToSeconds(frameTick);
+                const frameSeconds = trace.frameSeconds?.[nearestFrameIndex] ?? tm.ticksToSeconds(frameTick);
                 debugLines.push(`Frame: ${nearestFrameIndex} · center ${frameSeconds.toFixed(3)}s`);
                 const primarySeries = trace.series[0];
                 if (primarySeries) {
@@ -1078,21 +1055,19 @@ export class AudioOscilloscopeElement extends SceneElement {
 
             if (showDebugWindow) {
                 debugLines.push(
-                    `Window: ${trace.windowStartSeconds.toFixed(3)}s → ${trace.windowEndSeconds.toFixed(3)}s`,
+                    `Window: ${trace.windowStartSeconds.toFixed(3)}s → ${trace.windowEndSeconds.toFixed(3)}s`
                 );
                 const spanTicks = Math.max(1, Math.round(trace.windowEndTick - trace.windowStartTick));
                 debugLines.push(
-                    `Ticks: ${Math.round(trace.windowStartTick)} → ${Math.round(trace.windowEndTick)} (${spanTicks})`,
+                    `Ticks: ${Math.round(trace.windowStartTick)} → ${Math.round(trace.windowEndTick)} (${spanTicks})`
                 );
                 debugLines.push(
-                    `Track bounds: ${Math.round(trace.trackStartTick)} → ${Math.round(trace.trackEndTick)}`,
+                    `Track bounds: ${Math.round(trace.trackStartTick)} → ${Math.round(trace.trackEndTick)}`
                 );
                 if (nearestFrameIndex != null) {
                     const frameTick = trace.frameTicks[nearestFrameIndex] ?? trace.windowStartTick;
                     const frameEndTick = frameTick + trace.hopTicks;
-                    debugLines.push(
-                        `Frame ticks: ${Math.floor(frameTick)} → ${Math.floor(frameEndTick)}`,
-                    );
+                    debugLines.push(`Frame ticks: ${Math.floor(frameTick)} → ${Math.floor(frameEndTick)}`);
                 }
             }
 
@@ -1111,12 +1086,10 @@ export class AudioOscilloscopeElement extends SceneElement {
                 debugLines.push(
                     `Hop: ${trace.hopTicks} ticks${
                         typeof hopSeconds === 'number' ? ` (${hopSeconds.toFixed(4)}s)` : ''
-                    }`,
+                    }`
                 );
                 if (nearestFrameIndex != null && context?.featureTrack) {
-                    debugLines.push(
-                        `Frame index: ${nearestFrameIndex} / ${context.featureTrack.frameCount - 1}`,
-                    );
+                    debugLines.push(`Frame index: ${nearestFrameIndex} / ${context.featureTrack.frameCount - 1}`);
                 }
                 if (typeof sampleRate === 'number' && Number.isFinite(sampleRate)) {
                     debugLines.push(`Sample rate: ${sampleRate} Hz`);
@@ -1132,7 +1105,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                 const availableWidth = Math.max(padding * 2, width - padding * 2);
                 const overlayWidth = Math.min(
                     availableWidth,
-                    Math.max(160, Math.round(maxChars * approxCharWidth) + padding * 2),
+                    Math.max(160, Math.round(maxChars * approxCharWidth) + padding * 2)
                 );
                 const overlayHeight = debugLines.length * lineHeight + padding * 2;
                 const background = new Rectangle(
@@ -1143,7 +1116,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                     'rgba(15,23,42,0.75)',
                     'rgba(30,41,59,0.85)',
                     1,
-                    { includeInLayoutBounds: false },
+                    { includeInLayoutBounds: false }
                 );
                 background.setIncludeInLayoutBounds(false);
                 const overlayObjects: RenderObject[] = [background];
@@ -1156,7 +1129,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                         '#f8fafc',
                         'left',
                         'top',
-                        { includeInLayoutBounds: false },
+                        { includeInLayoutBounds: false }
                     );
                     text.setIncludeInLayoutBounds(false);
                     overlayObjects.push(text);
