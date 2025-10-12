@@ -135,16 +135,14 @@ Every cache (`AudioFeatureCache`) contains:
 
 Track metadata includes calculator IDs, versions, channel counts, and per-track configuration so downstream consumers can render results without guessing at FFT sizes or smoothing strategies.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
 
-### Serialization and Migration
+### Serialization
 
 Cache serialization utilities:
 
 -   Flatten typed arrays (`Float32Array`, `Uint8Array`) into JSON-safe payloads or external file references
 -   Attach default analysis profiles automatically
--   Include legacy tempo cache for backward compatibility
--   Support incremental migration from v1 → v2 → v3 cache formats
 
-Migration ensures saved projects stay compatible with the current runtime without re-analyzing audio.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】【F:src/audio/features/audioFeatureMigration.ts†L1-L48】
+These utilities ensure caches can be saved and restored without data loss.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
 
 ## Audio Descriptors and Channel Routing
 
@@ -646,7 +644,6 @@ The audio cache system includes comprehensive test suites:
 -   **FFT Correctness**: Validate frequency-domain transforms against known signals
 -   **Tempo Alignment**: Test quantization and interpolation across different tempo maps
 -   **Serialization Round-trips**: Ensure caches survive save/load cycles without data loss
--   **Migration Tests**: Verify legacy v1/v2 caches upgrade correctly to v3 format
 
 Location: `src/audio/__tests__/`
 

@@ -7,7 +7,7 @@
 -   **System State:**
 
     -   No _Audio-Reactive Elements (AREs)_ are present.
-    -   Therefore, **no feature analyses** are required yet.
+    -   Therefore, **no feature analyses** are required yet, and no feature caches should be calculated.
     -   The track’s status chip reads: **“Analyzed”** (if analysis cache exists) or **“Idle”** (if not needed).
 
 ---
@@ -19,6 +19,7 @@
 
     -   The ARE is added to the scene graph/element list.
     -   The properties panel for the ARE becomes active.
+    -   The properties for audio-related stuff (smoothing, audio track selection) look NO DIFFERENT from any other properties. Audio descriptors and channel handling are all done internally.
 
 ---
 
@@ -26,7 +27,7 @@
 
 -   **Action:**
 
-    -   In the ARE’s properties, the user selects an audio source via a dropdown similar to MIDI input assignment.
+    -   In the ARE’s properties, the user selects an audio source via a plain dropdown similar to MIDI input assignment.
     -   The dropdown lists all available audio tracks in the scene.
 
 -   **Result:**
