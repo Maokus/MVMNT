@@ -31,9 +31,13 @@ describe('audio diagnostics store', () => {
             tracksOrder: ['audioTrack'],
         });
 
-        publishAnalysisIntent('element-1', 'audioSpectrum', 'audioTrack', 'default', [
-            { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' },
-        ]);
+        publishAnalysisIntent(
+            'element-1',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
 
         const diffs = useAudioDiagnosticsStore.getState().diffs;
         expect(diffs).toHaveLength(1);
@@ -66,9 +70,13 @@ describe('audio diagnostics store', () => {
             restartAudioFeatureAnalysis: restartSpy as any,
         });
 
-        publishAnalysisIntent('element-2', 'audioSpectrum', 'audioTrack', 'default', [
-            { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' },
-        ]);
+        publishAnalysisIntent(
+            'element-2',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
 
         const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
         useAudioDiagnosticsStore

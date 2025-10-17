@@ -64,7 +64,13 @@ describe('CacheDiagnosticsBanner', () => {
             smoothing: null,
         } as const;
         act(() => {
-            publishAnalysisIntent('element-banner', 'audioSpectrum', 'audioTrack', 'default', [descriptor]);
+            publishAnalysisIntent(
+                'element-banner',
+                'audioSpectrum',
+                'audioTrack',
+                [descriptor],
+                { profile: 'default' },
+            );
         });
 
         const regenerateAllSpy = vi.spyOn(useAudioDiagnosticsStore.getState(), 'regenerateAll');

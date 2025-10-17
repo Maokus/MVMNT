@@ -103,7 +103,13 @@ describe('CacheDiagnosticsPanel', () => {
         } as const;
 
         act(() => {
-            publishAnalysisIntent('panel-element', 'audioSpectrum', 'audioTrack', 'default', [spectrogram, rms]);
+            publishAnalysisIntent(
+                'panel-element',
+                'audioSpectrum',
+                'audioTrack',
+                [spectrogram, rms],
+                { profile: 'default' },
+            );
         });
 
         render(<CacheDiagnosticsPanel />);

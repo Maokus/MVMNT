@@ -11,8 +11,6 @@ import { resolveChannel, type TrackChannelConfig } from '@audio/features/channel
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
-type DescriptorFallback = { featureKey: string; smoothing?: number | null; channel?: number | string | null };
-
 const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, AudioFeatureFrameSample | null>>();
 const MAX_FEATURE_CACHE_ENTRIES = 128;
 
@@ -43,35 +41,6 @@ export function resolveTimelineTrackRefValue(
     return coerce(fallback);
 }
 
-export function coerceFeatureDescriptor(
-    input: AudioFeatureDescriptor | null | undefined,
-    fallback: DescriptorFallback,
-): AudioFeatureDescriptor {
-    return {
-        featureKey: input?.featureKey ?? fallback.featureKey,
-        calculatorId: input?.calculatorId ?? null,
-        bandIndex: input?.bandIndex ?? null,
-        channel: input?.channel ?? fallback.channel ?? null,
-        smoothing: input?.smoothing ?? fallback.smoothing ?? null,
-    };
-}
-
-export function coerceFeatureDescriptors(
-    input: AudioFeatureDescriptor | AudioFeatureDescriptor[] | null | undefined,
-    fallback: DescriptorFallback,
-): AudioFeatureDescriptor[] {
-    if (Array.isArray(input)) {
-        const descriptors = input.length ? input : [null];
-        return descriptors
-            .filter((entry) => entry != null)
-            .map((descriptor) => coerceFeatureDescriptor(descriptor, fallback));
-    }
-    if (input) {
-        return [coerceFeatureDescriptor(input, fallback)];
-    }
-    return [coerceFeatureDescriptor(null, fallback)];
-}
-
 export function emitAnalysisIntent(
     element: { id: string | null; type: string },
     trackRef: string | null,
@@ -85,7 +54,11 @@ export function emitAnalysisIntent(
         clearAnalysisIntent(element.id);
         return;
     }
-    publishAnalysisIntent(element.id, element.type, trackRef, analysisProfileId, descriptors);
+    const options =
+        typeof analysisProfileId === 'string' && analysisProfileId.trim().length > 0
+            ? { profile: analysisProfileId }
+            : undefined;
+    publishAnalysisIntent(element.id, element.type, trackRef, descriptors, options);
 }
 
 export function resolveFeatureContext(trackId: string | null, featureKey: string | null) {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import type {
     AudioFeatureAnalysisProfileDescriptor,
     AudioFeatureDescriptor,
@@ -307,24 +308,28 @@ const sanitizeDescriptors = (
         const dedupeKey = `${featureKey}:${createChannelToken(rawChannel ?? null)}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
-        result.push({
-            featureKey,
+        const smoothingValue =
+            typeof entry.smoothing === 'number' ? clampSmoothing(entry.smoothing) : undefined;
+        const { descriptor } = createFeatureDescriptor({
+            feature: featureKey,
             calculatorId: entry.calculatorId ?? option.calculatorId ?? null,
             bandIndex: entry.bandIndex ?? null,
             channel: rawChannel ?? null,
-            smoothing: clampSmoothing(entry.smoothing ?? 0),
+            smoothing: smoothingValue,
         });
+        result.push(descriptor);
     }
     if (requiredFeatureKey && featureTracks[requiredFeatureKey]) {
         const hasRequired = result.some((descriptor) => descriptor.featureKey === requiredFeatureKey);
         if (!hasRequired) {
-            result.unshift({
-                featureKey: requiredFeatureKey,
+            const { descriptor } = createFeatureDescriptor({
+                feature: requiredFeatureKey,
                 calculatorId: featureTracks[requiredFeatureKey].calculatorId ?? null,
                 bandIndex: null,
                 channel: null,
                 smoothing: 0,
             });
+            result.unshift(descriptor);
         }
     }
     return sortDescriptors(result, featureTracks);
@@ -559,13 +564,13 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         }
         const option = featureTracks[nextKey];
         if (!option) return;
-        const descriptor: AudioFeatureDescriptor = {
-            featureKey: nextKey,
+        const descriptor = createFeatureDescriptor({
+            feature: nextKey,
             calculatorId: option.calculatorId ?? null,
             bandIndex: null,
             channel: null,
             smoothing: smoothingValue,
-        };
+        }).descriptor;
         const next = [...sanitizedDescriptors, descriptor];
         const { suggestion } = deriveRecommendedProfileId(next, featureTracks);
         emitDescriptors(next, suggestion ? { recommendedProfile: suggestion } : undefined);
@@ -606,23 +611,15 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         const smoothing = template ? clampSmoothing(template.smoothing ?? smoothingValue) : smoothingValue;
         const nextFeatureDescriptors: AudioFeatureDescriptor[] = [];
         selections.forEach((selection) => {
-            if (selection === CHANNEL_AUTO_TOKEN) {
-                nextFeatureDescriptors.push({
-                    featureKey: activeFeatureKey,
-                    calculatorId: option.calculatorId ?? null,
-                    bandIndex: null,
-                    channel: null,
-                    smoothing,
-                });
-            } else {
-                nextFeatureDescriptors.push({
-                    featureKey: activeFeatureKey,
-                    calculatorId: option.calculatorId ?? null,
-                    bandIndex: null,
-                    channel: parseChannelToken(selection),
-                    smoothing,
-                });
-            }
+            const channel = selection === CHANNEL_AUTO_TOKEN ? null : parseChannelToken(selection);
+            const descriptor = createFeatureDescriptor({
+                feature: activeFeatureKey,
+                calculatorId: option.calculatorId ?? null,
+                bandIndex: null,
+                channel,
+                smoothing,
+            }).descriptor;
+            nextFeatureDescriptors.push(descriptor);
         });
         const next = [...base, ...nextFeatureDescriptors];
         const { suggestion } = deriveRecommendedProfileId(next, featureTracks);
@@ -635,10 +632,9 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
 
     const handleSmoothingChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const nextSmoothing = clampSmoothing(Number(event.target.value));
-        const next = sanitizedDescriptors.map((descriptor) => ({
-            ...descriptor,
-            smoothing: nextSmoothing,
-        }));
+        const next = sanitizedDescriptors.map((descriptor) =>
+            createFeatureDescriptor(descriptor, { smoothing: nextSmoothing }).descriptor,
+        );
         const { suggestion } = deriveRecommendedProfileId(next, featureTracks);
         emitDescriptors(next, suggestion ? { recommendedProfile: suggestion } : undefined);
         logSelectorEvent('smoothing-change', { smoothing: nextSmoothing });

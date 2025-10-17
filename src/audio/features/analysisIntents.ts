@@ -1,4 +1,5 @@
 import type { AudioFeatureDescriptor } from './audioFeatureTypes';
+import { getDefaultProfile } from './audioFeatureRegistry';
 
 export interface AnalysisIntentDescriptor {
     id: string;
@@ -48,6 +49,12 @@ const bus = new AnalysisIntentBus();
 
 const lastIntentHashes = new Map<string, string>();
 
+type DescriptorList = (AudioFeatureDescriptor | null | undefined)[];
+
+export interface PublishAnalysisIntentOptions {
+    profile?: string | null;
+}
+
 export function buildDescriptorId(descriptor: AudioFeatureDescriptor): string {
     const parts: string[] = [];
     parts.push(`feature:${descriptor?.featureKey ?? 'unknown'}`);
@@ -93,17 +100,56 @@ export function publishAnalysisIntent(
     elementId: string | null | undefined,
     elementType: string,
     trackRef: string | null,
-    analysisProfileId: string | null,
-    descriptors: (AudioFeatureDescriptor | null | undefined)[],
+    descriptors: DescriptorList,
+    options?: PublishAnalysisIntentOptions,
+): void;
+export function publishAnalysisIntent(
+    elementId: string | null | undefined,
+    elementType: string,
+    trackRef: string | null,
+    profile: string | null,
+    descriptors: DescriptorList,
+): void;
+export function publishAnalysisIntent(
+    elementId: string | null | undefined,
+    elementType: string,
+    trackRef: string | null,
+    descriptorsOrProfile: DescriptorList | string | null | undefined,
+    maybeOptionsOrDescriptors?: PublishAnalysisIntentOptions | DescriptorList,
 ): void {
     if (!elementId) {
         return;
     }
+    let descriptors: DescriptorList = [];
+    let options: PublishAnalysisIntentOptions | undefined;
+    const legacySignature =
+        !Array.isArray(descriptorsOrProfile) &&
+        (typeof descriptorsOrProfile === 'string' || descriptorsOrProfile == null) &&
+        Array.isArray(maybeOptionsOrDescriptors);
+
+    if (legacySignature) {
+        descriptors = (maybeOptionsOrDescriptors ?? []) as DescriptorList;
+        options = { profile: descriptorsOrProfile ?? undefined };
+        if (process.env.NODE_ENV !== 'production') {
+            console.warn(
+                '[analysisIntents] publishAnalysisIntent(elementId, type, trackRef, profile, descriptors) is deprecated. ' +
+                    'Pass descriptors as the fourth argument and provide the profile via options.profile.',
+            );
+        }
+    } else {
+        descriptors = (descriptorsOrProfile ?? []) as DescriptorList;
+        options = (maybeOptionsOrDescriptors as PublishAnalysisIntentOptions | undefined) ?? undefined;
+    }
+
     if (!trackRef || !descriptors.length) {
         lastIntentHashes.delete(elementId);
         bus.clear(elementId);
         return;
     }
+    const resolvedProfile =
+        typeof options?.profile === 'string' && options.profile.trim().length > 0
+            ? options.profile.trim()
+            : getDefaultProfile();
     const descriptorEntries: AnalysisIntentDescriptor[] = [];
     for (const descriptor of descriptors) {
         if (!descriptor || !descriptor.featureKey) continue;
@@ -120,7 +166,7 @@ export function publishAnalysisIntent(
         elementId,
         elementType,
         trackRef,
-        analysisProfileId,
+        analysisProfileId: resolvedProfile,
         descriptors: descriptorEntries,
     };
     const fingerprint = hashIntentPayload(payload);

@@ -188,9 +188,18 @@ export interface AudioFeatureCalculator<Prepared = unknown> {
     deserializeResult?: (payload: Record<string, unknown>) => AudioFeatureTrack | null;
 }
 
+export interface FeatureDescriptorDefaults {
+    calculatorId: string | null;
+    bandIndex: number | null;
+    channel: number | string | null;
+    smoothing: number | null;
+}
+
 export type AudioFeatureCalculatorRegistry = {
     register: (calculator: AudioFeatureCalculator) => void;
     unregister: (id: string) => void;
     get: (id: string) => AudioFeatureCalculator | undefined;
     list: () => AudioFeatureCalculator[];
+    getDefaultProfile: () => string;
+    getFeatureDefaults: (featureKey: string) => FeatureDescriptorDefaults;
 };

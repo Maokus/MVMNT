@@ -305,26 +305,23 @@ Scene elements rely on helpers that publish intents, resolve channel aliases, an
 ### Basic Usage Pattern
 
 ```ts
-import {
-    coerceFeatureDescriptors,
-    emitAnalysisIntent,
-    sampleFeatureFrame,
-} from '@core/scene/elements/audioFeatureUtils';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { emitAnalysisIntent, sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
 
 // In your scene element's render method
 protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-    // 1. Extract track reference and descriptors from config
+    // 1. Extract track reference and build a descriptor with smart defaults
     const trackId = this.getProperty<string>('featureTrackId');
-    const descriptors = coerceFeatureDescriptors(
-        this.getProperty<AudioFeatureDescriptor[]>('features'),
-        { featureKey: 'spectrogram', smoothing: 0 }
-    );
+    const { descriptor, profile } = createFeatureDescriptor({
+        feature: 'spectrogram',
+        smoothing: 0,
+    });
 
     // 2. Emit analysis intent (declares what features you need)
-    emitAnalysisIntent(this, trackId, 'default', descriptors);
+    emitAnalysisIntent(this, trackId, profile, [descriptor]);
 
     // 3. Sample the current frame
-    const sample = sampleFeatureFrame(trackId, descriptors[0], targetTime);
+    const sample = sampleFeatureFrame(trackId, descriptor, targetTime);
 
     if (!sample?.values) {
         return []; // No data available yet
@@ -341,27 +338,21 @@ protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
 
 ```ts
 import { useEffect, useMemo } from 'react';
-import {
-    coerceFeatureDescriptors,
-    emitAnalysisIntent,
-    sampleFeatureFrame,
-} from '@core/scene/elements/audioFeatureUtils';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { emitAnalysisIntent, sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
 
 function useSpectrumFeature(element: { id: string | null; type: string }, trackRef: string | null) {
-    const descriptors = useMemo(
-        () => coerceFeatureDescriptors({ featureKey: 'spectrogram' }, { featureKey: 'spectrogram' }),
-        []
+    const { descriptor, profile } = useMemo(
+        () => createFeatureDescriptor({ feature: 'spectrogram' }),
+        [],
     );
 
     useEffect(() => {
-        emitAnalysisIntent(element, trackRef, 'default', descriptors);
+        emitAnalysisIntent(element, trackRef, profile, [descriptor]);
         return () => emitAnalysisIntent(element, null, null, []);
-    }, [element, trackRef, descriptors]);
+    }, [element, trackRef, descriptor, profile]);
 
-    return (timeSeconds: number) => {
-        const descriptor = descriptors[0];
-        return sampleFeatureFrame(trackRef!, descriptor, timeSeconds);
-    };
+    return (timeSeconds: number) => sampleFeatureFrame(trackRef!, descriptor, timeSeconds);
 }
 ```
 

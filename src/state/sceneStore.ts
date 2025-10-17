@@ -3,6 +3,7 @@ import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
 import { migrateDescriptorChannels } from '@persistence/migrations/unifyChannelField';
 
@@ -59,13 +60,14 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Audio
         payload.channel != null
             ? payload.channel
             : channelAlias ?? coerceIndex(payload.channelIndex);
-    return {
-        featureKey,
+    const { descriptor } = createFeatureDescriptor({
+        feature: featureKey,
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
         channel: channelValue ?? null,
         smoothing,
-    };
+    });
+    return descriptor;
 }
 
 export interface LegacyBindingMigrationResult {
@@ -85,13 +87,13 @@ export function migrateLegacyAudioFeatureBinding(
                 | null
                 | undefined;
             const normalized = descriptorValue
-                ? {
-                      featureKey: descriptorValue.featureKey,
+                ? createFeatureDescriptor({
+                      feature: descriptorValue.featureKey,
                       calculatorId: descriptorValue.calculatorId ?? null,
                       bandIndex: descriptorValue.bandIndex ?? null,
                       channel: descriptorValue.channel ?? null,
                       smoothing: descriptorValue.smoothing ?? null,
-                  }
+                  }).descriptor
                 : null;
             replacements.features = {
                 type: 'constant',
