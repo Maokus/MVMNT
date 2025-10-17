@@ -1,4 +1,3 @@
-import type { PropertyBinding } from '@bindings/property-bindings';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
 import type {
@@ -10,7 +9,6 @@ import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelec
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import type { AudioTrack } from '@audio/audioTypes';
 import type { TimelineTrack } from '@state/timelineStore';
-import { publishAnalysisIntent, clearAnalysisIntent } from '@audio/features/analysisIntents';
 import { resolveChannel, type TrackChannelConfig } from '@audio/features/channelResolution';
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
@@ -19,53 +17,6 @@ type SamplingCache = Map<string, AudioFeatureFrameSample | null>;
 
 const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, SamplingCache>>();
 const MAX_FEATURE_CACHE_ENTRIES = 128;
-
-export function resolveTimelineTrackRefValue(
-    binding: PropertyBinding | undefined,
-    fallback: unknown,
-): string | null {
-    const coerce = (input: unknown): string | null => {
-        if (typeof input === 'string') return input || null;
-        if (Array.isArray(input)) {
-            for (const entry of input) {
-                if (typeof entry === 'string' && entry) {
-                    return entry;
-                }
-            }
-        }
-        return null;
-    };
-    if (binding) {
-        try {
-            const value = binding.getValue();
-            const resolved = coerce(value);
-            if (resolved) return resolved;
-        } catch (error) {
-            console.warn('[audioFeatureUtils] failed to read track ref binding', error);
-        }
-    }
-    return coerce(fallback);
-}
-
-export function emitAnalysisIntent(
-    element: { id: string | null; type: string },
-    trackRef: string | null,
-    analysisProfileId: string | null,
-    descriptors: AudioFeatureDescriptor[],
-): void {
-    if (!element?.id) {
-        return;
-    }
-    if (!trackRef || !descriptors.length) {
-        clearAnalysisIntent(element.id);
-        return;
-    }
-    const options =
-        typeof analysisProfileId === 'string' && analysisProfileId.trim().length > 0
-            ? { profile: analysisProfileId }
-            : undefined;
-    publishAnalysisIntent(element.id, element.type, trackRef, descriptors, options);
-}
 
 export function resolveFeatureContext(trackId: string | null, featureKey: string | null) {
     if (!trackId || !featureKey) return null;

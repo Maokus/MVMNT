@@ -299,71 +299,81 @@ audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 
 ## Requesting and Sampling Feature Data in Scene Elements
 
-Scene elements rely on helpers that publish intents, resolve channel aliases, and sample tempo-aligned frames from caches.【F:src/core/scene/elements/audioFeatureUtils.ts†L1-L205】
+Scene elements now declare their audio feature needs through the metadata registry. The base
+`SceneElement` class subscribes to those requirements automatically whenever the bound track
+changes, so renderers only have to sample data at runtime.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L110】
 
 ### Basic Usage Pattern
 
 ```ts
-import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { emitAnalysisIntent, sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { SceneElement } from '@core/scene/elements/base';
+import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { getFeatureData } from '@audio/features/sceneApi';
 
-// In your scene element's render method
-protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-    // 1. Extract track reference and build a descriptor with smart defaults
-    const trackId = this.getProperty<string>('featureTrackId');
-    const { descriptor, profile } = createFeatureDescriptor({
-        feature: 'spectrogram',
-        smoothing: 0,
-    });
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
-    // 2. Emit analysis intent (declares what features you need)
-    emitAnalysisIntent(this, trackId, profile, [descriptor]);
+export class AudioSpectrumElement extends SceneElement {
+    protected override _buildRenderObjects(config: unknown, targetTime: number) {
+        const trackId = this.getProperty<string>('featureTrackId');
+        if (!trackId) return [];
 
-    // 3. Sample the current frame
-    const sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+        const smoothing = this.getProperty<number>('smoothing') ?? 0;
+        const frame = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
+        if (!frame) return [];
 
-    if (!sample?.values) {
-        return []; // No data available yet
+        return frame.values.map((magnitude) => {
+            // Convert magnitudes into render objects.
+        });
     }
-
-    // 4. Use the sampled values to create render objects
-    return sample.values.map((magnitude, index) => {
-        // Create visualization based on magnitude data
-    });
 }
 ```
 
-### React Hook Pattern
+The registry ensures descriptors are deduplicated and cached once per feature, even when multiple
+elements request different smoothing values at draw time.【F:src/audio/features/sceneApi.ts†L126-L199】
+
+### Dynamic Requirements
+
+When an element lets the user choose which feature to visualize, update subscriptions explicitly.
+Use `createFeatureDescriptor` together with `syncElementFeatureIntents` so the automatic cleanup
+logic still runs through the shared API surface.【F:src/audio/features/sceneApi.ts†L210-L296】
 
 ```ts
-import { useEffect, useMemo } from 'react';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { emitAnalysisIntent, sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { syncElementFeatureIntents, clearFeatureData } from '@audio/features/sceneApi';
 
-function useSpectrumFeature(element: { id: string | null; type: string }, trackRef: string | null) {
-    const { descriptor, profile } = useMemo(
-        () => createFeatureDescriptor({ feature: 'spectrogram' }),
-        [],
-    );
+export class DynamicAudioElement extends SceneElement {
+    private _descriptorKey: string | null = null;
 
-    useEffect(() => {
-        emitAnalysisIntent(element, trackRef, profile, [descriptor]);
-        return () => emitAnalysisIntent(element, null, null, []);
-    }, [element, trackRef, descriptor, profile]);
+    private _syncSubscriptions() {
+        const trackId = this.getProperty<string>('featureTrackId');
+        const feature = this.getProperty<string>('selectedFeature');
+        if (!trackId || !feature) {
+            clearFeatureData(this);
+            this._descriptorKey = null;
+            return;
+        }
 
-    return (timeSeconds: number) => sampleFeatureFrame(trackRef!, descriptor, timeSeconds);
+        const { descriptor } = createFeatureDescriptor({ feature });
+        syncElementFeatureIntents(this, trackId, [descriptor]);
+        this._descriptorKey = descriptor.featureKey;
+    }
 }
 ```
 
 ### Key Helper Functions
 
--   **`emitAnalysisIntent`**: Notifies the bus when an element binds to a track and needs feature data. The bus deduplicates descriptors, and diagnostics subscribers enqueue reanalysis when caches are stale. Clearing the intent when an element unmounts keeps the dependency graph accurate.【F:src/audio/features/analysisIntents.ts†L80-L133】【F:src/state/audioDiagnosticsStore.ts†L520-L635】
-
--   **`sampleFeatureFrame`**: Fetches tempo-aligned data for the requested descriptor, caching recent samples per track so repeated renders reuse values. Diagnostics hooks capture fallbacks when caches are missing or descriptors cannot be resolved to a channel.【F:src/core/scene/elements/audioFeatureUtils.ts†L147-L213】
-
--   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical analysis. Returns an array of `FeatureHistoryFrame` objects with timestamps and values.【F:src/utils/audioVisualization/history.ts†L1-L169】
-
--   **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+-   **`registerFeatureRequirements`**: Declares static feature needs for a scene element. The base
+    class subscribes automatically, and requirements are deduplicated across instances.
+-   **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
+    smoothing or interpolation options.
+-   **`sampleFeatureFrame`**: Fetches tempo-aligned data for a descriptor and caches recent frames so
+    repeated renders reuse values. Diagnostics hooks capture fallbacks when caches are missing or
+    descriptors cannot be resolved to a channel.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
+-   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
+    analysis. Returns an array of `FeatureHistoryFrame` objects with timestamps and
+    values.【F:src/utils/audioVisualization/history.ts†L1-L169】
+-   **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for
+    history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
 ### Sample Data Structure
 

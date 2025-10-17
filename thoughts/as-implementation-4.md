@@ -1,6 +1,6 @@
 # Audio System Simplification: Revised Implementation Plan (v4)
 
-_Status: Phase 4 Complete_
+_Status: Phase 6 Complete_
 _Created: 17 October 2025_  
 _Revision: 4 - Addresses Phase 4 concerns from as-implementation-3-comments_
 
@@ -472,6 +472,15 @@ npm run lint
 -   ✅ Developer guide created
 -   ✅ Code examples for common patterns
 -   ✅ All element tests passing
+
+**Implementation Notes (Nov 2025)**
+
+-   Audio spectrum, volume meter, and oscilloscope elements now rely solely on metadata-driven
+    subscriptions and runtime sampling helpers.
+-   Legacy `emitAnalysisIntent` utilities were removed from the codebase to prevent new manual
+    subscription patterns.
+-   Documentation updated with a dedicated guide for building audio-reactive elements and refreshed
+    cache usage examples.
 
 ### Verification Commands
 
