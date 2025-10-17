@@ -839,7 +839,6 @@ npm run lint
 
     - Review all error messages
     - Ensure helpful and actionable
-    - Include links to documentation
     - Test error scenarios:
         - Element without registration (dev warning)
         - Invalid feature key

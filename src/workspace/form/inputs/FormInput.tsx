@@ -156,24 +156,53 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     }
 
     if (type === 'number') {
+        const evaluateNumberInput = (rawValue: string): number | null => {
+            const trimmed = rawValue.trim();
+            if (!trimmed) return null;
+
+            const direct = Number(trimmed);
+            if (!Number.isNaN(direct) && Number.isFinite(direct)) {
+                return direct;
+            }
+
+            const allowedPattern = /^[\d+\-*/().\s]+$/;
+            if (!allowedPattern.test(trimmed)) {
+                return null;
+            }
+
+            try {
+                // eslint-disable-next-line no-new-func
+                const computed = new Function(`"use strict"; return (${trimmed});`)();
+                if (typeof computed === 'number' && Number.isFinite(computed)) {
+                    return computed;
+                }
+            } catch {
+                return null;
+            }
+
+            return null;
+        };
+
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
             setLocalValue(inputValue);
 
             if (inputValue === '' || inputValue === '-') return;
-
-            const numValue = parseFloat(inputValue);
-            //if (!isNaN(numValue)) emitChange(numValue);
         };
 
         const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
 
-            if (inputValue === '' || inputValue === '-') { return; }
+            if (inputValue === '' || inputValue === '-') {
+                return;
+            }
 
-            const numValue = parseFloat(inputValue);
-            if (!isNaN(numValue)) emitChange(numValue);
-        }
+            const evaluated = evaluateNumberInput(inputValue);
+            if (evaluated !== null) {
+                setLocalValue(evaluated.toString());
+                emitChange(evaluated);
+            }
+        };
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Enter') e.currentTarget.blur();
@@ -181,7 +210,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
         return (
             <input
-                type="number"
+                type="text"
                 id={id}
                 value={localValue}
                 min={schema?.min}

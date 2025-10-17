@@ -411,6 +411,29 @@ function finalizeDrag(vis: any, deps: InteractionDeps) {
     }
 }
 
+function focusTextPropertyInput() {
+    const attemptFocus = () => {
+        const input = document.getElementById('config-text') as HTMLInputElement | null;
+        if (!input) return;
+        try {
+            input.focus({ preventScroll: true });
+        } catch {
+            input.focus();
+        }
+        try {
+            input.select();
+        } catch {
+            /* noop */
+        }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(attemptFocus));
+    } else {
+        setTimeout(attemptFocus, 0);
+    }
+}
+
 // ----- Exported top-level handlers -----
 
 type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
@@ -452,14 +475,11 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
                 // Prevent initiating a drag after double-click
                 vis.setInteractionState({ draggingElementId: null, activeHandle: null });
 
-                // Clear the text property so user typing replaces it immediately
-                deps.updateElementConfig?.(afterSelected, { text: '' });
-
                 // Force property panel refresh (in case value cached)
                 deps.incrementPropertyPanelRefresh();
 
                 // Focus the corresponding property input after DOM updates
-                setTimeout(() => {
+                const scheduleFocus = () => {
                     // Expand the 'Content' group if it is collapsed so the input is visible
                     try {
                         const groupHeaders = document.querySelectorAll('.ae-property-group .ae-group-header');
@@ -479,12 +499,10 @@ export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
                     } catch {
                         /* noop */
                     }
-                    const input = document.getElementById('config-text') as HTMLInputElement | null;
-                    if (input) {
-                        input.focus();
-                        input.select();
-                    }
-                }, 0);
+                    focusTextPropertyInput();
+                };
+
+                scheduleFocus();
                 return; // swallow event for double-click editing path
             }
         } catch (err) {
