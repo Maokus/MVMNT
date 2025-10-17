@@ -110,7 +110,7 @@ interface AudioDiagnosticsState {
         trackRef: string,
         analysisProfileId: string | null,
         descriptors: string[],
-        reason?: RegenerationReason,
+        reason?: RegenerationReason
     ) => void;
     regenerateAll: () => void;
     dismissExtraneous: (trackRef: string, analysisProfileId: string | null, descriptorId: string) => void;
@@ -192,15 +192,18 @@ function computeCacheDiffs(
     intentsByElement: Record<string, AnalysisIntentRecord>,
     timelineState: Pick<TimelineState, 'tracks' | 'audioFeatureCaches' | 'audioFeatureCacheStatus'>,
     pendingDescriptors: Record<string, Set<string>>,
-    dismissedExtraneous: Record<string, Set<string>>,
+    dismissedExtraneous: Record<string, Set<string>>
 ): CacheDiff[] {
-    const groups = new Map<string, {
-        trackRef: string;
-        analysisProfileId: string | null;
-        descriptors: Map<string, DescriptorInfo>;
-        owners: Map<string, Set<string>>;
-        requestedAt: number;
-    }>();
+    const groups = new Map<
+        string,
+        {
+            trackRef: string;
+            analysisProfileId: string | null;
+            descriptors: Map<string, DescriptorInfo>;
+            owners: Map<string, Set<string>>;
+            requestedAt: number;
+        }
+    >();
 
     for (const record of Object.values(intentsByElement)) {
         const key = makeGroupKey(record.trackRef, record.analysisProfileId);
@@ -328,10 +331,7 @@ function createJobId(): string {
 
 const activeJobKeys = new Set<string>();
 
-function resolveCalculators(
-    job: RegenerationJob,
-    cache: AudioFeatureCache | undefined,
-): string[] {
+function resolveCalculators(job: RegenerationJob, cache: AudioFeatureCache | undefined): string[] {
     const calculators = new Set<string>();
     for (const descriptorId of job.descriptors) {
         const descriptor = job.descriptorDetails[descriptorId];
@@ -349,18 +349,19 @@ function resolveCalculators(
     return Array.from(calculators);
 }
 
-const initialState: Omit<AudioDiagnosticsState,
-    'publishIntent' |
-    'removeIntent' |
-    'recomputeDiffs' |
-    'regenerateDescriptors' |
-    'regenerateAll' |
-    'dismissExtraneous' |
-    'setPanelOpen' |
-    'setPreferences' |
-    'recordHistory' |
-    'getHistorySummary' |
-    'reset'
+const initialState: Omit<
+    AudioDiagnosticsState,
+    | 'publishIntent'
+    | 'removeIntent'
+    | 'recomputeDiffs'
+    | 'regenerateDescriptors'
+    | 'regenerateAll'
+    | 'dismissExtraneous'
+    | 'setPanelOpen'
+    | 'setPreferences'
+    | 'recordHistory'
+    | 'getHistorySummary'
+    | 'reset'
 > = {
     intentsByElement: {},
     diffs: [],
@@ -387,6 +388,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                 channel: requirement.channel ?? undefined,
                 bandIndex: requirement.bandIndex ?? undefined,
                 calculatorId: requirement.calculatorId ?? undefined,
+                profile: requirement.profile ?? undefined,
             });
             return {
                 requirement,
@@ -394,9 +396,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                 matchKey: buildDescriptorMatchKey(descriptor),
             };
         });
-        const descriptorMatchKeys = new Set(
-            Object.values(descriptors).map((entry) => entry.matchKey),
-        );
+        const descriptorMatchKeys = new Set(Object.values(descriptors).map((entry) => entry.matchKey));
         const requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
             requirement: entry.requirement,
             descriptor: entry.descriptor,
@@ -447,7 +447,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                 audioFeatureCacheStatus: timelineState.audioFeatureCacheStatus,
             },
             get().pendingDescriptors,
-            get().dismissedExtraneous,
+            get().dismissedExtraneous
         );
         const bannerVisible = diffs.some((diff) => diff.missing.length + diff.stale.length > 0);
         set({ diffs, bannerVisible });
@@ -460,7 +460,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const timelineState = useTimelineStore.getState();
         const sourceId = resolveAudioSourceId(trackRef, timelineState);
         const diff = get().diffs.find(
-            (entry) => entry.trackRef === trackRef && entry.analysisProfileId === analysisProfileId,
+            (entry) => entry.trackRef === trackRef && entry.analysisProfileId === analysisProfileId
         );
         const descriptorDetails = diff?.descriptorDetails ?? {};
         const job: RegenerationJob = {
@@ -497,7 +497,11 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             if (entry) {
                 entry.descriptors.push(...targets);
             } else {
-                groups.set(key, { trackRef: diff.trackRef, analysisProfileId: diff.analysisProfileId, descriptors: targets });
+                groups.set(key, {
+                    trackRef: diff.trackRef,
+                    analysisProfileId: diff.analysisProfileId,
+                    descriptors: targets,
+                });
             }
         }
         for (const entry of groups.values()) {
@@ -599,7 +603,7 @@ function runJob(jobId: string): void {
                           completedAt,
                           error: errorMessage,
                       }
-                    : entry,
+                    : entry
             );
             const pendingKey = makeGroupKey(job.trackRef, job.analysisProfileId);
             const nextPending = { ...current.pendingDescriptors };

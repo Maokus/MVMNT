@@ -17,6 +17,7 @@ import {
     AudioOscilloscopeElement,
 } from '@core/scene/elements';
 import { AudioMinimalElement } from '../elements/audio-minimal';
+import { AudioOddProfileElement } from '../elements/audio-odd-profile';
 
 export interface SceneElementFactorySchema {
     name?: string;
@@ -147,6 +148,11 @@ export class SceneElementRegistry {
             'audioMinimal',
             (config) => new AudioMinimalElement(config.id || 'audioMinimal', config),
             AudioMinimalElement.getConfigSchema()
+        );
+        this.registerElement(
+            'audioOddProfile',
+            (config) => new AudioOddProfileElement(config.id || 'audioOddProfile', config),
+            AudioOddProfileElement.getConfigSchema()
         );
     }
 }

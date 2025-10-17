@@ -18,9 +18,10 @@ function normalizeTrackId(trackId: string | null | undefined): string | null {
     return trimmed.length ? trimmed : null;
 }
 
-function dedupeDescriptors(
-    descriptors: { descriptor: AudioFeatureDescriptor; profile: string | null }[],
-): { descriptors: AudioFeatureDescriptor[]; profile: string | null } {
+function dedupeDescriptors(descriptors: { descriptor: AudioFeatureDescriptor; profile: string | null }[]): {
+    descriptors: AudioFeatureDescriptor[];
+    profile: string | null;
+} {
     const map = new Map<string, AudioFeatureDescriptor>();
     let profile: string | null = null;
     for (const entry of descriptors) {
@@ -38,7 +39,7 @@ function dedupeDescriptors(
 export function syncElementSubscriptions(
     element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
-    requirements: AudioFeatureRequirement[],
+    requirements: AudioFeatureRequirement[]
 ): void {
     const normalizedTrackId = normalizeTrackId(trackId);
     if (!normalizedTrackId || requirements.length === 0) {
@@ -52,7 +53,8 @@ export function syncElementSubscriptions(
             channel: requirement.channel ?? undefined,
             bandIndex: requirement.bandIndex ?? undefined,
             calculatorId: requirement.calculatorId ?? undefined,
-        }),
+            profile: requirement.profile ?? undefined,
+        })
     );
     const { descriptors, profile } = dedupeDescriptors(built);
 
@@ -65,7 +67,7 @@ export function syncElementSubscriptions(
 }
 
 export function getElementSubscriptions(
-    element: SceneFeatureElementRef | object,
+    element: SceneFeatureElementRef | object
 ): Array<[string, AudioFeatureDescriptor]> {
     return getElementSubscriptionSnapshot(element).map((entry) => [entry.trackId, entry.descriptor]);
 }
@@ -73,7 +75,7 @@ export function getElementSubscriptions(
 export function hasSubscription(
     element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
-    descriptor: AudioFeatureDescriptor,
+    descriptor: AudioFeatureDescriptor
 ): boolean {
     const normalizedTrackId = normalizeTrackId(trackId);
     if (!normalizedTrackId) {
@@ -81,20 +83,18 @@ export function hasSubscription(
     }
     const matchKey = buildDescriptorMatchKey(descriptor);
     return getElementSubscriptionSnapshot(element).some(
-        (entry) => entry.trackId === normalizedTrackId && buildDescriptorMatchKey(entry.descriptor) === matchKey,
+        (entry) => entry.trackId === normalizedTrackId && buildDescriptorMatchKey(entry.descriptor) === matchKey
     );
 }
 
 export function isInRequirements(
     descriptor: AudioFeatureDescriptor,
-    targetDescriptors: AudioFeatureDescriptor[],
+    targetDescriptors: AudioFeatureDescriptor[]
 ): boolean {
     const matchKey = buildDescriptorMatchKey(descriptor);
     return targetDescriptors.some((entry) => buildDescriptorMatchKey(entry) === matchKey);
 }
 
-export function getElementSubscriptionDetails(
-    element: SceneFeatureElementRef | object,
-): ElementSubscriptionSnapshot[] {
+export function getElementSubscriptionDetails(element: SceneFeatureElementRef | object): ElementSubscriptionSnapshot[] {
     return getElementSubscriptionSnapshot(element);
 }

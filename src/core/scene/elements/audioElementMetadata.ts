@@ -11,16 +11,19 @@ export interface AudioFeatureRequirement {
     bandIndex?: number;
     /** Optional calculator ID for custom analyzers */
     calculatorId?: string;
+    /** Optional analysis profile identifier to request non-default cache variants */
+    profile?: string;
 }
 
 const ELEMENT_FEATURE_REQUIREMENTS = new Map<string, AudioFeatureRequirement[]>();
 
 function cloneRequirement(requirement: AudioFeatureRequirement): AudioFeatureRequirement {
-    const { feature, channel, bandIndex, calculatorId } = requirement;
+    const { feature, channel, bandIndex, calculatorId, profile } = requirement;
     const cloned: AudioFeatureRequirement = { feature };
     if (channel != null) cloned.channel = channel;
     if (bandIndex != null) cloned.bandIndex = bandIndex;
     if (calculatorId != null) cloned.calculatorId = calculatorId;
+    if (profile != null) cloned.profile = profile;
     return cloned;
 }
 
@@ -32,10 +35,7 @@ function cloneRequirement(requirement: AudioFeatureRequirement): AudioFeatureReq
  * need to expose these details to end users. See {@link ../../../docs/audio/quickstart.md}
  * for end-to-end usage.
  */
-export function registerFeatureRequirements(
-    elementType: string,
-    requirements: AudioFeatureRequirement[],
-): void {
+export function registerFeatureRequirements(elementType: string, requirements: AudioFeatureRequirement[]): void {
     if (!elementType || !requirements) {
         return;
     }
