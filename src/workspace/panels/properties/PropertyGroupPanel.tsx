@@ -7,6 +7,41 @@ import { FaLink } from 'react-icons/fa';
 
 const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
 
+type SupportedFormInputType =
+    | 'text'
+    | 'number'
+    | 'boolean'
+    | 'color'
+    | 'select'
+    | 'range'
+    | 'file'
+    | 'font'
+    | 'timelineTrackRef'
+    | 'audioAnalysisProfile';
+
+function resolveFormInputType(property: PropertyDefinition): SupportedFormInputType | null {
+    const rawType = typeof property.type === 'string' ? property.type : undefined;
+    if (rawType === 'string') {
+        return 'text';
+    }
+    if (
+        rawType === 'number' ||
+        rawType === 'boolean' ||
+        rawType === 'color' ||
+        rawType === 'select' ||
+        rawType === 'range' ||
+        rawType === 'font' ||
+        rawType === 'timelineTrackRef' ||
+        rawType === 'audioAnalysisProfile'
+    ) {
+        return rawType;
+    }
+    if (rawType === 'file' || rawType === 'file-midi' || rawType === 'file-image') {
+        return 'file';
+    }
+    return null;
+}
+
 interface PropertyGroupPanelProps {
     group: PropertyGroup;
     properties: PropertyDefinition[];
@@ -32,6 +67,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         () => new Map((macrosSource as any[]).map((macro: any) => [macro.name, macro])),
         [macrosSource],
     );
+    const reportedUnsupportedTypesRef = useRef<Set<string>>(new Set());
 
     const canAssignMacro = (propertyType: string) => {
         const normalizedType = propertyType === 'range' ? 'number' : propertyType;
@@ -288,6 +324,41 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         };
 
+        const resolvedInputType = resolveFormInputType(property);
+        if (!resolvedInputType) {
+            if (!reportedUnsupportedTypesRef.current.has(property.type)) {
+                reportedUnsupportedTypesRef.current.add(property.type);
+                console.error('[PropertyGroupPanel] Unsupported property type encountered', {
+                    key: property.key,
+                    type: property.type,
+                });
+            }
+
+            return (
+                <div
+                    key={property.key}
+                    className={`ae-property-row ae-property-row-error${
+                        nested ? ' ae-property-row-nested' : ''
+                    }`}
+                >
+                    <div className="ae-property-label">
+                        <span className="ae-property-name" title={property.description}>
+                            {property.label ?? property.key}
+                        </span>
+                    </div>
+                    <div className="ae-property-controls">
+                        <div className="ae-property-error" role="alert">
+                            <strong>Unsupported property</strong>
+                            <span>
+                                “{property.label ?? property.key}” uses the retired “{property.type}” input. Update the
+                                element schema or saved scene to remove this control.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         const schemaForInput = (() => {
             if (property.type === 'audioAnalysisProfile') {
                 const trackRef = property.trackPropertyKey
@@ -317,9 +388,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         }
 
-        const inputType = property.type === 'string' ? 'text' : property.type;
+        const inputType = resolvedInputType;
         const hasAnimationIcon = canAssignMacro(property.type);
-
+        
         return (
             <div
                 key={property.key}

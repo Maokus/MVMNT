@@ -618,19 +618,20 @@ Location: `src/audio/__tests__/`
 1. **Load audio file** into timeline
 2. **Verify analysis** triggers automatically (check status panel)
 3. **Add spectrum element** to scene, bind to audio track
-4. **Check descriptor form** shows available features
+4. **Verify the property inspector** exposes feature and analysis profile controls (descriptor editor is gone)
 5. **Play timeline**, ensure real-time sampling works
 6. **Change tempo map**, verify cache marked stale
 7. **Reanalyze**, confirm new alignment
 
 ### Common Issues
 
-| Symptom                     | Likely Cause                   | Solution                                                         |
-| --------------------------- | ------------------------------ | ---------------------------------------------------------------- |
-| No visualization            | Cache not ready                | Check status panel, wait for analysis                            |
-| Stale cache warning         | Tempo map changed              | Click "Reanalyze" in diagnostics panel                           |
-| Incorrect frequency mapping | FFT size mismatch              | Review calculator metadata, ensure descriptor uses correct track |
-| Poor performance            | Large cache retained in memory | Clear unused caches via store action                             |
+| Symptom                      | Likely cause                              | Solution |
+| ---------------------------- | ----------------------------------------- | -------- |
+| No visualization             | Cache not ready                           | Check status panel and wait for analysis. |
+| Stale cache warning          | Tempo map changed                         | Click "Reanalyze" in diagnostics panel. |
+| Incorrect frequency mapping  | FFT size mismatch                         | Review calculator metadata, ensure descriptor uses correct track. |
+| Poor performance             | Large cache retained in memory            | Clear unused caches via store action. |
+| Unsupported property warning | Legacy scene uses retired `audioFeatureDescriptor` configs | Update the element schema and re-save. The inspector now surfaces unsupported controls. |
 
 ## Extending and Maintaining the System
 

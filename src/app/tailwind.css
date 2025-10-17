@@ -575,6 +575,10 @@
     .ae-property-label {
         @apply flex items-center gap-1 shrink-0 min-w-0;
     }
+    .ae-property-row-error {
+        border-color: rgba(248, 113, 113, 0.45);
+        background-color: rgba(127, 29, 29, 0.35);
+    }
     .ae-property-name {
         @apply text-[11px] text-[#e0e0e0] select-none truncate max-w-[180px];
     }
@@ -589,6 +593,23 @@
     }
     .ae-property-controls {
         @apply flex items-center gap-1.5 flex-1 justify-end flex-wrap min-w-0;
+    }
+    .ae-property-error {
+        @apply text-[11px];
+        color: #fecaca;
+        background-color: rgba(127, 29, 29, 0.5);
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        border-radius: 4px;
+        padding: 6px 8px;
+        line-height: 1.25;
+        max-width: 100%;
+        word-break: break-word;
+    }
+    .ae-property-error strong {
+        @apply block;
+        color: #fee2e2;
+        font-weight: 600;
+        margin-bottom: 2px;
     }
     .ae-macro-assignment {
         @apply relative flex-shrink-0;
