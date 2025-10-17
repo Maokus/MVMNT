@@ -268,8 +268,8 @@ function cancelActiveAudioFeatureJob(id: string): void {
     activeAudioFeatureJobs.delete(id);
     try {
         job.cancel();
-    } catch {
-        /* ignore */
+    } catch (error) {
+        console.warn(`[timelineStore] failed to cancel audio analysis job for source "${id}"`, error);
     }
 }
 
@@ -348,7 +348,23 @@ function scheduleAudioFeatureAnalysis(
                     : cache;
                 get().ingestAudioFeatureCache(sourceId, nextCache);
             } catch (error) {
-                console.warn('[timelineStore] failed to ingest analyzed audio features', error);
+                const message = error instanceof Error ? error.message : String(error);
+                console.error(
+                    `[timelineStore] failed to ingest analyzed audio features for source "${sourceId}". ${
+                        message ? `Reason: ${message}.` : ''
+                    }`,
+                    error,
+                );
+                set((state: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        state.audioFeatureCacheStatus,
+                        sourceId,
+                        'failed',
+                        `analysis ingest failed: ${message || 'unknown error'}`,
+                        undefined,
+                        null,
+                    ),
+                }));
             }
         })
         .catch((error) => {
@@ -359,13 +375,19 @@ function scheduleAudioFeatureAnalysis(
             if ((error as Error)?.name === 'AbortError') {
                 return;
             }
-            console.warn('[timelineStore] audio analysis failed', error);
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(
+                `[timelineStore] audio analysis failed for source "${sourceId}". ${
+                    message ? `Reason: ${message}.` : ''
+                }`,
+                error,
+            );
             set((state: TimelineState) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
                     state.audioFeatureCacheStatus,
                     sourceId,
                     'failed',
-                    'analysis failed',
+                    `analysis failed: ${message || 'unknown error'}`,
                     undefined,
                     null,
                 ),
@@ -851,7 +873,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         // Now that notes are available, attempt auto adjust (if not user-defined)
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
-        } catch {}
+        } catch (error) {
+            console.error('[timelineStore] failed to auto adjust playback range after ingesting MIDI cache', error);
+        }
     },
     ingestAudioToCache(
         id: string,
@@ -917,16 +941,41 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             },
                         } as TimelineState;
                     });
-                } catch (err) {
-                    // Peak extraction failure is non-fatal.
-                    // console.debug('Peak extraction skipped', err);
+                } catch (error) {
+                    console.warn(
+                        `[timelineStore] waveform peak extraction failed for source "${id}". Waveform preview will be skipped`,
+                        error,
+                    );
                 }
             })();
             if (!options?.skipAutoAnalysis) {
                 scheduleAudioFeatureAnalysis(id, buffer, get, set);
             }
-        } catch (err) {
-            console.warn('Failed to ingest audio buffer', err);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(
+                `[timelineStore] failed to ingest audio buffer for source "${id}". ${
+                    message ? `Reason: ${message}.` : ''
+                } Check the original audio file and try importing again.`,
+                error,
+            );
+            try {
+                set((state: TimelineState) => ({
+                    audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
+                        state.audioFeatureCacheStatus,
+                        id,
+                        'failed',
+                        `ingest failed: ${message || 'unknown error'}`,
+                        undefined,
+                        null,
+                    ),
+                }));
+            } catch (statusError) {
+                console.error(
+                    `[timelineStore] failed to update audio feature status after ingest error for source "${id}"`,
+                    statusError,
+                );
+            }
         }
     },
 
@@ -1116,7 +1165,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }));
         try {
             autoAdjustSceneRangeIfNeeded(get, set);
-        } catch {}
+        } catch (error) {
+            console.error('[timelineStore] failed to auto adjust playback range after clearing tracks', error);
+        }
     },
 
     resetTimeline() {
@@ -1129,7 +1180,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const tm = getSharedTimingManager();
             tm.setBPM(initial.timeline.globalBpm || 120);
             tm.setTempoMap(undefined, 'seconds');
-        } catch {}
+        } catch (error) {
+            console.error('[timelineStore] failed to reset shared timing manager', error);
+        }
     },
 
     setHybridCacheAdapterEnabled(enabled: boolean, reason?: string) {
