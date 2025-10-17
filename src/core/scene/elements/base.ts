@@ -12,6 +12,8 @@ import {
 } from '@bindings/property-bindings';
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
 import { clearFeatureData } from '@audio/features/sceneApi';
+import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
+import { getFeatureRequirements } from './audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 
 export class SceneElement implements SceneElementInterface {
@@ -43,6 +45,8 @@ export class SceneElement implements SceneElementInterface {
 
         // Set up macro change listener to invalidate cache
         this._setupMacroListener();
+
+        this._subscribeToRequiredFeatures();
     }
 
     /**
@@ -76,6 +80,21 @@ export class SceneElement implements SceneElementInterface {
                 this._invalidateBoundsCache();
             }
         });
+    }
+
+    protected onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
+        if (key === 'featureTrackId' && oldValue !== newValue) {
+            this._subscribeToRequiredFeatures();
+        }
+    }
+
+    protected _subscribeToRequiredFeatures(): void {
+        const requirements = getFeatureRequirements(this.type);
+        const binding = this.bindings.get('featureTrackId');
+        const rawTrack = binding ? this.getProperty<string>('featureTrackId') : null;
+        const normalized =
+            typeof rawTrack === 'string' && rawTrack.trim().length > 0 ? rawTrack.trim() : null;
+        syncElementSubscriptions(this, normalized, requirements);
     }
 
     /**
@@ -167,17 +186,40 @@ export class SceneElement implements SceneElementInterface {
      * Set a property value through its binding
      */
     protected setProperty<T>(key: string, value: T): void {
-        const binding = this.bindings.get(key);
-        if (!binding) {
+        let oldValue: unknown = undefined;
+        const existingBinding = this.bindings.get(key);
+        if (existingBinding) {
+            try {
+                oldValue = this.getProperty(key);
+            } catch (error) {
+                oldValue = undefined;
+            }
+        }
+
+        if (!existingBinding) {
             // Create a new constant binding
             this.bindings.set(key, new ConstantBinding(value));
         } else {
-            binding.setValue(value);
+            existingBinding.setValue(value);
         }
 
         // Invalidate cache
         this._cacheValid.set(key, false);
         this._invalidateBoundsCache();
+
+        let newValue: unknown = undefined;
+        const updatedBinding = this.bindings.get(key);
+        if (updatedBinding) {
+            try {
+                newValue = this.getProperty(key);
+            } catch (error) {
+                newValue = undefined;
+            }
+        }
+
+        if (oldValue !== newValue) {
+            this.onPropertyChanged(key, oldValue, newValue);
+        }
     }
 
     /**
@@ -748,6 +790,16 @@ export class SceneElement implements SceneElementInterface {
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 
+            let oldValue: unknown = undefined;
+            const hadBinding = this.bindings.has(key);
+            if (hadBinding) {
+                try {
+                    oldValue = this.getProperty(key);
+                } catch (error) {
+                    oldValue = undefined;
+                }
+            }
+
             // Check if this is binding data
             if (value && typeof value === 'object' && value.type && (value.type === 'constant' || value.type === 'macro')) {
                 // This is serialized binding data
@@ -780,6 +832,20 @@ export class SceneElement implements SceneElementInterface {
 
             this._cacheValid.set(key, false);
             this._invalidateBoundsCache();
+
+            let newValue: unknown = undefined;
+            const binding = this.bindings.get(key);
+            if (binding) {
+                try {
+                    newValue = this.getProperty(key);
+                } catch (error) {
+                    newValue = undefined;
+                }
+            }
+
+            if (oldValue !== newValue) {
+                this.onPropertyChanged(key, oldValue, newValue);
+            }
         }
     }
 

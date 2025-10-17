@@ -2,6 +2,7 @@ import { SceneElement } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
+import { registerFeatureRequirements } from './audioElementMetadata';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -15,6 +16,8 @@ function average(values: number[]): number {
     const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
     return total / values.length;
 }
+
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 export class AudioSpectrumElement extends SceneElement {
     constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {

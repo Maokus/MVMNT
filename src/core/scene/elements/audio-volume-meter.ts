@@ -2,6 +2,7 @@ import { SceneElement } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
+import { registerFeatureRequirements } from './audioElementMetadata';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -13,6 +14,8 @@ function clamp(value: number, min: number, max: number): number {
 function clamp01(value: number): number {
     return clamp(value, 0, 1);
 }
+
+registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {

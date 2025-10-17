@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
-import { getFeatureData, clearFeatureData, resetSceneFeatureStateForTests } from '@audio/features/sceneApi';
+import {
+    getFeatureData,
+    clearFeatureData,
+    resetSceneFeatureStateForTests,
+    syncElementFeatureIntents,
+    getElementSubscriptionSnapshot,
+} from '@audio/features/sceneApi';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
 
@@ -22,7 +28,7 @@ let clearSpy: MockInstance<
     ReturnType<typeof analysisIntents.clearAnalysisIntent>
 >;
 
-describe('sceneApi.getFeatureData', () => {
+describe('sceneApi', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         analysisIntents.resetAnalysisIntentStateForTests();
@@ -38,53 +44,105 @@ describe('sceneApi.getFeatureData', () => {
         vi.restoreAllMocks();
     });
 
-    it('publishes an analysis intent the first time data is requested and reuses it afterwards', () => {
-        const first = getFeatureData(element, 'track-1', 'rms', 0);
-        expect(first?.values).toEqual([0.5]);
-        expect(publishSpy).toHaveBeenCalledTimes(1);
+    describe('getFeatureData', () => {
+        it('publishes an analysis intent the first time data is requested and reuses it afterwards', () => {
+            const first = getFeatureData(element, 'track-1', 'rms', 0);
+            expect(first?.values).toEqual([0.5]);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
 
-        const second = getFeatureData(element, 'track-1', 'rms', 1.5);
-        expect(second?.values).toEqual([0.5]);
-        expect(publishSpy).toHaveBeenCalledTimes(1);
+            const second = getFeatureData(element, 'track-1', 'rms', 1.5);
+            expect(second?.values).toEqual([0.5]);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('republishes intents when the target track changes', () => {
+            getFeatureData(element, 'track-1', 'rms', 0);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+
+            publishSpy.mockClear();
+            getFeatureData(element, 'track-2', 'rms', 0);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('clears analysis intents when clearFeatureData is called', () => {
+            getFeatureData(element, 'track-1', 'rms', 0);
+            clearFeatureData(element);
+
+            expect(clearSpy).toHaveBeenCalledWith('element-1');
+        });
+
+        it('maps legacy smoothing option into sampling options', () => {
+            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            getFeatureData(element, 'track-1', 'rms', { smoothing: 5 } as any, 0.75);
+
+            expect(spy).toHaveBeenCalled();
+            const [, descriptor, time, sampling] = spy.mock.calls.at(-1)!;
+            expect(descriptor).toMatchObject({ featureKey: 'rms' });
+            expect((descriptor as any).smoothing).toBeUndefined();
+            expect(time).toBeCloseTo(0.75);
+            expect(sampling).toMatchObject({ smoothing: 5 });
+            warnSpy.mockRestore();
+        });
+
+        it('accepts explicit sampling options parameter', () => {
+            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+            getFeatureData(element, 'track-1', 'rms', 1.25, { smoothing: 2, interpolation: 'nearest' });
+
+            expect(spy).toHaveBeenCalled();
+            const [, descriptor, , sampling] = spy.mock.calls.at(-1)!;
+            expect(descriptor).toMatchObject({ featureKey: 'rms' });
+            expect(sampling).toMatchObject({ smoothing: 2 });
+        });
     });
 
-    it('republishes intents when the target track changes', () => {
-        getFeatureData(element, 'track-1', 'rms', 0);
-        expect(publishSpy).toHaveBeenCalledTimes(1);
+    describe('syncElementFeatureIntents', () => {
+        it('publishes descriptors for an element', () => {
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
-        publishSpy.mockClear();
-        getFeatureData(element, 'track-2', 'rms', 0);
-        expect(publishSpy).toHaveBeenCalledTimes(1);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+            const [, elementType, trackRef, descriptors] = publishSpy.mock.calls[0]!;
+            expect(elementType).toBe('testElement');
+            expect(trackRef).toBe('track-1');
+            expect(descriptors).toHaveLength(1);
+            expect(descriptors?.[0]).toMatchObject({ featureKey: 'rms' });
+        });
+
+        it('avoids republishing when descriptors are unchanged', () => {
+            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor]);
+            publishSpy.mockClear();
+
+            syncElementFeatureIntents(element, 'track-1', [
+                { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any,
+            ]);
+
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('clears state when no descriptors remain', () => {
+            const descriptor = { featureKey: 'waveform', calculatorId: null, bandIndex: null, channel: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor]);
+            clearSpy.mockClear();
+
+            syncElementFeatureIntents(element, 'track-1', []);
+            expect(clearSpy).toHaveBeenCalledWith('element-1');
+        });
     });
 
-    it('clears analysis intents when clearFeatureData is called', () => {
-        getFeatureData(element, 'track-1', 'rms', 0);
-        clearFeatureData(element);
+    describe('getElementSubscriptionSnapshot', () => {
+        it('returns descriptors currently tracked for an element', () => {
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
-        expect(clearSpy).toHaveBeenCalledWith('element-1');
-    });
-
-    it('maps legacy smoothing option into sampling options', () => {
-        const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        getFeatureData(element, 'track-1', 'rms', { smoothing: 5 } as any, 0.75);
-
-        expect(spy).toHaveBeenCalled();
-        const [, descriptor, time, sampling] = spy.mock.calls.at(-1)!;
-        expect(descriptor).toMatchObject({ featureKey: 'rms' });
-        expect((descriptor as any).smoothing).toBeUndefined();
-        expect(time).toBeCloseTo(0.75);
-        expect(sampling).toMatchObject({ smoothing: 5 });
-        warnSpy.mockRestore();
-    });
-
-    it('accepts explicit sampling options parameter', () => {
-        const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
-        getFeatureData(element, 'track-1', 'rms', 1.25, { smoothing: 2, interpolation: 'nearest' });
-
-        expect(spy).toHaveBeenCalled();
-        const [, descriptor, , sampling] = spy.mock.calls.at(-1)!;
-        expect(descriptor).toMatchObject({ featureKey: 'rms' });
-        expect(sampling).toMatchObject({ smoothing: 2 });
+            const snapshot = getElementSubscriptionSnapshot(element);
+            expect(snapshot).toEqual([
+                {
+                    trackId: 'track-1',
+                    descriptor: expect.objectContaining({ featureKey: 'rms' }),
+                },
+            ]);
+        });
     });
 });

@@ -51,6 +51,11 @@ interface ElementIntentState {
 
 let elementStates = new WeakMap<object, ElementIntentState>();
 
+export interface ElementSubscriptionSnapshot {
+    trackId: string;
+    descriptor: AudioFeatureDescriptor;
+}
+
 function normalizeTrackId(trackId: string | null | undefined): string | null {
     if (typeof trackId !== 'string') return null;
     const trimmed = trackId.trim();
@@ -254,6 +259,81 @@ export function getFeatureData(
             frame: sample,
         },
     };
+}
+
+export function syncElementFeatureIntents(
+    element: SceneFeatureElementRef | object,
+    trackId: string | null | undefined,
+    descriptors: AudioFeatureDescriptor[],
+    profile?: string | null,
+): void {
+    const normalizedTrackId = normalizeTrackId(trackId);
+    if (!normalizedTrackId || descriptors.length === 0) {
+        clearFeatureData(element, trackId);
+        return;
+    }
+
+    let state = elementStates.get(element as object);
+    let publishNeeded = false;
+
+    if (!state) {
+        state = {
+            trackId: normalizedTrackId,
+            descriptors: new Map(),
+        };
+        elementStates.set(element as object, state);
+        publishNeeded = true;
+    } else if (state.trackId !== normalizedTrackId) {
+        state.trackId = normalizedTrackId;
+        state.descriptors.clear();
+        publishNeeded = true;
+    }
+
+    const requiredKeys = new Set<string>();
+    for (const descriptor of descriptors) {
+        if (!descriptor || !descriptor.featureKey) {
+            continue;
+        }
+        const entry: DescriptorEntry = {
+            descriptor,
+            id: buildDescriptorId(descriptor),
+            profile: profile ?? null,
+        };
+        requiredKeys.add(buildDescriptorMatchKey(descriptor));
+        if (upsertDescriptorEntry(state, entry)) {
+            publishNeeded = true;
+        }
+    }
+
+    for (const key of Array.from(state.descriptors.keys())) {
+        if (!requiredKeys.has(key)) {
+            state.descriptors.delete(key);
+            publishNeeded = true;
+        }
+    }
+
+    if (!state.descriptors.size) {
+        clearFeatureData(element, normalizedTrackId);
+        return;
+    }
+
+    if (publishNeeded) {
+        const identity = resolveElementIdentity(element);
+        publishIfNeeded(element, state, identity);
+    }
+}
+
+export function getElementSubscriptionSnapshot(
+    element: SceneFeatureElementRef | object,
+): ElementSubscriptionSnapshot[] {
+    const state = elementStates.get(element as object);
+    if (!state) {
+        return [];
+    }
+    return Array.from(state.descriptors.values()).map((entry) => ({
+        trackId: state.trackId,
+        descriptor: entry.descriptor,
+    }));
 }
 
 export function clearFeatureData(

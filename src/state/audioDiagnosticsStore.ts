@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AudioFeatureCache, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import {
     buildDescriptorId,
     buildDescriptorMatchKey,
@@ -7,11 +8,19 @@ import {
     subscribeToAnalysisIntents,
     type AnalysisIntent,
 } from '@audio/features/analysisIntents';
+import { getFeatureRequirements, type AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
 import { useTimelineStore, type TimelineState } from './timelineStore';
 
 interface DescriptorInfo {
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+}
+
+interface RequirementDiagnostic {
+    requirement: AudioFeatureRequirement;
+    descriptor: AudioFeatureDescriptor;
+    matchKey: string;
+    satisfied: boolean;
 }
 
 interface AnalysisIntentRecord {
@@ -21,6 +30,9 @@ interface AnalysisIntentRecord {
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorInfo>;
     requestedAt: string;
+    autoManaged: boolean;
+    requirementDiagnostics: RequirementDiagnostic[];
+    unexpectedDescriptors: string[];
 }
 
 export type CacheDiffStatus = 'clear' | 'issues';
@@ -368,6 +380,34 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         for (const entry of intent.descriptors) {
             descriptors[entry.id] = { descriptor: entry.descriptor, matchKey: entry.matchKey };
         }
+        const requirements = getFeatureRequirements(intent.elementType);
+        const normalizedRequirements = requirements.map((requirement) => {
+            const { descriptor } = createFeatureDescriptor({
+                feature: requirement.feature,
+                channel: requirement.channel ?? undefined,
+                bandIndex: requirement.bandIndex ?? undefined,
+                calculatorId: requirement.calculatorId ?? undefined,
+            });
+            return {
+                requirement,
+                descriptor,
+                matchKey: buildDescriptorMatchKey(descriptor),
+            };
+        });
+        const descriptorMatchKeys = new Set(
+            Object.values(descriptors).map((entry) => entry.matchKey),
+        );
+        const requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
+            requirement: entry.requirement,
+            descriptor: entry.descriptor,
+            matchKey: entry.matchKey,
+            satisfied: descriptorMatchKeys.has(entry.matchKey),
+        }));
+        const requirementKeys = new Set(normalizedRequirements.map((entry) => entry.matchKey));
+        const unexpectedDescriptors = Object.values(descriptors)
+            .map((entry) => entry.matchKey)
+            .filter((key) => !requirementKeys.has(key));
+        const autoManaged = requirementDiagnostics.length > 0;
         set((state) => ({
             intentsByElement: {
                 ...state.intentsByElement,
@@ -378,6 +418,9 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                     analysisProfileId: intent.analysisProfileId,
                     descriptors,
                     requestedAt: intent.requestedAt,
+                    autoManaged,
+                    requirementDiagnostics,
+                    unexpectedDescriptors,
                 },
             },
         }));

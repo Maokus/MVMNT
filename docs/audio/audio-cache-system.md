@@ -30,17 +30,15 @@ Scene Elements (sample and render in real-time)
 If you're building a scene element that needs audio data:
 
 ```ts
-// 1. Declare your feature needs in _buildRenderObjects
-const trackId = this.getProperty<string>('audioTrackId');
-const descriptor = { featureKey: 'spectrogram', smoothing: 0 };
+import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { getFeatureData } from '@audio/features/sceneApi';
 
-// 2. Emit intent (tells system what you need)
-emitAnalysisIntent(this, trackId, 'default', [descriptor]);
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
-// 3. Sample at current time
-const sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+const trackId = this.getProperty<string>('featureTrackId');
+if (!trackId) return [];
 
-// 4. Use the data
+const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing: 4 });
 const magnitudes = sample?.values ?? [];
 ```
 
@@ -154,8 +152,7 @@ import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 const rmsDescriptor: AudioFeatureDescriptor = {
     featureKey: 'rms',
     calculatorId: 'mvmnt.rms',
-    channel: 'L',
-    smoothing: 0.25,
+    channel: 'Left',
 };
 ```
 
@@ -165,13 +162,15 @@ const rmsDescriptor: AudioFeatureDescriptor = {
 -   **`calculatorId`**: Optional calculator identifier if multiple calculators produce the same feature key
 -   **`channel`**: Accepts a zero-based index (`0`, `1`, …) or a semantic alias (`'Left'`, `'Right'`, `'Mono'`). When omitted, the descriptor resolves to the merged/mono channel.
 -   **`bandIndex`**: Optional frequency band index for multi-band features like spectrograms
--   **`smoothing`**: Optional smoothing factor applied during sampling
+-   **Sampling options**: Runtime parameters such as smoothing and interpolation are supplied when sampling via
+    `getFeatureData`, keeping descriptors focused on analysis identity.
 
 ### Channel Resolution
 
 -   Channel values are normalized through the resolver: numeric indices are bounds-checked and semantic aliases (`'Left'`, `'Right'`, `'Mono'`, etc.) are matched against track metadata or cache-level aliases.【F:src/audio/features/channelResolution.ts†L1-L109】
 -   When only one channel exists, leaving the channel unset resolves to the mono/merged payload.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L147】
--   Descriptor coercion utilities fill in defaults, merge smoothing hints, and normalize aliases or numeric strings so a surface can accept partial user input yet still emit deterministic analysis intents.【F:src/core/scene/elements/audioFeatureUtils.ts†L17-L147】
+-   Descriptor coercion utilities fill in defaults and normalize aliases or numeric strings so a surface can
+    accept partial user input yet still emit deterministic analysis intents.【F:src/core/scene/elements/audioFeatureUtils.ts†L17-L147】
 -   Channel resolution prefers track-specific aliases and falls back to cache aliases when necessary, keeping multi-channel caches consistent across calculators.【F:src/audio/features/channelResolution.ts†L1-L109】
 
 ### Match Keys and Deduplication
