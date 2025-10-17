@@ -14,6 +14,12 @@ import {
 import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 
+/**
+ * Minimal shape used to identify a scene element when publishing analysis intents.
+ *
+ * Real scene elements satisfy this contract automatically via inheritance from
+ * `SceneElement`, but the API also accepts POJOs to make testing easier.
+ */
 export interface SceneFeatureElementRef {
     id: string | null;
     type?: string;
@@ -188,6 +194,16 @@ function resolveInvocation(
     };
 }
 
+/**
+ * Lazily sample audio feature data for the provided element.
+ *
+ * Passing descriptor options as the fourth argument preserves backward compatibility with
+ * legacy call signatures. Prefer the modern signature shown in the docs:
+ * `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`.
+ *
+ * @see ../../../docs/audio/quickstart.md
+ * @see ../../../docs/audio/audio-cache-system.md
+ */
 export function getFeatureData(
     element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
@@ -261,6 +277,13 @@ export function getFeatureData(
     };
 }
 
+/**
+ * Synchronize a set of descriptors manually.
+ *
+ * Use this API when elements want to manage subscriptions explicitly (for example, swapping
+ * descriptors in response to animation state). The runtime still publishes intents through the
+ * shared bus so diagnostics remain accurate.
+ */
 export function syncElementFeatureIntents(
     element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
@@ -323,6 +346,12 @@ export function syncElementFeatureIntents(
     }
 }
 
+/**
+ * Retrieve the descriptors currently associated with the element.
+ *
+ * Useful for diagnostics tooling and unit tests that need to assert which subscriptions were
+ * published.
+ */
 export function getElementSubscriptionSnapshot(
     element: SceneFeatureElementRef | object,
 ): ElementSubscriptionSnapshot[] {
@@ -336,6 +365,9 @@ export function getElementSubscriptionSnapshot(
     }));
 }
 
+/**
+ * Remove cached subscription state for an element and clear any published intents.
+ */
 export function clearFeatureData(
     element: SceneFeatureElementRef | object,
     trackId?: string | null,
@@ -355,6 +387,11 @@ export function clearFeatureData(
     }
 }
 
+/**
+ * Reset the internal element state map.
+ *
+ * Intended for test environments.
+ */
 export function resetSceneFeatureStateForTests(): void {
     elementStates = new WeakMap();
 }

@@ -16,6 +16,14 @@ export type AudioFeatureTrackData =
           max: Float32Array;
       };
 
+/**
+ * Analysis identifier describing which feature track to read from the cache.
+ *
+ * Descriptors represent analysis-time identity only. Presentation choices such as
+ * smoothing or interpolation belong to {@link AudioSamplingOptions} so caches can
+ * be shared across elements that render the same data differently. For a guided
+ * overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
+ */
 export interface AudioFeatureDescriptor {
     featureKey: string;
     calculatorId?: string | null;
@@ -34,7 +42,10 @@ export interface AudioFeatureDescriptor {
 
 /**
  * Runtime options for sampling audio feature data.
- * These affect HOW data is presented, not WHAT data is analyzed.
+ *
+ * These values are evaluated after the cache lookup to control presentation without
+ * fragmenting cache entries. See {@link ../../../docs/audio/quickstart.md Audio Features Quick Start}
+ * for examples of how to pass these options during render.
  */
 export interface AudioSamplingOptions {
     /** Smoothing radius for temporal averaging (0 = no smoothing) */

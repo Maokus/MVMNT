@@ -1,17 +1,17 @@
 # Audio Cache System
 
-Welcome to the audio cache system documentation! This guide introduces how MVMNT transforms raw audio into tempo-aligned feature tracks for real-time visualization and interaction.
+_Last reviewed: 24 October 2025_
 
-## What is the Audio Cache System?
+The audio cache system transforms decoded audio into tempo-aligned feature tracks that any scene element can sample. Phase 9 of the audio system simplification project clarified how the pieces fit together—this document captures the current mental model and links to the developer guides you will use most often.
 
-The audio cache system is the bridge between raw audio files and visual elements in your scene. It:
+## What the Cache Provides
 
-1. **Analyzes** decoded `AudioBuffer` data to extract features (spectrogram magnitudes, RMS loudness, waveform peaks)
-2. **Aligns** these features to your project's tempo map for beat-synchronous playback
-3. **Caches** results so scene elements can sample data without re-running expensive calculations
-4. **Coordinates** analysis jobs via a scheduler that reports progress and respects cancellation
+Every analyzed track flows through the same stages:
 
-### Key Components
+1. **Analyze** decoded `AudioBuffer` data with registered calculators (spectrogram, RMS, waveform, custom additions).
+2. **Align** frames to the global tempo map so beat-synchronous elements stay perfectly in phase.
+3. **Cache** the resulting feature tracks, indexed by feature descriptor identifiers.
+4. **Serve** consistent samples to scene elements via the runtime sampling APIs.
 
 ```
 AudioBuffer (decoded audio)
@@ -20,83 +20,48 @@ AudioFeatureAnalysis (FFT, RMS, waveform extraction)
     ↓
 AudioFeatureCache (tempo-aligned feature tracks)
     ↓
-Scene Elements (sample and render in real-time)
+Scene Elements (runtime sampling + presentation)
 ```
 
-## Quick Start
+## Getting Started
 
-### For Scene Element Developers
+The [Audio Features Quick Start](audio/quickstart.md) provides a copy/paste friendly walkthrough for new elements. In short:
 
-If you're building a scene element that needs audio data:
+1. **Declare requirements** inside the element module using `registerFeatureRequirements`. These declarations are internal metadata—not user configuration.
+2. **Sample at render time** with `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`. Sampling options (such as smoothing) describe presentation-time adjustments and never affect cache identity.
 
-```ts
-import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
-import { getFeatureData } from '@audio/features/sceneApi';
+If you need deeper background or want to reason about the mental model before coding, read the [Audio Concepts](audio/concepts.md) guide. It unpacks the separation between data dependencies and user-facing properties.
 
-registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
-
-const trackId = this.getProperty<string>('featureTrackId');
-if (!trackId) return [];
-
-const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing: 4 });
-const magnitudes = sample?.values ?? [];
-```
-
-### For Calculator Developers
-
-If you're adding a new audio analysis feature:
-
-```ts
-// 1. Define your calculator
-const myCalculator: AudioFeatureCalculator = {
-    id: 'my-app.my-feature',
-    version: 1,
-    featureKey: 'myFeature',
-    async calculate(context) {
-        // Extract feature from context.audioBuffer
-        // Report progress, yield periodically
-        return {
-            /* AudioFeatureTrack */
-        };
-    },
-};
-
-// 2. Register it
-audioFeatureCalculatorRegistry.register(myCalculator);
-```
-
-### For Integrators
-
-If you're working on timeline/store integration:
-
-```ts
-// Trigger analysis
-const handle = sharedAudioFeatureAnalysisScheduler.schedule({
-    audioBuffer: myBuffer,
-    audioSourceId: 'track-123',
-    globalBpm: 120,
-    beatsPerBar: 4,
-    windowSize: 2048,
-    hopSize: 512,
-    onProgress: (ratio, label) => console.log(`${label}: ${ratio * 100}%`),
-});
-
-// Wait for completion
-const { cache } = await handle.promise;
-
-// Store result
-timelineStore.ingestAudioFeatureCache('track-123', cache);
-```
+The sections below dive into architecture details, advanced usage, and the migration path from legacy descriptor smoothing.
 
 ## Architecture Overview
 
--   **Timeline Store** owns the cache map (`audioFeatureCaches`), per-source status entries (`audioFeatureCacheStatus`), and decoded buffers. Analysis can be retried or merged without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
+### Data Ownership and Flow
 
--   **Analysis Scheduler** executes registered calculators one at a time, reports progress, and honors cancellation tokens so UI flows remain responsive when users stop or restart analysis.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
+- **Timeline Store** owns decoded buffers, cache maps (`audioFeatureCaches`), and cache status entries (`audioFeatureCacheStatus`). The store persists analysis results and coordinates retries without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
+- **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
+- **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】
+- **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
+- **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
--   **Analysis Intent Bus** lets scene elements declare which features they need. The bus deduplicates requests, informs diagnostics tooling, and ensures multiple surfaces share the same cache entry without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
+### Descriptors vs Sampling Options
 
--   **Tempo-Aligned View Adapter** provides sampling utilities that translate timeline ticks or seconds into frame indices, handling interpolation and history lookups for smooth animations.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+`AudioFeatureDescriptor` objects answer the question “_what data was analyzed?_” and **never** include presentation fields. Runtime sampling knobs live in `AudioSamplingOptions`, a dedicated type passed to `getFeatureData`. This distinction is enforced across the stack so caches are shared even when elements choose different smoothing radii or interpolation modes.【F:src/audio/features/audioFeatureTypes.ts†L18-L47】【F:src/audio/features/sceneApi.ts†L143-L207】
+
+### Lazy and Explicit Subscription APIs
+
+Most elements rely on the lazy API: call `getFeatureData` during render and the scene runtime will publish intents, track descriptors, and resolve cache samples for you. When you need manual control (for example, to swap descriptor sets in response to animations) call `syncElementFeatureIntents` with explicit descriptors and manage sampling yourself. Both APIs feed the same intent bus, so diagnostics remain accurate regardless of approach.【F:src/audio/features/sceneApi.ts†L209-L303】
+
+### Migrating from Descriptor Smoothing
+
+Earlier versions allowed `smoothing` inside `AudioFeatureDescriptor`. That field was removed in October 2025. To migrate:
+
+1. **Remove `smoothing` from descriptors** in scene files or custom elements.
+2. **Expose smoothing as a regular element property** (e.g., slider in the config schema).
+3. **Pass the value at render time** via `getFeatureData(..., time, { smoothing })`.
+4. **Leave cache migrations to persistence**. The loader strips legacy descriptor smoothing automatically during import, so existing scenes keep working.【F:src/persistence/migrations/removeSmoothingFromDescriptor.ts†L1-L102】
+
+Because smoothing no longer changes descriptor identity, multiple elements can share the same cache entry even when they use different smoothing radii.
 
 ## Cache Lifecycle and Storage
 
@@ -299,9 +264,10 @@ audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 
 ## Requesting and Sampling Feature Data in Scene Elements
 
-Scene elements now declare their audio feature needs through the metadata registry. The base
-`SceneElement` class subscribes to those requirements automatically whenever the bound track
-changes, so renderers only have to sample data at runtime.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L110】
+Scene elements declare their audio feature needs through the metadata registry. The base
+`SceneElement` class subscribes automatically whenever the bound track changes, so renderers
+only have to sample data at runtime. Requirements remain internal to the element—authors never
+see or edit them in the property panel.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L110】
 
 ### Basic Usage Pattern
 
@@ -329,7 +295,7 @@ export class AudioSpectrumElement extends SceneElement {
 ```
 
 The registry ensures descriptors are deduplicated and cached once per feature, even when multiple
-elements request different smoothing values at draw time.【F:src/audio/features/sceneApi.ts†L126-L199】
+elements choose different smoothing or interpolation options at draw time.【F:src/audio/features/sceneApi.ts†L143-L207】
 
 ### Dynamic Requirements
 
@@ -366,9 +332,8 @@ export class DynamicAudioElement extends SceneElement {
     class subscribes automatically, and requirements are deduplicated across instances.
 -   **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
     smoothing or interpolation options.
--   **`sampleFeatureFrame`**: Fetches tempo-aligned data for a descriptor and caches recent frames so
-    repeated renders reuse values. Diagnostics hooks capture fallbacks when caches are missing or
-    descriptors cannot be resolved to a channel.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
+-   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. Useful when building
+    tooling or diagnostics that operate outside the scene runtime.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
 -   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
     analysis. Returns an array of `FeatureHistoryFrame` objects with timestamps and
     values.【F:src/utils/audioVisualization/history.ts†L1-L169】
@@ -422,11 +387,11 @@ When the tempo map changes, caches become `stale` and must be reanalyzed to main
 
 ### Interpolation Strategies
 
-The view adapter supports three interpolation modes:
+The view adapter supports three interpolation modes, set via `AudioSamplingOptions.interpolation`:
 
--   **`hold`**: Nearest-neighbor, no blending (snappy, quantized feel)
--   **`linear`**: Linear interpolation between adjacent frames (smooth, default)
--   **`spline`**: Cubic spline interpolation (smoothest, slight computational overhead)
+-   **`nearest`**: Nearest-neighbor sampling for a quantized feel.
+-   **`linear`**: Linear interpolation between adjacent frames (default).
+-   **`cubic`**: Cubic interpolation for the smoothest curves with a small CPU cost.
 
 ## FFT Implementation
 
@@ -467,81 +432,84 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 ## Common Workflows
 
-### Workflow 1: Adding Audio-Reactive Element
+### Workflow 1: Adding an Audio-Reactive Element
 
-**Goal**: Create a scene element that visualizes audio frequency data
+**Goal**: Visualize spectrogram magnitudes without manual subscription plumbing.
 
 ```ts
-// 1. In your element's config schema, add audio properties
-{
-    key: 'audioTrackId',
-    type: 'timelineTrackRef',
-    label: 'Audio Track',
-    default: null,
-    allowedTrackTypes: ['audio'],
-}
+import { SceneElement } from '@core/scene/elements/base';
+import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { getFeatureData } from '@audio/features/sceneApi';
 
-// 2. In _buildRenderObjects, request spectrogram data
-const trackId = this.getProperty<string>('audioTrackId');
-const descriptor = {
-    featureKey: 'spectrogram',
-    channel: 'Left',
-    smoothing: 0.2
-};
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
-emitAnalysisIntent(this, trackId, 'default', [descriptor]);
-const sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+export class AudioSpectrumElement extends SceneElement {
+    protected override _buildRenderObjects(config: unknown, targetTime: number) {
+        const trackId = this.getProperty<string>('featureTrackId');
+        if (!trackId) return [];
 
-// 3. Map frequency bins to visual elements
-if (sample?.values) {
-    return sample.values.map((magnitude, binIndex) => {
-        const height = magnitude * 100; // Convert dB to pixel height
-        return new Rectangle(binIndex * 10, 0, 8, height, '#00ff00');
-    });
+        const smoothing = this.getProperty<number>('smoothing') ?? 0;
+        const frame = getFeatureData(this, trackId, 'spectrogram', targetTime, {
+            smoothing,
+        });
+        if (!frame) return [];
+
+        return frame.values.map((magnitude, index) => {
+            const height = Math.max(0, magnitude + 80) * 2;
+            return new Rectangle(index * 6, 0, 4, height, '#00ffcc');
+        });
+    }
 }
 ```
 
 ### Workflow 2: Multi-Channel Visualization
 
-**Goal**: Show left and right channels separately
+**Goal**: Show left and right channel RMS levels with per-channel registration.
 
 ```ts
-const descriptors = [
-    { featureKey: 'rms', channel: 'Left' },
-    { featureKey: 'rms', channel: 'Right' },
-];
+registerFeatureRequirements('dualRmsBars', [
+    { feature: 'rms', channel: 'Left' },
+    { feature: 'rms', channel: 'Right' },
+]);
 
-emitAnalysisIntent(this, trackId, 'default', descriptors);
+export class DualRmsBars extends SceneElement {
+    protected override _buildRenderObjects(config: unknown, targetTime: number) {
+        const trackId = this.getProperty<string>('featureTrackId');
+        if (!trackId) return [];
 
-const leftSample = sampleFeatureFrame(trackId, descriptors[0], targetTime);
-const rightSample = sampleFeatureFrame(trackId, descriptors[1], targetTime);
+        const left = getFeatureData(this, trackId, 'rms', { channel: 'Left' }, targetTime);
+        const right = getFeatureData(this, trackId, 'rms', { channel: 'Right' }, targetTime);
 
-// Render side-by-side bars
-const leftHeight = (leftSample?.values[0] ?? 0) * 200;
-const rightHeight = (rightSample?.values[0] ?? 0) * 200;
+        return [
+            new Rectangle(0, 0, 40, (left?.values[0] ?? 0) * 200, '#ff3366'),
+            new Rectangle(50, 0, 40, (right?.values[0] ?? 0) * 200, '#3366ff'),
+        ];
+    }
+}
 ```
 
 ### Workflow 3: History/Trail Effects
 
-**Goal**: Create motion trails based on past audio data
+**Goal**: Create motion trails based on past audio data.
 
 ```ts
 import { sampleFeatureHistory } from '@utils/audioVisualization/history';
 
-// Get last 8 frames with equal spacing
+registerFeatureRequirements('spectrogramTrails', [{ feature: 'spectrogram' }]);
+
 const history = sampleFeatureHistory(
     trackId,
-    descriptor,
+    { featureKey: 'spectrogram' },
     targetTime,
     8,
-    { type: 'equalSpacing', seconds: 0.05 } // 50ms between frames
+    { type: 'equalSpacing', seconds: 0.05 },
 );
 
-// Render with fading opacity
+const binIndex = this.getProperty<number>('highlightBin') ?? 0;
 return history.map((frame, index) => {
-    const opacity = (index + 1) / history.length; // Fade in
-    const magnitude = frame.values[0] ?? 0;
-    const height = magnitude * 100;
+    const opacity = (index + 1) / history.length;
+    const magnitude = frame.values[binIndex] ?? 0;
+    const height = Math.max(0, magnitude + 80) * 2;
     return new Rectangle(0, 0, 50, height, `rgba(255, 255, 255, ${opacity})`);
 });
 ```
@@ -767,7 +735,7 @@ for (let frame = 0; frame < frameCount; frame++) {
 
 -   Reuse descriptors across elements to share cache entries
 -   Batch sampling when possible (use `sampleFeatureHistory` instead of multiple `sampleFeatureFrame` calls)
--   Prefer `hold` interpolation for real-time displays (faster than `linear` or `spline`)
+-   Prefer `nearest` interpolation for real-time displays (faster than `linear` or `cubic`)
 
 ## Glossary
 
@@ -777,7 +745,7 @@ for (let frame = 0; frame < frameCount; frame++) {
 | **Analysis Profile** | Preset configuration of window size, hop size, FFT parameters            |
 | **Calculator**       | Module that transforms audio into a specific feature track               |
 | **Channel Alias**    | Semantic label like "Left", "Right", "Mid" for multi-channel routing     |
-| **Descriptor**       | Query specification: which feature, channel, smoothing to sample         |
+| **Descriptor**       | Query specification: which feature and channel to analyze                |
 | **Feature Track**    | Time-series array of analysis results (e.g., spectrogram frames)         |
 | **FFT**              | Fast Fourier Transform: converts time-domain audio to frequency spectrum |
 | **Frame**            | Single time slice of analysis data at one hop interval                   |
