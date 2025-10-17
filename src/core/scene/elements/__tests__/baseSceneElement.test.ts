@@ -10,7 +10,10 @@ vi.mock('@audio/features/subscriptionSync', () => ({
 
 import { SceneElement } from '@core/scene/elements/base';
 import * as sceneApi from '@audio/features/sceneApi';
-import { registerFeatureRequirements, resetFeatureRequirementsForTests } from '@core/scene/elements/audioElementMetadata';
+import {
+    registerFeatureRequirements,
+    resetFeatureRequirementsForTests,
+} from '@core/scene/elements/audioElementMetadata';
 import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 
 const mockedSync = vi.mocked(syncElementSubscriptions);
@@ -52,7 +55,7 @@ describe('SceneElement audio requirements integration', () => {
             }
         }
 
-        const element = new AudioTestElement({ featureTrackId: 'track-1' });
+        const element = new AudioTestElement({ audioTrackId: 'track-1' });
         const calls = mockedSync.mock.calls.filter(([instance]) => instance === element);
         expect(calls.length).toBeGreaterThan(0);
         const lastCall = calls.at(-1);
@@ -69,10 +72,10 @@ describe('SceneElement audio requirements integration', () => {
             }
         }
 
-        const element = new AudioTestElement({ featureTrackId: 'initial' });
+        const element = new AudioTestElement({ audioTrackId: 'initial' });
         mockedSync.mockClear();
 
-        element.updateConfig({ featureTrackId: 'next-track' });
+        element.updateConfig({ audioTrackId: 'next-track' });
 
         expect(mockedSync).toHaveBeenCalledTimes(1);
         const [instance, trackId, requirements] = mockedSync.mock.calls[0]!;
@@ -90,10 +93,10 @@ describe('SceneElement audio requirements integration', () => {
             }
         }
 
-        const element = new AudioTestElement({ featureTrackId: 'keep-me' });
+        const element = new AudioTestElement({ audioTrackId: 'keep-me' });
         mockedSync.mockClear();
 
-        element.updateConfig({ featureTrackId: null });
+        element.updateConfig({ audioTrackId: null });
 
         expect(mockedSync).toHaveBeenCalledTimes(1);
         const [instance, trackId] = mockedSync.mock.calls[0]!;

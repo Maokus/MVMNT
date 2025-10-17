@@ -26,7 +26,7 @@ export class AudioMinimalElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
-                            key: 'featureTrackId',
+                            key: 'audioTrackId',
                             type: 'timelineTrackRef',
                             label: 'Audio Track',
                             default: null,
@@ -39,7 +39,7 @@ export class AudioMinimalElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         const frame = getFeatureData(this, trackId, 'spectrogram', targetTime);
 
         if (!frame || frame.values.length === 0) {

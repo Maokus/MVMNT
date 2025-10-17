@@ -44,9 +44,7 @@ interface LegacyDescriptorResult {
     smoothing: number | null;
 }
 
-function isLegacyAudioFeatureBinding(
-    value: unknown,
-): value is LegacyAudioFeatureBindingData {
+function isLegacyAudioFeatureBinding(value: unknown): value is LegacyAudioFeatureBindingData {
     return Boolean(value && typeof value === 'object' && (value as { type?: string }).type === 'audioFeature');
 }
 
@@ -55,22 +53,14 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Legac
     if (!featureKey) return { descriptor: null, smoothing: null };
     const coerceIndex = (input: unknown): number | null =>
         typeof input === 'number' && Number.isFinite(input) ? input : null;
-    const calculatorId =
-        typeof payload.calculatorId === 'string' && payload.calculatorId
-            ? payload.calculatorId
-            : null;
+    const calculatorId = typeof payload.calculatorId === 'string' && payload.calculatorId ? payload.calculatorId : null;
     const smoothing =
-        typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing)
-            ? payload.smoothing
-            : null;
+        typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing) ? payload.smoothing : null;
     const channelAlias =
         typeof payload.channelAlias === 'string' && payload.channelAlias.trim().length > 0
             ? payload.channelAlias.trim()
             : null;
-    const channelValue =
-        payload.channel != null
-            ? payload.channel
-            : channelAlias ?? coerceIndex(payload.channelIndex);
+    const channelValue = payload.channel != null ? payload.channel : channelAlias ?? coerceIndex(payload.channelIndex);
     const { descriptor } = createFeatureDescriptor({
         feature: featureKey,
         calculatorId,
@@ -87,7 +77,7 @@ export interface LegacyBindingMigrationResult {
 
 export function migrateLegacyAudioFeatureBinding(
     propertyKey: string,
-    value: unknown,
+    value: unknown
 ): LegacyBindingMigrationResult | null {
     if (propertyKey === 'featureDescriptor') {
         const replacements: Record<string, BindingState> = {};
@@ -118,14 +108,14 @@ export function migrateLegacyAudioFeatureBinding(
         return { clearedKeys: ['featureDescriptor'], replacements };
     }
     if (propertyKey !== 'featureBinding') return null;
-    const clearedKeys = ['featureBinding', 'featureTrackId', 'featureDescriptor', 'analysisProfileId'];
+    const clearedKeys = ['featureBinding', 'audioTrackId', 'featureDescriptor', 'analysisProfileId'];
     if (!isLegacyAudioFeatureBinding(value)) {
         return { clearedKeys, replacements: {} };
     }
     const replacements: Record<string, BindingState> = {};
     const trackId = typeof value.trackId === 'string' && value.trackId ? value.trackId : null;
     if (trackId) {
-        replacements.featureTrackId = { type: 'constant', value: trackId };
+        replacements.audioTrackId = { type: 'constant', value: trackId };
     }
     const { descriptor, smoothing } = sanitizeLegacyDescriptor(value);
     if (descriptor) {
@@ -375,8 +365,8 @@ function cloneBindingsMap(bindings: ElementBindings, elementType?: string): Elem
                         Boolean(
                             entry &&
                                 typeof entry === 'object' &&
-                                typeof (entry as { featureKey?: unknown }).featureKey === 'string',
-                        ),
+                                typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                        )
                 ) as AudioFeatureDescriptor[];
                 result.features = {
                     type: 'constant',
@@ -720,15 +710,12 @@ function validateMacroValue(
             return { valid: value instanceof File };
         case 'timelineTrackRef':
             if (value == null) return { valid: true };
-            const allowed = Array.isArray(options.allowedTrackTypes) && options.allowedTrackTypes.length
-                ? options.allowedTrackTypes
-                : ['midi'];
+            const allowed =
+                Array.isArray(options.allowedTrackTypes) && options.allowedTrackTypes.length
+                    ? options.allowedTrackTypes
+                    : ['midi'];
             const allowedSet = new Set(allowed);
-            const toCheck = Array.isArray(value)
-                ? value
-                : typeof value === 'string'
-                    ? [value]
-                    : [];
+            const toCheck = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
 
             if (!Array.isArray(value) && typeof value !== 'string') {
                 return { valid: false, reason: 'Expected a track id string or array.' };
@@ -1076,9 +1063,7 @@ const createSceneStoreState = (
                                 }
                             }
                         }
-                        for (const [replacementKey, replacementBinding] of Object.entries(
-                            migration.replacements,
-                        )) {
+                        for (const [replacementKey, replacementBinding] of Object.entries(migration.replacements)) {
                             const current = nextBindingsForElement[replacementKey];
                             if (!current || !bindingEquals(current, replacementBinding)) {
                                 nextBindingsForElement[replacementKey] = replacementBinding;
@@ -1104,13 +1089,12 @@ const createSceneStoreState = (
                                 smoothingFromDescriptor = smoothingValues[0] ?? null;
                             }
                             descriptors = entries
-                                .filter(
-                                    (entry): entry is Record<string, unknown> & { featureKey: string } =>
-                                        Boolean(
-                                            entry &&
-                                                typeof entry === 'object' &&
-                                                typeof (entry as { featureKey?: unknown }).featureKey === 'string',
-                                        ),
+                                .filter((entry): entry is Record<string, unknown> & { featureKey: string } =>
+                                    Boolean(
+                                        entry &&
+                                            typeof entry === 'object' &&
+                                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                                    )
                                 )
                                 .map((entry) => entry as AudioFeatureDescriptor);
                         } else {
@@ -1118,10 +1102,7 @@ const createSceneStoreState = (
                             if (smoothing != null) {
                                 smoothingFromDescriptor = smoothing;
                             }
-                            if (
-                                descriptor &&
-                                typeof (descriptor as { featureKey?: unknown }).featureKey === 'string'
-                            ) {
+                            if (descriptor && typeof (descriptor as { featureKey?: unknown }).featureKey === 'string') {
                                 descriptors = [descriptor as unknown as AudioFeatureDescriptor];
                             } else {
                                 descriptors = [];
@@ -1418,7 +1399,10 @@ const createSceneStoreState = (
         set((state) => {
             const existing = state.fonts.assets[assetId];
             if (!existing) return state;
-            const merged: FontAsset = normalizeFontAssetInput({ ...existing, ...patch, id: assetId } as FontAsset, existing);
+            const merged: FontAsset = normalizeFontAssetInput(
+                { ...existing, ...patch, id: assetId } as FontAsset,
+                existing
+            );
             if (JSON.stringify(existing) === JSON.stringify(merged)) {
                 return state;
             }

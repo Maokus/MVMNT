@@ -11,21 +11,19 @@ features in your element code.
 ```ts
 import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
 
-registerFeatureRequirements('audioSpectrum', [
-    { feature: 'spectrogram' },
-]);
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 ```
 
-- Call the function at module scope so requirements are registered when the element loads.
-- Requirements are internal metadata: they do **not** appear in the property panel.
-- Use multiple entries when the element needs several features or channels.
+-   Call the function at module scope so requirements are registered when the element loads.
+-   Requirements are internal metadata: they do **not** appear in the property panel.
+-   Use multiple entries when the element needs several features or channels.
 
 ## 2. Sample during render
 
 ```ts
 import { getFeatureData } from '@audio/features/sceneApi';
 
-const trackId = this.getProperty<string>('featureTrackId');
+const trackId = this.getProperty<string>('audioTrackId');
 if (!trackId) return [];
 
 const smoothing = this.getProperty<number>('smoothing') ?? 0;
@@ -38,9 +36,9 @@ if (!sample) return [];
 // sample.values contains the tempo-aligned magnitudes for the current frame.
 ```
 
-- Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
-- `AudioFeatureDescriptor` objects remain focused on analysis identity.
-- Changing sampling options never invalidates cache entries, so multiple elements share work.
+-   Pass runtime presentation tweaks (smoothing, interpolation) through the final argument.
+-   `AudioFeatureDescriptor` objects remain focused on analysis identity.
+-   Changing sampling options never invalidates cache entries, so multiple elements share work.
 
 ## 3. Let the runtime manage subscriptions
 
@@ -62,6 +60,6 @@ Use the diagnostics panel to monitor analysis progress or restart jobs when inpu
 
 ## 5. Learn more
 
-- [Audio Cache System](audio-cache-system.md) – architecture deep dive and advanced workflows.
-- [Audio Concepts](concepts.md) – mental model for data vs presentation responsibilities.
-- [removeSmoothingFromDescriptor migration](../../src/persistence/migrations/removeSmoothingFromDescriptor.ts) – legacy scene support.
+-   [Audio Cache System](audio-cache-system.md) – architecture deep dive and advanced workflows.
+-   [Audio Concepts](concepts.md) – mental model for data vs presentation responsibilities.
+-   [removeSmoothingFromDescriptor migration](../../src/persistence/migrations/removeSmoothingFromDescriptor.ts) – legacy scene support.

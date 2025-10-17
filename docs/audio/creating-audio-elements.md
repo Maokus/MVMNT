@@ -9,7 +9,7 @@ runtime. Follow the patterns below to stay aligned with the v4 audio system simp
 ## Automatic feature requirements
 
 Use the metadata registry to declare fixed feature dependencies for your element. The base
-`SceneElement` automatically subscribes whenever `featureTrackId` changes, so subclasses only need to
+`SceneElement` automatically subscribes whenever `audioTrackId` changes, so subclasses only need to
 render.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L110】
 
 ```ts
@@ -21,7 +21,7 @@ registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 export class AudioSpectrumElement extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
         const smoothing = this.getProperty<number>('smoothing') ?? 0;
@@ -56,13 +56,13 @@ import { syncElementFeatureIntents, clearFeatureData } from '@audio/features/sce
 export class DynamicAudioElement extends SceneElement {
     protected override onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
         super.onPropertyChanged(key, oldValue, newValue);
-        if (key === 'selectedFeature' || key === 'featureTrackId') {
+        if (key === 'selectedFeature' || key === 'audioTrackId') {
             this._syncSubscriptions();
         }
     }
 
     private _syncSubscriptions(): void {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         const feature = this.getProperty<string>('selectedFeature');
         if (!trackId || !feature) {
             clearFeatureData(this);

@@ -83,17 +83,16 @@ export class SceneElement implements SceneElementInterface {
     }
 
     protected onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
-        if (key === 'featureTrackId' && oldValue !== newValue) {
+        if (key === 'audioTrackId' && oldValue !== newValue) {
             this._subscribeToRequiredFeatures();
         }
     }
 
     protected _subscribeToRequiredFeatures(): void {
         const requirements = getFeatureRequirements(this.type);
-        const binding = this.bindings.get('featureTrackId');
-        const rawTrack = binding ? this.getProperty<string>('featureTrackId') : null;
-        const normalized =
-            typeof rawTrack === 'string' && rawTrack.trim().length > 0 ? rawTrack.trim() : null;
+        const binding = this.bindings.get('audioTrackId');
+        const rawTrack = binding ? this.getProperty<string>('audioTrackId') : null;
+        const normalized = typeof rawTrack === 'string' && rawTrack.trim().length > 0 ? rawTrack.trim() : null;
         syncElementSubscriptions(this, normalized, requirements);
     }
 
@@ -719,7 +718,13 @@ export class SceneElement implements SceneElementInterface {
                         {
                             id: 'centeredAnchor',
                             label: 'Centered Anchor',
-                            values: { anchorX: 0.5, anchorY: 0.5, elementRotation: 0, elementSkewX: 0, elementSkewY: 0 },
+                            values: {
+                                anchorX: 0.5,
+                                anchorY: 0.5,
+                                elementRotation: 0,
+                                elementSkewX: 0,
+                                elementSkewY: 0,
+                            },
                         },
                         {
                             id: 'topLeftPivot',
@@ -801,7 +806,12 @@ export class SceneElement implements SceneElementInterface {
             }
 
             // Check if this is binding data
-            if (value && typeof value === 'object' && value.type && (value.type === 'constant' || value.type === 'macro')) {
+            if (
+                value &&
+                typeof value === 'object' &&
+                value.type &&
+                (value.type === 'constant' || value.type === 'macro')
+            ) {
                 // This is serialized binding data
                 this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
             } else {

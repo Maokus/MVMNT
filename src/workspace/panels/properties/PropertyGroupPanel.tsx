@@ -337,9 +337,8 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             return (
                 <div
                     key={property.key}
-                    className={`ae-property-row ae-property-row-error${
-                        nested ? ' ae-property-row-nested' : ''
-                    }`}
+                    className={`ae-property-row ae-property-row-error${nested ? ' ae-property-row-nested' : ''
+                        }`}
                 >
                     <div className="ae-property-label">
                         <span className="ae-property-name" title={property.description}>
@@ -363,7 +362,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             if (property.type === 'audioAnalysisProfile') {
                 const trackRef = property.trackPropertyKey
                     ? values[property.trackPropertyKey] ?? null
-                    : values.featureTrackId ?? null;
+                    : values.audioTrackId ?? null;
                 return {
                     ...property,
                     trackId: trackRef,
@@ -390,7 +389,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const inputType = resolvedInputType;
         const hasAnimationIcon = canAssignMacro(property.type);
-        
+
         return (
             <div
                 key={property.key}
@@ -398,9 +397,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 style={
                     nested
                         ? {
-                              paddingLeft: '12px',
-                              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-                          }
+                            paddingLeft: '12px',
+                            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+                        }
                         : undefined
                 }
             >

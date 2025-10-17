@@ -41,7 +41,7 @@ export class AudioOscilloscopeElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
-                            key: 'featureTrackId',
+                            key: 'audioTrackId',
                             type: 'timelineTrackRef',
                             label: 'Audio Track',
                             default: null,
@@ -120,7 +120,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
         const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
         const smoothingRadius = Math.max(0, Math.round(smoothing));
-        const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
+        const trackId = (this.getProperty<string>('audioTrackId') ?? '').trim() || null;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
 
@@ -128,7 +128,9 @@ export class AudioOscilloscopeElement extends SceneElement {
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
         if (!trackId) {
-            objects.push(new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+            );
             return objects;
         }
 
@@ -147,7 +149,9 @@ export class AudioOscilloscopeElement extends SceneElement {
         });
 
         if (!range || range.frameCount < 2 || !range.data?.length) {
-            objects.push(new Text(8, height / 2, 'No waveform data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, 'No waveform data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+            );
             return objects;
         }
 
@@ -165,7 +169,9 @@ export class AudioOscilloscopeElement extends SceneElement {
         }
 
         if (values.length < 2) {
-            objects.push(new Text(8, height / 2, 'Waveform too short', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, 'Waveform too short', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+            );
             return objects;
         }
 

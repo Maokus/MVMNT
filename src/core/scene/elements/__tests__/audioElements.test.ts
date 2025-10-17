@@ -39,7 +39,6 @@ describe('simplified audio scene elements', () => {
         vi.restoreAllMocks();
     });
 
-
     it('scales the volume meter fill with the sampled RMS value', () => {
         vi.spyOn(featureUtils, 'sampleFeatureFrame')
             .mockReturnValueOnce({
@@ -58,7 +57,7 @@ describe('simplified audio scene elements', () => {
             } as any);
 
         const element = new AudioVolumeMeterElement('meter', {
-            featureTrackId: 'track-1',
+            audioTrackId: 'track-1',
             width: 40,
             height: 200,
             minValue: 0,
@@ -67,12 +66,16 @@ describe('simplified audio scene elements', () => {
         });
 
         const [first] = element.buildRenderObjects({}, 1);
-        const firstRects = (first as any).children.filter((child: unknown) => child instanceof Rectangle) as Rectangle[];
+        const firstRects = (first as any).children.filter(
+            (child: unknown) => child instanceof Rectangle
+        ) as Rectangle[];
         const firstFill = firstRects[1];
         expect(firstFill.height).toBeCloseTo(50);
 
         const [second] = element.buildRenderObjects({}, 1.5);
-        const secondRects = (second as any).children.filter((child: unknown) => child instanceof Rectangle) as Rectangle[];
+        const secondRects = (second as any).children.filter(
+            (child: unknown) => child instanceof Rectangle
+        ) as Rectangle[];
         const secondFill = secondRects[1];
         expect(secondFill.height).toBeGreaterThan(firstFill.height);
     });
@@ -94,14 +97,16 @@ describe('simplified audio scene elements', () => {
         } as any);
 
         const element = new AudioOscilloscopeElement('osc', {
-            featureTrackId: 'track-1',
+            audioTrackId: 'track-1',
             width: 120,
             height: 60,
             windowSeconds: 0.05,
         });
 
         const [container] = element.buildRenderObjects({}, 2);
-        const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as Poly | undefined;
+        const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as
+            | Poly
+            | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
         expect((waveform as Poly).points).toHaveLength(4);

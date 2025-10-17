@@ -30,7 +30,7 @@ describe('audio-spectrum element', () => {
         vi.spyOn(sceneApi, 'getFeatureData').mockReturnValue(createSample([-80, -60, -40, -20]) as any);
 
         const element = new AudioSpectrumElement('spectrum', {
-            featureTrackId: 'track-1',
+            audioTrackId: 'track-1',
             barCount: 4,
             width: 200,
             height: 100,
@@ -51,12 +51,12 @@ describe('audio-spectrum element', () => {
     });
 
     it('passes the smoothing value to getFeatureData', () => {
-        const getFeatureSpy = vi.spyOn(sceneApi, 'getFeatureData').mockReturnValue(
-            createSample(new Array(8).fill(-40)) as any,
-        );
+        const getFeatureSpy = vi
+            .spyOn(sceneApi, 'getFeatureData')
+            .mockReturnValue(createSample(new Array(8).fill(-40)) as any);
 
         const element = new AudioSpectrumElement('spectrum', {
-            featureTrackId: 'track-1',
+            audioTrackId: 'track-1',
             smoothing: 12,
             barCount: 8,
             width: 160,
@@ -74,7 +74,7 @@ describe('audio-spectrum element', () => {
         vi.spyOn(sceneApi, 'getFeatureData').mockReturnValue(undefined as any);
 
         const element = new AudioSpectrumElement('spectrum', {
-            featureTrackId: 'track-1',
+            audioTrackId: 'track-1',
             barCount: 4,
             width: 200,
             height: 100,

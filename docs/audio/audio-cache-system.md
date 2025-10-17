@@ -38,11 +38,11 @@ The sections below dive into architecture details, advanced usage, and the migra
 
 ### Data Ownership and Flow
 
-- **Timeline Store** owns decoded buffers, cache maps (`audioFeatureCaches`), and cache status entries (`audioFeatureCacheStatus`). The store persists analysis results and coordinates retries without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
-- **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
-- **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】
-- **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
-- **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
+-   **Timeline Store** owns decoded buffers, cache maps (`audioFeatureCaches`), and cache status entries (`audioFeatureCacheStatus`). The store persists analysis results and coordinates retries without reloading audio files.【F:src/state/timelineStore.ts†L880-L1088】
+-   **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
+-   **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】
+-   **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
+-   **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
 ### Descriptors vs Sampling Options
 
@@ -280,7 +280,7 @@ registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 export class AudioSpectrumElement extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
         const smoothing = this.getProperty<number>('smoothing') ?? 0;
@@ -311,7 +311,7 @@ export class DynamicAudioElement extends SceneElement {
     private _descriptorKey: string | null = null;
 
     private _syncSubscriptions() {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         const feature = this.getProperty<string>('selectedFeature');
         if (!trackId || !feature) {
             clearFeatureData(this);
@@ -446,7 +446,7 @@ registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 export class AudioSpectrumElement extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
         const smoothing = this.getProperty<number>('smoothing') ?? 0;
@@ -475,7 +475,7 @@ registerFeatureRequirements('dualRmsBars', [
 
 export class DualRmsBars extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
-        const trackId = this.getProperty<string>('featureTrackId');
+        const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
         const left = getFeatureData(this, trackId, 'rms', { channel: 'Left' }, targetTime);
@@ -498,13 +498,10 @@ import { sampleFeatureHistory } from '@utils/audioVisualization/history';
 
 registerFeatureRequirements('spectrogramTrails', [{ feature: 'spectrogram' }]);
 
-const history = sampleFeatureHistory(
-    trackId,
-    { featureKey: 'spectrogram' },
-    targetTime,
-    8,
-    { type: 'equalSpacing', seconds: 0.05 },
-);
+const history = sampleFeatureHistory(trackId, { featureKey: 'spectrogram' }, targetTime, 8, {
+    type: 'equalSpacing',
+    seconds: 0.05,
+});
 
 const binIndex = this.getProperty<number>('highlightBin') ?? 0;
 return history.map((frame, index) => {
@@ -625,12 +622,12 @@ Location: `src/audio/__tests__/`
 
 ### Common Issues
 
-| Symptom                      | Likely cause                              | Solution |
-| ---------------------------- | ----------------------------------------- | -------- |
-| No visualization             | Cache not ready                           | Check status panel and wait for analysis. |
-| Stale cache warning          | Tempo map changed                         | Click "Reanalyze" in diagnostics panel. |
-| Incorrect frequency mapping  | FFT size mismatch                         | Review calculator metadata, ensure descriptor uses correct track. |
-| Poor performance             | Large cache retained in memory            | Clear unused caches via store action. |
+| Symptom                      | Likely cause                                               | Solution                                                                                |
+| ---------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| No visualization             | Cache not ready                                            | Check status panel and wait for analysis.                                               |
+| Stale cache warning          | Tempo map changed                                          | Click "Reanalyze" in diagnostics panel.                                                 |
+| Incorrect frequency mapping  | FFT size mismatch                                          | Review calculator metadata, ensure descriptor uses correct track.                       |
+| Poor performance             | Large cache retained in memory                             | Clear unused caches via store action.                                                   |
 | Unsupported property warning | Legacy scene uses retired `audioFeatureDescriptor` configs | Update the element schema and re-save. The inspector now surfaces unsupported controls. |
 
 ## Extending and Maintaining the System

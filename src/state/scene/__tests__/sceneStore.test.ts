@@ -184,9 +184,7 @@ describe('sceneStore', () => {
             type: 'macro',
             macroId: 'macro.color.accent',
         });
-        expect(state.bindings.byMacro['macro.color.accent']).toEqual([
-            { elementId: 'title', propertyPath: 'color' },
-        ]);
+        expect(state.bindings.byMacro['macro.color.accent']).toEqual([{ elementId: 'title', propertyPath: 'color' }]);
     });
 
     it('keeps macro exportedAt stable across draft exports without mutations', () => {
@@ -205,7 +203,7 @@ describe('sceneStore', () => {
             type: 'audioSpectrum',
             index: 0,
             bindings: {
-                featureTrackId: { type: 'constant', value: 'audio-track' },
+                audioTrackId: { type: 'constant', value: 'audio-track' },
                 features: {
                     type: 'constant',
                     value: [
@@ -223,7 +221,7 @@ describe('sceneStore', () => {
         });
 
         const elementBindings = store.getState().bindings.byElement['audio-element'];
-        expect(elementBindings.featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect(elementBindings.audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
         expect(elementBindings.features).toEqual({
             type: 'constant',
             value: [
@@ -241,7 +239,7 @@ describe('sceneStore', () => {
         const exported = store.getState().exportSceneDraft();
         const serialized = exported.elements.find((el) => el.id === 'audio-element');
         expect(serialized).toBeDefined();
-        expect((serialized as any).featureTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect((serialized as any).audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
         expect((serialized as any).features).toEqual({
             type: 'constant',
             value: [
@@ -261,7 +259,7 @@ describe('sceneStore', () => {
         store.getState().importScene(audioMacroFixture as any);
 
         const bindings = store.getState().bindings.byElement['spectrum'];
-        expect(bindings?.featureTrackId).toEqual({ type: 'macro', macroId: 'macro.audio.track' });
+        expect(bindings?.audioTrackId).toEqual({ type: 'macro', macroId: 'macro.audio.track' });
         expect(bindings?.features?.type).toBe('constant');
         expect(bindings?.analysisProfileId?.type).toBe('constant');
 
@@ -276,7 +274,7 @@ describe('sceneStore', () => {
                 {
                     id: 'audio-element',
                     type: 'audioSpectrum',
-                    featureTrackId: { type: 'constant', value: 'audio-track-1' },
+                    audioTrackId: { type: 'constant', value: 'audio-track-1' },
                     features: {
                         type: 'constant',
                         value: [
@@ -395,7 +393,7 @@ describe('sceneStore', () => {
             });
 
             expect(() => store.getState().updateMacroValue('macro.audio.track', 'midiA')).toThrowError(
-                /audio.*macro accepts audio tracks/i,
+                /audio.*macro accepts audio tracks/i
             );
             expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioA');
         });
@@ -407,13 +405,11 @@ describe('sceneStore', () => {
                 options: { allowedTrackTypes: ['audio'], allowMultiple: true },
             });
 
-            expect(() =>
-                store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'audioB']),
-            ).not.toThrow();
+            expect(() => store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'audioB'])).not.toThrow();
 
-            expect(() =>
-                store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'midiA']),
-            ).toThrowError(/macro accepts audio tracks/i);
+            expect(() => store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'midiA'])).toThrowError(
+                /macro accepts audio tracks/i
+            );
         });
     });
 
@@ -438,7 +434,7 @@ describe('sceneStore', () => {
 
         const bindings = store.getState().bindings.byElement['osc'];
         expect(bindings.featureBinding).toBeUndefined();
-        expect(bindings.featureTrackId).toEqual({ type: 'constant', value: 'track-1' });
+        expect(bindings.audioTrackId).toEqual({ type: 'constant', value: 'track-1' });
         expect(bindings.features).toEqual({
             type: 'constant',
             value: [
@@ -465,9 +461,7 @@ describe('sceneStore', () => {
             createdAt: Date.now(),
             updatedAt: Date.now(),
             licensingAcknowledged: true,
-            variants: [
-                { id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' },
-            ],
+            variants: [{ id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' }],
         };
 
         store.getState().registerFontAsset(asset);
@@ -489,9 +483,7 @@ describe('sceneStore', () => {
             createdAt: 123,
             updatedAt: 456,
             licensingAcknowledged: true,
-            variants: [
-                { id: 'italic', weight: 400, style: 'italic', sourceFormat: 'otf' },
-            ],
+            variants: [{ id: 'italic', weight: 400, style: 'italic', sourceFormat: 'otf' }],
         };
 
         store.getState().importScene({

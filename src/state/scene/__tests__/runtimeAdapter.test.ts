@@ -65,7 +65,7 @@ describe('SceneRuntimeAdapter', () => {
             type: 'audioOscilloscope',
             index: store.getState().order.length,
             bindings: {
-                featureTrackId: { type: 'constant', value: 'track-1' },
+                audioTrackId: { type: 'constant', value: 'track-1' },
                 features: {
                     type: 'constant',
                     value: [
@@ -84,12 +84,9 @@ describe('SceneRuntimeAdapter', () => {
 
         const runtimeElement = adapter.getElements().find((element) => element.id === 'osc');
         expect(runtimeElement).toBeDefined();
-        const trackBinding = runtimeElement?.getBinding('featureTrackId');
+        const trackBinding = runtimeElement?.getBinding('audioTrackId');
         const descriptorBinding = runtimeElement?.getBinding('features');
         expect(trackBinding?.getValue()).toBe('track-1');
-        expect(descriptorBinding?.getValue()).toEqual([
-            expect.objectContaining({ featureKey: 'waveform' }),
-        ]);
+        expect(descriptorBinding?.getValue()).toEqual([expect.objectContaining({ featureKey: 'waveform' })]);
     });
 });
-

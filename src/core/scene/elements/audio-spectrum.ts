@@ -42,7 +42,7 @@ export class AudioSpectrumElement extends SceneElement {
                     collapsed: false,
                     properties: [
                         {
-                            key: 'featureTrackId',
+                            key: 'audioTrackId',
                             type: 'timelineTrackRef',
                             label: 'Audio Track',
                             default: null,
@@ -130,20 +130,24 @@ export class AudioSpectrumElement extends SceneElement {
         const barColor = this.getProperty<string>('barColor') ?? '#60a5fa';
         const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
         const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
-        const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
+        const trackId = (this.getProperty<string>('audioTrackId') ?? '').trim() || null;
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
         if (!trackId) {
-            objects.push(new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+            );
             return objects;
         }
 
         const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
         const values = sample?.values ?? [];
         if (!values.length) {
-            objects.push(new Text(8, height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            objects.push(
+                new Text(8, height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+            );
             return objects;
         }
 
