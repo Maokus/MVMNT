@@ -206,7 +206,6 @@ export interface ConfigSchemaProperty {
         | 'file-midi'
         | 'file-image'
         | 'timelineTrackRef'
-        | 'audioFeatureDescriptor'
         | 'audioAnalysisProfile';
     label: string;
     default: any;
@@ -261,7 +260,6 @@ export interface PropertyDefinition {
         | 'file-image'
         | 'font'
         | 'timelineTrackRef'
-        | 'audioFeatureDescriptor'
         | 'audioAnalysisProfile';
     label: string;
     default?: any;
@@ -274,14 +272,9 @@ export interface PropertyDefinition {
     // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
     // Optional filter for track kinds supported by this binding (defaults to MIDI only)
     allowedTrackTypes?: Array<'midi' | 'audio'>;
-    // Link descriptor editors to the property storing the actual track reference
+    // Optional link to another property storing the associated track reference
     trackPropertyKey?: string;
     allowMultiple?: boolean;
-    // Audio feature bindings can declare a required feature key and label.
-    requiredFeatureKey?: string;
-    autoFeatureLabel?: string;
-    // Link descriptor editors to the property storing the analysis profile.
-    profilePropertyKey?: string;
     // Optional glossary anchors used for tooltip copy in the inspector.
     glossaryTerms?: {
         featureDescriptor?: string;

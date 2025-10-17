@@ -418,7 +418,8 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 ### UI Components
 
--   **Audio Feature Descriptor Input**: Form control that surfaces available tracks from the store, enforces unique descriptors, and links selections to compatible analysis profiles so authors cannot request a calculator with incompatible parameters.【F:src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx†L237-L520】
+-   **Timeline Track Selector**: Form control for binding scene properties to analysed audio tracks.
+    It filters available tracks by type and writes selections back through the form system.【F:src/workspace/form/inputs/TimelineTrackSelect.tsx†L1-L198】
 
 -   **Scene Analysis Caches Panel**: Lists cache states, progress, and controls for restarting or reanalyzing individual calculators, respecting whether buffers are available and if jobs are already running.【F:src/workspace/layout/SceneAnalysisCachesTab.tsx†L91-L200】
 

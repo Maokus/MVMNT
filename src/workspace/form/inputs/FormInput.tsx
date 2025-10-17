@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
 import TimelineTrackSelect from './TimelineTrackSelect';
-import AudioFeatureDescriptorInput from './AudioFeatureDescriptorInput';
 import { AudioAnalysisProfileSelect } from './AudioAnalysisProfileSelect';
 import { useNumberDrag } from './useNumberDrag';
 
@@ -216,24 +215,6 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             <TimelineTrackSelect
                 id={id}
                 value={value ?? null}
-                schema={schema}
-                disabled={disabled}
-                title={title}
-                onChange={onChange}
-            />
-        );
-    }
-
-    if (type === 'audioFeatureDescriptor') {
-        const descriptors = Array.isArray(value)
-            ? value
-            : value
-            ? [value]
-            : [];
-        return (
-            <AudioFeatureDescriptorInput
-                id={id}
-                value={descriptors.length ? descriptors : null}
                 schema={schema}
                 disabled={disabled}
                 title={title}

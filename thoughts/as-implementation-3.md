@@ -47,9 +47,8 @@ This plan refactors the audio cache system to dramatically simplify the develope
 
 5. **Update UI components** (`src/workspace/form/inputs/AudioFeatureDescriptorInput.tsx`)
 
-    - Replace separate channel index/alias controls with unified channel selector
-    - Show friendly names ("Left", "Right") but accept numeric input
-    - Adapt to track's actual channel count
+    - _Decision (14 February 2026)_: The legacy component was removed instead of refactored because no scene elements expose an
+      audio feature descriptor input. Follow-up notes live in `thoughts/delete-af-input-2.md`.
 
 6. **Create migration utility** (`src/persistence/migrations/unifyChannelField.ts` - new file)
 

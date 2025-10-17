@@ -288,22 +288,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             }
         };
 
-        const descriptorTrackId =
-            property.type === 'audioFeatureDescriptor'
-                ? values[property.trackPropertyKey ?? 'featureTrackId'] ?? null
-                : null;
-        const profileValue =
-            property.type === 'audioFeatureDescriptor' && property.profilePropertyKey
-                ? values[property.profilePropertyKey] ?? null
-                : null;
         const schemaForInput = (() => {
-            if (property.type === 'audioFeatureDescriptor') {
-                return {
-                    ...property,
-                    trackId: descriptorTrackId,
-                    profileValue,
-                };
-            }
             if (property.type === 'audioAnalysisProfile') {
                 const trackRef = property.trackPropertyKey
                     ? values[property.trackPropertyKey] ?? null
@@ -393,42 +378,9 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     const groupDescription = group.description?.trim() ?? '';
 
     const propertyRows: React.ReactNode[] = [];
-    for (let index = 0; index < properties.length; index += 1) {
-        const property = properties[index];
-        if (property.type === 'timelineTrackRef') {
-            const next = properties[index + 1];
-            const descriptorKey = next?.type === 'audioFeatureDescriptor' ? next.trackPropertyKey ?? property.key : null;
-            if (next?.type === 'audioFeatureDescriptor' && descriptorKey === property.key) {
-                propertyRows.push(
-                    <div
-                        key={`${property.key}-audio-binding`}
-                        className="ae-audio-binding-block"
-                        style={{
-                            border: '1px solid var(--twc-border)',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px',
-                            background: 'rgba(12, 18, 28, 0.35)',
-                        }}
-                    >
-                        <div className="ae-audio-binding-header" style={{ fontWeight: 600 }}>
-                            Audio Binding
-                        </div>
-                        <div className="ae-audio-binding-copy" style={{ fontSize: '12px', color: '#9CA3AF' }}>
-                            Select an audio track and feature descriptor to drive this element.
-                        </div>
-                        {renderPropertyRow(property)}
-                        {renderPropertyRow(next, { nested: true })}
-                    </div>,
-                );
-                index += 1;
-                continue;
-            }
-        }
+    properties.forEach((property) => {
         propertyRows.push(renderPropertyRow(property));
-    }
+    });
 
     return (
         <div className="ae-property-group">

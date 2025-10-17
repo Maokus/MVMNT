@@ -52,7 +52,8 @@ export interface PropertyDefinition {
         | 'font'
         | 'file-midi'
         | 'file-image'
-        | 'timelineTrackRef';
+        | 'timelineTrackRef'
+        | 'audioAnalysisProfile';
     label: string;
     description?: string;
     default?: any;
@@ -61,9 +62,12 @@ export interface PropertyDefinition {
     step?: number;
     options?: { value: any; label: string }[];
     accept?: string;
+    trackPropertyKey?: string;
     allowMultiple?: boolean;
-    requiredFeatureKey?: string;
-    autoFeatureLabel?: string;
+    glossaryTerms?: {
+        featureDescriptor?: string;
+        analysisProfile?: string;
+    };
     visibleWhen?: PropertyVisibilityCondition[];
 }
 
