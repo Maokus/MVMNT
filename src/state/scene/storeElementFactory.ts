@@ -1,5 +1,7 @@
 import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
+import type { AudioTrack } from '@audio/audioTypes';
+import { useTimelineStore } from '@state/timelineStore';
 import {
     deserializeElementBindings,
     type ElementBindings,
@@ -15,6 +17,37 @@ export interface CreateSceneElementInputOptions {
     createdAt?: number;
     createdBy?: string;
     registry?: SceneElementRegistry;
+}
+
+function assignDefaultAudioTrackIfAvailable(bindings: ElementBindings): void {
+    const binding = bindings.audioTrackId;
+    if (!binding || binding.type !== 'constant') {
+        return;
+    }
+
+    const currentValue = binding.value;
+    if (typeof currentValue === 'string') {
+        const trimmed = currentValue.trim();
+        if (trimmed.length > 0) {
+            if (trimmed !== currentValue) {
+                bindings.audioTrackId = { type: 'constant', value: trimmed };
+            }
+            return;
+        }
+    } else if (currentValue != null) {
+        return;
+    }
+
+    const timelineState = useTimelineStore.getState();
+    const audioTracks = Object.values(timelineState.tracks).filter(
+        (track): track is AudioTrack => Boolean(track && track.type === 'audio')
+    );
+
+    if (audioTracks.length !== 1) {
+        return;
+    }
+
+    bindings.audioTrackId = { type: 'constant', value: audioTracks[0].id };
 }
 
 /**
@@ -34,6 +67,7 @@ export function createSceneElementInputFromSchema(options: CreateSceneElementInp
     try {
         const serialized = instance.getSerializableConfig() as SceneSerializedElement;
         const bindings: ElementBindings = deserializeElementBindings(serialized);
+        assignDefaultAudioTrackIfAvailable(bindings);
         return {
             id: options.id,
             type: options.type,

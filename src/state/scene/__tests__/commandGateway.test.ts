@@ -7,6 +7,7 @@ import {
 } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -16,10 +17,12 @@ function resetState() {
 describe('scene command gateway', () => {
     beforeEach(() => {
         resetState();
+        useTimelineStore.getState().resetTimeline();
     });
 
     afterEach(() => {
         clearSceneCommandListeners();
+        useTimelineStore.getState().resetTimeline();
     });
 
     it('adds elements via command and updates store bindings', () => {
@@ -127,6 +130,35 @@ describe('scene command gateway', () => {
             source: 'test-suite',
         });
         expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('auto-assigns the sole audio track when adding audio elements', () => {
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                audioTrackA: {
+                    id: 'audioTrackA',
+                    name: 'Audio Track A',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrackA'],
+        }));
+
+        const result = dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'audioSpectrum',
+            elementId: 'spectrum-1',
+        });
+
+        expect(result.success).toBe(true);
+        const binding = useSceneStore.getState().bindings.byElement['spectrum-1'].audioTrackId;
+        expect(binding).toEqual({ type: 'constant', value: 'audioTrackA' });
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {
