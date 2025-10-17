@@ -65,11 +65,11 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         onChange: (next, meta) => {
             emitChange(next, meta
                 ? {
-                      mergeSession: {
-                          id: meta.sessionId,
-                          finalize: meta.finalize,
-                      },
-                  }
+                    mergeSession: {
+                        id: meta.sessionId,
+                        finalize: meta.finalize,
+                    },
+                }
                 : undefined);
         },
     });
@@ -163,8 +163,17 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
             if (inputValue === '' || inputValue === '-') return;
 
             const numValue = parseFloat(inputValue);
-            if (!isNaN(numValue)) emitChange(numValue);
+            //if (!isNaN(numValue)) emitChange(numValue);
         };
+
+        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+            const inputValue = e.target.value;
+
+            if (inputValue === '' || inputValue === '-') { return; }
+
+            const numValue = parseFloat(inputValue);
+            if (!isNaN(numValue)) emitChange(numValue);
+        }
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Enter') e.currentTarget.blur();
@@ -182,6 +191,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 title={title}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
                 onPointerDown={numberDragHandlers.onPointerDown}
                 onPointerMove={numberDragHandlers.onPointerMove}
                 onPointerUp={numberDragHandlers.onPointerUp}
