@@ -1,16 +1,7 @@
 import { SceneElement } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
-import { emitAnalysisIntent, sampleFeatureFrame } from './audioFeatureUtils';
-
-const DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = {
-    featureKey: 'spectrogram',
-    smoothing: 0,
-    calculatorId: null,
-    bandIndex: null,
-    channel: null,
-};
+import { getFeatureData } from '@audio/features/sceneApi';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -138,9 +129,6 @@ export class AudioSpectrumElement extends SceneElement {
         const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
-        const descriptor: AudioFeatureDescriptor = { ...DEFAULT_DESCRIPTOR, smoothing };
-        emitAnalysisIntent(this, trackId, null, trackId ? [descriptor] : []);
-
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
@@ -149,7 +137,7 @@ export class AudioSpectrumElement extends SceneElement {
             return objects;
         }
 
-        const sample = sampleFeatureFrame(trackId, descriptor, targetTime);
+        const sample = getFeatureData(this, trackId, 'spectrogram', { smoothing }, targetTime);
         const values = sample?.values ?? [];
         if (!values.length) {
             objects.push(new Text(8, height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));

@@ -6,11 +6,13 @@ import { Poly, Rectangle, Text } from '@core/render/render-objects';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
 import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
+import * as analysisIntents from '@audio/features/analysisIntents';
 
 describe('simplified audio scene elements', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        vi.spyOn(featureUtils, 'emitAnalysisIntent').mockImplementation(() => undefined);
+        vi.spyOn(analysisIntents, 'publishAnalysisIntent').mockImplementation(() => undefined);
+        vi.spyOn(analysisIntents, 'clearAnalysisIntent').mockImplementation(() => undefined);
         vi.spyOn(timelineStore, 'getSharedTimingManager').mockReturnValue({
             secondsToTicks: (seconds: number) => seconds * 480,
             ticksToSeconds: (ticks: number) => ticks / 480,
@@ -34,6 +36,7 @@ describe('simplified audio scene elements', () => {
     });
 
     afterEach(() => {
+        analysisIntents.resetAnalysisIntentStateForTests();
         vi.restoreAllMocks();
     });
 

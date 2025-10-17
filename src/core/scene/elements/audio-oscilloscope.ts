@@ -1,18 +1,11 @@
 import { SceneElement } from './base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { getFeatureData } from '@audio/features/sceneApi';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
-import { emitAnalysisIntent, resolveDescriptorChannel } from './audioFeatureUtils';
-
-const DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = {
-    featureKey: 'waveform',
-    smoothing: 0,
-    calculatorId: null,
-    bandIndex: null,
-    channel: null,
-};
+import { resolveDescriptorChannel } from './audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -124,8 +117,10 @@ export class AudioOscilloscopeElement extends SceneElement {
         const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
-        const descriptor: AudioFeatureDescriptor = { ...DEFAULT_DESCRIPTOR, smoothing };
-        emitAnalysisIntent(this, trackId, null, trackId ? [descriptor] : []);
+        const { descriptor } = createFeatureDescriptor({ feature: 'waveform', smoothing });
+        if (trackId) {
+            void getFeatureData(this, trackId, descriptor, undefined, targetTime);
+        }
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));

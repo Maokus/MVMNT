@@ -1,16 +1,7 @@
 import { SceneElement } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
-import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
-import { emitAnalysisIntent, sampleFeatureFrame } from './audioFeatureUtils';
-
-const DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = {
-    featureKey: 'rms',
-    smoothing: 0,
-    calculatorId: null,
-    bandIndex: null,
-    channel: null,
-};
+import { getFeatureData } from '@audio/features/sceneApi';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -144,9 +135,6 @@ export class AudioVolumeMeterElement extends SceneElement {
         const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
-        const descriptor: AudioFeatureDescriptor = { ...DEFAULT_DESCRIPTOR, smoothing };
-        emitAnalysisIntent(this, trackId, null, trackId ? [descriptor] : []);
-
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
@@ -155,7 +143,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const frame = sampleFeatureFrame(trackId, descriptor, targetTime);
+        const frame = getFeatureData(this, trackId, 'rms', { smoothing }, targetTime);
         const rawValue = frame?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - minValue) / Math.max(1e-6, maxValue - minValue));
 

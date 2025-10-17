@@ -11,6 +11,7 @@ import {
     type PropertyBindingContext,
 } from '@bindings/property-bindings';
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
+import { clearFeatureData } from '@audio/features/sceneApi';
 import { debugLog } from '@utils/debug-log';
 
 export class SceneElement implements SceneElementInterface {
@@ -78,9 +79,18 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
+     * Lifecycle hook for subclasses to release resources.
+     * The base implementation clears any lazily managed audio feature intents.
+     */
+    protected onDestroy(): void {
+        clearFeatureData(this);
+    }
+
+    /**
      * Dispose element resources and detach listeners
      */
     dispose(): void {
+        this.onDestroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;
