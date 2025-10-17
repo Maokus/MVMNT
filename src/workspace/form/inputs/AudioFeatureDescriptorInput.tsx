@@ -47,11 +47,6 @@ type DescriptorChangeMeta = {
 
 const CATEGORY_ORDER = ['Waveform', 'Spectrum', 'Loudness', 'Dynamics', 'Rhythm', 'Other'];
 
-const clampSmoothing = (value: number): number => {
-    if (!Number.isFinite(value)) return 0;
-    return Math.max(0, Math.min(64, Math.round(value)));
-};
-
 const normalizeTrackId = (trackId: DescriptorSchema['trackId']): string | null => {
     if (!trackId) return null;
     if (Array.isArray(trackId)) {
@@ -202,10 +197,9 @@ const areDescriptorsEqual = (
         return list
             .map((descriptor) => {
                 const channelToken = createChannelToken(readDescriptorChannel(descriptor));
-                const smoothing = descriptor.smoothing != null ? descriptor.smoothing : 0;
                 const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
                 const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
-                return `${descriptor.featureKey}:${channelToken}:${band}:${smoothing}:${calculator}`;
+                return `${descriptor.featureKey}:${channelToken}:${band}:${calculator}`;
             })
             .sort();
     };
@@ -308,14 +302,11 @@ const sanitizeDescriptors = (
         const dedupeKey = `${featureKey}:${createChannelToken(rawChannel ?? null)}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
-        const smoothingValue =
-            typeof entry.smoothing === 'number' ? clampSmoothing(entry.smoothing) : undefined;
         const { descriptor } = createFeatureDescriptor({
             feature: featureKey,
             calculatorId: entry.calculatorId ?? option.calculatorId ?? null,
             bandIndex: entry.bandIndex ?? null,
             channel: rawChannel ?? null,
-            smoothing: smoothingValue,
         });
         result.push(descriptor);
     }
@@ -327,7 +318,6 @@ const sanitizeDescriptors = (
                 calculatorId: featureTracks[requiredFeatureKey].calculatorId ?? null,
                 bandIndex: null,
                 channel: null,
-                smoothing: 0,
             });
             result.unshift(descriptor);
         }
@@ -501,11 +491,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         }
     }, [disabled, emitDescriptors, featureTracks, options.length, sanitizedDescriptors, trackId, value]);
 
-    const smoothingValue = useMemo(
-        () => clampSmoothing(sanitizedDescriptors[0]?.smoothing ?? 0),
-        [sanitizedDescriptors],
-    );
-
     const descriptorsByFeature = useMemo(() => {
         const map = new Map<string, AudioFeatureDescriptor[]>();
         for (const descriptor of sanitizedDescriptors) {
@@ -569,7 +554,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
             calculatorId: option.calculatorId ?? null,
             bandIndex: null,
             channel: null,
-            smoothing: smoothingValue,
         }).descriptor;
         const next = [...sanitizedDescriptors, descriptor];
         const { suggestion } = deriveRecommendedProfileId(next, featureTracks);
@@ -607,8 +591,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
             }
         }
         const base = sanitizedDescriptors.filter((descriptor) => descriptor.featureKey !== activeFeatureKey);
-        const template = descriptorsByFeature.get(activeFeatureKey)?.[0];
-        const smoothing = template ? clampSmoothing(template.smoothing ?? smoothingValue) : smoothingValue;
         const nextFeatureDescriptors: AudioFeatureDescriptor[] = [];
         selections.forEach((selection) => {
             const channel = selection === CHANNEL_AUTO_TOKEN ? null : parseChannelToken(selection);
@@ -617,7 +599,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
                 calculatorId: option.calculatorId ?? null,
                 bandIndex: null,
                 channel,
-                smoothing,
             }).descriptor;
             nextFeatureDescriptors.push(descriptor);
         });
@@ -628,16 +609,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
             featureKey: activeFeatureKey,
             selections: Array.from(selections),
         });
-    };
-
-    const handleSmoothingChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const nextSmoothing = clampSmoothing(Number(event.target.value));
-        const next = sanitizedDescriptors.map((descriptor) =>
-            createFeatureDescriptor(descriptor, { smoothing: nextSmoothing }).descriptor,
-        );
-        const { suggestion } = deriveRecommendedProfileId(next, featureTracks);
-        emitDescriptors(next, suggestion ? { recommendedProfile: suggestion } : undefined);
-        logSelectorEvent('smoothing-change', { smoothing: nextSmoothing });
     };
 
     const handleRemoveDescriptor = (descriptor: AudioFeatureDescriptor) => {
@@ -790,20 +761,6 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
                     </div>
                 </fieldset>
             )}
-
-            <label htmlFor={`${id}-smoothing`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span>Smoothing (frames): {smoothingValue}</span>
-                <input
-                    id={`${id}-smoothing`}
-                    type="range"
-                    min={0}
-                    max={64}
-                    step={1}
-                    value={smoothingValue}
-                    onChange={handleSmoothingChange}
-                    disabled={disableInputs}
-                />
-            </label>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontWeight: 600 }}>Selected descriptors</span>

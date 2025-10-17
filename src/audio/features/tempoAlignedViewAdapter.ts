@@ -228,10 +228,13 @@ function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameO
     return Array.from({ length: channels }, () => 0);
 }
 
-function averageVectors(samples: number[][]): number[] {
+export function applySmoothingWindow(samples: number[][], radius: number): number[] {
     if (!samples.length) return [];
     const width = samples[0]?.length ?? 0;
     if (!width) return [];
+    if (!Number.isFinite(radius) || radius <= 0) {
+        return [...(samples[Math.floor(samples.length / 2)] ?? [])];
+    }
     const totals = new Array(width).fill(0);
     for (const sample of samples) {
         for (let i = 0; i < width; i += 1) {
@@ -471,7 +474,7 @@ export function getTempoAlignedFrame(
     if (!samples.length) {
         samples.push(getVector(baseIndex));
     }
-    let values = averageVectors(samples);
+    let values = applySmoothingWindow(samples, radius);
     if (radius === 0) {
         const prevVector = getVector(baseIndex - 1);
         const baseVector = getVector(baseIndex);

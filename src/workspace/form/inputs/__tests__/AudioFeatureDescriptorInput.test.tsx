@@ -139,41 +139,10 @@ beforeEach(() => {
 });
 
 describe('AudioFeatureDescriptorInput', () => {
-    it('renders smoothing control and status for the current descriptor', () => {
-        const handleChange = vi.fn();
-        renderControlled(
-            [{ featureKey: 'rms', smoothing: 4, calculatorId: 'mvmnt.rms', channel: null, bandIndex: null }],
-            { trackId: 'audioTrack', requiredFeatureKey: 'rms' },
-            handleChange,
-        );
-        const slider = screen.getByRole('slider') as HTMLInputElement;
-        expect(slider.value).toBe('4');
-        expect(screen.getByText(/Status:/i).textContent).toMatch(/ready/i);
-    });
-
-    it('invokes onChange with updated smoothing for all descriptors', () => {
-        const handleChange = vi.fn();
-        renderControlled(
-            [
-                { featureKey: 'rms', smoothing: 2, calculatorId: 'mvmnt.rms', channel: null, bandIndex: null },
-                { featureKey: 'waveform', smoothing: 2, calculatorId: 'calc.waveform', channel: 0, bandIndex: null },
-            ],
-            { trackId: 'audioTrack' },
-            handleChange,
-        );
-        handleChange.mockClear();
-        const slider = screen.getByRole('slider');
-        fireEvent.change(slider, { target: { value: '6' } });
-        const payload = handleChange.mock.calls.at(-1)?.[0] as AudioFeatureDescriptor[];
-        expect(Array.isArray(payload)).toBe(true);
-        expect(payload).toHaveLength(2);
-        expect(payload.every((descriptor) => descriptor.smoothing === 6)).toBe(true);
-    });
-
     it('adds descriptors when selecting alternate features', () => {
         const handleChange = vi.fn();
         renderControlled(
-            [{ featureKey: 'rms', smoothing: 0, calculatorId: 'mvmnt.rms', channel: null, bandIndex: null }],
+            [{ featureKey: 'rms', calculatorId: 'mvmnt.rms', channel: null, bandIndex: null }],
             { trackId: 'audioTrack' },
             handleChange,
         );
@@ -192,7 +161,7 @@ describe('AudioFeatureDescriptorInput', () => {
     it('supports multi-channel selection with alias chips', () => {
         const handleChange = vi.fn();
         renderControlled(
-            [{ featureKey: 'waveform', smoothing: 0, calculatorId: 'calc.waveform', channel: null, bandIndex: null }],
+            [{ featureKey: 'waveform', calculatorId: 'calc.waveform', channel: null, bandIndex: null }],
             { trackId: 'audioTrack' },
             handleChange,
         );
@@ -264,8 +233,8 @@ describe('AudioFeatureDescriptorInput', () => {
         useTimelineStore.getState().ingestAudioFeatureCache('audioTrack', cache);
         renderControlled(
             [
-                { featureKey: 'rms', smoothing: 0, calculatorId: 'mvmnt.rms', channel: null, bandIndex: null },
-                { featureKey: 'loudness', smoothing: 0, calculatorId: 'calc.loudness', channel: null, bandIndex: null },
+                { featureKey: 'rms', calculatorId: 'mvmnt.rms', channel: null, bandIndex: null },
+                { featureKey: 'loudness', calculatorId: 'calc.loudness', channel: null, bandIndex: null },
             ],
             { trackId: 'audioTrack' },
             handleChange,

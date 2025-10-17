@@ -1,4 +1,4 @@
-import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import type { AudioFeatureDescriptor, AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager } from '@state/timelineStore';
 import { resolveDescriptorChannel, resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
@@ -104,6 +104,7 @@ export function sampleFeatureHistory(
     targetTime: number,
     frameCount: number,
     hopStrategy: FeatureHistoryHopStrategy = { type: 'profileHop' },
+    samplingOptions?: AudioSamplingOptions,
 ): FeatureHistoryFrame[] {
     if (!trackId || !descriptor?.featureKey) {
         return [];
@@ -128,7 +129,7 @@ export function sampleFeatureHistory(
     const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
         bandIndex: descriptor.bandIndex ?? undefined,
         channelIndex: channelIndex ?? undefined,
-        smoothing: descriptor.smoothing ?? undefined,
+        smoothing: samplingOptions?.smoothing ?? undefined,
         framePadding: 2,
     });
 

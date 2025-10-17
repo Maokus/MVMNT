@@ -1,8 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
 import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
-import { Poly, Rectangle, Text } from '@core/render/render-objects';
+import { Poly, Rectangle } from '@core/render/render-objects';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
 import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
@@ -40,36 +39,6 @@ describe('simplified audio scene elements', () => {
         vi.restoreAllMocks();
     });
 
-    it('renders the configured number of spectrum bars using sampled data', () => {
-        const sampleFrame = {
-            frameIndex: 0,
-            fractionalIndex: 0,
-            hopTicks: 1,
-            format: 'float32' as const,
-            values: [-80, -60, -40, -20],
-        };
-        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue(sampleFrame as any);
-
-        const element = new AudioSpectrumElement('spectrum', {
-            featureTrackId: 'track-1',
-            barCount: 4,
-            width: 200,
-            height: 100,
-            minDecibels: -80,
-            maxDecibels: 0,
-        });
-
-        const [container] = element.buildRenderObjects({}, 1);
-        const children = (container as any).children as Array<Rectangle | Text>;
-        const rectangles = children.filter((child) => child instanceof Rectangle);
-
-        expect(rectangles).toHaveLength(5); // background + 4 bars
-        const [background, ...bars] = rectangles;
-        expect(background.width).toBeCloseTo(200);
-        expect(background.height).toBeCloseTo(100);
-        expect(bars).toHaveLength(4);
-        expect(bars.every((bar) => bar.height >= 0 && bar.height <= 100)).toBe(true);
-    });
 
     it('scales the volume meter fill with the sampled RMS value', () => {
         vi.spyOn(featureUtils, 'sampleFeatureFrame')

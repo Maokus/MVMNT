@@ -232,10 +232,10 @@ describe('sceneStore', () => {
                     calculatorId: 'mvmnt.rms',
                     bandIndex: null,
                     channel: null,
-                    smoothing: 0.15,
                 },
             ],
         });
+        expect(elementBindings.smoothing).toEqual({ type: 'constant', value: 0.15 });
         expect(elementBindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
 
         const exported = store.getState().exportSceneDraft();
@@ -250,10 +250,10 @@ describe('sceneStore', () => {
                     calculatorId: 'mvmnt.rms',
                     bandIndex: null,
                     channel: null,
-                    smoothing: 0.15,
                 },
             ],
         });
+        expect((serialized as any).smoothing).toEqual({ type: 'constant', value: 0.15 });
         expect((serialized as any).analysisProfileId).toEqual({ type: 'constant', value: 'default' });
     });
 
@@ -285,7 +285,6 @@ describe('sceneStore', () => {
                                 calculatorId: 'mvmnt.waveform',
                                 bandIndex: null,
                                 channel: null,
-                                smoothing: null,
                             },
                         ],
                     },
@@ -316,6 +315,18 @@ describe('sceneStore', () => {
         });
 
         const bindings = store.getState().bindings.byElement['audio-element'];
+        expect(bindings?.features).toEqual({
+            type: 'constant',
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channel: null,
+                },
+            ],
+        });
+        expect(bindings?.smoothing).toEqual({ type: 'constant', value: 0.1 });
         expect(bindings?.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
     });
 
@@ -436,10 +447,10 @@ describe('sceneStore', () => {
                     calculatorId: 'mvmnt.waveform',
                     bandIndex: 1,
                     channel: 0,
-                    smoothing: 0.25,
                 },
             ],
         });
+        expect(bindings.smoothing).toEqual({ type: 'constant', value: 0.25 });
         expect(bindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
 
         expect(store.getState().bindings.byMacro).not.toHaveProperty('undefined');

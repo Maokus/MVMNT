@@ -63,4 +63,28 @@ describe('sceneApi.getFeatureData', () => {
 
         expect(clearSpy).toHaveBeenCalledWith('element-1');
     });
+
+    it('maps legacy smoothing option into sampling options', () => {
+        const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        getFeatureData(element, 'track-1', 'rms', { smoothing: 5 } as any, 0.75);
+
+        expect(spy).toHaveBeenCalled();
+        const [, descriptor, time, sampling] = spy.mock.calls.at(-1)!;
+        expect(descriptor).toMatchObject({ featureKey: 'rms' });
+        expect((descriptor as any).smoothing).toBeUndefined();
+        expect(time).toBeCloseTo(0.75);
+        expect(sampling).toMatchObject({ smoothing: 5 });
+        warnSpy.mockRestore();
+    });
+
+    it('accepts explicit sampling options parameter', () => {
+        const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+        getFeatureData(element, 'track-1', 'rms', 1.25, { smoothing: 2, interpolation: 'nearest' });
+
+        expect(spy).toHaveBeenCalled();
+        const [, descriptor, , sampling] = spy.mock.calls.at(-1)!;
+        expect(descriptor).toMatchObject({ featureKey: 'rms' });
+        expect(sampling).toMatchObject({ smoothing: 2 });
+    });
 });

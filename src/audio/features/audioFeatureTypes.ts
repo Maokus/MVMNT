@@ -25,9 +25,22 @@ export interface AudioFeatureDescriptor {
      *
      * Accepts numeric indices (e.g., 0, 1) or semantic aliases ("Left", "Right", "Mono").
      * When omitted or set to null the descriptor will default to the merged/mono channel.
+     *
+     * Note: Prior revisions exposed descriptor smoothing. That field was removed in October 2025
+     * because smoothing is a runtime sampling concern rather than an analysis requirement.
      */
     channel?: number | string | null;
-    smoothing?: number | null;
+}
+
+/**
+ * Runtime options for sampling audio feature data.
+ * These affect HOW data is presented, not WHAT data is analyzed.
+ */
+export interface AudioSamplingOptions {
+    /** Smoothing radius for temporal averaging (0 = no smoothing) */
+    smoothing?: number;
+    /** Interpolation method between frames */
+    interpolation?: 'linear' | 'nearest' | 'cubic';
 }
 
 export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
@@ -192,7 +205,6 @@ export interface FeatureDescriptorDefaults {
     calculatorId: string | null;
     bandIndex: number | null;
     channel: number | string | null;
-    smoothing: number | null;
 }
 
 export type AudioFeatureCalculatorRegistry = {

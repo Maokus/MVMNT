@@ -7,6 +7,7 @@ import {
     type FeatureOptions,
     type SceneFeatureElementRef,
 } from './sceneApi';
+import type { AudioSamplingOptions } from './audioFeatureTypes';
 
 interface HookState {
     element: SceneFeatureElementRef;
@@ -52,6 +53,7 @@ export function useAudioFeature(
     trackId: string | null | undefined,
     feature: FeatureInput,
     options?: FeatureOptions | null,
+    samplingOptions?: AudioSamplingOptions | null,
 ): UseAudioFeatureResult {
     const stateRef = useRef<HookState | null>(null);
     if (!stateRef.current) {
@@ -61,10 +63,11 @@ export function useAudioFeature(
     const normalizedTrackId = normalizeTrackId(trackId);
     const featureKey = useMemo(() => stableSerialize(feature), [feature]);
     const optionsKey = useMemo(() => stableSerialize(options ?? null), [options]);
+    const samplingKey = useMemo(() => stableSerialize(samplingOptions ?? null), [samplingOptions]);
 
     useEffect(() => {
         stateRef.current!.lastResult = null;
-    }, [normalizedTrackId, featureKey, optionsKey]);
+    }, [normalizedTrackId, featureKey, optionsKey, samplingKey]);
 
     useEffect(() => () => {
         if (stateRef.current) {
@@ -83,13 +86,20 @@ export function useAudioFeature(
                 stateRef.current.lastResult = null;
                 return null;
             }
-            const result = getFeatureData(elementRef, normalizedTrackId, feature, options ?? undefined, time);
+            const result = getFeatureData(
+                elementRef,
+                normalizedTrackId,
+                feature,
+                options ?? undefined,
+                time,
+                samplingOptions ?? undefined,
+            );
             if (result) {
                 stateRef.current.lastResult = result;
             }
             return result;
         },
-        [normalizedTrackId, feature, options],
+        [normalizedTrackId, feature, options, samplingOptions],
     );
 
     const isLoading = Boolean(normalizedTrackId) && stateRef.current?.lastResult == null;

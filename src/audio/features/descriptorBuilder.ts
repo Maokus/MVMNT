@@ -6,7 +6,6 @@ export interface FeatureDescriptorBuilderOptions {
     calculatorId?: string | null;
     bandIndex?: number | null;
     channel?: number | string | null;
-    smoothing?: number | null;
     profile?: string | null;
 }
 
@@ -40,14 +39,6 @@ function sanitizeBandIndex(value: unknown): number | null {
     return integer < 0 ? 0 : integer;
 }
 
-function sanitizeSmoothing(value: unknown, fallback: number | null): number | null {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        const clamped = Math.max(0, Math.min(64, value));
-        return clamped;
-    }
-    return fallback ?? 0;
-}
-
 function sanitizeChannel(value: unknown): number | string | null {
     if (value == null) {
         return null;
@@ -75,7 +66,6 @@ function resolveDefaults(featureKey: string): FeatureDescriptorDefaults {
         calculatorId: registryDefaults?.calculatorId ?? null,
         bandIndex: registryDefaults?.bandIndex ?? null,
         channel: registryDefaults?.channel ?? null,
-        smoothing: registryDefaults?.smoothing ?? 0,
     };
 }
 
@@ -96,10 +86,6 @@ function buildFromOptions(
         options.channel === null
             ? null
             : sanitizeChannel(options.channel ?? undefined) ?? defaults.channel;
-    const smoothing =
-        options.smoothing === null
-            ? null
-            : sanitizeSmoothing(options.smoothing ?? undefined, defaults.smoothing);
     const profile = sanitizeString(options.profile) ?? getDefaultProfile();
     return {
         descriptor: {
@@ -107,7 +93,6 @@ function buildFromOptions(
             calculatorId,
             bandIndex,
             channel,
-            smoothing,
         },
         profile,
     };
@@ -131,7 +116,6 @@ export function createFeatureDescriptor(
             calculatorId: updates?.calculatorId ?? base.calculatorId ?? defaults.calculatorId,
             bandIndex: updates?.bandIndex ?? base.bandIndex ?? defaults.bandIndex,
             channel: updates?.channel ?? base.channel ?? defaults.channel,
-            smoothing: updates?.smoothing ?? base.smoothing ?? defaults.smoothing,
             profile: updates?.profile ?? null,
         };
         return buildFromOptions(featureKey, defaults, merged);

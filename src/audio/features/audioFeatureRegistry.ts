@@ -9,14 +9,6 @@ const calculators = new Map<string, AudioFeatureCalculator>();
 const featureDefaults = new Map<string, FeatureDescriptorDefaults>();
 const DEFAULT_PROFILE_ID = 'default';
 
-function clampSmoothing(value: unknown, fallback: number | null): number | null {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return fallback ?? 0;
-    }
-    const rounded = Math.round(value);
-    return Math.max(0, Math.min(64, rounded));
-}
-
 function register(calculator: AudioFeatureCalculator): void {
     if (!calculator || typeof calculator.id !== 'string') {
         throw new Error('AudioFeatureCalculator must include a string id');
@@ -26,17 +18,11 @@ function register(calculator: AudioFeatureCalculator): void {
         calculatorId: null,
         bandIndex: null,
         channel: null,
-        smoothing: 0,
     };
-    const smoothingDefault = clampSmoothing(
-        (calculator.defaultParams as { smoothing?: unknown } | undefined)?.smoothing,
-        existing.smoothing,
-    );
     featureDefaults.set(calculator.featureKey, {
         calculatorId: calculator.id,
         bandIndex: existing.bandIndex,
         channel: existing.channel,
-        smoothing: smoothingDefault,
     });
     try {
         useTimelineStore
@@ -59,7 +45,6 @@ function unregister(id: string): void {
             calculatorId: null,
             bandIndex: defaults.bandIndex,
             channel: defaults.channel,
-            smoothing: defaults.smoothing,
         });
     }
 }
@@ -85,7 +70,6 @@ function getFeatureDefaults(featureKey: string): FeatureDescriptorDefaults {
         calculatorId: null,
         bandIndex: null,
         channel: null,
-        smoothing: 0,
     };
 }
 

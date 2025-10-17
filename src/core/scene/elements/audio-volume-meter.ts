@@ -113,8 +113,8 @@ export class AudioVolumeMeterElement extends SceneElement {
                             label: 'Smoothing',
                             default: 0,
                             min: 0,
-                            max: 1,
-                            step: 0.05,
+                            max: 64,
+                            step: 1,
                         },
                     ],
                 },
@@ -132,7 +132,7 @@ export class AudioVolumeMeterElement extends SceneElement {
         const meterColor = this.getProperty<string>('meterColor') ?? '#f472b6';
         const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
         const showValue = this.getProperty<boolean>('showValue') ?? true;
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
+        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
         const objects: RenderObject[] = [];
@@ -143,7 +143,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const frame = getFeatureData(this, trackId, 'rms', { smoothing }, targetTime);
+        const frame = getFeatureData(this, trackId, 'rms', targetTime, { smoothing });
         const rawValue = frame?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - minValue) / Math.max(1e-6, maxValue - minValue));
 

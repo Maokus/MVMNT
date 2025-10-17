@@ -108,8 +108,8 @@ export class AudioSpectrumElement extends SceneElement {
                             label: 'Smoothing',
                             default: 0,
                             min: 0,
-                            max: 1,
-                            step: 0.05,
+                            max: 64,
+                            step: 1,
                         },
                     ],
                 },
@@ -126,7 +126,7 @@ export class AudioSpectrumElement extends SceneElement {
         const maxDecibels = this.getProperty<number>('maxDecibels') ?? 0;
         const barColor = this.getProperty<string>('barColor') ?? '#60a5fa';
         const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
+        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
         const objects: RenderObject[] = [];
@@ -137,7 +137,7 @@ export class AudioSpectrumElement extends SceneElement {
             return objects;
         }
 
-        const sample = getFeatureData(this, trackId, 'spectrogram', { smoothing }, targetTime);
+        const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
         const values = sample?.values ?? [];
         if (!values.length) {
             objects.push(new Text(8, height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));

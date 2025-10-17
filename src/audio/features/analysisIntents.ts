@@ -68,7 +68,6 @@ export function buildDescriptorId(descriptor: AudioFeatureDescriptor): string {
             parts.push(`alias:${alias}`);
         }
     }
-    if (descriptor?.smoothing != null) parts.push(`smooth:${descriptor.smoothing}`);
     return parts.join('|');
 }
 
@@ -208,9 +207,6 @@ export function buildDescriptorLabel(descriptor: AudioFeatureDescriptor | null |
     }
     if (descriptor.bandIndex != null) {
         parts.push(`band ${descriptor.bandIndex}`);
-    }
-    if (descriptor.smoothing != null) {
-        parts.push(`smooth ${descriptor.smoothing}`);
     }
     return parts.join(' · ');
 }

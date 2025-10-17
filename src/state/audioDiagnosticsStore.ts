@@ -139,7 +139,6 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             calculatorId: track.calculatorId,
             bandIndex: null,
             channel: null,
-            smoothing: null,
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);

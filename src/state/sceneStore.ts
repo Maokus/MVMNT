@@ -6,6 +6,11 @@ import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
 import { migrateDescriptorChannels } from '@persistence/migrations/unifyChannelField';
+import {
+    logSmoothingMigration,
+    stripDescriptorArraySmoothing,
+    stripDescriptorSmoothing,
+} from '@persistence/migrations/removeSmoothingFromDescriptor';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -33,15 +38,20 @@ interface LegacyAudioFeatureBindingData {
     smoothing?: number | null;
 }
 
+interface LegacyDescriptorResult {
+    descriptor: AudioFeatureDescriptor | null;
+    smoothing: number | null;
+}
+
 function isLegacyAudioFeatureBinding(
     value: unknown,
 ): value is LegacyAudioFeatureBindingData {
     return Boolean(value && typeof value === 'object' && (value as { type?: string }).type === 'audioFeature');
 }
 
-function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): AudioFeatureDescriptor | null {
+function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): LegacyDescriptorResult {
     const featureKey = typeof payload.featureKey === 'string' && payload.featureKey ? payload.featureKey : null;
-    if (!featureKey) return null;
+    if (!featureKey) return { descriptor: null, smoothing: null };
     const coerceIndex = (input: unknown): number | null =>
         typeof input === 'number' && Number.isFinite(input) ? input : null;
     const calculatorId =
@@ -65,9 +75,8 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Audio
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
         channel: channelValue ?? null,
-        smoothing,
     });
-    return descriptor;
+    return { descriptor, smoothing };
 }
 
 export interface LegacyBindingMigrationResult {
@@ -82,24 +91,28 @@ export function migrateLegacyAudioFeatureBinding(
     if (propertyKey === 'featureDescriptor') {
         const replacements: Record<string, BindingState> = {};
         if ((value as ConstantBindingState | MacroBindingState | undefined)?.type === 'constant') {
-            const descriptorValue = (value as ConstantBindingState).value as
-                | AudioFeatureDescriptor
-                | null
-                | undefined;
-            const normalized = descriptorValue
-                ? createFeatureDescriptor({
-                      feature: descriptorValue.featureKey,
-                      calculatorId: descriptorValue.calculatorId ?? null,
-                      bandIndex: descriptorValue.bandIndex ?? null,
-                      channel: descriptorValue.channel ?? null,
-                      smoothing: descriptorValue.smoothing ?? null,
-                  }).descriptor
-                : null;
+            const descriptorValue = (value as ConstantBindingState).value;
+            const { descriptor: stripped, smoothing } = stripDescriptorSmoothing(descriptorValue);
+            let normalized: AudioFeatureDescriptor | null = null;
+            if (stripped && typeof stripped.featureKey === 'string' && stripped.featureKey) {
+                normalized = createFeatureDescriptor({
+                    feature: stripped.featureKey,
+                    calculatorId: (stripped.calculatorId as string | null | undefined) ?? null,
+                    bandIndex:
+                        typeof stripped.bandIndex === 'number' && Number.isFinite(stripped.bandIndex)
+                            ? Math.trunc(stripped.bandIndex)
+                            : null,
+                    channel: (stripped.channel as number | string | null | undefined) ?? null,
+                }).descriptor;
+            }
             replacements.features = {
                 type: 'constant',
                 value: normalized ? [normalized] : [],
             };
             replacements.analysisProfileId = { type: 'constant', value: 'default' };
+            if (smoothing != null) {
+                replacements.smoothing = { type: 'constant', value: normalizeSmoothingValue(smoothing) };
+            }
         }
         return { clearedKeys: ['featureDescriptor'], replacements };
     }
@@ -113,10 +126,13 @@ export function migrateLegacyAudioFeatureBinding(
     if (trackId) {
         replacements.featureTrackId = { type: 'constant', value: trackId };
     }
-    const descriptor = sanitizeLegacyDescriptor(value);
+    const { descriptor, smoothing } = sanitizeLegacyDescriptor(value);
     if (descriptor) {
         replacements.features = { type: 'constant', value: [descriptor] };
         replacements.analysisProfileId = { type: 'constant', value: 'default' };
+    }
+    if (smoothing != null) {
+        replacements.smoothing = { type: 'constant', value: normalizeSmoothingValue(smoothing) };
     }
     return { clearedKeys, replacements };
 }
@@ -341,10 +357,62 @@ function ensureDefaultAnalysisProfileBinding(bindings: ElementBindings): boolean
     return true;
 }
 
-function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
+function cloneBindingsMap(bindings: ElementBindings, elementType?: string): ElementBindings {
+    const smoothingKey = resolveSmoothingProperty(elementType);
     const result: ElementBindings = {};
+    let migratedSmoothing: number | null = null;
     for (const [key, binding] of Object.entries(bindings)) {
+        if (binding.type === 'constant' && key === 'features') {
+            const value = binding.value;
+            if (Array.isArray(value)) {
+                const { descriptors, smoothingValues } = stripDescriptorArraySmoothing(value);
+                if (smoothingValues.length && migratedSmoothing == null) {
+                    migratedSmoothing = smoothingValues[0] ?? null;
+                }
+                const sanitized = descriptors.filter(
+                    (entry): entry is Record<string, unknown> & { featureKey: string } =>
+                        Boolean(
+                            entry &&
+                                typeof entry === 'object' &&
+                                typeof (entry as { featureKey?: unknown }).featureKey === 'string',
+                        ),
+                ) as AudioFeatureDescriptor[];
+                result.features = {
+                    type: 'constant',
+                    value: sanitized,
+                } as ConstantBindingState;
+                continue;
+            }
+            const { descriptor, smoothing } = stripDescriptorSmoothing(value);
+            if (smoothing != null && migratedSmoothing == null) {
+                migratedSmoothing = smoothing;
+            }
+            const validDescriptor =
+                descriptor && typeof (descriptor as { featureKey?: unknown }).featureKey === 'string'
+                    ? (descriptor as unknown as AudioFeatureDescriptor)
+                    : null;
+            result.features = {
+                type: 'constant',
+                value: validDescriptor ? [validDescriptor] : [],
+            } as ConstantBindingState;
+            continue;
+        }
+        if (binding.type === 'constant' && smoothingKey && key === smoothingKey) {
+            result[key] = {
+                type: 'constant',
+                value: normalizeSmoothingValue(binding.value),
+            };
+            continue;
+        }
         result[key] = cloneBinding(binding);
+    }
+    if (migratedSmoothing != null) {
+        if (smoothingKey && !result[smoothingKey]) {
+            result[smoothingKey] = {
+                type: 'constant',
+                value: normalizeSmoothingValue(migratedSmoothing),
+            };
+        }
     }
     ensureDefaultAnalysisProfileBinding(result);
     return result;
@@ -435,8 +503,28 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     return false;
 }
 
+function resolveSmoothingProperty(elementType: string | undefined): string | null {
+    switch (elementType) {
+        case 'audioSpectrum':
+        case 'audioVolumeMeter':
+        case 'audioOscilloscope':
+            return 'smoothing';
+        default:
+            return null;
+    }
+}
+
+function normalizeSmoothingValue(value: unknown): number {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) {
+        return 0;
+    }
+    return Math.max(0, numeric);
+}
+
 export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
+    let migratedSmoothing: number | null = null;
     for (const [key, value] of Object.entries(raw)) {
         if (key === 'id' || key === 'type' || key === 'index') continue;
         if (!value || typeof value !== 'object') continue;
@@ -458,11 +546,19 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
             let constantValue = (payload as { value?: unknown }).value;
             if (key === 'features') {
                 if (Array.isArray(constantValue)) {
-                    constantValue = constantValue
+                    const { descriptors, smoothingValues } = stripDescriptorArraySmoothing(constantValue);
+                    if (smoothingValues.length && migratedSmoothing == null) {
+                        migratedSmoothing = smoothingValues[0] ?? null;
+                    }
+                    constantValue = descriptors
                         .map((entry) => migrateDescriptorChannels(entry) ?? null)
                         .filter((entry): entry is AudioFeatureDescriptor => entry != null);
                 } else {
-                    const migrated = migrateDescriptorChannels(constantValue);
+                    const { descriptor, smoothing } = stripDescriptorSmoothing(constantValue);
+                    if (smoothing != null && migratedSmoothing == null) {
+                        migratedSmoothing = smoothing;
+                    }
+                    const migrated = migrateDescriptorChannels(descriptor);
                     constantValue = migrated ? [migrated] : [];
                 }
             }
@@ -484,6 +580,14 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
                     bindings[replacementKey as keyof ElementBindings] = binding;
                 }
             }
+        }
+    }
+    if (migratedSmoothing != null) {
+        const propertyKey = resolveSmoothingProperty(raw.type);
+        if (propertyKey && !bindings[propertyKey]) {
+            const normalized = normalizeSmoothingValue(migratedSmoothing);
+            bindings[propertyKey] = { type: 'constant', value: normalized };
+            logSmoothingMigration(raw.id, raw.type, normalized);
         }
     }
     ensureDefaultAnalysisProfileBinding(bindings);
@@ -739,7 +843,7 @@ const createSceneStoreState = (
             const insertionIndex = normalizeIndex(input.index ?? nextOrder.length, nextOrder.length);
             nextOrder.splice(insertionIndex, 0, element.id);
 
-            const initialBindings = cloneBindingsMap(input.bindings ?? {});
+            const initialBindings = cloneBindingsMap(input.bindings ?? {}, input.type);
             const nextByElement = { ...state.bindings.byElement, [element.id]: initialBindings };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
@@ -817,7 +921,7 @@ const createSceneStoreState = (
                 throw new Error(`SceneStore.duplicateElement: element '${newId}' already exists`);
 
             const source = state.elements[sourceId];
-            const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {});
+            const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {}, source.type);
 
             const insertAfter = opts?.insertAfter ?? true;
             const sourceIndex = state.order.indexOf(sourceId);
@@ -941,6 +1045,8 @@ const createSceneStoreState = (
             const existing = state.bindings.byElement[elementId];
             if (!existing) throw new Error(`SceneStore.updateBindings: element '${elementId}' not found`);
 
+            const elementType = state.elements[elementId]?.type;
+
             let changed = false;
             let zIndexChanged = false;
             const nextBindingsForElement: ElementBindings = { ...existing };
@@ -987,7 +1093,63 @@ const createSceneStoreState = (
 
                 let normalized: BindingState;
                 if (binding.type === 'constant') {
-                    normalized = { type: 'constant', value: binding.value };
+                    if (key === 'features') {
+                        let smoothingFromDescriptor: number | null = null;
+                        let descriptors: AudioFeatureDescriptor[] = [];
+                        const value = binding.value;
+                        if (Array.isArray(value)) {
+                            const { descriptors: entries, smoothingValues } = stripDescriptorArraySmoothing(value);
+                            if (smoothingValues.length) {
+                                smoothingFromDescriptor = smoothingValues[0] ?? null;
+                            }
+                            descriptors = entries
+                                .filter(
+                                    (entry): entry is Record<string, unknown> & { featureKey: string } =>
+                                        Boolean(
+                                            entry &&
+                                                typeof entry === 'object' &&
+                                                typeof (entry as { featureKey?: unknown }).featureKey === 'string',
+                                        ),
+                                )
+                                .map((entry) => entry as AudioFeatureDescriptor);
+                        } else {
+                            const { descriptor, smoothing } = stripDescriptorSmoothing(value);
+                            if (smoothing != null) {
+                                smoothingFromDescriptor = smoothing;
+                            }
+                            if (
+                                descriptor &&
+                                typeof (descriptor as { featureKey?: unknown }).featureKey === 'string'
+                            ) {
+                                descriptors = [descriptor as unknown as AudioFeatureDescriptor];
+                            } else {
+                                descriptors = [];
+                            }
+                        }
+                        normalized = { type: 'constant', value: descriptors };
+                        if (smoothingFromDescriptor != null) {
+                            const smoothingKey = resolveSmoothingProperty(elementType);
+                            if (smoothingKey && !patch[smoothingKey]) {
+                                const normalizedRadius = normalizeSmoothingValue(smoothingFromDescriptor);
+                                const currentSmoothing = nextBindingsForElement[smoothingKey];
+                                if (
+                                    !currentSmoothing ||
+                                    currentSmoothing.type !== 'constant' ||
+                                    currentSmoothing.value !== normalizedRadius
+                                ) {
+                                    nextBindingsForElement[smoothingKey] = {
+                                        type: 'constant',
+                                        value: normalizedRadius,
+                                    };
+                                    changed = true;
+                                }
+                            }
+                        }
+                    } else if (key === resolveSmoothingProperty(elementType)) {
+                        normalized = { type: 'constant', value: normalizeSmoothingValue(binding.value) };
+                    } else {
+                        normalized = { type: 'constant', value: binding.value };
+                    }
                 } else if (binding.type === 'macro') {
                     normalized = { type: 'macro', macroId: binding.macroId };
                 } else {

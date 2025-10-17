@@ -1,6 +1,6 @@
 # Audio System Simplification: Revised Implementation Plan (v4)
 
-_Status: Planning_  
+_Status: Phase 4 Complete_
 _Created: 17 October 2025_  
 _Revision: 4 - Addresses Phase 4 concerns from as-implementation-3-comments_
 
@@ -117,6 +117,12 @@ This creates:
 -   ✅ UI updated to reflect new mental model
 -   ✅ Migration handles existing saved descriptors
 -   ✅ Tests verify cache sharing and independent smoothing
+
+**Implementation Notes (Oct 2025)**
+
+- Runtime sampling now uses `AudioSamplingOptions` to apply smoothing outside descriptor identity.
+- Scene import/export migrates legacy descriptor smoothing into per-element `smoothing` bindings.
+- Workspace descriptor editor no longer exposes smoothing controls; elements manage smoothing in their property editors.
 
 ### Verification Commands
 

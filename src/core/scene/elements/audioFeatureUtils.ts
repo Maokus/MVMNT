@@ -1,7 +1,11 @@
 import type { PropertyBinding } from '@bindings/property-bindings';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
-import type { AudioFeatureDescriptor, AudioFeatureTrack } from '@audio/features/audioFeatureTypes';
+import type {
+    AudioFeatureDescriptor,
+    AudioFeatureTrack,
+    AudioSamplingOptions,
+} from '@audio/features/audioFeatureTypes';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import type { AudioTrack } from '@audio/audioTypes';
@@ -11,7 +15,9 @@ import { resolveChannel, type TrackChannelConfig } from '@audio/features/channel
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
-const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, AudioFeatureFrameSample | null>>();
+type SamplingCache = Map<string, AudioFeatureFrameSample | null>;
+
+const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, SamplingCache>>();
 const MAX_FEATURE_CACHE_ENTRIES = 128;
 
 export function resolveTimelineTrackRefValue(
@@ -92,9 +98,19 @@ function buildSampleCacheKey(
             ? `a${trimmed}`
             : 'a*';
     const channel = numericChannel != null ? `c${numericChannel}` : 'c*';
-    const smoothing = descriptor.smoothing != null ? `s${descriptor.smoothing}` : 's0';
     const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
-    return `${tick}:${descriptor.featureKey}:${band}:${channel}:${alias}:${smoothing}:${calculator}`;
+    return `${tick}:${descriptor.featureKey}:${band}:${channel}:${alias}:${calculator}`;
+}
+
+function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string {
+    if (!options) {
+        return 'default';
+    }
+    const smoothing = Number.isFinite(options.smoothing)
+        ? Math.max(0, Math.floor(options.smoothing ?? 0))
+        : 0;
+    const interpolation = options.interpolation ?? 'linear';
+    return `smooth:${smoothing}|interp:${interpolation}`;
 }
 
 export function resolveDescriptorChannel(
@@ -139,6 +155,7 @@ export function sampleFeatureFrame(
     trackId: string,
     descriptor: AudioFeatureDescriptor,
     targetTime: number,
+    samplingOptions?: AudioSamplingOptions | null,
 ): AudioFeatureFrameSample | null {
     const state = useTimelineStore.getState();
     const context = resolveFeatureContext(trackId, descriptor.featureKey);
@@ -167,8 +184,14 @@ export function sampleFeatureFrame(
         trackCache = new Map();
         featureSampleCache.set(featureTrack, trackCache);
     }
-    if (trackCache.has(cacheKey)) {
-        return trackCache.get(cacheKey) ?? null;
+    let samplingCache = trackCache.get(cacheKey);
+    if (!samplingCache) {
+        samplingCache = new Map();
+        trackCache.set(cacheKey, samplingCache);
+    }
+    const samplingKey = buildSamplingOptionsKey(samplingOptions);
+    if (samplingCache.has(samplingKey)) {
+        return samplingCache.get(samplingKey) ?? null;
     }
     const { sample, diagnostics } = getTempoAlignedFrame(state, {
         trackId,
@@ -177,17 +200,27 @@ export function sampleFeatureFrame(
         options: {
             bandIndex: descriptor.bandIndex ?? undefined,
             channelIndex: channelIndex ?? undefined,
-            smoothing: descriptor.smoothing ?? undefined,
+            smoothing: samplingOptions?.smoothing ?? undefined,
+            interpolation:
+                samplingOptions?.interpolation === 'nearest'
+                    ? 'hold'
+                    : samplingOptions?.interpolation === 'cubic'
+                    ? 'spline'
+                    : samplingOptions?.interpolation,
         },
     });
     if (diagnostics) {
         recordDiagnostics(diagnostics, trackId);
     }
     const resolved = sample ?? null;
-    trackCache.set(cacheKey, resolved);
+    samplingCache.set(samplingKey, resolved);
     if (trackCache.size > MAX_FEATURE_CACHE_ENTRIES) {
         trackCache.clear();
-        trackCache.set(cacheKey, resolved);
+        const nextSamplingCache = new Map<string, AudioFeatureFrameSample | null>();
+        if (resolved !== undefined) {
+            nextSamplingCache.set(samplingKey, resolved);
+        }
+        trackCache.set(cacheKey, nextSamplingCache);
     }
     return resolved;
 }

@@ -1,4 +1,4 @@
-import type { AudioFeatureDescriptor } from './audioFeatureTypes';
+import type { AudioFeatureDescriptor, AudioSamplingOptions } from './audioFeatureTypes';
 import {
     buildDescriptorId,
     buildDescriptorMatchKey,
@@ -23,7 +23,6 @@ export type FeatureInput = string | AudioFeatureDescriptor;
 
 export interface FeatureOptions {
     channel?: number | string | null;
-    smoothing?: number | null;
     bandIndex?: number | null;
     calculatorId?: string | null;
     profile?: string | null;
@@ -72,6 +71,8 @@ function resolveElementIdentity(element: SceneFeatureElementRef | object): { id:
     return { id: null, type: 'unknown' };
 }
 
+type LegacyFeatureOptions = FeatureOptions & { smoothing?: number | null };
+
 function buildDescriptor(
     feature: FeatureInput,
     options?: FeatureOptions,
@@ -80,7 +81,6 @@ function buildDescriptor(
         const builderOptions: FeatureDescriptorBuilderOptions = {
             feature,
             channel: options?.channel ?? undefined,
-            smoothing: options?.smoothing ?? undefined,
             bandIndex: options?.bandIndex ?? undefined,
             calculatorId: options?.calculatorId ?? undefined,
             profile: options?.profile ?? undefined,
@@ -90,7 +90,6 @@ function buildDescriptor(
     const updateOptions: FeatureDescriptorUpdateOptions | undefined = options
         ? {
               channel: options.channel,
-              smoothing: options.smoothing,
               bandIndex: options.bandIndex,
               calculatorId: options.calculatorId,
               profile: options.profile,
@@ -136,19 +135,51 @@ function upsertDescriptorEntry(state: ElementIntentState, entry: DescriptorEntry
     return false;
 }
 
-function resolveOptionsAndTime(
+function resolveInvocation(
     optionsOrTime?: FeatureOptions | number | null,
-    maybeTime?: number,
-): { options: FeatureOptions | undefined; time: number } {
-    if (typeof optionsOrTime === 'number' || optionsOrTime == null) {
-        return {
-            options: undefined,
-            time: typeof optionsOrTime === 'number' ? optionsOrTime : 0,
-        };
+    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
+    maybeSampling?: AudioSamplingOptions | null,
+): { options: FeatureOptions | undefined; sampling: AudioSamplingOptions | undefined; time: number } {
+    let descriptorOptions: FeatureOptions | undefined;
+    let samplingOptions: AudioSamplingOptions | undefined;
+    let time = 0;
+
+    if (typeof optionsOrTime === 'number') {
+        time = optionsOrTime;
+        samplingOptions = (maybeTimeOrSampling as AudioSamplingOptions | undefined) ?? undefined;
+    } else {
+        descriptorOptions = optionsOrTime ?? undefined;
+        if (typeof maybeTimeOrSampling === 'number') {
+            time = maybeTimeOrSampling;
+            samplingOptions = maybeSampling ?? undefined;
+        } else if (maybeTimeOrSampling && typeof maybeTimeOrSampling === 'object') {
+            samplingOptions = maybeTimeOrSampling ?? undefined;
+        }
     }
+
+    const legacy = descriptorOptions as LegacyFeatureOptions | undefined;
+    if (legacy && Object.prototype.hasOwnProperty.call(legacy, 'smoothing')) {
+        const { smoothing, ...rest } = legacy;
+        descriptorOptions = rest;
+        if (smoothing != null) {
+            const radius = typeof smoothing === 'number' && Number.isFinite(smoothing) ? smoothing : undefined;
+            samplingOptions = {
+                ...(samplingOptions ?? {}),
+                ...(radius != null ? { smoothing: radius } : {}),
+            };
+        }
+        if (process.env.NODE_ENV !== 'production') {
+            console.warn(
+                '[sceneApi] getFeatureData legacy signature detected: smoothing passed in descriptor options. ' +
+                    'Pass smoothing via the samplingOptions argument instead.',
+            );
+        }
+    }
+
     return {
-        options: optionsOrTime,
-        time: typeof maybeTime === 'number' ? maybeTime : 0,
+        options: descriptorOptions,
+        sampling: samplingOptions ?? undefined,
+        time,
     };
 }
 
@@ -157,6 +188,7 @@ export function getFeatureData(
     trackId: string | null | undefined,
     feature: FeatureInput,
     time: number,
+    samplingOptions?: AudioSamplingOptions | null,
 ): FeatureDataResult | null;
 export function getFeatureData(
     element: SceneFeatureElementRef | object,
@@ -164,15 +196,17 @@ export function getFeatureData(
     feature: FeatureInput,
     options: FeatureOptions | null | undefined,
     time: number,
+    samplingOptions?: AudioSamplingOptions | null,
 ): FeatureDataResult | null;
 export function getFeatureData(
     element: SceneFeatureElementRef | object,
     trackId: string | null | undefined,
     feature: FeatureInput,
     optionsOrTime?: FeatureOptions | number | null,
-    maybeTime?: number,
+    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
+    maybeSampling?: AudioSamplingOptions | null,
 ): FeatureDataResult | null {
-    const { options, time } = resolveOptionsAndTime(optionsOrTime, maybeTime);
+    const { options, sampling, time } = resolveInvocation(optionsOrTime, maybeTimeOrSampling, maybeSampling);
     const normalizedTrackId = normalizeTrackId(trackId);
     const identity = resolveElementIdentity(element);
 
@@ -208,7 +242,7 @@ export function getFeatureData(
         publishIfNeeded(element, state, identity);
     }
 
-    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time);
+    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, sampling);
     if (!sample) {
         return null;
     }

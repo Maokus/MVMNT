@@ -97,8 +97,8 @@ export class AudioOscilloscopeElement extends SceneElement {
                             label: 'Smoothing',
                             default: 0,
                             min: 0,
-                            max: 1,
-                            step: 0.05,
+                            max: 64,
+                            step: 1,
                         },
                     ],
                 },
@@ -114,12 +114,15 @@ export class AudioOscilloscopeElement extends SceneElement {
         const lineColor = this.getProperty<string>('lineColor') ?? '#22d3ee';
         const lineWidth = clamp(this.getProperty<number>('lineWidth') ?? 2, 0.5, 10);
         const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 1);
+        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
+        const smoothingRadius = Math.max(0, Math.round(smoothing));
         const trackId = (this.getProperty<string>('featureTrackId') ?? '').trim() || null;
 
-        const { descriptor } = createFeatureDescriptor({ feature: 'waveform', smoothing });
+        const { descriptor } = createFeatureDescriptor({ feature: 'waveform' });
         if (trackId) {
-            void getFeatureData(this, trackId, descriptor, undefined, targetTime);
+            void getFeatureData(this, trackId, descriptor, targetTime, {
+                smoothing: smoothingRadius,
+            });
         }
 
         const objects: RenderObject[] = [];
@@ -141,7 +144,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         const channelIndex = resolveDescriptorChannel(trackId, descriptor);
         const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
             channelIndex: channelIndex ?? undefined,
-            smoothing: descriptor.smoothing ?? undefined,
+            smoothing: smoothingRadius,
         });
 
         if (!range || range.frameCount < 2 || !range.data?.length) {

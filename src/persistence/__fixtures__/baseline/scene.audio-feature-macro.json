@@ -23,12 +23,12 @@
             "featureKey": "spectrogram",
             "calculatorId": "mvmnt.spectrogram",
             "bandIndex": null,
-            "channel": null,
-            "smoothing": 4
+            "channel": null
           }
         ]
       },
       "analysisProfileId": { "type": "constant", "value": "default" },
+      "smoothing": { "type": "constant", "value": 4 },
       "startFrequency": { "type": "constant", "value": 80 },
       "endFrequency": { "type": "constant", "value": 16000 },
       "useLogScale": { "type": "constant", "value": true },

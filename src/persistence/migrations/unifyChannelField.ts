@@ -38,14 +38,12 @@ export function migrateDescriptorChannels(descriptor: unknown): AudioFeatureDesc
     }
     const calculatorId = typeof source.calculatorId === 'string' ? source.calculatorId : null;
     const bandIndex = isFiniteNumber(source.bandIndex) ? Math.trunc(source.bandIndex as number) : null;
-    const smoothing = isFiniteNumber(source.smoothing) ? (source.smoothing as number) : null;
     const channel = pickChannelValue(source);
 
     const migrated: AudioFeatureDescriptor = {
         featureKey,
         calculatorId,
         bandIndex,
-        smoothing,
         channel: channel ?? null,
     };
 
