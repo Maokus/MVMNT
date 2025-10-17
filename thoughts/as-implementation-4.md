@@ -1,6 +1,6 @@
 # Audio System Simplification: Revised Implementation Plan (v4)
 
-_Status: Phase 7 Complete_
+_Status: Phase 8 Complete_
 _Created: 17 October 2025_  
 _Revision: 4 - Addresses Phase 4 concerns from as-implementation-3-comments_
 
@@ -616,6 +616,8 @@ npm run lint
 
 **Goal**: Comprehensive test coverage for all refactored components and migration paths.
 
+_Status Update (Nov 2025): Added sampling cache unit coverage, extended scene API regression tests for descriptor reuse, and verified migration diagnostics paths._
+
 ### Actions
 
 1. **Unit tests for core utilities**
@@ -751,15 +753,7 @@ npm run lint
     - **Automatic vs Explicit**: When the system handles subscriptions, when you need control
     - **Cache Efficiency**: How removing smoothing from descriptors improves sharing
 
-4. **Create migration guide** (`docs/audio/migration-v4.md` - new file)
-
-    - List all breaking changes
-    - Explain smoothing refactor rationale
-    - Show before/after code examples
-    - Provide migration checklist
-    - Common pitfalls and solutions
-
-5. **Add inline JSDoc comments**
+4. **Add inline JSDoc comments**
 
     - Document all public APIs
     - Explain `AudioSamplingOptions`
@@ -767,36 +761,14 @@ npm run lint
     - Include usage examples
     - Link to relevant docs
 
-6. **Update README examples**
+5. **Update README examples**
 
     - Show current best practices
     - Use registration pattern in examples
     - Demonstrate lazy API
     - Link to quick-start guide
 
-7. **Write changelog entry**
-
-    ```markdown
-    ## v4.0.0 - Audio System Refactor
-
-    ### Breaking Changes
-
-    -   **Smoothing removed from descriptors**: Smoothing is now a runtime sampling option, not part of the feature descriptor. This improves cache efficiency and flexibility.
-    -   **Audio features now internal metadata**: Elements register their data requirements internally rather than exposing them as user configuration.
-
-    ### Benefits
-
-    -   **Better cache efficiency**: Same feature data shared across elements with different smoothing
-    -   **Clearer mental model**: Separation between data dependencies and visual configuration
-    -   **Simpler element code**: Automatic subscription management in most cases
-    -   **More flexible**: Different elements can apply different smoothing to same data
-
-    ### Migration
-
-    Existing projects automatically migrate. See [migration guide](docs/audio/migration-v4.md) for developer migration steps.
-    ```
-
-8. **Create architecture diagram** (optional but helpful)
+6. **Create architecture diagram** (optional but helpful)
 
     Visual showing:
 
@@ -964,76 +936,3 @@ After implementation, the refactored system should achieve:
     - Existing projects open without user action
     - Visual output identical
     - No breaking changes for end users
-
-## Rollback Plan
-
-If critical issues are discovered:
-
-1. **Before Release**: Revert all changes via version control
-
-2. **After Release**:
-    - Emergency patch with v3 API restored
-    - Feature flag to enable/disable v4 system
-    - Give users time to report issues
-    - Fix issues and re-release
-
-## Comparison with v3 Plan
-
-### What Changed
-
-**v3 Phase 4**: Declarative Scene Element Configuration
-
--   Added `audioFeatures` to user config
--   Users could edit feature requirements
--   Mixed data dependencies with visual configuration
-
-**v4 Phase 4-5**: Internal Metadata + Smoothing Refactor
-
--   Audio features as **internal element metadata**
--   Smoothing **removed from descriptors**
--   Clear separation: implementation vs configuration
--   Automatic subscription management without user-facing properties
-
-### Why v4 is Better
-
-1. **No Conceptual Confusion**
-
-    - Users configure visuals (colors, sizes, smoothing)
-    - Elements declare data needs (internal)
-    - Clear boundary between concerns
-
-2. **Better Cache Efficiency**
-
-    - Smoothing removed from cache keys
-    - Same feature data shared across elements
-    - Less memory usage, better performance
-
-3. **Simpler for Users**
-
-    - Users can't accidentally break subscriptions
-    - No confusing `audioFeatures` property
-    - Just configure visual parameters
-
-4. **Simpler for Developers**
-    - Registration pattern is straightforward
-    - Automatic subscription management
-    - No manual lifecycle wiring
-
-## Open Questions
-
--   Should we provide utility to inspect element's registered requirements at runtime?
--   Do we need migration tool for custom elements in user projects?
--   Should diagnostics show cache efficiency metrics?
--   What's the policy for elements with dynamic requirements?
-
-## Conclusion
-
-This revised plan addresses the fundamental issues identified in the v3 Phase 4 analysis:
-
-1. ✅ **Audio features as internal metadata** - Not user-configurable
-2. ✅ **Smoothing removed from descriptors** - Pure runtime parameter
-3. ✅ **Clear separation of concerns** - Data vs presentation
-4. ✅ **Better cache efficiency** - Reduced duplication
-5. ✅ **Maintained simplicity** - Easy for both users and developers
-
-The result is a cleaner architecture that maintains all the simplification benefits of v3 while avoiding the conceptual confusion of mixing user configuration with implementation details.

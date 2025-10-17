@@ -94,6 +94,35 @@ describe('sceneApi', () => {
             expect(descriptor).toMatchObject({ featureKey: 'rms' });
             expect(sampling).toMatchObject({ smoothing: 2 });
         });
+
+        it('does not republish descriptors when only sampling options change', () => {
+            const first = getFeatureData(element, 'track-1', 'rms', 0.25, { smoothing: 0 });
+            expect(first?.values).toEqual([0.5]);
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+
+            publishSpy.mockClear();
+            const second = getFeatureData(element, 'track-1', 'rms', 0.5, { smoothing: 12 });
+            expect(second?.values).toEqual([0.5]);
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('shares descriptor identity across elements regardless of sampling options', () => {
+            getFeatureData(element, 'track-1', 'rms', 0.1, { smoothing: 1 });
+            expect(publishSpy).toHaveBeenCalledTimes(1);
+
+            const sibling = { id: 'element-2', type: 'testElement' };
+            const sample = getFeatureData(sibling, 'track-1', 'rms', 0.1, { smoothing: 24 });
+            expect(sample?.values).toEqual([0.5]);
+            expect(publishSpy).toHaveBeenCalledTimes(2);
+
+            const firstDescriptors = publishSpy.mock.calls[0]?.[3] ?? [];
+            const secondDescriptors = publishSpy.mock.calls[1]?.[3] ?? [];
+            expect(firstDescriptors).toHaveLength(1);
+            expect(secondDescriptors).toHaveLength(1);
+            const firstId = analysisIntents.buildDescriptorId(firstDescriptors[0] as any);
+            const secondId = analysisIntents.buildDescriptorId(secondDescriptors[0] as any);
+            expect(secondId).toBe(firstId);
+        });
     });
 
     describe('syncElementFeatureIntents', () => {
