@@ -1,8 +1,8 @@
 import { unzipSync } from 'fflate';
-import type { SceneExportEnvelopeV2 } from './export';
+import type { SceneExportEnvelope } from './export';
 import { isZipBytes } from '@utils/importPayloadStorage';
 
-export type SceneEnvelope = SceneExportEnvelopeV2 | Record<string, any>;
+export type SceneEnvelope = SceneExportEnvelope | Record<string, any>;
 
 export interface ScenePackageContents {
     envelope: SceneEnvelope;

@@ -30,8 +30,7 @@ export interface SceneMetadata {
     author?: string;
 }
 
-export interface SceneExportEnvelopeV2 {
-    schemaVersion: 2;
+interface SceneExportEnvelopeBase {
     format: 'mvmnt.scene';
     metadata: SceneMetadata;
     scene: {
@@ -63,6 +62,16 @@ export interface SceneExportEnvelopeV2 {
     compatibility?: { warnings: { message: string }[] };
 }
 
+export interface SceneExportEnvelopeV2 extends SceneExportEnvelopeBase {
+    schemaVersion: 2;
+}
+
+export interface SceneExportEnvelopeV4 extends SceneExportEnvelopeBase {
+    schemaVersion: 4;
+}
+
+export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4;
+
 interface AudioFeatureCacheAssetReference {
     assetId: string;
     assetRef: string;
@@ -86,7 +95,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV2;
+    envelope: SceneExportEnvelopeV4;
     json: string;
     blob?: Blob;
 }
@@ -94,7 +103,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV2;
+    envelope: SceneExportEnvelopeV4;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -235,7 +244,7 @@ function prepareMidiAssets(
 }
 
 function buildZip(
-    envelope: SceneExportEnvelopeV2,
+    envelope: SceneExportEnvelope,
     audioAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
@@ -531,7 +540,7 @@ export async function exportScene(
         };
     }
 
-    const assetsSection: SceneExportEnvelopeV2['assets'] = {
+    const assetsSection: SceneExportEnvelopeV4['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
         audio: { byId: collectResult.audioById },
@@ -546,8 +555,8 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV2 = {
-        schemaVersion: 2,
+    const envelope: SceneExportEnvelopeV4 = {
+        schemaVersion: 4,
         format: 'mvmnt.scene',
         metadata,
         scene: { ...doc.scene },

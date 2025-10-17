@@ -11,6 +11,7 @@ import {
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
+import { migrateSceneAudioSystemV4 } from '@persistence/migrations/audioSystemV4';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -293,7 +294,7 @@ export interface SceneStoreState extends SceneStoreActions {
     runtimeMeta: SceneRuntimeMeta;
 }
 
-const SCENE_SCHEMA_VERSION = 1;
+const SCENE_SCHEMA_VERSION = 4;
 
 export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     fps: 60,
@@ -1484,8 +1485,9 @@ const createSceneStoreState = (
     },
 
     importScene: (payload) => {
+        const migratedPayload = migrateSceneAudioSystemV4(payload);
         set((state) => {
-            const elements = payload.elements ?? [];
+            const elements = migratedPayload.elements ?? [];
             const sorted = [...elements].sort((a, b) => {
                 const ai = typeof a.index === 'number' ? a.index : elements.indexOf(a);
                 const bi = typeof b.index === 'number' ? b.index : elements.indexOf(b);
@@ -1517,14 +1519,14 @@ const createSceneStoreState = (
 
             const nextSettings = {
                 ...DEFAULT_SCENE_SETTINGS,
-                ...(payload.sceneSettings ?? {}),
+                ...(migratedPayload.sceneSettings ?? {}),
             } satisfies SceneSettingsState;
 
             const importTimestamp = Date.now();
 
             const normalizedFontAssets: Record<string, FontAsset> = {};
-            if (payload.fontAssets) {
-                for (const [assetId, asset] of Object.entries(payload.fontAssets)) {
+            if (migratedPayload.fontAssets) {
+                for (const [assetId, asset] of Object.entries(migratedPayload.fontAssets)) {
                     if (!assetId || !asset) continue;
                     const id = typeof asset.id === 'string' ? asset.id : assetId;
                     normalizedFontAssets[id] = normalizeFontAssetInput({ ...asset, id } as FontAsset);
@@ -1532,8 +1534,8 @@ const createSceneStoreState = (
             }
             const fontOrder = Object.keys(normalizedFontAssets);
             const fontLicensingAcknowledgedAt =
-                typeof payload.fontLicensingAcknowledgedAt === 'number'
-                    ? payload.fontLicensingAcknowledgedAt
+                typeof migratedPayload.fontLicensingAcknowledgedAt === 'number'
+                    ? migratedPayload.fontLicensingAcknowledgedAt
                     : undefined;
 
             return {
@@ -1542,7 +1544,7 @@ const createSceneStoreState = (
                 elements: nextElements,
                 order: sortedOrder,
                 bindings: nextBindings,
-                macros: buildMacroState(payload.macros),
+                macros: buildMacroState(migratedPayload.macros),
                 fonts: {
                     assets: normalizedFontAssets,
                     order: fontOrder,

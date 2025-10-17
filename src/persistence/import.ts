@@ -1,6 +1,6 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
-import type { SceneExportEnvelopeV2 } from './export';
+import type { SceneExportEnvelope } from './export';
 import {
     deserializeAudioFeatureCache,
     type SerializedAudioFeatureCache,
@@ -397,7 +397,7 @@ function resolveWaveformRecord(
 }
 
 async function hydrateAudioAssets(
-    envelope: SceneExportEnvelopeV2,
+    envelope: SceneExportEnvelope,
     assetPayloads: Map<string, Uint8Array>,
     waveformPayloads: Map<string, Map<string, Uint8Array>>
 ): Promise<string[]> {
@@ -512,9 +512,9 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
-    if (envelope.schemaVersion === 2 && envelope.assets) {
+    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4) && envelope.assets) {
         hydrationWarnings = await hydrateAudioAssets(
-            envelope as SceneExportEnvelopeV2,
+            envelope,
             audioPayloads,
             waveformPayloads
         );

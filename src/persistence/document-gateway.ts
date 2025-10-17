@@ -2,6 +2,7 @@ import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
+import { migrateSceneAudioSystemV4 } from './migrations/audioSystemV4';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
@@ -156,13 +157,15 @@ export const DocumentGateway = {
         }
 
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
-        const sceneData = {
+        const rawSceneData = {
             elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
         };
+
+        const sceneData = migrateSceneAudioSystemV4(rawSceneData);
 
         try {
             useSceneStore.getState().importScene(sceneData);
