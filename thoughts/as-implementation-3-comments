@@ -1,0 +1,195 @@
+## Answers to Your Questions
+
+### 1. **Why would I want to allow the user to edit features?**
+
+Looking at the current system, **you probably DON'T want users to edit audio features in most cases**. Here's why:
+
+**Current Reality:**
+
+-   In `AudioSpectrumElement`, the user already has a `smoothing` property they can edit (lines 101-107 in audio-spectrum.ts)
+-   The element then passes this smoothing value to `getFeatureData()` at render time
+-   This makes sense because `smoothing` affects the **visual presentation**, not the underlying analysis
+
+**The declarative approach would be problematic if:**
+
+-   Users could accidentally break their visualization by editing feature configurations
+-   Multiple elements share the same audio data but want different smoothing values
+-   You want to keep the feature subscription as an implementation detail
+
+### 2. **Might treating `audioFeatures` specially create confusion about the config schema?**
+
+**YES, absolutely.** This could create significant confusion:
+
+**The Confusion:**
+
+-   Most config properties are **visual/behavioral** (width, color, position)
+-   `audioFeatures` would be a **data dependency declaration**
+-   The distinction between "how to render" vs "what data to subscribe to" becomes blurred
+
+**Example of the problem:**
+
+```typescript
+{
+  width: 420,           // Visual property
+  barColor: '#60a5fa',  // Visual property
+  audioFeatures: [...], // Data subscription (implementation detail?)
+  smoothing: 0.5        // Wait... is this visual or data?
+}
+```
+
+**Conceptual Issues:**
+
+1. Config schemas are meant for **user-configurable** properties
+2. Audio subscriptions are **developer concerns** (which data to request)
+3. Mixing them violates separation of concerns
+
+### 3. **If I didn't want users to edit audio features, what's a different way to store this information?**
+
+**Better Alternative: Internal Element State**
+
+Instead of putting `audioFeatures` in the config schema, store it as **internal element metadata**:
+
+```typescript
+export class AudioSpectrumElement extends SceneElement {
+    // Internal, not serialized with user config
+    private static readonly REQUIRED_FEATURES = [{ feature: 'spectrogram' }] as const;
+
+    constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {
+        super('audioSpectrum', id, config);
+
+        // Subscribe to required features on construction
+        this._initializeAudioSubscriptions();
+    }
+
+    private _initializeAudioSubscriptions(): void {
+        const trackId = this.getProperty<string>('featureTrackId');
+        if (trackId) {
+            syncElementSubscriptions(this, trackId, AudioSpectrumElement.REQUIRED_FEATURES);
+        }
+    }
+
+    protected override onPropertyChanged(key: string, oldValue: any, newValue: any): void {
+        if (key === 'featureTrackId') {
+            // Re-subscribe when track changes
+            this._initializeAudioSubscriptions();
+        }
+    }
+}
+```
+
+**Advantages:**
+
+-   ✅ Clear separation: config = user settings, internal state = implementation
+-   ✅ Element controls its own data dependencies
+-   ✅ Users can't accidentally break subscriptions
+-   ✅ Simpler mental model
+
+**Where to store it:**
+
+-   **Static class properties** (like `REQUIRED_FEATURES` above) for fixed dependencies
+-   **Private instance properties** for dynamic dependencies
+-   **A separate metadata file** if you want to inspect all elements' requirements
+
+### 4. **Why is smoothing part of the audio feature? Wouldn't it make sense to calculate it on the fly?**
+
+**Great observation! You're absolutely right.** Looking at the code, smoothing is currently:
+
+1. **Stored in the descriptor** (`AudioFeatureDescriptor.smoothing`)
+2. **Passed as an option** to `getFeatureData()`
+3. **Applied at sample time** in tempoAlignedViewAdapter.ts (line 459)
+
+**The Problem with Current Design:**
+
+```typescript
+// Smoothing is in the descriptor AND passed at runtime - redundant!
+const sample = getFeatureData(
+    this,
+    trackId,
+    'spectrogram',
+    { smoothing }, // <-- Runtime value
+    targetTime
+);
+```
+
+And in the descriptor:
+
+```typescript
+interface AudioFeatureDescriptor {
+    smoothing?: number | null; // <-- Also stored here
+}
+```
+
+**Why Smoothing SHOULD NOT be in the descriptor:**
+
+1. **It's a view-time operation**, not an analysis-time operation
+2. **Different elements** might want different smoothing for the **same feature data**
+3. **It creates cache key pollution** - same feature with different smoothing = different cache entries
+4. **It's calculated on-the-fly anyway** (see tempoAlignedViewAdapter.ts:459-479)
+
+**Better Design:**
+
+```typescript
+// Option A: Just a parameter at sample time (current system already does this!)
+const sample = getFeatureData(this, trackId, 'spectrogram', {}, targetTime);
+const smoothed = applySmoothingWindow(sample.values, this.getProperty('smoothing'));
+
+// Option B: Make it completely separate from the descriptor
+const sample = getFeatureData(this, trackId, 'spectrogram', targetTime);
+const smoothingRadius = this.getProperty<number>('smoothing');
+const values = smoothingRadius > 0 ? averageNeighboringSamples(sample, smoothingRadius) : sample.values;
+```
+
+**Why is it there now?**
+
+Likely **historical reasons**:
+
+-   Maybe smoothing was once an analysis-time parameter
+-   Or it was added for convenience ("keep all feature params together")
+-   The system evolved and smoothing became a runtime operation, but the descriptor wasn't cleaned up
+
+**Recommendation:**
+
+**Remove `smoothing` from `AudioFeatureDescriptor`** and make it purely a runtime sampling parameter:
+
+```typescript
+interface AudioFeatureDescriptor {
+    featureKey: string;
+    calculatorId?: string | null;
+    bandIndex?: number | null;
+    channel?: number | string | null;
+    // smoothing removed - it's a view concern, not a data concern
+}
+
+// Instead, handle it in the sampling layer
+function sampleFeatureFrame(
+    trackId: string,
+    descriptor: AudioFeatureDescriptor,
+    targetTime: number,
+    samplingOptions?: {
+        smoothing?: number; // View-time option
+        interpolation?: 'linear' | 'cubic';
+    }
+): AudioFeatureFrameSample | null;
+```
+
+This would:
+
+-   ✅ Reduce cache key complexity
+-   ✅ Allow different elements to smooth the same data differently
+-   ✅ Make the distinction between "what data" and "how to present it" clearer
+-   ✅ Follow separation of concerns principles
+
+---
+
+## Summary & Recommendations
+
+Based on this analysis, **Phase 4 might need rethinking**:
+
+**Instead of declarative config properties**, consider:
+
+1. **Internal element metadata** for feature requirements
+2. **Static class properties** for fixed dependencies
+3. **Keep smoothing and other view-time parameters** in element properties (like it is now in AudioSpectrum)
+4. **Remove smoothing from descriptors** - it's a view concern, not a data concern
+
+This maintains simplicity while avoiding the conceptual confusion of mixing user configuration with internal data dependencies.
