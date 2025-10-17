@@ -120,9 +120,9 @@ This creates:
 
 **Implementation Notes (Oct 2025)**
 
-- Runtime sampling now uses `AudioSamplingOptions` to apply smoothing outside descriptor identity.
-- Scene import/export migrates legacy descriptor smoothing into per-element `smoothing` bindings.
-- Workspace descriptor editor no longer exposes smoothing controls; elements manage smoothing in their property editors.
+-   Runtime sampling now uses `AudioSamplingOptions` to apply smoothing outside descriptor identity.
+-   Scene import/export migrates legacy descriptor smoothing into per-element `smoothing` bindings.
+-   Workspace descriptor editor no longer exposes smoothing controls; elements manage smoothing in their property editors.
 
 ### Verification Commands
 
@@ -348,8 +348,6 @@ npm run lint
         - `audio-spectrum.ts`
         - `audio-oscilloscope.ts`
         - `audio-volume-meter.ts`
-        - `audio-waveform.ts`
-        - Any custom/experimental elements
 
     - Document current subscription patterns
     - Identify manual intent management to remove
@@ -375,12 +373,6 @@ npm run lint
             // ... render meter
         }
     }
-    ```
-
-    **`audio-waveform.ts`**:
-
-    ```typescript
-    registerFeatureRequirements('audioWaveform', [{ feature: 'waveform' }]);
     ```
 
 3. **Migrate medium elements** (multiple features or options)
