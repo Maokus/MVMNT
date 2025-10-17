@@ -154,7 +154,7 @@ import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 const rmsDescriptor: AudioFeatureDescriptor = {
     featureKey: 'rms',
     calculatorId: 'mvmnt.rms',
-    channelAlias: 'L',
+    channel: 'L',
     smoothing: 0.25,
 };
 ```
@@ -163,17 +163,16 @@ const rmsDescriptor: AudioFeatureDescriptor = {
 
 -   **`featureKey`**: The type of feature data (e.g., `'spectrogram'`, `'rms'`, `'waveform'`)
 -   **`calculatorId`**: Optional calculator identifier if multiple calculators produce the same feature key
--   **`channelIndex`**: Zero-based channel index for explicit channel selection
--   **`channelAlias`**: Semantic channel label (`'L'`, `'R'`, `'Mid'`, etc.) resolved at runtime
+-   **`channel`**: Accepts a zero-based index (`0`, `1`, …) or a semantic alias (`'Left'`, `'Right'`, `'Mono'`). When omitted, the descriptor resolves to the merged/mono channel.
 -   **`bandIndex`**: Optional frequency band index for multi-band features like spectrograms
 -   **`smoothing`**: Optional smoothing factor applied during sampling
 
 ### Channel Resolution
 
--   `channelIndex` explicitly chooses a zero-based channel. `channelAlias` lets descriptors follow semantic labels (`L`, `R`, `Mid`) that are resolved against track metadata or cache-level aliases.
--   When only one channel exists, the helpers leave the channel unset and the calculators fall back to mono processing.【F:src/audio/features/audioFeatureTypes.ts†L25-L48】【F:src/core/scene/elements/audioFeatureUtils.ts†L79-L146】
--   Descriptor coercion utilities fill in defaults, merge smoothing hints, and map aliases to concrete indices so a surface can accept partial user input yet still emit deterministic analysis intents.
--   Channel resolution prefers track-specific aliases and falls back to cache aliases when necessary, keeping multi-channel caches consistent across calculators.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L164】
+-   Channel values are normalized through the resolver: numeric indices are bounds-checked and semantic aliases (`'Left'`, `'Right'`, `'Mono'`, etc.) are matched against track metadata or cache-level aliases.【F:src/audio/features/channelResolution.ts†L1-L109】
+-   When only one channel exists, leaving the channel unset resolves to the mono/merged payload.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L147】
+-   Descriptor coercion utilities fill in defaults, merge smoothing hints, and normalize aliases or numeric strings so a surface can accept partial user input yet still emit deterministic analysis intents.【F:src/core/scene/elements/audioFeatureUtils.ts†L17-L147】
+-   Channel resolution prefers track-specific aliases and falls back to cache aliases when necessary, keeping multi-channel caches consistent across calculators.【F:src/audio/features/channelResolution.ts†L1-L109】
 
 ### Match Keys and Deduplication
 
@@ -345,7 +344,6 @@ import { useEffect, useMemo } from 'react';
 import {
     coerceFeatureDescriptors,
     emitAnalysisIntent,
-    resolveDescriptorChannelIndex,
     sampleFeatureFrame,
 } from '@core/scene/elements/audioFeatureUtils';
 
@@ -362,8 +360,7 @@ function useSpectrumFeature(element: { id: string | null; type: string }, trackR
 
     return (timeSeconds: number) => {
         const descriptor = descriptors[0];
-        const channelIndex = resolveDescriptorChannelIndex(trackRef, descriptor);
-        return sampleFeatureFrame(trackRef!, { ...descriptor, channelIndex }, timeSeconds);
+        return sampleFeatureFrame(trackRef!, descriptor, timeSeconds);
     };
 }
 ```
@@ -488,7 +485,7 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 const trackId = this.getProperty<string>('audioTrackId');
 const descriptor = {
     featureKey: 'spectrogram',
-    channelAlias: 'Left', // Or use channelIndex: 0
+    channel: 'Left',
     smoothing: 0.2
 };
 
@@ -510,8 +507,8 @@ if (sample?.values) {
 
 ```ts
 const descriptors = [
-    { featureKey: 'rms', channelAlias: 'Left' },
-    { featureKey: 'rms', channelAlias: 'Right' },
+    { featureKey: 'rms', channel: 'Left' },
+    { featureKey: 'rms', channel: 'Right' },
 ];
 
 emitAnalysisIntent(this, trackId, 'default', descriptors);

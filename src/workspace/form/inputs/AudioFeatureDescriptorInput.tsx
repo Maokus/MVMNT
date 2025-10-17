@@ -87,9 +87,109 @@ const sortCategories = (categories: Set<string>): string[] => {
     return list;
 };
 
+const CHANNEL_AUTO_TOKEN = 'auto';
+const CHANNEL_NUMERIC_PREFIX = 'num:';
+const CHANNEL_ALIAS_PREFIX = 'alias:';
+
+const normalizeChannelValue = (channel: number | string | null | undefined): number | string | null => {
+    if (channel == null) {
+        return null;
+    }
+    if (typeof channel === 'number' && Number.isFinite(channel)) {
+        return Math.trunc(channel);
+    }
+    if (typeof channel === 'string') {
+        const trimmed = channel.trim();
+        if (!trimmed.length || trimmed.toLowerCase() === 'auto') {
+            return null;
+        }
+        return trimmed;
+    }
+    return null;
+};
+
+const readDescriptorChannel = (descriptor: AudioFeatureDescriptor): number | string | null => {
+    if (descriptor.channel != null) {
+        return descriptor.channel;
+    }
+    const legacy = descriptor as unknown as { channelAlias?: string | null; channelIndex?: number | null };
+    if (legacy.channelAlias && legacy.channelAlias.trim().length > 0) {
+        return legacy.channelAlias.trim();
+    }
+    if (typeof legacy.channelIndex === 'number' && Number.isFinite(legacy.channelIndex)) {
+        return legacy.channelIndex;
+    }
+    return null;
+};
+
+const createChannelToken = (channel: number | string | null): string => {
+    const normalized = normalizeChannelValue(channel);
+    if (normalized == null) {
+        return CHANNEL_AUTO_TOKEN;
+    }
+    if (typeof normalized === 'number') {
+        return `${CHANNEL_NUMERIC_PREFIX}${normalized}`;
+    }
+    return `${CHANNEL_ALIAS_PREFIX}${normalized}`;
+};
+
+const parseChannelToken = (token: string): number | string | null => {
+    if (!token || token === CHANNEL_AUTO_TOKEN) {
+        return null;
+    }
+    if (token.startsWith(CHANNEL_NUMERIC_PREFIX)) {
+        const value = Number(token.slice(CHANNEL_NUMERIC_PREFIX.length));
+        return Number.isFinite(value) ? Math.trunc(value) : null;
+    }
+    if (token.startsWith(CHANNEL_ALIAS_PREFIX)) {
+        return token.slice(CHANNEL_ALIAS_PREFIX.length);
+    }
+    return null;
+};
+
+const resolveChannelOrder = (
+    channel: number | string | null,
+    option: FeatureOption | undefined,
+): number => {
+    const normalized = normalizeChannelValue(channel);
+    if (normalized == null) {
+        return -1;
+    }
+    if (typeof normalized === 'number') {
+        return normalized;
+    }
+    const aliases = option?.channelAliases ?? [];
+    const match = aliases.findIndex((alias) => alias && alias.trim().toLowerCase() === normalized.toLowerCase());
+    if (match >= 0) {
+        return match;
+    }
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) ? Math.trunc(numeric) : Number.MAX_SAFE_INTEGER;
+};
+
+const formatChannelLabel = (
+    channel: number | string | null,
+    option: FeatureOption | undefined,
+): string => {
+    if (channel == null) {
+        return option && option.channels > 1 ? 'Mix (auto)' : 'Auto';
+    }
+    if (typeof channel === 'number') {
+        const alias = option?.channelAliases?.[channel];
+        return alias && alias.trim().length > 0 ? alias : `Channel ${channel + 1}`;
+    }
+    const aliases = option?.channelAliases ?? [];
+    const normalized = channel.trim().toLowerCase();
+    const match = aliases.find((alias) => alias && alias.trim().toLowerCase() === normalized);
+    if (match) {
+        return match;
+    }
+    return channel;
+};
+
 const buildDescriptorKey = (descriptor: AudioFeatureDescriptor): string => {
-    const channel = descriptor.channelIndex != null ? `c${descriptor.channelIndex}` : 'auto';
-    return `${descriptor.featureKey}:${channel}`;
+    const token = createChannelToken(readDescriptorChannel(descriptor));
+    return `${descriptor.featureKey}:${token}`;
 };
 
 const areDescriptorsEqual = (
@@ -100,12 +200,11 @@ const areDescriptorsEqual = (
         if (!list || !list.length) return [];
         return list
             .map((descriptor) => {
-                const channel = descriptor.channelIndex != null ? `c${descriptor.channelIndex}` : 'auto';
+                const channelToken = createChannelToken(readDescriptorChannel(descriptor));
                 const smoothing = descriptor.smoothing != null ? descriptor.smoothing : 0;
                 const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
-                const alias = descriptor.channelAlias ? `a${descriptor.channelAlias}` : 'a*';
                 const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
-                return `${descriptor.featureKey}:${channel}:${band}:${alias}:${smoothing}:${calculator}`;
+                return `${descriptor.featureKey}:${channelToken}:${band}:${smoothing}:${calculator}`;
             })
             .sort();
     };
@@ -144,7 +243,7 @@ const sortDescriptors = (
         return {
             descriptor,
             label: option?.label ?? descriptor.featureKey,
-            channelOrder: descriptor.channelIndex ?? -1,
+            channelOrder: resolveChannelOrder(readDescriptorChannel(descriptor), option),
         };
     });
     enriched.sort((a, b) => {
@@ -187,25 +286,32 @@ const sanitizeDescriptors = (
         if (typeof featureKey !== 'string' || featureKey.length === 0) continue;
         const option = featureTracks[featureKey];
         if (!option) continue;
-        const channelIndex = entry.channelIndex != null ? entry.channelIndex : null;
-        const dedupeKey = `${featureKey}:${channelIndex ?? 'auto'}`;
+        let rawChannel = normalizeChannelValue(
+            entry.channel ?? (entry as unknown as { channelAlias?: string | null }).channelAlias ??
+                (entry as unknown as { channelIndex?: number | null }).channelIndex ?? null,
+        );
+        if (typeof rawChannel === 'string') {
+            const aliasInput = rawChannel;
+            const numeric = Number(aliasInput);
+            if (Number.isFinite(numeric) && rawChannel === `${numeric}`) {
+                rawChannel = Math.trunc(numeric);
+            } else {
+                const canonical = option.channelAliases?.find(
+                    (alias) => alias && alias.trim().toLowerCase() === aliasInput.toLowerCase(),
+                );
+                if (canonical) {
+                    rawChannel = canonical;
+                }
+            }
+        }
+        const dedupeKey = `${featureKey}:${createChannelToken(rawChannel ?? null)}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
-        const channelAlias = (() => {
-            if (entry.channelAlias) return entry.channelAlias;
-            if (channelIndex == null) return null;
-            const aliases = option.channelAliases;
-            if (Array.isArray(aliases) && aliases[channelIndex]) {
-                return aliases[channelIndex] ?? null;
-            }
-            return `Channel ${channelIndex + 1}`;
-        })();
         result.push({
             featureKey,
             calculatorId: entry.calculatorId ?? option.calculatorId ?? null,
             bandIndex: entry.bandIndex ?? null,
-            channelIndex,
-            channelAlias,
+            channel: rawChannel ?? null,
             smoothing: clampSmoothing(entry.smoothing ?? 0),
         });
     }
@@ -216,8 +322,7 @@ const sanitizeDescriptors = (
                 featureKey: requiredFeatureKey,
                 calculatorId: featureTracks[requiredFeatureKey].calculatorId ?? null,
                 bandIndex: null,
-                channelIndex: null,
-                channelAlias: null,
+                channel: null,
                 smoothing: 0,
             });
         }
@@ -411,7 +516,7 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         const descriptorsForFeature = descriptorsByFeature.get(activeFeatureKey) ?? [];
         if (!descriptorsForFeature.length) return new Set<string>();
         const tokens = descriptorsForFeature.map((descriptor) =>
-            descriptor.channelIndex != null ? String(descriptor.channelIndex) : 'auto',
+            createChannelToken(readDescriptorChannel(descriptor)),
         );
         return new Set(tokens);
     }, [activeFeatureKey, descriptorsByFeature]);
@@ -458,8 +563,7 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
             featureKey: nextKey,
             calculatorId: option.calculatorId ?? null,
             bandIndex: null,
-            channelIndex: null,
-            channelAlias: null,
+            channel: null,
             smoothing: smoothingValue,
         };
         const next = [...sanitizedDescriptors, descriptor];
@@ -474,25 +578,25 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         const option = featureTracks[activeFeatureKey];
         if (!option) return;
         const selections = new Set(channelSelections);
-        const isAuto = token === 'auto';
+        const isAuto = token === CHANNEL_AUTO_TOKEN;
         if (isAuto) {
-            if (selections.has('auto')) {
-                selections.delete('auto');
+            if (selections.has(CHANNEL_AUTO_TOKEN)) {
+                selections.delete(CHANNEL_AUTO_TOKEN);
             } else {
                 selections.clear();
-                selections.add('auto');
+                selections.add(CHANNEL_AUTO_TOKEN);
             }
         } else {
             if (selections.has(token)) {
                 selections.delete(token);
             } else {
-                selections.delete('auto');
+                selections.delete(CHANNEL_AUTO_TOKEN);
                 selections.add(token);
             }
         }
         if (selections.size === 0) {
             if (schema?.requiredFeatureKey === activeFeatureKey) {
-                selections.add('auto');
+                selections.add(CHANNEL_AUTO_TOKEN);
             } else {
                 selections.add(token);
             }
@@ -502,24 +606,20 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         const smoothing = template ? clampSmoothing(template.smoothing ?? smoothingValue) : smoothingValue;
         const nextFeatureDescriptors: AudioFeatureDescriptor[] = [];
         selections.forEach((selection) => {
-            if (selection === 'auto') {
+            if (selection === CHANNEL_AUTO_TOKEN) {
                 nextFeatureDescriptors.push({
                     featureKey: activeFeatureKey,
                     calculatorId: option.calculatorId ?? null,
                     bandIndex: null,
-                    channelIndex: null,
-                    channelAlias: null,
+                    channel: null,
                     smoothing,
                 });
             } else {
-                const channelIndex = Number(selection);
-                const alias = option.channelAliases?.[channelIndex] ?? `Channel ${channelIndex + 1}`;
                 nextFeatureDescriptors.push({
                     featureKey: activeFeatureKey,
                     calculatorId: option.calculatorId ?? null,
                     bandIndex: null,
-                    channelIndex,
-                    channelAlias: alias,
+                    channel: parseChannelToken(selection),
                     smoothing,
                 });
             }
@@ -559,7 +659,7 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         emitDescriptors(next, suggestion ? { recommendedProfile: suggestion } : undefined);
         logSelectorEvent('descriptor-remove', {
             featureKey: descriptor.featureKey,
-            channel: descriptor.channelIndex ?? 'auto',
+            channel: readDescriptorChannel(descriptor) ?? 'auto',
         });
     };
 
@@ -573,13 +673,29 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         if (!activeFeatureKey) return [];
         const option = featureTracks[activeFeatureKey];
         if (!option) return [];
-        const entries = [{ value: 'auto', label: 'Mix (auto)' }];
-        for (let index = 0; index < option.channels; index += 1) {
-            const alias = option.channelAliases?.[index];
-            entries.push({
-                value: String(index),
-                label: alias && alias.trim().length > 0 ? alias : `Channel ${index + 1}`,
+        const entries: { value: string; label: string }[] = [];
+        const seen = new Set<string>();
+        const autoLabel = option.channels > 1 ? 'Mix (auto)' : 'Auto';
+        entries.push({ value: CHANNEL_AUTO_TOKEN, label: autoLabel });
+        seen.add(CHANNEL_AUTO_TOKEN);
+        if (Array.isArray(option.channelAliases) && option.channelAliases.length) {
+            option.channelAliases.forEach((alias, index) => {
+                const normalizedAlias = normalizeChannelValue(alias);
+                const channelValue = normalizedAlias ?? index;
+                const token = createChannelToken(channelValue);
+                if (seen.has(token)) return;
+                entries.push({ value: token, label: formatChannelLabel(channelValue, option) });
+                seen.add(token);
+                if (typeof channelValue !== 'number') {
+                    seen.add(createChannelToken(index));
+                }
             });
+        }
+        for (let index = 0; index < option.channels; index += 1) {
+            const token = createChannelToken(index);
+            if (seen.has(token)) continue;
+            entries.push({ value: token, label: formatChannelLabel(index, option) });
+            seen.add(token);
         }
         return entries;
     }, [activeFeatureKey, featureTracks]);
@@ -588,11 +704,7 @@ const AudioFeatureDescriptorInput: React.FC<AudioFeatureDescriptorInputProps> = 
         return sanitizedDescriptors.map((descriptor) => {
             const option = featureTracks[descriptor.featureKey];
             const featureLabel = option?.label ?? descriptor.featureKey;
-            const channelLabel = descriptor.channelAlias
-                ? descriptor.channelAlias
-                : descriptor.channelIndex != null
-                ? `Channel ${descriptor.channelIndex + 1}`
-                : 'Mix';
+            const channelLabel = formatChannelLabel(readDescriptorChannel(descriptor), option);
             const removable =
                 schema?.requiredFeatureKey === descriptor.featureKey
                     ? (descriptorsByFeature.get(descriptor.featureKey)?.length ?? 0) > 1

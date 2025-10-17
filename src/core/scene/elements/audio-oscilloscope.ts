@@ -4,18 +4,14 @@ import type { EnhancedConfigSchema } from '@core/types';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
-import {
-    emitAnalysisIntent,
-    resolveDescriptorChannelIndex,
-} from './audioFeatureUtils';
+import { emitAnalysisIntent, resolveDescriptorChannel } from './audioFeatureUtils';
 
 const DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = {
     featureKey: 'waveform',
     smoothing: 0,
     calculatorId: null,
     bandIndex: null,
-    channelIndex: null,
-    channelAlias: null,
+    channel: null,
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -147,7 +143,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
 
         const state = useTimelineStore.getState();
-        const channelIndex = resolveDescriptorChannelIndex(trackId, descriptor);
+        const channelIndex = resolveDescriptorChannel(trackId, descriptor);
         const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
             channelIndex: channelIndex ?? undefined,
             smoothing: descriptor.smoothing ?? undefined,

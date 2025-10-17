@@ -113,7 +113,7 @@ describe('audio feature export parity', () => {
             calculatorId: 'mvmnt.rms',
             smoothing: null,
             bandIndex: null,
-            channelIndex: null,
+            channel: null,
         } as const;
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);

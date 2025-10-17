@@ -1,7 +1,7 @@
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager } from '@state/timelineStore';
-import { resolveDescriptorChannelIndex, resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
+import { resolveDescriptorChannel, resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
 
 const MIN_FRAME_COUNT = 1;
 const MIN_SPACING_SECONDS = 1 / 120;
@@ -124,7 +124,7 @@ export function sampleFeatureHistory(
     const startTick = tm.secondsToTicks(Math.max(0, startSeconds));
     const endTick = tm.secondsToTicks(Math.max(startSeconds, targetTime));
 
-    const channelIndex = resolveDescriptorChannelIndex(trackId, descriptor);
+    const channelIndex = resolveDescriptorChannel(trackId, descriptor);
     const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
         bandIndex: descriptor.bandIndex ?? undefined,
         channelIndex: channelIndex ?? undefined,

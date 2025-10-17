@@ -343,27 +343,20 @@ npm run lint
     - Use `getFeatureData` without explicit intents
     - Remove manual lifecycle management
 
-4. **Migrate complex elements** (hybrid approach)
-
-    - Elements with dynamic feature requirements
-    - Use declarative for static features
-    - Use lazy API for dynamic features
-    - Document pattern for similar custom elements
-
-5. **Remove legacy patterns**
+4. **Remove legacy patterns**
 
     - Search codebase for `emitAnalysisIntent` calls
     - Replace all with new APIs
     - Remove if found in scene element code
     - Keep only in test utilities and advanced examples
 
-6. **Update element creation wizard**
+5. **Update element creation wizard**
 
     - If element templates/wizard exists, update to use new patterns
     - Provide template showing declarative approach
     - Include comments explaining simplified workflow
 
-7. **Create migration guide**
+6. **Create migration guide**
     - Document step-by-step conversion process
     - Provide before/after code examples
     - List common pitfalls and solutions
@@ -664,14 +657,7 @@ npm run docs:build
     - Test with corrupted cache
     - Test with invalid descriptors
 
-7. **Backward compatibility verification**
-
-    - Load oldest supported project version
-    - Verify full migration chain works
-    - Test that output is identical
-    - Document any known limitations
-
-8. **Release checklist**
+7. **Release checklist**
     - All tests passing
     - Documentation complete
     - Changelog written

@@ -18,7 +18,7 @@ import {
 
 vi.mock('@core/scene/elements/audioFeatureUtils', () => ({
     resolveFeatureContext: vi.fn(),
-    resolveDescriptorChannelIndex: vi.fn(),
+    resolveDescriptorChannel: vi.fn(),
 }));
 
 vi.mock('@state/selectors/audioFeatureSelectors', () => ({
@@ -37,7 +37,7 @@ const stateSelectors = await import('@state/selectors/audioFeatureSelectors');
 const timelineStore = await import('@state/timelineStore');
 
 const resolveFeatureContext = vi.mocked(audioFeatureUtils.resolveFeatureContext);
-const resolveDescriptorChannelIndex = vi.mocked(audioFeatureUtils.resolveDescriptorChannelIndex);
+const resolveDescriptorChannel = vi.mocked(audioFeatureUtils.resolveDescriptorChannel);
 const sampleAudioFeatureRange = vi.mocked(stateSelectors.sampleAudioFeatureRange);
 const getSharedTimingManager = vi.mocked(timelineStore.getSharedTimingManager);
 
@@ -105,7 +105,7 @@ describe('audio visualization utilities', () => {
             track,
             sourceId: 'track-a',
         });
-        resolveDescriptorChannelIndex.mockReturnValue(0);
+        resolveDescriptorChannel.mockReturnValue(0);
         sampleAudioFeatureRange.mockReturnValue({
             hopTicks: 24,
             frameCount: 5,
@@ -159,7 +159,7 @@ describe('audio visualization utilities', () => {
             track,
             sourceId: 'track-b',
         });
-        resolveDescriptorChannelIndex.mockReturnValue(null);
+        resolveDescriptorChannel.mockReturnValue(null);
         sampleAudioFeatureRange.mockReturnValue({
             hopTicks: 48,
             frameCount: 4,

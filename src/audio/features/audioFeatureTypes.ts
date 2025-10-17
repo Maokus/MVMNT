@@ -20,8 +20,13 @@ export interface AudioFeatureDescriptor {
     featureKey: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    channelIndex?: number | null;
-    channelAlias?: string | null;
+    /**
+     * Channel selector for the descriptor.
+     *
+     * Accepts numeric indices (e.g., 0, 1) or semantic aliases ("Left", "Right", "Mono").
+     * When omitted or set to null the descriptor will default to the merged/mono channel.
+     */
+    channel?: number | string | null;
     smoothing?: number | null;
 }
 

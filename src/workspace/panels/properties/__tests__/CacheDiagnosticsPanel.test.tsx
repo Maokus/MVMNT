@@ -91,16 +91,14 @@ describe('CacheDiagnosticsPanel', () => {
             featureKey: 'spectrogram',
             calculatorId: 'calc.spectrogram',
             bandIndex: null,
-            channelIndex: null,
-            channelAlias: null,
+            channel: null,
             smoothing: null,
         } as const;
         const rms = {
             featureKey: 'rms',
             calculatorId: 'calc.rms',
             bandIndex: null,
-            channelIndex: null,
-            channelAlias: null,
+            channel: null,
             smoothing: null,
         } as const;
 

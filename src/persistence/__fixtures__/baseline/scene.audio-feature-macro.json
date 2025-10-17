@@ -23,7 +23,7 @@
             "featureKey": "spectrogram",
             "calculatorId": "mvmnt.spectrogram",
             "bandIndex": null,
-            "channelIndex": null,
+            "channel": null,
             "smoothing": 4
           }
         ]

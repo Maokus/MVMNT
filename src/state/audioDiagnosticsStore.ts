@@ -138,8 +138,7 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             featureKey: track.key,
             calculatorId: track.calculatorId,
             bandIndex: null,
-            channelIndex: null,
-            channelAlias: null,
+            channel: null,
             smoothing: null,
         };
         const baseId = buildDescriptorId(base);
@@ -149,17 +148,27 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
         if (Array.isArray(channelAliases) && channelAliases.length) {
             channelAliases.forEach((alias, index) => {
                 if (!alias) return;
-                const descriptor: AudioFeatureDescriptor = {
+                const aliasDescriptor: AudioFeatureDescriptor = {
                     ...base,
-                    channelAlias: alias,
-                    channelIndex: index,
+                    channel: alias,
                 };
-                const matchKey = buildDescriptorMatchKey(descriptor);
-                entries.set(matchKey, { id: buildDescriptorId(descriptor), descriptor, matchKey });
+                const aliasMatchKey = buildDescriptorMatchKey(aliasDescriptor);
+                entries.set(aliasMatchKey, {
+                    id: buildDescriptorId(aliasDescriptor),
+                    descriptor: aliasDescriptor,
+                    matchKey: aliasMatchKey,
+                });
+                const numericDescriptor: AudioFeatureDescriptor = { ...base, channel: index };
+                const numericMatchKey = buildDescriptorMatchKey(numericDescriptor);
+                entries.set(numericMatchKey, {
+                    id: buildDescriptorId(numericDescriptor),
+                    descriptor: numericDescriptor,
+                    matchKey: numericMatchKey,
+                });
             });
         } else if (typeof track.channels === 'number' && track.channels > 1) {
             for (let channel = 0; channel < track.channels; channel += 1) {
-                const descriptor: AudioFeatureDescriptor = { ...base, channelIndex: channel };
+                const descriptor: AudioFeatureDescriptor = { ...base, channel };
                 const matchKey = buildDescriptorMatchKey(descriptor);
                 entries.set(matchKey, { id: buildDescriptorId(descriptor), descriptor, matchKey });
             }

@@ -9,8 +9,7 @@ const DEFAULT_DESCRIPTOR: AudioFeatureDescriptor = {
     smoothing: 0,
     calculatorId: null,
     bandIndex: null,
-    channelIndex: null,
-    channelAlias: null,
+    channel: null,
 };
 
 function clamp(value: number, min: number, max: number): number {

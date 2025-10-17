@@ -7,10 +7,11 @@ import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAligne
 import type { AudioTrack } from '@audio/audioTypes';
 import type { TimelineTrack } from '@state/timelineStore';
 import { publishAnalysisIntent, clearAnalysisIntent } from '@audio/features/analysisIntents';
+import { resolveChannel, type TrackChannelConfig } from '@audio/features/channelResolution';
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
-type DescriptorFallback = { featureKey: string; smoothing?: number | null; channelAlias?: string | null };
+type DescriptorFallback = { featureKey: string; smoothing?: number | null; channel?: number | string | null };
 
 const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, AudioFeatureFrameSample | null>>();
 const MAX_FEATURE_CACHE_ENTRIES = 128;
@@ -50,8 +51,7 @@ export function coerceFeatureDescriptor(
         featureKey: input?.featureKey ?? fallback.featureKey,
         calculatorId: input?.calculatorId ?? null,
         bandIndex: input?.bandIndex ?? null,
-        channelIndex: input?.channelIndex ?? null,
-        channelAlias: input?.channelAlias ?? fallback.channelAlias ?? null,
+        channel: input?.channel ?? fallback.channel ?? null,
         smoothing: input?.smoothing ?? fallback.smoothing ?? null,
     };
 }
@@ -103,60 +103,50 @@ export function resolveFeatureContext(trackId: string | null, featureKey: string
 function buildSampleCacheKey(
     tick: number,
     descriptor: AudioFeatureDescriptor,
+    resolvedChannel?: number | null,
 ): string {
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
-    const channel = descriptor.channelIndex != null ? `c${descriptor.channelIndex}` : 'c*';
-    const alias = descriptor.channelAlias ? `a${descriptor.channelAlias}` : 'a*';
+    const channelValue = descriptor.channel;
+    const trimmed = typeof channelValue === 'string' ? channelValue.trim() : null;
+    const numericChannel =
+        typeof channelValue === 'number'
+            ? channelValue
+            : trimmed && /^-?\d+$/.test(trimmed)
+            ? Number(trimmed)
+            : resolvedChannel ?? null;
+    const alias =
+        trimmed && !(numericChannel != null)
+            ? `a${trimmed}`
+            : 'a*';
+    const channel = numericChannel != null ? `c${numericChannel}` : 'c*';
     const smoothing = descriptor.smoothing != null ? `s${descriptor.smoothing}` : 's0';
     const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
     return `${tick}:${descriptor.featureKey}:${band}:${channel}:${alias}:${smoothing}:${calculator}`;
 }
 
-function resolveChannelIndexFromDescriptor(
-    descriptor: AudioFeatureDescriptor,
-    track: AudioFeatureTrack,
-    cacheAliases: string[] | undefined,
-): number | null {
-    if (descriptor.channelIndex != null) {
-        return descriptor.channelIndex;
-    }
-    const alias = descriptor.channelAlias?.trim();
-    if (!alias) {
-        return null;
-    }
-    const normalized = alias.toLowerCase();
-    const trackAliases = track.channelAliases ?? undefined;
-    if (trackAliases?.length) {
-        const index = trackAliases.findIndex((entry: string | undefined) => entry?.toLowerCase() === normalized);
-        if (index >= 0) {
-            return index;
-        }
-    }
-    if (cacheAliases?.length) {
-        const index = cacheAliases.findIndex((entry: string | undefined) => entry?.toLowerCase() === normalized);
-        if (index >= 0) {
-            return index;
-        }
-    }
-    return null;
-}
-
-export function resolveDescriptorChannelIndex(
+export function resolveDescriptorChannel(
     trackId: string | null,
     descriptor: AudioFeatureDescriptor,
 ): number | null {
-    if (!trackId) {
-        return descriptor.channelIndex ?? null;
+    if (descriptor.channel == null) {
+        return null;
+    }
+    if (!trackId || typeof descriptor.channel === 'number') {
+        return typeof descriptor.channel === 'number' ? descriptor.channel : null;
     }
     const context = resolveFeatureContext(trackId, descriptor.featureKey);
     if (!context) {
-        return descriptor.channelIndex ?? null;
+        return typeof descriptor.channel === 'number' ? descriptor.channel : null;
     }
-    return resolveChannelIndexFromDescriptor(
-        descriptor,
-        context.featureTrack,
-        context.cache.channelAliases ?? undefined,
-    );
+    try {
+        return resolveChannel(descriptor.channel, {
+            track: context.featureTrack,
+            cacheAliases: context.cache.channelAliases ?? null,
+        });
+    } catch (error) {
+        console.warn('[audioFeatureUtils] failed to resolve descriptor channel', error);
+        return null;
+    }
 }
 
 function recordDiagnostics(diagnostics: TempoAlignedAdapterDiagnostics, trackId: string) {
@@ -185,15 +175,20 @@ export function sampleFeatureFrame(
     const { cache, featureTrack } = context;
     const tm = getSharedTimingManager();
     const tick = tm.secondsToTicks(Math.max(0, targetTime));
-    const channelIndex = resolveChannelIndexFromDescriptor(
-        descriptor,
-        featureTrack,
-        cache.channelAliases ?? undefined,
-    );
-    const cacheKey = buildSampleCacheKey(tick, {
-        ...descriptor,
-        channelIndex: channelIndex ?? descriptor.channelIndex ?? null,
-    });
+    let channelIndex: number | null = null;
+    const channelConfig: TrackChannelConfig = {
+        track: featureTrack,
+        cacheAliases: cache.channelAliases ?? null,
+    };
+    if (descriptor.channel != null) {
+        try {
+            channelIndex = resolveChannel(descriptor.channel, channelConfig);
+        } catch (error) {
+            console.warn('[audioFeatureUtils] failed to resolve channel for sampling', error);
+            return null;
+        }
+    }
+    const cacheKey = buildSampleCacheKey(tick, descriptor, channelIndex);
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {
         trackCache = new Map();
@@ -208,7 +203,7 @@ export function sampleFeatureFrame(
         tick,
         options: {
             bandIndex: descriptor.bandIndex ?? undefined,
-            channelIndex: channelIndex ?? descriptor.channelIndex ?? undefined,
+            channelIndex: channelIndex ?? undefined,
             smoothing: descriptor.smoothing ?? undefined,
         },
     });

@@ -4,6 +4,7 @@ import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { useTimelineStore } from '@state/timelineStore';
+import { migrateDescriptorChannels } from '@persistence/migrations/unifyChannelField';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -25,6 +26,7 @@ interface LegacyAudioFeatureBindingData {
     featureKey?: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
+    channel?: number | string | null;
     channelIndex?: number | null;
     channelAlias?: string | null;
     smoothing?: number | null;
@@ -53,12 +55,15 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Audio
         typeof payload.channelAlias === 'string' && payload.channelAlias.trim().length > 0
             ? payload.channelAlias.trim()
             : null;
+    const channelValue =
+        payload.channel != null
+            ? payload.channel
+            : channelAlias ?? coerceIndex(payload.channelIndex);
     return {
         featureKey,
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
-        channelIndex: coerceIndex(payload.channelIndex),
-        channelAlias,
+        channel: channelValue ?? null,
         smoothing,
     };
 }
@@ -84,8 +89,7 @@ export function migrateLegacyAudioFeatureBinding(
                       featureKey: descriptorValue.featureKey,
                       calculatorId: descriptorValue.calculatorId ?? null,
                       bandIndex: descriptorValue.bandIndex ?? null,
-                      channelIndex: descriptorValue.channelIndex ?? null,
-                      channelAlias: descriptorValue.channelAlias ?? null,
+                      channel: descriptorValue.channel ?? null,
                       smoothing: descriptorValue.smoothing ?? null,
                   }
                 : null;
@@ -449,7 +453,17 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
         }
 
         if (type === 'constant') {
-            const constantValue = (payload as { value?: unknown }).value;
+            let constantValue = (payload as { value?: unknown }).value;
+            if (key === 'features') {
+                if (Array.isArray(constantValue)) {
+                    constantValue = constantValue
+                        .map((entry) => migrateDescriptorChannels(entry) ?? null)
+                        .filter((entry): entry is AudioFeatureDescriptor => entry != null);
+                } else {
+                    const migrated = migrateDescriptorChannels(constantValue);
+                    constantValue = migrated ? [migrated] : [];
+                }
+            }
             bindings[key] = { type: 'constant', value: constantValue };
             continue;
         }

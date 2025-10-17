@@ -60,8 +60,7 @@ describe('CacheDiagnosticsBanner', () => {
             featureKey: 'spectrogram',
             calculatorId: 'calc.spectrogram',
             bandIndex: null,
-            channelIndex: null,
-            channelAlias: null,
+            channel: null,
             smoothing: null,
         } as const;
         act(() => {
