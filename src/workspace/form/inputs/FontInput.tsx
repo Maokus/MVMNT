@@ -363,11 +363,11 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         title,
                     })}
                     ref={familyRefs.setReference}
-                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-[12px] font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full items-center justify-between gap-2 rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-xs font-medium text-neutral-100 transition focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                     style={{ fontFamily: `'${currentFamily}', sans-serif` }}
                 >
                     <span className="truncate">{currentFamily}</span>
-                    <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-neutral-400">
+                    <span className="flex items-center gap-1 uppercase tracking-wide text-neutral-400">
                         {loading && <span className="animate-pulse text-[10px]">⏳</span>}
                         <span>Family</span>
                     </span>
@@ -406,11 +406,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                                         key={r}
                                                         type="button"
                                                         onClick={() => handleFamilySelect(r)}
-                                                        className={`rounded-full border px-2 py-1 text-[11px] transition ${
-                                                            r === currentFamily
-                                                                ? 'border-sky-500/80 bg-sky-500/20 text-sky-100'
-                                                                : 'border-neutral-700 bg-neutral-800/60 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800'
-                                                        }`}
+                                                        className={`rounded-full border px-2 py-1 text-[11px] transition ${r === currentFamily
+                                                            ? 'border-sky-500/80 bg-sky-500/20 text-sky-100'
+                                                            : 'border-neutral-700 bg-neutral-800/60 text-neutral-200 hover:border-neutral-500 hover:bg-neutral-800'
+                                                            }`}
                                                     >
                                                         {r}
                                                     </button>
@@ -430,11 +429,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                                         <button
                                                             type="button"
                                                             onClick={() => handleFamilySelect(f)}
-                                                            className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${
-                                                                f === currentFamily
-                                                                    ? 'bg-sky-500/20 text-sky-100'
-                                                                    : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
-                                                            }`}
+                                                            className={`flex w-full items-center justify-between px-3 py-2 text-left transition ${f === currentFamily
+                                                                ? 'bg-sky-500/20 text-sky-100'
+                                                                : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                                }`}
                                                             style={{ fontFamily: `'${f}', sans-serif` }}
                                                         >
                                                             <span className="truncate">{f}</span>
@@ -492,11 +490,10 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                                                 <button
                                                     type="button"
                                                     onClick={() => handleWeightSelect(option)}
-                                                    className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition ${
-                                                        option.value === currentWeightValue
-                                                            ? 'bg-sky-500/20 text-sky-100'
-                                                            : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
-                                                    }`}
+                                                    className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition ${option.value === currentWeightValue
+                                                        ? 'bg-sky-500/20 text-sky-100'
+                                                        : 'text-neutral-200 hover:bg-neutral-800/60 hover:text-white'
+                                                        }`}
                                                 >
                                                     <span>{option.label}</span>
                                                 </button>

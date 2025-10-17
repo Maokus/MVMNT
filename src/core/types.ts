@@ -205,7 +205,8 @@ export interface ConfigSchemaProperty {
         | 'file'
         | 'file-midi'
         | 'file-image'
-        | 'midiTrackRef';
+        | 'timelineTrackRef'
+        | 'audioAnalysisProfile';
     label: string;
     default: any;
     min?: number;
@@ -227,6 +228,24 @@ export interface ConfigSchema {
 // New Grouped Schema Types (for AE-style UI)
 // ==========================================
 
+export type PropertyVisibilityCondition =
+    | {
+          key: string;
+          equals: any;
+      }
+    | {
+          key: string;
+          notEquals: any;
+      }
+    | {
+          key: string;
+          truthy: true;
+      }
+    | {
+          key: string;
+          falsy: true;
+      };
+
 export interface PropertyDefinition {
     key: string;
     type:
@@ -240,7 +259,8 @@ export interface PropertyDefinition {
         | 'file-midi'
         | 'file-image'
         | 'font'
-        | 'midiTrackRef';
+        | 'timelineTrackRef'
+        | 'audioAnalysisProfile';
     label: string;
     default?: any;
     min?: number;
@@ -249,15 +269,36 @@ export interface PropertyDefinition {
     options?: Array<{ value: any; label: string }>;
     accept?: string; // For file inputs
     description?: string;
-    // UI hint: when type === 'midiTrackRef', allow selecting multiple tracks
+    // UI hint: when type === 'timelineTrackRef', allow selecting multiple tracks
+    // Optional filter for track kinds supported by this binding (defaults to MIDI only)
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
+    // Optional link to another property storing the associated track reference
+    trackPropertyKey?: string;
     allowMultiple?: boolean;
+    // Optional glossary anchors used for tooltip copy in the inspector.
+    glossaryTerms?: {
+        featureDescriptor?: string;
+        analysisProfile?: string;
+    };
+    // Optional visibility rules for progressive disclosure
+    visibleWhen?: PropertyVisibilityCondition[];
+}
+
+export interface PropertyGroupPreset {
+    id: string;
+    label: string;
+    description?: string;
+    values: Record<string, any>;
 }
 
 export interface PropertyGroup {
     id: string;
     label: string;
     collapsed: boolean;
+    variant?: 'basic' | 'advanced';
+    description?: string;
     properties: PropertyDefinition[];
+    presets?: PropertyGroupPreset[];
 }
 
 export interface EnhancedConfigSchema {

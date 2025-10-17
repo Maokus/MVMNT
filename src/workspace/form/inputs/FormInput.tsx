@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FileInput from './FileInput';
 import FontInput from './FontInput';
-import MidiTrackSelect from './MidiTrackSelect';
+import TimelineTrackSelect from './TimelineTrackSelect';
+import { AudioAnalysisProfileSelect } from './AudioAnalysisProfileSelect';
 import { useNumberDrag } from './useNumberDrag';
 
 export interface FormInputChangeMeta {
@@ -9,6 +10,7 @@ export interface FormInputChangeMeta {
         id: string;
         finalize: boolean;
     };
+    linkedUpdates?: Record<string, any>;
 }
 
 export interface FormInputChange {
@@ -63,11 +65,11 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         onChange: (next, meta) => {
             emitChange(next, meta
                 ? {
-                      mergeSession: {
-                          id: meta.sessionId,
-                          finalize: meta.finalize,
-                      },
-                  }
+                    mergeSession: {
+                        id: meta.sessionId,
+                        finalize: meta.finalize,
+                    },
+                }
                 : undefined);
         },
     });
@@ -154,14 +156,52 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     }
 
     if (type === 'number') {
+        const evaluateNumberInput = (rawValue: string): number | null => {
+            const trimmed = rawValue.trim();
+            if (!trimmed) return null;
+
+            const direct = Number(trimmed);
+            if (!Number.isNaN(direct) && Number.isFinite(direct)) {
+                return direct;
+            }
+
+            const allowedPattern = /^[\d+\-*/().\s]+$/;
+            if (!allowedPattern.test(trimmed)) {
+                return null;
+            }
+
+            try {
+                // eslint-disable-next-line no-new-func
+                const computed = new Function(`"use strict"; return (${trimmed});`)();
+                if (typeof computed === 'number' && Number.isFinite(computed)) {
+                    return computed;
+                }
+            } catch {
+                return null;
+            }
+
+            return null;
+        };
+
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
             setLocalValue(inputValue);
 
             if (inputValue === '' || inputValue === '-') return;
+        };
 
-            const numValue = parseFloat(inputValue);
-            if (!isNaN(numValue)) emitChange(numValue);
+        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+            const inputValue = e.target.value;
+
+            if (inputValue === '' || inputValue === '-') {
+                return;
+            }
+
+            const evaluated = evaluateNumberInput(inputValue);
+            if (evaluated !== null) {
+                setLocalValue(evaluated.toString());
+                emitChange(evaluated);
+            }
         };
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -170,7 +210,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
         return (
             <input
-                type="number"
+                type="text"
                 id={id}
                 value={localValue}
                 min={schema?.min}
@@ -180,6 +220,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 title={title}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
                 onPointerDown={numberDragHandlers.onPointerDown}
                 onPointerMove={numberDragHandlers.onPointerMove}
                 onPointerUp={numberDragHandlers.onPointerUp}
@@ -208,9 +249,29 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         );
     }
 
-    if (type === 'midiTrackRef') {
+    if (type === 'timelineTrackRef') {
         return (
-            <MidiTrackSelect id={id} value={value ?? null} schema={schema} disabled={disabled} title={title} onChange={onChange} />
+            <TimelineTrackSelect
+                id={id}
+                value={value ?? null}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
+        );
+    }
+
+    if (type === 'audioAnalysisProfile') {
+        return (
+            <AudioAnalysisProfileSelect
+                id={id}
+                value={typeof value === 'string' ? value : null}
+                schema={schema}
+                disabled={disabled}
+                title={title}
+                onChange={onChange}
+            />
         );
     }
 

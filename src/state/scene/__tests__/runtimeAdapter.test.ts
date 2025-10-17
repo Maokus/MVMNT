@@ -58,5 +58,35 @@ describe('SceneRuntimeAdapter', () => {
         expect(bindings.background.zIndex).toEqual({ type: 'constant', value: 1 });
         expect(bindings.title.zIndex).toEqual({ type: 'constant', value: 0 });
     });
-});
 
+    it('hydrates audio feature track bindings for new elements', () => {
+        store.getState().addElement({
+            id: 'osc',
+            type: 'audioOscilloscope',
+            index: store.getState().order.length,
+            bindings: {
+                audioTrackId: { type: 'constant', value: 'track-1' },
+                features: {
+                    type: 'constant',
+                    value: [
+                        {
+                            featureKey: 'waveform',
+                            calculatorId: 'mvmnt.waveform',
+                            bandIndex: null,
+                            channel: null,
+                            smoothing: 0.1,
+                        },
+                    ],
+                },
+                analysisProfileId: { type: 'constant', value: 'default' },
+            },
+        });
+
+        const runtimeElement = adapter.getElements().find((element) => element.id === 'osc');
+        expect(runtimeElement).toBeDefined();
+        const trackBinding = runtimeElement?.getBinding('audioTrackId');
+        const descriptorBinding = runtimeElement?.getBinding('features');
+        expect(trackBinding?.getValue()).toBe('track-1');
+        expect(descriptorBinding?.getValue()).toEqual([expect.objectContaining({ featureKey: 'waveform' })]);
+    });
+});

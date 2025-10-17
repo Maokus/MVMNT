@@ -136,6 +136,10 @@ function buildRedoPayload(
         if (cache) {
             payload.audioCache = { key, value: cache };
         }
+        const featureCache = state.audioFeatureCaches?.[key];
+        if (featureCache) {
+            payload.audioFeatureCache = { key, value: featureCache };
+        }
     }
     return payload;
 }
@@ -149,6 +153,7 @@ function buildUndoPayload(
     const track = state.tracks[trackId] as TimelineTrackLike | undefined;
     const midiCacheKeys: string[] = [];
     const audioCacheKeys: string[] = [];
+    const audioFeatureCacheKeys: string[] = [];
     if (track?.type === 'midi') {
         const key = track.midiSourceId ?? trackId;
         if (state.midiCache[key]) {
@@ -160,11 +165,15 @@ function buildUndoPayload(
         if (state.audioCache[key]) {
             audioCacheKeys.push(key);
         }
+        if (state.audioFeatureCaches?.[key]) {
+            audioFeatureCacheKeys.push(key);
+        }
     }
     return {
         trackIds: [trackId],
         midiCacheKeys: midiCacheKeys.length ? midiCacheKeys : undefined,
         audioCacheKeys: audioCacheKeys.length ? audioCacheKeys : undefined,
+        audioFeatureCacheKeys: audioFeatureCacheKeys.length ? audioFeatureCacheKeys : undefined,
         selection: previousSelection,
     };
 }

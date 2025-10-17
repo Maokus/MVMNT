@@ -1,3 +1,5 @@
+status: draft
+
 ## 1. Goal & Scope
 
 Add a per‑MIDI‑track toggleable synth audition (muted by default) that plays that track’s notes through a lightweight Web Audio–based polyphonic synth synchronized with the existing transport. It must: - Respect transport play/stop, looping, and tempo (including tempo map changes if supported). - Be low CPU, garbage‑light, and not interfere with existing rendering/export systems. - Persist its on/off state with documents. - Require a single user gesture to unlock AudioContext (first activation or global transport start). - Be future‑extensible (envelopes, instrument presets, velocity curves).

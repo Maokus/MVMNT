@@ -18,13 +18,25 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
-                    <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
-                        <h2 className="text-xl font-semibold mb-3 text-white">Unreleased / In Progress</h2>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-                            <li>Video?</li>
-                            <li>Tracker style text elements</li>
-                        </ul>
-                    </section>
+                    <ChangelogEntry
+                        version="0.15.0"
+                        date="24-10-25"
+                        notes={[
+                            'Simplified audio descriptor model with runtime sampling options',
+                            'Introduced feature requirement registry for audio-reactive elements',
+                            'Refreshed documentation (architecture, concepts, quick start)',
+                            'Updated README examples to use lazy sampling API',
+                        ]}
+                    />
+
+                    <ChangelogEntry version="0.14.0" date="15-10-25" notes={[
+                        'Implemented background audio feature extraction and analysis',
+                        'Added audio elements (volume meter, oscilloscope, spectrum analyzer)',
+                        'Overhauled properties system for improved UX and template compatibility',
+                        'Improved responsiveness through lazy loading and user indicators',
+                        'Added new templates',
+                        'Bugfixes (weird midi parser issues, negative offsets, scroll desync)',
+                    ]} />
 
                     <ChangelogEntry version="0.13.0" date="05-10-25" notes={[
                         'Added audio track support: playback, export, mixing',

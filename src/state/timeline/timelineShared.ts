@@ -51,7 +51,16 @@ function computeContentEndTick(state: TimelineState): number {
         } else if (t.type === 'audio') {
             const cacheKey = t.audioSourceId ?? id;
             const acache = state.audioCache[cacheKey];
-            if (!acache) continue;
+            if (!acache) {
+                const featureCache = (state as any).audioFeatureCaches?.[cacheKey] as
+                    | import('@audio/features/audioFeatureTypes').AudioFeatureCache
+                    | undefined;
+                if (!featureCache) continue;
+                const hopTicks = featureCache.hopTicks ?? featureCache.tempoProjection?.hopTicks ?? 0;
+                const clipEnd = featureCache.frameCount * hopTicks + t.offsetTicks;
+                if (clipEnd > max) max = clipEnd;
+                continue;
+            }
             const clipEnd = (t.regionEndTick ?? acache.durationTicks) + t.offsetTicks;
             if (clipEnd > max) max = clipEnd;
         }
@@ -75,7 +84,15 @@ function computeContentStartTick(state: TimelineState): number {
         } else if (t.type === 'audio') {
             const cacheKey = t.audioSourceId ?? id;
             const acache = state.audioCache[cacheKey];
-            if (!acache) continue;
+            if (!acache) {
+                const featureCache = (state as any).audioFeatureCaches?.[cacheKey] as
+                    | import('@audio/features/audioFeatureTypes').AudioFeatureCache
+                    | undefined;
+                if (!featureCache) continue;
+                const clipStart = t.offsetTicks;
+                if (clipStart < min) min = clipStart;
+                continue;
+            }
             const regionStart = t.regionStartTick ?? 0;
             const clipStart = regionStart + t.offsetTicks;
             if (clipStart < min) min = clipStart;

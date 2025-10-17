@@ -9,6 +9,7 @@ import {
     type SceneSerializedMacros,
     type SceneSettingsState,
     type SceneStoreState,
+    migrateLegacyAudioFeatureBinding,
 } from '@state/sceneStore';
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
@@ -135,6 +136,18 @@ function normalizeBindingValue(value: unknown): BindingState {
 function buildBindingsPatchFromConfig(patch: Record<string, unknown>): ElementBindingsPatch {
     const next: ElementBindingsPatch = {};
     for (const [property, value] of Object.entries(patch)) {
+        if (property === 'featureBinding') {
+            const migration = migrateLegacyAudioFeatureBinding(property, value);
+            if (migration) {
+                for (const cleared of migration.clearedKeys) {
+                    next[cleared] = null;
+                }
+                for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
+                    next[replacementKey] = binding;
+                }
+                continue;
+            }
+        }
         if (value == null) {
             next[property] = null;
             continue;

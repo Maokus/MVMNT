@@ -5,6 +5,7 @@ import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
+import type { AudioTrack } from '@audio/audioTypes';
 
 type Props = {
     trackIds: string[];
@@ -73,6 +74,11 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return undefined;
         });
         const audioCacheEntry = useTimelineStore((s) => s.audioCache[trackId]);
+        const isAudioTrack = track?.type === 'audio';
+        const audioSourceId = isAudioTrack ? (track as AudioTrack).audioSourceId ?? trackId : undefined;
+        const audioFeatureStatus = useTimelineStore((s) =>
+            audioSourceId ? s.audioFeatureCacheStatus[audioSourceId] : undefined,
+        );
         const setTrackGain = useTimelineStore((s) => s.setTrackGain);
         const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
         const ppq = CANONICAL_PPQ; // unified PPQ
@@ -220,7 +226,17 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const leftX = toX(absStartTick, laneWidth);
         const rightX = toX(absEndTick, laneWidth);
         const widthPx = Math.max(0, rightX - leftX);
+        const placeholderTicks = ppq * Math.max(1, bpb || 4);
+        const placeholderWidthPx = Math.max(8, toX(absStartTick + placeholderTicks, laneWidth) - leftX);
+        const effectiveWidthPx = isAudioTrack
+            ? widthPx > 0
+                ? Math.max(8, widthPx)
+                : placeholderWidthPx
+            : Math.max(8, widthPx);
+        const shouldRenderClip = isAudioTrack ? effectiveWidthPx > 0 : widthPx > 0;
+        const hasWaveform = isAudioTrack && (audioCacheEntry?.waveform?.channelPeaks?.length ?? 0) > 0;
         const clipHeight = Math.max(18, laneHeight * 0.6);
+        const canResize = !isAudioTrack || widthPx > 0;
         const offsetBeats = useMemo(() => {
             if (!track) return 0;
             return (dragTick != null ? dragTick : (track.offsetTicks || 0)) / ppq;
@@ -258,22 +274,69 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
         }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
+        let featureStatusLabel: string | null = null;
+        let featureStatusClass = '';
+        if (isAudioTrack) {
+            const pendingProgress = audioFeatureStatus?.progress;
+            const pendingPercent = pendingProgress
+                ? Math.round(Math.max(0, Math.min(1, pendingProgress.value)) * 100)
+                : null;
+            switch (audioFeatureStatus?.state) {
+                case 'ready':
+                    featureStatusLabel = 'Analysed';
+                    featureStatusClass = 'bg-emerald-500/60 text-emerald-50 border border-emerald-300/40';
+                    break;
+                case 'pending':
+                    featureStatusLabel =
+                        pendingPercent != null ? `Analysing… ${pendingPercent}%` : 'Analysing…';
+                    featureStatusClass = 'bg-amber-500/60 text-amber-50 border border-amber-300/40';
+                    break;
+                case 'failed':
+                    featureStatusLabel = 'Failed';
+                    featureStatusClass = 'bg-rose-500/70 text-rose-50 border border-rose-300/40';
+                    break;
+                case 'stale':
+                    featureStatusLabel = 'Queued';
+                    featureStatusClass = 'bg-sky-500/60 text-sky-50 border border-sky-300/40';
+                    break;
+                case 'idle':
+                    featureStatusLabel = 'Not analysed';
+                    featureStatusClass = 'bg-slate-600/70 text-slate-100 border border-slate-400/40';
+                    break;
+                default:
+                    featureStatusLabel = 'Not analysed';
+                    featureStatusClass = 'bg-slate-600/70 text-slate-100 border border-slate-400/40';
+            }
+        }
+
+        const featureStatusTitle = useMemo(() => {
+            if (!audioFeatureStatus) return undefined;
+            const parts: string[] = [];
+            if (audioFeatureStatus.message) {
+                parts.push(audioFeatureStatus.message);
+            }
+            if (audioFeatureStatus.state === 'pending' && audioFeatureStatus.progress?.label) {
+                parts.push(`Phase: ${audioFeatureStatus.progress.label}`);
+            }
+            return parts.length ? parts.join(' • ') : undefined;
+        }, [audioFeatureStatus]);
+
         return (
             <div className="relative h-full"
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
             >
                 {/* Track clip rectangle (width reflects clip length) */}
-                {widthPx > 0 && (
+                {shouldRenderClip && (
                     <div
                         className={`absolute top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-white cursor-grab active:cursor-grabbing select-none overflow-hidden ${isSelected ? 'bg-blue-500/60 border border-blue-300/80' : 'bg-blue-500/40 border border-blue-400/60'}`}
-                        style={{ left: leftX, width: Math.max(8, widthPx), height: clipHeight }}
+                        style={{ left: leftX, width: effectiveWidthPx, height: clipHeight }}
                         title={tooltip}
                         onPointerDown={onPointerDown}
                         data-clip="1"
                     >
                         {/* Audio waveform background (only for audio tracks) */}
-                        {track?.type === 'audio' && (
+                        {hasWaveform && (
                             <div className="absolute inset-0 pointer-events-none opacity-70">
                                 <AudioWaveform
                                     trackId={trackId}
@@ -295,7 +358,19 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             <span>{track?.name}</span>
                             <span className="opacity-80">{label}</span>
                             {track?.type === 'audio' ? (
-                                <span className="ml-1 text-[10px] opacity-80">{audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}</span>
+                                <>
+                                    <span className="ml-1 text-[10px] opacity-80">
+                                        {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
+                                    </span>
+                                    {featureStatusLabel && (
+                                        <span
+                                            className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
+                                            title={featureStatusTitle}
+                                        >
+                                            {featureStatusLabel}
+                                        </span>
+                                    )}
+                                </>
                             ) : (
                                 (midiCacheEntry?.notesRaw?.length ?? 0) === 0 && (
                                     <span className="ml-1 text-[10px] opacity-70">No data</span>
@@ -304,16 +379,20 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         </div>
 
                         {/* Resize handles */}
-                        <div
-                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                            onPointerDown={(e) => onResizeDown(e, 'left')}
-                            title="Resize start (Shift snaps to bars, Alt bypass)"
-                        />
-                        <div
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                            onPointerDown={(e) => onResizeDown(e, 'right')}
-                            title="Resize end (Shift snaps to bars, Alt bypass)"
-                        />
+                        {canResize && (
+                            <>
+                                <div
+                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                    onPointerDown={(e) => onResizeDown(e, 'left')}
+                                    title="Resize start (Shift snaps to bars, Alt bypass)"
+                                />
+                                <div
+                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                    onPointerDown={(e) => onResizeDown(e, 'right')}
+                                    title="Resize end (Shift snaps to bars, Alt bypass)"
+                                />
+                            </>
+                        )}
                     </div>
                 )}
             </div>

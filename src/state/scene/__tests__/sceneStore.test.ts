@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 import type { SceneClipboard } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
 import { createSceneSelectors } from '@state/scene/selectors';
+import audioMacroFixture from '@persistence/__fixtures__/baseline/scene.audio-feature-macro.json';
 
 type Store = ReturnType<typeof createSceneStore>;
 
@@ -182,9 +184,7 @@ describe('sceneStore', () => {
             type: 'macro',
             macroId: 'macro.color.accent',
         });
-        expect(state.bindings.byMacro['macro.color.accent']).toEqual([
-            { elementId: 'title', propertyPath: 'color' },
-        ]);
+        expect(state.bindings.byMacro['macro.color.accent']).toEqual([{ elementId: 'title', propertyPath: 'color' }]);
     });
 
     it('keeps macro exportedAt stable across draft exports without mutations', () => {
@@ -197,6 +197,261 @@ describe('sceneStore', () => {
         expect(secondExport.macros?.exportedAt).toBe(firstExport.macros?.exportedAt);
     });
 
+    it('persists audio feature track bindings through export drafts', () => {
+        store.getState().addElement({
+            id: 'audio-element',
+            type: 'audioSpectrum',
+            index: 0,
+            bindings: {
+                audioTrackId: { type: 'constant', value: 'audio-track' },
+                features: {
+                    type: 'constant',
+                    value: [
+                        {
+                            featureKey: 'rms',
+                            calculatorId: 'mvmnt.rms',
+                            bandIndex: null,
+                            channel: null,
+                            smoothing: 0.15,
+                        },
+                    ],
+                },
+                analysisProfileId: { type: 'constant', value: 'default' },
+            },
+        });
+
+        const elementBindings = store.getState().bindings.byElement['audio-element'];
+        expect(elementBindings.audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect(elementBindings.features).toEqual({
+            type: 'constant',
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channel: null,
+                },
+            ],
+        });
+        expect(elementBindings.smoothing).toEqual({ type: 'constant', value: 0.15 });
+        expect(elementBindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+
+        const exported = store.getState().exportSceneDraft();
+        const serialized = exported.elements.find((el) => el.id === 'audio-element');
+        expect(serialized).toBeDefined();
+        expect((serialized as any).audioTrackId).toEqual({ type: 'constant', value: 'audio-track' });
+        expect((serialized as any).features).toEqual({
+            type: 'constant',
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channel: null,
+                },
+            ],
+        });
+        expect((serialized as any).smoothing).toEqual({ type: 'constant', value: 0.15 });
+        expect((serialized as any).analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+    });
+
+    it('imports audio feature macro fixtures with track bindings intact', () => {
+        store.getState().importScene(audioMacroFixture as any);
+
+        const bindings = store.getState().bindings.byElement['spectrum'];
+        expect(bindings?.audioTrackId).toEqual({ type: 'macro', macroId: 'macro.audio.track' });
+        expect(bindings?.features?.type).toBe('constant');
+        expect(bindings?.analysisProfileId?.type).toBe('constant');
+
+        const macro = store.getState().macros.byId['macro.audio.track'];
+        expect(macro?.options?.allowedTrackTypes).toEqual(['audio']);
+        expect(macro?.value).toBe('audio-track-1');
+    });
+
+    it('ensures imported descriptor arrays gain a default analysis profile', () => {
+        store.getState().importScene({
+            elements: [
+                {
+                    id: 'audio-element',
+                    type: 'audioSpectrum',
+                    audioTrackId: { type: 'constant', value: 'audio-track-1' },
+                    features: {
+                        type: 'constant',
+                        value: [
+                            {
+                                featureKey: 'waveform',
+                                calculatorId: 'mvmnt.waveform',
+                                bandIndex: null,
+                                channel: null,
+                            },
+                        ],
+                    },
+                },
+            ],
+        } as any);
+
+        const bindings = store.getState().bindings.byElement['audio-element'];
+        expect(bindings?.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+    });
+
+    it('applies a default analysis profile when descriptor arrays are assigned', () => {
+        store.getState().addElement({ id: 'audio-element', type: 'audioSpectrum' });
+
+        store.getState().updateBindings('audio-element', {
+            features: {
+                type: 'constant',
+                value: [
+                    {
+                        featureKey: 'rms',
+                        calculatorId: 'mvmnt.rms',
+                        bandIndex: null,
+                        channel: null,
+                        smoothing: 0.1,
+                    },
+                ],
+            },
+        });
+
+        const bindings = store.getState().bindings.byElement['audio-element'];
+        expect(bindings?.features).toEqual({
+            type: 'constant',
+            value: [
+                {
+                    featureKey: 'rms',
+                    calculatorId: 'mvmnt.rms',
+                    bandIndex: null,
+                    channel: null,
+                },
+            ],
+        });
+        expect(bindings?.smoothing).toEqual({ type: 'constant', value: 0.1 });
+        expect(bindings?.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+    });
+
+    describe('timeline track macro validation', () => {
+        beforeEach(() => {
+            useTimelineStore.getState().resetTimeline();
+            useTimelineStore.setState((state) => ({
+                ...state,
+                tracks: {
+                    audioA: {
+                        id: 'audioA',
+                        name: 'Audio A',
+                        type: 'audio',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                        gain: 1,
+                    },
+                    audioB: {
+                        id: 'audioB',
+                        name: 'Audio B',
+                        type: 'audio',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                        gain: 1,
+                    },
+                    midiA: {
+                        id: 'midiA',
+                        name: 'MIDI A',
+                        type: 'midi',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        offsetTicks: 0,
+                    },
+                },
+                tracksOrder: ['audioA', 'audioB', 'midiA'],
+            }));
+        });
+
+        afterEach(() => {
+            useTimelineStore.getState().resetTimeline();
+        });
+
+        it('accepts audio track assignments when allowed', () => {
+            store.getState().createMacro('macro.audio.track', {
+                type: 'timelineTrackRef',
+                value: 'audioA',
+                options: { allowedTrackTypes: ['audio'] },
+            });
+
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioA');
+
+            expect(() => store.getState().updateMacroValue('macro.audio.track', 'audioB')).not.toThrow();
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioB');
+        });
+
+        it('rejects mismatched track types with descriptive errors', () => {
+            store.getState().createMacro('macro.audio.track', {
+                type: 'timelineTrackRef',
+                value: 'audioA',
+                options: { allowedTrackTypes: ['audio'] },
+            });
+
+            expect(() => store.getState().updateMacroValue('macro.audio.track', 'midiA')).toThrowError(
+                /audio.*macro accepts audio tracks/i
+            );
+            expect(store.getState().macros.byId['macro.audio.track']?.value).toBe('audioA');
+        });
+
+        it('validates multi-track assignments when allowMultiple is set', () => {
+            store.getState().createMacro('macro.audio.multi', {
+                type: 'timelineTrackRef',
+                value: ['audioA'],
+                options: { allowedTrackTypes: ['audio'], allowMultiple: true },
+            });
+
+            expect(() => store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'audioB'])).not.toThrow();
+
+            expect(() => store.getState().updateMacroValue('macro.audio.multi', ['audioA', 'midiA'])).toThrowError(
+                /macro accepts audio tracks/i
+            );
+        });
+    });
+
+    it('migrates legacy audio feature binding patches without polluting macro indices', () => {
+        store.getState().addElement({
+            id: 'osc',
+            type: 'audioOscilloscope',
+            index: store.getState().order.length,
+        });
+
+        store.getState().updateBindings('osc', {
+            featureBinding: {
+                type: 'audioFeature',
+                trackId: 'track-1',
+                featureKey: 'waveform',
+                calculatorId: 'mvmnt.waveform',
+                bandIndex: 1,
+                channelIndex: 0,
+                smoothing: 0.25,
+            } as any,
+        });
+
+        const bindings = store.getState().bindings.byElement['osc'];
+        expect(bindings.featureBinding).toBeUndefined();
+        expect(bindings.audioTrackId).toEqual({ type: 'constant', value: 'track-1' });
+        expect(bindings.features).toEqual({
+            type: 'constant',
+            value: [
+                {
+                    featureKey: 'waveform',
+                    calculatorId: 'mvmnt.waveform',
+                    bandIndex: 1,
+                    channel: 0,
+                },
+            ],
+        });
+        expect(bindings.smoothing).toEqual({ type: 'constant', value: 0.25 });
+        expect(bindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });
+
+        expect(store.getState().bindings.byMacro).not.toHaveProperty('undefined');
+    });
+
     it('registers, updates, and deletes font assets', () => {
         const asset: FontAsset = {
             id: 'font-1',
@@ -206,9 +461,7 @@ describe('sceneStore', () => {
             createdAt: Date.now(),
             updatedAt: Date.now(),
             licensingAcknowledged: true,
-            variants: [
-                { id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' },
-            ],
+            variants: [{ id: 'regular', weight: 400, style: 'normal', sourceFormat: 'ttf' }],
         };
 
         store.getState().registerFontAsset(asset);
@@ -230,9 +483,7 @@ describe('sceneStore', () => {
             createdAt: 123,
             updatedAt: 456,
             licensingAcknowledged: true,
-            variants: [
-                { id: 'italic', weight: 400, style: 'italic', sourceFormat: 'otf' },
-            ],
+            variants: [{ id: 'italic', weight: 400, style: 'italic', sourceFormat: 'otf' }],
         };
 
         store.getState().importScene({

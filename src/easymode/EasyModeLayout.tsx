@@ -36,7 +36,7 @@ const EasyModeLayout: React.FC = () => {
     const uploadInputRef = useRef<HTMLInputElement | null>(null);
     const { macros: macroList, updateValue } = useMacros();
     const midiMacros = useMemo(() => {
-        return (macroList as any[]).filter((macro) => macro?.type === 'midiTrackRef');
+        return (macroList as any[]).filter((macro) => macro?.type === 'timelineTrackRef');
     }, [macroList]);
     const previousMidiCountRef = useRef(midiTrackCount);
 

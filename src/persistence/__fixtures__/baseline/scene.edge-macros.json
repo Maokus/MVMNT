@@ -102,7 +102,7 @@
       },
       "macro.midi.track": {
         "name": "macro.midi.track",
-        "type": "midiTrackRef",
+        "type": "timelineTrackRef",
         "value": ["track-1"],
         "defaultValue": [],
         "options": {},

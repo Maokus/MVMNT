@@ -350,80 +350,80 @@ const TimelinePanel: React.FC = () => {
     return (
         <>
             <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
-            {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-            <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
-                {/* Left: Add track */}
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                        <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
-                            <FaPlus className="text-neutral-300" />
-                            <span>MIDI</span>
-                            <input
-                                ref={fileRef}
-                                type="file"
-                                accept=".mid,.midi"
-                                multiple
-                                className="hidden"
-                                onChange={handleAddFile}
-                            />
-                        </label>
-                        <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
-                            <FaPlus className="text-emerald-300" />
-                            <span>Audio</span>
-                            <input
-                                ref={audioFileRef}
-                                type="file"
-                                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
-                                className="hidden"
-                                onChange={handleAddAudio}
-                            />
-                        </label>
+                {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
+                <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
+                    {/* Left: Add track */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <label className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1">
+                                <FaPlus className="text-neutral-300" />
+                                <span>MIDI</span>
+                                <input
+                                    ref={fileRef}
+                                    type="file"
+                                    accept=".mid,.midi"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleAddFile}
+                                />
+                            </label>
+                            <label className="px-2 py-1 border border-emerald-700 rounded cursor-pointer text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/60 flex items-center gap-1" title="Add Audio Track (wav/mp3/ogg)">
+                                <FaPlus className="text-emerald-300" />
+                                <span>Audio</span>
+                                <input
+                                    ref={audioFileRef}
+                                    type="file"
+                                    accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
+                                    className="hidden"
+                                    onChange={handleAddAudio}
+                                />
+                            </label>
+                        </div>
+                        <TimeIndicator />
                     </div>
-                    <TimeIndicator />
-                </div>
-                {/* Center: transport buttons only */}
-                <div className="flex items-center justify-center justify-self-center">
-                    <TransportControls />
-                </div>
-                {/* Right: timeline view controls with overflow menu */}
-                <div className="justify-self-end">
-                    <HeaderRightControls follow={follow} setFollow={setFollow} />
-                </div>
-            </div>
-            <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
-                <div className="flex h-full w-full overflow-hidden">
-                    <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
-                        <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                            <TrackList trackIds={trackIds} />
-                        </div>
-                        <div className="flex min-h-full flex-1 flex-col">
-                            <div className="sticky top-0 z-10">
-                                <TimelineRuler />
-                            </div>
-                            <div
-                                className="relative flex-1 overflow-x-auto"
-                                ref={lanesScrollRef}
-                                onWheel={onRightWheel}
-                                onPointerDown={onRightPointerDown}
-                                onPointerMove={onRightPointerMove}
-                                onPointerUp={onRightPointerUp}
-                                style={{ overscrollBehaviorX: 'contain', overflowY: 'visible' }}
-                            >
-                                <TrackLanes trackIds={trackIds} />
-                            </div>
-                        </div>
+                    {/* Center: transport buttons only */}
+                    <div className="flex items-center justify-center justify-self-center">
+                        <TransportControls />
+                    </div>
+                    {/* Right: timeline view controls with overflow menu */}
+                    <div className="justify-self-end">
+                        <HeaderRightControls follow={follow} setFollow={setFollow} />
                     </div>
                 </div>
+                <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
+                    <div className="flex h-full w-full overflow-hidden">
+                        <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
+                            <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                <TrackList trackIds={trackIds} />
+                            </div>
+                            <div className="flex min-h-full flex-1 flex-col">
+                                <div className="sticky top-0 z-10">
+                                    <TimelineRuler />
+                                </div>
+                                <div
+                                    className="relative flex-1 overflow-x-auto"
+                                    ref={lanesScrollRef}
+                                    onWheel={onRightWheel}
+                                    onPointerDown={onRightPointerDown}
+                                    onPointerMove={onRightPointerMove}
+                                    onPointerUp={onRightPointerUp}
+                                    style={{ overscrollBehaviorX: 'contain', overflowY: 'visible' }}
+                                >
+                                    <TrackLanes trackIds={trackIds} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-        <MidiImportModeModal
-            open={!!multiTrackPrompt}
-            fileName={multiTrackPrompt?.fileName ?? ''}
-            tracks={multiTrackPrompt?.tracks ?? []}
-            onCancel={() => resolveImportMode('cancel')}
-            onImportSingle={() => resolveImportMode('single')}
-            onImportSplit={() => resolveImportMode('split')}
-        />
+            <MidiImportModeModal
+                open={!!multiTrackPrompt}
+                fileName={multiTrackPrompt?.fileName ?? ''}
+                tracks={multiTrackPrompt?.tracks ?? []}
+                onCancel={() => resolveImportMode('cancel')}
+                onImportSingle={() => resolveImportMode('single')}
+                onImportSplit={() => resolveImportMode('split')}
+            />
         </>
     );
 };
@@ -620,11 +620,10 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                         : `Snapping: ${pendingQuantizeLabel} (click to turn on)`
                 }
                 onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${
-                    magnetActive
-                        ? 'bg-blue-600/70 text-white border-blue-400/70'
-                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
-                }`}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${magnetActive
+                    ? 'bg-blue-600/70 text-white border-blue-400/70'
+                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                    }`}
             >
                 <FaMagnet />
             </button>
@@ -650,12 +649,12 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                                 role: 'menu',
                                 'aria-label': 'Timeline options menu',
                                 className:
-                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000]',
+                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000] text-xs',
                             })}
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
                         >
-                            <div className="flex items-center justify-between gap-2 text-sm">
+                            <div className="flex items-center justify-between gap-2">
                                 <span className="text-neutral-300">Auto follow playhead</span>
                                 <button
                                     className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
@@ -666,7 +665,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                                     {follow ? 'On' : 'Off'}
                                 </button>
                             </div>
-                            <div className="flex flex-col gap-1 text-sm" role="none">
+                            <div className="flex flex-col gap-1" role="none">
                                 <label htmlFor={snapSelectId} className="text-xs font-medium uppercase tracking-wide text-neutral-400">
                                     Snap to
                                 </label>

@@ -1,0 +1,62 @@
+{
+    "elements": [
+        {
+            "id": "spectrum",
+            "type": "audioSpectrum",
+            "visible": { "type": "constant", "value": true },
+            "zIndex": { "type": "constant", "value": 0 },
+            "elementOpacity": { "type": "constant", "value": 1 },
+            "offsetX": { "type": "constant", "value": 0 },
+            "offsetY": { "type": "constant", "value": 0 },
+            "anchorX": { "type": "constant", "value": 0.5 },
+            "anchorY": { "type": "constant", "value": 0.5 },
+            "elementScaleX": { "type": "constant", "value": 1 },
+            "elementScaleY": { "type": "constant", "value": 1 },
+            "elementRotation": { "type": "constant", "value": 0 },
+            "elementSkewX": { "type": "constant", "value": 0 },
+            "elementSkewY": { "type": "constant", "value": 0 },
+            "audioTrackId": { "type": "macro", "macroId": "macro.audio.track" },
+            "features": {
+                "type": "constant",
+                "value": [
+                    {
+                        "featureKey": "spectrogram",
+                        "calculatorId": "mvmnt.spectrogram",
+                        "bandIndex": null,
+                        "channel": null
+                    }
+                ]
+            },
+            "analysisProfileId": { "type": "constant", "value": "default" },
+            "smoothing": { "type": "constant", "value": 4 },
+            "startFrequency": { "type": "constant", "value": 80 },
+            "endFrequency": { "type": "constant", "value": 16000 },
+            "useLogScale": { "type": "constant", "value": true },
+            "bandCount": { "type": "constant", "value": 96 },
+            "visualGain": { "type": "constant", "value": 1.25 },
+            "displayMode": { "type": "constant", "value": "bar" },
+            "index": 0
+        }
+    ],
+    "sceneSettings": {
+        "fps": 60,
+        "width": 1920,
+        "height": 1080,
+        "tempo": 128,
+        "beatsPerBar": 4
+    },
+    "macros": {
+        "macros": {
+            "macro.audio.track": {
+                "name": "macro.audio.track",
+                "type": "timelineTrackRef",
+                "value": "audio-track-1",
+                "defaultValue": null,
+                "options": { "allowedTrackTypes": ["audio"] },
+                "createdAt": 1700000000000,
+                "lastModified": 1700000000000
+            }
+        },
+        "exportedAt": 1700000000000
+    }
+}

@@ -11,52 +11,80 @@ export class TextOverlayElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Text',
             description: 'Single line text display',
             category: 'Layout',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'content',
+                    id: 'textContent',
                     label: 'Content',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Edit the copy that appears on screen.',
                     properties: [
                         {
                             key: 'text',
                             type: 'string',
-                            label: 'Text',
+                            label: 'Text Content',
                             default: 'Sample Text',
-                            description: 'The text content to display',
+                            description: 'The text content to display.',
                         },
+                    ],
+                    presets: [
+                        { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
+                        { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
                     ],
                 },
                 {
-                    id: 'appearance',
-                    label: 'Appearance',
+                    id: 'typography',
+                    label: 'Typography',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Control font styling for the text element.',
                     properties: [
                         {
                             key: 'fontFamily',
                             type: 'font',
                             label: 'Font Family',
                             default: 'Inter',
-                            description: 'Choose the font family (Google Fonts supported)',
+                            description: 'Choose the font family (Google Fonts supported).',
                         },
-                        // weight now embedded in font selection value as family|weight
                         {
                             key: 'fontSize',
                             type: 'number',
-                            label: 'Size',
+                            label: 'Font Size (px)',
                             default: 36,
                             min: 8,
-                            max: 120,
+                            max: 160,
                             step: 1,
-                            description: 'Font size in pixels',
+                            description: 'Font size in pixels.',
                         },
-                        { key: 'color', type: 'color', label: 'Color', default: '#ffffff', description: 'Text color' },
+                        {
+                            key: 'color',
+                            type: 'color',
+                            label: 'Text Color',
+                            default: '#ffffff',
+                            description: 'Color used when rendering the text.',
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'headline',
+                            label: 'Headline',
+                            values: { fontFamily: 'Inter|700', fontSize: 48, color: '#ffffff' },
+                        },
+                        {
+                            id: 'subtitle',
+                            label: 'Subtitle',
+                            values: { fontFamily: 'Inter|500', fontSize: 28, color: '#94a3b8' },
+                        },
                     ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }

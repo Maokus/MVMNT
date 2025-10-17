@@ -22,8 +22,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-todo.txt
-deploy.sh
-deploy_beta.sh
-count_lines.sh
+# development files
+/devscripts
 output.txt

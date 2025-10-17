@@ -9,6 +9,10 @@ export class Line extends RenderObject {
     lineWidth: number;
     lineCap: LineCap;
     lineDash: number[];
+    shadowColor: string | null;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
 
     constructor(
         x1: number,
@@ -26,9 +30,19 @@ export class Line extends RenderObject {
         this.lineWidth = lineWidth;
         this.lineCap = 'butt';
         this.lineDash = [];
+        this.shadowColor = null;
+        this.shadowBlur = 0;
+        this.shadowOffsetX = 0;
+        this.shadowOffsetY = 0;
     }
 
     protected _renderSelf(ctx: CanvasRenderingContext2D, _config: RenderConfig, _time: number): void {
+        if (this.shadowColor && this.shadowBlur > 0) {
+            ctx.shadowColor = this.shadowColor;
+            ctx.shadowBlur = this.shadowBlur;
+            ctx.shadowOffsetX = this.shadowOffsetX;
+            ctx.shadowOffsetY = this.shadowOffsetY;
+        }
         ctx.strokeStyle = this.color;
         ctx.lineWidth = this.lineWidth;
         ctx.lineCap = this.lineCap;
@@ -38,6 +52,12 @@ export class Line extends RenderObject {
         ctx.lineTo(this.deltaX, this.deltaY);
         ctx.stroke();
         if (this.lineDash.length > 0) ctx.setLineDash([]);
+        if (this.shadowColor && this.shadowBlur > 0) {
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        }
     }
 
     setEndPoint(x2: number, y2: number): this {
@@ -70,6 +90,14 @@ export class Line extends RenderObject {
     }
     setLineDash(dash: number[]): this {
         this.lineDash = dash;
+        return this;
+    }
+
+    setShadow(color: string | null, blur = 10, offsetX = 0, offsetY = 0): this {
+        this.shadowColor = color;
+        this.shadowBlur = blur;
+        this.shadowOffsetX = offsetX;
+        this.shadowOffsetY = offsetY;
         return this;
     }
 

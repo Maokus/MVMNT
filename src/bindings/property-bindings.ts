@@ -10,11 +10,14 @@ import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
 
 export type BindingType = 'constant' | 'macro';
 
-export interface PropertyBindingData {
-    type: BindingType;
-    value?: any;
-    macroId?: string;
+export interface PropertyBindingContext {
+    targetTime: number;
+    sceneConfig: Record<string, unknown>;
 }
+
+export type PropertyBindingData =
+    | { type: 'constant'; value: any }
+    | { type: 'macro'; macroId: string };
 
 /**
  * Abstract base class for property bindings
@@ -30,6 +33,8 @@ export abstract class PropertyBinding<T = any> {
      * Get the current value of the property
      */
     abstract getValue(): T;
+
+    getValueWithContext?(context: PropertyBindingContext): T;
 
     /**
      * Set the value of the property
@@ -58,12 +63,14 @@ export abstract class PropertyBinding<T = any> {
                 };
                 return new ConstantBinding(unwrapConstant(data.value));
             case 'macro':
-                if (!data.macroId) {
+                if (!('macroId' in data) || !data.macroId) {
                     throw new Error('Macro binding requires macroId');
                 }
                 return new MacroBinding(data.macroId);
-            default:
-                throw new Error(`Unknown binding type: ${data.type}`);
+            default: {
+                const unknownType = (data as { type?: string }).type ?? 'unknown';
+                throw new Error(`Unknown binding type: ${unknownType}`);
+            }
         }
     }
 }

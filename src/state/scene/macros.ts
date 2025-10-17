@@ -8,7 +8,7 @@ export type MacroType =
     | 'file-midi'
     | 'file-image'
     | 'font'
-    | 'midiTrackRef';
+    | 'timelineTrackRef';
 
 export interface MacroOptions {
     min?: number;
@@ -16,6 +16,8 @@ export interface MacroOptions {
     step?: number;
     selectOptions?: { value: any; label: string }[];
     accept?: string;
+    allowMultiple?: boolean;
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
     [key: string]: any;
 }
 

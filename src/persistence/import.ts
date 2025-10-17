@@ -1,6 +1,12 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
-import type { SceneExportEnvelopeV2 } from './export';
+import type { SceneExportEnvelope } from './export';
+import {
+    deserializeAudioFeatureCache,
+    type SerializedAudioFeatureCache,
+    type SerializedAudioFeatureTrack,
+    type SerializedAudioFeatureTrackDataRef,
+} from '@audio/features/audioFeatureAnalysis';
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
@@ -12,6 +18,9 @@ import {
     parseScenePackage,
     ScenePackageError,
 } from './scene-package';
+
+const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
+const WAVEFORM_ASSET_FILENAME = 'waveform.json';
 
 export interface ImportError {
     code?: string;
@@ -40,6 +49,8 @@ interface ParsedArtifact {
     audioPayloads: Map<string, Uint8Array>;
     midiPayloads: Map<string, Uint8Array>;
     fontPayloads: Map<string, Uint8Array>;
+    waveformPayloads: Map<string, Map<string, Uint8Array>>;
+    audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
 }
 
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
@@ -55,6 +66,8 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 audioPayloads: legacy.audioPayloads,
                 midiPayloads: legacy.midiPayloads,
                 fontPayloads: legacy.fontPayloads,
+                waveformPayloads: legacy.waveformPayloads,
+                audioFeaturePayloads: legacy.audioFeaturePayloads,
             };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
@@ -91,6 +104,8 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         audioPayloads: legacy.audioPayloads,
                         midiPayloads: legacy.midiPayloads,
                         fontPayloads: legacy.fontPayloads,
+                        waveformPayloads: legacy.waveformPayloads,
+                        audioFeaturePayloads: legacy.audioFeaturePayloads,
                     };
                 } catch (inner: any) {
                     return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
@@ -102,18 +117,139 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
     }
 }
 
-function buildDocumentShape(envelope: any) {
+function hydrateAudioFeatureCacheFromAssets(
+    serialized: SerializedAudioFeatureCache,
+    payloads: Map<string, Uint8Array>,
+    cacheId: string,
+    warnings: string[],
+): SerializedAudioFeatureCache | null {
+    const hydratedTracks: Record<string, SerializedAudioFeatureTrack> = {};
+    for (const [trackKey, track] of Object.entries(serialized.featureTracks || {})) {
+        const hydrated: SerializedAudioFeatureTrack = { ...track };
+        let includeTrack = true;
+        if (hydrated.dataRef) {
+            const ref = hydrated.dataRef;
+            const binary = payloads.get(ref.filename);
+            if (!binary) {
+                warnings.push(`Missing audio feature data file for ${cacheId}:${trackKey}`);
+                includeTrack = false;
+            } else {
+                const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+                if (ref.kind === 'typed-array') {
+                    let values: Float32Array | Uint8Array | Int16Array;
+                    if (ref.type === 'float32') {
+                        values = new Float32Array(buffer);
+                    } else if (ref.type === 'uint8') {
+                        values = new Uint8Array(buffer);
+                    } else {
+                        values = new Int16Array(buffer);
+                    }
+                    if (ref.valueCount && values.length !== ref.valueCount) {
+                        warnings.push(
+                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${ref.valueCount}, got ${values.length})`,
+                        );
+                    }
+                    hydrated.data = { type: ref.type, values };
+                } else {
+                    const values = new Float32Array(buffer);
+                    const expected = (ref.minLength || 0) + (ref.maxLength || 0);
+                    if (values.length < expected) {
+                        warnings.push(`Audio feature waveform payload too small for ${cacheId}:${trackKey}`);
+                        includeTrack = false;
+                    } else {
+                        const min = values.slice(0, ref.minLength);
+                        const max = values.slice(ref.minLength, ref.minLength + ref.maxLength);
+                        hydrated.data = { type: 'waveform-minmax', min, max };
+                    }
+                }
+            }
+            delete (hydrated as { dataRef?: SerializedAudioFeatureTrackDataRef }).dataRef;
+        }
+        if (!hydrated.data) {
+            if (!includeTrack) {
+                continue;
+            }
+        }
+        hydratedTracks[trackKey] = hydrated;
+    }
+    return { ...serialized, featureTracks: hydratedTracks };
+}
+
+function buildDocumentShape(
+    envelope: any,
+    audioFeaturePayloads: Map<string, Map<string, Uint8Array>>
+): {
+    doc: {
+        timeline: any;
+        tracks: any;
+        tracksOrder: string[];
+        playbackRange?: any;
+        playbackRangeUserDefined: boolean;
+        rowHeight: number;
+        midiCache: Record<string, any>;
+        audioFeatureCaches: Record<string, any>;
+        audioFeatureCacheStatus: Record<string, any>;
+        scene: any;
+        metadata: any;
+    };
+    featureWarnings: string[];
+} {
     const tl = envelope.timeline || {};
+    const featureCaches: Record<string, any> = {};
+    const featureWarnings: string[] = [];
+    if (tl.audioFeatureCaches && typeof tl.audioFeatureCaches === 'object') {
+        for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
+            if (cache && typeof cache === 'object' && 'assetRef' in cache) {
+                const assetId = typeof (cache as any).assetId === 'string' ? (cache as any).assetId : encodeURIComponent(id);
+                const payloadGroup = audioFeaturePayloads.get(assetId);
+                if (!payloadGroup) {
+                    featureWarnings.push(`Missing audio feature payload for cache ${id}`);
+                    continue;
+                }
+                try {
+                    const metadataBytes = payloadGroup.get(AUDIO_FEATURE_ASSET_FILENAME);
+                    if (!metadataBytes) {
+                        featureWarnings.push(`Missing feature cache metadata for ${id}`);
+                        continue;
+                    }
+                    const serialized = JSON.parse(decodeSceneText(metadataBytes));
+                    const hydrated = hydrateAudioFeatureCacheFromAssets(
+                        serialized as SerializedAudioFeatureCache,
+                        payloadGroup,
+                        id,
+                        featureWarnings,
+                    );
+                    if (hydrated) {
+                        featureCaches[id] = deserializeAudioFeatureCache(hydrated as any);
+                    }
+                } catch (error) {
+                    console.warn('[importScene] failed to parse audio feature payload', id, error);
+                    featureWarnings.push(`Failed to parse audio feature payload for cache ${id}`);
+                }
+                continue;
+            }
+            try {
+                featureCaches[id] = deserializeAudioFeatureCache(cache as any);
+            } catch (error) {
+                console.warn('[importScene] failed to deserialize audio feature cache', id, error);
+            }
+        }
+    }
     return {
-        timeline: tl.timeline,
-        tracks: tl.tracks,
-        tracksOrder: tl.tracksOrder || [],
-        playbackRange: tl.playbackRange,
-        playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
-        rowHeight: tl.rowHeight,
-        midiCache: tl.midiCache || {},
-        scene: { ...envelope.scene },
-        metadata: envelope.metadata,
+        doc: {
+            timeline: tl.timeline,
+            tracks: tl.tracks,
+            tracksOrder: tl.tracksOrder || [],
+            playbackRange: tl.playbackRange,
+            playbackRangeUserDefined: !!tl.playbackRangeUserDefined,
+            rowHeight: tl.rowHeight,
+            midiCache: tl.midiCache || {},
+            audioFeatureCaches: featureCaches,
+            audioFeatureCacheStatus: tl.audioFeatureCacheStatus || {},
+            scene: { ...envelope.scene },
+            metadata: envelope.metadata,
+        },
+        featureWarnings,
     };
 }
 
@@ -204,9 +340,66 @@ function buildWaveform(record: any | undefined) {
     };
 }
 
+function resolveWaveformRecord(
+    waveforms: Record<string, any>,
+    assetId: string,
+    waveformPayloads: Map<string, Map<string, Uint8Array>>,
+    warnings: string[]
+): any | undefined {
+    const entry = waveforms[assetId];
+    if (!entry) return undefined;
+    if (entry && typeof entry === 'object' && 'channelPeaks' in entry) {
+        return entry;
+    }
+    if (entry && typeof entry === 'object' && 'assetRef' in entry) {
+        const waveformAssetId = typeof (entry as any).assetId === 'string' ? (entry as any).assetId : assetId;
+        const payloadGroup = waveformPayloads.get(waveformAssetId);
+        if (!payloadGroup) {
+            warnings.push(`Missing waveform payload for asset ${assetId}`);
+            return undefined;
+        }
+        try {
+            const metadataBytes = payloadGroup.get(WAVEFORM_ASSET_FILENAME);
+            if (!metadataBytes) {
+                warnings.push(`Missing waveform metadata for asset ${assetId}`);
+                return undefined;
+            }
+            const metadata = JSON.parse(decodeSceneText(metadataBytes));
+            if (metadata?.dataRef && typeof metadata.dataRef === 'object') {
+                const ref = metadata.dataRef as { filename?: string; valueCount?: number };
+                const filename = typeof ref.filename === 'string' ? ref.filename : undefined;
+                if (!filename) {
+                    warnings.push(`Waveform metadata missing filename for asset ${assetId}`);
+                    return undefined;
+                }
+                const binary = payloadGroup.get(filename);
+                if (!binary) {
+                    warnings.push(`Missing waveform data file ${filename} for asset ${assetId}`);
+                    return undefined;
+                }
+                const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+                const values = new Float32Array(buffer);
+                const expected = typeof ref.valueCount === 'number' ? ref.valueCount : values.length;
+                if (values.length < expected) {
+                    warnings.push(`Waveform data truncated for asset ${assetId}`);
+                }
+                const channelPeaks = values.slice(0, expected);
+                metadata.channelPeaks = channelPeaks;
+                delete metadata.dataRef;
+            }
+            return metadata;
+        } catch (error) {
+            warnings.push(`Failed to parse waveform payload for asset ${assetId}: ${(error as Error).message}`);
+            return undefined;
+        }
+    }
+    return undefined;
+}
+
 async function hydrateAudioAssets(
-    envelope: SceneExportEnvelopeV2,
-    assetPayloads: Map<string, Uint8Array>
+    envelope: SceneExportEnvelope,
+    assetPayloads: Map<string, Uint8Array>,
+    waveformPayloads: Map<string, Map<string, Uint8Array>>
 ): Promise<string[]> {
     const warnings: string[] = [];
     const audioById = envelope.assets?.audio?.byId || {};
@@ -259,7 +452,8 @@ async function hydrateAudioAssets(
             warnings.push(`Referenced asset ${assetId} missing for audio ${originalId}`);
             continue;
         }
-        const waveform = buildWaveform(waveforms[assetId]);
+        const waveformRecord = resolveWaveformRecord(waveforms, assetId, waveformPayloads, warnings);
+        const waveform = buildWaveform(waveformRecord);
         const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
         const originalFile = {
             name: payload.record.filename,
@@ -269,7 +463,15 @@ async function hydrateAudioAssets(
             hash: payload.record.hash,
         };
         try {
-            ingest(originalId, buffer, { originalFile, waveform });
+            const timelineState = useTimelineStore.getState();
+            const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];
+            const hasReadyFeatureCache =
+                !!timelineState.audioFeatureCaches?.[originalId] && cacheStatus?.state === 'ready';
+            ingest(originalId, buffer, {
+                originalFile,
+                waveform,
+                skipAutoAnalysis: hasReadyFeatureCache,
+            });
         } catch (error) {
             warnings.push(`Failed to ingest audio ${originalId}: ${(error as Error).message}`);
         }
@@ -285,7 +487,15 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         return { ok: false, errors: [parsed.error], warnings: [] };
     }
 
-    const { envelope, warnings: artifactWarnings, audioPayloads, midiPayloads, fontPayloads } = parsed;
+    const {
+        envelope,
+        warnings: artifactWarnings,
+        audioPayloads,
+        midiPayloads,
+        fontPayloads,
+        waveformPayloads,
+        audioFeaturePayloads,
+    } = parsed;
     const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
         return {
@@ -295,15 +505,19 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         };
     }
 
-    const doc = buildDocumentShape(envelope);
+    const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
     const midiRestoration = restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
     DocumentGateway.apply(doc as any);
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
-    if (envelope.schemaVersion === 2 && envelope.assets) {
-        hydrationWarnings = await hydrateAudioAssets(envelope as SceneExportEnvelopeV2, audioPayloads);
+    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4) && envelope.assets) {
+        hydrationWarnings = await hydrateAudioAssets(
+            envelope,
+            audioPayloads,
+            waveformPayloads
+        );
     }
 
     if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {
@@ -328,6 +542,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...artifactWarnings,
         ...validation.warnings.map((w) => ({ message: w.message })),
         ...midiRestoration.warnings.map((message) => ({ message })),
+        ...featureWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
     ];

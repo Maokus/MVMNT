@@ -23,6 +23,9 @@ import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
+import { CacheDiagnosticsBanner } from '@workspace/components/CacheDiagnosticsBanner';
+import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
+import { isFeatureEnabled } from '@utils/featureFlags';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -57,6 +60,10 @@ const MidiVisualizerInner: React.FC = () => {
         const maxCandidate = Math.max(TIMELINE_MIN_HEIGHT, Math.round(window.innerHeight * 0.65));
         return clampNumber(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
     });
+
+    const diagnosticsEnabled = isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3');
+    const diagnosticsBannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
+    const showDiagnosticsBanner = diagnosticsEnabled && diagnosticsBannerVisible;
 
     const getTimelineBounds = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -196,49 +203,56 @@ const MidiVisualizerInner: React.FC = () => {
                 onHelp={() => setShowOnboarding(true)}
             />
             <SceneSelectionProvider>
-                <div className="main-workspace" ref={workspaceRef}>
-                    <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
-                        <PreviewPanel />
-                    </div>
-                    <div
-                        className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
-                        style={{ width: SIDE_HANDLE_WIDTH }}
-                        onPointerDown={handleSideResizeDown}
-                        onPointerMove={handleSideResizeMove}
-                        onPointerUp={handleSideResizeUp}
-                        onPointerCancel={handleSideResizeUp}
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label="Resize side panels"
-                        aria-expanded={!sidePanelsCollapsed}
-                    >
-                        <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
-                    </div>
-                    {!sidePanelsCollapsed && (
-                        <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
-                            <SidePanels />
+                <>
+                    {showDiagnosticsBanner && (
+                        <div className="px-4 pt-3">
+                            <CacheDiagnosticsBanner />
                         </div>
                     )}
-                </div>
-                <div
-                    className={`relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
-                    style={{ height: TIMELINE_HANDLE_HEIGHT }}
-                    onPointerDown={handleTimelineResizeDown}
-                    onPointerMove={handleTimelineResizeMove}
-                    onPointerUp={handleTimelineResizeUp}
-                    onPointerCancel={handleTimelineResizeUp}
-                    role="separator"
-                    aria-orientation="horizontal"
-                    aria-label="Resize timeline"
-                    aria-expanded={!timelineCollapsed}
-                >
-                    <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
-                </div>
-                {!timelineCollapsed && (
-                    <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
-                        <TimelinePanel />
+                    <div className="main-workspace" ref={workspaceRef}>
+                        <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
+                            <PreviewPanel />
+                        </div>
+                        <div
+                            className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                            style={{ width: SIDE_HANDLE_WIDTH }}
+                            onPointerDown={handleSideResizeDown}
+                            onPointerMove={handleSideResizeMove}
+                            onPointerUp={handleSideResizeUp}
+                            onPointerCancel={handleSideResizeUp}
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label="Resize side panels"
+                            aria-expanded={!sidePanelsCollapsed}
+                        >
+                            <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                        </div>
+                        {!sidePanelsCollapsed && (
+                            <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
+                                <SidePanels />
+                            </div>
+                        )}
                     </div>
-                )}
+                    <div
+                        className={`relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                        style={{ height: TIMELINE_HANDLE_HEIGHT }}
+                        onPointerDown={handleTimelineResizeDown}
+                        onPointerMove={handleTimelineResizeMove}
+                        onPointerUp={handleTimelineResizeUp}
+                        onPointerCancel={handleTimelineResizeUp}
+                        role="separator"
+                        aria-orientation="horizontal"
+                        aria-label="Resize timeline"
+                        aria-expanded={!timelineCollapsed}
+                    >
+                        <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                    </div>
+                    {!timelineCollapsed && (
+                        <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
+                            <TimelinePanel />
+                        </div>
+                    )}
+                </>
             </SceneSelectionProvider>
             {showProgressOverlay && (
                 <Suspense fallback={null}>
@@ -295,17 +309,19 @@ const TemplateInitializer: React.FC = () => {
     useEffect(() => {
         if (!visualizer) return;
         const state: any = location.state || {};
-        const hasScene = (() => {
+        const sceneStoreState = (() => {
             try {
-                return useSceneStore.getState().order.length > 0;
+                return useSceneStore.getState();
             } catch {
-                return false;
+                return null;
             }
         })();
+        const hasScene = sceneStoreState ? sceneStoreState.order.length > 0 : false;
+        const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
 
         const shouldImport = Boolean(state.importScene);
         const shouldLoadTemplate = Boolean(state.template);
-        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene;
+        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene && !hasInitializedScene;
         const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
         const message = shouldImport
             ? 'Importing scene…'
@@ -314,14 +330,30 @@ const TemplateInitializer: React.FC = () => {
                 : 'Preparing default scene…';
 
         let finished = false;
+        let unsubscribeHydration: (() => void) | null = null;
         const finish = () => {
             if (finished || !shouldShowIndicator) return;
             finished = true;
+            unsubscribeHydration?.();
+            unsubscribeHydration = null;
             finishTemplateLoading();
         };
 
         if (shouldShowIndicator) {
             startTemplateLoading(message);
+            try {
+                const initialHydration = useSceneStore.getState().runtimeMeta?.lastHydratedAt ?? 0;
+                unsubscribeHydration = useSceneStore.subscribe((state, previousState) => {
+                    if (finished) return;
+                    const nextHydration = state.runtimeMeta?.lastHydratedAt ?? 0;
+                    const prevHydration = previousState.runtimeMeta?.lastHydratedAt ?? 0;
+                    if (!nextHydration || nextHydration === prevHydration) return;
+                    if (prevHydration !== initialHydration) return;
+                    finish();
+                });
+            } catch {
+                /* no-op */
+            }
         }
 
         const run = async () => {

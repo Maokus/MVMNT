@@ -5,13 +5,20 @@ import {
     collectAudioAssets,
     type AssetStorageMode,
     type AudioAssetRecord,
-    type WaveformAssetRecord,
+    type WaveformExportRecord,
 } from './audio-asset-export';
 import { collectFontAssets } from './font-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import iconDataUrl from '@assets/Icon.icns?inline';
+import {
+    serializeAudioFeatureCache,
+    type SerializedAudioFeatureCache,
+    type SerializedAudioFeatureTrack,
+    type SerializedAudioFeatureTrackDataRef,
+} from '@audio/features/audioFeatureAnalysis';
+import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 
 export interface SceneMetadata {
     id: string;
@@ -23,8 +30,7 @@ export interface SceneMetadata {
     author?: string;
 }
 
-export interface SceneExportEnvelopeV2 {
-    schemaVersion: 2;
+interface SceneExportEnvelopeBase {
     format: 'mvmnt.scene';
     metadata: SceneMetadata;
     scene: {
@@ -32,12 +38,22 @@ export interface SceneExportEnvelopeV2 {
         sceneSettings?: any;
         macros?: any;
     };
-    timeline: any;
+    timeline: {
+        timeline: any;
+        tracks: any;
+        tracksOrder: string[];
+        playbackRange?: any;
+        playbackRangeUserDefined?: boolean;
+        rowHeight?: number;
+        midiCache: Record<string, any>;
+        audioFeatureCaches?: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
+        audioFeatureCacheStatus?: Record<string, AudioFeatureCacheStatus>;
+    };
     assets: {
         storage: AssetStorageMode;
         createdWith: string;
         audio: { byId: Record<string, AudioAssetRecord> };
-        waveforms?: { byAudioId: Record<string, WaveformAssetRecord> };
+        waveforms?: { byAudioId: Record<string, WaveformExportRecord> };
         fonts?: { byId: Record<string, import('./font-asset-export').FontAssetRecord> };
     };
     references?: {
@@ -45,6 +61,23 @@ export interface SceneExportEnvelopeV2 {
     };
     compatibility?: { warnings: { message: string }[] };
 }
+
+export interface SceneExportEnvelopeV2 extends SceneExportEnvelopeBase {
+    schemaVersion: 2;
+}
+
+export interface SceneExportEnvelopeV4 extends SceneExportEnvelopeBase {
+    schemaVersion: 4;
+}
+
+export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4;
+
+interface AudioFeatureCacheAssetReference {
+    assetId: string;
+    assetRef: string;
+}
+
+const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 
 export interface ExportSceneOptions {
     storage?: AssetStorageMode;
@@ -62,7 +95,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV2;
+    envelope: SceneExportEnvelopeV4;
     json: string;
     blob?: Blob;
 }
@@ -70,7 +103,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV2;
+    envelope: SceneExportEnvelopeV4;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -159,6 +192,22 @@ function decodeDataUrl(dataUrl: string | undefined): Uint8Array | null {
 
 const MIDI_ASSET_FILENAME = 'midi.json';
 
+function sanitizeAssetComponent(name: string, fallback: string): string {
+    const normalized = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+    return normalized.length ? normalized.slice(0, 80) : fallback;
+}
+
+function resolveUniqueFilename(base: string, extension: string, used: Set<string>): string {
+    let attempt = `${base}${extension}`;
+    let counter = 1;
+    while (used.has(attempt)) {
+        attempt = `${base}_${counter}${extension}`;
+        counter++;
+    }
+    used.add(attempt);
+    return attempt;
+}
+
 function prepareMidiAssets(
     midiCache: Record<string, any> | undefined,
     mode: AssetStorageMode
@@ -195,10 +244,12 @@ function prepareMidiAssets(
 }
 
 function buildZip(
-    envelope: SceneExportEnvelopeV2,
+    envelope: SceneExportEnvelope,
     audioAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
-    fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    waveformAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    audioFeatureAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
@@ -239,7 +290,168 @@ function buildZip(
         const path = `assets/fonts/${assetId}/${safeName}`;
         files[path] = payload.bytes;
     }
+    for (const [assetKey, payload] of waveformAssets.entries()) {
+        const parts = assetKey.split('/');
+        const assetId = parts[0];
+        const derivedName = parts.slice(1).join('/') || payload.filename || 'waveform.json';
+        const path = `assets/waveforms/${assetId}/${derivedName}`;
+        files[path] = payload.bytes;
+    }
+    for (const [assetKey, payload] of audioFeatureAssets.entries()) {
+        const parts = assetKey.split('/');
+        const assetId = parts[0];
+        const derivedName = parts.slice(1).join('/') || payload.filename || AUDIO_FEATURE_ASSET_FILENAME;
+        const path = `assets/audio-features/${assetId}/${derivedName}`;
+        files[path] = payload.bytes;
+    }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
+}
+
+function prepareAudioFeatureCaches(
+    caches: Record<string, any> | undefined,
+    mode: AssetStorageMode
+): {
+    timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference>;
+    assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+} {
+    const timelineCaches: Record<string, SerializedAudioFeatureCache | AudioFeatureCacheAssetReference> = {};
+    const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+    if (!caches) {
+        return { timelineCaches, assetPayloads };
+    }
+
+    const toTypedArray = (
+        data: SerializedAudioFeatureTrack['data'] & { type?: 'float32' | 'uint8' | 'int16' }
+    ): Float32Array | Uint8Array | Int16Array => {
+        if (!data || typeof data !== 'object') {
+            return new Float32Array();
+        }
+        const type = (data as any).type as 'float32' | 'uint8' | 'int16';
+        const values = (data as any).values as number[] | Float32Array | Uint8Array | Int16Array | undefined;
+        if (type === 'uint8') {
+            if (Array.isArray(values)) return Uint8Array.from(values);
+            if (ArrayBuffer.isView(values)) {
+                const view = values as ArrayBufferView;
+                return new Uint8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+            }
+            return new Uint8Array();
+        }
+        if (type === 'int16') {
+            if (Array.isArray(values)) return Int16Array.from(values);
+            if (ArrayBuffer.isView(values)) {
+                const view = values as ArrayBufferView;
+                return new Int16Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+            }
+            return new Int16Array();
+        }
+        if (Array.isArray(values)) return Float32Array.from(values);
+        if (ArrayBuffer.isView(values)) {
+            const view = values as ArrayBufferView;
+            return new Float32Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+        }
+        return new Float32Array();
+    };
+
+    const toUint8Array = (view: ArrayBufferView): Uint8Array => {
+        return new Uint8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+    };
+
+    for (const [sourceId, cache] of Object.entries(caches)) {
+        try {
+            const serialized = serializeAudioFeatureCache(cache);
+            if (mode === 'zip-package') {
+                const assetId = encodeURIComponent(sourceId);
+                const assetRef = `assets/audio-features/${assetId}/${AUDIO_FEATURE_ASSET_FILENAME}`;
+                const metadata: SerializedAudioFeatureCache = {
+                    ...serialized,
+                    featureTracks: {},
+                };
+                const usedFilenames = new Set<string>();
+                let index = 0;
+                for (const [trackKey, track] of Object.entries(serialized.featureTracks || {})) {
+                    const metadataTrack: SerializedAudioFeatureTrack = { ...track };
+                    if (metadataTrack.data) {
+                        const baseName = sanitizeAssetComponent(
+                            metadataTrack.key || metadataTrack.calculatorId || `track_${index + 1}`,
+                            `track_${index + 1}`,
+                        );
+                        if (metadataTrack.format === 'waveform-minmax') {
+                            const waveform = metadataTrack.data as { min: number[] | Float32Array; max: number[] | Float32Array };
+                            const minValues = Array.isArray(waveform.min)
+                                ? Float32Array.from(waveform.min)
+                                : new Float32Array(
+                                      (waveform.min as ArrayBufferView).buffer.slice(
+                                          (waveform.min as ArrayBufferView).byteOffset,
+                                          (waveform.min as ArrayBufferView).byteOffset +
+                                              (waveform.min as ArrayBufferView).byteLength,
+                                      ),
+                                  );
+                            const maxValues = Array.isArray(waveform.max)
+                                ? Float32Array.from(waveform.max)
+                                : new Float32Array(
+                                      (waveform.max as ArrayBufferView).buffer.slice(
+                                          (waveform.max as ArrayBufferView).byteOffset,
+                                          (waveform.max as ArrayBufferView).byteOffset +
+                                              (waveform.max as ArrayBufferView).byteLength,
+                                      ),
+                                  );
+                            const combined = new Float32Array(minValues.length + maxValues.length);
+                            combined.set(minValues, 0);
+                            combined.set(maxValues, minValues.length);
+                            const filename = resolveUniqueFilename(baseName, '.f32', usedFilenames);
+                            const dataRef: SerializedAudioFeatureTrackDataRef = {
+                                kind: 'waveform-minmax',
+                                type: 'float32',
+                                minLength: minValues.length,
+                                maxLength: maxValues.length,
+                                filename,
+                            };
+                            metadataTrack.dataRef = dataRef;
+                            assetPayloads.set(`${assetId}/${filename}`, {
+                                bytes: toUint8Array(combined),
+                                filename,
+                                mimeType: 'application/octet-stream',
+                            });
+                        } else if ((metadataTrack.data as any)?.type) {
+                            const typed = toTypedArray(metadataTrack.data as any);
+                            const type = (metadataTrack.data as any).type as 'float32' | 'uint8' | 'int16';
+                            const ext = type === 'float32' ? '.f32' : type === 'uint8' ? '.u8' : '.i16';
+                            const filename = resolveUniqueFilename(baseName, ext, usedFilenames);
+                            const dataRef: SerializedAudioFeatureTrackDataRef = {
+                                kind: 'typed-array',
+                                type,
+                                valueCount: typed.length,
+                                filename,
+                            };
+                            metadataTrack.dataRef = dataRef;
+                            assetPayloads.set(`${assetId}/${filename}`, {
+                                bytes: toUint8Array(typed),
+                                filename,
+                                mimeType: 'application/octet-stream',
+                            });
+                        }
+                        metadataTrack.data = undefined;
+                        delete (metadataTrack as { data?: unknown }).data;
+                    }
+                    metadata.featureTracks![trackKey] = metadataTrack;
+                    index++;
+                }
+                const payloadJson = serializeStable(metadata);
+                assetPayloads.set(`${assetId}/${AUDIO_FEATURE_ASSET_FILENAME}`, {
+                    bytes: strToU8(payloadJson, true),
+                    filename: AUDIO_FEATURE_ASSET_FILENAME,
+                    mimeType: 'application/json',
+                });
+                timelineCaches[sourceId] = { assetId, assetRef };
+            } else {
+                timelineCaches[sourceId] = serialized;
+            }
+        } catch (error) {
+            console.warn('[exportScene] failed to serialize audio feature cache', sourceId, error);
+        }
+    }
+
+    return { timelineCaches, assetPayloads };
 }
 
 export async function exportScene(
@@ -328,7 +540,7 @@ export async function exportScene(
         };
     }
 
-    const assetsSection: SceneExportEnvelopeV2['assets'] = {
+    const assetsSection: SceneExportEnvelopeV4['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
         audio: { byId: collectResult.audioById },
@@ -341,9 +553,10 @@ export async function exportScene(
     }
 
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
+    const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV2 = {
-        schemaVersion: 2,
+    const envelope: SceneExportEnvelopeV4 = {
+        schemaVersion: 4,
         format: 'mvmnt.scene',
         metadata,
         scene: { ...doc.scene },
@@ -355,6 +568,13 @@ export async function exportScene(
             playbackRangeUserDefined: doc.playbackRangeUserDefined,
             rowHeight: doc.rowHeight,
             midiCache: midiAssets.timelineMidiCache,
+            audioFeatureCaches: Object.keys(featureAssets.timelineCaches).length
+                ? featureAssets.timelineCaches
+                : undefined,
+            audioFeatureCacheStatus:
+                doc.audioFeatureCacheStatus && Object.keys(doc.audioFeatureCacheStatus).length
+                    ? doc.audioFeatureCacheStatus
+                    : undefined,
         },
         assets: assetsSection,
         references: Object.keys(collectResult.audioIdMap).length ? { audioIdMap: collectResult.audioIdMap } : undefined,
@@ -373,7 +593,14 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(envelope, collectResult.assetPayloads, midiAssets.assetPayloads, fontResult.assetPayloads);
+    const zip = buildZip(
+        envelope,
+        collectResult.assetPayloads,
+        midiAssets.assetPayloads,
+        fontResult.assetPayloads,
+        collectResult.waveformAssetPayloads,
+        featureAssets.assetPayloads
+    );
     return {
         ok: true,
         mode: 'zip-package',

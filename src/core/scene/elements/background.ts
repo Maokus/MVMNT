@@ -26,26 +26,36 @@ export class BackgroundElement extends SceneElement {
 
     static getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
+        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
+        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             name: 'Background',
             description: 'Solid background color for the visualization',
             category: 'Layout',
             groups: [
-                ...base.groups,
+                ...baseBasicGroups,
                 {
-                    id: 'appearance',
-                    label: 'Appearance',
+                    id: 'backgroundAppearance',
+                    label: 'Background',
+                    variant: 'basic',
                     collapsed: false,
+                    description: 'Set the backdrop tone for the entire scene.',
                     properties: [
                         {
                             key: 'backgroundColor',
                             type: 'color',
                             label: 'Background Color',
                             default: '#1a1a1a',
-                            description: 'Background color for the visualization',
+                            description: 'Color fill applied behind every element.',
                         },
                     ],
+                    presets: [
+                        { id: 'deepStage', label: 'Deep Stage', values: { backgroundColor: '#0f172a' } },
+                        { id: 'warmGlow', label: 'Warm Glow', values: { backgroundColor: '#f59e0b' } },
+                        { id: 'graphPaper', label: 'Graph Paper', values: { backgroundColor: '#111827' } },
+                    ],
                 },
+                ...baseAdvancedGroups,
             ],
         };
     }
