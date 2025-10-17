@@ -3,7 +3,7 @@ import { Rectangle, Text } from '@core/render/render-objects';
 import { registerFeatureRequirements } from './audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
-registerFeatureRequirements('audioMinimal', [{ feature: 'rms' }, { feature: 'waveform' }, { feature: 'spectrogram' }]);
+//registerFeatureRequirements('audioMinimal', [{ feature: 'rms' }, { feature: 'waveform' }, { feature: 'spectrogram' }]);
 
 export class AudioMinimalElement extends SceneElement {
     constructor(id: string = 'audioMinimal', config: Record<string, unknown> = {}) {

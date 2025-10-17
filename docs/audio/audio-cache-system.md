@@ -52,17 +52,6 @@ The sections below dive into architecture details, advanced usage, and the migra
 
 Most elements rely on the lazy API: call `getFeatureData` during render and the scene runtime will publish intents, track descriptors, and resolve cache samples for you. When you need manual control (for example, to swap descriptor sets in response to animations) call `syncElementFeatureIntents` with explicit descriptors and manage sampling yourself. Both APIs feed the same intent bus, so diagnostics remain accurate regardless of approach.【F:src/audio/features/sceneApi.ts†L209-L303】
 
-### Migrating from Descriptor Smoothing
-
-Earlier versions allowed `smoothing` inside `AudioFeatureDescriptor`. That field was removed in October 2025. To migrate:
-
-1. **Remove `smoothing` from descriptors** in scene files or custom elements.
-2. **Expose smoothing as a regular element property** (e.g., slider in the config schema).
-3. **Pass the value at render time** via `getFeatureData(..., time, { smoothing })`.
-4. **Leave cache migrations to persistence**. The loader strips legacy descriptor smoothing automatically during import, so existing scenes keep working.【F:src/persistence/migrations/removeSmoothingFromDescriptor.ts†L1-L102】
-
-Because smoothing no longer changes descriptor identity, multiple elements can share the same cache entry even when they use different smoothing radii.
-
 ## Cache Lifecycle and Storage
 
 ### Status Tracking
