@@ -284,7 +284,7 @@ const formatCacheStatusSummary = (status: AudioFeatureCacheStatus | undefined): 
     return parts.join(' · ');
 };
 
-export const TransportStatusDev: React.FC = () => {
+export const DeveloperOverlay: React.FC = () => {
     const isProd = process.env.NODE_ENV === 'production';
     const appMode = import.meta.env.VITE_APP_MODE;
     const isBetaMode = appMode === 'beta';
