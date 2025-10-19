@@ -1,6 +1,6 @@
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema } from '@core/types';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from './audioElementMetadata';
 
@@ -16,6 +16,22 @@ function clamp01(value: number): number {
 }
 
 registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
+
+const normalizeOrientation: PropertyTransform<'vertical' | 'horizontal', SceneElementInterface> = (value, element) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase();
+    return normalized === 'horizontal' ? 'horizontal' : 'vertical';
+};
+
+const normalizeAudioTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
+    asTrimmedString(value, element) ?? null;
+
+const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) {
+        return undefined;
+    }
+    return clamp(numeric, 0, 64);
+};
 
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
@@ -45,6 +61,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                             label: 'Audio Track',
                             default: null,
                             allowedTrackTypes: ['audio'],
+                            runtime: { transform: normalizeAudioTrackId, defaultValue: null },
                         },
                         {
                             key: 'orientation',
@@ -55,6 +72,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                                 { label: 'Vertical', value: 'vertical' },
                                 { label: 'Horizontal', value: 'horizontal' },
                             ],
+                            runtime: { transform: normalizeOrientation, defaultValue: 'vertical' },
                         },
                         {
                             key: 'width',
@@ -64,6 +82,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                             min: 10,
                             max: 400,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 48 },
                         },
                         {
                             key: 'height',
@@ -73,6 +92,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                             min: 20,
                             max: 800,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 240 },
                         },
                         {
                             key: 'minValue',
@@ -82,6 +102,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                             min: 0,
                             max: 1,
                             step: 0.01,
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'maxValue',
@@ -91,24 +112,31 @@ export class AudioVolumeMeterElement extends SceneElement {
                             min: 0.1,
                             max: 4,
                             step: 0.01,
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'meterColor',
                             type: 'color',
                             label: 'Meter Color',
                             default: '#f472b6',
+                            runtime: { transform: asTrimmedString, defaultValue: '#f472b6' },
                         },
                         {
                             key: 'backgroundColor',
                             type: 'color',
                             label: 'Background',
                             default: 'rgba(15, 23, 42, 0.35)',
+                            runtime: {
+                                transform: asTrimmedString,
+                                defaultValue: 'rgba(15, 23, 42, 0.35)',
+                            },
                         },
                         {
                             key: 'showValue',
                             type: 'boolean',
                             label: 'Show Value Label',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'smoothing',
@@ -118,6 +146,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                             min: 0,
                             max: 64,
                             step: 1,
+                            runtime: { transform: clampSmoothing, defaultValue: 0 },
                         },
                     ],
                 },
@@ -127,53 +156,16 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const props = this.getProps({
-            width: { transform: asNumber, defaultValue: 48 },
-            height: { transform: asNumber, defaultValue: 240 },
-            orientation: {
-                transform: (value, element) => {
-                    const normalized = asTrimmedString(value, element)?.toLowerCase();
-                    return normalized === 'horizontal' ? 'horizontal' : normalized === 'vertical' ? 'vertical' : undefined;
-                },
-                defaultValue: 'vertical',
-            },
-            minValue: { transform: asNumber, defaultValue: 0 },
-            maxValue: { transform: asNumber, defaultValue: 1 },
-            meterColor: { transform: asTrimmedString, defaultValue: '#f472b6' },
-            backgroundColor: {
-                transform: asTrimmedString,
-                defaultValue: 'rgba(15, 23, 42, 0.35)',
-            },
-            showValue: { transform: asBoolean, defaultValue: true },
-            smoothing: { transform: asNumber, defaultValue: 0 },
-            audioTrackId: {
-                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                defaultValue: null,
-            },
-        });
-
-        const {
-            width,
-            height,
-            orientation,
-            minValue,
-            maxValue,
-            meterColor,
-            backgroundColor,
-            showValue,
-            smoothing: smoothingRaw,
-            audioTrackId,
-        } = props;
-        const smoothing = clamp(smoothingRaw ?? 0, 0, 64);
+        const props = this.getSchemaProps();
 
         const objects: RenderObject[] = [];
-        objects.push(new Rectangle(0, 0, width, height, backgroundColor));
+        objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
 
-        if (!audioTrackId) {
+        if (!props.audioTrackId) {
             objects.push(
                 new Text(
                     8,
-                    height / 2,
+                    props.height / 2,
                     'Select an audio track',
                     '12px Inter, sans-serif',
                     '#94a3b8',
@@ -184,22 +176,22 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const frame = getFeatureData(this, audioTrackId, 'rms', targetTime, { smoothing });
+        const frame = getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
         const rawValue = frame?.values?.[0] ?? 0;
-        const normalized = clamp01((rawValue - minValue) / Math.max(1e-6, maxValue - minValue));
+        const normalized = clamp01((rawValue - props.minValue) / Math.max(1e-6, props.maxValue - props.minValue));
 
-        if (orientation === 'horizontal') {
-            const fillWidth = normalized * width;
-            objects.push(new Rectangle(0, 0, fillWidth, height, meterColor));
+        if (props.orientation === 'horizontal') {
+            const fillWidth = normalized * props.width;
+            objects.push(new Rectangle(0, 0, fillWidth, props.height, props.meterColor));
         } else {
-            const fillHeight = normalized * height;
-            const y = height - fillHeight;
-            objects.push(new Rectangle(0, y, width, fillHeight, meterColor));
+            const fillHeight = normalized * props.height;
+            const y = props.height - fillHeight;
+            objects.push(new Rectangle(0, y, props.width, fillHeight, props.meterColor));
         }
 
-        if (showValue) {
+        if (props.showValue) {
             const percent = Math.round(normalized * 100);
-            const labelY = orientation === 'horizontal' ? height + 16 : height + 16;
+            const labelY = props.orientation === 'horizontal' ? props.height + 16 : props.height + 16;
             objects.push(new Text(0, labelY, `${percent}%`, '12px Inter, sans-serif', '#e2e8f0', 'left', 'middle'));
         }
 

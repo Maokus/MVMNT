@@ -56,12 +56,14 @@ export class TimeDisplayElement extends SceneElement {
                             min: -512,
                             max: 512,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'showProgress',
                             type: 'boolean',
                             label: 'Show Progress Bars',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'fontFamily',
@@ -69,6 +71,7 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Font Family',
                             default: 'Inter',
                             description: 'Font family (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                         {
                             key: 'textColor',
@@ -76,6 +79,7 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Primary Text Color',
                             default: '#FFFFFF',
                             description: 'Color for the main time and beat numbers.',
+                            runtime: { transform: asTrimmedString, defaultValue: '#FFFFFF' },
                         },
                         {
                             key: 'textSecondaryColor',
@@ -83,6 +87,10 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Secondary Text Color',
                             default: 'rgba(255, 255, 255, 0.9)',
                             description: 'Color for labels and secondary text.',
+                            runtime: {
+                                transform: asTrimmedString,
+                                defaultValue: 'rgba(255, 255, 255, 0.9)',
+                            },
                         },
                     ],
                     presets: [
@@ -109,17 +117,7 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getProps({
-            visible: { transform: asBoolean, defaultValue: true },
-            showProgress: { transform: asBoolean, defaultValue: true },
-            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
-            textColor: { transform: asTrimmedString, defaultValue: '#FFFFFF' },
-            textSecondaryColor: {
-                transform: asTrimmedString,
-                defaultValue: 'rgba(255, 255, 255, 0.9)',
-            },
-            offsetBars: { transform: asNumber, defaultValue: 0 },
-        });
+        const props = this.getSchemaProps();
 
         if (!props.visible) return [];
 

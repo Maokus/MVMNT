@@ -1,11 +1,19 @@
 // Notes Playing Display: show currently playing notes per channel/track
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import type { SceneElementInterface } from '@core/types.js';
+
+const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+    if (!normalized) return undefined;
+    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+    return allowed.includes(normalized) ? normalized : undefined;
+};
 
 export class NotesPlayingDisplayElement extends SceneElement {
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
@@ -29,12 +37,19 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     collapsed: false,
                     description: 'Select which MIDI track(s) feed the live note readout.',
                     properties: [
-                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'MIDI Track',
+                            default: null,
+                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                        },
                         {
                             key: 'showAllAvailableTracks',
                             type: 'boolean',
                             label: 'Show All Tracks When Idle',
                             default: false,
+                            runtime: { transform: asBoolean, defaultValue: false },
                         },
                     ],
                     presets: [
@@ -58,10 +73,32 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 { value: 'left', label: 'Left' },
                                 { value: 'right', label: 'Right' },
                             ],
+                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
                         },
-                        { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Font Size (px)', default: 30, min: 6, max: 72, step: 1 },
-                        { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
+                        {
+                            key: 'fontFamily',
+                            type: 'font',
+                            label: 'Font Family',
+                            default: 'Inter',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
+                        },
+                        {
+                            key: 'fontSize',
+                            type: 'number',
+                            label: 'Font Size (px)',
+                            default: 30,
+                            min: 6,
+                            max: 72,
+                            step: 1,
+                            runtime: { transform: asNumber, defaultValue: 30 },
+                        },
+                        {
+                            key: 'color',
+                            type: 'color',
+                            label: 'Text Color',
+                            default: '#cccccc',
+                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
+                        },
                         {
                             key: 'lineSpacing',
                             type: 'number',
@@ -70,6 +107,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             min: 0,
                             max: 40,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 4 },
                         },
                     ],
                     presets: [
@@ -96,27 +134,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getProps({
-            visible: { transform: asBoolean, defaultValue: true },
-            midiTrackId: {
-                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                defaultValue: null,
-            },
-            showAllAvailableTracks: { transform: asBoolean, defaultValue: false },
-            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
-            fontSize: { transform: asNumber, defaultValue: 30 },
-            color: { transform: asTrimmedString, defaultValue: '#cccccc' },
-            lineSpacing: { transform: asNumber, defaultValue: 4 },
-            textJustification: {
-                transform: (value, element) => {
-                    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
-                    if (!normalized) return undefined;
-                    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
-                    return allowed.includes(normalized) ? normalized : undefined;
-                },
-                defaultValue: 'left' as CanvasTextAlign,
-            },
-        });
+        const props = this.getSchemaProps();
 
         if (!props.visible) return [];
 

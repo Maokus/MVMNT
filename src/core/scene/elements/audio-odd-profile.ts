@@ -1,4 +1,5 @@
-import { EnhancedConfigSchema, RenderObject, SceneElement } from '@core/index';
+import { EnhancedConfigSchema, RenderObject } from '@core/index';
+import { SceneElement, asTrimmedString } from './base';
 import { Rectangle, Text } from '@core/render/render-objects';
 import { registerFeatureRequirements } from './audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -38,6 +39,10 @@ export class AudioOddProfileElement extends SceneElement {
                             label: 'Audio Track',
                             default: null,
                             allowedTrackTypes: ['audio'],
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                     ],
                 },
@@ -46,8 +51,11 @@ export class AudioOddProfileElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-        const trackId = this.getProperty<string>('audioTrackId');
-        const result = getFeatureData(this, trackId, 'spectrogram', { profile: ODD_PROFILE_ID }, targetTime);
+        const props = this.getSchemaProps();
+
+        const result = props.audioTrackId
+            ? getFeatureData(this, props.audioTrackId, 'spectrogram', { profile: ODD_PROFILE_ID }, targetTime)
+            : null;
         const values = result?.values ?? [];
 
         if (!values.length) {

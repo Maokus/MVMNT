@@ -1,5 +1,5 @@
 // Text overlay element for displaying a single line of text with property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
+import { SceneElement, asNumber, asTrimmedString } from './base';
 import { RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
@@ -32,6 +32,7 @@ export class TextOverlayElement extends SceneElement {
                             label: 'Text Content',
                             default: 'Sample Text',
                             description: 'The text content to display.',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Sample Text' },
                         },
                     ],
                     presets: [
@@ -52,6 +53,7 @@ export class TextOverlayElement extends SceneElement {
                             label: 'Font Family',
                             default: 'Inter',
                             description: 'Choose the font family (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                         {
                             key: 'fontSize',
@@ -62,6 +64,7 @@ export class TextOverlayElement extends SceneElement {
                             max: 160,
                             step: 1,
                             description: 'Font size in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 36 },
                         },
                         {
                             key: 'color',
@@ -69,6 +72,7 @@ export class TextOverlayElement extends SceneElement {
                             label: 'Text Color',
                             default: '#ffffff',
                             description: 'Color used when rendering the text.',
+                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
                         },
                     ],
                     presets: [
@@ -90,13 +94,7 @@ export class TextOverlayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getProps({
-            visible: { transform: asBoolean, defaultValue: true },
-            text: { transform: asTrimmedString, defaultValue: 'Sample Text' },
-            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
-            fontSize: { transform: asNumber, defaultValue: 36 },
-            color: { transform: asTrimmedString, defaultValue: '#ffffff' },
-        });
+        const props = this.getSchemaProps();
 
         if (!props.visible) return [];
 

@@ -883,7 +883,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getProps({
+        const props = this.getSchemaProps({
             timeUnitBars: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1590,15 +1590,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     // Public getters for animation properties (used by AnimationController)
     getAnimationType(): string {
-        const { animationType } = this.getProps({
+        const props = this.getSchemaProps({
             animationType: { transform: asTrimmedString, defaultValue: 'expand' },
         });
-        return animationType ?? 'expand';
+        return props.animationType ?? 'expand';
     }
 
     // ADSR phase durations
     getAttackDuration(): number {
-        const { attackDuration } = this.getProps({
+        const props = this.getSchemaProps({
             attackDuration: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1607,11 +1607,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 defaultValue: 0.3,
             },
         });
-        return attackDuration ?? 0.3;
+        return props.attackDuration ?? 0.3;
     }
 
     getDecayDuration(): number {
-        const { decayDuration } = this.getProps({
+        const props = this.getSchemaProps({
             decayDuration: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1620,11 +1620,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 defaultValue: 0.3,
             },
         });
-        return decayDuration ?? 0.3;
+        return props.decayDuration ?? 0.3;
     }
 
     getReleaseDuration(): number {
-        const { releaseDuration } = this.getProps({
+        const props = this.getSchemaProps({
             releaseDuration: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1633,11 +1633,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 defaultValue: 0.3,
             },
         });
-        return releaseDuration ?? 0.3;
+        return props.releaseDuration ?? 0.3;
     }
 
     getTimeUnitBars(): number {
-        const { timeUnitBars } = this.getProps({
+        const props = this.getSchemaProps({
             timeUnitBars: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1646,7 +1646,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 defaultValue: 1,
             },
         });
-        return timeUnitBars ?? 1;
+        return props.timeUnitBars ?? 1;
     }
 
     setTimeUnitBars(bars: number): this {
@@ -1669,13 +1669,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Get channel colors for MIDI channels
      */
     getChannelColors(): string[] {
-        const { useChannelColors, noteColor, channel0Color } = this.getProps({
+        const props = this.getSchemaProps({
             useChannelColors: { transform: asBoolean, defaultValue: false },
             noteColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
             channel0Color: { transform: asTrimmedString },
         });
-        const baseColor = noteColor ?? channel0Color ?? '#ff6b6b';
-        if (!useChannelColors) {
+        const baseColor = props.noteColor ?? props.channel0Color ?? '#ff6b6b';
+        if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
 
@@ -1683,7 +1683,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         for (let i = 0; i < 16; i++) {
             channelDescriptors[`channel${i}Color`] = { transform: asTrimmedString };
         }
-        const channelColors = this.getProps(channelDescriptors);
+        const channelColors = this.getSchemaProps(channelDescriptors);
 
         return Array.from({ length: 16 }, (_, index) => {
             const key = `channel${index}Color` as const;

@@ -31,6 +31,10 @@ export class AudioMinimalElement extends SceneElement {
                             label: 'Audio Track',
                             default: null,
                             allowedTrackTypes: ['audio'],
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                     ],
                 },
@@ -39,14 +43,9 @@ export class AudioMinimalElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-        const { audioTrackId } = this.getProps({
-            audioTrackId: {
-                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                defaultValue: null,
-            },
-        });
+        const props = this.getSchemaProps();
 
-        const frame = audioTrackId ? getFeatureData(this, audioTrackId, 'spectrogram', targetTime) : null;
+        const frame = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime) : null;
 
         if (!frame || frame.values.length === 0) {
             return [new Rectangle(0, 0, 200, 200, '#ff0000')];

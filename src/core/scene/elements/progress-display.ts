@@ -1,8 +1,20 @@
 // Progress display element for showing playback progress with property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
-import { EnhancedConfigSchema } from '@core/types';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { parseFontSelection, ensureFontLoaded } from '@fonts/font-loader';
+
+const clampUnit: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) return undefined;
+    return Math.max(0, Math.min(1, numeric));
+};
+
+const clampNonNegative: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) return undefined;
+    return Math.max(0, numeric);
+};
 
 export class ProgressDisplayElement extends SceneElement {
     // Helper to convert hex color to rgba string
@@ -48,12 +60,14 @@ export class ProgressDisplayElement extends SceneElement {
                             type: 'boolean',
                             label: 'Show Progress Bar',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'showStats',
                             type: 'boolean',
                             label: 'Show Statistics',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'barWidth',
@@ -64,6 +78,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 1200,
                             step: 5,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: clampNonNegative, defaultValue: 400 },
                         },
                         {
                             key: 'height',
@@ -74,6 +89,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 80,
                             step: 5,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: clampNonNegative, defaultValue: 20 },
                         },
                     ],
                     presets: [
@@ -107,6 +123,7 @@ export class ProgressDisplayElement extends SceneElement {
                             label: 'Bar Color',
                             default: '#cccccc',
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
                         },
                         {
                             key: 'barOpacity',
@@ -117,6 +134,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 1,
                             step: 0.05,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: clampUnit, defaultValue: 1 },
                         },
                         {
                             key: 'barBgColor',
@@ -124,6 +142,7 @@ export class ProgressDisplayElement extends SceneElement {
                             label: 'Bar Background Color',
                             default: '#ffffff',
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
                         },
                         {
                             key: 'barBgOpacity',
@@ -134,6 +153,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 1,
                             step: 0.05,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: clampUnit, defaultValue: 0.1 },
                         },
                         {
                             key: 'borderColor',
@@ -141,6 +161,7 @@ export class ProgressDisplayElement extends SceneElement {
                             label: 'Border Color',
                             default: '#ffffff',
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
                         },
                         {
                             key: 'borderOpacity',
@@ -151,6 +172,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 1,
                             step: 0.05,
                             visibleWhen: [{ key: 'showBar', truthy: true }],
+                            runtime: { transform: clampUnit, defaultValue: 0.3 },
                         },
                         {
                             key: 'statsTextColor',
@@ -158,6 +180,7 @@ export class ProgressDisplayElement extends SceneElement {
                             label: 'Stats Text Color',
                             default: '#cccccc',
                             visibleWhen: [{ key: 'showStats', truthy: true }],
+                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
                         },
                         {
                             key: 'statsTextOpacity',
@@ -168,6 +191,7 @@ export class ProgressDisplayElement extends SceneElement {
                             max: 1,
                             step: 0.05,
                             visibleWhen: [{ key: 'showStats', truthy: true }],
+                            runtime: { transform: clampUnit, defaultValue: 1 },
                         },
                     ],
                     presets: [
@@ -221,49 +245,7 @@ export class ProgressDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getProps({
-            visible: { transform: asBoolean, defaultValue: true },
-            showBar: { transform: asBoolean, defaultValue: true },
-            showStats: { transform: asBoolean, defaultValue: true },
-            barWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 400,
-            },
-            height: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 20,
-            },
-            barColor: { transform: asTrimmedString, defaultValue: '#cccccc' },
-            barOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            barBgColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
-            barBgOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 0.1,
-            },
-            borderColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
-            borderOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 0.3,
-            },
-        });
+        const props = this.getSchemaProps();
 
         if (!props.visible) return [];
 
@@ -363,8 +345,8 @@ export class ProgressDisplayElement extends SceneElement {
             // Ensure chosen weight is available (especially for thin weights like 100)
             if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
             const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
-            const statsTextColorRaw = config.statsTextColor || '#cccccc';
-            const statsTextOpacity = typeof config.statsTextOpacity === 'number' ? config.statsTextOpacity : 1;
+            const statsTextColorRaw = props.statsTextColor ?? '#cccccc';
+            const statsTextOpacity = props.statsTextOpacity ?? 1;
 
             // Time progress
             const currentTimeText = this._formatTime(Math.max(0, relTime));

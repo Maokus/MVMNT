@@ -1,4 +1,4 @@
-import { SceneElement, asNumber } from './base';
+import { SceneElement, asBoolean } from './base';
 import { EnhancedConfigSchema } from '@core/types';
 import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
 
@@ -38,6 +38,7 @@ export class DebugElement extends SceneElement {
                             type: 'boolean',
                             label: 'Show Alignment Dots',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                     ],
                     presets: [
@@ -87,28 +88,18 @@ export class DebugElement extends SceneElement {
         height: number,
         localPoint: { x: number; y: number }
     ): { x: number; y: number } {
-        const transforms = this.getProps({
-            offsetX: { transform: asNumber, defaultValue: 0 },
-            offsetY: { transform: asNumber, defaultValue: 0 },
-            elementScaleX: { transform: asNumber, defaultValue: 1 },
-            elementScaleY: { transform: asNumber, defaultValue: 1 },
-            elementSkewX: { transform: asNumber, defaultValue: 0 },
-            elementSkewY: { transform: asNumber, defaultValue: 0 },
-            elementRotation: { transform: asNumber, defaultValue: 0 },
-            anchorX: { transform: asNumber, defaultValue: 0 },
-            anchorY: { transform: asNumber, defaultValue: 0 },
-        });
+        const props = this.getSchemaProps();
 
         const t = {
-            x: transforms.offsetX ?? 0,
-            y: transforms.offsetY ?? 0,
-            scaleX: transforms.elementScaleX ?? 1,
-            scaleY: transforms.elementScaleY ?? 1,
-            skewX: transforms.elementSkewX ?? 0,
-            skewY: transforms.elementSkewY ?? 0,
-            rot: transforms.elementRotation ?? 0,
-            anchorX: (transforms.anchorX ?? 0) * width,
-            anchorY: (transforms.anchorY ?? 0) * height,
+            x: props.offsetX ?? 0,
+            y: props.offsetY ?? 0,
+            scaleX: props.elementScaleX ?? 1,
+            scaleY: props.elementScaleY ?? 1,
+            skewX: props.elementSkewX ?? 0,
+            skewY: props.elementSkewY ?? 0,
+            rot: props.elementRotation ?? 0,
+            anchorX: (props.anchorX ?? 0) * width,
+            anchorY: (props.anchorY ?? 0) * height,
         };
 
         // Step 1: subtract anchor
