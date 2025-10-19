@@ -566,6 +566,10 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
     return audioFeatureCalculatorRegistry.list();
 }
 
+export function registerBuiltInAudioFeatureCalculators(): void {
+    ensureCalculatorsRegistered();
+}
+
 export interface AnalyzeAudioFeatureOptions {
     audioSourceId: string;
     audioBuffer: AudioBuffer;
