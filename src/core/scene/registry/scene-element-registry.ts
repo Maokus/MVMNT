@@ -19,6 +19,7 @@ import {
 } from '@core/scene/elements';
 import { AudioMinimalElement } from '../elements/audio-minimal';
 import { AudioOddProfileElement } from '../elements/audio-odd-profile';
+import { AudioDebugElement } from '../elements/audio-debug';
 
 export interface SceneElementFactorySchema {
     name?: string;
@@ -159,6 +160,11 @@ export class SceneElementRegistry {
             'audioOddProfile',
             (config) => new AudioOddProfileElement(config.id || 'audioOddProfile', config),
             AudioOddProfileElement.getConfigSchema()
+        );
+        this.registerElement(
+            'audioDebug',
+            (config) => new AudioDebugElement(config.id || 'audioDebug', config),
+            AudioDebugElement.getConfigSchema()
         );
     }
 }
