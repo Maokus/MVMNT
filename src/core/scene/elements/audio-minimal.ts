@@ -45,7 +45,7 @@ export class AudioMinimalElement extends SceneElement {
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
-        const frame = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime) : null;
+        const frame = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'waveform', targetTime) : null;
 
         if (!frame || frame.values.length === 0) {
             return [new Rectangle(0, 0, 200, 200, '#ff0000')];
@@ -53,9 +53,14 @@ export class AudioMinimalElement extends SceneElement {
 
         const objects: RenderObject[] = [];
 
+        let y = 0;
+
         for (let i = 0; i < frame.values.length; i++) {
-            objects.push(new Text(0, i * 50, `${frame.values[i]}`, '40px Arial', '#ffffff'));
+            objects.push(new Text(0, y, `${frame.values[i]}`, '40px Arial', '#ffffff'));
+            y += 50;
         }
+
+        objects.push(new Text(0, y, `${JSON.stringify(frame.metadata)}`, '30px Arial', '#00ff00'));
         return objects;
     }
 }

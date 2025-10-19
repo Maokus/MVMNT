@@ -18,6 +18,86 @@ function clamp(value: number, min: number, max: number): number {
     return value;
 }
 
+function ensurePointCount(width: number, fallback: number): number {
+    const desired = Math.max(2, Math.round(width));
+    return Math.max(desired, fallback);
+}
+
+function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
+}
+
+function upsampleLinear(values: number[], targetCount: number): number[] {
+    if (targetCount <= 0) return [];
+    if (!values.length) return Array.from({ length: targetCount }, () => 0);
+    if (values.length === 1) return Array.from({ length: targetCount }, () => values[0] ?? 0);
+    if (targetCount === values.length) return [...values];
+    const result: number[] = new Array(targetCount);
+    const sourceMaxIndex = values.length - 1;
+    const denom = targetCount - 1;
+    for (let i = 0; i < targetCount; i += 1) {
+        const position = denom === 0 ? 0 : (i / denom) * sourceMaxIndex;
+        const leftIndex = Math.floor(position);
+        const frac = position - leftIndex;
+        const left = values[leftIndex] ?? values[sourceMaxIndex] ?? 0;
+        const right = values[leftIndex + 1] ?? left;
+        result[i] = lerp(left, right, frac);
+    }
+    return result;
+}
+
+function downsampleAveraged(values: number[], targetCount: number): number[] {
+    if (targetCount <= 0) return [];
+    if (!values.length) return Array.from({ length: targetCount }, () => 0);
+    if (targetCount >= values.length) return [...values];
+    const result: number[] = new Array(targetCount);
+    const bucketSize = values.length / targetCount;
+    for (let bucket = 0; bucket < targetCount; bucket += 1) {
+        const start = Math.floor(bucket * bucketSize);
+        const end = Math.floor((bucket + 1) * bucketSize);
+        let total = 0;
+        let count = 0;
+        for (let i = start; i < end && i < values.length; i += 1) {
+            total += values[i] ?? 0;
+            count += 1;
+        }
+        if (count === 0) {
+            const clampIndex = Math.min(values.length - 1, Math.max(0, Math.round(bucket * bucketSize)));
+            result[bucket] = values[clampIndex] ?? 0;
+        } else {
+            result[bucket] = total / count;
+        }
+    }
+    return result;
+}
+
+function normalizeForDisplay(values: number[], targetCount: number): number[] {
+    if (targetCount <= 0) return [];
+    if (values.length <= 1) {
+        const fill = values[0] ?? 0;
+        return Array.from({ length: targetCount }, () => fill);
+    }
+    if (values.length === targetCount) {
+        return [...values];
+    }
+    if (values.length < targetCount) {
+        return upsampleLinear(values, targetCount);
+    }
+    return downsampleAveraged(values, targetCount);
+}
+
+function buildPolylinePoints(values: number[], width: number, height: number): { x: number; y: number }[] {
+    if (!values.length) return [];
+    const verticalScale = height / 2;
+    const normalizedWidth = Math.max(0, width);
+    const denom = Math.max(1, values.length - 1);
+    return values.map((value, index) => {
+        const x = denom === 0 ? normalizedWidth / 2 : (index / denom) * normalizedWidth;
+        const y = height / 2 - value * verticalScale;
+        return { x, y };
+    });
+}
+
 export class AudioOscilloscopeElement extends SceneElement {
     constructor(id: string = 'audioOscilloscope', config: Record<string, unknown> = {}) {
         super('audioOscilloscope', id, config);
@@ -46,7 +126,10 @@ export class AudioOscilloscopeElement extends SceneElement {
                             label: 'Audio Track',
                             default: null,
                             allowedTrackTypes: ['audio'],
-                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                         {
                             key: 'windowSeconds',
@@ -180,15 +263,7 @@ export class AudioOscilloscopeElement extends SceneElement {
 
         if (!range || range.frameCount < 2 || !range.data?.length) {
             objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    'No waveform data',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                )
+                new Text(8, props.height / 2, 'No waveform data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
             );
             return objects;
         }
@@ -228,11 +303,9 @@ export class AudioOscilloscopeElement extends SceneElement {
                 if (values.length < 2) {
                     return;
                 }
-                const denom = Math.max(1, values.length - 1);
-                const points = values.map((value, index) => ({
-                    x: (index / denom) * props.width,
-                    y: props.height / 2 - value * (props.height / 2),
-                }));
+                const targetCount = ensurePointCount(props.width, values.length);
+                const normalizedValues = normalizeForDisplay(values, targetCount);
+                const points = buildPolylinePoints(normalizedValues, props.width, props.height);
                 const line = new Poly(points, null, props.lineColor, props.lineWidth, {
                     includeInLayoutBounds: false,
                 });
@@ -268,11 +341,9 @@ export class AudioOscilloscopeElement extends SceneElement {
             return objects;
         }
 
-        const denom = Math.max(1, values.length - 1);
-        const points = values.map((value, index) => ({
-            x: (index / denom) * props.width,
-            y: props.height / 2 - value * (props.height / 2),
-        }));
+        const targetCount = ensurePointCount(props.width, values.length);
+        const normalizedValues = normalizeForDisplay(values, targetCount);
+        const points = buildPolylinePoints(normalizedValues, props.width, props.height);
 
         const line = new Poly(points, null, props.lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
