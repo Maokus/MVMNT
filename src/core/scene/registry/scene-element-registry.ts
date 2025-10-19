@@ -146,11 +146,6 @@ export class SceneElementRegistry {
             AudioWaveformElement.getConfigSchema()
         );
         this.registerElement(
-            'audioOscilloscope',
-            (config) => new AudioWaveformElement(config.id || 'audioOscilloscope', config),
-            AudioWaveformElement.getConfigSchema()
-        );
-        this.registerElement(
             'audioLockedOscilloscope',
             (config) => new AudioLockedOscilloscopeElement(config.id || 'audioLockedOscilloscope', config),
             AudioLockedOscilloscopeElement.getConfigSchema()
