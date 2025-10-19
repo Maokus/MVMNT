@@ -39,6 +39,14 @@ export type PropertyVisibilityCondition =
           falsy: true;
       };
 
+export type PropertyRuntimeTransform = (value: unknown, element: any) => unknown;
+
+export interface PropertyRuntimeConfig {
+    runtimeKey?: string;
+    transform?: PropertyRuntimeTransform;
+    defaultValue?: unknown;
+}
+
 export interface PropertyDefinition {
     key: string;
     type:
@@ -69,6 +77,7 @@ export interface PropertyDefinition {
         analysisProfile?: string;
     };
     visibleWhen?: PropertyVisibilityCondition[];
+    runtime?: PropertyRuntimeConfig;
 }
 
 export interface PropertyGroupPreset {

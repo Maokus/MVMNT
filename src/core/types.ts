@@ -246,6 +246,24 @@ export type PropertyVisibilityCondition =
           falsy: true;
       };
 
+export type PropertyRuntimeTransform = (value: unknown, element: SceneElementInterface) => unknown;
+
+export interface PropertyRuntimeConfig {
+    /**
+     * Optional override for the runtime property key. Defaults to the schema key.
+     */
+    runtimeKey?: string;
+    /**
+     * Optional transform applied when retrieving the property at runtime.
+     */
+    transform?: PropertyRuntimeTransform;
+    /**
+     * Optional default value applied when the transform returns undefined/null.
+     * Falls back to the schema default when omitted.
+     */
+    defaultValue?: unknown;
+}
+
 export interface PropertyDefinition {
     key: string;
     type:
@@ -282,6 +300,10 @@ export interface PropertyDefinition {
     };
     // Optional visibility rules for progressive disclosure
     visibleWhen?: PropertyVisibilityCondition[];
+    /**
+     * Optional runtime metadata used when building property bags from the schema.
+     */
+    runtime?: PropertyRuntimeConfig;
 }
 
 export interface PropertyGroupPreset {
