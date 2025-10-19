@@ -1,4 +1,4 @@
-import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
+import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
