@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-volume-meter';
-import { AudioOscilloscopeElement } from '@core/scene/elements/audio-oscilloscope';
+import {
+    AudioWaveformElement,
+    AudioLockedOscilloscopeElement,
+} from '@core/scene/elements';
 import { Poly, Rectangle } from '@core/render/render-objects';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
 import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
@@ -96,7 +99,7 @@ describe('simplified audio scene elements', () => {
             sourceId: 'track-1',
         } as any);
 
-        const element = new AudioOscilloscopeElement('osc', {
+        const element = new AudioWaveformElement('osc', {
             audioTrackId: 'track-1',
             width: 120,
             height: 60,
@@ -109,5 +112,31 @@ describe('simplified audio scene elements', () => {
             | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
+    });
+
+    it('renders a locked oscilloscope polyline using detected period length', () => {
+        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue({
+            frameIndex: 4,
+            fractionalIndex: 4,
+            hopTicks: 1,
+            format: 'waveform-periodic' as const,
+            values: [0, 0.5, 1, 0.5, 0, -0.5, -1, -0.5],
+            frameLength: 6,
+        } as any);
+
+        const element = new AudioLockedOscilloscopeElement('locked', {
+            audioTrackId: 'track-1',
+            width: 100,
+            height: 40,
+            lineColor: '#ff00ff',
+        });
+
+        const [container] = element.buildRenderObjects({}, 2.5);
+        const waveform = (container as any).children.find((child: unknown) => child instanceof Poly) as
+            | Poly
+            | undefined;
+
+        expect(waveform).toBeInstanceOf(Poly);
+        expect((waveform as Poly).strokeColor).toBe('#ff00ff');
     });
 });

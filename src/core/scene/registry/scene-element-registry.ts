@@ -14,7 +14,8 @@ import {
     ChordEstimateDisplayElement,
     AudioSpectrumElement,
     AudioVolumeMeterElement,
-    AudioOscilloscopeElement,
+    AudioWaveformElement,
+    AudioLockedOscilloscopeElement,
 } from '@core/scene/elements';
 import { AudioMinimalElement } from '../elements/audio-minimal';
 import { AudioOddProfileElement } from '../elements/audio-odd-profile';
@@ -140,9 +141,19 @@ export class SceneElementRegistry {
             AudioVolumeMeterElement.getConfigSchema()
         );
         this.registerElement(
+            'audioWaveform',
+            (config) => new AudioWaveformElement(config.id || 'audioWaveform', config),
+            AudioWaveformElement.getConfigSchema()
+        );
+        this.registerElement(
             'audioOscilloscope',
-            (config) => new AudioOscilloscopeElement(config.id || 'audioOscilloscope', config),
-            AudioOscilloscopeElement.getConfigSchema()
+            (config) => new AudioWaveformElement(config.id || 'audioOscilloscope', config),
+            AudioWaveformElement.getConfigSchema()
+        );
+        this.registerElement(
+            'audioLockedOscilloscope',
+            (config) => new AudioLockedOscilloscopeElement(config.id || 'audioLockedOscilloscope', config),
+            AudioLockedOscilloscopeElement.getConfigSchema()
         );
         this.registerElement(
             'audioMinimal',

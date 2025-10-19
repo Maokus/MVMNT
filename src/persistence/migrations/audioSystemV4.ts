@@ -21,7 +21,12 @@ interface ElementSnapshot {
     children?: unknown;
 }
 
-const SMOOTHING_ELEMENT_TYPES = new Set(['audioSpectrum', 'audioVolumeMeter', 'audioOscilloscope']);
+const SMOOTHING_ELEMENT_TYPES = new Set([
+    'audioSpectrum',
+    'audioVolumeMeter',
+    'audioWaveform',
+    'audioOscilloscope',
+]);
 
 function resolveSmoothingProperty(elementType: string | null | undefined): string | null {
     if (!elementType) return null;

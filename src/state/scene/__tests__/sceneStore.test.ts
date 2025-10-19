@@ -416,7 +416,7 @@ describe('sceneStore', () => {
     it('migrates legacy audio feature binding patches without polluting macro indices', () => {
         store.getState().addElement({
             id: 'osc',
-            type: 'audioOscilloscope',
+            type: 'audioWaveform',
             index: store.getState().order.length,
         });
 

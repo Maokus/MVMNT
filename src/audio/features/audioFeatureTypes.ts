@@ -5,7 +5,8 @@ export type AudioFeatureTrackFormat =
     | 'float32'
     | 'uint8'
     | 'int16'
-    | 'waveform-minmax';
+    | 'waveform-minmax'
+    | 'waveform-periodic';
 
 export type AudioFeatureTrackData =
     | Float32Array

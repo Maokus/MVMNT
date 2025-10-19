@@ -9,6 +9,7 @@ import { registerFeatureRequirements } from './audioElementMetadata';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
+registerFeatureRequirements('audioWaveform', [{ feature: 'waveform' }]);
 registerFeatureRequirements('audioOscilloscope', [{ feature: 'waveform' }]);
 
 function clamp(value: number, min: number, max: number): number {
@@ -98,9 +99,9 @@ function buildPolylinePoints(values: number[], width: number, height: number): {
     });
 }
 
-export class AudioOscilloscopeElement extends SceneElement {
-    constructor(id: string = 'audioOscilloscope', config: Record<string, unknown> = {}) {
-        super('audioOscilloscope', id, config);
+export class AudioWaveformElement extends SceneElement {
+    constructor(id: string = 'audioWaveform', config: Record<string, unknown> = {}) {
+        super('audioWaveform', id, config);
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
@@ -109,7 +110,7 @@ export class AudioOscilloscopeElement extends SceneElement {
         const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         return {
             ...base,
-            name: 'Audio Oscilloscope',
+            name: 'Audio Waveform',
             description: 'Simple waveform preview for debugging audio features.',
             category: 'audio',
             groups: [

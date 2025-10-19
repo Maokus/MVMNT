@@ -498,6 +498,7 @@ function resolveSmoothingProperty(elementType: string | undefined): string | nul
     switch (elementType) {
         case 'audioSpectrum':
         case 'audioVolumeMeter':
+        case 'audioWaveform':
         case 'audioOscilloscope':
             return 'smoothing';
         default:

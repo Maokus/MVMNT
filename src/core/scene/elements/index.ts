@@ -23,4 +23,5 @@ export { NotesPlayingDisplayElement } from './notes-playing-display';
 export { ChordEstimateDisplayElement } from './chord-estimate-display';
 export { AudioSpectrumElement } from './audio-spectrum';
 export { AudioVolumeMeterElement } from './audio-volume-meter';
-export { AudioOscilloscopeElement } from './audio-oscilloscope';
+export { AudioWaveformElement } from './audio-waveform';
+export { AudioLockedOscilloscopeElement } from './audio-locked-oscilloscope';
