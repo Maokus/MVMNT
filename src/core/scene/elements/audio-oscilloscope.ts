@@ -193,17 +193,64 @@ export class AudioOscilloscopeElement extends SceneElement {
             return objects;
         }
 
-        const channelCount = Math.max(1, range.channels || 1);
+        const channelStride = Math.max(1, range.channels || 1);
+
+        if (range.format === 'waveform-minmax') {
+            const waveformChannels = Math.max(1, Math.floor(channelStride / 2) || 1);
+            const channelValues = Array.from({ length: waveformChannels }, () => [] as number[]);
+            for (let frame = 0; frame < range.frameCount; frame += 1) {
+                const baseIndex = frame * channelStride;
+                for (let channel = 0; channel < waveformChannels; channel += 1) {
+                    const pairIndex = baseIndex + channel * 2;
+                    const min = range.data[pairIndex] ?? 0;
+                    const max = range.data[pairIndex + 1] ?? min;
+                    channelValues[channel].push(clamp((min + max) / 2, -1, 1));
+                }
+            }
+
+            const hasRenderableChannel = channelValues.some((values) => values.length >= 2);
+            if (!hasRenderableChannel) {
+                objects.push(
+                    new Text(
+                        8,
+                        props.height / 2,
+                        'Waveform too short',
+                        '12px Inter, sans-serif',
+                        '#94a3b8',
+                        'left',
+                        'middle'
+                    )
+                );
+                return objects;
+            }
+
+            channelValues.forEach((values, channelIndex) => {
+                if (values.length < 2) {
+                    return;
+                }
+                const denom = Math.max(1, values.length - 1);
+                const points = values.map((value, index) => ({
+                    x: (index / denom) * props.width,
+                    y: props.height / 2 - value * (props.height / 2),
+                }));
+                const line = new Poly(points, null, props.lineColor, props.lineWidth, {
+                    includeInLayoutBounds: false,
+                });
+                line.setClosed(false);
+                if (channelIndex > 0) {
+                    line.setGlobalAlpha(0.7);
+                    line.setLineDash([6, 4]);
+                }
+                objects.push(line);
+            });
+
+            return objects;
+        }
+
         const values: number[] = [];
         for (let frame = 0; frame < range.frameCount; frame += 1) {
-            const baseIndex = frame * channelCount;
-            if (range.format === 'waveform-minmax') {
-                const min = range.data[baseIndex] ?? 0;
-                const max = range.data[baseIndex + 1] ?? min;
-                values.push(clamp((min + max) / 2, -1, 1));
-            } else {
-                values.push(clamp(range.data[baseIndex] ?? 0, -1, 1));
-            }
+            const baseIndex = frame * channelStride;
+            values.push(clamp(range.data[baseIndex] ?? 0, -1, 1));
         }
 
         if (values.length < 2) {

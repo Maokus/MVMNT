@@ -709,16 +709,24 @@ function createWaveformCalculator(): AudioFeatureCalculator {
         async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
             const { audioBuffer, analysisParams, signal, tempoMapper } = context;
             const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const totalSamples = mono.length;
+            const channelCount = Math.max(1, audioBuffer.numberOfChannels || 1);
+            const channelData = Array.from({ length: channelCount }, (_, index) => {
+                try {
+                    return audioBuffer.getChannelData(index);
+                } catch {
+                    return null;
+                }
+            });
+            const fallbackChannel = channelData.find((data) => data != null) ?? new Float32Array(audioBuffer.length || 0);
+            const totalSamples = fallbackChannel.length;
             const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
             const baseHopSeconds = Math.max(context.hopSeconds, analysisParams.hopSize / sampleRate);
             const minHopSeconds = 1 / sampleRate;
             const waveformHopSeconds = Math.max(baseHopSeconds / WAVEFORM_OVERSAMPLE_FACTOR, minHopSeconds);
             const waveformHopSamples = Math.max(waveformHopSeconds * sampleRate, 1);
             const waveformFrameCount = Math.max(1, Math.ceil(totalSamples / waveformHopSamples));
-            const minValues = new Float32Array(waveformFrameCount);
-            const maxValues = new Float32Array(waveformFrameCount);
+            const minValues = new Float32Array(waveformFrameCount * channelCount);
+            const maxValues = new Float32Array(waveformFrameCount * channelCount);
             const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
             for (let frame = 0; frame < waveformFrameCount; frame++) {
                 const frameStart = Math.floor(frame * waveformHopSamples);
@@ -731,17 +739,21 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 if (end <= start) {
                     end = Math.min(totalSamples, start + 1);
                 }
-                let min = Number.POSITIVE_INFINITY;
-                let max = Number.NEGATIVE_INFINITY;
-                for (let i = start; i < end; i++) {
-                    const value = mono[i] ?? 0;
-                    if (value < min) min = value;
-                    if (value > max) max = value;
+                for (let channel = 0; channel < channelCount; channel++) {
+                    const samples = channelData[channel] ?? fallbackChannel;
+                    let min = Number.POSITIVE_INFINITY;
+                    let max = Number.NEGATIVE_INFINITY;
+                    for (let i = start; i < end; i++) {
+                        const value = samples[i] ?? 0;
+                        if (value < min) min = value;
+                        if (value > max) max = value;
+                    }
+                    if (!isFinite(min)) min = 0;
+                    if (!isFinite(max)) max = 0;
+                    const offset = frame * channelCount + channel;
+                    minValues[offset] = min;
+                    maxValues[offset] = max;
                 }
-                if (!isFinite(min)) min = 0;
-                if (!isFinite(max)) max = 0;
-                minValues[frame] = min;
-                maxValues[frame] = max;
                 if ((frame + 1) % frameYieldInterval === 0) {
                     await maybeYield();
                 }
@@ -757,7 +769,7 @@ function createWaveformCalculator(): AudioFeatureCalculator {
                 calculatorId: 'mvmnt.waveform',
                 version: 1,
                 frameCount: waveformFrameCount,
-                channels: 1,
+                channels: channelCount,
                 hopTicks: waveformHopTicks,
                 hopSeconds: waveformHopSeconds,
                 startTimeSeconds: 0,

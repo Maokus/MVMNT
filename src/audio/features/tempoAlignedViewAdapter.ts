@@ -185,12 +185,39 @@ function readNumericFrame(
     return raw;
 }
 
-function readWaveformFrame(track: AudioFeatureTrack, index: number): [number, number] {
+function resolveWaveformVectorLength(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): number {
+    const channelCount = Math.max(1, track.channels || 1);
+    if (options.channelIndex != null) {
+        return 2;
+    }
+    return channelCount * 2;
+}
+
+function readWaveformFrame(
+    track: AudioFeatureTrack,
+    index: number,
+    options: TempoAlignedFrameOptions,
+): number[] {
     const frame = Math.max(0, Math.min(track.frameCount - 1, index));
     const payload = track.data as { min: Float32Array; max: Float32Array };
-    const min = payload.min?.[frame] ?? 0;
-    const max = payload.max?.[frame] ?? 0;
-    return [min, max];
+    const channelCount = Math.max(1, track.channels || 1);
+    const minValues = payload.min ?? new Float32Array();
+    const maxValues = payload.max ?? new Float32Array();
+    if (options.channelIndex != null) {
+        const clampedChannel = Math.max(0, Math.min(channelCount - 1, Math.floor(options.channelIndex)));
+        const offset = frame * channelCount + clampedChannel;
+        const min = minValues[offset] ?? 0;
+        const max = maxValues[offset] ?? min;
+        return [min, max];
+    }
+    const values: number[] = [];
+    for (let channel = 0; channel < channelCount; channel += 1) {
+        const offset = frame * channelCount + channel;
+        const min = minValues[offset] ?? 0;
+        const max = maxValues[offset] ?? min;
+        values.push(min, max);
+    }
+    return values;
 }
 
 function buildFrameVector(
@@ -199,8 +226,7 @@ function buildFrameVector(
     options: TempoAlignedFrameOptions,
 ): number[] {
     if (track.format === 'waveform-minmax') {
-        const [min, max] = readWaveformFrame(track, frameIndex);
-        return [min, max];
+        return readWaveformFrame(track, frameIndex, options);
     }
     const channels = Math.max(1, track.channels);
     const format = track.format as Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>;
@@ -218,7 +244,8 @@ function buildFrameVector(
 
 function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): number[] {
     if (track.format === 'waveform-minmax') {
-        return [0, 0];
+        const length = resolveWaveformVectorLength(track, options);
+        return Array.from({ length }, () => 0);
     }
     const targetChannel = options.channelIndex ?? options.bandIndex ?? null;
     if (targetChannel != null) {
@@ -579,8 +606,9 @@ export function getTempoAlignedRange(
         const lastFrame = Math.max(firstFrame, Math.min(featureTrack.frameCount - 1, frameEnd));
         const frameCount = lastFrame - firstFrame + 1;
         const isWaveform = featureTrack.format === 'waveform-minmax';
+        const waveformVectorLength = isWaveform ? resolveWaveformVectorLength(featureTrack, options) : 0;
         const channels = (() => {
-            if (isWaveform) return 2;
+            if (isWaveform) return waveformVectorLength;
             if (options.channelIndex != null || options.bandIndex != null) return 1;
             return Math.max(1, featureTrack.channels);
         })();
@@ -595,9 +623,9 @@ export function getTempoAlignedRange(
                     : buildFrameVector(featureTrack, sampleIndex, options);
             frameTicks[frame] = trackStartTick + (startTick + sampleIndex * hopTicksLegacy);
             if (isWaveform) {
-                const [min, max] = vector;
-                data[writeIndex++] = min ?? 0;
-                data[writeIndex++] = max ?? 0;
+                for (let i = 0; i < vector.length; i += 1) {
+                    data[writeIndex++] = vector[i] ?? 0;
+                }
             } else if (channels === 1) {
                 data[writeIndex++] = vector[0] ?? 0;
             } else {
@@ -650,8 +678,9 @@ export function getTempoAlignedRange(
     }
 
     const isWaveform = featureTrack.format === 'waveform-minmax';
+    const waveformVectorLength = isWaveform ? resolveWaveformVectorLength(featureTrack, options) : 0;
     const channels = (() => {
-        if (isWaveform) return 2;
+        if (isWaveform) return waveformVectorLength;
         if (options.channelIndex != null || options.bandIndex != null) return 1;
         return Math.max(1, featureTrack.channels);
     })();
@@ -668,9 +697,9 @@ export function getTempoAlignedRange(
                 : buildFrameVector(featureTrack, sampleIndex, options);
         frameSeconds[frame] = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
         if (isWaveform) {
-            const [min, max] = vector;
-            data[writeIndex++] = min ?? 0;
-            data[writeIndex++] = max ?? 0;
+            for (let i = 0; i < vector.length; i += 1) {
+                data[writeIndex++] = vector[i] ?? 0;
+            }
             continue;
         }
         if (channels === 1) {
