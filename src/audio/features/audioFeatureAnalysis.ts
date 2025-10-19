@@ -11,7 +11,9 @@ import {
     type AudioFeatureTrackFormat,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
-import { createFftPlan, fftRadix2 } from './fft';
+import { createRmsCalculator } from './calculators/rmsCalculator';
+import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
+import { createWaveformCalculator } from './calculators/waveformCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
@@ -85,10 +87,6 @@ export interface SerializedAudioFeatureCache {
 
 const DEFAULT_WINDOW_SIZE = 2048;
 const DEFAULT_HOP_SIZE = 512;
-const WAVEFORM_OVERSAMPLE_FACTOR = 8;
-const SPECTROGRAM_MIN_DECIBELS = -80;
-const SPECTROGRAM_MAX_DECIBELS = 0;
-const SPECTROGRAM_EPSILON = 1e-8;
 const ANALYSIS_YIELD_MIN_INTERVAL_MS = 12;
 
 type YieldCallback = () => Promise<void>;
@@ -201,7 +199,7 @@ function computeFrameCount(length: number, windowSize: number, hopSize: number):
 function createTimingSlice(
     globalBpm: number,
     beatsPerBar: number,
-    tempoMap?: TempoMapEntry[],
+    tempoMap?: TempoMapEntry[]
 ): AudioFeatureCalculatorTiming {
     const ticksPerQuarter = getSharedTimingManager().ticksPerQuarter;
     return {
@@ -217,7 +215,7 @@ function createAnalysisParams(
     tempoMap: TempoMapEntry[] | undefined,
     calculators: AudioFeatureCalculator[],
     windowSize: number,
-    hopSize: number,
+    hopSize: number
 ): AudioFeatureAnalysisParams {
     const versions: Record<string, number> = {};
     for (const calc of calculators) {
@@ -245,10 +243,8 @@ function serializeTypedArray(array: Float32Array | Uint8Array | Int16Array): Ser
 }
 
 function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array | Uint8Array | Int16Array {
-    const values = serialized.values as typeof serialized.values &
-        (number[] | Float32Array | Uint8Array | Int16Array);
-    const sliceView = (view: ArrayBufferView) =>
-        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    const values = serialized.values as typeof serialized.values & (number[] | Float32Array | Uint8Array | Int16Array);
+    const sliceView = (view: ArrayBufferView) => view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 
     if (serialized.type === 'float32') {
         if (Array.isArray(values)) return Float32Array.from(values);
@@ -272,7 +268,7 @@ function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array |
 }
 
 function toSerializedTempoProjection(
-    projection: AudioFeatureTempoProjection | undefined,
+    projection: AudioFeatureTempoProjection | undefined
 ): SerializedTempoProjection | undefined {
     if (!projection) {
         return undefined;
@@ -285,7 +281,7 @@ function toSerializedTempoProjection(
 }
 
 function fromSerializedTempoProjection(
-    projection: SerializedTempoProjection | undefined,
+    projection: SerializedTempoProjection | undefined
 ): AudioFeatureTempoProjection | undefined {
     if (!projection) {
         return undefined;
@@ -301,16 +297,14 @@ function fromSerializedTempoProjection(
 function resolveHopTicks(
     track: Pick<AudioFeatureTrack, 'hopTicks' | 'tempoProjection' | 'hopSeconds'>,
     fallbackProjection?: AudioFeatureTempoProjection,
-    tempoMapper?: TempoMapper,
+    tempoMapper?: TempoMapper
 ): number {
     const direct = normalizeHopTicks(track.hopTicks);
     if (direct != null) {
         return direct;
     }
     const projectionCandidate =
-        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
-            ? track.tempoProjection
-            : fallbackProjection;
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null ? track.tempoProjection : fallbackProjection;
     if (tempoMapper) {
         return quantizeHopTicks({
             hopSeconds: track.hopSeconds,
@@ -363,7 +357,7 @@ function inferChannelAliases(channelCount: number): string[] {
 
 function buildDefaultProfile(
     params: AudioFeatureAnalysisParams,
-    id: string = DEFAULT_ANALYSIS_PROFILE_ID,
+    id: string = DEFAULT_ANALYSIS_PROFILE_ID
 ): Record<string, AudioFeatureAnalysisProfileDescriptor> {
     const descriptor: AudioFeatureAnalysisProfileDescriptor = {
         id,
@@ -380,10 +374,7 @@ function buildDefaultProfile(
     return { [id]: descriptor };
 }
 
-function cloneTempoProjection(
-    projection: AudioFeatureTempoProjection,
-    hopTicks: number,
-): AudioFeatureTempoProjection {
+function cloneTempoProjection(projection: AudioFeatureTempoProjection, hopTicks: number): AudioFeatureTempoProjection {
     return {
         hopTicks,
         startTick: projection.startTick,
@@ -544,467 +535,35 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
         return calculators;
     }
     const builtins: AudioFeatureCalculator[] = [
-        createSpectrogramCalculator(),
-        createRmsCalculator(),
-        createWaveformCalculator(),
-        createPitchWaveformCalculator(),
+        createSpectrogramCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            hannWindow,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+        }),
+        createRmsCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+            inferChannelAliases,
+        }),
+        createWaveformCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+            inferChannelAliases,
+        }),
     ];
     for (const calc of builtins) {
         audioFeatureCalculatorRegistry.register(calc);
     }
     return audioFeatureCalculatorRegistry.list();
-}
-
-function createSpectrogramCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.spectrogram',
-        version: 3,
-        featureKey: 'spectrogram',
-        label: 'Spectrogram',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const { windowSize, hopSize } = analysisParams;
-            const fftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
-            const binCount = Math.floor(fftSize / 2) + 1;
-            const window = hannWindow(windowSize);
-            const output = new Float32Array(frameCount * binCount);
-            const sampleRate = audioBuffer.sampleRate || 44100;
-            const magnitudeScale = 2 / Math.max(1, windowSize);
-            const binYieldInterval = Math.max(1, Math.floor(binCount / 8));
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 4));
-            const fftPlan = createFftPlan(fftSize);
-            const real = new Float32Array(fftSize);
-            const imag = new Float32Array(fftSize);
-
-            for (let frame = 0; frame < frameCount; frame++) {
-                const start = frame * hopSize;
-                real.fill(0);
-                imag.fill(0);
-                for (let n = 0; n < windowSize; n++) {
-                    real[n] = (mono[start + n] ?? 0) * window[n];
-                }
-                fftRadix2(real, imag, fftPlan);
-                for (let bin = 0; bin < binCount; bin++) {
-                    const realValue = real[bin];
-                    const imagValue = imag[bin];
-                    const magnitude = Math.sqrt(realValue * realValue + imagValue * imagValue) * magnitudeScale;
-                    const decibels = 20 * Math.log10(magnitude + SPECTROGRAM_EPSILON);
-                    const clamped = Math.max(SPECTROGRAM_MIN_DECIBELS, Math.min(SPECTROGRAM_MAX_DECIBELS, decibels));
-                    output[frame * binCount + bin] = clamped;
-                    if ((bin + 1) % binYieldInterval === 0) {
-                        await maybeYield();
-                    }
-                }
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, frameCount);
-            }
-            await maybeYield();
-
-            return {
-                key: 'spectrogram',
-                calculatorId: 'mvmnt.spectrogram',
-                version: 3,
-                frameCount,
-                channels: binCount,
-                hopTicks,
-                hopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
-                format: 'float32',
-                data: output,
-                metadata: {
-                    fftSize,
-                    hopSize,
-                    sampleRate,
-                    window: 'hann',
-                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
-                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
-                },
-                analysisParams: {
-                    fftSize,
-                    windowSize,
-                    hopSize,
-                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
-                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
-                    window: 'hann',
-                },
-                analysisProfileId: 'default',
-                channelAliases: null,
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            const track = deserializeTrack(payload as SerializedAudioFeatureTrack);
-            return track;
-        },
-    };
-}
-
-function createRmsCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.rms',
-        version: 1,
-        featureKey: 'rms',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const { windowSize, hopSize } = analysisParams;
-            const output = new Float32Array(frameCount);
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 12));
-            for (let frame = 0; frame < frameCount; frame++) {
-                const start = frame * hopSize;
-                let sumSquares = 0;
-                const end = Math.min(start + windowSize, mono.length);
-                for (let i = start; i < end; i++) {
-                    const sample = mono[i] ?? 0;
-                    sumSquares += sample * sample;
-                }
-                const count = Math.max(1, end - start);
-                output[frame] = Math.sqrt(sumSquares / count);
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, frameCount);
-            }
-            await maybeYield();
-            return {
-                key: 'rms',
-                calculatorId: 'mvmnt.rms',
-                version: 1,
-                frameCount,
-                channels: 1,
-                hopTicks,
-                hopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
-                format: 'float32',
-                data: output,
-                metadata: {
-                    windowSize,
-                },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
-                analysisProfileId: 'default',
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            return deserializeTrack(payload as SerializedAudioFeatureTrack);
-        },
-    };
-}
-
-function createWaveformCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.waveform',
-        version: 1,
-        featureKey: 'waveform',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, signal, tempoMapper } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const channelCount = Math.max(1, audioBuffer.numberOfChannels || 1);
-            const channelData = Array.from({ length: channelCount }, (_, index) => {
-                try {
-                    return audioBuffer.getChannelData(index);
-                } catch {
-                    return null;
-                }
-            });
-            const fallbackChannel = channelData.find((data) => data != null) ?? new Float32Array(audioBuffer.length || 0);
-            const totalSamples = fallbackChannel.length;
-            const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
-            const baseHopSeconds = Math.max(context.hopSeconds, analysisParams.hopSize / sampleRate);
-            const minHopSeconds = 1 / sampleRate;
-            const waveformHopSeconds = Math.max(baseHopSeconds / WAVEFORM_OVERSAMPLE_FACTOR, minHopSeconds);
-            const waveformHopSamples = Math.max(waveformHopSeconds * sampleRate, 1);
-            const waveformFrameCount = Math.max(1, Math.ceil(totalSamples / waveformHopSamples));
-            const minValues = new Float32Array(waveformFrameCount * channelCount);
-            const maxValues = new Float32Array(waveformFrameCount * channelCount);
-            const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
-            for (let frame = 0; frame < waveformFrameCount; frame++) {
-                const frameStart = Math.floor(frame * waveformHopSamples);
-                const frameEnd =
-                    frame === waveformFrameCount - 1
-                        ? totalSamples
-                        : Math.ceil((frame + 1) * waveformHopSamples);
-                const start = Math.max(0, Math.min(totalSamples - 1, frameStart));
-                let end = Math.min(totalSamples, frameEnd);
-                if (end <= start) {
-                    end = Math.min(totalSamples, start + 1);
-                }
-                for (let channel = 0; channel < channelCount; channel++) {
-                    const samples = channelData[channel] ?? fallbackChannel;
-                    let min = Number.POSITIVE_INFINITY;
-                    let max = Number.NEGATIVE_INFINITY;
-                    for (let i = start; i < end; i++) {
-                        const value = samples[i] ?? 0;
-                        if (value < min) min = value;
-                        if (value > max) max = value;
-                    }
-                    if (!isFinite(min)) min = 0;
-                    if (!isFinite(max)) max = 0;
-                    const offset = frame * channelCount + channel;
-                    minValues[offset] = min;
-                    maxValues[offset] = max;
-                }
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, waveformFrameCount);
-            }
-            await maybeYield();
-            const waveformHopTicks = quantizeHopTicks({
-                hopSeconds: waveformHopSeconds,
-                tempoMapper,
-            });
-            return {
-                key: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                version: 1,
-                frameCount: waveformFrameCount,
-                channels: channelCount,
-                hopTicks: waveformHopTicks,
-                hopSeconds: waveformHopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, waveformHopTicks),
-                format: 'waveform-minmax',
-                data: { min: minValues, max: maxValues },
-                metadata: {
-                    hopSize: waveformHopSamples,
-                    oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
-                },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
-                analysisProfileId: 'default',
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            return deserializeTrack(payload as SerializedAudioFeatureTrack);
-        },
-    };
-}
-
-function detectYinPitch(
-    samples: Float32Array,
-    start: number,
-    length: number,
-    sampleRate: number,
-    threshold: number,
-    minFrequency: number,
-    maxFrequency: number,
-): number | null {
-    const boundedLength = Math.max(0, Math.min(length, samples.length - start));
-    if (boundedLength < 3) {
-        return null;
-    }
-    const maxTau = Math.min(Math.floor(sampleRate / Math.max(1, minFrequency)), boundedLength - 1);
-    const minTau = Math.max(1, Math.floor(sampleRate / Math.max(1, maxFrequency)));
-    if (maxTau <= minTau) {
-        return null;
-    }
-    const diff = new Float32Array(maxTau + 1);
-    for (let tau = 1; tau <= maxTau; tau += 1) {
-        let sum = 0;
-        for (let i = 0; i < boundedLength - tau; i += 1) {
-            const delta = (samples[start + i] ?? 0) - (samples[start + i + tau] ?? 0);
-            sum += delta * delta;
-        }
-        diff[tau] = sum;
-    }
-    const cmnd = new Float32Array(maxTau + 1);
-    let running = 0;
-    for (let tau = 1; tau <= maxTau; tau += 1) {
-        running += diff[tau];
-        cmnd[tau] = running > 0 ? (diff[tau] * tau) / running : 1;
-    }
-    let bestTau = -1;
-    let bestValue = Number.POSITIVE_INFINITY;
-    for (let tau = minTau; tau <= maxTau; tau += 1) {
-        const value = cmnd[tau];
-        if (value < threshold) {
-            bestTau = tau;
-            while (tau + 1 <= maxTau && cmnd[tau + 1] <= value) {
-                tau += 1;
-                bestTau = tau;
-            }
-            break;
-        }
-        if (value < bestValue) {
-            bestValue = value;
-            bestTau = tau;
-        }
-    }
-    if (bestTau <= 0) {
-        return null;
-    }
-    let refined = bestTau;
-    if (bestTau > 1 && bestTau < maxTau) {
-        const prev = cmnd[bestTau - 1];
-        const curr = cmnd[bestTau];
-        const next = cmnd[bestTau + 1];
-        const denom = 2 * curr - prev - next;
-        if (denom !== 0) {
-            refined = bestTau + (next - prev) / (2 * denom);
-        }
-    }
-    if (!Number.isFinite(refined) || refined <= 0) {
-        return null;
-    }
-    const frequency = sampleRate / refined;
-    if (!Number.isFinite(frequency) || frequency <= 0) {
-        return null;
-    }
-    return frequency;
-}
-
-function findNearestZeroCrossing(
-    samples: Float32Array,
-    centerIndex: number,
-    windowStart: number,
-    windowEnd: number,
-    preferredLength: number,
-): number | null {
-    if (!samples.length) {
-        return null;
-    }
-    const start = Math.max(0, Math.min(windowStart, samples.length - 1));
-    const end = Math.max(start, Math.min(windowEnd, samples.length) - 1);
-    if (end <= start) {
-        return null;
-    }
-    const radius = Math.max(1, Math.min(samples.length, preferredLength * 2));
-    const searchStart = Math.max(start, centerIndex - radius);
-    const searchEnd = Math.min(end, centerIndex + radius);
-    let bestPositive: { index: number; distance: number } | null = null;
-    let bestAny: { index: number; distance: number } | null = null;
-    for (let i = searchStart; i <= searchEnd; i += 1) {
-        const a = samples[i] ?? 0;
-        const b = samples[i + 1] ?? 0;
-        const distance = Math.abs(i - centerIndex);
-        if (a <= 0 && b > 0) {
-            if (!bestPositive || distance < bestPositive.distance) {
-                bestPositive = { index: i, distance };
-            }
-        }
-        if ((a <= 0 && b > 0) || (a >= 0 && b < 0)) {
-            if (!bestAny || distance < bestAny.distance) {
-                bestAny = { index: i, distance };
-            }
-        }
-    }
-    const candidate = bestPositive ?? bestAny;
-    if (candidate) {
-        const index = candidate.index + 1;
-        return Math.max(start, Math.min(index, samples.length));
-    }
-    const fallbackStart = Math.max(start, Math.min(centerIndex - Math.floor(preferredLength / 2), end + 1));
-    return Math.max(start, Math.min(fallbackStart, samples.length));
-}
-
-function createPitchWaveformCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.pitchWaveform',
-        version: 1,
-        featureKey: 'pitchWaveform',
-        label: 'Pitch Waveform',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
-            const { windowSize, hopSize } = analysisParams;
-            const offsets: number[] = new Array(frameCount);
-            const lengths: number[] = new Array(frameCount);
-            const collected: number[] = [];
-            let totalLength = 0;
-            let maxFrameLength = 0;
-            const threshold = 0.1;
-            const minFrequency = 50;
-            const maxFrequency = Math.min(sampleRate / 2 - 1, 2000);
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 16));
-            for (let frame = 0; frame < frameCount; frame += 1) {
-                const start = Math.min(frame * hopSize, mono.length);
-                const windowEnd = Math.min(start + windowSize, mono.length);
-                const segmentLength = Math.max(0, windowEnd - start);
-                offsets[frame] = totalLength;
-                let cycleLength = 0;
-                if (segmentLength > 3) {
-                    const pitch = detectYinPitch(
-                        mono,
-                        start,
-                        segmentLength,
-                        sampleRate,
-                        threshold,
-                        minFrequency,
-                        maxFrequency,
-                    );
-                    if (pitch != null) {
-                        const period = Math.max(2, Math.round(sampleRate / pitch));
-                        const center = Math.min(mono.length - 1, start + Math.floor(segmentLength / 2));
-                        const zeroCross = findNearestZeroCrossing(mono, center, start, windowEnd, period);
-                        if (zeroCross != null) {
-                            const cycleEnd = Math.min(mono.length, zeroCross + period);
-                            cycleLength = Math.max(0, cycleEnd - zeroCross);
-                            for (let i = 0; i < cycleLength; i += 1) {
-                                collected.push(mono[zeroCross + i] ?? 0);
-                            }
-                        }
-                    }
-                }
-                lengths[frame] = cycleLength;
-                maxFrameLength = Math.max(maxFrameLength, cycleLength);
-                totalLength += cycleLength;
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, frameCount);
-            }
-            await maybeYield();
-            const payload = Float32Array.from(collected);
-            return {
-                key: 'pitchWaveform',
-                calculatorId: 'mvmnt.pitchWaveform',
-                version: 1,
-                frameCount,
-                channels: 1,
-                hopTicks,
-                hopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
-                format: 'waveform-periodic',
-                data: payload,
-                metadata: {
-                    windowSize,
-                    hopSize,
-                    frameOffsets: offsets,
-                    frameLengths: lengths,
-                    maxFrameLength,
-                    yinThreshold: threshold,
-                    minFrequency,
-                    maxFrequency,
-                    sampleRate,
-                },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
-                analysisProfileId: 'default',
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            return deserializeTrack(payload as SerializedAudioFeatureTrack);
-        },
-    };
 }
 
 export interface AnalyzeAudioFeatureOptions {
@@ -1025,10 +584,10 @@ export interface AnalyzeAudioFeatureResult {
 }
 
 export async function analyzeAudioBufferFeatures(
-    options: AnalyzeAudioFeatureOptions,
+    options: AnalyzeAudioFeatureOptions
 ): Promise<AnalyzeAudioFeatureResult> {
     const calculators = ensureCalculatorsRegistered().filter((calc) =>
-        options.calculators?.length ? options.calculators.includes(calc.id) : true,
+        options.calculators?.length ? options.calculators.includes(calc.id) : true
     );
     if (!calculators.length) {
         throw new Error('No audio feature calculators registered');
@@ -1048,7 +607,7 @@ export async function analyzeAudioBufferFeatures(
         options.tempoMap,
         calculators,
         windowSize,
-        hopSize,
+        hopSize
     );
     const hopTicks = quantizeHopTicks({
         hopSeconds,
