@@ -212,7 +212,7 @@ const renderRecentList = (events: RecentCommand[], emptyLabel: string) => {
     );
 };
 
-export const TransportStatusDev: React.FC = () => {
+export const DevelopmentOverlay: React.FC = () => {
     const isProd = process.env.NODE_ENV === 'production';
     const appMode = import.meta.env.VITE_APP_MODE;
     const isBetaMode = appMode === 'beta';

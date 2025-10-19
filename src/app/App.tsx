@@ -9,9 +9,9 @@ const AboutPage = lazy(() => import('@pages/AboutPage'));
 const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
 const HomePage = lazy(() => import('@pages/HomePage'));
 
-const TransportStatusDevLazy = lazy(() =>
-  import('@workspace/dev/TransportStatusDev').then((module) => ({
-    default: module.TransportStatusDev,
+const DevelopmentOverlayLazy = lazy(() =>
+  import('@workspace/dev/DevelopmentOverlay').then((module) => ({
+    default: module.DevelopmentOverlay,
   })),
 );
 
@@ -80,7 +80,7 @@ export function App() {
         </Routes>
       </Suspense>
       <Suspense fallback={null}>
-        <TransportStatusDevLazy />
+        <DevelopmentOverlayLazy />
       </Suspense>
     </div>
   );
