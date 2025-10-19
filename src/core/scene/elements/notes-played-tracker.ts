@@ -1,11 +1,18 @@
 // Notes Played Tracker element: shows counts of played notes and events from a MIDI file
-import { SceneElement } from './base';
-import { EnhancedConfigSchema } from '@core/types.js';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
+
+const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+    if (!normalized) return undefined;
+    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+    return allowed.includes(normalized) ? normalized : undefined;
+};
 
 export class NotesPlayedTrackerElement extends SceneElement {
     constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
@@ -28,7 +35,15 @@ export class NotesPlayedTrackerElement extends SceneElement {
                     variant: 'basic',
                     collapsed: false,
                     description: 'Select the MIDI track whose progress is tracked.',
-                    properties: [{ key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null }],
+                    properties: [
+                        {
+                            key: 'midiTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'MIDI Track',
+                            default: null,
+                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                        },
+                    ],
                     presets: [
                         { id: 'leadTrack', label: 'Lead Track', values: {} },
                         { id: 'rhythmTrack', label: 'Rhythm Track', values: {} },
@@ -50,6 +65,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                                 { value: 'left', label: 'Left' },
                                 { value: 'right', label: 'Right' },
                             ],
+                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
                         },
                         {
                             key: 'fontFamily',
@@ -57,6 +73,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             label: 'Font Family',
                             default: 'Inter',
                             description: 'Choose the font family (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                         {
                             key: 'fontSize',
@@ -66,8 +83,15 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             min: 6,
                             max: 72,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 30 },
                         },
-                        { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
+                        {
+                            key: 'color',
+                            type: 'color',
+                            label: 'Text Color',
+                            default: '#cccccc',
+                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
+                        },
                         {
                             key: 'lineSpacing',
                             type: 'number',
@@ -76,6 +100,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             min: 0,
                             max: 40,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 4 },
                         },
                     ],
                     presets: [
@@ -90,14 +115,16 @@ export class NotesPlayedTrackerElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps();
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         const effectiveTime = Math.max(0, targetTime);
 
         // Compute counts from notes via timeline
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const trackId = props.midiTrackId;
         // To compute totals, we need all notes; if service doesn't expose a direct getter, approximate using a large window
         let totalNotes = 0;
         let playedNotes = 0;
@@ -128,18 +155,18 @@ export class NotesPlayedTrackerElement extends SceneElement {
         const pctEvents = totalEvents > 0 ? (playedEvents / totalEvents) * 100 : 0;
 
         // Appearance
-        const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
+        const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 14;
-        const color = (this.getProperty('color') as string) || '#cccccc';
-        const lineSpacing = (this.getProperty('lineSpacing') as number) ?? 4;
+        const fontSize = props.fontSize ?? 30;
+        const color = props.color ?? '#cccccc';
+        const lineSpacing = props.lineSpacing ?? 4;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
         const line1 = `Num played notes: ${playedNotes}/${totalNotes} (${pctNotes.toFixed(2)}%)`;
         const line2 = `Num played events: ${playedEvents}/${totalEvents} (${pctEvents.toFixed(2)}%)`;
-        const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+        const justification = props.textJustification ?? ('left' as CanvasTextAlign);
         const text1 = new Text(0, 0, line1, font, color, justification, 'top');
         const text2 = new Text(0, fontSize + lineSpacing, line2, font, color, justification, 'top');
 

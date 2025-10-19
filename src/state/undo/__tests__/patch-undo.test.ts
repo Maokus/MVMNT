@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { createPatchUndoController } from '@state/undo/patch-undo';
+import { createPatchUndoController } from '@state/undo';
 
 describe('patch-based undo controller', () => {
     let controller: ReturnType<typeof createPatchUndoController> | null = null;

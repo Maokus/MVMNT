@@ -1,5 +1,9 @@
 # Improving Scene Element Property Retrieval
 
+## Status
+
+-   **Option A implemented.** `SceneElement.getProps` and reusable transforms ship in `base.ts`, and all current elements now rely on the helper instead of calling `getProperty` directly. Reference tests live in `baseSceneElement.test.ts`.
+
 ## Why this matters
 
 -   Many scene elements call `this.getProperty('foo')` repeatedly inside `buildRenderObjects`.

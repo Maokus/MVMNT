@@ -1,5 +1,5 @@
 import { exportScene, importScene, createPatchUndoController } from '../index';
-import { useTimelineStore } from '../../state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { canonicalizeElements } from '../ordering';
 import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';

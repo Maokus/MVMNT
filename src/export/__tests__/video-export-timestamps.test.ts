@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import ExportClock from '../export-clock';
+import { ExportClock } from '../export-clock';
 
 // Mirror computeEncodeTimestamp logic from video-exporter (kept minimal for test stability)
 function computeEncodeTimestamp(renderTime: number, playRangeStartSec: number) {

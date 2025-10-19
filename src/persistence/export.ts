@@ -1,5 +1,5 @@
 import { serializeStable } from './stable-stringify';
-import { useTimelineStore } from '../state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { DocumentGateway } from './document-gateway';
 import {
     collectAudioAssets,

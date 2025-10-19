@@ -1,6 +1,6 @@
 // Image Sequence Generator Module
 // Generates PNG image sequences instead of video files
-import ExportClock from '@export/export-clock';
+import { ExportClock } from '@export/export-clock';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
 

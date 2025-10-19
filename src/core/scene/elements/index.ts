@@ -1,5 +1,15 @@
 // Export scene elements
-export { SceneElement } from './base';
+export {
+    SceneElement,
+    asBoolean,
+    asNumber,
+    asString,
+    asTrimmedString,
+    type PropertyDescriptor,
+    type PropertyDescriptorMap,
+    type PropertySnapshot,
+    type PropertyTransform,
+} from './base';
 export { BackgroundElement } from './background';
 export { ImageElement } from './image';
 export { ProgressDisplayElement } from './progress-display';

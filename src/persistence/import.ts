@@ -410,7 +410,7 @@ async function hydrateAudioAssets(
               acc[id] = id;
               return acc;
           }, {});
-    const { useTimelineStore } = (await import('../state/timelineStore')) as typeof import('../state/timelineStore');
+    const { useTimelineStore } = (await import('@state/timelineStore')) as typeof import('@state/timelineStore');
     const ingest = useTimelineStore.getState().ingestAudioToCache;
 
     const assetData = new Map<string, { record: any; bytes: Uint8Array }>();

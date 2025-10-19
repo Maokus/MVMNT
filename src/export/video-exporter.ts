@@ -3,7 +3,7 @@
 // hardware accelerated (WebCodecs) encoding directly in the browser.
 // The public API is intentionally kept the same so existing callers keep working.
 
-import ExportClock from '@export/export-clock';
+import { ExportClock } from '@export/export-clock';
 import { buildExportFilename } from '@utils/filename';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';

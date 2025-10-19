@@ -1,5 +1,5 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement } from './base';
+import { SceneElement, asTrimmedString } from './base';
 import { Rectangle, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 
@@ -47,6 +47,7 @@ export class BackgroundElement extends SceneElement {
                             label: 'Background Color',
                             default: '#1a1a1a',
                             description: 'Color fill applied behind every element.',
+                            runtime: { transform: asTrimmedString, defaultValue: '#1a1a1a' },
                         },
                     ],
                     presets: [
@@ -61,16 +62,15 @@ export class BackgroundElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps();
+
+        if (!props.visible) return [];
 
         const { canvas } = config;
         const renderObjects: RenderObject[] = [];
 
-        // Get background color from property binding
-        const backgroundColor = this.getProperty('backgroundColor') as string;
-
         // Main background
-        const background = new Rectangle(0, 0, canvas.width, canvas.height, backgroundColor);
+        const background = new Rectangle(0, 0, canvas.width, canvas.height, props.backgroundColor);
         renderObjects.push(background);
         return renderObjects;
     }

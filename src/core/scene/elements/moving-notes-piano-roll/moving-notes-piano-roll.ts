@@ -1,5 +1,5 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
-import { SceneElement } from '@core/scene/elements/base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
@@ -602,30 +602,160 @@ export class MovingNotesPianoRollElement extends SceneElement {
         };
     }
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps({
+            timeUnitBars: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(1, Math.round(numeric));
+                },
+                defaultValue: 1,
+            },
+            pianoWidth: { transform: asNumber, defaultValue: 0 },
+            rollWidth: { transform: asNumber, defaultValue: 800 },
+            elementWidth: { transform: asNumber },
+            showNotes: { transform: asBoolean, defaultValue: true },
+            minNote: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    if (numeric === undefined) return undefined;
+                    return Math.max(0, Math.min(127, Math.floor(numeric)));
+                },
+                defaultValue: 30,
+            },
+            maxNote: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    if (numeric === undefined) return undefined;
+                    return Math.max(0, Math.min(127, Math.floor(numeric)));
+                },
+                defaultValue: 72,
+            },
+            noteHeight: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    if (numeric === undefined) return undefined;
+                    return Math.max(4, Math.min(40, numeric));
+                },
+                defaultValue: 20,
+            },
+            showPlayhead: { transform: asBoolean, defaultValue: true },
+            playheadLineWidth: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 2,
+            },
+            playheadColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
+            playheadOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 1,
+            },
+            playheadPosition: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 0.25,
+            },
+            playheadOffset: { transform: asNumber, defaultValue: 0 },
+            showPiano: { transform: asBoolean, defaultValue: false },
+            whiteKeyColor: { transform: asTrimmedString, defaultValue: '#f0f0f0' },
+            blackKeyColor: { transform: asTrimmedString, defaultValue: '#555555' },
+            pianoOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 1,
+            },
+            pianoRightBorderColor: { transform: asTrimmedString, defaultValue: '#333333' },
+            pianoRightBorderWidth: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 2,
+            },
+            midiTrackIds: {
+                transform: (value) => {
+                    if (!Array.isArray(value)) return undefined;
+                    return value
+                        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+                        .filter((entry) => entry.length > 0);
+                },
+                defaultValue: [] as string[],
+            },
+            midiTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+            noteOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 0.8,
+            },
+            noteCornerRadius: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 2,
+            },
+            noteStrokeColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
+            noteStrokeWidth: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 0,
+            },
+            noteGlowColor: { transform: asTrimmedString, defaultValue: 'rgba(255,255,255,0.5)' },
+            noteGlowBlur: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 0,
+            },
+            noteGlowOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 0.5,
+            },
+        });
+
         const renderObjects: RenderObject[] = [];
         // Use global timeline tempo and meter
         // timeOffset removed; use targetTime directly
         const effectiveTime = targetTime;
-        const timeUnitBars = this.getProperty<number>('timeUnitBars');
-        const pianoWidth = this.getProperty<number>('pianoWidth');
-        const rollWidth = this.getProperty<number>('rollWidth') || 800;
-        const elementWidth = this.getProperty<number>('elementWidth') || rollWidth;
-        const showNotes = this.getProperty<boolean>('showNotes');
-        const minNote = this.getProperty<number>('minNote');
-        const maxNote = this.getProperty<number>('maxNote');
-        const noteHeight = this.getProperty<number>('noteHeight');
-        const showPlayhead = this.getProperty<boolean>('showPlayhead');
-        const playheadLineWidth = this.getProperty<number>('playheadLineWidth');
-        const playheadColor = this.getProperty<string>('playheadColor') || '#ff6b6b';
-        const playheadOpacity = this.getProperty<number>('playheadOpacity') ?? 1;
-        const playheadPosition = Math.max(0, Math.min(1, this.getProperty<number>('playheadPosition') ?? 0.25));
-        const playheadOffset = this.getProperty<number>('playheadOffset') || 0;
-        const showPiano = this.getProperty<boolean>('showPiano');
-        const whiteKeyColor = this.getProperty<string>('whiteKeyColor') || '#f0f0f0';
-        const blackKeyColor = this.getProperty<string>('blackKeyColor') || '#555555';
-        const pianoOpacity = this.getProperty<number>('pianoOpacity') ?? 1;
-        const pianoRightBorderColor = this.getProperty<string>('pianoRightBorderColor') || '#333333';
-        const pianoRightBorderWidth = this.getProperty<number>('pianoRightBorderWidth') || 2;
+        const timeUnitBars = props.timeUnitBars;
+        const pianoWidth = props.pianoWidth;
+        const rollWidth = props.rollWidth;
+        const elementWidth = props.elementWidth ?? rollWidth;
+        const showNotes = props.showNotes;
+        const minNote = props.minNote;
+        const maxNote = props.maxNote;
+        const noteHeight = props.noteHeight;
+        const showPlayhead = props.showPlayhead;
+        const playheadLineWidth = props.playheadLineWidth;
+        const playheadColor = props.playheadColor;
+        const playheadOpacity = props.playheadOpacity;
+        const playheadPosition = props.playheadPosition;
+        const playheadOffset = props.playheadOffset;
+        const showPiano = props.showPiano;
+        const whiteKeyColor = props.whiteKeyColor;
+        const blackKeyColor = props.blackKeyColor;
+        const pianoOpacity = props.pianoOpacity;
+        const pianoRightBorderColor = props.pianoRightBorderColor;
+        const pianoRightBorderWidth = props.pianoRightBorderWidth;
 
         // Update local timing manager from global store for view window duration calculations
         try {
@@ -676,9 +806,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowEnd = windowStart + duration;
 
         // Fetch notes for this window from timeline store
-        const trackIds = (this.getProperty('midiTrackIds') as string[] | undefined) || [];
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
-        const effectiveTrackIds = Array.isArray(trackIds) && trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
+        const trackIds = props.midiTrackIds;
+        const trackId = props.midiTrackId;
+        const effectiveTrackIds = trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
         const state = useTimelineStore.getState();
         const rawNotes =
             effectiveTrackIds.length > 0
@@ -714,13 +844,13 @@ export class MovingNotesPianoRollElement extends SceneElement {
             );
 
             // Style customizations
-            const noteOpacity = this.getProperty<number>('noteOpacity') ?? 0.8;
-            const noteCornerRadius = this.getProperty<number>('noteCornerRadius') || 0;
-            const noteStrokeColor = this.getProperty<string>('noteStrokeColor') || undefined;
-            const noteStrokeWidth = this.getProperty<number>('noteStrokeWidth') || 0;
-            const noteGlowColor = this.getProperty<string>('noteGlowColor') || 'rgba(255,255,255,0.5)';
-            const noteGlowBlur = this.getProperty<number>('noteGlowBlur') || 0;
-            const noteGlowOpacity = this.getProperty<number>('noteGlowOpacity') ?? 0.5;
+            const noteOpacity = props.noteOpacity;
+            const noteCornerRadius = props.noteCornerRadius;
+            const noteStrokeColor = props.noteStrokeColor;
+            const noteStrokeWidth = props.noteStrokeWidth;
+            const noteGlowColor = props.noteGlowColor;
+            const noteGlowBlur = props.noteGlowBlur;
+            const noteGlowOpacity = props.noteGlowOpacity;
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
                 if (typeof obj.setCornerRadius === 'function' && noteCornerRadius > 0)
@@ -792,19 +922,58 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
     // Convenience getters/setters removed: element uses global tempo/meter from store
     getAnimationType(): string {
-        return this.getProperty<string>('animationType');
+        const props = this.getSchemaProps({
+            animationType: { transform: asTrimmedString, defaultValue: 'expand' },
+        });
+        return props.animationType ?? 'expand';
     }
     getAttackDuration(): number {
-        return Math.max(0, this.getProperty<number>('attackDuration') ?? 0.3);
+        const props = this.getSchemaProps({
+            attackDuration: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 0.3,
+            },
+        });
+        return props.attackDuration ?? 0.3;
     }
     getDecayDuration(): number {
-        return Math.max(0, this.getProperty<number>('decayDuration') ?? 0.3);
+        const props = this.getSchemaProps({
+            decayDuration: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 0.3,
+            },
+        });
+        return props.decayDuration ?? 0.3;
     }
     getReleaseDuration(): number {
-        return Math.max(0, this.getProperty<number>('releaseDuration') ?? 0.3);
+        const props = this.getSchemaProps({
+            releaseDuration: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 0.3,
+            },
+        });
+        return props.releaseDuration ?? 0.3;
     }
     getTimeUnitBars(): number {
-        return this.getProperty<number>('timeUnitBars');
+        const props = this.getSchemaProps({
+            timeUnitBars: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(1, Math.round(numeric));
+                },
+                defaultValue: 1,
+            },
+        });
+        return props.timeUnitBars ?? 1;
     }
     setTimeUnitBars(bars: number): this {
         this.setProperty('timeUnitBars', bars);
@@ -815,18 +984,25 @@ export class MovingNotesPianoRollElement extends SceneElement {
     }
     // Macro bindings for bpm/beat removed
     getChannelColors(): string[] {
-        const useChannelColors = this.getProperty<boolean>('useChannelColors');
-        const baseColor =
-            this.getProperty<string>('noteColor') || this.getProperty<string>('channel0Color') || '#ff6b6b';
-        if (useChannelColors === false) {
+        const props = this.getSchemaProps({
+            useChannelColors: { transform: asBoolean, defaultValue: false },
+            noteColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
+            channel0Color: { transform: asTrimmedString },
+        });
+        const baseColor = props.noteColor ?? props.channel0Color ?? '#ff6b6b';
+        if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
-        const colors: string[] = [];
+
+        const channelDescriptors: Record<string, PropertyDescriptor<string | undefined, this>> = {};
         for (let i = 0; i < 16; i++) {
-            const key = `channel${i}Color`;
-            const channelColor = this.getProperty<string>(key) || baseColor;
-            colors.push(channelColor);
+            channelDescriptors[`channel${i}Color`] = { transform: asTrimmedString };
         }
-        return colors;
+        const channelColors = this.getSchemaProps(channelDescriptors);
+
+        return Array.from({ length: 16 }, (_, index) => {
+            const key = `channel${index}Color` as const;
+            return (channelColors[key] as string | undefined) ?? baseColor;
+        });
     }
 }

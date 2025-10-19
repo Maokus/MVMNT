@@ -1,5 +1,5 @@
 // Time display element for showing current time with property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
@@ -56,12 +56,14 @@ export class TimeDisplayElement extends SceneElement {
                             min: -512,
                             max: 512,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'showProgress',
                             type: 'boolean',
                             label: 'Show Progress Bars',
                             default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'fontFamily',
@@ -69,6 +71,7 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Font Family',
                             default: 'Inter',
                             description: 'Font family (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                         {
                             key: 'textColor',
@@ -76,6 +79,7 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Primary Text Color',
                             default: '#FFFFFF',
                             description: 'Color for the main time and beat numbers.',
+                            runtime: { transform: asTrimmedString, defaultValue: '#FFFFFF' },
                         },
                         {
                             key: 'textSecondaryColor',
@@ -83,6 +87,10 @@ export class TimeDisplayElement extends SceneElement {
                             label: 'Secondary Text Color',
                             default: 'rgba(255, 255, 255, 0.9)',
                             description: 'Color for labels and secondary text.',
+                            runtime: {
+                                transform: asTrimmedString,
+                                defaultValue: 'rgba(255, 255, 255, 0.9)',
+                            },
                         },
                     ],
                     presets: [
@@ -109,17 +117,19 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps();
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
-        const showProgress = this.getProperty('showProgress') as boolean;
-        const fontSelection = this.getProperty('fontFamily') as string;
+        const showProgress = props.showProgress;
+        const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const textColor = this.getProperty('textColor') as string;
-        const textSecondaryColor = this.getProperty('textSecondaryColor') as string;
+        const textColor = props.textColor ?? '#FFFFFF';
+        const textSecondaryColor = props.textSecondaryColor ?? 'rgba(255, 255, 255, 0.9)';
 
         // Update timing manager from global timeline store
         try {
@@ -141,7 +151,7 @@ export class TimeDisplayElement extends SceneElement {
         // Apply offsetBars (display only). We convert the bar offset to seconds using current tempo context.
         // This keeps internal timing intact while shifting only what is shown.
         let displayTime = targetTime;
-        const offsetBars = Number(this.getProperty('offsetBars') || 0);
+        const offsetBars = props.offsetBars ?? 0;
         if (offsetBars !== 0) {
             try {
                 // For tempo-mapped timelines, approximate by converting bars->beats->seconds via timing manager.

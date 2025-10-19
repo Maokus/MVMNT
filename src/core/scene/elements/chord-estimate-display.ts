@@ -1,12 +1,54 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
-import { SceneElement } from './base';
-import { EnhancedConfigSchema } from '@core/types.js';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { EnhancedConfigSchema, type SceneElementInterface } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { computeChromaFromNotes, estimateChordPB, type EstimatedChord } from '@core/midi/music-theory/chord-estimator';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
+
+const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    return numeric === undefined ? undefined : Math.max(0.05, numeric);
+};
+
+const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    return numeric === undefined ? undefined : Math.max(0, numeric);
+};
+
+const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
+    asTrimmedString(value, element) ?? null;
+
+const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+    if (!normalized) return undefined;
+    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+    return allowed.includes(normalized) ? normalized : undefined;
+};
+
+type ChordEstimateRuntimeProps = {
+    visible: boolean;
+    windowSeconds: number;
+    midiTrackId: string | null;
+    includeTriads: boolean;
+    includeDiminished: boolean;
+    includeAugmented: boolean;
+    includeSevenths: boolean;
+    preferBassRoot: boolean;
+    showInversion: boolean;
+    smoothingMs: number;
+    fontFamily: string;
+    fontSize: number;
+    chordFontSize?: number;
+    detailsFontSize?: number;
+    color: string;
+    textJustification: CanvasTextAlign;
+    lineSpacing: number;
+    showActiveNotes: boolean;
+    showChroma: boolean;
+};
 
 export class ChordEstimateDisplayElement extends SceneElement {
     private _lastChord?: EstimatedChord;
@@ -34,7 +76,13 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     collapsed: false,
                     description: 'Choose the MIDI track and analysis window for detection.',
                     properties: [
-                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'MIDI Track',
+                            default: null,
+                            runtime: { transform: normalizeMidiTrackId, defaultValue: null },
+                        },
                         {
                             key: 'windowSeconds',
                             type: 'number',
@@ -43,6 +91,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 0.05,
                             max: 4,
                             step: 0.05,
+                            runtime: { transform: clampWindowSeconds, defaultValue: 0.6 },
                         },
                     ],
                     presets: [
@@ -58,12 +107,48 @@ export class ChordEstimateDisplayElement extends SceneElement {
                     collapsed: true,
                     description: 'Refine which chord qualities are considered during detection.',
                     properties: [
-                        { key: 'includeTriads', type: 'boolean', label: 'Allow Triads (maj/min)', default: true },
-                        { key: 'includeDiminished', type: 'boolean', label: 'Allow Diminished', default: true },
-                        { key: 'includeAugmented', type: 'boolean', label: 'Allow Augmented', default: false },
-                        { key: 'includeSevenths', type: 'boolean', label: 'Allow 7ths', default: true },
-                        { key: 'preferBassRoot', type: 'boolean', label: 'Prefer Root in Bass', default: true },
-                        { key: 'showInversion', type: 'boolean', label: 'Show Inversion (slash)', default: true },
+                        {
+                            key: 'includeTriads',
+                            type: 'boolean',
+                            label: 'Allow Triads (maj/min)',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
+                        {
+                            key: 'includeDiminished',
+                            type: 'boolean',
+                            label: 'Allow Diminished',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
+                        {
+                            key: 'includeAugmented',
+                            type: 'boolean',
+                            label: 'Allow Augmented',
+                            default: false,
+                            runtime: { transform: asBoolean, defaultValue: false },
+                        },
+                        {
+                            key: 'includeSevenths',
+                            type: 'boolean',
+                            label: 'Allow 7ths',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
+                        {
+                            key: 'preferBassRoot',
+                            type: 'boolean',
+                            label: 'Prefer Root in Bass',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
+                        {
+                            key: 'showInversion',
+                            type: 'boolean',
+                            label: 'Show Inversion (slash)',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
                         {
                             key: 'smoothingMs',
                             type: 'number',
@@ -72,6 +157,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 0,
                             max: 1000,
                             step: 10,
+                            runtime: { transform: clampSmoothingMs, defaultValue: 160 },
                         },
                     ],
                     presets: [
@@ -132,9 +218,25 @@ export class ChordEstimateDisplayElement extends SceneElement {
                                 { value: 'left', label: 'Left' },
                                 { value: 'right', label: 'Right' },
                             ],
+                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
                         },
-                        { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Label Font Size (px)', default: 48, min: 6, max: 150, step: 1 },
+                        {
+                            key: 'fontFamily',
+                            type: 'font',
+                            label: 'Font Family',
+                            default: 'Inter',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
+                        },
+                        {
+                            key: 'fontSize',
+                            type: 'number',
+                            label: 'Label Font Size (px)',
+                            default: 48,
+                            min: 6,
+                            max: 150,
+                            step: 1,
+                            runtime: { transform: asNumber, defaultValue: 48 },
+                        },
                         {
                             key: 'chordFontSize',
                             type: 'number',
@@ -143,6 +245,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 6,
                             max: 150,
                             step: 1,
+                            runtime: { transform: asNumber },
                         },
                         {
                             key: 'detailsFontSize',
@@ -152,8 +255,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 6,
                             max: 150,
                             step: 1,
+                            runtime: { transform: asNumber },
                         },
-                        { key: 'color', type: 'color', label: 'Text Color', default: '#ffffff' },
+                        {
+                            key: 'color',
+                            type: 'color',
+                            label: 'Text Color',
+                            default: '#ffffff',
+                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
+                        },
                         {
                             key: 'lineSpacing',
                             type: 'number',
@@ -162,9 +272,22 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             min: 0,
                             max: 60,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 6 },
                         },
-                        { key: 'showActiveNotes', type: 'boolean', label: 'Show Active Notes', default: true },
-                        { key: 'showChroma', type: 'boolean', label: 'Show Chroma Chart', default: true },
+                        {
+                            key: 'showActiveNotes',
+                            type: 'boolean',
+                            label: 'Show Active Notes',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
+                        {
+                            key: 'showChroma',
+                            type: 'boolean',
+                            label: 'Show Chroma Chart',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
                         {
                             key: 'chromaPrecision',
                             type: 'number',
@@ -174,6 +297,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             max: 6,
                             step: 1,
                             visibleWhen: [{ key: 'showChroma', truthy: true }],
+                            runtime: { transform: asNumber, defaultValue: 2 },
                         },
                     ],
                     presets: [
@@ -200,7 +324,30 @@ export class ChordEstimateDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps() as ChordEstimateRuntimeProps;
+
+        if (!props.visible) return [];
+
+        const {
+            windowSeconds,
+            midiTrackId,
+            includeTriads,
+            includeDiminished,
+            includeAugmented,
+            includeSevenths,
+            preferBassRoot,
+            showInversion,
+            smoothingMs,
+            fontFamily: configuredFont,
+            fontSize,
+            chordFontSize: chordFontSizeRaw,
+            detailsFontSize: detailsFontSizeRaw,
+            color,
+            textJustification,
+            lineSpacing,
+            showActiveNotes,
+            showChroma,
+        } = props;
 
         const renderObjects: RenderObject[] = [];
 
@@ -208,17 +355,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const t = Math.max(0, targetTime);
 
         // Estimation window
-        const windowSeconds = Math.max(0.05, (this.getProperty('windowSeconds') as number) ?? 0.6);
         const start = Math.max(0, t - windowSeconds / 2);
         const end = t + windowSeconds / 2;
 
         // Active notes and chroma via timeline store
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
             [];
-        if (trackId) {
+        if (midiTrackId) {
             const state = useTimelineStore.getState();
-            const notes = selectNotesInWindow(state, { trackIds: [trackId], startSec: start, endSec: end });
+            const notes = selectNotesInWindow(state, { trackIds: [midiTrackId], startSec: start, endSec: end });
             for (const n of notes) {
                 noteEvents.push({
                     note: n.note,
@@ -232,21 +377,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
         // Estimate chord
-        const includeTriads = !!this.getProperty('includeTriads');
-        const includeDim = !!this.getProperty('includeDiminished');
-        const includeAug = !!this.getProperty('includeAugmented');
-        const include7 = !!this.getProperty('includeSevenths');
-        const preferBassRoot = !!this.getProperty('preferBassRoot');
-        const smoothingMs = Math.max(0, (this.getProperty('smoothingMs') as number) ?? 160);
-
         let chord: EstimatedChord | undefined;
         const energy = chroma.reduce((a, b) => a + b, 0);
         if (energy > 0) {
             chord = estimateChordPB(chroma, bassPc, {
                 includeTriads,
-                includeDiminished: includeDim,
-                includeAugmented: includeAug,
-                includeSevenths: include7,
+                includeDiminished,
+                includeAugmented,
+                includeSevenths,
                 preferBassRoot,
             });
         }
@@ -268,20 +406,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
 
         // Appearance
-        const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
+        const fontSelection = configuredFont ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '600').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 48; // fallback
-        const chordFontSize = (this.getProperty('chordFontSize') as number) ?? fontSize;
-        const detailsFontSize =
-            (this.getProperty('detailsFontSize') as number) ?? Math.max(6, Math.round(fontSize * 0.5));
-        const color = (this.getProperty('color') as string) || '#ffffff';
+        const chordFontSize = chordFontSizeRaw ?? fontSize;
+        const detailsFontSize = detailsFontSizeRaw ?? Math.max(6, Math.round(fontSize * 0.5));
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const fontChord = `${fontWeight} ${chordFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
         const fontDetails = `${fontWeight} ${detailsFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
-        const justify = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
-        const showInversion = !!this.getProperty('showInversion');
-        const lineSpacing = ((this.getProperty('lineSpacing') as number) ?? 6) as number;
+        const justify = textJustification;
 
         let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
@@ -290,7 +423,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         y += chordFontSize + lineSpacing;
 
         // Active notes line (unique MIDI notes overlapping window)
-        if (this.getProperty('showActiveNotes')) {
+        if (showActiveNotes) {
             const allUniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
             const MAX_NOTES = 8;
             const truncated = allUniqueNotes.length > MAX_NOTES;
@@ -319,7 +452,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
 
         // Chroma line (12 bins with names)
-        if (this.getProperty('showChroma')) {
+        if (showChroma) {
             const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
             const rectWidth = 20;
             const spacing = 30;

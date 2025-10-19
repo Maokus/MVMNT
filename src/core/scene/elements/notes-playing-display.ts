@@ -1,11 +1,19 @@
 // Notes Playing Display: show currently playing notes per channel/track
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import type { SceneElementInterface } from '@core/types.js';
+
+const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+    if (!normalized) return undefined;
+    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+    return allowed.includes(normalized) ? normalized : undefined;
+};
 
 export class NotesPlayingDisplayElement extends SceneElement {
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
@@ -29,12 +37,19 @@ export class NotesPlayingDisplayElement extends SceneElement {
                     collapsed: false,
                     description: 'Select which MIDI track(s) feed the live note readout.',
                     properties: [
-                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
+                        {
+                            key: 'midiTrackId',
+                            type: 'timelineTrackRef',
+                            label: 'MIDI Track',
+                            default: null,
+                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                        },
                         {
                             key: 'showAllAvailableTracks',
                             type: 'boolean',
                             label: 'Show All Tracks When Idle',
                             default: false,
+                            runtime: { transform: asBoolean, defaultValue: false },
                         },
                     ],
                     presets: [
@@ -58,10 +73,32 @@ export class NotesPlayingDisplayElement extends SceneElement {
                                 { value: 'left', label: 'Left' },
                                 { value: 'right', label: 'Right' },
                             ],
+                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
                         },
-                        { key: 'fontFamily', type: 'font', label: 'Font Family', default: 'Inter' },
-                        { key: 'fontSize', type: 'number', label: 'Font Size (px)', default: 30, min: 6, max: 72, step: 1 },
-                        { key: 'color', type: 'color', label: 'Text Color', default: '#cccccc' },
+                        {
+                            key: 'fontFamily',
+                            type: 'font',
+                            label: 'Font Family',
+                            default: 'Inter',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
+                        },
+                        {
+                            key: 'fontSize',
+                            type: 'number',
+                            label: 'Font Size (px)',
+                            default: 30,
+                            min: 6,
+                            max: 72,
+                            step: 1,
+                            runtime: { transform: asNumber, defaultValue: 30 },
+                        },
+                        {
+                            key: 'color',
+                            type: 'color',
+                            label: 'Text Color',
+                            default: '#cccccc',
+                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
+                        },
                         {
                             key: 'lineSpacing',
                             type: 'number',
@@ -70,6 +107,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             min: 0,
                             max: 40,
                             step: 1,
+                            runtime: { transform: asNumber, defaultValue: 4 },
                         },
                     ],
                     presets: [
@@ -96,14 +134,16 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps();
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         const effectiveTime = Math.max(0, targetTime);
 
         // Determine active notes at effectiveTime via timeline store selector
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const trackId = props.midiTrackId;
         const active: { note: number; vel: number; channel: number }[] = [];
         if (trackId) {
             const EPS = 1e-3;
@@ -126,15 +166,15 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         // Compute all channels present in the loaded MIDI file
         const allChannelsSet = new Set<number>(); // unknown without full file; leave empty unless showAll forces placeholder
-        const showAll = !!this.getProperty('showAllAvailableTracks');
+        const showAll = props.showAllAvailableTracks ?? false;
 
         // Appearance
-        const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
+        const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 14;
-        const color = (this.getProperty('color') as string) || '#cccccc';
-        const lineSpacing = (this.getProperty('lineSpacing') as number) ?? 4;
+        const fontSize = props.fontSize ?? 30;
+        const color = props.color ?? '#cccccc';
+        const lineSpacing = props.lineSpacing ?? 4;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
@@ -175,7 +215,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         let y = 0;
         if ((byChannel.size === 0 || targetTime < 0) && !showAll) {
-            const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+            const justification = props.textJustification ?? ('left' as CanvasTextAlign);
             // Placeholder when nothing is playing
             const placeholderLeft = justification === 'left';
             const staticPrefix = placeholderLeft ? 'Track 1 > ' : ' < Track 1';
@@ -202,7 +242,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
             return renderObjects;
         }
 
-        const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+        const justification = props.textJustification ?? ('left' as CanvasTextAlign);
         const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
         for (const ch of sortedChannels) {
             const list = byChannel.get(ch) || [];

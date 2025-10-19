@@ -23,7 +23,7 @@
  */
 import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
-import ExportClock from './export-clock';
+import { ExportClock } from './export-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import {

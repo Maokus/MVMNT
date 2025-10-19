@@ -16,6 +16,90 @@ import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 import { getFeatureRequirements } from './audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 
+export type PropertyTransform<TValue, TElement = SceneElement> = (value: unknown, element: TElement) => TValue | undefined;
+
+export interface PropertyDescriptor<TValue = unknown, TElement = SceneElement> {
+    defaultValue?: TValue;
+    transform?: PropertyTransform<TValue, TElement>;
+}
+
+export type PropertyDescriptorMap<TElement = SceneElement> = Record<string, PropertyDescriptor<any, TElement>>;
+
+type DescriptorValue<TDescriptor> = TDescriptor extends PropertyDescriptor<infer TValue, any> ? TValue : never;
+
+export type PropertySnapshot<
+    TDescriptors extends PropertyDescriptorMap<TElement>,
+    TElement = SceneElement,
+> = {
+    [K in keyof TDescriptors]: DescriptorValue<TDescriptors[K]>;
+};
+
+export const asNumber: PropertyTransform<number, SceneElementInterface> = (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value.trim());
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+};
+
+export const asBoolean: PropertyTransform<boolean, SceneElementInterface> = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') {
+            return true;
+        }
+        if (normalized === 'false') {
+            return false;
+        }
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    return undefined;
+};
+
+export const asString: PropertyTransform<string, SceneElementInterface> = (value) => {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (value == null) {
+        return undefined;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    return undefined;
+};
+
+export const asTrimmedString: PropertyTransform<string, SceneElementInterface> = (value, element) => {
+    const stringValue = asString(value, element);
+    if (typeof stringValue !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = stringValue.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const schemaRuntimeDescriptorCache: WeakMap<object, PropertyDescriptorMap<any>> = new WeakMap();
+
+const hasOwn = (object: unknown, key: PropertyKey): boolean =>
+    typeof object === 'object' && object !== null ? Object.prototype.hasOwnProperty.call(object, key) : false;
+
 export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
@@ -179,6 +263,87 @@ export class SceneElement implements SceneElementInterface {
         // Property read doesn't affect bounds cache
 
         return value;
+    }
+
+    protected getProps<TDescriptors extends PropertyDescriptorMap<this>>(
+        descriptors: TDescriptors
+    ): PropertySnapshot<TDescriptors, this> {
+        const resolved = {} as PropertySnapshot<TDescriptors, this>;
+
+        for (const key of Object.keys(descriptors) as Array<keyof TDescriptors>) {
+            const descriptor = descriptors[key];
+            const raw = this.getProperty(key as string);
+            const transform = descriptor?.transform as PropertyTransform<unknown, this> | undefined;
+            const transformed = transform ? transform(raw, this) : raw;
+            const finalValue =
+                transformed !== undefined && transformed !== null
+                    ? transformed
+                    : descriptor?.defaultValue;
+
+            resolved[key] = finalValue as PropertySnapshot<TDescriptors, this>[typeof key];
+        }
+
+        return resolved;
+    }
+
+    protected getSchemaProps<TAdditional extends PropertyDescriptorMap<this>>(
+        additionalDescriptors?: TAdditional
+    ): PropertySnapshot<PropertyDescriptorMap<this> & TAdditional, this> {
+        const ctor = this.constructor as typeof SceneElement;
+        let baseDescriptors = schemaRuntimeDescriptorCache.get(ctor);
+        if (!baseDescriptors) {
+            baseDescriptors = SceneElement._collectSchemaRuntimeDescriptors(ctor);
+            schemaRuntimeDescriptorCache.set(ctor, baseDescriptors);
+        }
+
+        const typedBase = baseDescriptors as PropertyDescriptorMap<this>;
+        if (!additionalDescriptors || Object.keys(additionalDescriptors).length === 0) {
+            const baseOnly = this.getProps(typedBase as PropertyDescriptorMap<this>);
+            return baseOnly as PropertySnapshot<PropertyDescriptorMap<this> & TAdditional, this>;
+        }
+
+        const merged = {
+            ...(typedBase as Record<string, PropertyDescriptor<any, this>>),
+            ...(additionalDescriptors as Record<string, PropertyDescriptor<any, this>>),
+        } as PropertyDescriptorMap<this> & TAdditional;
+
+        return this.getProps(merged);
+    }
+
+    private static _collectSchemaRuntimeDescriptors(ctor: typeof SceneElement): PropertyDescriptorMap<any> {
+        const descriptors: PropertyDescriptorMap<any> = {};
+        try {
+            const schema = typeof ctor.getConfigSchema === 'function' ? ctor.getConfigSchema() : null;
+            const groups = schema?.groups ?? [];
+            for (const group of groups) {
+                if (!group?.properties) continue;
+                for (const property of group.properties as PropertyDefinition[]) {
+                    if (!property) continue;
+                    const runtime = property.runtime;
+                    if (!runtime) continue;
+                    const key = runtime.runtimeKey ?? property.key;
+                    if (!key) continue;
+
+                    const descriptor: PropertyDescriptor<any, SceneElement> = {};
+                    const runtimeConfig = runtime as NonNullable<PropertyDefinition['runtime']>;
+                    if (typeof runtimeConfig.transform === 'function') {
+                        descriptor.transform = runtimeConfig.transform as PropertyTransform<any, SceneElement>;
+                    }
+
+                    if (hasOwn(runtimeConfig, 'defaultValue')) {
+                        descriptor.defaultValue = runtimeConfig.defaultValue;
+                    } else if (hasOwn(property, 'default')) {
+                        descriptor.defaultValue = property.default;
+                    }
+
+                    descriptors[key] = descriptor;
+                }
+            }
+        } catch (error) {
+            debugLog('Failed to collect schema runtime descriptors', error);
+        }
+
+        return descriptors;
     }
 
     /**
@@ -550,7 +715,13 @@ export class SceneElement implements SceneElementInterface {
                     collapsed: false,
                     description: 'Control whether the element is visible and how it blends with other layers.',
                     properties: [
-                        { key: 'visible', type: 'boolean', label: 'Visible', default: true },
+                        {
+                            key: 'visible',
+                            type: 'boolean',
+                            label: 'Visible',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
+                        },
                         {
                             key: 'elementOpacity',
                             type: 'number',
@@ -560,6 +731,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 1,
                             step: 0.01,
                             description: 'Element transparency (0 = transparent, 1 = opaque).',
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'zIndex',
@@ -570,6 +742,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 100,
                             step: 1,
                             description: 'Stacking order for overlapping layers (higher values appear on top).',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                     ],
                     presets: [
@@ -606,6 +779,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 10000,
                             step: 1,
                             description: 'Horizontal position offset in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'offsetY',
@@ -616,6 +790,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 10000,
                             step: 1,
                             description: 'Vertical position offset in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementScaleX',
@@ -626,6 +801,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 5,
                             step: 0.01,
                             description: 'Horizontal scaling factor.',
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'elementScaleY',
@@ -636,6 +812,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 5,
                             step: 0.01,
                             description: 'Vertical scaling factor.',
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                     ],
                     presets: [
@@ -672,6 +849,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 1,
                             step: 0.01,
                             description: 'Horizontal anchor point (0 = left, 1 = right).',
+                            runtime: { transform: asNumber, defaultValue: 0.5 },
                         },
                         {
                             key: 'anchorY',
@@ -682,6 +860,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 1,
                             step: 0.01,
                             description: 'Vertical anchor point (0 = top, 1 = bottom).',
+                            runtime: { transform: asNumber, defaultValue: 0.5 },
                         },
                         {
                             key: 'elementRotation',
@@ -692,6 +871,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 360,
                             step: 1,
                             description: 'Element rotation angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewX',
@@ -702,6 +882,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 45,
                             step: 1,
                             description: 'Horizontal skew angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewY',
@@ -712,6 +893,7 @@ export class SceneElement implements SceneElementInterface {
                             max: 45,
                             step: 1,
                             description: 'Vertical skew angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                     ],
                     presets: [

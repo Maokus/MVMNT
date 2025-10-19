@@ -1,8 +1,35 @@
 // Image scene element for displaying images with transformations and property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
+import type { SceneElementInterface } from '@core/types.js';
 import { imageLoader, LoadedGIF } from '@core/resources/image-loader';
+
+const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
+    value,
+    element
+) => {
+    const normalized = asTrimmedString(value, element)?.toLowerCase();
+    const allowed = ['contain', 'cover', 'fill', 'none'] as const;
+    return allowed.includes(normalized as (typeof allowed)[number])
+        ? (normalized as (typeof allowed)[number])
+        : undefined;
+};
+
+const ensurePositivePlaybackSpeed: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined || numeric <= 0) {
+        return undefined;
+    }
+    return numeric;
+};
+
+const normalizeImageSource: PropertyTransform<string | File | null, SceneElementInterface> = (value) => {
+    if (value == null) return null;
+    if (typeof value === 'string') return value;
+    if (value instanceof File) return value;
+    return null;
+};
 
 interface GIFFrameDataProviderImpl {
     getFrame(currentTime: number): {
@@ -51,6 +78,7 @@ export class ImageElement extends SceneElement {
                             default: '',
                             accept: 'image/*',
                             description: 'Image or animated GIF to display.',
+                            runtime: { transform: normalizeImageSource, defaultValue: null },
                         },
                         {
                             key: 'playbackSpeed',
@@ -61,6 +89,7 @@ export class ImageElement extends SceneElement {
                             max: 10,
                             step: 0.1,
                             description: 'Speed multiplier for animated GIFs (1 = normal).',
+                            runtime: { transform: ensurePositivePlaybackSpeed, defaultValue: 1 },
                         },
                     ],
                     presets: [
@@ -85,6 +114,7 @@ export class ImageElement extends SceneElement {
                             max: 2000,
                             step: 10,
                             description: 'Width of the image container in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 200 },
                         },
                         {
                             key: 'height',
@@ -95,6 +125,7 @@ export class ImageElement extends SceneElement {
                             max: 2000,
                             step: 10,
                             description: 'Height of the image container in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 200 },
                         },
                         {
                             key: 'fitMode',
@@ -108,6 +139,7 @@ export class ImageElement extends SceneElement {
                                 { value: 'none', label: 'None (original size)' },
                             ],
                             description: 'How the image should fit within its bounds.',
+                            runtime: { transform: normalizeFitMode, defaultValue: 'contain' as const },
                         },
                         {
                             key: 'preserveAspectRatio',
@@ -116,6 +148,7 @@ export class ImageElement extends SceneElement {
                             default: true,
                             description: 'Maintain the original proportions when resizing.',
                             visibleWhen: [{ key: 'fitMode', notEquals: 'fill' }],
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                     ],
                     presets: [
@@ -239,33 +272,38 @@ export class ImageElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getSchemaProps();
 
-        const rawSource = this.getProperty('imageSource');
-        if (rawSource !== this._currentImageSource) {
-            this._currentImageSource = (rawSource as string | File | null) ?? null;
+        if (!props.visible) return [];
+
+        if (props.imageSource !== this._currentImageSource) {
+            this._currentImageSource = props.imageSource ?? null;
             this._maybeStartLoad(this._currentImageSource);
         }
 
-        const width = this.getProperty('width') as number;
-        const height = this.getProperty('height') as number;
-        const fitMode = this.getProperty('fitMode') as 'contain' | 'cover' | 'fill' | 'none';
-        const preserveAspectRatio = this.getProperty('preserveAspectRatio') as boolean;
-        const playbackSpeed = (this.getProperty('playbackSpeed') as number) || 1;
         const isGif = this._isGifSource(this._currentImageSource);
 
         if (!this._cachedRenderObject || isGif !== this._cachedRenderObject instanceof AnimatedGif) {
             if (isGif) {
                 const provider = this._getGifFrameProvider();
-                this._cachedRenderObject = new AnimatedGif(0, 0, width, height, provider, playbackSpeed, 1, {
-                    fitMode,
-                    preserveAspectRatio,
-                    status: this._status,
-                });
+                this._cachedRenderObject = new AnimatedGif(
+                    0,
+                    0,
+                    props.width,
+                    props.height,
+                    provider,
+                    props.playbackSpeed ?? 1,
+                    1,
+                    {
+                        fitMode: props.fitMode ?? 'contain',
+                        preserveAspectRatio: props.preserveAspectRatio ?? true,
+                        status: this._status,
+                    }
+                );
             } else {
-                this._cachedRenderObject = new Image(0, 0, width, height, this._imgElement, 1, {
-                    fitMode,
-                    preserveAspectRatio,
+                this._cachedRenderObject = new Image(0, 0, props.width, props.height, this._imgElement, 1, {
+                    fitMode: props.fitMode ?? 'contain',
+                    preserveAspectRatio: props.preserveAspectRatio ?? true,
                     status: this._status,
                 });
             }
@@ -274,16 +312,16 @@ export class ImageElement extends SceneElement {
         if (isGif && this._cachedRenderObject instanceof AnimatedGif) {
             const provider = this._getGifFrameProvider();
             this._cachedRenderObject
-                .setDimensions(width, height)
-                .setPlaybackSpeed(playbackSpeed)
-                .setFitMode(fitMode)
-                .setPreserveAspectRatio(preserveAspectRatio)
+                .setDimensions(props.width, props.height)
+                .setPlaybackSpeed(props.playbackSpeed ?? 1)
+                .setFitMode(props.fitMode ?? 'contain')
+                .setPreserveAspectRatio(props.preserveAspectRatio ?? true)
                 .setProvider(provider, this._status === 'empty' ? 'idle' : this._status);
         } else if (this._cachedRenderObject instanceof Image) {
             this._cachedRenderObject
-                .setDimensions(width, height)
-                .setFitMode(fitMode)
-                .setPreserveAspectRatio(preserveAspectRatio)
+                .setDimensions(props.width, props.height)
+                .setFitMode(props.fitMode ?? 'contain')
+                .setPreserveAspectRatio(props.preserveAspectRatio ?? true)
                 .setImageElement(this._imgElement, this._status === 'ready' ? 'ready' : this._status);
         }
 

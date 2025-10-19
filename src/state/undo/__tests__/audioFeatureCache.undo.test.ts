@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useTimelineStore, timelineCommandGateway } from '@state/timelineStore';
-import { createPatchUndoController } from '@state/undo/patch-undo';
+import { createPatchUndoController } from '@state/undo';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 
 function createAudioBufferStub(lengthSeconds: number, sampleRate = 48000): AudioBuffer {
