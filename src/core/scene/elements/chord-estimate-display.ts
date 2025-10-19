@@ -1,5 +1,5 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -200,7 +200,73 @@ export class ChordEstimateDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            windowSeconds: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0.05, numeric);
+                },
+                defaultValue: 0.6,
+            },
+            midiTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+            includeTriads: { transform: asBoolean, defaultValue: true },
+            includeDiminished: { transform: asBoolean, defaultValue: true },
+            includeAugmented: { transform: asBoolean, defaultValue: false },
+            includeSevenths: { transform: asBoolean, defaultValue: true },
+            preferBassRoot: { transform: asBoolean, defaultValue: true },
+            showInversion: { transform: asBoolean, defaultValue: true },
+            showActiveNotes: { transform: asBoolean, defaultValue: true },
+            showChroma: { transform: asBoolean, defaultValue: true },
+            smoothingMs: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 160,
+            },
+            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
+            fontSize: { transform: asNumber, defaultValue: 48 },
+            chordFontSize: { transform: asNumber },
+            detailsFontSize: { transform: asNumber },
+            color: { transform: asTrimmedString, defaultValue: '#ffffff' },
+            textJustification: {
+                transform: (value, element) => {
+                    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+                    if (!normalized) return undefined;
+                    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+                    return allowed.includes(normalized) ? normalized : undefined;
+                },
+                defaultValue: 'left' as CanvasTextAlign,
+            },
+            lineSpacing: { transform: asNumber, defaultValue: 6 },
+        });
+
+        if (!props.visible) return [];
+
+        const {
+            windowSeconds,
+            midiTrackId,
+            includeTriads,
+            includeDiminished,
+            includeAugmented,
+            includeSevenths,
+            preferBassRoot,
+            showInversion,
+            smoothingMs,
+            fontFamily: configuredFont,
+            fontSize,
+            chordFontSize: chordFontSizeRaw,
+            detailsFontSize: detailsFontSizeRaw,
+            color,
+            textJustification,
+            lineSpacing,
+            showActiveNotes,
+            showChroma,
+        } = props;
 
         const renderObjects: RenderObject[] = [];
 
@@ -208,17 +274,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const t = Math.max(0, targetTime);
 
         // Estimation window
-        const windowSeconds = Math.max(0.05, (this.getProperty('windowSeconds') as number) ?? 0.6);
         const start = Math.max(0, t - windowSeconds / 2);
         const end = t + windowSeconds / 2;
 
         // Active notes and chroma via timeline store
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =
             [];
-        if (trackId) {
+        if (midiTrackId) {
             const state = useTimelineStore.getState();
-            const notes = selectNotesInWindow(state, { trackIds: [trackId], startSec: start, endSec: end });
+            const notes = selectNotesInWindow(state, { trackIds: [midiTrackId], startSec: start, endSec: end });
             for (const n of notes) {
                 noteEvents.push({
                     note: n.note,
@@ -232,21 +296,14 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const { chroma, bassPc } = computeChromaFromNotes(noteEvents, start, end);
 
         // Estimate chord
-        const includeTriads = !!this.getProperty('includeTriads');
-        const includeDim = !!this.getProperty('includeDiminished');
-        const includeAug = !!this.getProperty('includeAugmented');
-        const include7 = !!this.getProperty('includeSevenths');
-        const preferBassRoot = !!this.getProperty('preferBassRoot');
-        const smoothingMs = Math.max(0, (this.getProperty('smoothingMs') as number) ?? 160);
-
         let chord: EstimatedChord | undefined;
         const energy = chroma.reduce((a, b) => a + b, 0);
         if (energy > 0) {
             chord = estimateChordPB(chroma, bassPc, {
                 includeTriads,
-                includeDiminished: includeDim,
-                includeAugmented: includeAug,
-                includeSevenths: include7,
+                includeDiminished,
+                includeAugmented,
+                includeSevenths,
                 preferBassRoot,
             });
         }
@@ -268,20 +325,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
 
         // Appearance
-        const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
+        const fontSelection = configuredFont ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '600').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 48; // fallback
-        const chordFontSize = (this.getProperty('chordFontSize') as number) ?? fontSize;
-        const detailsFontSize =
-            (this.getProperty('detailsFontSize') as number) ?? Math.max(6, Math.round(fontSize * 0.5));
-        const color = (this.getProperty('color') as string) || '#ffffff';
+        const chordFontSize = chordFontSizeRaw ?? fontSize;
+        const detailsFontSize = detailsFontSizeRaw ?? Math.max(6, Math.round(fontSize * 0.5));
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const fontChord = `${fontWeight} ${chordFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
         const fontDetails = `${fontWeight} ${detailsFontSize}px ${fontFamily || 'Inter'}, sans-serif`;
-        const justify = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
-        const showInversion = !!this.getProperty('showInversion');
-        const lineSpacing = ((this.getProperty('lineSpacing') as number) ?? 6) as number;
+        const justify = textJustification;
 
         let y = 0;
         const label = chord ? this._formatChordLabel(chord, showInversion) : 'N.C.';
@@ -290,7 +342,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         y += chordFontSize + lineSpacing;
 
         // Active notes line (unique MIDI notes overlapping window)
-        if (this.getProperty('showActiveNotes')) {
+        if (showActiveNotes) {
             const allUniqueNotes = Array.from(new Set(noteEvents.map((n) => n.note))).sort((a, b) => a - b);
             const MAX_NOTES = 8;
             const truncated = allUniqueNotes.length > MAX_NOTES;
@@ -319,7 +371,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
         }
 
         // Chroma line (12 bins with names)
-        if (this.getProperty('showChroma')) {
+        if (showChroma) {
             const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
             const rectWidth = 20;
             const spacing = 30;

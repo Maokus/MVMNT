@@ -1,4 +1,4 @@
-import { SceneElement } from './base';
+import { SceneElement, asNumber, asTrimmedString } from './base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
@@ -112,22 +112,50 @@ export class AudioOscilloscopeElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const width = this.getProperty<number>('width') ?? 420;
-        const height = this.getProperty<number>('height') ?? 140;
-        const windowSeconds = clamp(this.getProperty<number>('windowSeconds') ?? 0.12, 0.01, 1);
-        const lineColor = this.getProperty<string>('lineColor') ?? '#22d3ee';
-        const lineWidth = clamp(this.getProperty<number>('lineWidth') ?? 2, 0.5, 10);
-        const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
+        const props = this.getProps({
+            width: { transform: asNumber, defaultValue: 420 },
+            height: { transform: asNumber, defaultValue: 140 },
+            windowSeconds: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : clamp(numeric, 0.01, 1);
+                },
+                defaultValue: 0.12,
+            },
+            lineColor: { transform: asTrimmedString, defaultValue: '#22d3ee' },
+            lineWidth: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
+                },
+                defaultValue: 2,
+            },
+            backgroundColor: {
+                transform: asTrimmedString,
+                defaultValue: 'rgba(15, 23, 42, 0.35)',
+            },
+            smoothing: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                },
+                defaultValue: 0,
+            },
+            audioTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+        });
+
+        const { width, height, windowSeconds, lineColor, lineWidth, backgroundColor, smoothing, audioTrackId } = props;
         const smoothingRadius = Math.max(0, Math.round(smoothing));
-        const trackId = (this.getProperty<string>('audioTrackId') ?? '').trim() || null;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
-        if (!trackId) {
+        if (!audioTrackId) {
             objects.push(
                 new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
             );
@@ -142,8 +170,8 @@ export class AudioOscilloscopeElement extends SceneElement {
         const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
 
         const state = useTimelineStore.getState();
-        const channelIndex = resolveDescriptorChannel(trackId, descriptor);
-        const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
+        const channelIndex = resolveDescriptorChannel(audioTrackId, descriptor);
+        const range = sampleAudioFeatureRange(state, audioTrackId, descriptor.featureKey, startTick, endTick, {
             channelIndex: channelIndex ?? undefined,
             smoothing: smoothingRadius,
         });

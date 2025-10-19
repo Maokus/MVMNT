@@ -1,4 +1,4 @@
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -127,28 +127,64 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const width = this.getProperty<number>('width') ?? 48;
-        const height = this.getProperty<number>('height') ?? 240;
-        const orientation = (this.getProperty<string>('orientation') ?? 'vertical').toLowerCase();
-        const minValue = this.getProperty<number>('minValue') ?? 0;
-        const maxValue = this.getProperty<number>('maxValue') ?? 1;
-        const meterColor = this.getProperty<string>('meterColor') ?? '#f472b6';
-        const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
-        const showValue = this.getProperty<boolean>('showValue') ?? true;
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
-        const trackId = (this.getProperty<string>('audioTrackId') ?? '').trim() || null;
+        const props = this.getProps({
+            width: { transform: asNumber, defaultValue: 48 },
+            height: { transform: asNumber, defaultValue: 240 },
+            orientation: {
+                transform: (value, element) => {
+                    const normalized = asTrimmedString(value, element)?.toLowerCase();
+                    return normalized === 'horizontal' ? 'horizontal' : normalized === 'vertical' ? 'vertical' : undefined;
+                },
+                defaultValue: 'vertical',
+            },
+            minValue: { transform: asNumber, defaultValue: 0 },
+            maxValue: { transform: asNumber, defaultValue: 1 },
+            meterColor: { transform: asTrimmedString, defaultValue: '#f472b6' },
+            backgroundColor: {
+                transform: asTrimmedString,
+                defaultValue: 'rgba(15, 23, 42, 0.35)',
+            },
+            showValue: { transform: asBoolean, defaultValue: true },
+            smoothing: { transform: asNumber, defaultValue: 0 },
+            audioTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+        });
+
+        const {
+            width,
+            height,
+            orientation,
+            minValue,
+            maxValue,
+            meterColor,
+            backgroundColor,
+            showValue,
+            smoothing: smoothingRaw,
+            audioTrackId,
+        } = props;
+        const smoothing = clamp(smoothingRaw ?? 0, 0, 64);
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
-        if (!trackId) {
+        if (!audioTrackId) {
             objects.push(
-                new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
+                new Text(
+                    8,
+                    height / 2,
+                    'Select an audio track',
+                    '12px Inter, sans-serif',
+                    '#94a3b8',
+                    'left',
+                    'middle'
+                )
             );
             return objects;
         }
 
-        const frame = getFeatureData(this, trackId, 'rms', targetTime, { smoothing });
+        const frame = getFeatureData(this, audioTrackId, 'rms', targetTime, { smoothing });
         const rawValue = frame?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - minValue) / Math.max(1e-6, maxValue - minValue));
 

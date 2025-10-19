@@ -1,4 +1,4 @@
-import { EnhancedConfigSchema, RenderObject, SceneElement } from '@core/index';
+import { EnhancedConfigSchema, RenderObject, SceneElement, asTrimmedString } from '@core/index';
 import { Rectangle, Text } from '@core/render/render-objects';
 import { registerFeatureRequirements } from './audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -39,14 +39,20 @@ export class AudioMinimalElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
-        const trackId = this.getProperty<string>('audioTrackId');
-        const frame = getFeatureData(this, trackId, 'spectrogram', targetTime);
+        const { audioTrackId } = this.getProps({
+            audioTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+        });
+
+        const frame = audioTrackId ? getFeatureData(this, audioTrackId, 'spectrogram', targetTime) : null;
 
         if (!frame || frame.values.length === 0) {
             return [new Rectangle(0, 0, 200, 200, '#ff0000')];
         }
 
-        let objects = [];
+        const objects: RenderObject[] = [];
 
         for (let i = 0; i < frame.values.length; i++) {
             objects.push(new Text(0, i * 50, `${frame.values[i]}`, '40px Arial', '#ffffff'));

@@ -1,4 +1,4 @@
-import { SceneElement } from './base';
+import { SceneElement, asNumber } from './base';
 import { EnhancedConfigSchema } from '@core/types';
 import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
 
@@ -55,7 +55,7 @@ export class DebugElement extends SceneElement {
      * config.points: Array<{ x: number, y: number }>
      */
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        let objects: RenderObject[] = [];
+        const objects: RenderObject[] = [];
         const empty1 = new EmptyRenderObject();
         const rect1 = new Rectangle(0, 0, 50, 50, '#ff0000');
         const rect2 = new Rectangle(50, 50, 50, 50, '#00ff00');
@@ -87,16 +87,28 @@ export class DebugElement extends SceneElement {
         height: number,
         localPoint: { x: number; y: number }
     ): { x: number; y: number } {
+        const transforms = this.getProps({
+            offsetX: { transform: asNumber, defaultValue: 0 },
+            offsetY: { transform: asNumber, defaultValue: 0 },
+            elementScaleX: { transform: asNumber, defaultValue: 1 },
+            elementScaleY: { transform: asNumber, defaultValue: 1 },
+            elementSkewX: { transform: asNumber, defaultValue: 0 },
+            elementSkewY: { transform: asNumber, defaultValue: 0 },
+            elementRotation: { transform: asNumber, defaultValue: 0 },
+            anchorX: { transform: asNumber, defaultValue: 0 },
+            anchorY: { transform: asNumber, defaultValue: 0 },
+        });
+
         const t = {
-            x: Number(this.getProperty('offsetX')) || 0,
-            y: Number(this.getProperty('offsetY')) || 0,
-            scaleX: Number(this.getProperty('elementScaleX')) || 1,
-            scaleY: Number(this.getProperty('elementScaleY')) || 1,
-            skewX: Number(this.getProperty('elementSkewX')) || 0,
-            skewY: Number(this.getProperty('elementSkewY')) || 0,
-            rot: Number(this.getProperty('elementRotation')) || 0,
-            anchorX: (Number(this.getProperty('anchorX')) || 0) * width,
-            anchorY: (Number(this.getProperty('anchorY')) || 0) * height,
+            x: transforms.offsetX ?? 0,
+            y: transforms.offsetY ?? 0,
+            scaleX: transforms.elementScaleX ?? 1,
+            scaleY: transforms.elementScaleY ?? 1,
+            skewX: transforms.elementSkewX ?? 0,
+            skewY: transforms.elementSkewY ?? 0,
+            rot: transforms.elementRotation ?? 0,
+            anchorX: (transforms.anchorX ?? 0) * width,
+            anchorY: (transforms.anchorY ?? 0) * height,
         };
 
         // Step 1: subtract anchor

@@ -16,6 +16,85 @@ import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 import { getFeatureRequirements } from './audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 
+export type PropertyTransform<TValue, TElement = SceneElement> = (value: unknown, element: TElement) => TValue | undefined;
+
+export interface PropertyDescriptor<TValue = unknown, TElement = SceneElement> {
+    defaultValue?: TValue;
+    transform?: PropertyTransform<TValue, TElement>;
+}
+
+export type PropertyDescriptorMap<TElement = SceneElement> = Record<string, PropertyDescriptor<any, TElement>>;
+
+type DescriptorValue<TDescriptor> = TDescriptor extends PropertyDescriptor<infer TValue, any> ? TValue : never;
+
+export type PropertySnapshot<
+    TDescriptors extends PropertyDescriptorMap<TElement>,
+    TElement = SceneElement,
+> = {
+    [K in keyof TDescriptors]: DescriptorValue<TDescriptors[K]>;
+};
+
+export const asNumber: PropertyTransform<number, SceneElement> = (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value.trim());
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+};
+
+export const asBoolean: PropertyTransform<boolean, SceneElement> = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') {
+            return true;
+        }
+        if (normalized === 'false') {
+            return false;
+        }
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    return undefined;
+};
+
+export const asString: PropertyTransform<string, SceneElement> = (value) => {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (value == null) {
+        return undefined;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    return undefined;
+};
+
+export const asTrimmedString: PropertyTransform<string, SceneElement> = (value, element) => {
+    const stringValue = asString(value, element);
+    if (typeof stringValue !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = stringValue.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export class SceneElement implements SceneElementInterface {
     public type: string;
     public id: string | null;
@@ -179,6 +258,27 @@ export class SceneElement implements SceneElementInterface {
         // Property read doesn't affect bounds cache
 
         return value;
+    }
+
+    protected getProps<TDescriptors extends PropertyDescriptorMap<this>>(
+        descriptors: TDescriptors
+    ): PropertySnapshot<TDescriptors, this> {
+        const resolved = {} as PropertySnapshot<TDescriptors, this>;
+
+        for (const key of Object.keys(descriptors) as Array<keyof TDescriptors>) {
+            const descriptor = descriptors[key];
+            const raw = this.getProperty(key as string);
+            const transform = descriptor?.transform as PropertyTransform<unknown, this> | undefined;
+            const transformed = transform ? transform(raw, this) : raw;
+            const finalValue =
+                transformed !== undefined && transformed !== null
+                    ? transformed
+                    : descriptor?.defaultValue;
+
+            resolved[key] = finalValue as PropertySnapshot<TDescriptors, this>[typeof key];
+        }
+
+        return resolved;
     }
 
     /**

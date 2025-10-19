@@ -1,5 +1,5 @@
 // Text overlay element for displaying a single line of text with property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
@@ -90,17 +90,25 @@ export class TextOverlayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            text: { transform: asTrimmedString, defaultValue: 'Sample Text' },
+            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
+            fontSize: { transform: asNumber, defaultValue: 36 },
+            color: { transform: asTrimmedString, defaultValue: '#ffffff' },
+        });
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
-        const text = this.getProperty('text') as string;
-        const fontSelection = this.getProperty('fontFamily') as string; // may be family or family|weight
+        const text = props.text ?? 'Sample Text';
+        const fontSelection = props.fontFamily ?? 'Inter'; // may be family or family|weight
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const fontSize = this.getProperty('fontSize') as number;
-        const color = this.getProperty('color') as string;
+        const fontSize = props.fontSize ?? 36;
+        const color = props.color ?? '#ffffff';
 
         // Ensure font is loaded if it's a Google Font
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);

@@ -8,7 +8,7 @@ vi.mock('@audio/features/subscriptionSync', () => ({
     getElementSubscriptionDetails: vi.fn(() => []),
 }));
 
-import { SceneElement } from '@core/scene/elements/base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from '@core/scene/elements/base';
 import * as sceneApi from '@audio/features/sceneApi';
 import {
     registerFeatureRequirements,
@@ -102,5 +102,65 @@ describe('SceneElement audio requirements integration', () => {
         const [instance, trackId] = mockedSync.mock.calls[0]!;
         expect(instance).toBe(element);
         expect(trackId).toBeNull();
+    });
+});
+
+describe('SceneElement property snapshots', () => {
+    class PropertyHarness extends SceneElement {
+        constructor(config: Record<string, unknown> = {}) {
+            super('propertyHarness', 'prop-1', config);
+        }
+
+        public snapshot<TDescriptors extends Record<string, any>>(descriptors: TDescriptors) {
+            return this.getProps(descriptors);
+        }
+    }
+
+    it('applies defaults when the property is missing', () => {
+        const element = new PropertyHarness();
+
+        const props = element.snapshot({
+            missingWithDefault: { defaultValue: 42 },
+            missingWithoutDefault: {},
+        });
+
+        expect(props.missingWithDefault).toBe(42);
+        expect(props.missingWithoutDefault).toBeUndefined();
+    });
+
+    it('runs transforms and provides the element context', () => {
+        const element = new PropertyHarness({
+            numericLike: '5.5',
+            truthyString: 'true',
+            paddedLabel: '  hello  ',
+        });
+
+        const props = element.snapshot({
+            numericLike: { transform: asNumber, defaultValue: 0 },
+            truthyString: { transform: asBoolean, defaultValue: false },
+            paddedLabel: { transform: asTrimmedString },
+            seesElement: {
+                transform: (_value: unknown, instance: PropertyHarness) => instance === element,
+                defaultValue: false,
+            },
+        });
+
+        expect(props.numericLike).toBe(5.5);
+        expect(props.truthyString).toBe(true);
+        expect(props.paddedLabel).toBe('hello');
+        expect(props.seesElement).toBe(true);
+    });
+
+    it('falls back to defaults when transforms yield nullish values', () => {
+        const element = new PropertyHarness({ provided: 0 });
+
+        const props = element.snapshot({
+            provided: {
+                transform: () => undefined,
+                defaultValue: 99,
+            },
+        });
+
+        expect(props.provided).toBe(99);
     });
 });

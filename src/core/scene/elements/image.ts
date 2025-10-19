@@ -1,5 +1,5 @@
 // Image scene element for displaying images with transformations and property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { imageLoader, LoadedGIF } from '@core/resources/image-loader';
@@ -239,19 +239,42 @@ export class ImageElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            imageSource: { defaultValue: null as string | File | null },
+            width: { transform: asNumber, defaultValue: 200 },
+            height: { transform: asNumber, defaultValue: 200 },
+            fitMode: {
+                transform: (value, element) => {
+                    const normalized = asTrimmedString(value, element)?.toLowerCase();
+                    const allowed = ['contain', 'cover', 'fill', 'none'] as const;
+                    return allowed.includes(normalized as (typeof allowed)[number])
+                        ? (normalized as (typeof allowed)[number])
+                        : undefined;
+                },
+                defaultValue: 'contain' as 'contain' | 'cover' | 'fill' | 'none',
+            },
+            preserveAspectRatio: { transform: asBoolean, defaultValue: true },
+            playbackSpeed: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    if (numeric === undefined || numeric <= 0) {
+                        return undefined;
+                    }
+                    return numeric;
+                },
+                defaultValue: 1,
+            },
+        });
 
-        const rawSource = this.getProperty('imageSource');
-        if (rawSource !== this._currentImageSource) {
-            this._currentImageSource = (rawSource as string | File | null) ?? null;
+        if (!props.visible) return [];
+
+        if (props.imageSource !== this._currentImageSource) {
+            this._currentImageSource = props.imageSource ?? null;
             this._maybeStartLoad(this._currentImageSource);
         }
 
-        const width = this.getProperty('width') as number;
-        const height = this.getProperty('height') as number;
-        const fitMode = this.getProperty('fitMode') as 'contain' | 'cover' | 'fill' | 'none';
-        const preserveAspectRatio = this.getProperty('preserveAspectRatio') as boolean;
-        const playbackSpeed = (this.getProperty('playbackSpeed') as number) || 1;
+        const { width, height, fitMode, preserveAspectRatio, playbackSpeed } = props;
         const isGif = this._isGifSource(this._currentImageSource);
 
         if (!this._cachedRenderObject || isGif !== this._cachedRenderObject instanceof AnimatedGif) {

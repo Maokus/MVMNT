@@ -1,4 +1,4 @@
-import { SceneElement } from './base';
+import { SceneElement, asNumber, asTrimmedString } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
@@ -122,27 +122,50 @@ export class AudioSpectrumElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
-        const width = this.getProperty<number>('width') ?? 420;
-        const height = this.getProperty<number>('height') ?? 180;
-        const barCount = clamp(Math.floor(this.getProperty<number>('barCount') ?? 48), 4, 512);
-        const minDecibels = this.getProperty<number>('minDecibels') ?? -80;
-        const maxDecibels = this.getProperty<number>('maxDecibels') ?? 0;
-        const barColor = this.getProperty<string>('barColor') ?? '#60a5fa';
-        const backgroundColor = this.getProperty<string>('backgroundColor') ?? 'rgba(15, 23, 42, 0.35)';
-        const smoothing = clamp(this.getProperty<number>('smoothing') ?? 0, 0, 64);
-        const trackId = (this.getProperty<string>('audioTrackId') ?? '').trim() || null;
+        const props = this.getProps({
+            width: { transform: asNumber, defaultValue: 420 },
+            height: { transform: asNumber, defaultValue: 180 },
+            barCount: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    if (numeric === undefined) return undefined;
+                    return clamp(Math.floor(numeric), 4, 512);
+                },
+                defaultValue: 48,
+            },
+            minDecibels: { transform: asNumber, defaultValue: -80 },
+            maxDecibels: { transform: asNumber, defaultValue: 0 },
+            barColor: { transform: asTrimmedString, defaultValue: '#60a5fa' },
+            backgroundColor: {
+                transform: asTrimmedString,
+                defaultValue: 'rgba(15, 23, 42, 0.35)',
+            },
+            smoothing: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                },
+                defaultValue: 0,
+            },
+            audioTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+        });
+
+        const { width, height, barCount, minDecibels, maxDecibels, barColor, backgroundColor, smoothing, audioTrackId } = props;
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, backgroundColor));
 
-        if (!trackId) {
+        if (!audioTrackId) {
             objects.push(
                 new Text(8, height / 2, 'Select an audio track', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
             );
             return objects;
         }
 
-        const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
+        const sample = getFeatureData(this, audioTrackId, 'spectrogram', targetTime, { smoothing });
         const values = sample?.values ?? [];
         if (!values.length) {
             objects.push(

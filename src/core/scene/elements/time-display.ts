@@ -1,5 +1,5 @@
 // Time display element for showing current time with property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
@@ -109,17 +109,29 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            showProgress: { transform: asBoolean, defaultValue: true },
+            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
+            textColor: { transform: asTrimmedString, defaultValue: '#FFFFFF' },
+            textSecondaryColor: {
+                transform: asTrimmedString,
+                defaultValue: 'rgba(255, 255, 255, 0.9)',
+            },
+            offsetBars: { transform: asNumber, defaultValue: 0 },
+        });
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         // Get properties from bindings
-        const showProgress = this.getProperty('showProgress') as boolean;
-        const fontSelection = this.getProperty('fontFamily') as string;
+        const showProgress = props.showProgress;
+        const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const textColor = this.getProperty('textColor') as string;
-        const textSecondaryColor = this.getProperty('textSecondaryColor') as string;
+        const textColor = props.textColor ?? '#FFFFFF';
+        const textSecondaryColor = props.textSecondaryColor ?? 'rgba(255, 255, 255, 0.9)';
 
         // Update timing manager from global timeline store
         try {
@@ -141,7 +153,7 @@ export class TimeDisplayElement extends SceneElement {
         // Apply offsetBars (display only). We convert the bar offset to seconds using current tempo context.
         // This keeps internal timing intact while shifting only what is shown.
         let displayTime = targetTime;
-        const offsetBars = Number(this.getProperty('offsetBars') || 0);
+        const offsetBars = props.offsetBars ?? 0;
         if (offsetBars !== 0) {
             try {
                 // For tempo-mapped timelines, approximate by converting bars->beats->seconds via timing manager.

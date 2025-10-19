@@ -1,5 +1,5 @@
 // Progress display element for showing playback progress with property bindings
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types';
 import { parseFontSelection, ensureFontLoaded } from '@fonts/font-loader';
@@ -221,16 +221,60 @@ export class ProgressDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            showBar: { transform: asBoolean, defaultValue: true },
+            showStats: { transform: asBoolean, defaultValue: true },
+            barWidth: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 400,
+            },
+            height: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, numeric);
+                },
+                defaultValue: 20,
+            },
+            barColor: { transform: asTrimmedString, defaultValue: '#cccccc' },
+            barOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 1,
+            },
+            barBgColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
+            barBgOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 0.1,
+            },
+            borderColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
+            borderOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: 0.3,
+            },
+        });
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
         const { duration, playRangeStartSec, playRangeEndSec } = config as any;
         const effectiveTime = targetTime;
 
         // Get properties from bindings
-        const showBar = this.getProperty('showBar') as boolean;
-        const showStats = this.getProperty('showStats') as boolean;
-        const barHeight = this.getProperty('height') as number;
+        const showBar = props.showBar;
+        const showStats = props.showStats;
+        const barHeight = props.height ?? 20;
 
         // Use explicit playback window when provided (user-defined), fallback to full duration
         const totalDuration =
@@ -250,13 +294,13 @@ export class ProgressDisplayElement extends SceneElement {
         // Progress bar background
         if (showBar) {
             // Get config values or defaults
-            const barColor = this.getProperty<string>('barColor') || '#cccccc';
-            const barOpacity = this.getProperty<number>('barOpacity');
-            const barBgColor = this.getProperty<string>('barBgColor') || '#ffffff';
-            const barBgOpacity = this.getProperty<number>('barBgOpacity');
-            const borderColorRaw = this.getProperty<string>('borderColor') || '#ffffff';
-            const borderOpacity = this.getProperty<number>('borderOpacity');
-            const barWidth = this.getProperty<number>('barWidth') || 400;
+            const barColor = props.barColor ?? '#cccccc';
+            const barOpacity = props.barOpacity;
+            const barBgColor = props.barBgColor ?? '#ffffff';
+            const barBgOpacity = props.barBgOpacity;
+            const borderColorRaw = props.borderColor ?? '#ffffff';
+            const borderOpacity = props.borderOpacity;
+            const barWidth = props.barWidth ?? 400;
 
             // Progress bar background
             const progressBg = new Rectangle(

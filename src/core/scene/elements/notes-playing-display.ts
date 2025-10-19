@@ -1,5 +1,5 @@
 // Notes Playing Display: show currently playing notes per channel/track
-import { SceneElement } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -96,14 +96,36 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.getProperty('visible')) return [];
+        const props = this.getProps({
+            visible: { transform: asBoolean, defaultValue: true },
+            midiTrackId: {
+                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                defaultValue: null,
+            },
+            showAllAvailableTracks: { transform: asBoolean, defaultValue: false },
+            fontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
+            fontSize: { transform: asNumber, defaultValue: 30 },
+            color: { transform: asTrimmedString, defaultValue: '#cccccc' },
+            lineSpacing: { transform: asNumber, defaultValue: 4 },
+            textJustification: {
+                transform: (value, element) => {
+                    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
+                    if (!normalized) return undefined;
+                    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
+                    return allowed.includes(normalized) ? normalized : undefined;
+                },
+                defaultValue: 'left' as CanvasTextAlign,
+            },
+        });
+
+        if (!props.visible) return [];
 
         const renderObjects: RenderObject[] = [];
 
         const effectiveTime = Math.max(0, targetTime);
 
         // Determine active notes at effectiveTime via timeline store selector
-        const trackId = (this.getProperty('midiTrackId') as string) || null;
+        const trackId = props.midiTrackId;
         const active: { note: number; vel: number; channel: number }[] = [];
         if (trackId) {
             const EPS = 1e-3;
@@ -126,15 +148,15 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         // Compute all channels present in the loaded MIDI file
         const allChannelsSet = new Set<number>(); // unknown without full file; leave empty unless showAll forces placeholder
-        const showAll = !!this.getProperty('showAllAvailableTracks');
+        const showAll = props.showAllAvailableTracks ?? false;
 
         // Appearance
-        const fontSelection = (this.getProperty('fontFamily') as string) || 'Inter';
+        const fontSelection = props.fontFamily ?? 'Inter';
         const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
         const fontWeight = (weightPart || '400').toString();
-        const fontSize = (this.getProperty('fontSize') as number) || 14;
-        const color = (this.getProperty('color') as string) || '#cccccc';
-        const lineSpacing = (this.getProperty('lineSpacing') as number) ?? 4;
+        const fontSize = props.fontSize ?? 30;
+        const color = props.color ?? '#cccccc';
+        const lineSpacing = props.lineSpacing ?? 4;
         if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
         const font = `${fontWeight} ${fontSize}px ${fontFamily || 'Inter'}, sans-serif`;
 
@@ -175,7 +197,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         let y = 0;
         if ((byChannel.size === 0 || targetTime < 0) && !showAll) {
-            const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+            const justification = props.textJustification ?? ('left' as CanvasTextAlign);
             // Placeholder when nothing is playing
             const placeholderLeft = justification === 'left';
             const staticPrefix = placeholderLeft ? 'Track 1 > ' : ' < Track 1';
@@ -202,7 +224,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
             return renderObjects;
         }
 
-        const justification = ((this.getProperty('textJustification') as string) || 'left') as CanvasTextAlign;
+        const justification = props.textJustification ?? ('left' as CanvasTextAlign);
         const sortedChannels = Array.from(byChannel.keys()).sort((a, b) => a - b);
         for (const ch of sortedChannels) {
             const list = byChannel.get(ch) || [];
