@@ -118,6 +118,51 @@ const Section: React.FC<SectionProps> = ({ title, open, onToggle, subtitle, chil
     </div>
 );
 
+type CollapsibleCardProps = {
+    title: string;
+    open: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+    subtitle?: string;
+};
+
+const CollapsibleCard: React.FC<CollapsibleCardProps> = ({ title, open, onToggle, subtitle, children }) => (
+    <div
+        style={{
+            border: '1px solid rgba(148, 163, 184, 0.35)',
+            borderRadius: 8,
+            background: 'rgba(30, 41, 59, 0.55)',
+            boxShadow: '0 6px 16px rgba(15, 23, 42, 0.25)',
+        }}
+    >
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 10px',
+                fontSize: 12,
+                color: '#e2e8f0',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+            }}
+        >
+            <span style={{ fontWeight: 600 }}>{title}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                {subtitle ? <span style={{ opacity: 0.65 }}>{subtitle}</span> : null}
+                <span>{open ? '▾' : '▸'}</span>
+            </span>
+        </button>
+        {open ? <div style={{ padding: '10px 12px 12px 12px', borderTop: '1px solid rgba(148, 163, 184, 0.25)' }}>{children}</div> : null}
+    </div>
+);
+
 type UndoEntry = {
     index: number;
     hasScenePatch: boolean;
@@ -259,6 +304,14 @@ export const TransportStatusDev: React.FC = () => {
         audio: false,
         undo: false,
     });
+    const [audioSubSectionsOpen, setAudioSubSectionsOpen] = React.useState({
+        requests: true,
+        caches: true,
+        diagnostics: false,
+    });
+    const [expandedRequests, setExpandedRequests] = React.useState<Record<string, boolean>>({});
+    const [expandedCaches, setExpandedCaches] = React.useState<Record<string, boolean>>({});
+    const [expandedDiagnostics, setExpandedDiagnostics] = React.useState<Record<string, boolean>>({});
     const [undoSummary, setUndoSummary] = React.useState<UndoSummary | null>(() => collectUndoSummary());
     const intentsByElement = useAudioDiagnosticsStore((state) => state.intentsByElement);
     const diffs = useAudioDiagnosticsStore((state) => state.diffs);
@@ -267,6 +320,17 @@ export const TransportStatusDev: React.FC = () => {
 
     const toggleSection = (key: keyof typeof sectionsOpen) => {
         setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleAudioSubSection = (key: keyof typeof audioSubSectionsOpen) => {
+        setAudioSubSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleExpanded = (
+        updater: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
+        key: string,
+    ) => {
+        updater((prev) => ({ ...prev, [key]: !prev[key] }));
     };
 
     React.useEffect(() => {
@@ -419,19 +483,22 @@ export const TransportStatusDev: React.FC = () => {
         <div
             style={{
                 position: 'fixed',
-                bottom: 8,
-                right: 8,
-                background: 'rgba(15, 23, 42, 0.85)',
+                bottom: 16,
+                right: 16,
+                background: 'rgba(15, 23, 42, 0.88)',
                 color: '#cbd5f5',
                 fontSize: 12,
-                padding: '12px 14px',
+                padding: '16px 18px',
                 fontFamily:
                     'ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                borderRadius: 8,
+                borderRadius: 12,
                 zIndex: 9999,
-                width: 340,
-                boxShadow: '0 12px 30px rgba(15, 23, 42, 0.5)',
-                backdropFilter: 'blur(6px)',
+                width: 420,
+                maxHeight: '82vh',
+                overflowY: 'auto',
+                boxShadow: '0 18px 40px rgba(15, 23, 42, 0.6)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(148, 163, 184, 0.35)',
             }}
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -505,21 +572,15 @@ export const TransportStatusDev: React.FC = () => {
                 onToggle={() => toggleSection('audio')}
                 subtitle={`${featureRequests.length} req · ${cacheEntries.length} caches`}
             >
-                <div style={{ display: 'grid', gap: 10 }}>
-                    <div>
-                        <div
-                            style={{
-                                fontSize: 10,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.6,
-                                opacity: 0.65,
-                                marginBottom: 4,
-                            }}
-                        >
-                            Scene Requests
-                        </div>
+                <div style={{ display: 'grid', gap: 12 }}>
+                    <CollapsibleCard
+                        title="Scene Requests"
+                        open={audioSubSectionsOpen.requests}
+                        onToggle={() => toggleAudioSubSection('requests')}
+                        subtitle={`${featureRequests.length} active`}
+                    >
                         {featureRequests.length ? (
-                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
                                 {featureRequests.map((record) => {
                                     const descriptorEntries = Object.values(record.descriptors ?? {});
                                     const descriptors = descriptorEntries
@@ -529,57 +590,93 @@ export const TransportStatusDev: React.FC = () => {
                                         .filter((diag) => !diag.satisfied)
                                         .map((diag) => formatDescriptorDetails(diag.descriptor));
                                     const unexpected = record.unexpectedDescriptors.length;
+                                    const key = record.elementId;
+                                    const expanded = !!expandedRequests[key];
+                                    const hasIssues = missingRequirements.length > 0 || unexpected > 0;
                                     return (
                                         <li
-                                            key={record.elementId}
+                                            key={key}
                                             style={{
                                                 border: '1px solid rgba(148, 163, 184, 0.25)',
                                                 borderRadius: 6,
-                                                padding: '6px 8px',
-                                                background: 'rgba(30, 41, 59, 0.5)',
+                                                background: 'rgba(15, 23, 42, 0.35)',
                                             }}
                                         >
-                                            <div style={{ fontSize: 12, fontWeight: 600 }}>
-                                                {record.elementId}
-                                                <span style={{ opacity: 0.7, fontWeight: 400 }}>
-                                                    {' '}
-                                                    ({record.elementType})
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleExpanded(setExpandedRequests, key)}
+                                                aria-expanded={expanded}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 10px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 12,
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: '#e2e8f0',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                }}
+                                            >
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                        <span>{record.elementId}</span>
+                                                        <span style={{ opacity: 0.65, fontWeight: 400 }}>
+                                                            ({record.elementType})
+                                                        </span>
+                                                        <span style={{ opacity: 0.5 }}>
+                                                            · {record.trackRef}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                                                        {descriptors.length} descriptor{descriptors.length === 1 ? '' : 's'}
+                                                        {record.analysisProfileId ? ` · profile:${record.analysisProfileId}` : ''}
+                                                        {record.autoManaged ? ' · auto-managed' : ''}
+                                                    </div>
+                                                </div>
+                                                <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {hasIssues ? (
+                                                        <span style={{ color: '#f97316', fontWeight: 600 }}>issues</span>
+                                                    ) : (
+                                                        <span style={{ opacity: 0.6 }}>ok</span>
+                                                    )}
+                                                    <span>{expanded ? '▾' : '▸'}</span>
                                                 </span>
-                                            </div>
-                                            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                                                Track: {record.trackRef}
-                                                {record.analysisProfileId ? ` · profile:${record.analysisProfileId}` : ''}
-                                                {record.autoManaged ? ' · auto-managed' : ''}
-                                            </div>
-                                            {descriptors.length ? (
-                                                <ul
-                                                    style={{
-                                                        listStyle: 'disc',
-                                                        paddingLeft: 16,
-                                                        margin: '6px 0 0 0',
-                                                        fontSize: 11,
-                                                        display: 'grid',
-                                                        gap: 2,
-                                                    }}
-                                                >
-                                                    {descriptors.map((label, index) => (
-                                                        <li key={`${record.elementId}-${index}`}>{label}</li>
-                                                    ))}
-                                                </ul>
-                                            ) : (
-                                                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-                                                    No descriptors published.
-                                                </div>
-                                            )}
-                                            {missingRequirements.length ? (
-                                                <div style={{ fontSize: 11, color: '#f97316', marginTop: 6 }}>
-                                                    Missing requirements:{' '}
-                                                    {missingRequirements.join(', ')}
-                                                </div>
-                                            ) : null}
-                                            {unexpected ? (
-                                                <div style={{ fontSize: 11, color: '#facc15', marginTop: 4 }}>
-                                                    {unexpected} unexpected descriptor{unexpected === 1 ? '' : 's'}
+                                            </button>
+                                            {expanded ? (
+                                                <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 8 }}>
+                                                    <div style={{ opacity: 0.7 }}>
+                                                        Track: {record.trackRef}
+                                                        {record.analysisProfileId ? ` · profile:${record.analysisProfileId}` : ''}
+                                                        {record.autoManaged ? ' · auto-managed' : ''}
+                                                    </div>
+                                                    {descriptors.length ? (
+                                                        <div>
+                                                            <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                                Published Descriptors
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {descriptors.map((label, index) => (
+                                                                    <li key={`${key}-descriptor-${index}`}>{label}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ opacity: 0.6 }}>No descriptors published.</div>
+                                                    )}
+                                                    {missingRequirements.length ? (
+                                                        <div style={{ color: '#f97316' }}>
+                                                            Missing requirements:{' '}
+                                                            {missingRequirements.join(', ')}
+                                                        </div>
+                                                    ) : null}
+                                                    {unexpected ? (
+                                                        <div style={{ color: '#facc15' }}>
+                                                            {unexpected} unexpected descriptor{unexpected === 1 ? '' : 's'}
+                                                        </div>
+                                                    ) : null}
                                                 </div>
                                             ) : null}
                                         </li>
@@ -589,67 +686,84 @@ export const TransportStatusDev: React.FC = () => {
                         ) : (
                             <div style={{ opacity: 0.65, fontSize: 11 }}>No active scene feature requests.</div>
                         )}
-                    </div>
+                    </CollapsibleCard>
 
-                    <div>
-                        <div
-                            style={{
-                                fontSize: 10,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.6,
-                                opacity: 0.65,
-                                marginBottom: 4,
-                            }}
-                        >
-                            Audio Feature Caches
-                        </div>
+                    <CollapsibleCard
+                        title="Audio Feature Caches"
+                        open={audioSubSectionsOpen.caches}
+                        onToggle={() => toggleAudioSubSection('caches')}
+                        subtitle={`${cacheEntries.length} caches`}
+                    >
                         {cacheEntries.length ? (
-                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
                                 {cacheEntries.map((entry) => {
                                     const labels = collectCacheFeatureLabels(entry.cache);
                                     const statusLabel = formatCacheStatusSummary(entry.status);
                                     const updatedAgo = entry.status
                                         ? formatAge(Date.now() - entry.status.updatedAt)
                                         : null;
+                                    const key = entry.key;
+                                    const expanded = !!expandedCaches[key];
                                     return (
                                         <li
-                                            key={entry.key}
+                                            key={key}
                                             style={{
                                                 border: '1px solid rgba(148, 163, 184, 0.25)',
                                                 borderRadius: 6,
-                                                padding: '6px 8px',
-                                                background: 'rgba(30, 41, 59, 0.5)',
+                                                background: 'rgba(15, 23, 42, 0.35)',
                                             }}
                                         >
-                                            <div style={{ fontSize: 12, fontWeight: 600 }}>{entry.key}</div>
-                                            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                                                Source: {entry.cache?.audioSourceId ?? '—'}
-                                                {entry.cache ? ` · ${entry.cache.frameCount} frames` : ''}
-                                            </div>
-                                            <div style={{ fontSize: 11, marginTop: 4 }}>
-                                                Status: <span style={{ opacity: 0.85 }}>{statusLabel}</span>
-                                                {updatedAgo ? <span style={{ opacity: 0.6 }}> · {updatedAgo}</span> : null}
-                                            </div>
-                                            {labels.length ? (
-                                                <ul
-                                                    style={{
-                                                        listStyle: 'disc',
-                                                        paddingLeft: 16,
-                                                        margin: '6px 0 0 0',
-                                                        fontSize: 11,
-                                                        display: 'grid',
-                                                        gap: 2,
-                                                    }}
-                                                >
-                                                    {labels.map((label, index) => (
-                                                        <li key={`${entry.key}-feature-${index}`}>{label}</li>
-                                                    ))}
-                                                </ul>
-                                            ) : (
-                                                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-                                                    No cached feature tracks.
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleExpanded(setExpandedCaches, key)}
+                                                aria-expanded={expanded}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 10px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 12,
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: '#e2e8f0',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                }}
+                                            >
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600 }}>{entry.key}</div>
+                                                    <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                                                        {statusLabel}
+                                                    </div>
                                                 </div>
-                                            )}
+                                                <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {updatedAgo ? <span style={{ opacity: 0.6 }}>{updatedAgo}</span> : null}
+                                                    <span>{expanded ? '▾' : '▸'}</span>
+                                                </span>
+                                            </button>
+                                            {expanded ? (
+                                                <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 8 }}>
+                                                    <div style={{ opacity: 0.7 }}>
+                                                        Source: {entry.cache?.audioSourceId ?? '—'}
+                                                        {entry.cache ? ` · ${entry.cache.frameCount} frames` : ''}
+                                                    </div>
+                                                    {labels.length ? (
+                                                        <div>
+                                                            <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                                Cached Feature Tracks
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {labels.map((label, index) => (
+                                                                    <li key={`${key}-feature-${index}`}>{label}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ opacity: 0.6 }}>No cached feature tracks.</div>
+                                                    )}
+                                                </div>
+                                            ) : null}
                                         </li>
                                     );
                                 })}
@@ -657,88 +771,139 @@ export const TransportStatusDev: React.FC = () => {
                         ) : (
                             <div style={{ opacity: 0.65, fontSize: 11 }}>No audio feature caches available.</div>
                         )}
-                    </div>
+                    </CollapsibleCard>
 
                     {diffSummaries.length ? (
-                        <div>
-                            <div
-                                style={{
-                                    fontSize: 10,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: 0.6,
-                                    opacity: 0.65,
-                                    marginBottom: 4,
-                                }}
-                            >
-                                Cache Diagnostics
-                            </div>
-                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                        <CollapsibleCard
+                            title="Cache Diagnostics"
+                            open={audioSubSectionsOpen.diagnostics}
+                            onToggle={() => toggleAudioSubSection('diagnostics')}
+                            subtitle={`${diffSummaries.length} tracked`}
+                        >
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
                                 {diffSummaries.map((diff) => {
                                     const key = `${diff.trackRef}__${diff.analysisProfileId ?? 'default'}`;
-                                    const renderDescriptorList = (ids: string[], color?: string) => {
-                                        if (!ids.length) {
-                                            return null;
-                                        }
-                                        return (
-                                            <div style={{ fontSize: 11, marginTop: 4, color }}>
-                                                <ul
-                                                    style={{
-                                                        listStyle: 'disc',
-                                                        paddingLeft: 16,
-                                                        margin: '4px 0 0 0',
-                                                        display: 'grid',
-                                                        gap: 2,
-                                                    }}
-                                                >
-                                                    {ids.map((id) => (
-                                                        <li key={`${key}-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        );
-                                    };
+                                    const expanded = !!expandedDiagnostics[key];
+                                    const issueCount = diff.missing.length + diff.stale.length + diff.extraneous.length + diff.regenerating.length;
                                     return (
                                         <li
                                             key={key}
                                             style={{
                                                 border: '1px solid rgba(148, 163, 184, 0.25)',
                                                 borderRadius: 6,
-                                                padding: '6px 8px',
-                                                background: 'rgba(30, 41, 59, 0.5)',
+                                                background: 'rgba(15, 23, 42, 0.35)',
                                             }}
                                         >
-                                            <div style={{ fontSize: 12, fontWeight: 600 }}>
-                                                {diff.trackRef}
-                                                <span style={{ opacity: 0.7, fontWeight: 400 }}>
-                                                    {' '}
-                                                    ({diff.analysisProfileId ?? 'default'})
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleExpanded(setExpandedDiagnostics, key)}
+                                                aria-expanded={expanded}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 10px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 12,
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: '#e2e8f0',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                }}
+                                            >
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600 }}>
+                                                        {diff.trackRef}
+                                                        <span style={{ opacity: 0.65, fontWeight: 400 }}>
+                                                            {' '}
+                                                            ({diff.analysisProfileId ?? 'default'})
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: 11, marginTop: 2 }}>
+                                                        <span
+                                                            style={{
+                                                                color: diff.status === 'issues' ? '#f87171' : '#34d399',
+                                                                fontWeight: 600,
+                                                                marginRight: 6,
+                                                            }}
+                                                        >
+                                                            {diff.status}
+                                                        </span>
+                                                        <span style={{ opacity: 0.7 }}>
+                                                            · {diff.descriptorsRequested.length} requested · {diff.descriptorsCached.length} cached
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {issueCount ? (
+                                                        <span style={{ color: '#f97316', fontWeight: 600 }}>{issueCount}</span>
+                                                    ) : (
+                                                        <span style={{ opacity: 0.6 }}>0</span>
+                                                    )}
+                                                    <span>{expanded ? '▾' : '▸'}</span>
                                                 </span>
-                                            </div>
-                                            <div style={{ fontSize: 11, marginTop: 4 }}>
-                                                Status:{' '}
-                                                <span
-                                                    style={{
-                                                        color: diff.status === 'issues' ? '#f87171' : '#34d399',
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {diff.status}
-                                                </span>
-                                                <span style={{ opacity: 0.7 }}>
-                                                    {' '}
-                                                    · {diff.descriptorsRequested.length} requested ·{' '}
-                                                    {diff.descriptorsCached.length} cached
-                                                </span>
-                                            </div>
-                                            {renderDescriptorList(diff.missing, '#f97316')}
-                                            {renderDescriptorList(diff.stale, '#eab308')}
-                                            {renderDescriptorList(diff.extraneous, '#38bdf8')}
-                                            {renderDescriptorList(diff.regenerating, '#a855f7')}
+                                            </button>
+                                            {expanded ? (
+                                                <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 8 }}>
+                                                    {diff.missing.length ? (
+                                                        <div>
+                                                            <div style={{ color: '#f97316', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                                                Missing
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {diff.missing.map((id) => (
+                                                                    <li key={`${key}-missing-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : null}
+                                                    {diff.stale.length ? (
+                                                        <div>
+                                                            <div style={{ color: '#eab308', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                                                Stale
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {diff.stale.map((id) => (
+                                                                    <li key={`${key}-stale-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : null}
+                                                    {diff.extraneous.length ? (
+                                                        <div>
+                                                            <div style={{ color: '#38bdf8', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                                                Extraneous
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {diff.extraneous.map((id) => (
+                                                                    <li key={`${key}-extraneous-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : null}
+                                                    {diff.regenerating.length ? (
+                                                        <div>
+                                                            <div style={{ color: '#a855f7', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                                                Regenerating
+                                                            </div>
+                                                            <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 2 }}>
+                                                                {diff.regenerating.map((id) => (
+                                                                    <li key={`${key}-regenerating-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ) : null}
+                                                    {!issueCount ? (
+                                                        <div style={{ opacity: 0.6 }}>No outstanding issues for this cache.</div>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
                                         </li>
                                     );
                                 })}
                             </ul>
-                        </div>
+                        </CollapsibleCard>
                     ) : null}
                 </div>
             </Section>
