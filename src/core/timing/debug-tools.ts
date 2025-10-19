@@ -70,7 +70,7 @@ export function getBeatGrid(startSec: number, endSec: number) {
 }
 
 // Attach to window for quick dev usage
-export default {
+export const debugTools = {
     getTimingState,
     setGlobalBpm,
     setBeatsPerBar,
