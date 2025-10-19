@@ -1,6 +1,12 @@
 import React from 'react';
+import type { AudioFeatureCache, AudioFeatureCacheStatus, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { getTransportCoordinator } from '@audio/transport-coordinator';
 import { registerSceneCommandListener } from '@state/scene';
+import {
+    formatCacheDiffDescriptor,
+    useAudioDiagnosticsStore,
+} from '@state/audioDiagnosticsStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { registerTimelineCommandListener } from '@state/timeline/timelineTelemetry';
 import type { DebugSettings } from '@context/visualizer/types';
 
@@ -176,6 +182,63 @@ const renderRecentList = (events: RecentCommand[], emptyLabel: string) => {
     );
 };
 
+const formatDescriptorDetails = (descriptor: AudioFeatureDescriptor | undefined): string => {
+    if (!descriptor) {
+        return 'unknown descriptor';
+    }
+    const parts: string[] = [];
+    parts.push(descriptor.featureKey ?? 'unknown');
+    if (descriptor.calculatorId) {
+        parts.push(`calc:${descriptor.calculatorId}`);
+    }
+    if (descriptor.channel != null) {
+        parts.push(`channel:${descriptor.channel}`);
+    }
+    if (descriptor.bandIndex != null) {
+        parts.push(`band:${descriptor.bandIndex}`);
+    }
+    return parts.join(' · ');
+};
+
+const collectCacheFeatureLabels = (cache: AudioFeatureCache | undefined): string[] => {
+    if (!cache) {
+        return [];
+    }
+    const labels: string[] = [];
+    for (const track of Object.values(cache.featureTracks ?? {})) {
+        if (!track) {
+            continue;
+        }
+        const parts: string[] = [track.key];
+        if (track.calculatorId) {
+            parts.push(`calc:${track.calculatorId}`);
+        }
+        if (track.analysisProfileId) {
+            parts.push(`profile:${track.analysisProfileId}`);
+        }
+        parts.push(`${track.channels}ch`);
+        parts.push(`${track.frameCount} frames`);
+        labels.push(parts.join(' · '));
+    }
+    return labels;
+};
+
+const formatCacheStatusSummary = (status: AudioFeatureCacheStatus | undefined): string => {
+    if (!status) {
+        return 'no status';
+    }
+    const parts: string[] = [status.state];
+    if (status.progress) {
+        const pct = Math.round((status.progress.value ?? 0) * 100);
+        const label = status.progress.label ? ` ${status.progress.label}` : '';
+        parts.push(`progress ${pct}%${label}`.trim());
+    }
+    if (status.message) {
+        parts.push(status.message);
+    }
+    return parts.join(' · ');
+};
+
 export const TransportStatusDev: React.FC = () => {
     const isProd = process.env.NODE_ENV === 'production';
     const appMode = import.meta.env.VITE_APP_MODE;
@@ -193,9 +256,14 @@ export const TransportStatusDev: React.FC = () => {
         transport: true,
         scene: false,
         timeline: false,
+        audio: false,
         undo: false,
     });
     const [undoSummary, setUndoSummary] = React.useState<UndoSummary | null>(() => collectUndoSummary());
+    const intentsByElement = useAudioDiagnosticsStore((state) => state.intentsByElement);
+    const diffs = useAudioDiagnosticsStore((state) => state.diffs);
+    const audioFeatureCaches = useTimelineStore((state) => state.audioFeatureCaches);
+    const audioFeatureCacheStatus = useTimelineStore((state) => state.audioFeatureCacheStatus);
 
     const toggleSection = (key: keyof typeof sectionsOpen) => {
         setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -304,6 +372,41 @@ export const TransportStatusDev: React.FC = () => {
         };
     }, [visible]);
 
+    const featureRequests = React.useMemo(() => {
+        const entries = Object.values(intentsByElement ?? {});
+        return entries.sort((a, b) => {
+            if (a.trackRef !== b.trackRef) {
+                return a.trackRef.localeCompare(b.trackRef);
+            }
+            return a.elementId.localeCompare(b.elementId);
+        });
+    }, [intentsByElement]);
+
+    const cacheEntries = React.useMemo(() => {
+        const keys = new Set([
+            ...Object.keys(audioFeatureCaches ?? {}),
+            ...Object.keys(audioFeatureCacheStatus ?? {}),
+        ]);
+        return Array.from(keys)
+            .map((key) => ({
+                key,
+                cache: audioFeatureCaches?.[key],
+                status: audioFeatureCacheStatus?.[key],
+            }))
+            .sort((a, b) => a.key.localeCompare(b.key));
+    }, [audioFeatureCaches, audioFeatureCacheStatus]);
+
+    const diffSummaries = React.useMemo(() => {
+        return [...(diffs ?? [])].sort((a, b) => {
+            if (a.trackRef !== b.trackRef) {
+                return a.trackRef.localeCompare(b.trackRef);
+            }
+            const profileA = a.analysisProfileId ?? '';
+            const profileB = b.analysisProfileId ?? '';
+            return profileA.localeCompare(profileB);
+        });
+    }, [diffs]);
+
     if (!enabled || !visible || !transportCoordinator) {
         return null;
     }
@@ -394,6 +497,250 @@ export const TransportStatusDev: React.FC = () => {
                     </div>
                 ) : null}
                 {renderRecentList(timelineMetrics.recent, 'No timeline commands yet.')}
+            </Section>
+
+            <Section
+                title="Audio Features"
+                open={sectionsOpen.audio}
+                onToggle={() => toggleSection('audio')}
+                subtitle={`${featureRequests.length} req · ${cacheEntries.length} caches`}
+            >
+                <div style={{ display: 'grid', gap: 10 }}>
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 10,
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.6,
+                                opacity: 0.65,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Scene Requests
+                        </div>
+                        {featureRequests.length ? (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                                {featureRequests.map((record) => {
+                                    const descriptorEntries = Object.values(record.descriptors ?? {});
+                                    const descriptors = descriptorEntries
+                                        .map((entry) => formatDescriptorDetails(entry.descriptor))
+                                        .sort();
+                                    const missingRequirements = record.requirementDiagnostics
+                                        .filter((diag) => !diag.satisfied)
+                                        .map((diag) => formatDescriptorDetails(diag.descriptor));
+                                    const unexpected = record.unexpectedDescriptors.length;
+                                    return (
+                                        <li
+                                            key={record.elementId}
+                                            style={{
+                                                border: '1px solid rgba(148, 163, 184, 0.25)',
+                                                borderRadius: 6,
+                                                padding: '6px 8px',
+                                                background: 'rgba(30, 41, 59, 0.5)',
+                                            }}
+                                        >
+                                            <div style={{ fontSize: 12, fontWeight: 600 }}>
+                                                {record.elementId}
+                                                <span style={{ opacity: 0.7, fontWeight: 400 }}>
+                                                    {' '}
+                                                    ({record.elementType})
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+                                                Track: {record.trackRef}
+                                                {record.analysisProfileId ? ` · profile:${record.analysisProfileId}` : ''}
+                                                {record.autoManaged ? ' · auto-managed' : ''}
+                                            </div>
+                                            {descriptors.length ? (
+                                                <ul
+                                                    style={{
+                                                        listStyle: 'disc',
+                                                        paddingLeft: 16,
+                                                        margin: '6px 0 0 0',
+                                                        fontSize: 11,
+                                                        display: 'grid',
+                                                        gap: 2,
+                                                    }}
+                                                >
+                                                    {descriptors.map((label, index) => (
+                                                        <li key={`${record.elementId}-${index}`}>{label}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+                                                    No descriptors published.
+                                                </div>
+                                            )}
+                                            {missingRequirements.length ? (
+                                                <div style={{ fontSize: 11, color: '#f97316', marginTop: 6 }}>
+                                                    Missing requirements:{' '}
+                                                    {missingRequirements.join(', ')}
+                                                </div>
+                                            ) : null}
+                                            {unexpected ? (
+                                                <div style={{ fontSize: 11, color: '#facc15', marginTop: 4 }}>
+                                                    {unexpected} unexpected descriptor{unexpected === 1 ? '' : 's'}
+                                                </div>
+                                            ) : null}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <div style={{ opacity: 0.65, fontSize: 11 }}>No active scene feature requests.</div>
+                        )}
+                    </div>
+
+                    <div>
+                        <div
+                            style={{
+                                fontSize: 10,
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.6,
+                                opacity: 0.65,
+                                marginBottom: 4,
+                            }}
+                        >
+                            Audio Feature Caches
+                        </div>
+                        {cacheEntries.length ? (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                                {cacheEntries.map((entry) => {
+                                    const labels = collectCacheFeatureLabels(entry.cache);
+                                    const statusLabel = formatCacheStatusSummary(entry.status);
+                                    const updatedAgo = entry.status
+                                        ? formatAge(Date.now() - entry.status.updatedAt)
+                                        : null;
+                                    return (
+                                        <li
+                                            key={entry.key}
+                                            style={{
+                                                border: '1px solid rgba(148, 163, 184, 0.25)',
+                                                borderRadius: 6,
+                                                padding: '6px 8px',
+                                                background: 'rgba(30, 41, 59, 0.5)',
+                                            }}
+                                        >
+                                            <div style={{ fontSize: 12, fontWeight: 600 }}>{entry.key}</div>
+                                            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+                                                Source: {entry.cache?.audioSourceId ?? '—'}
+                                                {entry.cache ? ` · ${entry.cache.frameCount} frames` : ''}
+                                            </div>
+                                            <div style={{ fontSize: 11, marginTop: 4 }}>
+                                                Status: <span style={{ opacity: 0.85 }}>{statusLabel}</span>
+                                                {updatedAgo ? <span style={{ opacity: 0.6 }}> · {updatedAgo}</span> : null}
+                                            </div>
+                                            {labels.length ? (
+                                                <ul
+                                                    style={{
+                                                        listStyle: 'disc',
+                                                        paddingLeft: 16,
+                                                        margin: '6px 0 0 0',
+                                                        fontSize: 11,
+                                                        display: 'grid',
+                                                        gap: 2,
+                                                    }}
+                                                >
+                                                    {labels.map((label, index) => (
+                                                        <li key={`${entry.key}-feature-${index}`}>{label}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+                                                    No cached feature tracks.
+                                                </div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <div style={{ opacity: 0.65, fontSize: 11 }}>No audio feature caches available.</div>
+                        )}
+                    </div>
+
+                    {diffSummaries.length ? (
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 10,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.6,
+                                    opacity: 0.65,
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Cache Diagnostics
+                            </div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                                {diffSummaries.map((diff) => {
+                                    const key = `${diff.trackRef}__${diff.analysisProfileId ?? 'default'}`;
+                                    const renderDescriptorList = (ids: string[], color?: string) => {
+                                        if (!ids.length) {
+                                            return null;
+                                        }
+                                        return (
+                                            <div style={{ fontSize: 11, marginTop: 4, color }}>
+                                                <ul
+                                                    style={{
+                                                        listStyle: 'disc',
+                                                        paddingLeft: 16,
+                                                        margin: '4px 0 0 0',
+                                                        display: 'grid',
+                                                        gap: 2,
+                                                    }}
+                                                >
+                                                    {ids.map((id) => (
+                                                        <li key={`${key}-${id}`}>{formatCacheDiffDescriptor(diff, id)}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        );
+                                    };
+                                    return (
+                                        <li
+                                            key={key}
+                                            style={{
+                                                border: '1px solid rgba(148, 163, 184, 0.25)',
+                                                borderRadius: 6,
+                                                padding: '6px 8px',
+                                                background: 'rgba(30, 41, 59, 0.5)',
+                                            }}
+                                        >
+                                            <div style={{ fontSize: 12, fontWeight: 600 }}>
+                                                {diff.trackRef}
+                                                <span style={{ opacity: 0.7, fontWeight: 400 }}>
+                                                    {' '}
+                                                    ({diff.analysisProfileId ?? 'default'})
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: 11, marginTop: 4 }}>
+                                                Status:{' '}
+                                                <span
+                                                    style={{
+                                                        color: diff.status === 'issues' ? '#f87171' : '#34d399',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {diff.status}
+                                                </span>
+                                                <span style={{ opacity: 0.7 }}>
+                                                    {' '}
+                                                    · {diff.descriptorsRequested.length} requested ·{' '}
+                                                    {diff.descriptorsCached.length} cached
+                                                </span>
+                                            </div>
+                                            {renderDescriptorList(diff.missing, '#f97316')}
+                                            {renderDescriptorList(diff.stale, '#eab308')}
+                                            {renderDescriptorList(diff.extraneous, '#38bdf8')}
+                                            {renderDescriptorList(diff.regenerating, '#a855f7')}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    ) : null}
+                </div>
             </Section>
 
             <Section
