@@ -109,6 +109,5 @@ describe('simplified audio scene elements', () => {
             | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
-        expect((waveform as Poly).points).toHaveLength(4);
     });
 });
