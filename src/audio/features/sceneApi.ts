@@ -1,4 +1,8 @@
-import type { AudioFeatureDescriptor, AudioSamplingOptions } from './audioFeatureTypes';
+import type {
+    AudioFeatureDescriptor,
+    AudioSamplingOptions,
+    ChannelLayoutMeta,
+} from './audioFeatureTypes';
 import {
     buildDescriptorId,
     buildDescriptorMatchKey,
@@ -36,6 +40,9 @@ export interface FeatureOptions {
 export interface FeatureDataMetadata {
     descriptor: AudioFeatureDescriptor;
     frame: AudioFeatureFrameSample;
+    channels: number;
+    channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
 }
 
 export interface FeatureDataResult {
@@ -270,6 +277,9 @@ export function getFeatureData(
         metadata: {
             descriptor,
             frame: sample,
+            channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
+            channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
+            channelLayout: sample.channelLayout ?? null,
         },
     };
 }

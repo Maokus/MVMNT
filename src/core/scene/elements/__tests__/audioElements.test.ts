@@ -49,14 +49,18 @@ describe('simplified audio scene elements', () => {
                 fractionalIndex: 0,
                 hopTicks: 1,
                 format: 'float32' as const,
+                channels: 1,
                 values: [0.25],
+                channelValues: [[0.25]],
             } as any)
             .mockReturnValueOnce({
                 frameIndex: 1,
                 fractionalIndex: 0,
                 hopTicks: 1,
                 format: 'float32' as const,
+                channels: 1,
                 values: [0.75],
+                channelValues: [[0.75]],
             } as any);
 
         const element = new AudioVolumeMeterElement('meter', {
@@ -81,6 +85,36 @@ describe('simplified audio scene elements', () => {
         ) as Rectangle[];
         const secondFill = secondRects[1];
         expect(secondFill.height).toBeGreaterThan(firstFill.height);
+    });
+
+    it('respects channel selector aliases for the volume meter', () => {
+        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue({
+            frameIndex: 0,
+            fractionalIndex: 0,
+            hopTicks: 1,
+            format: 'float32' as const,
+            channels: 2,
+            values: [0.1, 0.9],
+            channelValues: [[0.1], [0.9]],
+            channelAliases: ['Left', 'Right'],
+        } as any);
+
+        const element = new AudioVolumeMeterElement('meter', {
+            audioTrackId: 'track-1',
+            width: 20,
+            height: 100,
+            minValue: 0,
+            maxValue: 1,
+            showValue: false,
+            channelSelector: 'right',
+        });
+
+        const [container] = element.buildRenderObjects({}, 0);
+        const rectangles = (container as any).children.filter(
+            (child: unknown) => child instanceof Rectangle
+        ) as Rectangle[];
+        const fill = rectangles[1];
+        expect(fill.height).toBeCloseTo(90);
     });
 
     it('builds a waveform polyline from sampled range data', () => {
@@ -121,6 +155,7 @@ describe('simplified audio scene elements', () => {
             hopTicks: 1,
             format: 'waveform-periodic' as const,
             values: [0, 0.5, 1, 0.5, 0, -0.5, -1, -0.5],
+            channelValues: [[0, 0.5, 1, 0.5, 0, -0.5, -1, -0.5]],
             frameLength: 6,
         } as any);
 

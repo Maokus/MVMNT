@@ -1,8 +1,9 @@
-import { SceneElement, asNumber, asTrimmedString } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema } from '@core/types';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from './audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from './audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -18,6 +19,9 @@ function average(values: number[]): number {
 }
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
+
+const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
+    normalizeChannelSelectorInput(value);
 
 export class AudioSpectrumElement extends SceneElement {
     constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {
@@ -48,6 +52,13 @@ export class AudioSpectrumElement extends SceneElement {
                             default: null,
                             allowedTrackTypes: ['audio'],
                             runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                        },
+                        {
+                            key: 'channelSelector',
+                            type: 'string',
+                            label: 'Channel',
+                            default: null,
+                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
                         },
                         {
                             key: 'barCount',
@@ -168,7 +179,8 @@ export class AudioSpectrumElement extends SceneElement {
         }
 
         const sample = getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, { smoothing: props.smoothing });
-        const values = sample?.values ?? [];
+        const selection = selectChannelSample(sample?.metadata.frame, props.channelSelector);
+        const values = selection?.values ?? sample?.values ?? [];
         if (!values.length) {
             objects.push(
                 new Text(

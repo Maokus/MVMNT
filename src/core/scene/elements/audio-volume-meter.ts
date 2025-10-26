@@ -3,6 +3,7 @@ import { Rectangle, Text, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from './audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from './audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -33,6 +34,9 @@ const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value,
     return clamp(numeric, 0, 64);
 };
 
+const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
+    normalizeChannelSelectorInput(value);
+
 export class AudioVolumeMeterElement extends SceneElement {
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
         super('audioVolumeMeter', id, config);
@@ -62,6 +66,13 @@ export class AudioVolumeMeterElement extends SceneElement {
                             default: null,
                             allowedTrackTypes: ['audio'],
                             runtime: { transform: normalizeAudioTrackId, defaultValue: null },
+                        },
+                        {
+                            key: 'channelSelector',
+                            type: 'string',
+                            label: 'Channel',
+                            default: null,
+                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
                         },
                         {
                             key: 'orientation',
@@ -176,8 +187,9 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const frame = getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
-        const rawValue = frame?.values?.[0] ?? 0;
+        const result = getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
+        const selected = selectChannelSample(result?.metadata.frame, props.channelSelector);
+        const rawValue = selected?.values?.[0] ?? result?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - props.minValue) / Math.max(1e-6, props.maxValue - props.minValue));
 
         if (props.orientation === 'horizontal') {
