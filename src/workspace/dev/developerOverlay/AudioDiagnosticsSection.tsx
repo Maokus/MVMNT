@@ -510,7 +510,8 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                     diff.missing.length +
                                     diff.stale.length +
                                     diff.extraneous.length +
-                                    diff.regenerating.length;
+                                    diff.regenerating.length +
+                                    diff.badRequest.length;
                                 return (
                                     <li
                                         key={key}
@@ -576,11 +577,20 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                     Audio source: <strong>{diff.audioSourceId}</strong> · Updated {formatRelativeTime(diff.updatedAt)}
                                                 </div>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, opacity: 0.75 }}>
+                                                    <span>Bad requests: {diff.badRequest.length}</span>
                                                     <span>Missing: {diff.missing.length}</span>
                                                     <span>Stale: {diff.stale.length}</span>
                                                     <span>Extraneous: {diff.extraneous.length}</span>
                                                     <span>Regenerating: {diff.regenerating.length}</span>
                                                 </div>
+                                                <DiagnosticsList
+                                                    diff={diff}
+                                                    descriptorIds={diff.badRequest}
+                                                    title="Bad requests"
+                                                    color="#fb7185"
+                                                    highlightOwners
+                                                    hint="descriptor references unsupported feature or calculator"
+                                                />
                                                 <DiagnosticsList
                                                     diff={diff}
                                                     descriptorIds={diff.missing}

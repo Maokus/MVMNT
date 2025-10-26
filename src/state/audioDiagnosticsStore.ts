@@ -4,6 +4,7 @@ import type {
     AudioFeatureDescriptor,
     ChannelLayoutMeta,
 } from '@audio/features/audioFeatureTypes';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import {
     buildDescriptorId,
@@ -17,13 +18,18 @@ import { useTimelineStore, type TimelineState } from './timelineStore';
 
 interface DescriptorInfo {
     descriptor: AudioFeatureDescriptor;
+    descriptorId: string;
     matchKey: string;
+    profileId: string | null;
+    profileKey: string;
+    requestKey: string;
 }
 
 interface RequirementDiagnostic {
     requirement: AudioFeatureRequirement;
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+    profileKey: string;
     satisfied: boolean;
 }
 
@@ -32,6 +38,7 @@ export interface CacheDescriptorDetail {
     channelCount: number | null;
     channelAliases: string[] | null;
     channelLayout: ChannelLayoutMeta | null;
+    analysisProfileId: string | null;
 }
 
 interface AnalysisIntentRecord {
@@ -57,6 +64,7 @@ export interface CacheDiff {
     missing: string[];
     stale: string[];
     extraneous: string[];
+    badRequest: string[];
     regenerating: string[];
     descriptorDetails: Record<string, CacheDescriptorDetail>;
     owners: Record<string, string[]>;
@@ -161,10 +169,51 @@ function extractFeatureKey(descriptorId: string): string | null {
     return null;
 }
 
+const DEFAULT_PROFILE_KEY = 'default';
+
+function sanitizeProfileId(value: string | null | undefined): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+}
+
+function normalizeProfileKey(value: string | null | undefined): string {
+    const sanitized = sanitizeProfileId(value);
+    return sanitized ?? DEFAULT_PROFILE_KEY;
+}
+
+function buildDescriptorRequestKey(matchKey: string, profileKey: string): string {
+    return `${matchKey}|profile:${profileKey}`;
+}
+
+function isDescriptorKnown(
+    descriptor: AudioFeatureDescriptor | undefined,
+    knownFeatures: Set<string>,
+    calculatorFeatureById: Map<string, string>,
+): boolean {
+    if (!descriptor?.featureKey) {
+        return false;
+    }
+    if (!knownFeatures.has(descriptor.featureKey)) {
+        return false;
+    }
+    const calculatorId = descriptor.calculatorId;
+    if (!calculatorId) {
+        return true;
+    }
+    const featureForCalculator = calculatorFeatureById.get(calculatorId);
+    return featureForCalculator === descriptor.featureKey;
+}
+
 interface CachedDescriptorInfo {
     id: string;
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+    profileId: string | null;
+    profileKey: string;
+    requestKey: string;
     channelCount: number | null;
     channelAliases: string[] | null;
     channelLayout: ChannelLayoutMeta | null;
@@ -195,11 +244,17 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);
+        const profileId = sanitizeProfileId(track.analysisProfileId ?? cache.defaultAnalysisProfileId ?? null);
+        const profileKey = normalizeProfileKey(profileId);
+        const requestKey = buildDescriptorRequestKey(baseMatch, profileKey);
         const meta = resolveChannelMetadata(track, cache);
-        entries.set(baseMatch, {
+        entries.set(requestKey, {
             id: baseId,
             descriptor: base,
             matchKey: baseMatch,
+            profileId,
+            profileKey,
+            requestKey,
             channelCount: meta.channelCount,
             channelAliases: meta.channelAliases,
             channelLayout: meta.channelLayout,
@@ -211,7 +266,8 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
 function createDescriptorDetail(
     descriptor: AudioFeatureDescriptor | undefined,
     cache: AudioFeatureCache | undefined,
-    overrides?: Partial<Omit<CacheDescriptorDetail, 'descriptor'>>,
+    profileId: string | null,
+    overrides?: Partial<Omit<CacheDescriptorDetail, 'descriptor' | 'analysisProfileId'>>,
 ): CacheDescriptorDetail | null {
     if (!descriptor) {
         return null;
@@ -223,6 +279,7 @@ function createDescriptorDetail(
         channelCount: overrides?.channelCount ?? meta.channelCount,
         channelAliases: overrides?.channelAliases ?? meta.channelAliases,
         channelLayout: overrides?.channelLayout ?? meta.channelLayout,
+        analysisProfileId: profileId,
     };
 }
 
@@ -242,6 +299,13 @@ function computeCacheDiffs(
             requestedAt: number;
         }
     >();
+    const requestsByTrack = new Map<string, Set<string>>();
+    const profilesByTrack = new Map<string, Set<string>>();
+    const extraneousAssignedByTrack = new Map<string, Set<string>>();
+
+    const calculators = audioFeatureCalculatorRegistry.list();
+    const knownFeatures = new Set(calculators.map((entry) => entry.featureKey));
+    const calculatorFeatureById = new Map(calculators.map((entry) => [entry.id, entry.featureKey]));
 
     for (const record of Object.values(intentsByElement)) {
         const key = makeGroupKey(record.trackRef, record.analysisProfileId);
@@ -256,14 +320,29 @@ function computeCacheDiffs(
             };
             groups.set(key, entry);
         }
-        for (const [descriptorId, descriptorInfo] of Object.entries(record.descriptors)) {
-            entry.descriptors.set(descriptorId, descriptorInfo);
-            let owners = entry.owners.get(descriptorId);
+        const profileKey = normalizeProfileKey(record.analysisProfileId);
+        let profileSet = profilesByTrack.get(record.trackRef);
+        if (!profileSet) {
+            profileSet = new Set<string>();
+            profilesByTrack.set(record.trackRef, profileSet);
+        }
+        profileSet.add(profileKey);
+
+        let requestSet = requestsByTrack.get(record.trackRef);
+        if (!requestSet) {
+            requestSet = new Set<string>();
+            requestsByTrack.set(record.trackRef, requestSet);
+        }
+
+        for (const info of Object.values(record.descriptors)) {
+            entry.descriptors.set(info.requestKey, info);
+            let owners = entry.owners.get(info.requestKey);
             if (!owners) {
                 owners = new Set();
-                entry.owners.set(descriptorId, owners);
+                entry.owners.set(info.requestKey, owners);
             }
             owners.add(record.elementId);
+            requestSet.add(info.requestKey);
         }
     }
 
@@ -277,73 +356,90 @@ function computeCacheDiffs(
         const requested = Array.from(group.descriptors.keys()).sort();
         const descriptorDetails: Record<string, CacheDescriptorDetail> = {};
         const ownerMap: Record<string, string[]> = {};
-        const matchKeyById: Record<string, string> = {};
-        for (const [descriptorId, info] of group.descriptors.entries()) {
-            const detail = createDescriptorDetail(info.descriptor, cache);
+        for (const [descriptorKey, info] of group.descriptors.entries()) {
+            const detail = createDescriptorDetail(info.descriptor, cache, info.profileId);
             if (detail) {
-                descriptorDetails[descriptorId] = detail;
+                descriptorDetails[descriptorKey] = detail;
             }
-            matchKeyById[descriptorId] = info.matchKey;
-            ownerMap[descriptorId] = Array.from(group.owners.get(descriptorId) ?? []);
+            ownerMap[descriptorKey] = Array.from(group.owners.get(descriptorKey) ?? []);
         }
         const cachedInfos = collectCachedDescriptorInfos(cache);
-        const cachedMatchLookup = new Map<string, CachedDescriptorInfo>();
+        const cachedLookup = new Map<string, CachedDescriptorInfo>();
         for (const info of cachedInfos) {
-            cachedMatchLookup.set(info.matchKey, info);
+            cachedLookup.set(info.requestKey, info);
+            if (!descriptorDetails[info.requestKey]) {
+                const cachedDetail = createDescriptorDetail(info.descriptor, cache, info.profileId, {
+                    channelCount: info.channelCount,
+                    channelAliases: info.channelAliases,
+                    channelLayout: info.channelLayout,
+                });
+                if (cachedDetail) {
+                    descriptorDetails[info.requestKey] = cachedDetail;
+                }
+            }
+            if (!ownerMap[info.requestKey]) {
+                ownerMap[info.requestKey] = [];
+            }
         }
         const missing: string[] = [];
         const stale: string[] = [];
+        const badRequest: string[] = [];
         const regenerating: string[] = [];
         const extraneous: string[] = [];
         const pendingKey = makeGroupKey(group.trackRef, group.analysisProfileId);
         const pendingSet = pendingDescriptors[pendingKey] ?? new Set();
         const dismissedSet = dismissedExtraneous[pendingKey] ?? new Set();
         const trackStale = status?.state === 'stale';
+        const trackRequestSet = requestsByTrack.get(group.trackRef) ?? new Set<string>();
+        const trackProfiles = profilesByTrack.get(group.trackRef) ?? new Set<string>();
+        const groupProfileKey = normalizeProfileKey(group.analysisProfileId);
+        let assignedSet = extraneousAssignedByTrack.get(group.trackRef);
+        if (!assignedSet) {
+            assignedSet = new Set<string>();
+            extraneousAssignedByTrack.set(group.trackRef, assignedSet);
+        }
 
-        for (const descriptorId of requested) {
-            const matchKey = matchKeyById[descriptorId];
-            const descriptor = group.descriptors.get(descriptorId);
-            if (pendingSet.has(descriptorId)) {
-                regenerating.push(descriptorId);
+        for (const descriptorKey of requested) {
+            const info = group.descriptors.get(descriptorKey);
+            if (!info) continue;
+            if (pendingSet.has(descriptorKey)) {
+                regenerating.push(descriptorKey);
                 continue;
             }
-            const cached = matchKey ? cachedMatchLookup.get(matchKey) : undefined;
+            const descriptorValid = isDescriptorKnown(info.descriptor, knownFeatures, calculatorFeatureById);
+            if (!descriptorValid) {
+                badRequest.push(descriptorKey);
+                continue;
+            }
+            const cached = cachedLookup.get(descriptorKey);
             if (!cached) {
-                missing.push(descriptorId);
+                missing.push(descriptorKey);
                 continue;
             }
             if (trackStale) {
-                stale.push(descriptorId);
+                stale.push(descriptorKey);
                 continue;
             }
-            const featureTrack = descriptor?.descriptor?.featureKey
-                ? cache?.featureTracks?.[descriptor.descriptor.featureKey]
-                : undefined;
-            const trackProfile = featureTrack?.analysisProfileId ?? cache?.defaultAnalysisProfileId ?? null;
-            if (group.analysisProfileId && trackProfile && group.analysisProfileId !== trackProfile) {
-                stale.push(descriptorId);
-                continue;
+            if (cached.profileKey !== info.profileKey) {
+                stale.push(descriptorKey);
             }
         }
 
         for (const cached of cachedInfos) {
-            const isRequested = requested.some((id) => matchKeyById[id] === cached.matchKey);
-            if (isRequested) continue;
-            if (dismissedSet.has(cached.id)) continue;
-            extraneous.push(cached.id);
-            const cachedDetail = createDescriptorDetail(cached.descriptor, cache, {
-                channelCount: cached.channelCount,
-                channelAliases: cached.channelAliases,
-                channelLayout: cached.channelLayout,
-            });
-            if (cachedDetail) {
-                descriptorDetails[cached.id] = cachedDetail;
+            if (trackRequestSet.has(cached.requestKey)) continue;
+            if (dismissedSet.has(cached.requestKey)) continue;
+            if (assignedSet.has(cached.requestKey)) continue;
+            const profileMatchesGroup = groupProfileKey === cached.profileKey;
+            const profileRepresented = trackProfiles.has(cached.profileKey);
+            if (!profileMatchesGroup && profileRepresented) {
+                continue;
             }
-            ownerMap[cached.id] = [];
+            extraneous.push(cached.requestKey);
+            assignedSet.add(cached.requestKey);
         }
 
-        const descriptorsCached = cachedInfos.map((info) => info.id);
-        const hasIssues = missing.length + stale.length + extraneous.length > 0;
+        const descriptorsCached = cachedInfos.map((info) => info.requestKey);
+        const hasIssues = missing.length + stale.length + extraneous.length + badRequest.length > 0;
         diffs.push({
             trackRef: group.trackRef,
             audioSourceId: sourceId,
@@ -353,6 +449,7 @@ function computeCacheDiffs(
             missing,
             stale,
             extraneous,
+            badRequest,
             regenerating,
             descriptorDetails,
             owners: ownerMap,
@@ -426,34 +523,50 @@ const initialState: Omit<
 export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get) => ({
     ...initialState,
     publishIntent(intent: AnalysisIntent) {
+        const profileId = sanitizeProfileId(intent.analysisProfileId);
+        const profileKey = normalizeProfileKey(profileId);
         const descriptors: Record<string, DescriptorInfo> = {};
         for (const entry of intent.descriptors) {
-            descriptors[entry.id] = { descriptor: entry.descriptor, matchKey: entry.matchKey };
+            const requestKey = buildDescriptorRequestKey(entry.matchKey, profileKey);
+            descriptors[requestKey] = {
+                descriptor: entry.descriptor,
+                descriptorId: entry.id,
+                matchKey: entry.matchKey,
+                profileId,
+                profileKey,
+                requestKey,
+            };
         }
         const requirements = getFeatureRequirements(intent.elementType);
         const normalizedRequirements = requirements.map((requirement) => {
-            const { descriptor } = createFeatureDescriptor({
+            const { descriptor, profile } = createFeatureDescriptor({
                 feature: requirement.feature,
                 bandIndex: requirement.bandIndex ?? undefined,
                 calculatorId: requirement.calculatorId ?? undefined,
                 profile: requirement.profile ?? undefined,
             });
+            const requirementProfileId = sanitizeProfileId(profile);
+            const requirementProfileKey = normalizeProfileKey(requirementProfileId);
             return {
                 requirement,
                 descriptor,
                 matchKey: buildDescriptorMatchKey(descriptor),
+                profileKey: requirementProfileKey,
             };
         });
-        const descriptorMatchKeys = new Set(Object.values(descriptors).map((entry) => entry.matchKey));
+        const descriptorRequestKeys = new Set(Object.values(descriptors).map((entry) => entry.requestKey));
         const requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
             requirement: entry.requirement,
             descriptor: entry.descriptor,
             matchKey: entry.matchKey,
-            satisfied: descriptorMatchKeys.has(entry.matchKey),
+            profileKey: entry.profileKey,
+            satisfied: descriptorRequestKeys.has(buildDescriptorRequestKey(entry.matchKey, entry.profileKey)),
         }));
-        const requirementKeys = new Set(normalizedRequirements.map((entry) => entry.matchKey));
+        const requirementKeys = new Set(
+            normalizedRequirements.map((entry) => buildDescriptorRequestKey(entry.matchKey, entry.profileKey)),
+        );
         const unexpectedDescriptors = Object.values(descriptors)
-            .map((entry) => entry.matchKey)
+            .map((entry) => entry.requestKey)
             .filter((key) => !requirementKeys.has(key));
         const autoManaged = requirementDiagnostics.length > 0;
         set((state) => ({
@@ -463,7 +576,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                     elementId: intent.elementId,
                     elementType: intent.elementType,
                     trackRef: intent.trackRef,
-                    analysisProfileId: intent.analysisProfileId,
+                    analysisProfileId: profileId,
                     descriptors,
                     requestedAt: intent.requestedAt,
                     autoManaged,
@@ -497,7 +610,9 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             get().pendingDescriptors,
             get().dismissedExtraneous
         );
-        const bannerVisible = diffs.some((diff) => diff.missing.length + diff.stale.length > 0);
+        const bannerVisible = diffs.some(
+            (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0,
+        );
         set({ diffs, bannerVisible });
     },
     regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual') {
@@ -761,8 +876,14 @@ useTimelineStore.subscribe((state) => {
 });
 
 export function formatCacheDiffDescriptor(diff: CacheDiff, descriptorId: string): string {
-    const descriptor = diff.descriptorDetails[descriptorId]?.descriptor;
-    return buildDescriptorLabel(descriptor);
+    const detail = diff.descriptorDetails[descriptorId];
+    const descriptor = detail?.descriptor;
+    const label = buildDescriptorLabel(descriptor);
+    if (!detail) {
+        return label;
+    }
+    const profile = detail.analysisProfileId ?? DEFAULT_PROFILE_KEY;
+    return `${label} · profile ${profile}`;
 }
 
 export function getDiagnosticsPanelState() {

@@ -9,6 +9,7 @@ import {
     resetAnalysisIntentStateForTests,
     buildDescriptorId,
 } from '@audio/features/analysisIntents';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 
 function setupAudioTrack() {
     act(() => {
@@ -43,6 +44,24 @@ describe('CacheDiagnosticsBanner', () => {
         resetAnalysisIntentStateForTests();
         (window as any).__MVMNT_FLAGS__ = { 'feature.audioVis.cacheDiagnosticsPhase3': true };
         setupAudioTrack();
+        audioFeatureCalculatorRegistry.unregister('test.spectrogram');
+        audioFeatureCalculatorRegistry.register({
+            id: 'test.spectrogram',
+            version: 1,
+            featureKey: 'spectrogram',
+            label: 'Test Spectrogram',
+            calculate: () => ({
+                key: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                version: 1,
+                frameCount: 1,
+                channels: 1,
+                hopSeconds: 1,
+                startTimeSeconds: 0,
+                data: new Float32Array(1),
+                format: 'float32',
+            }),
+        });
     });
 
     afterEach(() => {
@@ -53,12 +72,13 @@ describe('CacheDiagnosticsBanner', () => {
         resetAnalysisIntentStateForTests();
         delete (window as any).__MVMNT_FLAGS__;
         vi.restoreAllMocks();
+        audioFeatureCalculatorRegistry.unregister('test.spectrogram');
     });
 
     it('renders issues summary and triggers actions', () => {
         const descriptor = {
             featureKey: 'spectrogram',
-            calculatorId: 'calc.spectrogram',
+            calculatorId: 'test.spectrogram',
             bandIndex: null,
             channel: null,
             smoothing: null,
@@ -93,7 +113,8 @@ describe('CacheDiagnosticsBanner', () => {
         expect(link).toHaveAttribute('href', 'docs/audio-feature-bindings.md#cache-regeneration');
 
         const descriptorId = buildDescriptorId(descriptor);
+        const descriptorKey = `${descriptorId}|profile:default`;
         const diffs = useAudioDiagnosticsStore.getState().diffs;
-        expect(diffs[0]?.missing).toContain(descriptorId);
+        expect(diffs[0]?.missing).toContain(descriptorKey);
     });
 });

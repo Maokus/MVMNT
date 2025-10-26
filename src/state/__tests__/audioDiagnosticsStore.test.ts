@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishAnalysisIntent, resetAnalysisIntentStateForTests, buildDescriptorId } from '@audio/features/analysisIntents';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { useTimelineStore } from '@state/timelineStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 
@@ -12,6 +13,28 @@ function resetStores() {
 describe('audio diagnostics store', () => {
     beforeEach(() => {
         resetStores();
+        audioFeatureCalculatorRegistry.unregister('test.spectrogram');
+        audioFeatureCalculatorRegistry.register({
+            id: 'test.spectrogram',
+            version: 1,
+            featureKey: 'spectrogram',
+            label: 'Test Spectrogram',
+            calculate: () => ({
+                key: 'spectrogram',
+                calculatorId: 'test.spectrogram',
+                version: 1,
+                frameCount: 1,
+                channels: 1,
+                hopSeconds: 1,
+                startTimeSeconds: 0,
+                data: new Float32Array(1),
+                format: 'float32',
+            }),
+        });
+    });
+
+    afterEach(() => {
+        audioFeatureCalculatorRegistry.unregister('test.spectrogram');
     });
 
     it('computes missing descriptors for published intents', () => {
@@ -45,12 +68,52 @@ describe('audio diagnostics store', () => {
         expect(diff.trackRef).toBe('audioTrack');
         expect(diff.analysisProfileId).toBe('default');
         const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
-        expect(diff.missing).toContain(descriptorId);
-        const detail = diff.descriptorDetails[descriptorId];
+        const descriptorKey = `${descriptorId}|profile:default`;
+        expect(diff.missing).toContain(descriptorKey);
+        const detail = diff.descriptorDetails[descriptorKey];
         expect(detail.descriptor.featureKey).toBe('spectrogram');
         expect(detail.channelCount).toBeNull();
         expect(detail.channelAliases).toBeNull();
         expect(detail.channelLayout).toBeNull();
+        expect(detail.analysisProfileId).toBe('default');
+    });
+
+    it('flags unsupported descriptors as bad requests', () => {
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+        });
+
+        publishAnalysisIntent(
+            'element-unsupported',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'mystery-feature', calculatorId: 'com.example.mystery' }],
+            { profile: 'alt' },
+        );
+
+        const diff = useAudioDiagnosticsStore.getState().diffs[0];
+        const descriptorId = buildDescriptorId({
+            featureKey: 'mystery-feature',
+            calculatorId: 'com.example.mystery',
+        });
+        const descriptorKey = `${descriptorId}|profile:alt`;
+        expect(diff.badRequest).toContain(descriptorKey);
+        expect(diff.missing).not.toContain(descriptorKey);
+        expect(diff.stale).not.toContain(descriptorKey);
+        const detail = diff.descriptorDetails[descriptorKey];
+        expect(detail.analysisProfileId).toBe('alt');
     });
 
     it('includes channel metadata when cache provides it', () => {
@@ -127,11 +190,13 @@ describe('audio diagnostics store', () => {
         const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
         expect(diff).toBeDefined();
         const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
-        const detail = diff?.descriptorDetails[descriptorId];
+        const descriptorKey = `${descriptorId}|profile:default`;
+        const detail = diff?.descriptorDetails[descriptorKey];
         expect(detail).toBeDefined();
         expect(detail?.channelCount).toBe(2);
         expect(detail?.channelAliases).toEqual(['Left', 'Right']);
         expect(detail?.channelLayout?.semantics).toBe('stereo');
+        expect(detail?.analysisProfileId).toBe('default');
     });
 
     it('queues regeneration jobs and records history', async () => {
@@ -211,16 +276,17 @@ describe('audio diagnostics store', () => {
         );
 
         const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
+        const descriptorKey = `${descriptorId}|profile:default`;
         useAudioDiagnosticsStore
             .getState()
-            .regenerateDescriptors('audioTrack', 'default', [descriptorId], 'manual');
+            .regenerateDescriptors('audioTrack', 'default', [descriptorKey], 'manual');
 
         expect(useAudioDiagnosticsStore.getState().jobs.length).toBe(1);
         const queuedJob = useAudioDiagnosticsStore.getState().jobs[0];
         expect(['queued', 'running']).toContain(queuedJob.status);
         const pendingForTrack = useAudioDiagnosticsStore.getState().pendingDescriptors[`audioTrack__default`];
         expect(pendingForTrack).toBeDefined();
-        expect(Array.from(pendingForTrack ?? [])).toContain(descriptorId);
+        expect(Array.from(pendingForTrack ?? [])).toContain(descriptorKey);
 
         // Allow microtask queue to process the job runner
         await Promise.resolve();
@@ -230,7 +296,7 @@ describe('audio diagnostics store', () => {
         expect(jobs[0].status === 'succeeded' || jobs[0].status === 'failed').toBe(true);
         expect(history.length).toBeGreaterThan(0);
         const lastHistory = history[history.length - 1];
-        expect(lastHistory.descriptorIds).toContain(descriptorId);
+        expect(lastHistory.descriptorIds).toContain(descriptorKey);
         expect(lastHistory.action).toBe('manual_regenerate');
         expect(reanalyzeSpy).toHaveBeenCalledTimes(1);
         expect(restartSpy).not.toHaveBeenCalled();
@@ -318,8 +384,9 @@ describe('audio diagnostics store', () => {
         );
 
         const extraneousId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'mvmnt.spectrogram' });
+        const extraneousKey = `${extraneousId}|profile:default`;
         let diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
-        expect(diff?.extraneous).toContain(extraneousId);
+        expect(diff?.extraneous).toContain(extraneousKey);
 
         useAudioDiagnosticsStore.getState().deleteExtraneousCaches();
 

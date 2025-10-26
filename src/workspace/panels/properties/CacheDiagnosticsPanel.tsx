@@ -11,7 +11,7 @@ import { isFeatureEnabled } from '@utils/featureFlags';
 
 interface DescriptorRow {
     id: string;
-    status: 'current' | 'missing' | 'stale' | 'extraneous' | 'regenerating';
+    status: 'current' | 'missing' | 'stale' | 'extraneous' | 'regenerating' | 'bad-request';
     label: string;
     owners: string[];
     detail?: CacheDescriptorDetail;
@@ -23,10 +23,13 @@ function buildDescriptorRows(diff: CacheDiff): DescriptorRow[] {
     const staleSet = new Set(diff.stale);
     const regeneratingSet = new Set(diff.regenerating);
     const extraneousSet = new Set(diff.extraneous);
+    const badRequestSet = new Set(diff.badRequest);
     const rows: DescriptorRow[] = [];
     for (const descriptorId of diff.descriptorsRequested) {
         let status: DescriptorRow['status'] = 'current';
-        if (regeneratingSet.has(descriptorId)) {
+        if (badRequestSet.has(descriptorId)) {
+            status = 'bad-request';
+        } else if (regeneratingSet.has(descriptorId)) {
             status = 'regenerating';
         } else if (missingSet.has(descriptorId)) {
             status = 'missing';
@@ -57,6 +60,8 @@ function buildDescriptorRows(diff: CacheDiff): DescriptorRow[] {
 
 function describeStatus(status: DescriptorRow['status']): string {
     switch (status) {
+        case 'bad-request':
+            return 'Bad request';
         case 'missing':
             return 'Missing from cache';
         case 'stale':
@@ -72,6 +77,8 @@ function describeStatus(status: DescriptorRow['status']): string {
 
 function getStatusBadgeClass(status: DescriptorRow['status']): string {
     switch (status) {
+        case 'bad-request':
+            return 'bg-rose-500/20 border-rose-400/40 text-rose-100';
         case 'missing':
             return 'bg-amber-500/20 border-amber-400/40 text-amber-100';
         case 'stale':
@@ -200,6 +207,12 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                 <span>Missing {diff.missing.length}</span>
                                                 <span>Stale {diff.stale.length}</span>
                                                 <span>Extraneous {diff.extraneous.length}</span>
+                                                {diff.badRequest.length > 0 && (
+                                                    <span>
+                                                        Bad request{diff.badRequest.length === 1 ? '' : 's'}{' '}
+                                                        {diff.badRequest.length}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {updatedAt ? (

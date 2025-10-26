@@ -16,7 +16,7 @@ interface PendingDescriptorSummary {
     id: string;
     label: string;
     profile: string;
-    status: 'missing' | 'stale';
+    status: 'missing' | 'stale' | 'bad-request';
     owners: string[];
 }
 
@@ -87,14 +87,28 @@ function formatUpdatedAt(value?: number): string | undefined {
     }
 }
 
-function getPendingStatusBadgeClass(status: 'missing' | 'stale'): string {
-    return status === 'missing'
-        ? 'border border-amber-400/60 bg-amber-500/10 text-amber-100'
-        : 'border border-sky-400/60 bg-sky-500/10 text-sky-100';
+function getPendingStatusBadgeClass(status: PendingDescriptorSummary['status']): string {
+    switch (status) {
+        case 'bad-request':
+            return 'border border-rose-400/60 bg-rose-500/10 text-rose-100';
+        case 'missing':
+            return 'border border-amber-400/60 bg-amber-500/10 text-amber-100';
+        case 'stale':
+        default:
+            return 'border border-sky-400/60 bg-sky-500/10 text-sky-100';
+    }
 }
 
-function getPendingStatusLabel(status: 'missing' | 'stale'): string {
-    return status === 'missing' ? 'Missing' : 'Stale';
+function getPendingStatusLabel(status: PendingDescriptorSummary['status']): string {
+    switch (status) {
+        case 'bad-request':
+            return 'Bad request';
+        case 'missing':
+            return 'Missing';
+        case 'stale':
+        default:
+            return 'Stale';
+    }
 }
 
 function getFeatureTrackLabel(track: AudioFeatureTrack): string {
@@ -186,11 +200,25 @@ const SceneAnalysisCachesTab: React.FC = () => {
                     owners: diff.owners[descriptorId] ?? [],
                 });
             }
+            for (const descriptorId of diff.badRequest) {
+                entry.pending.push({
+                    id: descriptorId,
+                    label: formatCacheDiffDescriptor(diff, descriptorId),
+                    profile: profileLabel,
+                    status: 'bad-request',
+                    owners: diff.owners[descriptorId] ?? [],
+                });
+            }
         }
         for (const entry of map.values()) {
             entry.pending.sort((a, b) => {
                 if (a.status !== b.status) {
-                    return a.status === 'missing' ? -1 : 1;
+                    const priority: Record<PendingDescriptorSummary['status'], number> = {
+                        'bad-request': 0,
+                        missing: 1,
+                        stale: 2,
+                    };
+                    return priority[a.status] - priority[b.status];
                 }
                 if (a.profile !== b.profile) {
                     return a.profile.localeCompare(b.profile);
@@ -209,6 +237,10 @@ const SceneAnalysisCachesTab: React.FC = () => {
         () => diffs.reduce((acc, diff) => acc + diff.extraneous.length, 0),
         [diffs],
     );
+    const totalBadRequests = useMemo(
+        () => diffs.reduce((acc, diff) => acc + diff.badRequest.length, 0),
+        [diffs],
+    );
 
     const deleteExtraneousDisabled = totalExtraneousDescriptors === 0;
     const regenerateAllDisabled = totalPendingDescriptors === 0;
@@ -218,6 +250,9 @@ const SceneAnalysisCachesTab: React.FC = () => {
         : 'All requested feature tracks are cached.';
     const extraneousSummary = totalExtraneousDescriptors
         ? `${totalExtraneousDescriptors} extraneous cache entr${totalExtraneousDescriptors === 1 ? 'y' : 'ies'}`
+        : null;
+    const badRequestSummary = totalBadRequests
+        ? `${totalBadRequests} invalid descriptor${totalBadRequests === 1 ? '' : 's'}`
         : null;
 
     const handleStop = useCallback(
@@ -258,6 +293,12 @@ const SceneAnalysisCachesTab: React.FC = () => {
                             <>
                                 {' '}
                                 · <span className="text-neutral-500">{extraneousSummary}</span>
+                            </>
+                        )}
+                        {badRequestSummary && (
+                            <>
+                                {' '}
+                                · <span className="text-rose-400">{badRequestSummary}</span>
                             </>
                         )}
                     </div>
