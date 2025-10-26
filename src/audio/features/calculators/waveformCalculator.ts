@@ -79,6 +79,7 @@ export function createWaveformCalculator({
                 hopSeconds: waveformHopSeconds,
                 tempoMapper,
             });
+            const aliases = inferChannelAliases(audioBuffer.numberOfChannels || 1);
             const track: AudioFeatureTrack = {
                 key: 'waveform',
                 calculatorId: 'mvmnt.waveform',
@@ -95,7 +96,8 @@ export function createWaveformCalculator({
                     hopSize: waveformHopSamples,
                     oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
                 },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
+                channelAliases: aliases,
+                channelLayout: { aliases },
                 analysisProfileId: 'default',
             };
 

@@ -58,6 +58,7 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 format: 'float32',
                 data,
                 channelAliases,
+                channelLayout: { aliases: channelAliases, semantics: 'multi-channel' },
                 analysisProfileId: 'default',
             },
         },
@@ -113,7 +114,6 @@ describe('audio feature export parity', () => {
             calculatorId: 'mvmnt.rms',
             smoothing: null,
             bandIndex: null,
-            channel: null,
         } as const;
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);

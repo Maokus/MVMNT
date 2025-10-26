@@ -4,29 +4,6 @@ function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
 }
 
-function pickChannelValue(source: any): number | string | null {
-    if (source == null || typeof source !== 'object') {
-        return null;
-    }
-    if (source.channel != null) {
-        if (typeof source.channel === 'string') {
-            const trimmed = source.channel.trim();
-            return trimmed.length > 0 && trimmed.toLowerCase() !== 'auto' ? trimmed : null;
-        }
-        if (isFiniteNumber(source.channel)) {
-            return Math.trunc(source.channel);
-        }
-    }
-    const alias = typeof source.channelAlias === 'string' ? source.channelAlias.trim() : '';
-    if (alias.length > 0 && alias.toLowerCase() !== 'auto') {
-        return alias;
-    }
-    if (isFiniteNumber(source.channelIndex)) {
-        return Math.trunc(source.channelIndex);
-    }
-    return null;
-}
-
 export function migrateDescriptorChannels(descriptor: unknown): AudioFeatureDescriptor | null {
     if (!descriptor || typeof descriptor !== 'object') {
         return null;
@@ -38,13 +15,11 @@ export function migrateDescriptorChannels(descriptor: unknown): AudioFeatureDesc
     }
     const calculatorId = typeof source.calculatorId === 'string' ? source.calculatorId : null;
     const bandIndex = isFiniteNumber(source.bandIndex) ? Math.trunc(source.bandIndex as number) : null;
-    const channel = pickChannelValue(source);
 
     const migrated: AudioFeatureDescriptor = {
         featureKey,
         calculatorId,
         bandIndex,
-        channel: channel ?? null,
     };
 
     for (const [key, value] of Object.entries(source)) {

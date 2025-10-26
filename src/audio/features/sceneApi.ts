@@ -28,7 +28,6 @@ export interface SceneFeatureElementRef {
 export type FeatureInput = string | AudioFeatureDescriptor;
 
 export interface FeatureOptions {
-    channel?: number | string | null;
     bandIndex?: number | null;
     calculatorId?: string | null;
     profile?: string | null;
@@ -91,7 +90,6 @@ function buildDescriptor(
     if (typeof feature === 'string') {
         const builderOptions: FeatureDescriptorBuilderOptions = {
             feature,
-            channel: options?.channel ?? undefined,
             bandIndex: options?.bandIndex ?? undefined,
             calculatorId: options?.calculatorId ?? undefined,
             profile: options?.profile ?? undefined,
@@ -100,7 +98,6 @@ function buildDescriptor(
     }
     const updateOptions: FeatureDescriptorUpdateOptions | undefined = options
         ? {
-              channel: options.channel,
               bandIndex: options.bandIndex,
               calculatorId: options.calculatorId,
               profile: options.profile,

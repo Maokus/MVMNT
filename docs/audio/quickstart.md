@@ -16,7 +16,7 @@ registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 -   Call the function at module scope so requirements are registered when the element loads.
 -   Requirements are internal metadata: they do **not** appear in the property panel.
--   Use multiple entries when the element needs several features or channels.
+-   Use multiple entries when the element needs several features. Multi-channel payloads are handled at runtime using the values returned from `getFeatureData`.
 
 ## 2. Sample during render
 

@@ -38,9 +38,6 @@ const formatDescriptorDetails = (descriptor: AudioFeatureDescriptor | undefined)
     if (descriptor.calculatorId) {
         parts.push(`calc:${descriptor.calculatorId}`);
     }
-    if (descriptor.channel != null) {
-        parts.push(`channel:${descriptor.channel}`);
-    }
     if (descriptor.bandIndex != null) {
         parts.push(`band:${descriptor.bandIndex}`);
     }
@@ -94,9 +91,6 @@ const formatDescriptorMeta = (descriptor: AudioFeatureDescriptor | undefined): s
     }
     if (descriptor.calculatorId) {
         parts.push(`calc:${descriptor.calculatorId}`);
-    }
-    if (descriptor.channel != null) {
-        parts.push(`channel:${descriptor.channel}`);
     }
     if (descriptor.bandIndex != null) {
         parts.push(`band:${descriptor.bandIndex}`);

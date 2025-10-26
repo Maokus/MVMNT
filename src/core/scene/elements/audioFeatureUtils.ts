@@ -9,7 +9,6 @@ import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelec
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import type { AudioTrack } from '@audio/audioTypes';
 import type { TimelineTrack } from '@state/timelineStore';
-import { resolveChannel, type TrackChannelConfig } from '@audio/features/channelResolution';
 
 type TimelineTrackEntry = TimelineTrack | AudioTrack;
 
@@ -30,27 +29,10 @@ export function resolveFeatureContext(trackId: string | null, featureKey: string
     return { state, track: entry, sourceId, cache, featureTrack } as const;
 }
 
-function buildSampleCacheKey(
-    tick: number,
-    descriptor: AudioFeatureDescriptor,
-    resolvedChannel?: number | null,
-): string {
+function buildSampleCacheKey(tick: number, descriptor: AudioFeatureDescriptor): string {
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
-    const channelValue = descriptor.channel;
-    const trimmed = typeof channelValue === 'string' ? channelValue.trim() : null;
-    const numericChannel =
-        typeof channelValue === 'number'
-            ? channelValue
-            : trimmed && /^-?\d+$/.test(trimmed)
-            ? Number(trimmed)
-            : resolvedChannel ?? null;
-    const alias =
-        trimmed && !(numericChannel != null)
-            ? `a${trimmed}`
-            : 'a*';
-    const channel = numericChannel != null ? `c${numericChannel}` : 'c*';
     const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
-    return `${tick}:${descriptor.featureKey}:${band}:${channel}:${alias}:${calculator}`;
+    return `${tick}:${descriptor.featureKey}:${band}:${calculator}`;
 }
 
 function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string {
@@ -68,25 +50,9 @@ export function resolveDescriptorChannel(
     trackId: string | null,
     descriptor: AudioFeatureDescriptor,
 ): number | null {
-    if (descriptor.channel == null) {
-        return null;
-    }
-    if (!trackId || typeof descriptor.channel === 'number') {
-        return typeof descriptor.channel === 'number' ? descriptor.channel : null;
-    }
-    const context = resolveFeatureContext(trackId, descriptor.featureKey);
-    if (!context) {
-        return typeof descriptor.channel === 'number' ? descriptor.channel : null;
-    }
-    try {
-        return resolveChannel(descriptor.channel, {
-            track: context.featureTrack,
-            cacheAliases: context.cache.channelAliases ?? null,
-        });
-    } catch (error) {
-        console.warn('[audioFeatureUtils] failed to resolve descriptor channel', error);
-        return null;
-    }
+    void trackId;
+    void descriptor;
+    return null;
 }
 
 function recordDiagnostics(diagnostics: TempoAlignedAdapterDiagnostics, trackId: string) {
@@ -116,20 +82,7 @@ export function sampleFeatureFrame(
     const { cache, featureTrack } = context;
     const tm = getSharedTimingManager();
     const tick = tm.secondsToTicks(Math.max(0, targetTime));
-    let channelIndex: number | null = null;
-    const channelConfig: TrackChannelConfig = {
-        track: featureTrack,
-        cacheAliases: cache.channelAliases ?? null,
-    };
-    if (descriptor.channel != null) {
-        try {
-            channelIndex = resolveChannel(descriptor.channel, channelConfig);
-        } catch (error) {
-            console.warn('[audioFeatureUtils] failed to resolve channel for sampling', error);
-            return null;
-        }
-    }
-    const cacheKey = buildSampleCacheKey(tick, descriptor, channelIndex);
+    const cacheKey = buildSampleCacheKey(tick, descriptor);
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {
         trackCache = new Map();
@@ -150,7 +103,6 @@ export function sampleFeatureFrame(
         tick,
         options: {
             bandIndex: descriptor.bandIndex ?? undefined,
-            channelIndex: channelIndex ?? undefined,
             smoothing: samplingOptions?.smoothing ?? undefined,
             interpolation:
                 samplingOptions?.interpolation === 'nearest'

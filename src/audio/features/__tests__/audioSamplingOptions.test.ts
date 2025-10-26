@@ -68,7 +68,6 @@ describe('audio sampling options cache behaviour', () => {
         featureKey: 'rms',
         calculatorId: 'mvmnt.rms',
         bandIndex: null,
-        channel: null,
     } as const;
 
     beforeEach(() => {

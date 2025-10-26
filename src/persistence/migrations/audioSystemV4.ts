@@ -60,11 +60,10 @@ function sanitizeDescriptor(entry: unknown): AudioFeatureDescriptor | null {
         bandIndex: typeof source.bandIndex === 'number' && Number.isFinite(source.bandIndex)
             ? Math.trunc(source.bandIndex)
             : null,
-        channel: (source.channel as number | string | null | undefined) ?? null,
     };
     for (const [key, value] of Object.entries(source)) {
-        if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex' || key === 'channel') continue;
-        if (key === 'smoothing' || key === 'channelAlias' || key === 'channelIndex') continue;
+        if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex') continue;
+        if (key === 'smoothing' || key === 'channelAlias' || key === 'channelIndex' || key === 'channel') continue;
         (descriptor as unknown as Record<string, unknown>)[key] = value;
     }
     return descriptor;

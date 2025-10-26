@@ -1,6 +1,6 @@
 # Audio Concepts
 
-_Last reviewed: 24 October 2025_
+_Last reviewed: 25 October 2025_
 
 This guide clarifies the mental model behind the v4 audio system. Use it as a primer before diving
 into implementation details or when mentoring teammates on the new flow.
@@ -57,13 +57,15 @@ Here’s how the terms relate:
 
     -   One slice of that multi-channel track at every time frame.
     -   In the spectrogram, “channels” = frequency bins; in waveform it’s physical audio channels (though waveform is mixed to mono, so channels=1).
-    -   A single channel’s _series_ is typed by `AudioFeatureTrackData` (e.g. `Float32Array`, or `{min,max}` for min/max pairs).
+    -   Channel metadata (aliases, semantics) lives on `AudioFeatureTrack.channelLayout` so elements
+        can pick the appropriate slice at render time.
 
 -   descriptor
 
-    -   A lightweight key you build at render time describing _which_ feature track and _which_ channel(s) you want.
-    -   Contains `{featureKey, calculatorId?, bandIndex?, channel?}`.
-    -   Multiple descriptors can point into the same cached track (e.g. one per channel or alias).
+    -   A lightweight key you build at render time describing _which_ feature track to read.
+    -   Contains `{featureKey, calculatorId?, bandIndex?}`.
+    -   Descriptors are channel-agnostic; elements inspect `AudioFeatureTrack.channelLayout` and the
+        returned sample values to select channels locally.
 
 -   cache
     -   The in-memory or on-disk store of all tracks for a given audio buffer + tempo map.
@@ -72,8 +74,9 @@ Here’s how the terms relate:
 Putting it all together:
 
 1. You run your calculators once and produce a `featureTracks` cache (one track per feature).
-2. At render time you create one or more _descriptors_ to say “give me feature X, channel Y (or bin Z)”.
-3. The sampler looks up the right `AudioFeatureTrack` in the cache, then reads the single-channel slice (`AudioFeatureTrackData`).
+2. At render time you create one or more _descriptors_ to say “give me feature X (optionally band Y)”.
+3. The sampler looks up the right `AudioFeatureTrack` in the cache and returns tempo-aligned frames
+   whose `values` arrays include every channel so you can filter locally.
 
 ## Where to learn more
 

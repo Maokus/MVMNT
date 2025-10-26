@@ -195,20 +195,16 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
         const descriptorRecord = descriptor as unknown as Record<string, unknown>;
         const calculatorId = descriptorRecord.calculatorId;
         const bandIndex = descriptorRecord.bandIndex;
-        const channel = descriptorRecord.channel;
         if (calculatorId != null) {
             lines.push(`Calculator: ${formatScalar(calculatorId)}`);
         }
         if (bandIndex != null) {
             lines.push(`Band Index: ${formatScalar(bandIndex)}`);
         }
-        if (channel != null) {
-            lines.push(`Channel: ${formatScalar(channel)}`);
-        }
         if (lines.length < maxEntries) {
             const extras: Record<string, unknown> = {};
             for (const [key, value] of Object.entries(descriptorRecord)) {
-                if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex' || key === 'channel') {
+                if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex') {
                     continue;
                 }
                 extras[key] = value;

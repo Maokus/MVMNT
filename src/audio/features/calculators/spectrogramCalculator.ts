@@ -109,6 +109,7 @@ export function createSpectrogramCalculator({
                 },
                 analysisProfileId: 'default',
                 channelAliases: null,
+                channelLayout: null,
             };
 
             return track;

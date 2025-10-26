@@ -150,40 +150,10 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             featureKey: track.key,
             calculatorId: track.calculatorId,
             bandIndex: null,
-            channel: null,
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);
         entries.set(baseMatch, { id: baseId, descriptor: base, matchKey: baseMatch });
-        const channelAliases = track.channelAliases ?? cache.channelAliases ?? null;
-        if (Array.isArray(channelAliases) && channelAliases.length) {
-            channelAliases.forEach((alias, index) => {
-                if (!alias) return;
-                const aliasDescriptor: AudioFeatureDescriptor = {
-                    ...base,
-                    channel: alias,
-                };
-                const aliasMatchKey = buildDescriptorMatchKey(aliasDescriptor);
-                entries.set(aliasMatchKey, {
-                    id: buildDescriptorId(aliasDescriptor),
-                    descriptor: aliasDescriptor,
-                    matchKey: aliasMatchKey,
-                });
-                const numericDescriptor: AudioFeatureDescriptor = { ...base, channel: index };
-                const numericMatchKey = buildDescriptorMatchKey(numericDescriptor);
-                entries.set(numericMatchKey, {
-                    id: buildDescriptorId(numericDescriptor),
-                    descriptor: numericDescriptor,
-                    matchKey: numericMatchKey,
-                });
-            });
-        } else if (typeof track.channels === 'number' && track.channels > 1) {
-            for (let channel = 0; channel < track.channels; channel += 1) {
-                const descriptor: AudioFeatureDescriptor = { ...base, channel };
-                const matchKey = buildDescriptorMatchKey(descriptor);
-                entries.set(matchKey, { id: buildDescriptorId(descriptor), descriptor, matchKey });
-            }
-        }
     }
     return Array.from(entries.values());
 }
@@ -385,7 +355,6 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const normalizedRequirements = requirements.map((requirement) => {
             const { descriptor } = createFeatureDescriptor({
                 feature: requirement.feature,
-                channel: requirement.channel ?? undefined,
                 bandIndex: requirement.bandIndex ?? undefined,
                 calculatorId: requirement.calculatorId ?? undefined,
                 profile: requirement.profile ?? undefined,

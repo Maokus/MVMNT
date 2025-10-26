@@ -5,8 +5,6 @@
 export interface AudioFeatureRequirement {
     /** Feature key (e.g., 'spectrogram', 'rms', 'waveform') */
     feature: string;
-    /** Optional channel specification */
-    channel?: number | string;
     /** Optional band index for multi-band features */
     bandIndex?: number;
     /** Optional calculator ID for custom analyzers */
@@ -18,9 +16,8 @@ export interface AudioFeatureRequirement {
 const ELEMENT_FEATURE_REQUIREMENTS = new Map<string, AudioFeatureRequirement[]>();
 
 function cloneRequirement(requirement: AudioFeatureRequirement): AudioFeatureRequirement {
-    const { feature, channel, bandIndex, calculatorId, profile } = requirement;
+    const { feature, bandIndex, calculatorId, profile } = requirement;
     const cloned: AudioFeatureRequirement = { feature };
-    if (channel != null) cloned.channel = channel;
     if (bandIndex != null) cloned.bandIndex = bandIndex;
     if (calculatorId != null) cloned.calculatorId = calculatorId;
     if (profile != null) cloned.profile = profile;

@@ -33,9 +33,6 @@ interface LegacyAudioFeatureBindingData {
     featureKey?: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    channel?: number | string | null;
-    channelIndex?: number | null;
-    channelAlias?: string | null;
     smoothing?: number | null;
 }
 
@@ -56,16 +53,10 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Legac
     const calculatorId = typeof payload.calculatorId === 'string' && payload.calculatorId ? payload.calculatorId : null;
     const smoothing =
         typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing) ? payload.smoothing : null;
-    const channelAlias =
-        typeof payload.channelAlias === 'string' && payload.channelAlias.trim().length > 0
-            ? payload.channelAlias.trim()
-            : null;
-    const channelValue = payload.channel != null ? payload.channel : channelAlias ?? coerceIndex(payload.channelIndex);
     const { descriptor } = createFeatureDescriptor({
         feature: featureKey,
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
-        channel: channelValue ?? null,
     });
     return { descriptor, smoothing };
 }
@@ -93,7 +84,6 @@ export function migrateLegacyAudioFeatureBinding(
                         typeof stripped.bandIndex === 'number' && Number.isFinite(stripped.bandIndex)
                             ? Math.trunc(stripped.bandIndex)
                             : null,
-                    channel: (stripped.channel as number | string | null | undefined) ?? null,
                 }).descriptor;
             }
             replacements.features = {
