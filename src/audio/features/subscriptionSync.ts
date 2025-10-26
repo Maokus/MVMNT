@@ -50,7 +50,6 @@ export function syncElementSubscriptions(
     const built = requirements.map((requirement) =>
         createFeatureDescriptor({
             feature: requirement.feature,
-            channel: requirement.channel ?? undefined,
             bandIndex: requirement.bandIndex ?? undefined,
             calculatorId: requirement.calculatorId ?? undefined,
             profile: requirement.profile ?? undefined,

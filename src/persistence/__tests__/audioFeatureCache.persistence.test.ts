@@ -48,6 +48,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                     minDecibels: -80,
                     maxDecibels: 0,
                 },
+                channelAliases: ['Left', 'Right', 'Center', 'LFE'],
+                channelLayout: { aliases: ['Left', 'Right', 'Center', 'LFE'], semantics: 'surround' },
             },
         },
     };
@@ -115,12 +117,24 @@ describe('audio feature cache persistence', () => {
         expect(serialized.featureTracks.spectrogram.startTimeSeconds).toBe(0);
         expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
         expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
+        expect(serialized.featureTracks.spectrogram.channelLayout?.aliases).toEqual([
+            'Left',
+            'Right',
+            'Center',
+            'LFE',
+        ]);
         useTimelineStore.getState().resetTimeline();
         const importResult = await importScene(exported.json);
         expect(importResult.ok).toBe(true);
         const restored = useTimelineStore.getState().audioFeatureCaches[trackId];
         expect(restored).toBeDefined();
         expect(restored?.featureTracks.spectrogram.frameCount).toBe(10);
+        expect(restored?.featureTracks.spectrogram.channelLayout?.aliases).toEqual([
+            'Left',
+            'Right',
+            'Center',
+            'LFE',
+        ]);
         expect(restored?.tempoProjection?.hopTicks).toBe(120);
         expect(useTimelineStore.getState().audioFeatureCacheStatus[trackId]?.state).toBe('ready');
     });

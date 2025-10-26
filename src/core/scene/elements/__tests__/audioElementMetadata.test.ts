@@ -13,13 +13,13 @@ describe('audioElementMetadata', () => {
     it('returns registered requirements for an element type', () => {
         registerFeatureRequirements('testElement', [
             { feature: 'spectrogram' },
-            { feature: 'waveform', channel: 'Left', calculatorId: 'custom.wave' },
+            { feature: 'waveform', calculatorId: 'custom.wave' },
         ]);
 
         const requirements = getFeatureRequirements('testElement');
         expect(requirements).toEqual([
             { feature: 'spectrogram' },
-            { feature: 'waveform', channel: 'Left', calculatorId: 'custom.wave' },
+            { feature: 'waveform', calculatorId: 'custom.wave' },
         ]);
     });
 

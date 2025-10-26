@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { AudioFeatureCache, AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import type {
+    AudioFeatureCache,
+    AudioFeatureDescriptor,
+    ChannelLayoutMeta,
+} from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import {
     buildDescriptorId,
@@ -21,6 +25,13 @@ interface RequirementDiagnostic {
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
     satisfied: boolean;
+}
+
+export interface CacheDescriptorDetail {
+    descriptor: AudioFeatureDescriptor;
+    channelCount: number | null;
+    channelAliases: string[] | null;
+    channelLayout: ChannelLayoutMeta | null;
 }
 
 interface AnalysisIntentRecord {
@@ -47,7 +58,7 @@ export interface CacheDiff {
     stale: string[];
     extraneous: string[];
     regenerating: string[];
-    descriptorDetails: Record<string, AudioFeatureDescriptor>;
+    descriptorDetails: Record<string, CacheDescriptorDetail>;
     owners: Record<string, string[]>;
     updatedAt: number;
     status: CacheDiffStatus;
@@ -62,7 +73,7 @@ export interface RegenerationJob {
     audioSourceId: string;
     analysisProfileId: string | null;
     descriptors: string[];
-    descriptorDetails: Record<string, AudioFeatureDescriptor>;
+    descriptorDetails: Record<string, CacheDescriptorDetail>;
     reason: RegenerationReason;
     status: RegenerationStatus;
     requestedAt: number;
@@ -139,6 +150,22 @@ interface CachedDescriptorInfo {
     id: string;
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+    channelCount: number | null;
+    channelAliases: string[] | null;
+    channelLayout: ChannelLayoutMeta | null;
+}
+
+function resolveChannelMetadata(
+    featureTrack: { channels?: number; channelAliases?: string[] | null; channelLayout?: ChannelLayoutMeta | null } | undefined,
+    cache: AudioFeatureCache | undefined,
+): { channelCount: number | null; channelAliases: string[] | null; channelLayout: ChannelLayoutMeta | null } {
+    if (!featureTrack) {
+        return { channelCount: null, channelAliases: null, channelLayout: null };
+    }
+    const channelCount = Number.isFinite(featureTrack.channels) ? Number(featureTrack.channels) : null;
+    const layout = featureTrack.channelLayout ?? null;
+    const aliases = layout?.aliases ?? featureTrack.channelAliases ?? cache?.channelAliases ?? null;
+    return { channelCount, channelAliases: aliases ?? null, channelLayout: layout };
 }
 
 function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): CachedDescriptorInfo[] {
@@ -150,42 +177,38 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             featureKey: track.key,
             calculatorId: track.calculatorId,
             bandIndex: null,
-            channel: null,
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);
-        entries.set(baseMatch, { id: baseId, descriptor: base, matchKey: baseMatch });
-        const channelAliases = track.channelAliases ?? cache.channelAliases ?? null;
-        if (Array.isArray(channelAliases) && channelAliases.length) {
-            channelAliases.forEach((alias, index) => {
-                if (!alias) return;
-                const aliasDescriptor: AudioFeatureDescriptor = {
-                    ...base,
-                    channel: alias,
-                };
-                const aliasMatchKey = buildDescriptorMatchKey(aliasDescriptor);
-                entries.set(aliasMatchKey, {
-                    id: buildDescriptorId(aliasDescriptor),
-                    descriptor: aliasDescriptor,
-                    matchKey: aliasMatchKey,
-                });
-                const numericDescriptor: AudioFeatureDescriptor = { ...base, channel: index };
-                const numericMatchKey = buildDescriptorMatchKey(numericDescriptor);
-                entries.set(numericMatchKey, {
-                    id: buildDescriptorId(numericDescriptor),
-                    descriptor: numericDescriptor,
-                    matchKey: numericMatchKey,
-                });
-            });
-        } else if (typeof track.channels === 'number' && track.channels > 1) {
-            for (let channel = 0; channel < track.channels; channel += 1) {
-                const descriptor: AudioFeatureDescriptor = { ...base, channel };
-                const matchKey = buildDescriptorMatchKey(descriptor);
-                entries.set(matchKey, { id: buildDescriptorId(descriptor), descriptor, matchKey });
-            }
-        }
+        const meta = resolveChannelMetadata(track, cache);
+        entries.set(baseMatch, {
+            id: baseId,
+            descriptor: base,
+            matchKey: baseMatch,
+            channelCount: meta.channelCount,
+            channelAliases: meta.channelAliases,
+            channelLayout: meta.channelLayout,
+        });
     }
     return Array.from(entries.values());
+}
+
+function createDescriptorDetail(
+    descriptor: AudioFeatureDescriptor | undefined,
+    cache: AudioFeatureCache | undefined,
+    overrides?: Partial<Omit<CacheDescriptorDetail, 'descriptor'>>,
+): CacheDescriptorDetail | null {
+    if (!descriptor) {
+        return null;
+    }
+    const featureTrack = descriptor.featureKey ? cache?.featureTracks?.[descriptor.featureKey] : undefined;
+    const meta = resolveChannelMetadata(featureTrack, cache);
+    return {
+        descriptor,
+        channelCount: overrides?.channelCount ?? meta.channelCount,
+        channelAliases: overrides?.channelAliases ?? meta.channelAliases,
+        channelLayout: overrides?.channelLayout ?? meta.channelLayout,
+    };
 }
 
 function computeCacheDiffs(
@@ -237,11 +260,14 @@ function computeCacheDiffs(
         const cache = timelineState.audioFeatureCaches[sourceId];
         const status = timelineState.audioFeatureCacheStatus[sourceId];
         const requested = Array.from(group.descriptors.keys()).sort();
-        const descriptorDetails: Record<string, AudioFeatureDescriptor> = {};
+        const descriptorDetails: Record<string, CacheDescriptorDetail> = {};
         const ownerMap: Record<string, string[]> = {};
         const matchKeyById: Record<string, string> = {};
         for (const [descriptorId, info] of group.descriptors.entries()) {
-            descriptorDetails[descriptorId] = info.descriptor;
+            const detail = createDescriptorDetail(info.descriptor, cache);
+            if (detail) {
+                descriptorDetails[descriptorId] = detail;
+            }
             matchKeyById[descriptorId] = info.matchKey;
             ownerMap[descriptorId] = Array.from(group.owners.get(descriptorId) ?? []);
         }
@@ -290,7 +316,14 @@ function computeCacheDiffs(
             if (isRequested) continue;
             if (dismissedSet.has(cached.id)) continue;
             extraneous.push(cached.id);
-            descriptorDetails[cached.id] = cached.descriptor;
+            const cachedDetail = createDescriptorDetail(cached.descriptor, cache, {
+                channelCount: cached.channelCount,
+                channelAliases: cached.channelAliases,
+                channelLayout: cached.channelLayout,
+            });
+            if (cachedDetail) {
+                descriptorDetails[cached.id] = cachedDetail;
+            }
             ownerMap[cached.id] = [];
         }
 
@@ -334,7 +367,7 @@ const activeJobKeys = new Set<string>();
 function resolveCalculators(job: RegenerationJob, cache: AudioFeatureCache | undefined): string[] {
     const calculators = new Set<string>();
     for (const descriptorId of job.descriptors) {
-        const descriptor = job.descriptorDetails[descriptorId];
+        const descriptor = job.descriptorDetails[descriptorId]?.descriptor;
         if (descriptor?.calculatorId) {
             calculators.add(descriptor.calculatorId);
             continue;
@@ -385,7 +418,6 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const normalizedRequirements = requirements.map((requirement) => {
             const { descriptor } = createFeatureDescriptor({
                 feature: requirement.feature,
-                channel: requirement.channel ?? undefined,
                 bandIndex: requirement.bandIndex ?? undefined,
                 calculatorId: requirement.calculatorId ?? undefined,
                 profile: requirement.profile ?? undefined,
@@ -681,7 +713,7 @@ useTimelineStore.subscribe((state) => {
 });
 
 export function formatCacheDiffDescriptor(diff: CacheDiff, descriptorId: string): string {
-    const descriptor = diff.descriptorDetails[descriptorId];
+    const descriptor = diff.descriptorDetails[descriptorId]?.descriptor;
     return buildDescriptorLabel(descriptor);
 }
 

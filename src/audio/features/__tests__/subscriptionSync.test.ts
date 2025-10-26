@@ -42,8 +42,8 @@ describe('subscriptionSync', () => {
     it('syncs unique descriptors for the provided requirements', () => {
         syncElementSubscriptions(element, ' track-1 ', [
             { feature: 'rms' },
-            { feature: 'rms', channel: 'Left' },
-            { feature: 'rms', channel: 'Left' },
+            { feature: 'rms' },
+            { feature: 'spectrogram', bandIndex: 1 },
         ]);
 
         expect(clearFeatureData).not.toHaveBeenCalled();
@@ -72,10 +72,10 @@ describe('subscriptionSync', () => {
     });
 
     it('checks descriptor membership within requirement lists', () => {
-        const descriptor = { featureKey: 'spectrogram', channel: 'Left' } as any;
+        const descriptor = { featureKey: 'spectrogram', bandIndex: 2 } as any;
         const targets = [
-            { featureKey: 'spectrogram', channel: 'Right' } as any,
-            { featureKey: 'spectrogram', channel: 'Left' } as any,
+            { featureKey: 'spectrogram', bandIndex: 1 } as any,
+            { featureKey: 'spectrogram', bandIndex: 2 } as any,
         ];
         expect(isInRequirements(descriptor, targets)).toBe(true);
     });

@@ -4,7 +4,6 @@ import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
-import { resolveDescriptorChannel } from './audioFeatureUtils';
 import { registerFeatureRequirements } from './audioElementMetadata';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
@@ -256,9 +255,7 @@ export class AudioWaveformElement extends SceneElement {
         const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
 
         const state = useTimelineStore.getState();
-        const channelIndex = resolveDescriptorChannel(props.audioTrackId, descriptor);
         const range = sampleAudioFeatureRange(state, props.audioTrackId, descriptor.featureKey, startTick, endTick, {
-            channelIndex: channelIndex ?? undefined,
             smoothing: smoothingRadius,
         });
 

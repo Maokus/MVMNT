@@ -1,8 +1,8 @@
-import { SceneElement, asNumber, asTrimmedString } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema } from '@core/types';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { sampleFeatureFrame } from './audioFeatureUtils';
+import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from './audioFeatureUtils';
 import { registerFeatureRequirements } from './audioElementMetadata';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
@@ -26,6 +26,9 @@ function buildPolylinePoints(values: number[], width: number, height: number): {
         return { x, y };
     });
 }
+
+const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
+    normalizeChannelSelectorInput(value);
 
 export class AudioLockedOscilloscopeElement extends SceneElement {
     constructor(id: string = 'audioLockedOscilloscope', config: Record<string, unknown> = {}) {
@@ -59,6 +62,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                                 transform: (value, element) => asTrimmedString(value, element) ?? null,
                                 defaultValue: null,
                             },
+                        },
+                        {
+                            key: 'channelSelector',
+                            type: 'string',
+                            label: 'Channel',
+                            default: null,
+                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
                         },
                         {
                             key: 'width',
@@ -141,7 +151,10 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
         }
 
         const frame = sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
-        if (!frame || !Array.isArray(frame.values) || frame.values.length === 0) {
+        const selection = selectChannelSample(frame, props.channelSelector);
+        const channelValues = selection?.values ?? frame?.values ?? [];
+
+        if (!channelValues.length) {
             objects.push(
                 new Text(
                     8,
@@ -156,12 +169,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return objects;
         }
 
+        const sampleFrame = frame ?? null;
         const sampleLength = (() => {
-            const explicit = frame.frameLength;
+            const explicit = sampleFrame?.frameLength;
             if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit > 0) {
-                return Math.min(frame.values.length, Math.floor(explicit));
+                return Math.min(channelValues.length, Math.floor(explicit));
             }
-            return frame.values.length;
+            return channelValues.length;
         })();
 
         if (sampleLength < 2) {
@@ -179,7 +193,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return objects;
         }
 
-        const values = frame.values.slice(0, sampleLength).map((value) => clamp(value ?? 0, -1, 1));
+        const values = channelValues.slice(0, sampleLength).map((value) => clamp(value ?? 0, -1, 1));
         const points = buildPolylinePoints(values, props.width, props.height);
         const line = new Poly(points, null, props.lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);

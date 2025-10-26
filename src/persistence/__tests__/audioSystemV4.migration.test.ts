@@ -29,7 +29,7 @@ describe('audioSystemV4 migration', () => {
         const after = migrateSceneAudioSystemV4(before);
         const migrated = (after.bindings as any).byElement.spectrum;
         expect(migrated.features.value[0]).not.toHaveProperty('smoothing');
-        expect(migrated.features.value[0].channel).toBe(1);
+        expect(migrated.features.value[0]).not.toHaveProperty('channel');
         expect(migrated.smoothing).toEqual({ type: 'constant', value: 4 });
     });
 

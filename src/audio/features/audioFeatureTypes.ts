@@ -21,24 +21,14 @@ export type AudioFeatureTrackData =
  * Analysis identifier describing which feature track to read from the cache.
  *
  * Descriptors represent analysis-time identity only. Presentation choices such as
- * smoothing or interpolation belong to {@link AudioSamplingOptions} so caches can
- * be shared across elements that render the same data differently. For a guided
- * overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
+ * smoothing, interpolation, or channel filtering belong to {@link AudioSamplingOptions}
+ * so caches can be shared across elements that render the same data differently.
+ * For a guided overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
  */
 export interface AudioFeatureDescriptor {
     featureKey: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    /**
-     * Channel selector for the descriptor.
-     *
-     * Accepts numeric indices (e.g., 0, 1) or semantic aliases ("Left", "Right", "Mono").
-     * When omitted or set to null the descriptor will default to the merged/mono channel.
-     *
-     * Note: Prior revisions exposed descriptor smoothing. That field was removed in October 2025
-     * because smoothing is a runtime sampling concern rather than an analysis requirement.
-     */
-    channel?: number | string | null;
 }
 
 /**
@@ -53,6 +43,13 @@ export interface AudioSamplingOptions {
     smoothing?: number;
     /** Interpolation method between frames */
     interpolation?: 'linear' | 'nearest' | 'cubic';
+}
+
+export interface ChannelLayoutMeta {
+    /** Optional aliases describing individual channel order (e.g., Left/Right). */
+    aliases?: string[] | null;
+    /** Optional semantic hint for downstream channel selectors. */
+    semantics?: 'mono' | 'stereo' | 'mid-side' | (string & {});
 }
 
 export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
@@ -82,8 +79,10 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     analysisParams?: Record<string, unknown>;
     /** Data encoding hint to help downstream consumers deserialize. */
     format: AudioFeatureTrackFormat;
-    /** Optional alias labels for each channel (e.g., Left/Right). */
+    /** @deprecated Use channelLayout.aliases instead. */
     channelAliases?: string[] | null;
+    /** Optional metadata describing the channel layout for downstream filtering. */
+    channelLayout?: ChannelLayoutMeta | null;
     /** Identifier of the analysis profile used to generate this track. */
     analysisProfileId?: string | null;
 }
@@ -216,7 +215,6 @@ export interface AudioFeatureCalculator<Prepared = unknown> {
 export interface FeatureDescriptorDefaults {
     calculatorId: string | null;
     bandIndex: number | null;
-    channel: number | string | null;
 }
 
 export type AudioFeatureCalculatorRegistry = {

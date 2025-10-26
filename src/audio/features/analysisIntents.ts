@@ -60,14 +60,6 @@ export function buildDescriptorId(descriptor: AudioFeatureDescriptor): string {
     parts.push(`feature:${descriptor?.featureKey ?? 'unknown'}`);
     if (descriptor?.calculatorId) parts.push(`calc:${descriptor.calculatorId}`);
     if (descriptor?.bandIndex != null) parts.push(`band:${descriptor.bandIndex}`);
-    if (descriptor?.channel != null) {
-        if (typeof descriptor.channel === 'number') {
-            parts.push(`chan:${descriptor.channel}`);
-        } else {
-            const alias = descriptor.channel.trim();
-            parts.push(`alias:${alias}`);
-        }
-    }
     return parts.join('|');
 }
 
@@ -75,14 +67,6 @@ export function buildDescriptorMatchKey(descriptor: AudioFeatureDescriptor): str
     const parts: string[] = [];
     parts.push(`feature:${descriptor?.featureKey ?? 'unknown'}`);
     if (descriptor?.calculatorId) parts.push(`calc:${descriptor.calculatorId}`);
-    if (descriptor?.channel != null) {
-        if (typeof descriptor.channel === 'number') {
-            parts.push(`chan:${descriptor.channel}`);
-        } else {
-            const alias = descriptor.channel.trim();
-            parts.push(`alias:${alias}`);
-        }
-    }
     if (descriptor?.bandIndex != null) parts.push(`band:${descriptor.bandIndex}`);
     return parts.join('|');
 }
@@ -198,13 +182,6 @@ export function buildDescriptorLabel(descriptor: AudioFeatureDescriptor | null |
     }
     const parts: string[] = [];
     parts.push(descriptor.featureKey ?? 'unknown');
-    if (descriptor.channel != null) {
-        const channelLabel =
-            typeof descriptor.channel === 'number'
-                ? `channel ${descriptor.channel}`
-                : `channel ${descriptor.channel}`;
-        parts.push(channelLabel);
-    }
     if (descriptor.bandIndex != null) {
         parts.push(`band ${descriptor.bandIndex}`);
     }

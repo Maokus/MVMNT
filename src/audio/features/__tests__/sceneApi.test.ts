@@ -127,7 +127,7 @@ describe('sceneApi', () => {
 
     describe('syncElementFeatureIntents', () => {
         it('publishes descriptors for an element', () => {
-            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
             expect(publishSpy).toHaveBeenCalledTimes(1);
@@ -139,19 +139,19 @@ describe('sceneApi', () => {
         });
 
         it('avoids republishing when descriptors are unchanged', () => {
-            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
             publishSpy.mockClear();
 
             syncElementFeatureIntents(element, 'track-1', [
-                { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any,
+                { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any,
             ]);
 
             expect(publishSpy).not.toHaveBeenCalled();
         });
 
         it('clears state when no descriptors remain', () => {
-            const descriptor = { featureKey: 'waveform', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'waveform', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
             clearSpy.mockClear();
 
@@ -162,7 +162,7 @@ describe('sceneApi', () => {
 
     describe('getElementSubscriptionSnapshot', () => {
         it('returns descriptors currently tracked for an element', () => {
-            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
             const snapshot = getElementSubscriptionSnapshot(element);

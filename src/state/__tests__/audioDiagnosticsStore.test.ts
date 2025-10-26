@@ -46,11 +46,98 @@ describe('audio diagnostics store', () => {
         expect(diff.analysisProfileId).toBe('default');
         const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
         expect(diff.missing).toContain(descriptorId);
+        const detail = diff.descriptorDetails[descriptorId];
+        expect(detail.descriptor.featureKey).toBe('spectrogram');
+        expect(detail.channelCount).toBeNull();
+        expect(detail.channelAliases).toBeNull();
+        expect(detail.channelLayout).toBeNull();
+    });
+
+    it('includes channel metadata when cache provides it', () => {
+        const cacheUpdatedAt = Date.now();
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 1,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 128,
+                    featureTracks: {
+                        spectrogram: {
+                            key: 'spectrogram',
+                            calculatorId: 'test.spectrogram',
+                            version: 1,
+                            frameCount: 128,
+                            channels: 2,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                            channelLayout: { aliases: ['Left', 'Right'], semantics: 'stereo' },
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 1024,
+                        hopSize: 512,
+                        overlap: 0.5,
+                        smoothing: 0,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'test.spectrogram': 1 },
+                    },
+                    analysisProfiles: {
+                        default: {
+                            id: 'default',
+                            windowSize: 1024,
+                            hopSize: 512,
+                            overlap: 0.5,
+                            sampleRate: 44100,
+                        },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt: cacheUpdatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt: cacheUpdatedAt },
+            },
+        });
+
+        publishAnalysisIntent(
+            'element-meta',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
+
+        const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        expect(diff).toBeDefined();
+        const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
+        const detail = diff?.descriptorDetails[descriptorId];
+        expect(detail).toBeDefined();
+        expect(detail?.channelCount).toBe(2);
+        expect(detail?.channelAliases).toEqual(['Left', 'Right']);
+        expect(detail?.channelLayout?.semantics).toBe('stereo');
     });
 
     it('queues regeneration jobs and records history', async () => {
         const reanalyzeSpy = vi.fn();
         const restartSpy = vi.fn();
+        const cacheUpdatedAt = Date.now();
         useTimelineStore.setState({
             tracks: {
                 audioTrack: {
@@ -68,6 +155,51 @@ describe('audio diagnostics store', () => {
             audioCache: {} as any,
             reanalyzeAudioFeatureCalculators: reanalyzeSpy as any,
             restartAudioFeatureAnalysis: restartSpy as any,
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 1,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 128,
+                    featureTracks: {
+                        spectrogram: {
+                            key: 'spectrogram',
+                            calculatorId: 'test.spectrogram',
+                            version: 1,
+                            frameCount: 128,
+                            channels: 2,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                            channelLayout: { aliases: ['Left', 'Right'], semantics: 'stereo' },
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 1024,
+                        hopSize: 512,
+                        overlap: 0.5,
+                        smoothing: 0,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'test.spectrogram': 1 },
+                    },
+                    analysisProfiles: {
+                        default: {
+                            id: 'default',
+                            windowSize: 1024,
+                            hopSize: 512,
+                            overlap: 0.5,
+                            sampleRate: 44100,
+                        },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt: cacheUpdatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt: cacheUpdatedAt },
+            },
         });
 
         publishAnalysisIntent(

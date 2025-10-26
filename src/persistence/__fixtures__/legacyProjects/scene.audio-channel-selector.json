@@ -1,0 +1,84 @@
+{
+    "scene": {
+        "elements": [
+            {
+                "id": "spectrum",
+                "type": "audioSpectrum",
+                "features": {
+                    "type": "constant",
+                    "value": [
+                        {
+                            "featureKey": "spectrogram",
+                            "calculatorId": "mvmnt.spectrogram",
+                            "bandIndex": null,
+                            "channel": { "alias": "Right" }
+                        }
+                    ]
+                },
+                "audioTrackId": { "type": "constant", "value": "track-1" }
+            },
+            {
+                "id": "meter",
+                "type": "audioVolumeMeter",
+                "features": {
+                    "type": "constant",
+                    "value": [
+                        {
+                            "featureKey": "rms",
+                            "calculatorId": "mvmnt.rms",
+                            "bandIndex": null,
+                            "channelAlias": "Left"
+                        }
+                    ]
+                },
+                "audioTrackId": { "type": "constant", "value": "track-1" }
+            },
+            {
+                "id": "scope",
+                "type": "audioLockedOscilloscope",
+                "features": {
+                    "type": "constant",
+                    "value": [
+                        {
+                            "featureKey": "waveform",
+                            "calculatorId": "mvmnt.waveform",
+                            "bandIndex": null,
+                            "channel": "side"
+                        }
+                    ]
+                },
+                "audioTrackId": { "type": "constant", "value": "track-1" }
+            }
+        ]
+    },
+    "bindings": {
+        "byElement": {
+            "meter": {
+                "features": {
+                    "type": "constant",
+                    "value": [
+                        {
+                            "featureKey": "rms",
+                            "calculatorId": "mvmnt.rms",
+                            "bandIndex": null,
+                            "channelIndex": 0
+                        }
+                    ]
+                }
+            },
+            "scope": {
+                "features": {
+                    "type": "constant",
+                    "value": [
+                        {
+                            "featureKey": "waveform",
+                            "calculatorId": "mvmnt.waveform",
+                            "bandIndex": null,
+                            "channel": { "index": 1 }
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}

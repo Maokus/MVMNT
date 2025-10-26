@@ -211,7 +211,6 @@ describe('sceneStore', () => {
                             featureKey: 'rms',
                             calculatorId: 'mvmnt.rms',
                             bandIndex: null,
-                            channel: null,
                             smoothing: 0.15,
                         },
                     ],
@@ -229,7 +228,6 @@ describe('sceneStore', () => {
                     featureKey: 'rms',
                     calculatorId: 'mvmnt.rms',
                     bandIndex: null,
-                    channel: null,
                 },
             ],
         });
@@ -247,7 +245,6 @@ describe('sceneStore', () => {
                     featureKey: 'rms',
                     calculatorId: 'mvmnt.rms',
                     bandIndex: null,
-                    channel: null,
                 },
             ],
         });
@@ -282,7 +279,6 @@ describe('sceneStore', () => {
                                 featureKey: 'waveform',
                                 calculatorId: 'mvmnt.waveform',
                                 bandIndex: null,
-                                channel: null,
                             },
                         ],
                     },
@@ -305,7 +301,6 @@ describe('sceneStore', () => {
                         featureKey: 'rms',
                         calculatorId: 'mvmnt.rms',
                         bandIndex: null,
-                        channel: null,
                         smoothing: 0.1,
                     },
                 ],
@@ -320,7 +315,6 @@ describe('sceneStore', () => {
                     featureKey: 'rms',
                     calculatorId: 'mvmnt.rms',
                     bandIndex: null,
-                    channel: null,
                 },
             ],
         });
@@ -442,7 +436,6 @@ describe('sceneStore', () => {
                     featureKey: 'waveform',
                     calculatorId: 'mvmnt.waveform',
                     bandIndex: 1,
-                    channel: 0,
                 },
             ],
         });

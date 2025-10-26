@@ -5,7 +5,6 @@ export interface FeatureDescriptorBuilderOptions {
     feature: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    channel?: number | string | null;
     profile?: string | null;
 }
 
@@ -39,33 +38,11 @@ function sanitizeBandIndex(value: unknown): number | null {
     return integer < 0 ? 0 : integer;
 }
 
-function sanitizeChannel(value: unknown): number | string | null {
-    if (value == null) {
-        return null;
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return Math.trunc(value);
-    }
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (!trimmed.length) {
-            return null;
-        }
-        const numeric = Number(trimmed);
-        if (Number.isFinite(numeric) && trimmed === `${numeric}`) {
-            return Math.trunc(numeric);
-        }
-        return trimmed;
-    }
-    return null;
-}
-
 function resolveDefaults(featureKey: string): FeatureDescriptorDefaults {
     const registryDefaults = getFeatureDefaults(featureKey);
     return {
         calculatorId: registryDefaults?.calculatorId ?? null,
         bandIndex: registryDefaults?.bandIndex ?? null,
-        channel: registryDefaults?.channel ?? null,
     };
 }
 
@@ -82,17 +59,12 @@ function buildFromOptions(
         options.bandIndex === null
             ? null
             : sanitizeBandIndex(options.bandIndex ?? undefined) ?? defaults.bandIndex;
-    const channel =
-        options.channel === null
-            ? null
-            : sanitizeChannel(options.channel ?? undefined) ?? defaults.channel;
     const profile = sanitizeString(options.profile) ?? getDefaultProfile();
     return {
         descriptor: {
             featureKey,
             calculatorId,
             bandIndex,
-            channel,
         },
         profile,
     };
@@ -115,7 +87,6 @@ export function createFeatureDescriptor(
             feature: featureKey,
             calculatorId: updates?.calculatorId ?? base.calculatorId ?? defaults.calculatorId,
             bandIndex: updates?.bandIndex ?? base.bandIndex ?? defaults.bandIndex,
-            channel: updates?.channel ?? base.channel ?? defaults.channel,
             profile: updates?.profile ?? null,
         };
         return buildFromOptions(featureKey, defaults, merged);

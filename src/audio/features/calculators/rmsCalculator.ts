@@ -53,6 +53,7 @@ export function createRmsCalculator({
                 context.reportProgress?.(frame + 1, frameCount);
             }
             await maybeYield();
+            const aliases = inferChannelAliases(audioBuffer.numberOfChannels || 1);
             const track: AudioFeatureTrack = {
                 key: 'rms',
                 calculatorId: 'mvmnt.rms',
@@ -68,7 +69,8 @@ export function createRmsCalculator({
                 metadata: {
                     windowSize,
                 },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
+                channelAliases: aliases,
+                channelLayout: { aliases },
                 analysisProfileId: 'default',
             };
 

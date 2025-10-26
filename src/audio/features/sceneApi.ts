@@ -1,4 +1,8 @@
-import type { AudioFeatureDescriptor, AudioSamplingOptions } from './audioFeatureTypes';
+import type {
+    AudioFeatureDescriptor,
+    AudioSamplingOptions,
+    ChannelLayoutMeta,
+} from './audioFeatureTypes';
 import {
     buildDescriptorId,
     buildDescriptorMatchKey,
@@ -28,7 +32,6 @@ export interface SceneFeatureElementRef {
 export type FeatureInput = string | AudioFeatureDescriptor;
 
 export interface FeatureOptions {
-    channel?: number | string | null;
     bandIndex?: number | null;
     calculatorId?: string | null;
     profile?: string | null;
@@ -37,6 +40,9 @@ export interface FeatureOptions {
 export interface FeatureDataMetadata {
     descriptor: AudioFeatureDescriptor;
     frame: AudioFeatureFrameSample;
+    channels: number;
+    channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
 }
 
 export interface FeatureDataResult {
@@ -91,7 +97,6 @@ function buildDescriptor(
     if (typeof feature === 'string') {
         const builderOptions: FeatureDescriptorBuilderOptions = {
             feature,
-            channel: options?.channel ?? undefined,
             bandIndex: options?.bandIndex ?? undefined,
             calculatorId: options?.calculatorId ?? undefined,
             profile: options?.profile ?? undefined,
@@ -100,7 +105,6 @@ function buildDescriptor(
     }
     const updateOptions: FeatureDescriptorUpdateOptions | undefined = options
         ? {
-              channel: options.channel,
               bandIndex: options.bandIndex,
               calculatorId: options.calculatorId,
               profile: options.profile,
@@ -273,6 +277,9 @@ export function getFeatureData(
         metadata: {
             descriptor,
             frame: sample,
+            channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
+            channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
+            channelLayout: sample.channelLayout ?? null,
         },
     };
 }

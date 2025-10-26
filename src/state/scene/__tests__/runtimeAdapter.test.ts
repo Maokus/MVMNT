@@ -73,7 +73,6 @@ describe('SceneRuntimeAdapter', () => {
                             featureKey: 'waveform',
                             calculatorId: 'mvmnt.waveform',
                             bandIndex: null,
-                            channel: null,
                             smoothing: 0.1,
                         },
                     ],

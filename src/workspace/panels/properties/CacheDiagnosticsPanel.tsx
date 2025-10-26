@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import {
     formatCacheDiffDescriptor,
     useAudioDiagnosticsStore,
+    type CacheDescriptorDetail,
     type CacheDiff,
     type RegenerationJob,
 } from '@state/audioDiagnosticsStore';
@@ -13,6 +14,7 @@ interface DescriptorRow {
     status: 'current' | 'missing' | 'stale' | 'extraneous' | 'regenerating';
     label: string;
     owners: string[];
+    detail?: CacheDescriptorDetail;
 }
 
 function buildDescriptorRows(diff: CacheDiff): DescriptorRow[] {
@@ -36,6 +38,7 @@ function buildDescriptorRows(diff: CacheDiff): DescriptorRow[] {
             status,
             label: formatCacheDiffDescriptor(diff, descriptorId),
             owners: diff.owners[descriptorId] ?? [],
+            detail: diff.descriptorDetails[descriptorId],
         });
     }
     for (const descriptorId of diff.descriptorsCached) {
@@ -46,6 +49,7 @@ function buildDescriptorRows(diff: CacheDiff): DescriptorRow[] {
             status: 'extraneous',
             label: formatCacheDiffDescriptor(diff, descriptorId),
             owners: diff.owners[descriptorId] ?? [],
+            detail: diff.descriptorDetails[descriptorId],
         });
     }
     return rows;
@@ -79,6 +83,25 @@ function getStatusBadgeClass(status: DescriptorRow['status']): string {
         default:
             return 'bg-neutral-800/70 border-neutral-700 text-neutral-200';
     }
+}
+
+function formatChannelSummary(detail: CacheDescriptorDetail | undefined): string | null {
+    if (!detail) {
+        return null;
+    }
+    const parts: string[] = [];
+    if (detail.channelCount != null) {
+        const count = detail.channelCount;
+        parts.push(`${count} channel${count === 1 ? '' : 's'}`);
+    }
+    const semantics = detail.channelLayout?.semantics;
+    if (semantics) {
+        parts.push(semantics);
+    }
+    if (detail.channelAliases && detail.channelAliases.length) {
+        parts.push(`aliases: ${detail.channelAliases.join(', ')}`);
+    }
+    return parts.length ? parts.join(' · ') : null;
 }
 
 function findJobForDiff(jobs: RegenerationJob[], diff: CacheDiff): RegenerationJob | undefined {
@@ -193,6 +216,11 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                     <div className="divide-y divide-neutral-900/80">
                                         {rows.map((row) => {
                                             const disabled = row.status === 'regenerating';
+                                            const channelSummary = formatChannelSummary(row.detail);
+                                            const filteredLocally =
+                                                row.detail?.channelCount != null
+                                                && row.detail.channelCount > 1
+                                                && row.owners.length > 0;
                                             return (
                                                 <div
                                                     key={`${diff.trackRef}-${row.id}`}
@@ -208,6 +236,16 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                                 </span>
                                                             )}
                                                         </div>
+                                                        {channelSummary ? (
+                                                            <div className="text-[10px] text-neutral-500">
+                                                                {channelSummary}
+                                                            </div>
+                                                        ) : null}
+                                                        {filteredLocally ? (
+                                                            <div className="text-[10px] text-neutral-600">
+                                                                Scene elements select channels locally
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span

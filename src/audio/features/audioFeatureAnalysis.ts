@@ -9,6 +9,7 @@ import {
     type AudioFeatureTempoProjection,
     type AudioFeatureTrack,
     type AudioFeatureTrackFormat,
+    type ChannelLayoutMeta,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 import { createRmsCalculator } from './calculators/rmsCalculator';
@@ -67,6 +68,7 @@ export type SerializedAudioFeatureTrack = {
     metadata?: Record<string, unknown>;
     analysisParams?: Record<string, unknown>;
     channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
     analysisProfileId?: string | null;
     dataRef?: SerializedAudioFeatureTrackDataRef;
 };
@@ -390,6 +392,19 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
     } else {
         data = serializeTypedArray(track.data as Float32Array | Uint8Array | Int16Array);
     }
+    let channelLayout: ChannelLayoutMeta | null | undefined;
+    if (track.channelLayout === undefined) {
+        channelLayout = undefined;
+    } else if (track.channelLayout === null) {
+        channelLayout = null;
+    } else {
+        channelLayout = {
+            aliases: Array.isArray(track.channelLayout.aliases)
+                ? track.channelLayout.aliases.slice()
+                : track.channelLayout.aliases ?? null,
+            semantics: track.channelLayout.semantics,
+        };
+    }
     return {
         key: track.key,
         calculatorId: track.calculatorId,
@@ -404,6 +419,7 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? undefined,
+        channelLayout,
         analysisProfileId: track.analysisProfileId ?? undefined,
         data,
         dataRef: undefined,
@@ -455,6 +471,8 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? null,
+        channelLayout:
+            track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -687,6 +705,13 @@ export async function analyzeAudioBufferFeatures(
                     track.channelAliases = inferChannelAliases(options.audioBuffer.numberOfChannels || 1);
                 } else {
                     track.channelAliases = null;
+                }
+            }
+            if (track.channelLayout === undefined) {
+                if (Array.isArray(track.channelAliases) && track.channelAliases.length) {
+                    track.channelLayout = { aliases: track.channelAliases.slice() };
+                } else if (track.channelAliases === null) {
+                    track.channelLayout = null;
                 }
             }
             featureTracks[track.key] = track;
