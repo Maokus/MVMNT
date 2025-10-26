@@ -16,7 +16,7 @@ import {
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
-import { migrateSceneAudioSystemV4 } from '@persistence/migrations/audioSystemV4';
+import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -1492,7 +1492,7 @@ const createSceneStoreState = (
     },
 
     importScene: (payload) => {
-        const migratedPayload = migrateSceneAudioSystemV4(payload);
+        const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
             const elements = migratedPayload.elements ?? [];
             const sorted = [...elements].sort((a, b) => {

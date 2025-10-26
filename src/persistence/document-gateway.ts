@@ -2,7 +2,7 @@ import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
-import { migrateSceneAudioSystemV4 } from './migrations/audioSystemV4';
+import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
@@ -165,7 +165,7 @@ export const DocumentGateway = {
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
         };
 
-        const sceneData = migrateSceneAudioSystemV4(rawSceneData);
+        const sceneData = migrateSceneAudioSystemV5(rawSceneData);
 
         try {
             useSceneStore.getState().importScene(sceneData);

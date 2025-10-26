@@ -60,6 +60,10 @@ This version expands on [`channel-descriptor-removal-2.md`](./channel-descriptor
 - Extend automated regression coverage for calculators with asymmetric channels (e.g., mid/side) by adding targeted fixtures under [`src/audio/features/__fixtures__`](../src/audio/features/__fixtures__) and verifying post-migration filtering yields the correct channel.
 - Final QA: run the full verification suite (`npm run test`, `npm run build`, `npm run lint`) and perform exploratory testing in the developer overlay to confirm diagnostics display multi-channel metadata without channel-specific cache entries.
 
+**Update (2025-10-21):** Phase 5 shipped via [`audioSystemV5`](../src/persistence/migrations/audioSystemV5.ts), which migrates
+channel selectors into scene configuration, rewrites persistence fixtures, and adds asymmetric channel coverage in
+[`src/audio/features/__fixtures__/mid-side-frame.json`](../src/audio/features/__fixtures__/mid-side-frame.json).
+
 ## Dependencies & sequencing
 
 - Phases 1 and 2 are tightly coupled; do not attempt to restructure sampling until type changes compile cleanly.
