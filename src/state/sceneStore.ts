@@ -5,7 +5,12 @@ import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
-import { migrateDescriptorChannels } from '@persistence/migrations/unifyChannelField';
+import {
+    migrateDescriptorChannels,
+    buildChannelSelectorMap,
+    type MigratedDescriptorChannelSelector,
+    type MigratedDescriptorChannelsResult,
+} from '@persistence/migrations/unifyChannelField';
 import {
     logSmoothingMigration,
     stripDescriptorArraySmoothing,
@@ -39,6 +44,29 @@ interface LegacyAudioFeatureBindingData {
 interface LegacyDescriptorResult {
     descriptor: AudioFeatureDescriptor | null;
     smoothing: number | null;
+}
+
+function applyChannelSelectorsToBindings(
+    bindings: ElementBindings,
+    results: MigratedDescriptorChannelsResult[],
+) {
+    if (!Array.isArray(results) || !results.length) {
+        return;
+    }
+    const selectorMap = buildChannelSelectorMap(results);
+    if (!selectorMap || Object.keys(selectorMap).length === 0) {
+        return;
+    }
+    const existing = bindings.channelSelectors;
+    if (existing && existing.type === 'constant' && existing.value && typeof existing.value === 'object') {
+        const merged = {
+            ...((existing.value as Record<string, MigratedDescriptorChannelSelector>) ?? {}),
+            ...selectorMap,
+        };
+        bindings.channelSelectors = { type: 'constant', value: merged };
+        return;
+    }
+    bindings.channelSelectors = { type: 'constant', value: selectorMap };
 }
 
 function isLegacyAudioFeatureBinding(value: unknown): value is LegacyAudioFeatureBindingData {
@@ -532,16 +560,20 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
                     if (smoothingValues.length && migratedSmoothing == null) {
                         migratedSmoothing = smoothingValues[0] ?? null;
                     }
-                    constantValue = descriptors
-                        .map((entry) => migrateDescriptorChannels(entry) ?? null)
+                    const migratedDescriptors = descriptors.map((entry) => migrateDescriptorChannels(entry));
+                    const normalized = migratedDescriptors
+                        .map((entry) => entry.descriptor)
                         .filter((entry): entry is AudioFeatureDescriptor => entry != null);
+                    constantValue = normalized;
+                    applyChannelSelectorsToBindings(bindings, migratedDescriptors);
                 } else {
                     const { descriptor, smoothing } = stripDescriptorSmoothing(constantValue);
                     if (smoothing != null && migratedSmoothing == null) {
                         migratedSmoothing = smoothing;
                     }
                     const migrated = migrateDescriptorChannels(descriptor);
-                    constantValue = migrated ? [migrated] : [];
+                    constantValue = migrated.descriptor ? [migrated.descriptor] : [];
+                    applyChannelSelectorsToBindings(bindings, [migrated]);
                 }
             }
             bindings[key] = { type: 'constant', value: constantValue };

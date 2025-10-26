@@ -3,6 +3,7 @@ import type { AudioFeatureCache, AudioFeatureCacheStatus, AudioFeatureDescriptor
 import {
     formatCacheDiffDescriptor,
     useAudioDiagnosticsStore,
+    type CacheDescriptorDetail,
     type CacheDiff,
 } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -83,7 +84,8 @@ const formatCacheStatusSummary = (status: AudioFeatureCacheStatus | undefined): 
     return parts.join(' · ');
 };
 
-const formatDescriptorMeta = (descriptor: AudioFeatureDescriptor | undefined): string | null => {
+const formatDescriptorMeta = (detail: CacheDescriptorDetail | undefined): string | null => {
+    const descriptor = detail?.descriptor;
     if (!descriptor) return null;
     const parts: string[] = [];
     if (descriptor.featureKey) {
@@ -94,6 +96,23 @@ const formatDescriptorMeta = (descriptor: AudioFeatureDescriptor | undefined): s
     }
     if (descriptor.bandIndex != null) {
         parts.push(`band:${descriptor.bandIndex}`);
+    }
+    return parts.length ? parts.join(' · ') : null;
+};
+
+const formatChannelSummary = (detail: CacheDescriptorDetail | undefined): string | null => {
+    if (!detail) return null;
+    const parts: string[] = [];
+    if (detail.channelCount != null) {
+        const count = detail.channelCount;
+        parts.push(`${count} channel${count === 1 ? '' : 's'}`);
+    }
+    const semantics = detail.channelLayout?.semantics;
+    if (semantics) {
+        parts.push(semantics);
+    }
+    if (detail.channelAliases && detail.channelAliases.length) {
+        parts.push(`aliases: ${detail.channelAliases.join(', ')}`);
     }
     return parts.length ? parts.join(' · ') : null;
 };
@@ -158,12 +177,15 @@ const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
             </div>
             <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'grid', gap: 6 }}>
                 {descriptorIds.map((id) => {
-                    const descriptor = diff.descriptorDetails[id];
+                    const detail = diff.descriptorDetails[id];
                     const owners = diff.owners[id];
-                    const meta = formatDescriptorMeta(descriptor);
+                    const meta = formatDescriptorMeta(detail);
+                    const channelSummary = formatChannelSummary(detail);
                     const ownersLabel = formatOwners(owners);
                     const ownerPrefix = highlightOwners ? 'Waiting elements' : 'Owners';
                     const ownerSuffix = !highlightOwners && (!owners || owners.length === 0) ? ' (cached only)' : '';
+                    const filteredLocally =
+                        detail?.channelCount != null && detail.channelCount > 1 && (owners?.length ?? 0) > 0;
                     return (
                         <li key={`${diff.trackRef}-${diff.analysisProfileId ?? 'default'}-${title}-${id}`}>
                             <div style={{ fontSize: 12, fontWeight: 600 }}>
@@ -176,6 +198,16 @@ const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
                             {meta ? (
                                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
                                     {meta}
+                                </div>
+                            ) : null}
+                            {channelSummary ? (
+                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                                    {channelSummary}
+                                </div>
+                            ) : null}
+                            {filteredLocally ? (
+                                <div style={{ fontSize: 10, opacity: 0.65, marginTop: 2 }}>
+                                    Scene elements select channels locally
                                 </div>
                             ) : null}
                             <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
