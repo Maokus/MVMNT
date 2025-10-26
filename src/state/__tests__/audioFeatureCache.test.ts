@@ -184,4 +184,42 @@ describe('audio feature cache integration', () => {
         expect(status?.state).toBe('stale');
         expect(status?.message).toBe('calculator updated');
     });
+
+    it('removes specific feature tracks and clears cache when empty', () => {
+        const sourceId = 'aud_prune';
+        useTimelineStore.setState((state) => ({
+            tracks: {
+                ...state.tracks,
+                [sourceId]: {
+                    id: sourceId,
+                    name: 'Prune Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: [sourceId],
+        }));
+        const cache = createTestCache(sourceId, 8, 120);
+        cache.featureTracks.spectrogram = {
+            ...cache.featureTracks.rms,
+            key: 'spectrogram',
+            calculatorId: 'mvmnt.spectrogram',
+        } as any;
+        cache.analysisParams.calculatorVersions['mvmnt.spectrogram'] = 1;
+        useTimelineStore.getState().ingestAudioFeatureCache(sourceId, cache);
+        expect(Object.keys(useTimelineStore.getState().audioFeatureCaches[sourceId].featureTracks)).toHaveLength(2);
+
+        useTimelineStore.getState().removeAudioFeatureTracks(sourceId, ['spectrogram']);
+        const pruned = useTimelineStore.getState().audioFeatureCaches[sourceId];
+        expect(pruned).toBeDefined();
+        expect(Object.keys(pruned?.featureTracks ?? {})).toEqual(['rms']);
+
+        useTimelineStore.getState().removeAudioFeatureTracks(sourceId, ['rms']);
+        expect(useTimelineStore.getState().audioFeatureCaches[sourceId]).toBeUndefined();
+        expect(useTimelineStore.getState().audioFeatureCacheStatus[sourceId]).toBeUndefined();
+    });
 });

@@ -51,7 +51,10 @@ export class AudioSpectrumElement extends SceneElement {
                             label: 'Audio Track',
                             default: null,
                             allowedTrackTypes: ['audio'],
-                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                         {
                             key: 'channelSelector',
@@ -178,20 +181,13 @@ export class AudioSpectrumElement extends SceneElement {
             return objects;
         }
 
-        const sample = getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, { smoothing: props.smoothing });
-        const selection = selectChannelSample(sample?.metadata.frame, props.channelSelector);
-        const values = selection?.values ?? sample?.values ?? [];
+        const sample = getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, {
+            smoothing: props.smoothing,
+        });
+        const values = sample?.values ?? [];
         if (!values.length) {
             objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    'No spectrum data',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                )
+                new Text(8, props.height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
             );
             return objects;
         }

@@ -124,6 +124,7 @@ interface AudioDiagnosticsState {
         reason?: RegenerationReason
     ) => void;
     regenerateAll: () => void;
+    deleteExtraneousCaches: () => void;
     dismissExtraneous: (trackRef: string, analysisProfileId: string | null, descriptorId: string) => void;
     setPanelOpen: (open: boolean) => void;
     setPreferences: (prefs: Partial<DiagnosticsPreferences>) => void;
@@ -144,6 +145,20 @@ function resolveAudioSourceId(trackRef: string, state: Pick<TimelineState, 'trac
         return track.audioSourceId ?? track.id;
     }
     return trackRef;
+}
+
+function extractFeatureKey(descriptorId: string): string | null {
+    if (!descriptorId) {
+        return null;
+    }
+    const parts = descriptorId.split('|');
+    for (const part of parts) {
+        if (part.startsWith('feature:')) {
+            const key = part.slice('feature:'.length).trim();
+            return key.length ? key : null;
+        }
+    }
+    return null;
 }
 
 interface CachedDescriptorInfo {
@@ -389,6 +404,7 @@ const initialState: Omit<
     | 'recomputeDiffs'
     | 'regenerateDescriptors'
     | 'regenerateAll'
+    | 'deleteExtraneousCaches'
     | 'dismissExtraneous'
     | 'setPanelOpen'
     | 'setPreferences'
@@ -539,6 +555,38 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         for (const entry of groups.values()) {
             get().regenerateDescriptors(entry.trackRef, entry.analysisProfileId, entry.descriptors, 'manual');
         }
+    },
+    deleteExtraneousCaches() {
+        const timelineState = useTimelineStore.getState();
+        const removeTracks = timelineState.removeAudioFeatureTracks;
+        if (typeof removeTracks !== 'function') {
+            console.warn('[audioDiagnostics] removeAudioFeatureTracks action unavailable on timeline store');
+            return;
+        }
+        const groups = new Map<string, Set<string>>();
+        for (const diff of get().diffs) {
+            if (!diff.extraneous.length) continue;
+            const sourceId = resolveAudioSourceId(diff.trackRef, timelineState);
+            let featureSet = groups.get(sourceId);
+            if (!featureSet) {
+                featureSet = new Set<string>();
+                groups.set(sourceId, featureSet);
+            }
+            for (const descriptorId of diff.extraneous) {
+                const detail = diff.descriptorDetails[descriptorId];
+                const featureKey = detail?.descriptor?.featureKey ?? extractFeatureKey(descriptorId);
+                if (featureKey) {
+                    featureSet.add(featureKey);
+                }
+            }
+        }
+        if (!groups.size) {
+            return;
+        }
+        for (const [sourceId, featureSet] of groups.entries()) {
+            removeTracks(sourceId, Array.from(featureSet));
+        }
+        get().recomputeDiffs();
     },
     dismissExtraneous(trackRef, analysisProfileId, descriptorId) {
         set((state) => {

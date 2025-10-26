@@ -173,6 +173,7 @@ export type TimelineState = {
     stopAudioFeatureAnalysis: (id: string) => void;
     restartAudioFeatureAnalysis: (id: string) => void;
     reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[]) => void;
+    removeAudioFeatureTracks: (id: string, featureKeys: string[]) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
@@ -1124,6 +1125,50 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             calculators: unique,
             statusMessage,
             mergeWithExisting: true,
+        });
+    },
+
+    removeAudioFeatureTracks(id: string, featureKeys: string[]) {
+        const unique = Array.from(new Set((featureKeys || []).filter((key): key is string => Boolean(key?.trim()))));
+        if (!unique.length) {
+            return;
+        }
+        set((s: TimelineState) => {
+            const cache = s.audioFeatureCaches[id];
+            if (!cache) {
+                return s;
+            }
+            const nextTracks = { ...cache.featureTracks };
+            let mutated = false;
+            for (const key of unique) {
+                if (nextTracks[key]) {
+                    delete nextTracks[key];
+                    mutated = true;
+                }
+            }
+            if (!mutated) {
+                return s;
+            }
+            const remainingKeys = Object.keys(nextTracks);
+            if (!remainingKeys.length) {
+                const nextCaches = { ...s.audioFeatureCaches };
+                delete nextCaches[id];
+                const nextStatus = { ...s.audioFeatureCacheStatus };
+                delete nextStatus[id];
+                return {
+                    audioFeatureCaches: nextCaches,
+                    audioFeatureCacheStatus: nextStatus,
+                } as TimelineState;
+            }
+            return {
+                audioFeatureCaches: {
+                    ...s.audioFeatureCaches,
+                    [id]: {
+                        ...cache,
+                        featureTracks: nextTracks,
+                    },
+                },
+            } as TimelineState;
         });
     },
 

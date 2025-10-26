@@ -236,4 +236,97 @@ describe('audio diagnostics store', () => {
         expect(restartSpy).not.toHaveBeenCalled();
         expect(useAudioDiagnosticsStore.getState().pendingDescriptors[`audioTrack__default`]).toBeUndefined();
     });
+
+    it('prunes extraneous cached feature tracks', () => {
+        const updatedAt = Date.now();
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 3,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 64,
+                    featureTracks: {
+                        rms: {
+                            key: 'rms',
+                            calculatorId: 'mvmnt.rms',
+                            version: 1,
+                            frameCount: 64,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                        } as any,
+                        spectrogram: {
+                            key: 'spectrogram',
+                            calculatorId: 'mvmnt.spectrogram',
+                            version: 1,
+                            frameCount: 64,
+                            channels: 2,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 1024,
+                        hopSize: 512,
+                        overlap: 0.5,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'mvmnt.rms': 1, 'mvmnt.spectrogram': 1 },
+                    },
+                    analysisProfiles: {
+                        default: {
+                            id: 'default',
+                            windowSize: 1024,
+                            hopSize: 512,
+                            overlap: 0.5,
+                            sampleRate: 44100,
+                        },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt },
+            },
+        });
+
+        publishAnalysisIntent(
+            'element-rms',
+            'audioWaveform',
+            'audioTrack',
+            [{ featureKey: 'rms', calculatorId: 'mvmnt.rms' }],
+            { profile: 'default' },
+        );
+
+        const extraneousId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'mvmnt.spectrogram' });
+        let diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        expect(diff?.extraneous).toContain(extraneousId);
+
+        useAudioDiagnosticsStore.getState().deleteExtraneousCaches();
+
+        const cache = useTimelineStore.getState().audioFeatureCaches['audioTrack'];
+        expect(Object.keys(cache?.featureTracks ?? {})).toEqual(['rms']);
+
+        diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        expect(diff?.extraneous ?? []).toHaveLength(0);
+    });
 });
