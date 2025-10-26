@@ -13,6 +13,27 @@ registerFeatureRequirements('audioOddProfile', [
     },
 ]);
 
+function formatChannelValues(values: number[], limit = 8): string {
+    if (!values.length) {
+        return '[]';
+    }
+    const slice = values.slice(0, limit).map((value) => {
+        if (!Number.isFinite(value)) {
+            return String(value);
+        }
+        if (Math.abs(value) >= 100) {
+            return value.toFixed(0);
+        }
+        if (Math.abs(value) >= 1) {
+            return value.toFixed(2);
+        }
+        return value.toFixed(3);
+    });
+    const remainder = values.length - slice.length;
+    const suffix = remainder > 0 ? `, … (+${remainder})` : '';
+    return `[${slice.join(', ')}${suffix}]`;
+}
+
 export class AudioOddProfileElement extends SceneElement {
     constructor(id: string = 'audioOddProfile', config: Record<string, unknown> = {}) {
         super('audioOddProfile', id, config);
@@ -56,9 +77,16 @@ export class AudioOddProfileElement extends SceneElement {
         const result = props.audioTrackId
             ? getFeatureData(this, props.audioTrackId, 'spectrogram', { profile: ODD_PROFILE_ID }, targetTime)
             : null;
-        const values = result?.values ?? [];
+        const sample = result?.metadata?.frame ?? null;
+        const channelValues =
+            sample?.channelValues && sample.channelValues.length
+                ? sample.channelValues
+                : result?.values?.length
+                ? [result.values]
+                : [];
+        const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
 
-        if (!values.length) {
+        if (!result || !channelValues.length) {
             return [new Rectangle(0, 0, 200, 200, '#ff0000')];
         }
 
@@ -66,9 +94,13 @@ export class AudioOddProfileElement extends SceneElement {
 
         objects.push(new Text(0, -40, `Profile: ${ODD_PROFILE_ID}`, '28px Arial', '#00ffcc'));
 
-        for (let i = 0; i < values.length; i++) {
-            objects.push(new Text(0, i * 50, `${values[i]}`, '40px Arial', '#ffffff'));
-        }
+        channelValues.forEach((values, index) => {
+            const alias = aliases?.[index];
+            const label = alias && alias.length ? `${alias} (#${index + 1})` : `Channel ${index + 1}`;
+            const y = index * 48;
+            objects.push(new Text(0, y, `${label}: ${formatChannelValues(values)}`, '32px Arial', '#ffffff'));
+        });
+
         return objects;
     }
 }

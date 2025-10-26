@@ -4,11 +4,14 @@ import {
     AudioWaveformElement,
     AudioLockedOscilloscopeElement,
 } from '@core/scene/elements';
-import { Poly, Rectangle } from '@core/render/render-objects';
+import { AudioDebugElement } from '@core/scene/elements/audio-debug';
+import { Poly, Rectangle, Text } from '@core/render/render-objects';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
 import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
+import * as sceneApi from '@audio/features/sceneApi';
+import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 
 describe('simplified audio scene elements', () => {
     beforeEach(() => {
@@ -173,5 +176,59 @@ describe('simplified audio scene elements', () => {
 
         expect(waveform).toBeInstanceOf(Poly);
         expect((waveform as Poly).strokeColor).toBe('#ff00ff');
+    });
+
+    it('summarizes channel metadata in the audio debug panel', () => {
+        vi.spyOn(audioFeatureCalculatorRegistry, 'list').mockReturnValue([
+            {
+                id: 'spectrogram-debug',
+                featureKey: 'spectrogram',
+                label: 'Spectrogram',
+                version: 1,
+                create: vi.fn(),
+            } as any,
+        ]);
+
+        vi.spyOn(sceneApi, 'getFeatureData').mockImplementation((_, __, featureKey) => {
+            if (featureKey === 'spectrogram') {
+                return {
+                    values: [0.1, 0.2, 0.3, 0.9],
+                    metadata: {
+                        descriptor: { featureKey: 'spectrogram' },
+                        frame: {
+                            channelValues: [
+                                [0.1, 0.2, 0.3],
+                                [0.9, 0.8, 0.7],
+                            ],
+                            channelAliases: ['Left', 'Right'],
+                            channels: 2,
+                            format: 'float32',
+                            frameIndex: 0,
+                            fractionalIndex: 0,
+                            hopTicks: 1,
+                        },
+                        channels: 2,
+                        channelAliases: ['Left', 'Right'],
+                        channelLayout: { semantics: 'stereo', aliases: ['Left', 'Right'] },
+                    },
+                } as any;
+            }
+            return null;
+        });
+
+        const element = new AudioDebugElement('debug', {
+            audioTrackId: 'track-1',
+            featureKey: 'spectrogram',
+            maxValuesToDisplay: 3,
+            maxMetadataEntries: 4,
+        });
+
+        const [panel] = element.buildRenderObjects({}, 1.25);
+        const textNodes = (panel as any).children.filter((child: unknown) => child instanceof Text) as Text[];
+        const content = textNodes.map((node) => node.text);
+
+        expect(content.some((line) => line.includes('Channels: 2'))).toBe(true);
+        expect(content.some((line) => line.includes('Left (#1)'))).toBe(true);
+        expect(content.some((line) => line.includes('Right (#2)'))).toBe(true);
     });
 });

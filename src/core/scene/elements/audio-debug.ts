@@ -3,6 +3,7 @@ import { Rectangle, Text, type RenderObject } from '@core/render/render-objects'
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi';
+import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { registerFeatureRequirements } from './audioElementMetadata';
 
 interface FeatureOption {
@@ -190,16 +191,22 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
         return [];
     }
     const lines: string[] = [];
+    const pushLine = (line: string) => {
+        if (lines.length < maxEntries) {
+            lines.push(line);
+        }
+    };
+
     const descriptor = result.metadata?.descriptor;
     if (descriptor) {
         const descriptorRecord = descriptor as unknown as Record<string, unknown>;
         const calculatorId = descriptorRecord.calculatorId;
         const bandIndex = descriptorRecord.bandIndex;
         if (calculatorId != null) {
-            lines.push(`Calculator: ${formatScalar(calculatorId)}`);
+            pushLine(`Calculator: ${formatScalar(calculatorId)}`);
         }
         if (bandIndex != null) {
-            lines.push(`Band Index: ${formatScalar(bandIndex)}`);
+            pushLine(`Band Index: ${formatScalar(bandIndex)}`);
         }
         if (lines.length < maxEntries) {
             const extras: Record<string, unknown> = {};
@@ -215,16 +222,55 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
         }
     }
 
+    const metadata = result.metadata;
+    const frameRecord = metadata.frame
+        ? ((metadata.frame as unknown) as Record<string, unknown>)
+        : null;
+    const rawChannelCount = metadata.channels;
+    const frameChannels = Number.isFinite((frameRecord as any)?.channels)
+        ? Number((frameRecord as any).channels)
+        : undefined;
+    const frameChannelValues = Array.isArray((frameRecord as any)?.channelValues)
+        ? ((frameRecord as any).channelValues as unknown[])
+        : null;
+    const channelCount = (() => {
+        if (typeof rawChannelCount === 'number' && Number.isFinite(rawChannelCount)) {
+            return Math.max(0, Math.floor(rawChannelCount));
+        }
+        if (typeof frameChannels === 'number' && Number.isFinite(frameChannels)) {
+            return Math.max(0, Math.floor(frameChannels));
+        }
+        if (frameChannelValues) {
+            return frameChannelValues.length;
+        }
+        return null;
+    })();
+    const aliases =
+        metadata.channelAliases && metadata.channelAliases.length
+            ? metadata.channelAliases
+            : (frameRecord as any)?.channelAliases && (frameRecord as any).channelAliases.length
+            ? ((frameRecord as any).channelAliases as string[])
+            : null;
+    const layout = metadata.channelLayout ?? ((frameRecord as any)?.channelLayout as ChannelLayoutMeta | undefined) ?? null;
+    if (channelCount != null) {
+        let line = `Channels: ${channelCount}`;
+        if (aliases?.length) {
+            line += ` · aliases: ${aliases.filter((alias) => alias?.length).join(', ')}`;
+        }
+        if (layout?.semantics) {
+            line += ` · layout: ${layout.semantics}`;
+        }
+        pushLine(line);
+    }
+
     if (lines.length >= maxEntries) {
         return lines.slice(0, maxEntries);
     }
 
-    const frame = result.metadata?.frame;
-    if (frame) {
-        const frameRecord = frame as unknown as Record<string, unknown>;
+    if (frameRecord) {
         const extras: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(frameRecord)) {
-            if (key === 'values') {
+            if (key === 'values' || key === 'channelValues' || key === 'flatValues' || key === 'channelSizes') {
                 continue;
             }
             extras[key] = value;
@@ -434,6 +480,27 @@ export class AudioDebugElement extends SceneElement {
                 const values = Array.isArray(activeResult.values) ? activeResult.values : [];
                 const valueSummary = formatArray(values, props.maxValuesToDisplay ?? 8);
                 lines.push(`Values (${values.length}): ${valueSummary}`);
+
+                const frameChannels = Array.isArray(activeResult.metadata?.frame?.channelValues)
+                    ? (activeResult.metadata.frame.channelValues as number[][])
+                    : [];
+                const frameAliasSource = (activeResult.metadata?.frame as { channelAliases?: (string | null | undefined)[] } | undefined)
+                    ?.channelAliases;
+                const aliasCandidates =
+                    (activeResult.metadata?.channelAliases && activeResult.metadata.channelAliases.length
+                        ? activeResult.metadata.channelAliases
+                        : null) ?? frameAliasSource ?? null;
+                const channelAliases = aliasCandidates && aliasCandidates.length ? aliasCandidates : null;
+                const perChannelLimit = Math.max(1, props.maxValuesToDisplay ?? 8);
+                if (frameChannels.length) {
+                    frameChannels.forEach((channel, index) => {
+                        const alias = channelAliases?.[index];
+                        const label = alias && typeof alias === 'string' && alias.length
+                            ? `${alias} (#${index + 1})`
+                            : `Channel ${index + 1}`;
+                        lines.push(`${label}: ${formatArray(channel, perChannelLimit)}`);
+                    });
+                }
 
                 const metadataLines = collectMetadataLines(activeResult, props.maxMetadataEntries ?? 6);
                 lines.push(...metadataLines);
