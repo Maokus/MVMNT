@@ -76,12 +76,17 @@ describe('audio sampling options cache behaviour', () => {
         getTempoAlignedRangeMock.mockReset();
         getTempoAlignedFrameMock.mockImplementation(() => {
             invocation += 1;
+            const value = 0.2 + invocation * 0.1;
             return {
                 sample: {
                     frameIndex: 0,
                     fractionalIndex: 0,
                     hopTicks: 120,
-                    values: [0.2 + invocation * 0.1],
+                    values: [value],
+                    channels: 1,
+                    channelValues: [[value]],
+                    channelAliases: null,
+                    channelLayout: null,
                     format: 'float32' as const,
                 },
                 diagnostics: {
@@ -138,21 +143,26 @@ describe('audio sampling options cache behaviour', () => {
         expect(getTempoAlignedFrameMock).toHaveBeenCalledTimes(1);
         expect(second).toBe(first);
         expect(first?.values[0]).toBeCloseTo(0.3, 5);
+        expect(first?.channels).toBe(1);
+        expect(first?.channelValues[0]?.[0]).toBeCloseTo(0.3, 5);
     });
 
     it('treats different smoothing radii as distinct cache entries', () => {
         const base = sampleFeatureFrame('audioTrack', descriptor, 0.05, { smoothing: 0 });
         expect(base?.values[0]).toBeCloseTo(0.3, 5);
+        expect(base?.channelValues[0]?.[0]).toBeCloseTo(0.3, 5);
         expect(getTempoAlignedFrameMock).toHaveBeenCalledTimes(1);
 
         const smoothed = sampleFeatureFrame('audioTrack', descriptor, 0.05, { smoothing: 2 });
         expect(smoothed?.values[0]).toBeCloseTo(0.4, 5);
+        expect(smoothed?.channelValues[0]?.[0]).toBeCloseTo(0.4, 5);
         expect(getTempoAlignedFrameMock).toHaveBeenCalledTimes(2);
     });
 
     it('normalizes non-finite smoothing values when caching samples', () => {
         const first = sampleFeatureFrame('audioTrack', descriptor, 0.05, { smoothing: Number.NaN });
         expect(first?.values[0]).toBeCloseTo(0.3, 5);
+        expect(first?.channelValues[0]?.[0]).toBeCloseTo(0.3, 5);
         expect(getTempoAlignedFrameMock).toHaveBeenCalledTimes(1);
 
         const second = sampleFeatureFrame('audioTrack', descriptor, 0.05, {});

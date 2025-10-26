@@ -129,6 +129,9 @@ describe('audio feature export parity', () => {
             const runtimeSample = sampleFeatureFrame('audioTrack', descriptor, time);
             expect(runtimeSample).toBeTruthy();
             runtimeVectors.push([...(runtimeSample?.values ?? [])]);
+            expect(runtimeSample?.channels).toBe(rmsTrack.channels);
+            expect(runtimeSample?.channelValues.length).toBe(rmsTrack.channels);
+            expect(runtimeSample?.channelAliases).toEqual(rmsTrack.channelAliases);
 
             const state = useTimelineStore.getState();
             const selectorSample = selectAudioFeatureFrame(
@@ -139,6 +142,10 @@ describe('audio feature export parity', () => {
             );
             expect(selectorSample).toBeTruthy();
             selectorVectors.push([...(selectorSample?.values ?? [])]);
+            expect(selectorSample?.channels).toBe(rmsTrack.channels);
+            expect(selectorSample?.channelValues.length).toBe(rmsTrack.channels);
+            expect(selectorSample?.channelAliases).toEqual(rmsTrack.channelAliases);
+            expect(selectorSample?.channelValues).toEqual(runtimeSample?.channelValues);
         }
 
         runtimeVectors.forEach((vector, index) => {
@@ -156,5 +163,6 @@ describe('audio feature export parity', () => {
         expect(runtimeSample).toBeTruthy();
         expect(selectorSample).toBeTruthy();
         expectVectorsClose(runtimeSample?.values ?? [], selectorSample?.values ?? []);
+        expect(runtimeSample?.channelValues).toEqual(selectorSample?.channelValues);
     });
 });

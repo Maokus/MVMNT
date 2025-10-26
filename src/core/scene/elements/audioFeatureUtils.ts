@@ -31,8 +31,7 @@ export function resolveFeatureContext(trackId: string | null, featureKey: string
 
 function buildSampleCacheKey(tick: number, descriptor: AudioFeatureDescriptor): string {
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
-    const calculator = descriptor.calculatorId ? `calc:${descriptor.calculatorId}` : '';
-    return `${tick}:${descriptor.featureKey}:${band}:${calculator}`;
+    return `${tick}:${descriptor.featureKey}:${band}`;
 }
 
 function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string {
@@ -44,15 +43,6 @@ function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string 
         : 0;
     const interpolation = options.interpolation ?? 'linear';
     return `smooth:${smoothing}|interp:${interpolation}`;
-}
-
-export function resolveDescriptorChannel(
-    trackId: string | null,
-    descriptor: AudioFeatureDescriptor,
-): number | null {
-    void trackId;
-    void descriptor;
-    return null;
 }
 
 function recordDiagnostics(diagnostics: TempoAlignedAdapterDiagnostics, trackId: string) {
@@ -79,7 +69,7 @@ export function sampleFeatureFrame(
     if (!context) {
         return null;
     }
-    const { cache, featureTrack } = context;
+    const { featureTrack } = context;
     const tm = getSharedTimingManager();
     const tick = tm.secondsToTicks(Math.max(0, targetTime));
     const cacheKey = buildSampleCacheKey(tick, descriptor);
