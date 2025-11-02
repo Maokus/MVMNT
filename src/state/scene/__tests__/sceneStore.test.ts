@@ -429,15 +429,16 @@ describe('sceneStore', () => {
         const bindings = store.getState().bindings.byElement['osc'];
         expect(bindings.featureBinding).toBeUndefined();
         expect(bindings.audioTrackId).toEqual({ type: 'constant', value: 'track-1' });
-        expect(bindings.features).toEqual({
-            type: 'constant',
-            value: [
-                {
-                    featureKey: 'waveform',
-                    calculatorId: 'mvmnt.waveform',
-                    bandIndex: 1,
-                },
-            ],
+        expect(bindings.features?.type).toBe('constant');
+        const featureValues = (bindings.features as any)?.value as Array<Record<string, unknown>> | undefined;
+        expect(featureValues).toBeDefined();
+        expect(featureValues).toHaveLength(1);
+        expect(featureValues?.[0]).toMatchObject({
+            featureKey: 'waveform',
+            calculatorId: 'mvmnt.waveform',
+            bandIndex: 1,
+            analysisProfileId: 'default',
+            requestedAnalysisProfileId: 'default',
         });
         expect(bindings.smoothing).toEqual({ type: 'constant', value: 0.25 });
         expect(bindings.analysisProfileId).toEqual({ type: 'constant', value: 'default' });

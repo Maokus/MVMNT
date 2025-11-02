@@ -1,3 +1,5 @@
+import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeatureTypes';
+
 /**
  * Internal metadata for audio feature requirements.
  * This is NOT user-configurable - it's implementation detail.
@@ -11,16 +13,19 @@ export interface AudioFeatureRequirement {
     calculatorId?: string;
     /** Optional analysis profile identifier to request non-default cache variants */
     profile?: string;
+    /** Optional inline overrides applied to the base analysis profile. */
+    profileParams?: AudioAnalysisProfileOverrides;
 }
 
 const ELEMENT_FEATURE_REQUIREMENTS = new Map<string, AudioFeatureRequirement[]>();
 
 function cloneRequirement(requirement: AudioFeatureRequirement): AudioFeatureRequirement {
-    const { feature, bandIndex, calculatorId, profile } = requirement;
+    const { feature, bandIndex, calculatorId, profile, profileParams } = requirement;
     const cloned: AudioFeatureRequirement = { feature };
     if (bandIndex != null) cloned.bandIndex = bandIndex;
     if (calculatorId != null) cloned.calculatorId = calculatorId;
     if (profile != null) cloned.profile = profile;
+    if (profileParams != null) cloned.profileParams = { ...profileParams };
     return cloned;
 }
 

@@ -1,9 +1,15 @@
 import { create } from 'zustand';
-import type { AudioFeatureCache, AudioFeatureDescriptor, ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
+import type {
+    AudioFeatureAnalysisProfileDescriptor,
+    AudioFeatureCache,
+    AudioFeatureDescriptor,
+    ChannelLayoutMeta,
+} from '@audio/features/audioFeatureTypes';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import {
     buildDescriptorId,
+    buildDescriptorIdentityKey,
     buildDescriptorMatchKey,
     buildDescriptorLabel,
     subscribeToAnalysisIntents,
@@ -21,16 +27,20 @@ interface DescriptorInfo {
     descriptor: AudioFeatureDescriptor;
     descriptorId: string;
     matchKey: string;
+    identityKey: string;
     profileId: string | null;
     profileKey: string;
     requestKey: string;
+    profileOverridesHash: string | null;
 }
 
 interface RequirementDiagnostic {
     requirement: AudioFeatureRequirement;
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+    identityKey: string;
     profileKey: string;
+    requestKey: string;
     satisfied: boolean;
 }
 
@@ -52,6 +62,7 @@ interface AnalysisIntentRecord {
     autoManaged: boolean;
     requirementDiagnostics: RequirementDiagnostic[];
     unexpectedDescriptors: string[];
+    profileRegistryDelta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 }
 
 export type CacheDiffStatus = 'clear' | 'issues';
@@ -182,8 +193,12 @@ function normalizeProfileKey(value: string | null | undefined): string {
     return sanitized ?? DEFAULT_PROFILE_KEY;
 }
 
-function buildDescriptorRequestKey(matchKey: string, profileKey: string): string {
-    return `${matchKey}|profile:${profileKey}`;
+function buildDescriptorRequestKey(matchKey: string, profileKey: string, profileHash?: string | null): string {
+    const parts = [`${matchKey}`, `profile:${profileKey}`];
+    if (profileHash && profileHash.length) {
+        parts.push(`hash:${profileHash}`);
+    }
+    return parts.join('|');
 }
 
 function isDescriptorKnown(
@@ -209,9 +224,11 @@ interface CachedDescriptorInfo {
     id: string;
     descriptor: AudioFeatureDescriptor;
     matchKey: string;
+    identityKey: string;
     profileId: string | null;
     profileKey: string;
     requestKey: string;
+    profileOverridesHash: string | null;
     channelCount: number | null;
     channelAliases: string[] | null;
     channelLayout: ChannelLayoutMeta | null;
@@ -238,26 +255,32 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
     for (const track of Object.values(cache.featureTracks ?? {})) {
         if (!track) continue;
         const identity = parseFeatureTrackKey(track.key);
-        const base: AudioFeatureDescriptor = {
-            featureKey: identity.featureKey || track.key,
-            calculatorId: track.calculatorId,
-            bandIndex: null,
-        };
-        const baseId = buildDescriptorId(base);
-        const baseMatch = buildDescriptorMatchKey(base);
         const profileId = sanitizeProfileId(
             track.analysisProfileId ?? identity.analysisProfileId ?? cache.defaultAnalysisProfileId ?? null
         );
         const profileKey = normalizeProfileKey(profileId);
-        const requestKey = buildDescriptorRequestKey(baseMatch, profileKey);
+        const base: AudioFeatureDescriptor = {
+            featureKey: identity.featureKey || track.key,
+            calculatorId: track.calculatorId,
+            bandIndex: null,
+            analysisProfileId: profileId,
+            requestedAnalysisProfileId: profileId,
+            profileOverridesHash: null,
+        };
+        const baseId = buildDescriptorId(base);
+        const baseMatch = buildDescriptorMatchKey(base);
+        const identityKey = buildDescriptorIdentityKey(base);
+        const requestKey = buildDescriptorRequestKey(baseMatch, profileKey, null);
         const meta = resolveChannelMetadata(track, cache);
         entries.set(requestKey, {
             id: baseId,
             descriptor: base,
             matchKey: baseMatch,
+            identityKey,
             profileId,
             profileKey,
             requestKey,
+            profileOverridesHash: null,
             channelCount: meta.channelCount,
             channelAliases: meta.channelAliases,
             channelLayout: meta.channelLayout,
@@ -358,7 +381,7 @@ function computeCacheDiffs(
         }
 
         for (const requirement of record.requirementDiagnostics ?? []) {
-            requiredRequestKeys.add(buildDescriptorRequestKey(requirement.matchKey, requirement.profileKey));
+            requiredRequestKeys.add(requirement.requestKey);
         }
     }
 
@@ -566,18 +589,26 @@ const initialState: Omit<
 export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get) => ({
     ...initialState,
     publishIntent(intent: AnalysisIntent) {
-        const profileId = sanitizeProfileId(intent.analysisProfileId);
-        const profileKey = normalizeProfileKey(profileId);
+        const intentProfileId = sanitizeProfileId(intent.analysisProfileId);
         const descriptors: Record<string, DescriptorInfo> = {};
         for (const entry of intent.descriptors) {
-            const requestKey = buildDescriptorRequestKey(entry.matchKey, profileKey);
+            const descriptorProfileId = sanitizeProfileId(
+                entry.descriptor.analysisProfileId ?? entry.descriptor.requestedAnalysisProfileId ?? intentProfileId
+            );
+            const profileKey = normalizeProfileKey(descriptorProfileId);
+            const matchKey = entry.matchKey;
+            const identityKey = buildDescriptorIdentityKey(entry.descriptor);
+            const profileOverridesHash = entry.descriptor.profileOverridesHash ?? null;
+            const requestKey = buildDescriptorRequestKey(matchKey, profileKey, profileOverridesHash);
             descriptors[requestKey] = {
                 descriptor: entry.descriptor,
                 descriptorId: entry.id,
-                matchKey: entry.matchKey,
-                profileId,
+                matchKey,
+                identityKey,
+                profileId: descriptorProfileId,
                 profileKey,
                 requestKey,
+                profileOverridesHash,
             };
         }
         const requirements = getFeatureRequirements(intent.elementType);
@@ -587,27 +618,34 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                 bandIndex: requirement.bandIndex ?? undefined,
                 calculatorId: requirement.calculatorId ?? undefined,
                 profile: requirement.profile ?? undefined,
+                profileParams: requirement.profileParams ?? undefined,
             });
-            const requirementProfileId = sanitizeProfileId(profile);
+            const requirementProfileId = sanitizeProfileId(
+                descriptor.analysisProfileId ?? descriptor.requestedAnalysisProfileId ?? profile ?? null
+            );
             const requirementProfileKey = normalizeProfileKey(requirementProfileId);
+            const matchKey = buildDescriptorMatchKey(descriptor);
+            const profileOverridesHash = descriptor.profileOverridesHash ?? null;
             return {
                 requirement,
                 descriptor,
-                matchKey: buildDescriptorMatchKey(descriptor),
+                matchKey,
+                identityKey: buildDescriptorIdentityKey(descriptor),
                 profileKey: requirementProfileKey,
+                requestKey: buildDescriptorRequestKey(matchKey, requirementProfileKey, profileOverridesHash),
             };
         });
-        const descriptorRequestKeys = new Set(Object.values(descriptors).map((entry) => entry.requestKey));
+        const descriptorRequestKeys = new Set(Object.keys(descriptors));
         const requirementDiagnostics: RequirementDiagnostic[] = normalizedRequirements.map((entry) => ({
             requirement: entry.requirement,
             descriptor: entry.descriptor,
             matchKey: entry.matchKey,
+            identityKey: entry.identityKey,
             profileKey: entry.profileKey,
-            satisfied: descriptorRequestKeys.has(buildDescriptorRequestKey(entry.matchKey, entry.profileKey)),
+            requestKey: entry.requestKey,
+            satisfied: descriptorRequestKeys.has(entry.requestKey),
         }));
-        const requirementKeys = new Set(
-            normalizedRequirements.map((entry) => buildDescriptorRequestKey(entry.matchKey, entry.profileKey))
-        );
+        const requirementKeys = new Set(normalizedRequirements.map((entry) => entry.requestKey));
         const unexpectedDescriptors = Object.values(descriptors)
             .map((entry) => entry.requestKey)
             .filter((key) => !requirementKeys.has(key));
@@ -619,12 +657,13 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                     elementId: intent.elementId,
                     elementType: intent.elementType,
                     trackRef: intent.trackRef,
-                    analysisProfileId: profileId,
+                    analysisProfileId: intentProfileId,
                     descriptors,
                     requestedAt: intent.requestedAt,
                     autoManaged,
                     requirementDiagnostics,
                     unexpectedDescriptors,
+                    profileRegistryDelta: intent.profileRegistryDelta ?? null,
                 },
             },
         }));

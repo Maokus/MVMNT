@@ -4,9 +4,11 @@ import {
     resetAnalysisIntentStateForTests,
     buildDescriptorMatchKey,
 } from '@audio/features/analysisIntents';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { useTimelineStore } from '@state/timelineStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
+import { sanitizeAnalysisProfileId } from '@audio/features/featureTrackIdentity';
 
 function resetStores() {
     useTimelineStore.getState().resetTimeline();
@@ -81,6 +83,51 @@ describe('audio diagnostics store', () => {
         expect(detail.channelAliases).toBeNull();
         expect(detail.channelLayout).toBeNull();
         expect(detail.analysisProfileId).toBe('default');
+    });
+
+    it('tracks profile override descriptors with unique identities', () => {
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+        });
+
+        const fast = createFeatureDescriptor({
+            feature: 'spectrogram',
+            profileParams: { windowSize: 512 },
+        });
+        const slow = createFeatureDescriptor({
+            feature: 'spectrogram',
+            profileParams: { windowSize: 4096 },
+        });
+
+        publishAnalysisIntent('element-adhoc', 'audioSpectrum', 'audioTrack', [fast.descriptor, slow.descriptor]);
+
+        const diff = useAudioDiagnosticsStore.getState().diffs[0];
+        expect(diff).toBeDefined();
+
+        const fastMatchKey = buildDescriptorMatchKey(fast.descriptor);
+        const slowMatchKey = buildDescriptorMatchKey(slow.descriptor);
+        const fastProfileKey = sanitizeAnalysisProfileId(fast.descriptor.analysisProfileId) ?? 'default';
+        const slowProfileKey = sanitizeAnalysisProfileId(slow.descriptor.analysisProfileId) ?? 'default';
+        const fastKey = `${fastMatchKey}|profile:${fastProfileKey}|hash:${fast.descriptor.profileOverridesHash}`;
+        const slowKey = `${slowMatchKey}|profile:${slowProfileKey}|hash:${slow.descriptor.profileOverridesHash}`;
+
+        expect(fastKey).not.toBe(slowKey);
+        expect(diff.descriptorsRequested).toEqual(expect.arrayContaining([fastKey, slowKey]));
+        expect(diff.missing).toEqual(expect.arrayContaining([fastKey, slowKey]));
+        expect(diff.descriptorDetails[fastKey]?.analysisProfileId).toBe(fast.descriptor.analysisProfileId);
+        expect(diff.descriptorDetails[slowKey]?.analysisProfileId).toBe(slow.descriptor.analysisProfileId);
     });
 
     it('flags unsupported descriptors as bad requests', () => {

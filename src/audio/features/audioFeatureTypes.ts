@@ -20,10 +20,37 @@ export type AudioFeatureTrackData =
  * so caches can be shared across elements that render the same data differently.
  * For a guided overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
  */
+export interface CanonicalAnalysisProfile {
+    windowSize: number;
+    hopSize: number;
+    overlap: number;
+    sampleRate: number;
+    fftSize?: number | null;
+    minDecibels?: number | null;
+    maxDecibels?: number | null;
+    window?: string | null;
+}
+
+export interface AudioFeatureAnalysisProfileDescriptor extends CanonicalAnalysisProfile {
+    id: string;
+}
+
+export type AudioAnalysisProfileOverrides = Partial<CanonicalAnalysisProfile>;
+
 export interface AudioFeatureDescriptor {
     featureKey: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
+    /** Optional identifier for the resolved analysis profile. */
+    analysisProfileId?: string | null;
+    /** Identifier of the base profile prior to applying overrides. */
+    requestedAnalysisProfileId?: string | null;
+    /** Sanitized overrides applied to the base analysis profile. */
+    profileOverrides?: AudioAnalysisProfileOverrides | null;
+    /** Hash representing the merged profile parameters for ad-hoc overrides. */
+    profileOverridesHash?: string | null;
+    /** Locally scoped profiles that should be registered alongside this descriptor. */
+    profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 }
 
 /**
@@ -93,18 +120,6 @@ export interface AudioFeatureAnalysisParams {
     window?: string;
     tempoMapHash?: string;
     calculatorVersions: Record<string, number>;
-}
-
-export interface AudioFeatureAnalysisProfileDescriptor {
-    id: string;
-    windowSize: number;
-    hopSize: number;
-    overlap: number;
-    sampleRate: number;
-    fftSize?: number | null;
-    minDecibels?: number | null;
-    maxDecibels?: number | null;
-    window?: string | null;
 }
 
 export interface AudioFeatureCache {

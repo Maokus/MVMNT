@@ -1,5 +1,6 @@
-import type { AudioFeatureDescriptor } from './audioFeatureTypes';
+import type { AudioFeatureAnalysisProfileDescriptor, AudioFeatureDescriptor } from './audioFeatureTypes';
 import { getDefaultProfile } from './audioFeatureRegistry';
+import { DEFAULT_ANALYSIS_PROFILE_ID } from './featureTrackIdentity';
 
 export interface AnalysisIntentDescriptor {
     id: string;
@@ -14,6 +15,7 @@ export interface AnalysisIntent {
     analysisProfileId: string | null;
     descriptors: AnalysisIntentDescriptor[];
     requestedAt: string;
+    profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 }
 
 export type AnalysisIntentEvent = { type: 'publish'; intent: AnalysisIntent } | { type: 'clear'; elementId: string };
@@ -51,6 +53,43 @@ type DescriptorList = (AudioFeatureDescriptor | null | undefined)[];
 
 export interface PublishAnalysisIntentOptions {
     profile?: string | null;
+    profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
+}
+
+function stableStringify(value: unknown): string {
+    if (value == null) {
+        return 'null';
+    }
+    if (typeof value === 'string') {
+        return JSON.stringify(value);
+    }
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value.toString() : JSON.stringify(value);
+    }
+    if (typeof value === 'boolean') {
+        return value ? 'true' : 'false';
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+    if (typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, unknown>)
+            .filter(([, v]) => v !== undefined)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
+        return `{${entries.join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function hashRegistryDelta(delta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null | undefined): string {
+    if (!delta || !Object.keys(delta).length) {
+        return 'null';
+    }
+    const parts = Object.keys(delta)
+        .sort()
+        .map((key) => `${key}:${stableStringify(delta[key])}`);
+    return parts.join('|');
 }
 
 export function buildDescriptorId(descriptor: AudioFeatureDescriptor): string {
@@ -69,12 +108,28 @@ export function buildDescriptorMatchKey(descriptor: AudioFeatureDescriptor): str
     return `match:${parts.join('|')}`;
 }
 
+export function buildDescriptorIdentityKey(descriptor: AudioFeatureDescriptor): string {
+    const base = buildDescriptorMatchKey(descriptor);
+    const profileComponent =
+        descriptor?.profileOverridesHash ??
+        descriptor?.analysisProfileId ??
+        descriptor?.requestedAnalysisProfileId ??
+        null;
+    if (!profileComponent || profileComponent === DEFAULT_ANALYSIS_PROFILE_ID) {
+        return base;
+    }
+    return `${base}|profile:${profileComponent}`;
+}
+
 function hashIntentPayload(intent: Omit<AnalysisIntent, 'requestedAt'>): string {
     const descriptors = [...intent.descriptors]
-        .map((entry) => `${entry.id}:${entry.matchKey}`)
+        .map((entry) => `${entry.id}:${buildDescriptorIdentityKey(entry.descriptor)}`)
         .sort()
         .join(';');
-    return `${intent.elementType}|${intent.trackRef}|${intent.analysisProfileId ?? 'null'}|${descriptors}`;
+    const registrySignature = hashRegistryDelta(intent.profileRegistryDelta ?? null);
+    return `${intent.elementType}|${intent.trackRef}|${
+        intent.analysisProfileId ?? 'null'
+    }|${descriptors}|${registrySignature}`;
 }
 
 export function publishAnalysisIntent(
@@ -149,6 +204,7 @@ export function publishAnalysisIntent(
         trackRef,
         analysisProfileId: resolvedProfile,
         descriptors: descriptorEntries,
+        profileRegistryDelta: options?.profileRegistryDelta ?? null,
     };
     const fingerprint = hashIntentPayload(payload);
     if (lastIntentHashes.get(elementId) === fingerprint) {
