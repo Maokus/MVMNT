@@ -16,6 +16,7 @@ import {
     AudioVolumeMeterElement,
     AudioWaveformElement,
     AudioLockedOscilloscopeElement,
+    AudioAdhocProfileElement,
 } from '@core/scene/elements';
 import { AudioMinimalElement } from '../elements/audio-minimal';
 import { AudioOddProfileElement } from '../elements/audio-odd-profile';
@@ -161,6 +162,11 @@ export class SceneElementRegistry {
             'audioOddProfile',
             (config) => new AudioOddProfileElement(config.id || 'audioOddProfile', config),
             AudioOddProfileElement.getConfigSchema()
+        );
+        this.registerElement(
+            'audioAdhocProfile',
+            (config) => new AudioAdhocProfileElement(config.id || 'audioAdhocProfile', config),
+            AudioAdhocProfileElement.getConfigSchema()
         );
         this.registerElement(
             'audioBadReq',

@@ -17,6 +17,21 @@ registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 -   Call the function at module scope so requirements are registered when the element loads.
 -   Requirements are internal metadata: they do **not** appear in the property panel.
 -   Use multiple entries when the element needs several features. Multi-channel payloads are handled at runtime using the values returned from `getFeatureData`.
+-   Need custom analyzer parameters? Provide a `profileParams` override and the runtime will mint an ad-hoc profile ID automatically:
+
+    ```ts
+    registerFeatureRequirements('audioAdhocProfile', [
+        {
+            feature: 'spectrogram',
+            profileParams: {
+                windowSize: 4096,
+                hopSize: 1024,
+            },
+        },
+    ]);
+    ```
+
+    The overrides map to `AudioAnalysisProfileOverrides` and are sanitized before hashing, so you can safely omit properties or pass `null` for values such as `fftSize`.
 
 ## 2. Sample during render
 

@@ -32,6 +32,14 @@
 			"group": "build",
 			"isBackground": false,
 			"problemMatcher": []
-		}
+		},
+		{
+			"label": "Run NPM Install",
+			"type": "shell",
+			"command": "npm run install",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
 	]
 }

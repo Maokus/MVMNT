@@ -19,6 +19,9 @@ into implementation details or when mentoring teammates on the new flow.
 -   **Internal**: Feature requirements live inside the element module via
     `registerFeatureRequirements`. They are invisible to end users and declare which analysis tracks
     the element needs to function.
+-   Inline overrides belong here too: add `profileParams` to a requirement when you need a bespoke
+    analysis profile. The runtime merges the overrides, generates an `adhoc-…` ID, and publishes it
+    alongside the descriptor without touching global registries.
 -   **External**: Element properties exposed through config schemas (`getConfigSchema`) remain the
     only knobs users see. Bind smoothing, colors, thresholds, and other presentation controls here.
 -   This separation keeps presets portable and ensures migrations can adjust metadata without touching

@@ -25,3 +25,4 @@ export { AudioSpectrumElement } from './audio-spectrum';
 export { AudioVolumeMeterElement } from './audio-volume-meter';
 export { AudioWaveformElement } from './audio-waveform';
 export { AudioLockedOscilloscopeElement } from './audio-locked-oscilloscope';
+export { AudioAdhocProfileElement } from './audio-adhoc-profile';
