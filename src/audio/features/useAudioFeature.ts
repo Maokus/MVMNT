@@ -4,7 +4,6 @@ import {
     getFeatureData,
     type FeatureDataResult,
     type FeatureInput,
-    type FeatureOptions,
     type SceneFeatureElementRef,
 } from './sceneApi';
 import type { AudioSamplingOptions } from './audioFeatureTypes';
@@ -52,7 +51,6 @@ export interface UseAudioFeatureResult {
 export function useAudioFeature(
     trackId: string | null | undefined,
     feature: FeatureInput,
-    options?: FeatureOptions | null,
     samplingOptions?: AudioSamplingOptions | null,
 ): UseAudioFeatureResult {
     const stateRef = useRef<HookState | null>(null);
@@ -62,12 +60,11 @@ export function useAudioFeature(
 
     const normalizedTrackId = normalizeTrackId(trackId);
     const featureKey = useMemo(() => stableSerialize(feature), [feature]);
-    const optionsKey = useMemo(() => stableSerialize(options ?? null), [options]);
     const samplingKey = useMemo(() => stableSerialize(samplingOptions ?? null), [samplingOptions]);
 
     useEffect(() => {
         stateRef.current!.lastResult = null;
-    }, [normalizedTrackId, featureKey, optionsKey, samplingKey]);
+    }, [normalizedTrackId, featureKey, samplingKey]);
 
     useEffect(() => () => {
         if (stateRef.current) {
@@ -90,7 +87,6 @@ export function useAudioFeature(
                 elementRef,
                 normalizedTrackId,
                 feature,
-                options ?? undefined,
                 time,
                 samplingOptions ?? undefined,
             );
@@ -99,7 +95,7 @@ export function useAudioFeature(
             }
             return result;
         },
-        [normalizedTrackId, feature, options, samplingOptions],
+        [normalizedTrackId, feature, samplingOptions],
     );
 
     const isLoading = Boolean(normalizedTrackId) && stateRef.current?.lastResult == null;

@@ -75,7 +75,7 @@ export class AudioOddProfileElement extends SceneElement {
         const props = this.getSchemaProps();
 
         const result = props.audioTrackId
-            ? getFeatureData(this, props.audioTrackId, 'spectrogram', { profile: ODD_PROFILE_ID }, targetTime)
+            ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime)
             : null;
         const sample = result?.metadata?.frame ?? null;
         const channelValues =

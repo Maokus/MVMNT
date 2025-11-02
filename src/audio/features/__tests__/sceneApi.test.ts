@@ -71,20 +71,6 @@ describe('sceneApi', () => {
             expect(clearSpy).toHaveBeenCalledWith('element-1');
         });
 
-        it('maps legacy smoothing option into sampling options', () => {
-            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
-            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-            getFeatureData(element, 'track-1', 'rms', { smoothing: 5 } as any, 0.75);
-
-            expect(spy).toHaveBeenCalled();
-            const [, descriptor, time, sampling] = spy.mock.calls.at(-1)!;
-            expect(descriptor).toMatchObject({ featureKey: 'rms' });
-            expect((descriptor as any).smoothing).toBeUndefined();
-            expect(time).toBeCloseTo(0.75);
-            expect(sampling).toMatchObject({ smoothing: 5 });
-            warnSpy.mockRestore();
-        });
-
         it('accepts explicit sampling options parameter', () => {
             const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
             getFeatureData(element, 'track-1', 'rms', 1.25, { smoothing: 2, interpolation: 'nearest' });
@@ -122,6 +108,19 @@ describe('sceneApi', () => {
             const firstId = analysisIntents.buildDescriptorId(firstDescriptors[0] as any);
             const secondId = analysisIntents.buildDescriptorId(secondDescriptors[0] as any);
             expect(secondId).toBe(firstId);
+        });
+
+        it('preserves existing descriptor profiles when sampling', () => {
+            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor], 'oddProfile');
+            publishSpy.mockClear();
+
+            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 0.5);
+
+            expect(result?.values).toEqual([0.5]);
+            expect(spy).toHaveBeenCalled();
+            expect(publishSpy).not.toHaveBeenCalled();
         });
     });
 

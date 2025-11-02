@@ -13,7 +13,6 @@ import {
     createFeatureDescriptor,
     type FeatureDescriptorBuildResult,
     type FeatureDescriptorBuilderOptions,
-    type FeatureDescriptorUpdateOptions,
 } from './descriptorBuilder';
 import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
@@ -30,12 +29,6 @@ export interface SceneFeatureElementRef {
 }
 
 export type FeatureInput = string | AudioFeatureDescriptor;
-
-export interface FeatureOptions {
-    bandIndex?: number | null;
-    calculatorId?: string | null;
-    profile?: string | null;
-}
 
 export interface FeatureDataMetadata {
     descriptor: AudioFeatureDescriptor;
@@ -88,29 +81,14 @@ function resolveElementIdentity(element: SceneFeatureElementRef | object): { id:
     return { id: null, type: 'unknown' };
 }
 
-type LegacyFeatureOptions = FeatureOptions & { smoothing?: number | null };
-
-function buildDescriptor(
-    feature: FeatureInput,
-    options?: FeatureOptions,
-): FeatureDescriptorBuildResult {
+function buildDescriptor(feature: FeatureInput): FeatureDescriptorBuildResult {
     if (typeof feature === 'string') {
         const builderOptions: FeatureDescriptorBuilderOptions = {
             feature,
-            bandIndex: options?.bandIndex ?? undefined,
-            calculatorId: options?.calculatorId ?? undefined,
-            profile: options?.profile ?? undefined,
         };
         return createFeatureDescriptor(builderOptions);
     }
-    const updateOptions: FeatureDescriptorUpdateOptions | undefined = options
-        ? {
-              bandIndex: options.bandIndex,
-              calculatorId: options.calculatorId,
-              profile: options.profile,
-          }
-        : undefined;
-    return createFeatureDescriptor(feature, updateOptions);
+    return createFeatureDescriptor(feature);
 }
 
 function publishIfNeeded(
@@ -150,60 +128,10 @@ function upsertDescriptorEntry(state: ElementIntentState, entry: DescriptorEntry
     return false;
 }
 
-function resolveInvocation(
-    optionsOrTime?: FeatureOptions | number | null,
-    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
-    maybeSampling?: AudioSamplingOptions | null,
-): { options: FeatureOptions | undefined; sampling: AudioSamplingOptions | undefined; time: number } {
-    let descriptorOptions: FeatureOptions | undefined;
-    let samplingOptions: AudioSamplingOptions | undefined;
-    let time = 0;
-
-    if (typeof optionsOrTime === 'number') {
-        time = optionsOrTime;
-        samplingOptions = (maybeTimeOrSampling as AudioSamplingOptions | undefined) ?? undefined;
-    } else {
-        descriptorOptions = optionsOrTime ?? undefined;
-        if (typeof maybeTimeOrSampling === 'number') {
-            time = maybeTimeOrSampling;
-            samplingOptions = maybeSampling ?? undefined;
-        } else if (maybeTimeOrSampling && typeof maybeTimeOrSampling === 'object') {
-            samplingOptions = maybeTimeOrSampling ?? undefined;
-        }
-    }
-
-    const legacy = descriptorOptions as LegacyFeatureOptions | undefined;
-    if (legacy && Object.prototype.hasOwnProperty.call(legacy, 'smoothing')) {
-        const { smoothing, ...rest } = legacy;
-        descriptorOptions = rest;
-        if (smoothing != null) {
-            const radius = typeof smoothing === 'number' && Number.isFinite(smoothing) ? smoothing : undefined;
-            samplingOptions = {
-                ...(samplingOptions ?? {}),
-                ...(radius != null ? { smoothing: radius } : {}),
-            };
-        }
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn(
-                '[sceneApi] getFeatureData legacy signature detected: smoothing passed in descriptor options. ' +
-                    'Pass smoothing via the samplingOptions argument instead.',
-            );
-        }
-    }
-
-    return {
-        options: descriptorOptions,
-        sampling: samplingOptions ?? undefined,
-        time,
-    };
-}
-
 /**
  * Lazily sample audio feature data for the provided element.
  *
- * Passing descriptor options as the fourth argument preserves backward compatibility with
- * legacy call signatures. Prefer the modern signature shown in the docs:
- * `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`.
+ * Sampling options describe presentation-time adjustments applied after retrieving cached data.
  *
  * @see ../../../docs/audio/quickstart.md
  * @see ../../../docs/audio/audio-cache-system.md
@@ -214,24 +142,7 @@ export function getFeatureData(
     feature: FeatureInput,
     time: number,
     samplingOptions?: AudioSamplingOptions | null,
-): FeatureDataResult | null;
-export function getFeatureData(
-    element: SceneFeatureElementRef | object,
-    trackId: string | null | undefined,
-    feature: FeatureInput,
-    options: FeatureOptions | null | undefined,
-    time: number,
-    samplingOptions?: AudioSamplingOptions | null,
-): FeatureDataResult | null;
-export function getFeatureData(
-    element: SceneFeatureElementRef | object,
-    trackId: string | null | undefined,
-    feature: FeatureInput,
-    optionsOrTime?: FeatureOptions | number | null,
-    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
-    maybeSampling?: AudioSamplingOptions | null,
 ): FeatureDataResult | null {
-    const { options, sampling, time } = resolveInvocation(optionsOrTime, maybeTimeOrSampling, maybeSampling);
     const normalizedTrackId = normalizeTrackId(trackId);
     const identity = resolveElementIdentity(element);
 
@@ -239,9 +150,6 @@ export function getFeatureData(
         clearFeatureData(element);
         return null;
     }
-
-    const { descriptor, profile } = buildDescriptor(feature, options);
-    const descriptorId = buildDescriptorId(descriptor);
 
     let state = elementStates.get(element as object);
     let publishNeeded = false;
@@ -259,6 +167,12 @@ export function getFeatureData(
         publishNeeded = true;
     }
 
+    const { descriptor, profile: defaultProfile } = buildDescriptor(feature);
+    const descriptorId = buildDescriptorId(descriptor);
+    const matchKey = buildDescriptorMatchKey(descriptor);
+    const existingEntry = state.descriptors.get(matchKey);
+    const profile = existingEntry?.profile ?? defaultProfile;
+
     if (upsertDescriptorEntry(state, { descriptor, id: descriptorId, profile })) {
         publishNeeded = true;
     }
@@ -267,7 +181,7 @@ export function getFeatureData(
         publishIfNeeded(element, state, identity);
     }
 
-    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, sampling);
+    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, samplingOptions ?? undefined);
     if (!sample) {
         return null;
     }
