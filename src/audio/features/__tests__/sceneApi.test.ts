@@ -8,6 +8,7 @@ import {
 } from '@audio/features/sceneApi';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 
 const element = { id: 'element-1', type: 'testElement' };
 
@@ -120,6 +121,41 @@ describe('sceneApi', () => {
 
             expect(result?.values).toEqual([0.5]);
             expect(spy).toHaveBeenCalled();
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('avoids registering duplicate descriptors when requirements use non-default profiles', () => {
+            const built = createFeatureDescriptor({ feature: 'spectrogram', profile: 'oddProfile' });
+            syncElementFeatureIntents(element, 'track-1', [built.descriptor], built.profile ?? undefined);
+            publishSpy.mockClear();
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 1.25);
+
+            expect(result?.metadata.descriptor.analysisProfileId).toBe('oddProfile');
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('reuses descriptors that specify profile overrides rather than creating defaults', () => {
+            const built = createFeatureDescriptor({
+                feature: 'spectrogram',
+                profileParams: {
+                    windowSize: 4096,
+                    hopSize: 1024,
+                    window: 'hann',
+                },
+            });
+            syncElementFeatureIntents(
+                element,
+                'track-1',
+                [built.descriptor],
+                built.profile ?? undefined,
+                built.profileRegistryDelta ?? undefined
+            );
+            publishSpy.mockClear();
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 2.5);
+
+            expect(result?.metadata.descriptor.profileOverridesHash).toBe(built.descriptor.profileOverridesHash);
             expect(publishSpy).not.toHaveBeenCalled();
         });
     });

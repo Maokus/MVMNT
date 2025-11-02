@@ -7,6 +7,7 @@ import type {
 import {
     buildDescriptorId,
     buildDescriptorIdentityKey,
+    buildDescriptorMatchKey,
     clearAnalysisIntent,
     publishAnalysisIntent,
 } from './analysisIntents';
@@ -184,13 +185,29 @@ export function getFeatureData(
 
     const workingState = state!;
 
-    const { descriptor, profile: defaultProfile } = buildDescriptor(feature);
-    const descriptorId = buildDescriptorId(descriptor);
+    const { descriptor: builtDescriptor, profile: defaultProfile } = buildDescriptor(feature);
+    let descriptor = builtDescriptor;
+    let descriptorId = buildDescriptorId(descriptor);
     const identityKey = buildDescriptorIdentityKey(descriptor);
-    const existingEntry = workingState.descriptors.get(identityKey);
-    const profile = existingEntry?.profile ?? descriptor.analysisProfileId ?? defaultProfile;
+    let entry = workingState.descriptors.get(identityKey);
 
-    if (upsertDescriptorEntry(workingState, { descriptor, id: descriptorId, profile })) {
+    if (!entry) {
+        const matchKey = buildDescriptorMatchKey(descriptor);
+        for (const candidate of workingState.descriptors.values()) {
+            if (buildDescriptorMatchKey(candidate.descriptor) === matchKey) {
+                entry = candidate;
+                break;
+            }
+        }
+    }
+
+    let profile = descriptor.analysisProfileId ?? defaultProfile;
+
+    if (entry) {
+        descriptor = entry.descriptor;
+        descriptorId = entry.id;
+        profile = entry.profile ?? descriptor.analysisProfileId ?? profile;
+    } else if (upsertDescriptorEntry(workingState, { descriptor, id: descriptorId, profile })) {
         publishNeeded = true;
     }
 
