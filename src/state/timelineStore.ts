@@ -895,16 +895,14 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         [id]: { ...(s.tracks[id] as any), audioSourceId: id },
                     },
                 };
-                if (!options?.skipAutoAnalysis) {
-                    updates.audioFeatureCacheStatus = updateAudioFeatureStatusEntry(
-                        s.audioFeatureCacheStatus,
-                        id,
-                        'pending',
-                        'analyzing audio',
-                        undefined,
-                        { value: 0, label: 'preparing' }
-                    );
-                }
+                updates.audioFeatureCacheStatus = updateAudioFeatureStatusEntry(
+                    s.audioFeatureCacheStatus,
+                    id,
+                    'idle',
+                    'analysis not started',
+                    undefined,
+                    null
+                );
                 return updates as TimelineState;
             });
             // Kick off async peak extraction (non-blocking)
@@ -936,9 +934,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     );
                 }
             })();
-            if (!options?.skipAutoAnalysis) {
-                scheduleAudioFeatureAnalysis(id, buffer, get, set);
-            }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error(

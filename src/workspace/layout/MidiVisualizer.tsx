@@ -24,6 +24,7 @@ import { clearStoredImportPayload, readStoredImportPayload } from '@utils/import
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsBanner } from '@workspace/components/CacheDiagnosticsBanner';
+import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { isFeatureEnabled } from '@utils/featureFlags';
 
@@ -276,6 +277,7 @@ const MidiVisualizerInner: React.FC = () => {
                     <RenderModal onClose={() => setShowRenderModal(false)} />
                 </Suspense>
             )}
+            <CacheDiagnosticsPopup />
         </div>
     );
 };

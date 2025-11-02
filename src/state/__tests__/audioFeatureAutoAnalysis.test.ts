@@ -23,7 +23,7 @@ function makeTestAudioBuffer(durationSeconds: number, sampleRate = 8000, channel
     } as unknown as AudioBuffer;
 }
 
-describe('timeline audio feature auto analysis', () => {
+describe('timeline audio feature analysis scheduling', () => {
     beforeEach(() => {
         useTimelineStore.getState().resetTimeline();
         useTimelineStore.setState((state) => ({
@@ -44,41 +44,16 @@ describe('timeline audio feature auto analysis', () => {
         }));
     });
 
-    it('analyzes audio automatically after ingestion', async () => {
-        const previous = process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS;
-        process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS = 'true';
+    it('does not analyze audio automatically after ingestion', async () => {
         const buffer = makeTestAudioBuffer(0.1);
-        try {
-            useTimelineStore.getState().ingestAudioToCache('autoTrack', buffer);
-            const pending = useTimelineStore.getState().audioFeatureCacheStatus['autoTrack'];
-            expect(pending?.state).toBe('pending');
+        useTimelineStore.getState().ingestAudioToCache('autoTrack', buffer);
+        const status = useTimelineStore.getState().audioFeatureCacheStatus['autoTrack'];
+        expect(status?.state).toBe('idle');
+        expect(status?.message).toBe('analysis not started');
 
-            await new Promise<void>((resolve, reject) => {
-                const start = Date.now();
-                const check = () => {
-                    const status = useTimelineStore.getState().audioFeatureCacheStatus['autoTrack'];
-                    if (status?.state === 'ready') {
-                        resolve();
-                        return;
-                    }
-                    if (Date.now() - start > 7000) {
-                        reject(new Error('analysis timeout'));
-                        return;
-                    }
-                    setTimeout(check, 25);
-                };
-                check();
-            });
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
-            const cache = useTimelineStore.getState().audioFeatureCaches['autoTrack'];
-            expect(cache).toBeTruthy();
-            expect(cache?.frameCount).toBeGreaterThan(0);
-        } finally {
-            if (previous === undefined) {
-                delete process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS;
-            } else {
-                process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS = previous;
-            }
-        }
+        const cache = useTimelineStore.getState().audioFeatureCaches['autoTrack'];
+        expect(cache).toBeUndefined();
     });
 });

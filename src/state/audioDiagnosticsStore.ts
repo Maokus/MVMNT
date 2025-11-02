@@ -135,6 +135,8 @@ interface AudioDiagnosticsState {
     history: AnalysisHistoryEntry[];
     pendingDescriptors: Record<string, Set<string>>;
     dismissedExtraneous: Record<string, Set<string>>;
+    missingPopupVisible: boolean;
+    missingPopupSuppressed: boolean;
     publishIntent: (intent: AnalysisIntent) => void;
     removeIntent: (elementId: string) => void;
     recomputeDiffs: () => void;
@@ -147,6 +149,7 @@ interface AudioDiagnosticsState {
     regenerateAll: () => void;
     deleteExtraneousCaches: () => void;
     dismissExtraneous: (trackRef: string, analysisProfileId: string | null, descriptorId: string) => void;
+    dismissMissingPopup: () => void;
     setPanelOpen: (open: boolean) => void;
     setPreferences: (prefs: Partial<DiagnosticsPreferences>) => void;
     recordHistory: (entry: AnalysisHistoryEntry) => void;
@@ -679,6 +682,7 @@ const initialState: Omit<
     | 'regenerateAll'
     | 'deleteExtraneousCaches'
     | 'dismissExtraneous'
+    | 'dismissMissingPopup'
     | 'setPanelOpen'
     | 'setPreferences'
     | 'recordHistory'
@@ -694,6 +698,8 @@ const initialState: Omit<
     history: [],
     pendingDescriptors: {},
     dismissedExtraneous: {},
+    missingPopupVisible: false,
+    missingPopupSuppressed: false,
 };
 
 export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get) => ({
@@ -805,7 +811,24 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const bannerVisible = diffs.some(
             (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0
         );
-        set({ diffs, bannerVisible, dismissedExtraneous: nextDismissed });
+        const hasMissing = diffs.some((diff) => diff.missing.length > 0);
+        set((current) => {
+            let missingPopupVisible = current.missingPopupVisible;
+            let missingPopupSuppressed = current.missingPopupSuppressed;
+            if (!hasMissing) {
+                missingPopupVisible = false;
+                missingPopupSuppressed = false;
+            } else if (!missingPopupSuppressed) {
+                missingPopupVisible = true;
+            }
+            return {
+                diffs,
+                bannerVisible,
+                dismissedExtraneous: nextDismissed,
+                missingPopupVisible,
+                missingPopupSuppressed,
+            };
+        });
     },
     regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual') {
         const unique = Array.from(new Set(descriptors.filter(Boolean)));
@@ -924,6 +947,9 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             status: 'success',
         });
         get().recomputeDiffs();
+    },
+    dismissMissingPopup() {
+        set({ missingPopupVisible: false, missingPopupSuppressed: true });
     },
     setPanelOpen(open) {
         set({ panelOpen: open });
