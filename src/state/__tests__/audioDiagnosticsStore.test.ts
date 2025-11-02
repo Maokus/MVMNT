@@ -69,7 +69,7 @@ describe('audio diagnostics store', () => {
         const diffs = useAudioDiagnosticsStore.getState().diffs;
         expect(diffs).toHaveLength(1);
         const diff = diffs[0];
-        expect(diff.trackRef).toBe('audioTrack');
+        expect(diff.trackRefs).toEqual(['audioTrack']);
         expect(diff.analysisProfileId).toBe('default');
         const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
         const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
@@ -193,7 +193,7 @@ describe('audio diagnostics store', () => {
             { profile: 'default' },
         );
 
-        const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.audioSourceId === 'audioTrack');
         expect(diff).toBeDefined();
         const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
         const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
@@ -204,6 +204,60 @@ describe('audio diagnostics store', () => {
         expect(detail?.channelAliases).toEqual(['Left', 'Right']);
         expect(detail?.channelLayout?.semantics).toBe('stereo');
         expect(detail?.analysisProfileId).toBe('default');
+    });
+
+    it('groups cache diffs by audio source when tracks share a source', () => {
+        useTimelineStore.setState({
+            tracks: {
+                sourceTrack: {
+                    id: 'sourceTrack',
+                    name: 'Source Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+                linkedTrack: {
+                    id: 'linkedTrack',
+                    name: 'Linked Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                    audioSourceId: 'sourceTrack',
+                },
+            },
+            tracksOrder: ['sourceTrack', 'linkedTrack'],
+        });
+
+        publishAnalysisIntent(
+            'element-source',
+            'audioSpectrum',
+            'sourceTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
+        publishAnalysisIntent(
+            'element-linked',
+            'audioSpectrum',
+            'linkedTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
+
+        const diffs = useAudioDiagnosticsStore.getState().diffs;
+        expect(diffs).toHaveLength(1);
+        const diff = diffs[0];
+        expect(diff.audioSourceId).toBe('sourceTrack');
+        expect(diff.trackRefs).toEqual(['linkedTrack', 'sourceTrack']);
+        const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:default`;
+        expect(diff.missing).toContain(descriptorKey);
     });
 
     it('queues regeneration jobs and records history', async () => {
@@ -397,7 +451,7 @@ describe('audio diagnostics store', () => {
         } as const;
         const extraneousMatchKey = buildDescriptorMatchKey(extraneousDescriptor);
         const extraneousKey = `${extraneousMatchKey}|profile:default`;
-        let diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        let diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.audioSourceId === 'audioTrack');
         expect(diff?.extraneous).toContain(extraneousKey);
 
         useAudioDiagnosticsStore.getState().deleteExtraneousCaches();
@@ -405,7 +459,111 @@ describe('audio diagnostics store', () => {
         const cache = useTimelineStore.getState().audioFeatureCaches['audioTrack'];
         expect(Object.keys(cache?.featureTracks ?? {})).toEqual(['rms']);
 
-        diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
+        diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.audioSourceId === 'audioTrack');
         expect(diff?.extraneous ?? []).toHaveLength(0);
+    });
+
+    it('clears dismissed extraneous entries when descriptors become required', () => {
+        const updatedAt = Date.now();
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 1,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 32,
+                    featureTracks: {
+                        spectrogram: {
+                            key: 'spectrogram',
+                            calculatorId: 'test.spectrogram',
+                            version: 1,
+                            frameCount: 32,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                        } as any,
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    analysisParams: {
+                        windowSize: 512,
+                        hopSize: 256,
+                        overlap: 0.5,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'test.spectrogram': 1 },
+                    },
+                    updatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt },
+            },
+        });
+
+        publishAnalysisIntent(
+            'element-initial',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'alt' },
+        );
+
+        const initialDiff = useAudioDiagnosticsStore
+            .getState()
+            .diffs.find((entry) => entry.audioSourceId === 'audioTrack');
+        expect(initialDiff?.extraneous.length).toBeGreaterThan(0);
+        const extraneousKey = initialDiff?.extraneous[0];
+        expect(extraneousKey).toBeDefined();
+
+        if (extraneousKey) {
+            useAudioDiagnosticsStore
+                .getState()
+                .dismissExtraneous('audioTrack', initialDiff?.analysisProfileId ?? null, extraneousKey);
+        }
+
+        useTimelineStore.setState((state) => ({
+            ...state,
+            audioFeatureCaches: {
+                ...state.audioFeatureCaches,
+                audioTrack: {
+                    ...(state.audioFeatureCaches?.audioTrack as any),
+                    featureTracks: {},
+                },
+            },
+        }));
+
+        publishAnalysisIntent(
+            'element-requires-spectrogram',
+            'audioSpectrum',
+            'audioTrack',
+            [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
+            { profile: 'default' },
+        );
+
+        const nextState = useAudioDiagnosticsStore.getState();
+        const dismissalKey = `${buildDescriptorMatchKey({
+            featureKey: 'spectrogram',
+            calculatorId: 'test.spectrogram',
+        } as const)}|profile:default`;
+        const dismissalSet = nextState.dismissedExtraneous['audioTrack__default'];
+        expect(dismissalSet).toBeUndefined();
+        const diff = nextState.diffs.find(
+            (entry) => entry.audioSourceId === 'audioTrack' && entry.analysisProfileId === 'default'
+        );
+        expect(diff?.missing).toContain(dismissalKey);
     });
 });

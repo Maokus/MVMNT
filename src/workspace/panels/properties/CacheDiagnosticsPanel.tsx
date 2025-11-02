@@ -114,7 +114,7 @@ function formatChannelSummary(detail: CacheDescriptorDetail | undefined): string
 function findJobForDiff(jobs: RegenerationJob[], diff: CacheDiff): RegenerationJob | undefined {
     return jobs.find(
         (job) =>
-            job.trackRef === diff.trackRef
+            job.audioSourceId === diff.audioSourceId
             && job.analysisProfileId === diff.analysisProfileId
             && (job.status === 'queued' || job.status === 'running'),
     );
@@ -135,7 +135,11 @@ export const CacheDiagnosticsPanel: React.FC = () => {
     const visibleDiffs = useMemo(() => {
         const filtered = preferences.showOnlyIssues ? diffs.filter((diff) => diff.status === 'issues') : diffs;
         if (preferences.sort === 'track') {
-            return [...filtered].sort((a, b) => a.trackRef.localeCompare(b.trackRef));
+            return [...filtered].sort((a, b) => {
+                const aLabel = a.trackRefs[0] ?? a.audioSourceId;
+                const bLabel = b.trackRefs[0] ?? b.audioSourceId;
+                return aLabel.localeCompare(bLabel);
+            });
         }
         return filtered;
     }, [diffs, preferences]);
@@ -193,12 +197,19 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                             const status = cacheStatus[diff.audioSourceId];
                             const updatedAt = status?.updatedAt;
                             const job = findJobForDiff(jobs, diff);
+                            const actionTrackRef = diff.trackRefs[0] ?? diff.audioSourceId;
+                            const trackLabels = diff.trackRefs.length
+                                ? diff.trackRefs.map(trackName).join(', ')
+                                : `Source ${diff.audioSourceId}`;
                             return (
-                                <div key={`${diff.trackRef}-${diff.analysisProfileId ?? 'default'}`} className="rounded border border-neutral-800 bg-neutral-950/50">
+                                <div
+                                    key={`${diff.audioSourceId}-${diff.analysisProfileId ?? 'default'}`}
+                                    className="rounded border border-neutral-800 bg-neutral-950/50"
+                                >
                                     <div className="flex flex-col gap-1 border-b border-neutral-800 px-3 py-2">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div>
-                                                <div className="text-[12px] font-semibold text-neutral-100">{trackName(diff.trackRef)}</div>
+                                                <div className="text-[12px] font-semibold text-neutral-100">{trackLabels}</div>
                                                 <div className="text-[11px] text-neutral-500">
                                                     Profile: {diff.analysisProfileId ?? 'default'} · Source {diff.audioSourceId}
                                                 </div>
@@ -236,7 +247,7 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                 && row.owners.length > 0;
                                             return (
                                                 <div
-                                                    key={`${diff.trackRef}-${row.id}`}
+                                                    key={`${diff.audioSourceId}-${row.id}`}
                                                     className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
                                                 >
                                                     <div className="min-w-0 flex-1">
@@ -270,7 +281,7 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                             <button
                                                                 type="button"
                                                                 className="rounded border border-neutral-700 px-2 py-1 text-[11px] text-neutral-300 transition hover:bg-neutral-800"
-                                                                onClick={() => dismissExtraneous(diff.trackRef, diff.analysisProfileId ?? null, row.id)}
+                                                                onClick={() => dismissExtraneous(actionTrackRef, diff.analysisProfileId ?? null, row.id)}
                                                             >
                                                                 Dismiss
                                                             </button>
@@ -281,7 +292,7 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                                     ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
                                                                     : 'border-emerald-400/60 text-emerald-200 hover:bg-emerald-500/20'
                                                                 }`}
-                                                                onClick={() => regenerateDescriptors(diff.trackRef, diff.analysisProfileId ?? null, [row.id], 'manual')}
+                                                                onClick={() => regenerateDescriptors(actionTrackRef, diff.analysisProfileId ?? null, [row.id], 'manual')}
                                                                 disabled={disabled}
                                                             >
                                                                 {disabled ? 'Queued' : 'Regenerate'}

@@ -187,7 +187,7 @@ const DiagnosticsList: React.FC<DiagnosticsListProps> = ({
                     const filteredLocally =
                         detail?.channelCount != null && detail.channelCount > 1 && (owners?.length ?? 0) > 0;
                     return (
-                        <li key={`${diff.trackRef}-${diff.analysisProfileId ?? 'default'}-${title}-${id}`}>
+                        <li key={`${diff.audioSourceId}-${diff.analysisProfileId ?? 'default'}-${title}-${id}`}>
                             <div style={{ fontSize: 12, fontWeight: 600 }}>
                                 {formatCacheDiffDescriptor(diff, id)}
                             </div>
@@ -268,8 +268,10 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
 
     const diffSummaries = React.useMemo(() => {
         return [...(diffs ?? [])].sort((a, b) => {
-            if (a.trackRef !== b.trackRef) {
-                return a.trackRef.localeCompare(b.trackRef);
+            const aLabel = a.trackRefs[0] ?? a.audioSourceId;
+            const bLabel = b.trackRefs[0] ?? b.audioSourceId;
+            if (aLabel !== bLabel) {
+                return aLabel.localeCompare(bLabel);
             }
             const profileA = a.analysisProfileId ?? '';
             const profileB = b.analysisProfileId ?? '';
@@ -504,7 +506,11 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                     >
                         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
                             {diffSummaries.map((diff) => {
-                                const key = `${diff.trackRef}__${diff.analysisProfileId ?? 'default'}`;
+                                const key = `${diff.audioSourceId}__${diff.analysisProfileId ?? 'default'}`;
+                                const trackLabel = diff.trackRefs.length
+                                    ? diff.trackRefs.join(', ')
+                                    : diff.audioSourceId;
+                                const primaryTrack = diff.trackRefs[0] ?? diff.audioSourceId;
                                 const expanded = !!expandedDiagnostics[key];
                                 const issueCount =
                                     diff.missing.length +
@@ -541,7 +547,7 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                         >
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600 }}>
-                                                    {diff.trackRef}
+                                                    {trackLabel}
                                                     <span style={{ opacity: 0.65, fontWeight: 400 }}>
                                                         {' '}
                                                         ({diff.analysisProfileId ?? 'default'})
@@ -574,7 +580,8 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                         {expanded ? (
                                             <div style={{ padding: '0 12px 12px 12px', fontSize: 11, display: 'grid', gap: 10 }}>
                                                 <div style={{ opacity: 0.75 }}>
-                                                    Audio source: <strong>{diff.audioSourceId}</strong> · Updated {formatRelativeTime(diff.updatedAt)}
+                                                    Audio source: <strong>{diff.audioSourceId}</strong> · Primary track{' '}
+                                                    <strong>{primaryTrack}</strong> · Updated {formatRelativeTime(diff.updatedAt)}
                                                 </div>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, opacity: 0.75 }}>
                                                     <span>Bad requests: {diff.badRequest.length}</span>

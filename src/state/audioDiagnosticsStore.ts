@@ -52,7 +52,7 @@ interface AnalysisIntentRecord {
 export type CacheDiffStatus = 'clear' | 'issues';
 
 export interface CacheDiff {
-    trackRef: string;
+    trackRefs: string[];
     audioSourceId: string;
     analysisProfileId: string | null;
     descriptorsRequested: string[];
@@ -139,8 +139,8 @@ interface AudioDiagnosticsState {
 
 const HISTORY_LIMIT = 1000;
 
-function makeGroupKey(trackRef: string, analysisProfileId: string | null): string {
-    return `${trackRef}__${analysisProfileId ?? 'null'}`;
+function makeGroupKey(audioSourceId: string, analysisProfileId: string | null): string {
+    return `${audioSourceId}__${analysisProfileId ?? 'null'}`;
 }
 
 function resolveAudioSourceId(trackRef: string, state: Pick<TimelineState, 'tracks'>): string {
@@ -287,50 +287,56 @@ function computeCacheDiffs(
     timelineState: Pick<TimelineState, 'tracks' | 'audioFeatureCaches' | 'audioFeatureCacheStatus'>,
     pendingDescriptors: Record<string, Set<string>>,
     dismissedExtraneous: Record<string, Set<string>>
-): CacheDiff[] {
+): { diffs: CacheDiff[]; dismissedExtraneous: Record<string, Set<string>> } {
     const groups = new Map<
         string,
         {
-            trackRef: string;
+            audioSourceId: string;
             analysisProfileId: string | null;
             descriptors: Map<string, DescriptorInfo>;
             owners: Map<string, Set<string>>;
             requestedAt: number;
+            trackRefs: Set<string>;
         }
     >();
-    const requestsByTrack = new Map<string, Set<string>>();
-    const profilesByTrack = new Map<string, Set<string>>();
-    const extraneousAssignedByTrack = new Map<string, Set<string>>();
+    const requestsBySource = new Map<string, Set<string>>();
+    const profilesBySource = new Map<string, Set<string>>();
+    const extraneousAssignedBySource = new Map<string, Set<string>>();
+    const requiredRequestKeys = new Set<string>();
 
     const calculators = audioFeatureCalculatorRegistry.list();
     const knownFeatures = new Set(calculators.map((entry) => entry.featureKey));
     const calculatorFeatureById = new Map(calculators.map((entry) => [entry.id, entry.featureKey]));
 
     for (const record of Object.values(intentsByElement)) {
-        const key = makeGroupKey(record.trackRef, record.analysisProfileId);
+        const audioSourceId = resolveAudioSourceId(record.trackRef, timelineState);
+        const key = makeGroupKey(audioSourceId, record.analysisProfileId);
         let entry = groups.get(key);
         if (!entry) {
             entry = {
-                trackRef: record.trackRef,
+                audioSourceId,
                 analysisProfileId: record.analysisProfileId,
                 descriptors: new Map(),
                 owners: new Map(),
                 requestedAt: Date.parse(record.requestedAt) || Date.now(),
+                trackRefs: new Set<string>(),
             };
             groups.set(key, entry);
         }
+        entry.trackRefs.add(record.trackRef);
+
         const profileKey = normalizeProfileKey(record.analysisProfileId);
-        let profileSet = profilesByTrack.get(record.trackRef);
+        let profileSet = profilesBySource.get(audioSourceId);
         if (!profileSet) {
             profileSet = new Set<string>();
-            profilesByTrack.set(record.trackRef, profileSet);
+            profilesBySource.set(audioSourceId, profileSet);
         }
         profileSet.add(profileKey);
 
-        let requestSet = requestsByTrack.get(record.trackRef);
+        let requestSet = requestsBySource.get(audioSourceId);
         if (!requestSet) {
             requestSet = new Set<string>();
-            requestsByTrack.set(record.trackRef, requestSet);
+            requestsBySource.set(audioSourceId, requestSet);
         }
 
         for (const info of Object.values(record.descriptors)) {
@@ -342,6 +348,39 @@ function computeCacheDiffs(
             }
             owners.add(record.elementId);
             requestSet.add(info.requestKey);
+            requiredRequestKeys.add(info.requestKey);
+        }
+
+        for (const requirement of record.requirementDiagnostics ?? []) {
+            requiredRequestKeys.add(buildDescriptorRequestKey(requirement.matchKey, requirement.profileKey));
+        }
+    }
+
+    const sanitizedDismissed: Record<string, Set<string>> = {};
+    for (const [key, set] of Object.entries(dismissedExtraneous)) {
+        if (!set || !(set instanceof Set)) {
+            continue;
+        }
+        const separatorIndex = key.lastIndexOf('__');
+        const idPart = separatorIndex >= 0 ? key.slice(0, separatorIndex) : key;
+        const profilePartRaw = separatorIndex >= 0 ? key.slice(separatorIndex + 2) : 'null';
+        const profileId = profilePartRaw === 'null' ? null : profilePartRaw;
+        const resolvedSourceId = timelineState.tracks[idPart]
+            ? resolveAudioSourceId(idPart, timelineState)
+            : idPart;
+        const normalizedKey = makeGroupKey(resolvedSourceId, profileId);
+        let filtered = sanitizedDismissed[normalizedKey];
+        if (!filtered) {
+            filtered = new Set<string>();
+            sanitizedDismissed[normalizedKey] = filtered;
+        }
+        for (const value of set) {
+            if (!requiredRequestKeys.has(value)) {
+                filtered.add(value);
+            }
+        }
+        if (filtered.size === 0) {
+            delete sanitizedDismissed[normalizedKey];
         }
     }
 
@@ -349,9 +388,8 @@ function computeCacheDiffs(
     const now = Date.now();
 
     for (const group of groups.values()) {
-        const sourceId = resolveAudioSourceId(group.trackRef, timelineState);
-        const cache = timelineState.audioFeatureCaches[sourceId];
-        const status = timelineState.audioFeatureCacheStatus[sourceId];
+        const cache = timelineState.audioFeatureCaches[group.audioSourceId];
+        const status = timelineState.audioFeatureCacheStatus[group.audioSourceId];
         const requested = Array.from(group.descriptors.keys()).sort();
         const descriptorDetails: Record<string, CacheDescriptorDetail> = {};
         const ownerMap: Record<string, string[]> = {};
@@ -385,17 +423,17 @@ function computeCacheDiffs(
         const badRequest: string[] = [];
         const regenerating: string[] = [];
         const extraneous: string[] = [];
-        const pendingKey = makeGroupKey(group.trackRef, group.analysisProfileId);
+        const pendingKey = makeGroupKey(group.audioSourceId, group.analysisProfileId);
         const pendingSet = pendingDescriptors[pendingKey] ?? new Set();
-        const dismissedSet = dismissedExtraneous[pendingKey] ?? new Set();
-        const trackStale = status?.state === 'stale';
-        const trackRequestSet = requestsByTrack.get(group.trackRef) ?? new Set<string>();
-        const trackProfiles = profilesByTrack.get(group.trackRef) ?? new Set<string>();
+        const dismissedSet = sanitizedDismissed[pendingKey] ?? new Set();
+        const sourceStale = status?.state === 'stale';
+        const sourceRequestSet = requestsBySource.get(group.audioSourceId) ?? new Set<string>();
+        const sourceProfiles = profilesBySource.get(group.audioSourceId) ?? new Set<string>();
         const groupProfileKey = normalizeProfileKey(group.analysisProfileId);
-        let assignedSet = extraneousAssignedByTrack.get(group.trackRef);
+        let assignedSet = extraneousAssignedBySource.get(group.audioSourceId);
         if (!assignedSet) {
             assignedSet = new Set<string>();
-            extraneousAssignedByTrack.set(group.trackRef, assignedSet);
+            extraneousAssignedBySource.set(group.audioSourceId, assignedSet);
         }
 
         for (const descriptorKey of requested) {
@@ -415,7 +453,7 @@ function computeCacheDiffs(
                 missing.push(descriptorKey);
                 continue;
             }
-            if (trackStale) {
+            if (sourceStale) {
                 stale.push(descriptorKey);
                 continue;
             }
@@ -425,11 +463,11 @@ function computeCacheDiffs(
         }
 
         for (const cached of cachedInfos) {
-            if (trackRequestSet.has(cached.requestKey)) continue;
+            if (sourceRequestSet.has(cached.requestKey)) continue;
             if (dismissedSet.has(cached.requestKey)) continue;
             if (assignedSet.has(cached.requestKey)) continue;
             const profileMatchesGroup = groupProfileKey === cached.profileKey;
-            const profileRepresented = trackProfiles.has(cached.profileKey);
+            const profileRepresented = sourceProfiles.has(cached.profileKey);
             if (!profileMatchesGroup && profileRepresented) {
                 continue;
             }
@@ -440,8 +478,8 @@ function computeCacheDiffs(
         const descriptorsCached = cachedInfos.map((info) => info.requestKey);
         const hasIssues = missing.length + stale.length + extraneous.length + badRequest.length > 0;
         diffs.push({
-            trackRef: group.trackRef,
-            audioSourceId: sourceId,
+            trackRefs: Array.from(group.trackRefs).sort(),
+            audioSourceId: group.audioSourceId,
             analysisProfileId: group.analysisProfileId,
             descriptorsRequested: requested,
             descriptorsCached,
@@ -461,10 +499,12 @@ function computeCacheDiffs(
         if (a.status !== b.status) {
             return a.status === 'issues' ? -1 : 1;
         }
-        return a.trackRef.localeCompare(b.trackRef);
+        const aLabel = a.trackRefs[0] ?? a.audioSourceId;
+        const bLabel = b.trackRefs[0] ?? b.audioSourceId;
+        return aLabel.localeCompare(bLabel);
     });
 
-    return diffs;
+    return { diffs, dismissedExtraneous: sanitizedDismissed };
 }
 
 let jobCounter = 0;
@@ -599,7 +639,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
     },
     recomputeDiffs() {
         const timelineState = useTimelineStore.getState();
-        const diffs = computeCacheDiffs(
+        const { diffs, dismissedExtraneous: nextDismissed } = computeCacheDiffs(
             get().intentsByElement,
             {
                 tracks: timelineState.tracks,
@@ -612,7 +652,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const bannerVisible = diffs.some(
             (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0
         );
-        set({ diffs, bannerVisible });
+        set({ diffs, bannerVisible, dismissedExtraneous: nextDismissed });
     },
     regenerateDescriptors(trackRef, analysisProfileId, descriptors, reason = 'manual') {
         const unique = Array.from(new Set(descriptors.filter(Boolean)));
@@ -622,7 +662,10 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const timelineState = useTimelineStore.getState();
         const sourceId = resolveAudioSourceId(trackRef, timelineState);
         const diff = get().diffs.find(
-            (entry) => entry.trackRef === trackRef && entry.analysisProfileId === analysisProfileId
+            (entry) =>
+                entry.audioSourceId === sourceId
+                && entry.analysisProfileId === analysisProfileId
+                && (entry.trackRefs.length === 0 || entry.trackRefs.includes(trackRef))
         );
         const descriptorDetails = diff?.descriptorDetails ?? {};
         const job: RegenerationJob = {
@@ -637,7 +680,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             requestedAt: Date.now(),
         };
         set((state) => {
-            const key = makeGroupKey(trackRef, analysisProfileId);
+            const key = makeGroupKey(sourceId, analysisProfileId);
             const nextPending = { ...state.pendingDescriptors };
             const pending = new Set(nextPending[key] ?? []);
             unique.forEach((id) => pending.add(id));
@@ -650,17 +693,22 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         processJobQueue();
     },
     regenerateAll() {
-        const groups = new Map<string, { trackRef: string; analysisProfileId: string | null; descriptors: string[] }>();
+        const groups = new Map<
+            string,
+            { audioSourceId: string; trackRef: string; analysisProfileId: string | null; descriptors: string[] }
+        >();
         for (const diff of get().diffs) {
             const targets = [...diff.missing, ...diff.stale];
             if (!targets.length) continue;
-            const key = makeGroupKey(diff.trackRef, diff.analysisProfileId);
+            const primaryTrack = diff.trackRefs[0] ?? diff.audioSourceId;
+            const key = makeGroupKey(diff.audioSourceId, diff.analysisProfileId);
             const entry = groups.get(key);
             if (entry) {
                 entry.descriptors.push(...targets);
             } else {
                 groups.set(key, {
-                    trackRef: diff.trackRef,
+                    audioSourceId: diff.audioSourceId,
+                    trackRef: primaryTrack,
                     analysisProfileId: diff.analysisProfileId,
                     descriptors: targets,
                 });
@@ -680,11 +728,10 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const groups = new Map<string, Set<string>>();
         for (const diff of get().diffs) {
             if (!diff.extraneous.length) continue;
-            const sourceId = resolveAudioSourceId(diff.trackRef, timelineState);
-            let featureSet = groups.get(sourceId);
+            let featureSet = groups.get(diff.audioSourceId);
             if (!featureSet) {
                 featureSet = new Set<string>();
-                groups.set(sourceId, featureSet);
+                groups.set(diff.audioSourceId, featureSet);
             }
             for (const descriptorId of diff.extraneous) {
                 const detail = diff.descriptorDetails[descriptorId];
@@ -703,8 +750,10 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         get().recomputeDiffs();
     },
     dismissExtraneous(trackRef, analysisProfileId, descriptorId) {
+        const timelineState = useTimelineStore.getState();
+        const sourceId = resolveAudioSourceId(trackRef, timelineState);
         set((state) => {
-            const key = makeGroupKey(trackRef, analysisProfileId);
+            const key = makeGroupKey(sourceId, analysisProfileId);
             const next = { ...state.dismissedExtraneous };
             const setForKey = new Set(next[key] ?? []);
             setForKey.add(descriptorId);
@@ -715,7 +764,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             id: `dismiss-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             timestamp: Date.now(),
             trackRef,
-            audioSourceId: resolveAudioSourceId(trackRef, useTimelineStore.getState()),
+            audioSourceId: sourceId,
             analysisProfileId,
             descriptorIds: [descriptorId],
             action: 'dismissed',
@@ -751,7 +800,7 @@ function processJobQueue(): void {
     const state = useAudioDiagnosticsStore.getState();
     for (const job of state.jobs) {
         if (job.status !== 'queued') continue;
-        const key = makeGroupKey(job.trackRef, job.analysisProfileId);
+        const key = makeGroupKey(job.audioSourceId, job.analysisProfileId);
         if (activeJobKeys.has(key)) {
             continue;
         }
@@ -765,7 +814,7 @@ function runJob(jobId: string): void {
     if (!job || job.status !== 'queued') {
         return;
     }
-    const key = makeGroupKey(job.trackRef, job.analysisProfileId);
+    const key = makeGroupKey(job.audioSourceId, job.analysisProfileId);
     activeJobKeys.add(key);
     const startedAt = Date.now();
     useAudioDiagnosticsStore.setState((current) => ({
@@ -799,7 +848,7 @@ function runJob(jobId: string): void {
                       }
                     : entry
             );
-            const pendingKey = makeGroupKey(job.trackRef, job.analysisProfileId);
+            const pendingKey = makeGroupKey(job.audioSourceId, job.analysisProfileId);
             const nextPending = { ...current.pendingDescriptors };
             const pending = new Set(nextPending[pendingKey] ?? []);
             for (const descriptorId of job.descriptors) {
