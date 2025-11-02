@@ -2,7 +2,7 @@ import type { AudioFeatureAnalysisParams, AudioFeatureCache } from '@audio/featu
 
 function mergeAnalysisParams(
     existing: AudioFeatureAnalysisParams | undefined,
-    incoming: AudioFeatureAnalysisParams | undefined,
+    incoming: AudioFeatureAnalysisParams | undefined
 ): AudioFeatureAnalysisParams | undefined {
     if (!existing) {
         return incoming;
@@ -23,7 +23,7 @@ function mergeAnalysisParams(
 
 export function mergeFeatureCaches(
     existing: AudioFeatureCache | undefined,
-    incoming: AudioFeatureCache,
+    incoming: AudioFeatureCache
 ): AudioFeatureCache {
     if (!existing) {
         return incoming;
@@ -39,6 +39,11 @@ export function mergeFeatureCaches(
         tempoProjection: incoming.tempoProjection ?? existing.tempoProjection,
         frameCount: incoming.frameCount || existing.frameCount,
         analysisParams: mergeAnalysisParams(existing.analysisParams, incoming.analysisParams)!,
+        analysisProfiles: {
+            ...(existing.analysisProfiles ?? {}),
+            ...(incoming.analysisProfiles ?? {}),
+        },
+        defaultAnalysisProfileId: incoming.defaultAnalysisProfileId ?? existing.defaultAnalysisProfileId,
         featureTracks: {
             ...existing.featureTracks,
             ...incoming.featureTracks,

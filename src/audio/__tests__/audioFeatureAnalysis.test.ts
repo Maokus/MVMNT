@@ -5,10 +5,7 @@ import {
     serializeAudioFeatureCache,
 } from '@audio/features/audioFeatureAnalysis';
 import { sharedAudioFeatureAnalysisScheduler } from '@audio/features/audioFeatureScheduler';
-import {
-    audioFeatureCalculatorRegistry,
-    resetAudioFeatureCalculators,
-} from '@audio/features/audioFeatureRegistry';
+import { audioFeatureCalculatorRegistry, resetAudioFeatureCalculators } from '@audio/features/audioFeatureRegistry';
 import { createTempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 
@@ -59,9 +56,7 @@ describe('audio feature analysis', () => {
         expect(cache.tempoProjection?.hopTicks).toBe(cache.hopTicks);
         const roundTrip = deserializeAudioFeatureCache(serializeAudioFeatureCache(cache));
         expect(roundTrip.version).toBe(3);
-        expect(roundTrip.featureTracks.spectrogram.channels).toBe(
-            cache.featureTracks.spectrogram.channels,
-        );
+        expect(roundTrip.featureTracks.spectrogram.channels).toBe(cache.featureTracks.spectrogram.channels);
         const spectrogramTrack = cache.featureTracks.spectrogram;
         expect(spectrogramTrack.metadata?.minDecibels).toBe(-80);
         expect(spectrogramTrack.metadata?.maxDecibels).toBe(0);
@@ -90,6 +85,26 @@ describe('audio feature analysis', () => {
         const expectedTicks = Math.max(1, Math.round(tempoMapper.secondsToTicks(waveform.hopSeconds)));
         expect(waveform.hopTicks).toBe(expectedTicks);
         expect(waveform.tempoProjection?.hopTicks).toBe(expectedTicks);
+    });
+
+    it('propagates requested analysis profiles to feature tracks', async () => {
+        const buffer = createSineBuffer(0.2);
+        const requestedProfile = 'oddProfile';
+        const { cache } = await analyzeAudioBufferFeatures({
+            audioSourceId: 'profile-test',
+            audioBuffer: buffer,
+            globalBpm: 110,
+            beatsPerBar: 4,
+            analysisProfileId: requestedProfile,
+        });
+        const spectrogram = cache.featureTracks.spectrogram;
+        const rms = cache.featureTracks.rms;
+        const waveform = cache.featureTracks.waveform;
+        expect(spectrogram?.analysisProfileId).toBe(requestedProfile);
+        expect(rms?.analysisProfileId).toBe(requestedProfile);
+        expect(waveform?.analysisProfileId).toBe(requestedProfile);
+        expect(cache.defaultAnalysisProfileId).toBe(requestedProfile);
+        expect(Object.keys(cache.analysisProfiles ?? {})).toContain(requestedProfile);
     });
 
     it('scheduler resolves queued jobs and supports cancellation', async () => {

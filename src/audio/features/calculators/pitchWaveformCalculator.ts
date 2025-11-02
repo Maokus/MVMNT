@@ -17,7 +17,7 @@ function detectYinPitch(
     sampleRate: number,
     threshold: number,
     minFrequency: number,
-    maxFrequency: number,
+    maxFrequency: number
 ): number | null {
     const boundedLength = Math.max(0, Math.min(length, samples.length - start));
     if (boundedLength < 3) {
@@ -97,7 +97,7 @@ function findNearestZeroCrossing(
     centerIndex: number,
     windowStart: number,
     windowEnd: number,
-    preferredLength: number,
+    preferredLength: number
 ): number | null {
     if (!samples.length) {
         return null;
@@ -147,10 +147,7 @@ function findNearestZeroCrossing(
 export interface PitchWaveformCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
-    cloneTempoProjection: (
-        projection: AudioFeatureTempoProjection,
-        hopTicks: number,
-    ) => AudioFeatureTempoProjection;
+    cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
     inferChannelAliases: (channelCount: number) => string[];
@@ -200,7 +197,7 @@ export function createPitchWaveformCalculator({
                         sampleRate,
                         YIN_THRESHOLD,
                         MIN_FREQUENCY,
-                        maxFrequency,
+                        maxFrequency
                     );
 
                     if (pitch != null) {
@@ -259,7 +256,7 @@ export function createPitchWaveformCalculator({
                 },
                 channelAliases: aliases,
                 channelLayout: { aliases },
-                analysisProfileId: 'default',
+                analysisProfileId: context.analysisProfileId,
             };
 
             return track;

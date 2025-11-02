@@ -12,10 +12,7 @@ const WAVEFORM_OVERSAMPLE_FACTOR = 8;
 export interface WaveformCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
-    cloneTempoProjection: (
-        projection: AudioFeatureTempoProjection,
-        hopTicks: number,
-    ) => AudioFeatureTempoProjection;
+    cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
     inferChannelAliases: (channelCount: number) => string[];
@@ -50,9 +47,7 @@ export function createWaveformCalculator({
             for (let frame = 0; frame < waveformFrameCount; frame++) {
                 const frameStart = Math.floor(frame * waveformHopSamples);
                 const frameEnd =
-                    frame === waveformFrameCount - 1
-                        ? totalSamples
-                        : Math.ceil((frame + 1) * waveformHopSamples);
+                    frame === waveformFrameCount - 1 ? totalSamples : Math.ceil((frame + 1) * waveformHopSamples);
                 const start = Math.max(0, Math.min(totalSamples - 1, frameStart));
                 let end = Math.min(totalSamples, frameEnd);
                 if (end <= start) {
@@ -98,7 +93,7 @@ export function createWaveformCalculator({
                 },
                 channelAliases: aliases,
                 channelLayout: { aliases },
-                analysisProfileId: 'default',
+                analysisProfileId: context.analysisProfileId,
             };
 
             return track;

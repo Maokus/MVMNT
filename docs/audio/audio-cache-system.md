@@ -586,7 +586,7 @@ function handleQualityChange(newFftSize: number) {
 // Or reanalyze just one calculator
 function reanalyzeSpectrum() {
     const store = useTimelineStore.getState();
-    store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram']);
+    store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram'], 'default');
 }
 ```
 
@@ -647,7 +647,7 @@ import { useTimelineStore } from '@state/timelineStore';
 const store = useTimelineStore.getState();
 
 // Reanalyze specific calculators for a track
-store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram']);
+store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram'], 'default');
 
 // Clear entire cache (forces full reanalysis)
 store.clearAudioFeatureCache(audioSourceId);
@@ -796,5 +796,5 @@ for (let frame = 0; frame < frameCount; frame++) {
 
 1. Check cache status: should be "ready", not "stale"
 2. Verify tempo map hash matches current timeline
-3. Reanalyze cache after changing tempo: `store.reanalyzeAudioFeatureCalculators(id, calculatorIds)`
+3. Reanalyze cache after changing tempo: `store.reanalyzeAudioFeatureCalculators(id, calculatorIds, profileId)`
 4. Confirm `hopTicks` are quantized correctly in cache metadata

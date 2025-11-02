@@ -22,6 +22,14 @@ import type { TempoMapEntry } from '@state/timelineTypes';
 
 const DEFAULT_ANALYSIS_PROFILE_ID = 'default';
 
+function sanitizeAnalysisProfileId(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+}
+
 type SerializedTypedArray = {
     type: 'float32' | 'uint8' | 'int16';
     values: number[] | Float32Array | Uint8Array | Int16Array;
@@ -472,8 +480,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? null,
-        channelLayout:
-            track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
+        channelLayout: track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
@@ -608,6 +615,7 @@ export interface AnalyzeAudioFeatureOptions {
     calculators?: string[];
     onProgress?: (value: number, label?: string) => void;
     signal?: AbortSignal;
+    analysisProfileId?: string | null;
 }
 
 export interface AnalyzeAudioFeatureResult {
@@ -640,6 +648,7 @@ export async function analyzeAudioBufferFeatures(
         windowSize,
         hopSize
     );
+    const requestedProfileId = sanitizeAnalysisProfileId(options.analysisProfileId) ?? DEFAULT_ANALYSIS_PROFILE_ID;
     const hopTicks = quantizeHopTicks({
         hopSeconds,
         tempoMapper,
@@ -689,6 +698,7 @@ export async function analyzeAudioBufferFeatures(
             hopSeconds,
             frameCount,
             analysisParams,
+            analysisProfileId: requestedProfileId,
             timing: timingSlice,
             tempoProjection,
             tempoMapper,
@@ -706,7 +716,8 @@ export async function analyzeAudioBufferFeatures(
             track.tempoProjection = track.tempoProjection
                 ? cloneTempoProjection(track.tempoProjection, projectedHopTicks)
                 : cloneTempoProjection(tempoProjection, projectedHopTicks);
-            track.analysisProfileId = track.analysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+            const resolvedTrackProfile = sanitizeAnalysisProfileId(track.analysisProfileId) ?? requestedProfileId;
+            track.analysisProfileId = resolvedTrackProfile;
             if (track.channelAliases === undefined) {
                 if (track.channels > 1 && track.channels <= 8) {
                     track.channelAliases = inferChannelAliases(track.channels);
@@ -733,7 +744,14 @@ export async function analyzeAudioBufferFeatures(
     if (progress) {
         progress(1, 'complete');
     }
-    const analysisProfiles = buildDefaultProfile(analysisParams, DEFAULT_ANALYSIS_PROFILE_ID);
+    const analysisProfiles = buildDefaultProfile(analysisParams, requestedProfileId);
+    if (requestedProfileId !== DEFAULT_ANALYSIS_PROFILE_ID) {
+        const descriptor = analysisProfiles[requestedProfileId];
+        analysisProfiles[DEFAULT_ANALYSIS_PROFILE_ID] = {
+            ...descriptor,
+            id: DEFAULT_ANALYSIS_PROFILE_ID,
+        };
+    }
     const channelAliases = inferChannelAliases(options.audioBuffer.numberOfChannels || 1);
     return {
         cache: {
@@ -747,7 +765,7 @@ export async function analyzeAudioBufferFeatures(
             featureTracks,
             analysisParams,
             analysisProfiles,
-            defaultAnalysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID,
+            defaultAnalysisProfileId: requestedProfileId,
             channelAliases,
         },
     };

@@ -137,7 +137,7 @@ describe('CacheDiagnosticsPanel', () => {
         await waitFor(() => {
             expect(reanalyzeSpy).toHaveBeenCalledTimes(1);
         });
-        expect(reanalyzeSpy).toHaveBeenCalledWith('audioTrack', ['calc.spectrogram']);
+        expect(reanalyzeSpy).toHaveBeenCalledWith('audioTrack', ['calc.spectrogram'], 'default');
         expect(restartSpy).not.toHaveBeenCalled();
 
         expect(within(rmsRow as HTMLElement).getByRole('button', { name: /Regenerate/i })).toBe(regenerateRms);

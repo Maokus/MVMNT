@@ -365,9 +365,7 @@ function computeCacheDiffs(
         const idPart = separatorIndex >= 0 ? key.slice(0, separatorIndex) : key;
         const profilePartRaw = separatorIndex >= 0 ? key.slice(separatorIndex + 2) : 'null';
         const profileId = profilePartRaw === 'null' ? null : profilePartRaw;
-        const resolvedSourceId = timelineState.tracks[idPart]
-            ? resolveAudioSourceId(idPart, timelineState)
-            : idPart;
+        const resolvedSourceId = timelineState.tracks[idPart] ? resolveAudioSourceId(idPart, timelineState) : idPart;
         const normalizedKey = makeGroupKey(resolvedSourceId, profileId);
         let filtered = sanitizedDismissed[normalizedKey];
         if (!filtered) {
@@ -663,9 +661,9 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const sourceId = resolveAudioSourceId(trackRef, timelineState);
         const diff = get().diffs.find(
             (entry) =>
-                entry.audioSourceId === sourceId
-                && entry.analysisProfileId === analysisProfileId
-                && (entry.trackRefs.length === 0 || entry.trackRefs.includes(trackRef))
+                entry.audioSourceId === sourceId &&
+                entry.analysisProfileId === analysisProfileId &&
+                (entry.trackRefs.length === 0 || entry.trackRefs.includes(trackRef))
         );
         const descriptorDetails = diff?.descriptorDetails ?? {};
         const job: RegenerationJob = {
@@ -828,9 +826,9 @@ function runJob(jobId: string): void {
             const cache = timelineState.audioFeatureCaches[job.audioSourceId];
             const calculators = resolveCalculators(job, cache);
             if (calculators.length) {
-                timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators);
+                timelineState.reanalyzeAudioFeatureCalculators(job.audioSourceId, calculators, job.analysisProfileId);
             } else {
-                timelineState.restartAudioFeatureAnalysis(job.audioSourceId);
+                timelineState.restartAudioFeatureAnalysis(job.audioSourceId, job.analysisProfileId);
             }
         } catch (error) {
             status = 'failed';

@@ -63,7 +63,7 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const diffs = useAudioDiagnosticsStore.getState().diffs;
@@ -105,7 +105,7 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'mystery-feature', calculatorId: 'com.example.mystery' }],
-            { profile: 'alt' },
+            { profile: 'alt' }
         );
 
         const diff = useAudioDiagnosticsStore.getState().diffs[0];
@@ -190,7 +190,7 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.audioSourceId === 'audioTrack');
@@ -239,14 +239,14 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'sourceTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
         publishAnalysisIntent(
             'element-linked',
             'audioSpectrum',
             'linkedTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const diffs = useAudioDiagnosticsStore.getState().diffs;
@@ -333,15 +333,13 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
         const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
         const descriptorKey = `${descriptorMatchKey}|profile:default`;
-        useAudioDiagnosticsStore
-            .getState()
-            .regenerateDescriptors('audioTrack', 'default', [descriptorKey], 'manual');
+        useAudioDiagnosticsStore.getState().regenerateDescriptors('audioTrack', 'default', [descriptorKey], 'manual');
 
         expect(useAudioDiagnosticsStore.getState().jobs.length).toBe(1);
         const queuedJob = useAudioDiagnosticsStore.getState().jobs[0];
@@ -360,6 +358,7 @@ describe('audio diagnostics store', () => {
         const lastHistory = history[history.length - 1];
         expect(lastHistory.descriptorIds).toContain(descriptorKey);
         expect(lastHistory.action).toBe('manual_regenerate');
+        expect(reanalyzeSpy).toHaveBeenCalledWith('audioTrack', ['test.spectrogram'], 'default');
         expect(reanalyzeSpy).toHaveBeenCalledTimes(1);
         expect(restartSpy).not.toHaveBeenCalled();
         expect(useAudioDiagnosticsStore.getState().pendingDescriptors[`audioTrack__default`]).toBeUndefined();
@@ -442,7 +441,7 @@ describe('audio diagnostics store', () => {
             'audioWaveform',
             'audioTrack',
             [{ featureKey: 'rms', calculatorId: 'mvmnt.rms' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const extraneousDescriptor = {
@@ -519,7 +518,7 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'alt' },
+            { profile: 'alt' }
         );
 
         const initialDiff = useAudioDiagnosticsStore
@@ -551,7 +550,7 @@ describe('audio diagnostics store', () => {
             'audioSpectrum',
             'audioTrack',
             [{ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' }],
-            { profile: 'default' },
+            { profile: 'default' }
         );
 
         const nextState = useAudioDiagnosticsStore.getState();

@@ -15,10 +15,7 @@ export interface SpectrogramCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
     hannWindow: (length: number) => Float32Array;
-    cloneTempoProjection: (
-        projection: AudioFeatureTempoProjection,
-        hopTicks: number,
-    ) => AudioFeatureTempoProjection;
+    cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
 }
@@ -107,7 +104,7 @@ export function createSpectrogramCalculator({
                     maxDecibels: SPECTROGRAM_MAX_DECIBELS,
                     window: 'hann',
                 },
-                analysisProfileId: 'default',
+                analysisProfileId: context.analysisProfileId,
                 channelAliases: null,
                 channelLayout: null,
             };

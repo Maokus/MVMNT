@@ -9,10 +9,7 @@ import type { SerializedAudioFeatureTrack } from '../audioFeatureAnalysis';
 export interface RmsCalculatorDependencies {
     createAnalysisYieldController: (signal?: AbortSignal) => () => Promise<void>;
     mixBufferToMono: (buffer: AudioBuffer, maybeYield?: () => Promise<void>) => Promise<Float32Array>;
-    cloneTempoProjection: (
-        projection: AudioFeatureTempoProjection,
-        hopTicks: number,
-    ) => AudioFeatureTempoProjection;
+    cloneTempoProjection: (projection: AudioFeatureTempoProjection, hopTicks: number) => AudioFeatureTempoProjection;
     serializeTrack: (track: AudioFeatureTrack) => SerializedAudioFeatureTrack;
     deserializeTrack: (payload: SerializedAudioFeatureTrack) => AudioFeatureTrack;
     inferChannelAliases: (channelCount: number) => string[];
@@ -71,7 +68,7 @@ export function createRmsCalculator({
                 },
                 channelAliases: aliases,
                 channelLayout: { aliases },
-                analysisProfileId: 'default',
+                analysisProfileId: context.analysisProfileId,
             };
 
             return track;
