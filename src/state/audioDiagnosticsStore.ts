@@ -15,6 +15,7 @@ import {
     subscribeToAnalysisIntents,
     type AnalysisIntent,
 } from '@audio/features/analysisIntents';
+import { isAdhocAnalysisProfileId } from '@audio/features/analysisProfileRegistry';
 import { getFeatureRequirements, type AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
 import { useTimelineStore, type TimelineState } from './timelineStore';
 import {
@@ -193,6 +194,19 @@ function normalizeProfileKey(value: string | null | undefined): string {
     return sanitized ?? DEFAULT_PROFILE_KEY;
 }
 
+function extractProfileOverridesHash(profileId: string | null | undefined): string | null {
+    const sanitized = sanitizeProfileId(profileId);
+    if (!sanitized || !isAdhocAnalysisProfileId(sanitized)) {
+        return null;
+    }
+    const separatorIndex = sanitized.indexOf('-');
+    if (separatorIndex < 0) {
+        return null;
+    }
+    const suffix = sanitized.slice(separatorIndex + 1);
+    return suffix.length ? suffix : null;
+}
+
 function buildDescriptorRequestKey(matchKey: string, profileKey: string, profileHash?: string | null): string {
     const parts = [`${matchKey}`, `profile:${profileKey}`];
     if (profileHash && profileHash.length) {
@@ -259,18 +273,19 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             track.analysisProfileId ?? identity.analysisProfileId ?? cache.defaultAnalysisProfileId ?? null
         );
         const profileKey = normalizeProfileKey(profileId);
+        const profileOverridesHash = extractProfileOverridesHash(profileId);
         const base: AudioFeatureDescriptor = {
             featureKey: identity.featureKey || track.key,
             calculatorId: track.calculatorId,
             bandIndex: null,
             analysisProfileId: profileId,
             requestedAnalysisProfileId: profileId,
-            profileOverridesHash: null,
+            profileOverridesHash,
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);
         const identityKey = buildDescriptorIdentityKey(base);
-        const requestKey = buildDescriptorRequestKey(baseMatch, profileKey, null);
+        const requestKey = buildDescriptorRequestKey(baseMatch, profileKey, profileOverridesHash);
         const meta = resolveChannelMetadata(track, cache);
         entries.set(requestKey, {
             id: baseId,
@@ -280,7 +295,7 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
             profileId,
             profileKey,
             requestKey,
-            profileOverridesHash: null,
+            profileOverridesHash,
             channelCount: meta.channelCount,
             channelAliases: meta.channelAliases,
             channelLayout: meta.channelLayout,

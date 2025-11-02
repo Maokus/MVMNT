@@ -8,7 +8,7 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { useTimelineStore } from '@state/timelineStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { sanitizeAnalysisProfileId } from '@audio/features/featureTrackIdentity';
+import { buildFeatureTrackKey, sanitizeAnalysisProfileId } from '@audio/features/featureTrackIdentity';
 
 function resetStores() {
     useTimelineStore.getState().resetTimeline();
@@ -128,6 +128,89 @@ describe('audio diagnostics store', () => {
         expect(diff.missing).toEqual(expect.arrayContaining([fastKey, slowKey]));
         expect(diff.descriptorDetails[fastKey]?.analysisProfileId).toBe(fast.descriptor.analysisProfileId);
         expect(diff.descriptorDetails[slowKey]?.analysisProfileId).toBe(slow.descriptor.analysisProfileId);
+    });
+
+    it('matches cached adhoc profile descriptors to pending requests', () => {
+        const cacheUpdatedAt = Date.now();
+        const adhoc = createFeatureDescriptor({
+            feature: 'spectrogram',
+            profileParams: { windowSize: 4096, hopSize: 1024 },
+        });
+        const analysisProfileId = adhoc.descriptor.analysisProfileId ?? 'default';
+        const profileKey = sanitizeAnalysisProfileId(analysisProfileId) ?? 'default';
+        const descriptorMatchKey = buildDescriptorMatchKey(adhoc.descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:${profileKey}|hash:${adhoc.descriptor.profileOverridesHash}`;
+
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 1,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 128,
+                    featureTracks: {
+                        [adhoc.descriptor.featureKey ?? 'spectrogram']: {
+                            key: buildFeatureTrackKey(adhoc.descriptor.featureKey ?? 'spectrogram', analysisProfileId),
+                            calculatorId: adhoc.descriptor.calculatorId ?? 'test.spectrogram',
+                            version: 1,
+                            frameCount: 128,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                            analysisProfileId,
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 4096,
+                        hopSize: 1024,
+                        overlap: 4,
+                        sampleRate: 44100,
+                        calculatorVersions: { [adhoc.descriptor.calculatorId ?? 'test.spectrogram']: 1 },
+                    },
+                    analysisProfiles: {
+                        [analysisProfileId]: {
+                            id: analysisProfileId,
+                            windowSize: 4096,
+                            hopSize: 1024,
+                            overlap: 4,
+                            sampleRate: 44100,
+                        },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt: cacheUpdatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt: cacheUpdatedAt },
+            },
+        });
+
+        publishAnalysisIntent('element-adhoc', 'audioSpectrum', 'audioTrack', [adhoc.descriptor]);
+
+        const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.audioSourceId === 'audioTrack');
+        expect(diff).toBeDefined();
+        expect(diff?.missing).not.toContain(descriptorKey);
+        expect(diff?.stale).not.toContain(descriptorKey);
+        expect(diff?.badRequest).not.toContain(descriptorKey);
+        expect(diff?.descriptorsCached).toContain(descriptorKey);
+        expect(diff?.descriptorDetails[descriptorKey]?.analysisProfileId).toBe(analysisProfileId);
+        expect(diff?.status).toBe('clear');
     });
 
     it('flags unsupported descriptors as bad requests', () => {
