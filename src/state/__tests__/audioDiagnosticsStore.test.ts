@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { publishAnalysisIntent, resetAnalysisIntentStateForTests, buildDescriptorId } from '@audio/features/analysisIntents';
+import {
+    publishAnalysisIntent,
+    resetAnalysisIntentStateForTests,
+    buildDescriptorMatchKey,
+} from '@audio/features/analysisIntents';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { useTimelineStore } from '@state/timelineStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
@@ -67,8 +71,9 @@ describe('audio diagnostics store', () => {
         const diff = diffs[0];
         expect(diff.trackRef).toBe('audioTrack');
         expect(diff.analysisProfileId).toBe('default');
-        const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
-        const descriptorKey = `${descriptorId}|profile:default`;
+        const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:default`;
         expect(diff.missing).toContain(descriptorKey);
         const detail = diff.descriptorDetails[descriptorKey];
         expect(detail.descriptor.featureKey).toBe('spectrogram');
@@ -104,11 +109,12 @@ describe('audio diagnostics store', () => {
         );
 
         const diff = useAudioDiagnosticsStore.getState().diffs[0];
-        const descriptorId = buildDescriptorId({
+        const descriptor = {
             featureKey: 'mystery-feature',
             calculatorId: 'com.example.mystery',
-        });
-        const descriptorKey = `${descriptorId}|profile:alt`;
+        } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:alt`;
         expect(diff.badRequest).toContain(descriptorKey);
         expect(diff.missing).not.toContain(descriptorKey);
         expect(diff.stale).not.toContain(descriptorKey);
@@ -189,8 +195,9 @@ describe('audio diagnostics store', () => {
 
         const diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
         expect(diff).toBeDefined();
-        const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
-        const descriptorKey = `${descriptorId}|profile:default`;
+        const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:default`;
         const detail = diff?.descriptorDetails[descriptorKey];
         expect(detail).toBeDefined();
         expect(detail?.channelCount).toBe(2);
@@ -275,8 +282,9 @@ describe('audio diagnostics store', () => {
             { profile: 'default' },
         );
 
-        const descriptorId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'test.spectrogram' });
-        const descriptorKey = `${descriptorId}|profile:default`;
+        const descriptor = { featureKey: 'spectrogram', calculatorId: 'test.spectrogram' } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:default`;
         useAudioDiagnosticsStore
             .getState()
             .regenerateDescriptors('audioTrack', 'default', [descriptorKey], 'manual');
@@ -383,8 +391,12 @@ describe('audio diagnostics store', () => {
             { profile: 'default' },
         );
 
-        const extraneousId = buildDescriptorId({ featureKey: 'spectrogram', calculatorId: 'mvmnt.spectrogram' });
-        const extraneousKey = `${extraneousId}|profile:default`;
+        const extraneousDescriptor = {
+            featureKey: 'spectrogram',
+            calculatorId: 'mvmnt.spectrogram',
+        } as const;
+        const extraneousMatchKey = buildDescriptorMatchKey(extraneousDescriptor);
+        const extraneousKey = `${extraneousMatchKey}|profile:default`;
         let diff = useAudioDiagnosticsStore.getState().diffs.find((entry) => entry.trackRef === 'audioTrack');
         expect(diff?.extraneous).toContain(extraneousKey);
 

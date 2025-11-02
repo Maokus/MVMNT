@@ -7,7 +7,7 @@ import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import {
     publishAnalysisIntent,
     resetAnalysisIntentStateForTests,
-    buildDescriptorId,
+    buildDescriptorMatchKey,
 } from '@audio/features/analysisIntents';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 
@@ -112,8 +112,8 @@ describe('CacheDiagnosticsBanner', () => {
         const link = screen.getByRole('link', { name: /Learn More/i });
         expect(link).toHaveAttribute('href', 'docs/audio-feature-bindings.md#cache-regeneration');
 
-        const descriptorId = buildDescriptorId(descriptor);
-        const descriptorKey = `${descriptorId}|profile:default`;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const descriptorKey = `${descriptorMatchKey}|profile:default`;
         const diffs = useAudioDiagnosticsStore.getState().diffs;
         expect(diffs[0]?.missing).toContain(descriptorKey);
     });
