@@ -895,14 +895,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         [id]: { ...(s.tracks[id] as any), audioSourceId: id },
                     },
                 };
-                updates.audioFeatureCacheStatus = updateAudioFeatureStatusEntry(
-                    s.audioFeatureCacheStatus,
-                    id,
-                    'idle',
-                    'analysis not started',
-                    undefined,
-                    null
-                );
+                const existingStatus = s.audioFeatureCacheStatus[id];
+                const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');
+                updates.audioFeatureCacheStatus = preserveReadyStatus
+                    ? { ...s.audioFeatureCacheStatus }
+                    : updateAudioFeatureStatusEntry(
+                          s.audioFeatureCacheStatus,
+                          id,
+                          'idle',
+                          'analysis not started',
+                          undefined,
+                          null
+                      );
                 return updates as TimelineState;
             });
             // Kick off async peak extraction (non-blocking)

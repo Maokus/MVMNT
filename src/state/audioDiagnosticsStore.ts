@@ -137,6 +137,7 @@ interface AudioDiagnosticsState {
     dismissedExtraneous: Record<string, Set<string>>;
     missingPopupVisible: boolean;
     missingPopupSuppressed: boolean;
+    missingPopupFingerprint: string | null;
     publishIntent: (intent: AnalysisIntent) => void;
     removeIntent: (elementId: string) => void;
     recomputeDiffs: () => void;
@@ -344,6 +345,7 @@ function computeCacheDiffs(
             owners: Map<string, Set<string>>;
             requestedAt: number;
             trackRefs: Set<string>;
+            descriptorProfiles: Set<string | null>;
         }
     >();
     const requestsBySource = new Map<string, Set<string>>();
@@ -372,28 +374,38 @@ function computeCacheDiffs(
 
     for (const record of Object.values(intentsByElement)) {
         const audioSourceId = resolveAudioSourceId(record.trackRef, timelineState);
-        const key = makeGroupKey(audioSourceId, record.analysisProfileId);
-        let entry = groups.get(key);
-        if (!entry) {
-            entry = {
-                audioSourceId,
-                analysisProfileId: record.analysisProfileId,
-                descriptors: new Map(),
-                owners: new Map(),
-                requestedAt: Date.parse(record.requestedAt) || Date.now(),
-                trackRefs: new Set<string>(),
-            };
-            groups.set(key, entry);
-        }
-        entry.trackRefs.add(record.trackRef);
+        const requestedAt = Date.parse(record.requestedAt) || Date.now();
+        const ensureGroup = (preferredProfileId: string | null) => {
+            const sanitizedPreferred = sanitizeProfileId(preferredProfileId);
+            const groupKey = makeGroupKey(audioSourceId, sanitizedPreferred);
+            let group = groups.get(groupKey);
+            if (!group) {
+                group = {
+                    audioSourceId,
+                    analysisProfileId: sanitizedPreferred ?? null,
+                    descriptors: new Map<string, DescriptorInfo>(),
+                    owners: new Map<string, Set<string>>(),
+                    requestedAt,
+                    trackRefs: new Set<string>(),
+                    descriptorProfiles: new Set<string | null>(),
+                };
+                groups.set(groupKey, group);
+            } else if (requestedAt < group.requestedAt) {
+                group.requestedAt = requestedAt;
+            }
+            group.trackRefs.add(record.trackRef);
+            group.descriptorProfiles.add(sanitizedPreferred ?? null);
+            return group;
+        };
 
-        const profileKey = normalizeProfileKey(record.analysisProfileId);
+        const targetGroup = ensureGroup(record.analysisProfileId ?? null);
+
         let profileSet = profilesBySource.get(audioSourceId);
         if (!profileSet) {
             profileSet = new Set<string>();
             profilesBySource.set(audioSourceId, profileSet);
         }
-        profileSet.add(profileKey);
+        profileSet.add(normalizeProfileKey(record.analysisProfileId));
 
         let requestSet = requestsBySource.get(audioSourceId);
         if (!requestSet) {
@@ -402,15 +414,19 @@ function computeCacheDiffs(
         }
 
         for (const info of Object.values(record.descriptors)) {
-            entry.descriptors.set(info.requestKey, info);
-            let owners = entry.owners.get(info.requestKey);
+            targetGroup.descriptors.set(info.requestKey, info);
+            targetGroup.descriptorProfiles.add(info.profileId ?? null);
+            let owners = targetGroup.owners.get(info.requestKey);
             if (!owners) {
                 owners = new Set();
-                entry.owners.set(info.requestKey, owners);
+                targetGroup.owners.set(info.requestKey, owners);
             }
             owners.add(record.elementId);
             requestSet.add(info.requestKey);
             requiredRequestKeys.add(info.requestKey);
+            if (info.profileKey) {
+                profileSet.add(info.profileKey);
+            }
         }
 
         for (const requirement of record.requirementDiagnostics ?? []) {
@@ -491,14 +507,36 @@ function computeCacheDiffs(
         const badRequest: string[] = [];
         const regenerating: string[] = [];
         const extraneous: string[] = [];
-        const pendingKey = makeGroupKey(group.audioSourceId, group.analysisProfileId);
-        processedGroupKeys.add(pendingKey);
-        const pendingSet = pendingDescriptors[pendingKey] ?? new Set();
-        const dismissedSet = sanitizedDismissed[pendingKey] ?? new Set();
+        const profileIdsForGroup = new Set<string | null>();
+        profileIdsForGroup.add(group.analysisProfileId ?? null);
+        for (const id of group.descriptorProfiles) {
+            profileIdsForGroup.add(id ?? null);
+        }
+        if (!profileIdsForGroup.size) {
+            profileIdsForGroup.add(null);
+        }
+
+        const pendingSet = new Set<string>();
+        const dismissedSet = new Set<string>();
+        for (const profileId of profileIdsForGroup) {
+            const pendingKey = makeGroupKey(group.audioSourceId, profileId);
+            processedGroupKeys.add(pendingKey);
+            const pending = pendingDescriptors[pendingKey];
+            if (pending) {
+                for (const descriptorKey of pending) {
+                    pendingSet.add(descriptorKey);
+                }
+            }
+            const dismissed = sanitizedDismissed[pendingKey];
+            if (dismissed) {
+                for (const descriptorKey of dismissed) {
+                    dismissedSet.add(descriptorKey);
+                }
+            }
+        }
         const sourceStale = status?.state === 'stale';
         const sourceRequestSet = requestsBySource.get(group.audioSourceId) ?? new Set<string>();
         const sourceProfiles = profilesBySource.get(group.audioSourceId) ?? new Set<string>();
-        const groupProfileKey = normalizeProfileKey(group.analysisProfileId);
         let assignedSet = extraneousAssignedBySource.get(group.audioSourceId);
         if (!assignedSet) {
             assignedSet = new Set<string>();
@@ -535,11 +573,6 @@ function computeCacheDiffs(
             if (sourceRequestSet.has(cached.requestKey)) continue;
             if (dismissedSet.has(cached.requestKey)) continue;
             if (assignedSet.has(cached.requestKey)) continue;
-            const profileMatchesGroup = groupProfileKey === cached.profileKey;
-            const profileRepresented = sourceProfiles.has(cached.profileKey);
-            if (!profileMatchesGroup && profileRepresented) {
-                continue;
-            }
             extraneous.push(cached.requestKey);
             assignedSet.add(cached.requestKey);
         }
@@ -655,6 +688,24 @@ function createJobId(): string {
 
 const activeJobKeys = new Set<string>();
 
+function buildMissingFingerprint(diffs: CacheDiff[]): string | null {
+    const entries: string[] = [];
+    for (const diff of diffs) {
+        if (!diff.missing.length) {
+            continue;
+        }
+        const profileId = diff.analysisProfileId ?? 'null';
+        for (const descriptorId of diff.missing) {
+            entries.push(`${diff.audioSourceId}::${profileId}::${descriptorId}`);
+        }
+    }
+    if (!entries.length) {
+        return null;
+    }
+    entries.sort();
+    return entries.join('|');
+}
+
 function resolveCalculators(job: RegenerationJob, cache: AudioFeatureCache | undefined): string[] {
     const calculators = new Set<string>();
     for (const descriptorId of job.descriptors) {
@@ -700,6 +751,7 @@ const initialState: Omit<
     dismissedExtraneous: {},
     missingPopupVisible: false,
     missingPopupSuppressed: false,
+    missingPopupFingerprint: null,
 };
 
 export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get) => ({
@@ -811,15 +863,22 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
         const bannerVisible = diffs.some(
             (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0
         );
-        const hasMissing = diffs.some((diff) => diff.missing.length > 0);
+        const missingFingerprint = buildMissingFingerprint(diffs);
+        const hasMissing = missingFingerprint !== null;
         set((current) => {
             let missingPopupVisible = current.missingPopupVisible;
             let missingPopupSuppressed = current.missingPopupSuppressed;
+            const fingerprintChanged = current.missingPopupFingerprint !== missingFingerprint;
             if (!hasMissing) {
                 missingPopupVisible = false;
                 missingPopupSuppressed = false;
+            } else if (fingerprintChanged) {
+                missingPopupSuppressed = false;
+                missingPopupVisible = true;
             } else if (!missingPopupSuppressed) {
                 missingPopupVisible = true;
+            } else {
+                missingPopupVisible = false;
             }
             return {
                 diffs,
@@ -827,6 +886,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
                 dismissedExtraneous: nextDismissed,
                 missingPopupVisible,
                 missingPopupSuppressed,
+                missingPopupFingerprint: missingFingerprint,
             };
         });
     },
