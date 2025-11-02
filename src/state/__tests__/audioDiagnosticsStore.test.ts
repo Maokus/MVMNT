@@ -592,6 +592,85 @@ describe('audio diagnostics store', () => {
         expect(diff?.extraneous ?? []).toHaveLength(0);
     });
 
+    it('marks cached descriptors as extraneous when no elements reference the audio source', () => {
+        const updatedAt = Date.now();
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioTrack: {
+                    version: 1,
+                    audioSourceId: 'audioTrack',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 32,
+                    featureTracks: {
+                        spectrogram: {
+                            key: 'spectrogram',
+                            calculatorId: 'mvmnt.spectrogram',
+                            version: 1,
+                            frameCount: 32,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 512,
+                        hopSize: 256,
+                        overlap: 0.5,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'mvmnt.spectrogram': 1 },
+                    },
+                    analysisProfiles: {
+                        default: {
+                            id: 'default',
+                            windowSize: 512,
+                            hopSize: 256,
+                            overlap: 0.5,
+                            sampleRate: 44100,
+                        },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioTrack: { state: 'ready', updatedAt },
+            },
+        });
+
+        useAudioDiagnosticsStore.getState().recomputeDiffs();
+
+        const diff = useAudioDiagnosticsStore
+            .getState()
+            .diffs.find((entry) => entry.audioSourceId === 'audioTrack' && entry.analysisProfileId === 'default');
+
+        expect(diff).toBeDefined();
+        expect(diff?.descriptorsRequested).toEqual([]);
+        const descriptor = {
+            featureKey: 'spectrogram',
+            calculatorId: 'mvmnt.spectrogram',
+        } as const;
+        const extraneousKey = `${buildDescriptorMatchKey(descriptor)}|profile:default`;
+        expect(diff?.extraneous).toContain(extraneousKey);
+        expect(diff?.status).toBe('issues');
+        expect(diff?.trackRefs).toEqual(['audioTrack']);
+    });
+
     it('clears dismissed extraneous entries when descriptors become required', () => {
         const updatedAt = Date.now();
         useTimelineStore.setState({

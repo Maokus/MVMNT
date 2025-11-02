@@ -348,6 +348,21 @@ function computeCacheDiffs(
     const extraneousAssignedBySource = new Map<string, Set<string>>();
     const requiredRequestKeys = new Set<string>();
 
+    const trackRefsBySource = new Map<string, Set<string>>();
+    const tracks = timelineState.tracks ?? {};
+    for (const [trackRef, track] of Object.entries(tracks)) {
+        if (!track) continue;
+        const trackType = (track as { type?: string }).type;
+        if (trackType !== 'audio') continue;
+        const sourceId = resolveAudioSourceId(trackRef, timelineState);
+        let refs = trackRefsBySource.get(sourceId);
+        if (!refs) {
+            refs = new Set<string>();
+            trackRefsBySource.set(sourceId, refs);
+        }
+        refs.add(trackRef);
+    }
+
     const calculators = audioFeatureCalculatorRegistry.list();
     const knownFeatures = new Set(calculators.map((entry) => entry.featureKey));
     const calculatorFeatureById = new Map(calculators.map((entry) => [entry.id, entry.featureKey]));
@@ -429,9 +444,17 @@ function computeCacheDiffs(
     const diffs: CacheDiff[] = [];
     const now = Date.now();
 
+    const processedGroupKeys = new Set<string>();
+
     for (const group of groups.values()) {
         const cache = timelineState.audioFeatureCaches[group.audioSourceId];
         const status = timelineState.audioFeatureCacheStatus[group.audioSourceId];
+        const knownRefs = trackRefsBySource.get(group.audioSourceId);
+        if (knownRefs) {
+            for (const ref of knownRefs) {
+                group.trackRefs.add(ref);
+            }
+        }
         const requested = Array.from(group.descriptors.keys()).sort();
         const descriptorDetails: Record<string, CacheDescriptorDetail> = {};
         const ownerMap: Record<string, string[]> = {};
@@ -466,6 +489,7 @@ function computeCacheDiffs(
         const regenerating: string[] = [];
         const extraneous: string[] = [];
         const pendingKey = makeGroupKey(group.audioSourceId, group.analysisProfileId);
+        processedGroupKeys.add(pendingKey);
         const pendingSet = pendingDescriptors[pendingKey] ?? new Set();
         const dismissedSet = sanitizedDismissed[pendingKey] ?? new Set();
         const sourceStale = status?.state === 'stale';
@@ -535,6 +559,77 @@ function computeCacheDiffs(
             updatedAt: now,
             status: hasIssues ? 'issues' : 'clear',
         });
+    }
+
+    const cacheEntries = Object.entries(timelineState.audioFeatureCaches ?? {});
+    for (const [audioSourceId, cache] of cacheEntries) {
+        if (!cache) continue;
+        const cachedInfos = collectCachedDescriptorInfos(cache);
+        if (!cachedInfos.length) continue;
+        const infosByProfile = new Map<string, CachedDescriptorInfo[]>();
+        for (const info of cachedInfos) {
+            const key = makeGroupKey(audioSourceId, info.profileId);
+            let list = infosByProfile.get(key);
+            if (!list) {
+                list = [];
+                infosByProfile.set(key, list);
+            }
+            list.push(info);
+        }
+
+        for (const [groupKey, infos] of infosByProfile.entries()) {
+            if (processedGroupKeys.has(groupKey)) {
+                continue;
+            }
+            const profileId = infos[0]?.profileId ?? null;
+            let assignedSet = extraneousAssignedBySource.get(audioSourceId);
+            if (!assignedSet) {
+                assignedSet = new Set<string>();
+                extraneousAssignedBySource.set(audioSourceId, assignedSet);
+            }
+            const descriptorDetails: Record<string, CacheDescriptorDetail> = {};
+            const owners: Record<string, string[]> = {};
+            const extraneous: string[] = [];
+            const dismissedSet = sanitizedDismissed[groupKey] ?? new Set();
+            for (const info of infos) {
+                const detail = createDescriptorDetail(info.descriptor, cache, info.profileId, {
+                    channelCount: info.channelCount,
+                    channelAliases: info.channelAliases,
+                    channelLayout: info.channelLayout,
+                });
+                if (detail) {
+                    descriptorDetails[info.requestKey] = detail;
+                }
+                owners[info.requestKey] = [];
+                if (dismissedSet.has(info.requestKey)) {
+                    continue;
+                }
+                if (assignedSet.has(info.requestKey)) {
+                    continue;
+                }
+                extraneous.push(info.requestKey);
+                assignedSet.add(info.requestKey);
+            }
+            const descriptorsCached = infos.map((info) => info.requestKey);
+            const trackRefs = Array.from(trackRefsBySource.get(audioSourceId) ?? []).sort();
+            diffs.push({
+                trackRefs,
+                audioSourceId,
+                analysisProfileId: profileId,
+                descriptorsRequested: [],
+                descriptorsCached,
+                missing: [],
+                stale: [],
+                extraneous,
+                badRequest: [],
+                regenerating: [],
+                descriptorDetails,
+                owners,
+                updatedAt: now,
+                status: extraneous.length > 0 ? 'issues' : 'clear',
+            });
+            processedGroupKeys.add(groupKey);
+        }
     }
 
     diffs.sort((a, b) => {
