@@ -1,9 +1,5 @@
 import { create } from 'zustand';
-import type {
-    AudioFeatureCache,
-    AudioFeatureDescriptor,
-    ChannelLayoutMeta,
-} from '@audio/features/audioFeatureTypes';
+import type { AudioFeatureCache, AudioFeatureDescriptor, ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import {
@@ -159,7 +155,8 @@ function extractFeatureKey(descriptorId: string): string | null {
     if (!descriptorId) {
         return null;
     }
-    const parts = descriptorId.split('|');
+    const content = descriptorId.startsWith('id:') ? descriptorId.slice(3) : descriptorId;
+    const parts = content.split('|');
     for (const part of parts) {
         if (part.startsWith('feature:')) {
             const key = part.slice('feature:'.length).trim();
@@ -191,7 +188,7 @@ function buildDescriptorRequestKey(matchKey: string, profileKey: string): string
 function isDescriptorKnown(
     descriptor: AudioFeatureDescriptor | undefined,
     knownFeatures: Set<string>,
-    calculatorFeatureById: Map<string, string>,
+    calculatorFeatureById: Map<string, string>
 ): boolean {
     if (!descriptor?.featureKey) {
         return false;
@@ -220,8 +217,10 @@ interface CachedDescriptorInfo {
 }
 
 function resolveChannelMetadata(
-    featureTrack: { channels?: number; channelAliases?: string[] | null; channelLayout?: ChannelLayoutMeta | null } | undefined,
-    cache: AudioFeatureCache | undefined,
+    featureTrack:
+        | { channels?: number; channelAliases?: string[] | null; channelLayout?: ChannelLayoutMeta | null }
+        | undefined,
+    cache: AudioFeatureCache | undefined
 ): { channelCount: number | null; channelAliases: string[] | null; channelLayout: ChannelLayoutMeta | null } {
     if (!featureTrack) {
         return { channelCount: null, channelAliases: null, channelLayout: null };
@@ -267,7 +266,7 @@ function createDescriptorDetail(
     descriptor: AudioFeatureDescriptor | undefined,
     cache: AudioFeatureCache | undefined,
     profileId: string | null,
-    overrides?: Partial<Omit<CacheDescriptorDetail, 'descriptor' | 'analysisProfileId'>>,
+    overrides?: Partial<Omit<CacheDescriptorDetail, 'descriptor' | 'analysisProfileId'>>
 ): CacheDescriptorDetail | null {
     if (!descriptor) {
         return null;
@@ -563,7 +562,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             satisfied: descriptorRequestKeys.has(buildDescriptorRequestKey(entry.matchKey, entry.profileKey)),
         }));
         const requirementKeys = new Set(
-            normalizedRequirements.map((entry) => buildDescriptorRequestKey(entry.matchKey, entry.profileKey)),
+            normalizedRequirements.map((entry) => buildDescriptorRequestKey(entry.matchKey, entry.profileKey))
         );
         const unexpectedDescriptors = Object.values(descriptors)
             .map((entry) => entry.requestKey)
@@ -611,7 +610,7 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             get().dismissedExtraneous
         );
         const bannerVisible = diffs.some(
-            (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0,
+            (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0
         );
         set({ diffs, bannerVisible });
     },

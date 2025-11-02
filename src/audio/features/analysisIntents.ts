@@ -16,9 +16,7 @@ export interface AnalysisIntent {
     requestedAt: string;
 }
 
-export type AnalysisIntentEvent =
-    | { type: 'publish'; intent: AnalysisIntent }
-    | { type: 'clear'; elementId: string };
+export type AnalysisIntentEvent = { type: 'publish'; intent: AnalysisIntent } | { type: 'clear'; elementId: string };
 
 type AnalysisIntentListener = (event: AnalysisIntentEvent) => void;
 
@@ -60,7 +58,7 @@ export function buildDescriptorId(descriptor: AudioFeatureDescriptor): string {
     parts.push(`feature:${descriptor?.featureKey ?? 'unknown'}`);
     if (descriptor?.calculatorId) parts.push(`calc:${descriptor.calculatorId}`);
     if (descriptor?.bandIndex != null) parts.push(`band:${descriptor.bandIndex}`);
-    return parts.join('|');
+    return `id:${parts.join('|')}`;
 }
 
 export function buildDescriptorMatchKey(descriptor: AudioFeatureDescriptor): string {
@@ -68,7 +66,7 @@ export function buildDescriptorMatchKey(descriptor: AudioFeatureDescriptor): str
     parts.push(`feature:${descriptor?.featureKey ?? 'unknown'}`);
     if (descriptor?.calculatorId) parts.push(`calc:${descriptor.calculatorId}`);
     if (descriptor?.bandIndex != null) parts.push(`band:${descriptor.bandIndex}`);
-    return parts.join('|');
+    return `match:${parts.join('|')}`;
 }
 
 function hashIntentPayload(intent: Omit<AnalysisIntent, 'requestedAt'>): string {
@@ -84,21 +82,21 @@ export function publishAnalysisIntent(
     elementType: string,
     trackRef: string | null,
     descriptors: DescriptorList,
-    options?: PublishAnalysisIntentOptions,
+    options?: PublishAnalysisIntentOptions
 ): void;
 export function publishAnalysisIntent(
     elementId: string | null | undefined,
     elementType: string,
     trackRef: string | null,
     profile: string | null,
-    descriptors: DescriptorList,
+    descriptors: DescriptorList
 ): void;
 export function publishAnalysisIntent(
     elementId: string | null | undefined,
     elementType: string,
     trackRef: string | null,
     descriptorsOrProfile: DescriptorList | string | null | undefined,
-    maybeOptionsOrDescriptors?: PublishAnalysisIntentOptions | DescriptorList,
+    maybeOptionsOrDescriptors?: PublishAnalysisIntentOptions | DescriptorList
 ): void {
     if (!elementId) {
         return;
@@ -116,7 +114,7 @@ export function publishAnalysisIntent(
         if (process.env.NODE_ENV !== 'production') {
             console.warn(
                 '[analysisIntents] publishAnalysisIntent(elementId, type, trackRef, profile, descriptors) is deprecated. ' +
-                    'Pass descriptors as the fourth argument and provide the profile via options.profile.',
+                    'Pass descriptors as the fourth argument and provide the profile via options.profile.'
             );
         }
     } else {
@@ -189,5 +187,5 @@ export function buildDescriptorLabel(descriptor: AudioFeatureDescriptor | null |
 }
 
 export function formatAnalysisIntentDescriptorId(descriptor: AudioFeatureDescriptor | null | undefined): string {
-    return buildDescriptorId(descriptor ?? {} as AudioFeatureDescriptor);
+    return buildDescriptorId(descriptor ?? ({} as AudioFeatureDescriptor));
 }
