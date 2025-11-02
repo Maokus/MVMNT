@@ -39,7 +39,7 @@ I propose allowing `AudioFeatureRequirement`s to include an optional `profilePar
             // No need for a named profile, just override what's needed.
             profileParams: {
                 windowSize: 4096,
-                smoothingTimeConstant: 0.2,
+                fftSize: 8192,
             },
         },
     ];
@@ -58,27 +58,47 @@ This approach provides the flexibility of custom parameters while seamlessly int
 
 ## 4. Implementation Plan
 
-The implementation will touch several key files in the audio feature system.
+The implementation will touch several key files in the audio feature system. The steps below assume the type clean-up that moved `smoothing` into `AudioSamplingOptions` is complete so profile overrides only affect true analysis-time parameters.
 
-1.  **`src/audio/features/audioFeatureTypes.ts`**:
+### Phase 0 – Type & API preparation
 
-    -   Add `profileParams?: Partial<AudioAnalysisProfile>` to the `AudioFeatureRequirement` interface.
+-   Update `AudioFeatureRequirement` to accept `profileParams?: Partial<AudioFeatureAnalysisProfileDescriptor>` and surface the new field everywhere requirements are created (scene specs, tests, fixtures).
+-   Ensure `AudioFeatureAnalysisProfileDescriptor` reflects the modern schema (no smoothing fields, optional FFT/min/max decibel knobs) and export a `CanonicalAnalysisProfile` helper type for internal use when hashing.
+-   Document the separation of responsibilities between `AudioSamplingOptions` (playback-time tweaks) and profile overrides to prevent future leakage of presentation fields into caches.
 
-2.  **`src/audio/features/descriptorBuilder.ts`**:
+### Phase 1 – Descriptor builder enhancements (`src/audio/features/descriptorBuilder.ts`)
 
-    -   This is where the core logic will reside. The builder will be updated to:
-        -   Detect the presence of `profileParams`.
-        -   Merge the base profile with `profileParams`.
-        -   Generate the deterministic hash for the resulting profile.
-        -   Use this hash as the `analysisProfileId` in the created `AudioFeatureDescriptor`.
-        -   Potentially register this ad-hoc profile dynamically in the registry for the current session if needed by downstream consumers.
+-   Load the base profile from the registry (explicit `profile` or cache `default`) and deep-clone it to avoid accidental mutation.
+-   Merge overrides from `profileParams` using a deterministic key order. Reject overrides that attempt to set sampling-only fields (e.g. `smoothing`) with a development-time warning.
+-   Introduce a `stableProfileHash(profile: CanonicalAnalysisProfile): string` utility that recursively sorts keys and serializes typed arrays/objects before hashing (e.g. using SHA-1/256 via the existing `@utils/hash` helpers).
+-   Derive a synthetic `analysisProfileId` using the hash (e.g. `adhoc-${hash.slice(0, 8)}`) and stamp it onto the resulting `AudioFeatureDescriptor`.
+-   Emit an entry in the descriptor's `profileRegistryDelta` (new or existing structure) so downstream consumers can surface the assembled profile metadata without mutating global registries.
 
-3.  **`src/audio/features/subscriptionSync.ts`**:
+### Phase 2 – Cache + subscription wiring
 
-    -   The logic for deduplicating descriptors needs to be updated to account for `profileParams`. Two requirements for the same feature are only identical if their `profileParams` are also structurally identical.
+-   Extend `subscriptionSync` descriptor deduplication to treat `(featureKey, calculatorId, profileParamsHash)` as the identity tuple.
+-   When materializing analysis intents, include the generated profile ID and the concrete profile payload so the analysis worker can rehydrate it without consulting UI-only state.
+-   Update `audioFeatureAnalysis.ts` cache serialization to persist ad-hoc profiles under the generated IDs. If an incoming cache already defines the ID, ensure the first-seen payload wins to keep determinism for parallel requests.
+-   Update `featureCacheUtils.mergeAnalysisParams` to dedupe identical ad-hoc profiles by value rather than trusting IDs alone in case two caches were generated on earlier versions with differing hash strategies.
 
-4.  **`src/core/scene/elements/`**:
-    -   Create a new test element (e.g., `audio-adhoc-profile.ts`) or modify an existing one (`audio-odd-profile.ts`) to validate the new functionality by requesting a feature with `profileParams`.
+### Phase 3 – Runtime + tooling UX
+
+-   Provide a helper in `audioFeatureRegistry` for discovering whether an ID is ad-hoc (e.g. prefix check) so diagnostics can render the hash plus a clickable “view overrides” affordance.
+-   Enhance `CacheDiagnosticsPanel` / `AudioDebugElement` to display the merged parameter set for ad-hoc IDs, leveraging the cached profile payload instead of guessing from descriptors.
+-   Add a sample scene element (`audio-adhoc-profile.ts`) that opts into the new API and can be toggled from developer overlays for manual verification.
+
+### Phase 4 – Testing & validation
+
+-   Unit-test `stableProfileHash` with out-of-order keys, nested overrides, and unsupported fields to ensure collisions are unlikely and validation messages are fired.
+-   Expand `descriptorBuilder` test coverage to confirm: (a) overrides merge correctly, (b) identical overrides reuse IDs, (c) differing overrides split caches, and (d) legacy requirements without overrides behave unchanged.
+-   Add integration tests in `subscriptionSync.test.ts` (and, if needed, scene API tests) verifying that two elements sharing the same overrides share the same descriptor and cache entry.
+-   Update persistence tests to round-trip caches containing ad-hoc profile IDs and validate that hydration restores the overrides faithfully.
+
+### Phase 5 – Documentation & rollout
+
+-   Update developer docs (`docs/audio/quickstart.md`, `docs/audio/concepts.md`) with usage examples, explicitly calling out the difference between profile overrides and sampling options like smoothing.
+-   Write a migration note summarizing the removal of `smoothing` from analysis profiles and advising teams on where to apply smoothing going forward.
+-   Announce the feature in release notes once instrumentation shows caches remain stable.
 
 ## 5. Potential Issues & Sources of Confusion
 

@@ -305,11 +305,10 @@ const SceneAnalysisCachesTab: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                deleteExtraneousDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                            }`}
+                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${deleteExtraneousDisabled
+                                ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
+                                }`}
                             onClick={deleteExtraneousCaches}
                             disabled={deleteExtraneousDisabled}
                         >
@@ -317,15 +316,14 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                regenerateAllDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                            }`}
+                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${regenerateAllDisabled
+                                ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
+                                }`}
                             onClick={regenerateAll}
                             disabled={regenerateAllDisabled}
                         >
-                            Recalculate requested feature tracks
+                            Calculate requested feature tracks
                         </button>
                     </div>
                 </div>
@@ -395,9 +393,8 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         <div className="text-neutral-400">
                                             {row.hasCache
                                                 ? row.features.length
-                                                    ? `Cached ${row.features.length} feature ${
-                                                          row.features.length === 1 ? 'track' : 'tracks'
-                                                      }.`
+                                                    ? `Cached ${row.features.length} feature ${row.features.length === 1 ? 'track' : 'tracks'
+                                                    }.`
                                                     : 'Cached feature metadata available.'
                                                 : 'No analysed feature data stored yet.'}
                                             {extraneousCount > 0 && (
@@ -411,11 +408,10 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    stopDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                                }`}
+                                                className={`rounded border px-2 py-1 transition-colors ${stopDisabled
+                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
+                                                    }`}
                                                 onClick={() => handleStop(row.sourceId)}
                                                 disabled={stopDisabled}
                                             >
@@ -423,16 +419,15 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             </button>
                                             <button
                                                 type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    restartDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
-                                                }`}
+                                                className={`rounded border px-2 py-1 transition-colors ${restartDisabled
+                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                    : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
+                                                    }`}
                                                 onClick={() => handleRestart(row.sourceId)}
                                                 disabled={restartDisabled}
                                                 title={restartTitle}
                                             >
-                                                Restart
+                                                Recalculate all
                                             </button>
                                         </div>
                                     </div>
@@ -516,14 +511,13 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                             </div>
                                                             <button
                                                                 type="button"
-                                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                                    reanalyzeDisabled
-                                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                                        : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                                                                }`}
+                                                                className={`rounded border px-2 py-1 transition-colors ${reanalyzeDisabled
+                                                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
+                                                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
+                                                                    }`}
                                                                 onClick={() =>
                                                                     feature.calculatorId
-                                                                        && handleReanalyzeFeature(row.sourceId, feature.calculatorId)
+                                                                    && handleReanalyzeFeature(row.sourceId, feature.calculatorId)
                                                                 }
                                                                 disabled={reanalyzeDisabled}
                                                                 title={reanalyzeTitle}

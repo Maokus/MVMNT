@@ -86,7 +86,6 @@ export interface AudioFeatureAnalysisParams {
     windowSize: number;
     hopSize: number;
     overlap: number;
-    smoothing?: number;
     sampleRate: number;
     fftSize?: number;
     minDecibels?: number;
@@ -102,7 +101,6 @@ export interface AudioFeatureAnalysisProfileDescriptor {
     hopSize: number;
     overlap: number;
     sampleRate: number;
-    smoothing?: number | null;
     fftSize?: number | null;
     minDecibels?: number | null;
     maxDecibels?: number | null;
