@@ -4,6 +4,7 @@ import {
     deserializeAudioFeatureCache,
     serializeAudioFeatureCache,
 } from '@audio/features/audioFeatureAnalysis';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 import { sharedAudioFeatureAnalysisScheduler } from '@audio/features/audioFeatureScheduler';
 import { audioFeatureCalculatorRegistry, resetAudioFeatureCalculators } from '@audio/features/audioFeatureRegistry';
 import { createTempoMapper } from '@core/timing';
@@ -46,9 +47,13 @@ describe('audio feature analysis', () => {
             globalBpm: 120,
             beatsPerBar: 4,
         });
-        expect(cache.featureTracks.spectrogram).toBeDefined();
-        expect(cache.featureTracks.rms).toBeDefined();
-        expect(cache.featureTracks.waveform).toBeDefined();
+        const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const spectrogramKey = buildFeatureTrackKey('spectrogram', defaultProfile);
+        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
+        const waveformKey = buildFeatureTrackKey('waveform', defaultProfile);
+        expect(cache.featureTracks[spectrogramKey]).toBeDefined();
+        expect(cache.featureTracks[rmsKey]).toBeDefined();
+        expect(cache.featureTracks[waveformKey]).toBeDefined();
         expect(cache.analysisParams.calculatorVersions['mvmnt.spectrogram']).toBe(3);
         expect(cache.hopTicks).toBeGreaterThan(0);
         expect(cache.version).toBe(3);
@@ -56,8 +61,8 @@ describe('audio feature analysis', () => {
         expect(cache.tempoProjection?.hopTicks).toBe(cache.hopTicks);
         const roundTrip = deserializeAudioFeatureCache(serializeAudioFeatureCache(cache));
         expect(roundTrip.version).toBe(3);
-        expect(roundTrip.featureTracks.spectrogram.channels).toBe(cache.featureTracks.spectrogram.channels);
-        const spectrogramTrack = cache.featureTracks.spectrogram;
+        expect(roundTrip.featureTracks[spectrogramKey]?.channels).toBe(cache.featureTracks[spectrogramKey]?.channels);
+        const spectrogramTrack = cache.featureTracks[spectrogramKey]!;
         expect(spectrogramTrack.metadata?.minDecibels).toBe(-80);
         expect(spectrogramTrack.metadata?.maxDecibels).toBe(0);
         const values = Array.from((spectrogramTrack.data as Float32Array).slice(0, spectrogramTrack.channels));
@@ -74,7 +79,9 @@ describe('audio feature analysis', () => {
             globalBpm,
             beatsPerBar,
         });
-        const waveform = cache.featureTracks.waveform;
+        const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const waveformKey = buildFeatureTrackKey('waveform', defaultProfile);
+        const waveform = cache.featureTracks[waveformKey];
         expect(waveform).toBeDefined();
         if (!waveform) return;
         const tempoMapper = createTempoMapper({
@@ -97,9 +104,12 @@ describe('audio feature analysis', () => {
             beatsPerBar: 4,
             analysisProfileId: requestedProfile,
         });
-        const spectrogram = cache.featureTracks.spectrogram;
-        const rms = cache.featureTracks.rms;
-        const waveform = cache.featureTracks.waveform;
+        const spectrogramKey = buildFeatureTrackKey('spectrogram', requestedProfile);
+        const rmsKey = buildFeatureTrackKey('rms', requestedProfile);
+        const waveformKey = buildFeatureTrackKey('waveform', requestedProfile);
+        const spectrogram = cache.featureTracks[spectrogramKey];
+        const rms = cache.featureTracks[rmsKey];
+        const waveform = cache.featureTracks[waveformKey];
         expect(spectrogram?.analysisProfileId).toBe(requestedProfile);
         expect(rms?.analysisProfileId).toBe(requestedProfile);
         expect(waveform?.analysisProfileId).toBe(requestedProfile);
@@ -119,7 +129,11 @@ describe('audio feature analysis', () => {
             onProgress: (value, label) => progress.push({ value, label }),
         });
         const cache = await handle.promise;
-        expect(cache.featureTracks.waveform).toBeDefined();
+        const waveformKey = buildFeatureTrackKey(
+            'waveform',
+            cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
+        );
+        expect(cache.featureTracks[waveformKey]).toBeDefined();
         expect(progress.length).toBeGreaterThan(1);
         const cancelHandle = sharedAudioFeatureAnalysisScheduler.schedule({
             jobId: 'cancel-test',
@@ -168,9 +182,11 @@ describe('audio feature analysis', () => {
                 beatsPerBar: 4,
                 calculators: [calculatorId],
             });
-            expect(cache.featureTracks.zeroCrossing).toBeDefined();
-            expect(cache.featureTracks.zeroCrossing?.frameCount).toBe(cache.frameCount);
-            expect(cache.featureTracks.zeroCrossing?.hopTicks).toBe(cache.hopTicks);
+            const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+            const zeroKey = buildFeatureTrackKey('zeroCrossing', defaultProfile);
+            expect(cache.featureTracks[zeroKey]).toBeDefined();
+            expect(cache.featureTracks[zeroKey]?.frameCount).toBe(cache.frameCount);
+            expect(cache.featureTracks[zeroKey]?.hopTicks).toBe(cache.hopTicks);
         } finally {
             resetAudioFeatureCalculators();
         }

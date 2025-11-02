@@ -1,5 +1,13 @@
 import { audioFeatureCalculatorRegistry } from './audioFeatureRegistry';
 import {
+    DEFAULT_ANALYSIS_PROFILE_ID,
+    buildFeatureTrackKey,
+    normalizeFeatureTrackEntry,
+    normalizeFeatureTrackMap,
+    parseFeatureTrackKey,
+    sanitizeAnalysisProfileId,
+} from './featureTrackIdentity';
+import {
     type AudioFeatureAnalysisParams,
     type AudioFeatureAnalysisProfileDescriptor,
     type AudioFeatureCalculator,
@@ -19,16 +27,6 @@ import { createWaveformCalculator } from './calculators/waveformCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
-
-const DEFAULT_ANALYSIS_PROFILE_ID = 'default';
-
-function sanitizeAnalysisProfileId(value: unknown): string | null {
-    if (typeof value !== 'string') {
-        return null;
-    }
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : null;
-}
 
 type SerializedTypedArray = {
     type: 'float32' | 'uint8' | 'int16';
@@ -462,7 +460,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         payload = deserializeTypedArray(track.data as SerializedTypedArray);
     }
     const hopTicks = Math.max(1, Math.round(track.hopTicks ?? track.tempoProjection?.hopTicks ?? 1));
-    return {
+    const rawTrack: AudioFeatureTrack = {
         key: track.key,
         calculatorId: track.calculatorId,
         version: track.version,
@@ -484,11 +482,14 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
+    const { track: normalizedTrack } = normalizeFeatureTrackEntry(track.key, rawTrack, track.analysisProfileId ?? null);
+    return normalizedTrack;
 }
 
 export function serializeAudioFeatureCache(cache: AudioFeatureCache): SerializedAudioFeatureCache {
+    const normalizedTracks = normalizeFeatureTrackMap(cache.featureTracks, cache.defaultAnalysisProfileId);
     const featureTracks: Record<string, SerializedAudioFeatureTrack> = {};
-    for (const [key, track] of Object.entries(cache.featureTracks)) {
+    for (const [key, track] of Object.entries(normalizedTracks)) {
         featureTracks[key] = serializeTrack(track);
     }
     const normalizedProfiles =
@@ -528,7 +529,13 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
     }
     const featureTracks: Record<string, AudioFeatureTrack> = {};
     for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-        featureTracks[key] = deserializeTrack(track);
+        const deserialized = deserializeTrack(track);
+        const { key: compositeKey, track: normalizedTrack } = normalizeFeatureTrackEntry(
+            key,
+            deserialized,
+            track.analysisProfileId ?? serialized.defaultAnalysisProfileId ?? null
+        );
+        featureTracks[compositeKey] = normalizedTrack;
     }
     const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
     const hopTicks = resolveHopTicks({
@@ -734,7 +741,12 @@ export async function analyzeAudioBufferFeatures(
                     track.channelLayout = null;
                 }
             }
-            featureTracks[track.key] = track;
+            const trackIdentity = parseFeatureTrackKey(track.key);
+            const baseFeatureKey = trackIdentity.featureKey || calculator.featureKey || track.key;
+            const compositeKey = buildFeatureTrackKey(baseFeatureKey, resolvedTrackProfile);
+            track.key = compositeKey;
+            track.analysisProfileId = resolvedTrackProfile;
+            featureTracks[compositeKey] = track;
         }
         completedCalculators += 1;
         if (progress) {

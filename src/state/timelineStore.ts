@@ -13,6 +13,7 @@ import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
 } from '@audio/features/audioFeatureScheduler';
+import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
@@ -1128,8 +1129,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const nextTracks = { ...cache.featureTracks };
             let mutated = false;
             for (const key of unique) {
-                if (nextTracks[key]) {
-                    delete nextTracks[key];
+                const { key: resolvedKey } = resolveFeatureTrackFromCache(
+                    { featureTracks: nextTracks, defaultAnalysisProfileId: cache.defaultAnalysisProfileId },
+                    key
+                );
+                if (resolvedKey && nextTracks[resolvedKey]) {
+                    delete nextTracks[resolvedKey];
                     mutated = true;
                 }
             }

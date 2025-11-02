@@ -1,4 +1,5 @@
 import type { AudioFeatureAnalysisParams, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import { normalizeFeatureTrackMap } from '@audio/features/featureTrackIdentity';
 
 function mergeAnalysisParams(
     existing: AudioFeatureAnalysisParams | undefined,
@@ -26,8 +27,23 @@ export function mergeFeatureCaches(
     incoming: AudioFeatureCache
 ): AudioFeatureCache {
     if (!existing) {
-        return incoming;
+        const normalizedIncoming = normalizeFeatureTrackMap(
+            incoming.featureTracks,
+            incoming.defaultAnalysisProfileId ?? null
+        );
+        return {
+            ...incoming,
+            featureTracks: normalizedIncoming,
+        };
     }
+    const normalizedExistingTracks = normalizeFeatureTrackMap(
+        existing.featureTracks,
+        existing.defaultAnalysisProfileId ?? null
+    );
+    const normalizedIncomingTracks = normalizeFeatureTrackMap(
+        incoming.featureTracks,
+        incoming.defaultAnalysisProfileId ?? null
+    );
     return {
         ...existing,
         ...incoming,
@@ -45,8 +61,8 @@ export function mergeFeatureCaches(
         },
         defaultAnalysisProfileId: incoming.defaultAnalysisProfileId ?? existing.defaultAnalysisProfileId,
         featureTracks: {
-            ...existing.featureTracks,
-            ...incoming.featureTracks,
+            ...normalizedExistingTracks,
+            ...normalizedIncomingTracks,
         },
     };
 }

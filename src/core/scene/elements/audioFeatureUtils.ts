@@ -1,5 +1,6 @@
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
+import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
 import type {
     AudioFeatureDescriptor,
     AudioFeatureTrack,
@@ -50,7 +51,7 @@ export function normalizeChannelSelectorInput(value: unknown): string | number |
 function resolveSemanticChannelIndex(
     token: string,
     semantics: ChannelLayoutMeta['semantics'] | undefined,
-    channelCount: number,
+    channelCount: number
 ): number | null {
     const normalized = token.trim().toLowerCase();
     if (!normalized.length) {
@@ -85,7 +86,7 @@ function resolveChannelIndex(
     selector: ChannelSelector | null | undefined,
     aliases: (string | null | undefined)[] | null | undefined,
     layout: ChannelLayoutMeta | null | undefined,
-    channelCount: number,
+    channelCount: number
 ): number {
     if (selector != null) {
         if (typeof selector === 'number' && Number.isFinite(selector)) {
@@ -137,7 +138,7 @@ function resolveChannelIndex(
 
 export function selectChannelSample(
     sample: AudioFeatureFrameSample | null | undefined,
-    selector?: ChannelSelector | null,
+    selector?: ChannelSelector | null
 ): ChannelSampleSelection | null {
     if (!sample) {
         return null;
@@ -165,14 +166,20 @@ export function selectChannelSample(
     };
 }
 
-export function resolveFeatureContext(trackId: string | null, featureKey: string | null) {
+export function resolveFeatureContext(
+    trackId: string | null,
+    featureKey: string | null,
+    analysisProfileId?: string | null
+) {
     if (!trackId || !featureKey) return null;
     const state = useTimelineStore.getState();
     const entry = state.tracks[trackId] as TimelineTrackEntry | undefined;
     if (!entry || entry.type !== 'audio') return null;
     const sourceId = entry.audioSourceId ?? entry.id;
     const cache = state.audioFeatureCaches[sourceId];
-    const featureTrack = cache?.featureTracks?.[featureKey];
+    const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
+        analysisProfileId,
+    });
     if (!featureTrack) return null;
     return { state, track: entry, sourceId, cache, featureTrack } as const;
 }
@@ -186,9 +193,7 @@ function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string 
     if (!options) {
         return 'default';
     }
-    const smoothing = Number.isFinite(options.smoothing)
-        ? Math.max(0, Math.floor(options.smoothing ?? 0))
-        : 0;
+    const smoothing = Number.isFinite(options.smoothing) ? Math.max(0, Math.floor(options.smoothing ?? 0)) : 0;
     const interpolation = options.interpolation ?? 'linear';
     return `smooth:${smoothing}|interp:${interpolation}`;
 }
@@ -210,7 +215,7 @@ export function sampleFeatureFrame(
     trackId: string,
     descriptor: AudioFeatureDescriptor,
     targetTime: number,
-    samplingOptions?: AudioSamplingOptions | null,
+    samplingOptions?: AudioSamplingOptions | null
 ): AudioFeatureFrameSample | null {
     const state = useTimelineStore.getState();
     const context = resolveFeatureContext(trackId, descriptor.featureKey);

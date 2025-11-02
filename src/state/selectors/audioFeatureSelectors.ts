@@ -9,15 +9,14 @@ import {
 import { useTimelineStore } from '@state/timelineStore';
 import type { TimelineState } from '@state/timelineStore';
 import type { AudioFeatureCache, AudioFeatureTrack } from '@audio/features/audioFeatureTypes';
+import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
 
 export type AudioFeatureFrameOptions = TempoAlignedFrameOptions;
 export type AudioFeatureFrameSample = TempoAlignedFrameSample;
 export type AudioFeatureRangeOptions = TempoAlignedRangeOptions;
 export type AudioFeatureRangeSample = TempoAlignedRangeSample;
 
-export function selectAudioFeatureCache(state: TimelineState, sourceId: string):
-    | AudioFeatureCache
-    | undefined {
+export function selectAudioFeatureCache(state: TimelineState, sourceId: string): AudioFeatureCache | undefined {
     return state.audioFeatureCaches[sourceId];
 }
 
@@ -29,9 +28,13 @@ export function selectAudioFeatureTrack(
     state: TimelineState,
     sourceId: string,
     trackKey: string,
+    analysisProfileId?: string | null
 ): AudioFeatureTrack | undefined {
     const cache = state.audioFeatureCaches[sourceId];
-    return cache?.featureTracks?.[trackKey];
+    const { track } = resolveFeatureTrackFromCache(cache, trackKey, {
+        analysisProfileId,
+    });
+    return track;
 }
 
 export function selectAudioFeatureFrame(
@@ -39,7 +42,7 @@ export function selectAudioFeatureFrame(
     trackId: string,
     featureKey: string,
     tick: number,
-    options: AudioFeatureFrameOptions = {},
+    options: AudioFeatureFrameOptions = {}
 ): AudioFeatureFrameSample | undefined {
     const { sample } = getTempoAlignedFrame(state, {
         trackId,
@@ -56,7 +59,7 @@ export function sampleAudioFeatureRange(
     featureKey: string,
     startTick: number,
     endTick: number,
-    options: AudioFeatureRangeOptions = {},
+    options: AudioFeatureRangeOptions = {}
 ): AudioFeatureRangeSample | undefined {
     const { range } = getTempoAlignedRange(state, {
         trackId,
@@ -76,6 +79,15 @@ export function useAudioFeatureStatus(sourceId: string) {
     return useTimelineStore((s) => s.audioFeatureCacheStatus[sourceId]);
 }
 
-export function useAudioFeatureTrack(sourceId: string, trackKey: string): AudioFeatureTrack | undefined {
-    return useTimelineStore((s) => s.audioFeatureCaches[sourceId]?.featureTracks?.[trackKey]);
+export function useAudioFeatureTrack(
+    sourceId: string,
+    trackKey: string,
+    analysisProfileId?: string | null
+): AudioFeatureTrack | undefined {
+    return useTimelineStore(
+        (s) =>
+            resolveFeatureTrackFromCache(s.audioFeatureCaches[sourceId], trackKey, {
+                analysisProfileId,
+            }).track
+    );
 }

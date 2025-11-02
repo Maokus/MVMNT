@@ -11,6 +11,11 @@ import {
 } from '@audio/features/analysisIntents';
 import { getFeatureRequirements, type AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
 import { useTimelineStore, type TimelineState } from './timelineStore';
+import {
+    parseFeatureTrackKey,
+    resolveFeatureTrackFromCache,
+    sanitizeAnalysisProfileId,
+} from '@audio/features/featureTrackIdentity';
 
 interface DescriptorInfo {
     descriptor: AudioFeatureDescriptor;
@@ -169,11 +174,7 @@ function extractFeatureKey(descriptorId: string): string | null {
 const DEFAULT_PROFILE_KEY = 'default';
 
 function sanitizeProfileId(value: string | null | undefined): string | null {
-    if (typeof value !== 'string') {
-        return null;
-    }
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : null;
+    return sanitizeAnalysisProfileId(value);
 }
 
 function normalizeProfileKey(value: string | null | undefined): string {
@@ -236,14 +237,17 @@ function collectCachedDescriptorInfos(cache: AudioFeatureCache | undefined): Cac
     const entries = new Map<string, CachedDescriptorInfo>();
     for (const track of Object.values(cache.featureTracks ?? {})) {
         if (!track) continue;
+        const identity = parseFeatureTrackKey(track.key);
         const base: AudioFeatureDescriptor = {
-            featureKey: track.key,
+            featureKey: identity.featureKey || track.key,
             calculatorId: track.calculatorId,
             bandIndex: null,
         };
         const baseId = buildDescriptorId(base);
         const baseMatch = buildDescriptorMatchKey(base);
-        const profileId = sanitizeProfileId(track.analysisProfileId ?? cache.defaultAnalysisProfileId ?? null);
+        const profileId = sanitizeProfileId(
+            track.analysisProfileId ?? identity.analysisProfileId ?? cache.defaultAnalysisProfileId ?? null
+        );
         const profileKey = normalizeProfileKey(profileId);
         const requestKey = buildDescriptorRequestKey(baseMatch, profileKey);
         const meta = resolveChannelMetadata(track, cache);
@@ -271,7 +275,9 @@ function createDescriptorDetail(
     if (!descriptor) {
         return null;
     }
-    const featureTrack = descriptor.featureKey ? cache?.featureTracks?.[descriptor.featureKey] : undefined;
+    const { track: featureTrack } = resolveFeatureTrackFromCache(cache, descriptor.featureKey ?? null, {
+        analysisProfileId: profileId,
+    });
     const meta = resolveChannelMetadata(featureTrack, cache);
     return {
         descriptor,

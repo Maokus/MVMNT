@@ -3,6 +3,7 @@ import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
 import { selectAudioFeatureFrame } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 6;
@@ -29,6 +30,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             sampleRate: 48000,
         },
     } as const;
+    const defaultProfile = 'default';
+    const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
     return {
         version: 3,
         audioSourceId: sourceId,
@@ -45,8 +48,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             calculatorVersions: { 'mvmnt.rms': 1 },
         },
         featureTracks: {
-            rms: {
-                key: 'rms',
+            [rmsKey]: {
+                key: rmsKey,
                 calculatorId: 'mvmnt.rms',
                 version: 1,
                 frameCount,
@@ -59,11 +62,11 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 data,
                 channelAliases,
                 channelLayout: { aliases: channelAliases, semantics: 'multi-channel' },
-                analysisProfileId: 'default',
+                analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles,
-        defaultAnalysisProfileId: 'default',
+        defaultAnalysisProfileId: defaultProfile,
         channelAliases,
     };
 }
@@ -117,7 +120,9 @@ describe('audio feature export parity', () => {
         } as const;
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);
-        const rmsTrack = cache.featureTracks.rms;
+        const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
+        const rmsTrack = cache.featureTracks[rmsKey];
         const hopTicks = rmsTrack.hopTicks ?? 0;
         const secondsPerFrame = hopTicks / ticksPerSecond;
         const frameTimes = Array.from({ length: 4 }, (_, idx) => idx * secondsPerFrame);
@@ -134,12 +139,7 @@ describe('audio feature export parity', () => {
             expect(runtimeSample?.channelAliases).toEqual(rmsTrack.channelAliases);
 
             const state = useTimelineStore.getState();
-            const selectorSample = selectAudioFeatureFrame(
-                state,
-                'audioTrack',
-                'rms',
-                tm.secondsToTicks(time),
-            );
+            const selectorSample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tm.secondsToTicks(time));
             expect(selectorSample).toBeTruthy();
             selectorVectors.push([...(selectorSample?.values ?? [])]);
             expect(selectorSample?.channels).toBe(rmsTrack.channels);
@@ -158,7 +158,7 @@ describe('audio feature export parity', () => {
             useTimelineStore.getState(),
             'audioTrack',
             'rms',
-            tm.secondsToTicks(midTime),
+            tm.secondsToTicks(midTime)
         );
         expect(runtimeSample).toBeTruthy();
         expect(selectorSample).toBeTruthy();

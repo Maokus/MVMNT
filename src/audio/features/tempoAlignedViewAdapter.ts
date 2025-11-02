@@ -7,6 +7,7 @@ import type {
     AudioFeatureTrackFormat,
     ChannelLayoutMeta,
 } from './audioFeatureTypes';
+import { resolveFeatureTrackFromCache } from './featureTrackIdentity';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
@@ -83,6 +84,7 @@ export interface TempoAlignedFrameRequest {
     featureKey: string;
     tick: number;
     options?: TempoAlignedFrameOptions;
+    analysisProfileId?: string | null;
 }
 
 export interface TempoAlignedRangeRequest {
@@ -91,6 +93,7 @@ export interface TempoAlignedRangeRequest {
     startTick: number;
     endTick: number;
     options?: TempoAlignedRangeOptions;
+    analysisProfileId?: string | null;
 }
 
 export interface TempoAlignedFrameResult {
@@ -153,11 +156,7 @@ function resolveStartSeconds(track: AudioFeatureTrack, cache: AudioFeatureCache)
     return 0;
 }
 
-function resolveHopTicks(
-    track: AudioFeatureTrack,
-    cache: AudioFeatureCache,
-    tempoMapper: TempoMapper,
-): number {
+function resolveHopTicks(track: AudioFeatureTrack, cache: AudioFeatureCache, tempoMapper: TempoMapper): number {
     const direct = normalizeHopTicks(track.hopTicks);
     if (direct != null) {
         return direct;
@@ -167,9 +166,7 @@ function resolveHopTicks(
         return cacheHop;
     }
     const projection =
-        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
-            ? track.tempoProjection
-            : cache.tempoProjection;
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null ? track.tempoProjection : cache.tempoProjection;
     const hopSeconds = resolveHopSeconds(track, cache);
     return quantizeHopTicks({
         hopSeconds,
@@ -239,7 +236,7 @@ function readNumericFrame(
     track: AudioFeatureTrack,
     index: number,
     channelIndex: number,
-    format: Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>,
+    format: Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>
 ): number {
     const frame = Math.max(0, Math.min(track.frameCount - 1, index));
     const data = track.data as NumericArray;
@@ -338,7 +335,7 @@ function readPeriodicWaveformFrame(track: AudioFeatureTrack, index: number): Fra
 function buildFrameVectorInfo(
     track: AudioFeatureTrack,
     frameIndex: number,
-    options: TempoAlignedFrameOptions,
+    options: TempoAlignedFrameOptions
 ): FrameVectorInfo {
     if (track.format === 'waveform-minmax') {
         const channelValues = readWaveformFrame(track, frameIndex);
@@ -374,11 +371,7 @@ function buildFrameVectorInfo(
     };
 }
 
-function buildFrameVector(
-    track: AudioFeatureTrack,
-    frameIndex: number,
-    options: TempoAlignedFrameOptions,
-): number[] {
+function buildFrameVector(track: AudioFeatureTrack, frameIndex: number, options: TempoAlignedFrameOptions): number[] {
     return buildFrameVectorInfo(track, frameIndex, options).flatValues;
 }
 
@@ -442,10 +435,7 @@ export function applySmoothingWindow(samples: number[][], radius: number): numbe
 function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
     const t2 = t * t;
     const t3 = t2 * t;
-    return (
-        0.5 *
-        (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
-    );
+    return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
 }
 
 function interpolateVectors(
@@ -454,7 +444,7 @@ function interpolateVectors(
     prev: number[],
     next: number[],
     nextNext: number[],
-    frac: number,
+    frac: number
 ): number[] {
     if (profile === 'hold' || frac <= 1e-6) {
         return [...base];
@@ -482,7 +472,7 @@ function sampleLegacyFrame(
     cache: AudioFeatureCache,
     relativeTick: number,
     hopTicks: number,
-    options: TempoAlignedFrameOptions,
+    options: TempoAlignedFrameOptions
 ): TempoAlignedFrameSample | undefined {
     if (!Number.isFinite(relativeTick)) {
         return undefined;
@@ -561,7 +551,7 @@ function buildDiagnostics(
     mapperDurationNs: number,
     frameCount: number,
     fallbackReason: string | undefined,
-    requestEndTick?: number,
+    requestEndTick?: number
 ): TempoAlignedAdapterDiagnostics {
     return {
         trackId: request.trackId,
@@ -571,18 +561,14 @@ function buildDiagnostics(
         interpolation,
         mapperDurationNs,
         frameCount,
-        requestStartTick:
-            'tick' in request ? request.tick : Math.min(request.startTick, request.endTick),
+        requestStartTick: 'tick' in request ? request.tick : Math.min(request.startTick, request.endTick),
         requestEndTick: 'tick' in request ? request.tick : Math.max(request.startTick, request.endTick),
         fallbackReason,
         timestamp: Date.now(),
     };
 }
 
-export function getTempoAlignedFrame(
-    state: TimelineState,
-    request: TempoAlignedFrameRequest,
-): TempoAlignedFrameResult {
+export function getTempoAlignedFrame(state: TimelineState, request: TempoAlignedFrameRequest): TempoAlignedFrameResult {
     const options = request.options ?? {};
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
@@ -600,11 +586,14 @@ export function getTempoAlignedFrame(
             diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
         };
     }
-    const featureTrack = cache.featureTracks?.[request.featureKey];
+    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
+        analysisProfileId: request.analysisProfileId,
+    });
+    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
     if (!featureTrack || featureTrack.frameCount <= 0) {
         return {
             sample: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'feature-missing'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
         };
     }
 
@@ -612,7 +601,7 @@ export function getTempoAlignedFrame(
     if (hopSeconds <= 0) {
         return {
             sample: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
         };
     }
 
@@ -628,7 +617,15 @@ export function getTempoAlignedFrame(
         const sample = sampleLegacyFrame(featureTrack, cache, relativeTick, hopTicksLegacy, options);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, sample ? 1 : 0, 'adapter-disabled'),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                0,
+                sample ? 1 : 0,
+                'adapter-disabled'
+            ),
         };
     }
 
@@ -660,7 +657,15 @@ export function getTempoAlignedFrame(
         const sample = buildSilentSample(fractionalIndex);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                1,
+                undefined
+            ),
         };
     }
 
@@ -671,7 +676,15 @@ export function getTempoAlignedFrame(
         const sample = buildSilentSample(frameFloat);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                1,
+                undefined
+            ),
         };
     }
 
@@ -718,14 +731,19 @@ export function getTempoAlignedFrame(
 
     return {
         sample,
-        diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+        diagnostics: buildDiagnostics(
+            diagnosticsRequest,
+            sourceId,
+            true,
+            interpolation,
+            mapperDurationNs,
+            1,
+            undefined
+        ),
     };
 }
 
-export function getTempoAlignedRange(
-    state: TimelineState,
-    request: TempoAlignedRangeRequest,
-): TempoAlignedRangeResult {
+export function getTempoAlignedRange(state: TimelineState, request: TempoAlignedRangeRequest): TempoAlignedRangeResult {
     const options = request.options ?? {};
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
@@ -743,11 +761,14 @@ export function getTempoAlignedRange(
             diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
         };
     }
-    const featureTrack = cache.featureTracks?.[request.featureKey];
+    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
+        analysisProfileId: request.analysisProfileId,
+    });
+    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
     if (!featureTrack || featureTrack.frameCount <= 0) {
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'feature-missing'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
         };
     }
 
@@ -755,7 +776,7 @@ export function getTempoAlignedRange(
     if (hopSeconds <= 0) {
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
         };
     }
 
@@ -794,7 +815,15 @@ export function getTempoAlignedRange(
         if (hopTicksLegacy <= 0) {
             return {
                 range: undefined,
-                diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'adapter-disabled'),
+                diagnostics: buildDiagnostics(
+                    diagnosticsRequest,
+                    sourceId,
+                    true,
+                    interpolation,
+                    0,
+                    0,
+                    'adapter-disabled'
+                ),
             };
         }
         const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
@@ -850,7 +879,15 @@ export function getTempoAlignedRange(
         };
         return {
             range,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, frameCount, 'adapter-disabled'),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                0,
+                frameCount,
+                'adapter-disabled'
+            ),
         };
     }
 
@@ -872,7 +909,15 @@ export function getTempoAlignedRange(
         const mapperDurationNs = nowNs() - mapperStart;
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 0, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                0,
+                undefined
+            ),
         };
     }
 
@@ -932,6 +977,14 @@ export function getTempoAlignedRange(
 
     return {
         range,
-        diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, frameCount, undefined),
+        diagnostics: buildDiagnostics(
+            diagnosticsRequest,
+            sourceId,
+            true,
+            interpolation,
+            mapperDurationNs,
+            frameCount,
+            undefined
+        ),
     };
 }
