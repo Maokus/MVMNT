@@ -10,16 +10,17 @@ import {
     createTransferFunctionProperties,
     channelColorPalette,
     sampleFeatureHistory,
-    applyGlowToLine,
-    applyGlowToRectangle,
-    type GlowStyle,
     type FeatureHistoryHopStrategy,
 } from '../audioVisualization';
 
-vi.mock('@core/scene/elements/audioFeatureUtils', () => ({
-    resolveFeatureContext: vi.fn(),
-    resolveDescriptorProfileId: vi.fn(() => null),
-}));
+vi.mock('@audio/audioFeatureUtils', async () => {
+    const actual = await vi.importActual<typeof import('@audio/audioFeatureUtils')>('@audio/audioFeatureUtils');
+    return {
+        ...actual,
+        resolveFeatureContext: vi.fn(),
+        resolveDescriptorProfileId: vi.fn(() => null),
+    };
+});
 
 vi.mock('@state/selectors/audioFeatureSelectors', () => ({
     sampleAudioFeatureRange: vi.fn(),
@@ -187,29 +188,5 @@ describe('audio visualization utilities', () => {
         resolveFeatureContext.mockReturnValue(null);
         const result = sampleFeatureHistory('missing', { featureKey: 'spectrogram' }, 1, 2);
         expect(result).toEqual([]);
-    });
-
-    it('applies glow layers to lines', () => {
-        const line = new Line(0, 0, 10, 0, '#ffffff', 2);
-        const style: GlowStyle = { color: '#38bdf8', blur: 8, opacity: 0.6, layerCount: 2, layerSpread: 1 };
-        const objects = applyGlowToLine(line, style);
-        expect(objects).toHaveLength(3);
-        expect(objects[0]).instanceof(Line);
-        const glowLine = objects[0] as Line;
-        expect(glowLine.lineWidth).toBeGreaterThan(line.lineWidth);
-        expect(glowLine.color).toContain('rgba');
-        expect(line.shadowColor).toBeTruthy();
-        expect(glowLine.includeInLayoutBounds).toBe(false);
-    });
-
-    it('applies glow layers to rectangles', () => {
-        const rect = new Rectangle(0, 0, 20, 10, '#ffffff');
-        const style: GlowStyle = { color: '#f472b6', blur: 12, opacity: 0.5, layerCount: 1, layerSpread: 2 };
-        const objects = applyGlowToRectangle(rect, style);
-        expect(objects).toHaveLength(2);
-        const glowRect = objects[0] as Rectangle;
-        expect(glowRect.width).toBeGreaterThan(rect.width);
-        expect(glowRect.includeInLayoutBounds).toBe(false);
-        expect(rect.shadowColor).toBeTruthy();
     });
 });

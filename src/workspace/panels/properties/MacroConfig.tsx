@@ -4,6 +4,7 @@ import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/form/inputs/FontInput';
 import TimelineTrackSelect from '@workspace/form/inputs/TimelineTrackSelect';
 import { useNumberDrag } from '@workspace/form/inputs/useNumberDrag';
+import ColorAlphaInput from '@workspace/form/inputs/ColorAlphaInput';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -14,16 +15,17 @@ interface MacroConfigProps {
 interface Macro {
     name: string;
     type:
-        | 'number'
-        | 'string'
-        | 'boolean'
-        | 'color'
-        | 'select'
-        | 'file'
-        | 'file-midi'
-        | 'file-image'
-        | 'font'
-        | 'timelineTrackRef';
+    | 'number'
+    | 'string'
+    | 'boolean'
+    | 'color'
+    | 'colorAlpha'
+    | 'select'
+    | 'file'
+    | 'file-midi'
+    | 'file-image'
+    | 'font'
+    | 'timelineTrackRef';
     value: any;
     options: {
         min?: number;
@@ -109,7 +111,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const nameInputRef = useRef<HTMLInputElement | null>(null);
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
         value: '',
         min: '',
         max: '',
@@ -263,7 +265,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             setShowCreateDialog(false);
             setNewMacro({
                 name: '',
-                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+                type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
                 value: '',
                 min: '',
                 max: '',
@@ -361,7 +363,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         setNewMacro(prev => {
             const updated = {
                 ...prev,
-                type: type as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+                type: type as 'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
             };
             switch (type) {
                 case 'number':
@@ -372,6 +374,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     break;
                 case 'color':
                     updated.value = '#ffffff';
+                    break;
+                case 'colorAlpha':
+                    updated.value = '#ffffffff';
                     break;
                 case 'file':
                     updated.value = '';
@@ -424,6 +429,18 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         type="color"
                         value={macro.value}
                         onChange={(e) => handleUpdateMacroValue(macro.name, e.target.value)}
+                    />
+                );
+
+            case 'colorAlpha':
+                return (
+                    <ColorAlphaInput
+                        id={`macro-${macro.name}-color-alpha`}
+                        value={macro.value}
+                        schema={{ default: typeof macro.value === 'string' ? macro.value : '#ffffffff' }}
+                        disabled={false}
+                        title={`Macro ${macro.name} color`}
+                        onChange={(next) => handleUpdateMacroValue(macro.name, next)}
                     />
                 );
 
@@ -639,6 +656,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 <option value="string">Text</option>
                                 <option value="boolean">Boolean</option>
                                 <option value="color">Color</option>
+                                <option value="colorAlpha">Color (alpha)</option>
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
                                 <option value="font">Font</option>

@@ -1,5 +1,6 @@
-import { EnhancedConfigSchema, RenderObject, SceneElement, asTrimmedString } from '@core/index';
-import { Rectangle, Text } from '@core/render/render-objects';
+import { SceneElement, asTrimmedString } from '../base';
+import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import type { EnhancedConfigSchema } from '@core/types';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 

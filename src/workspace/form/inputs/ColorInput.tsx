@@ -27,7 +27,7 @@ interface ColorInputProps {
 
 const DEFAULT_COLOR = '#000000';
 
-const normalizeColor = (candidate: unknown, fallback: string): string => {
+export const normalizeColor = (candidate: unknown, fallback: string): string => {
     if (typeof candidate !== 'string') return fallback;
 
     const trimmed = candidate.trim();
@@ -117,7 +117,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
                         data-preserve-selection="true"
                         {...getFloatingProps()}
                     >
-                        <Chrome color={currentColor} showAlpha={true} onChange={handleColorChange} placement={GithubPlacement.Bottom} />
+                        <Chrome color={currentColor} showAlpha={false} onChange={handleColorChange} placement={GithubPlacement.Bottom} />
                     </div>
                 </FloatingPortal>
             )}

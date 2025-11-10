@@ -13,7 +13,7 @@ export class BackgroundElement extends SceneElement {
             offsetX: 0,
             offsetY: 0,
             zIndex: -1000, // Ensure background is always at the back
-            backgroundColor: '#1a1a1a', // Default background color
+            backgroundColor: '#1a1a1aff', // Default background color with full opacity
         };
 
         // Apply defaults only for properties not already in config
@@ -43,11 +43,11 @@ export class BackgroundElement extends SceneElement {
                     properties: [
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background Color',
-                            default: '#1a1a1a',
+                            default: '#1a1a1aff',
                             description: 'Color fill applied behind every element.',
-                            runtime: { transform: asTrimmedString, defaultValue: '#1a1a1a' },
+                            runtime: { transform: asTrimmedString, defaultValue: '#1a1a1aff' },
                         },
                     ],
                     presets: [

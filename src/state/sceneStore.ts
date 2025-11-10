@@ -46,10 +46,7 @@ interface LegacyDescriptorResult {
     smoothing: number | null;
 }
 
-function applyChannelSelectorsToBindings(
-    bindings: ElementBindings,
-    results: MigratedDescriptorChannelsResult[],
-) {
+function applyChannelSelectorsToBindings(bindings: ElementBindings, results: MigratedDescriptorChannelsResult[]) {
     if (!Array.isArray(results) || !results.length) {
         return;
     }
@@ -713,6 +710,11 @@ function validateMacroValue(
             return { valid: typeof value === 'boolean' };
         case 'color':
             return { valid: typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value) };
+        case 'colorAlpha':
+            if (typeof value !== 'string') return { valid: false };
+            if (/^#[0-9A-Fa-f]{8}$/i.test(value)) return { valid: true };
+            if (/^#[0-9A-Fa-f]{6}$/i.test(value)) return { valid: true };
+            return { valid: false };
         case 'font':
             if (typeof value !== 'string') return { valid: false };
             if (value.trim() === '') return { valid: true };

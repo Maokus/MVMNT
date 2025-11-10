@@ -3,6 +3,7 @@ export type MacroType =
     | 'string'
     | 'boolean'
     | 'color'
+    | 'colorAlpha'
     | 'select'
     | 'file'
     | 'file-midi'

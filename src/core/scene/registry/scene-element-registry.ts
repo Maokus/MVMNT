@@ -30,6 +30,9 @@ export class SceneElementRegistry {
     }
 
     registerElementFromClass(type: string, ElementClass: RegisterableSceneElement) {
+        if (typeof (ElementClass as any)?.getConfigSchema !== 'function') {
+            console.error('[SceneElementRegistry] Missing getConfigSchema for', type, ElementClass);
+        }
         this.registerElement(
             type,
             (config) => new ElementClass(config.id || type, config),
