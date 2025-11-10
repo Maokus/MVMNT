@@ -25,7 +25,6 @@
  */
 import { AVExporter, type AVExportOptions, type AVExportResult } from './av-exporter';
 import { VideoExporter, type VideoExportOptions } from './video-exporter';
-import { isFeatureEnabled } from '@utils/featureFlags';
 import { useAudioDiagnosticsStore, type AnalysisHistorySummary } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
 
@@ -199,9 +198,6 @@ export class ExportService {
 }
 
 function attachDiagnosticsManifest(result: ExportServiceResult): void {
-    if (!isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3')) {
-        return;
-    }
     const store = useAudioDiagnosticsStore.getState();
     const summary = store.getHistorySummary();
     if (!summary.entries.length) {

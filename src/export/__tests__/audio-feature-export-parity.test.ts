@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { selectAudioFeatureFrame } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 6;
@@ -29,6 +30,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             sampleRate: 48000,
         },
     } as const;
+    const defaultProfile = 'default';
+    const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
     return {
         version: 3,
         audioSourceId: sourceId,
@@ -45,8 +48,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             calculatorVersions: { 'mvmnt.rms': 1 },
         },
         featureTracks: {
-            rms: {
-                key: 'rms',
+            [rmsKey]: {
+                key: rmsKey,
                 calculatorId: 'mvmnt.rms',
                 version: 1,
                 frameCount,
@@ -58,11 +61,12 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                 format: 'float32',
                 data,
                 channelAliases,
-                analysisProfileId: 'default',
+                channelLayout: { aliases: channelAliases, semantics: 'multi-channel' },
+                analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles,
-        defaultAnalysisProfileId: 'default',
+        defaultAnalysisProfileId: defaultProfile,
         channelAliases,
     };
 }
@@ -113,11 +117,12 @@ describe('audio feature export parity', () => {
             calculatorId: 'mvmnt.rms',
             smoothing: null,
             bandIndex: null,
-            channel: null,
         } as const;
         const tm = getSharedTimingManager();
         const ticksPerSecond = tm.secondsToTicks(1);
-        const rmsTrack = cache.featureTracks.rms;
+        const defaultProfile = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
+        const rmsTrack = cache.featureTracks[rmsKey];
         const hopTicks = rmsTrack.hopTicks ?? 0;
         const secondsPerFrame = hopTicks / ticksPerSecond;
         const frameTimes = Array.from({ length: 4 }, (_, idx) => idx * secondsPerFrame);
@@ -129,16 +134,18 @@ describe('audio feature export parity', () => {
             const runtimeSample = sampleFeatureFrame('audioTrack', descriptor, time);
             expect(runtimeSample).toBeTruthy();
             runtimeVectors.push([...(runtimeSample?.values ?? [])]);
+            expect(runtimeSample?.channels).toBe(rmsTrack.channels);
+            expect(runtimeSample?.channelValues.length).toBe(rmsTrack.channels);
+            expect(runtimeSample?.channelAliases).toEqual(rmsTrack.channelAliases);
 
             const state = useTimelineStore.getState();
-            const selectorSample = selectAudioFeatureFrame(
-                state,
-                'audioTrack',
-                'rms',
-                tm.secondsToTicks(time),
-            );
+            const selectorSample = selectAudioFeatureFrame(state, 'audioTrack', 'rms', tm.secondsToTicks(time));
             expect(selectorSample).toBeTruthy();
             selectorVectors.push([...(selectorSample?.values ?? [])]);
+            expect(selectorSample?.channels).toBe(rmsTrack.channels);
+            expect(selectorSample?.channelValues.length).toBe(rmsTrack.channels);
+            expect(selectorSample?.channelAliases).toEqual(rmsTrack.channelAliases);
+            expect(selectorSample?.channelValues).toEqual(runtimeSample?.channelValues);
         }
 
         runtimeVectors.forEach((vector, index) => {
@@ -151,10 +158,11 @@ describe('audio feature export parity', () => {
             useTimelineStore.getState(),
             'audioTrack',
             'rms',
-            tm.secondsToTicks(midTime),
+            tm.secondsToTicks(midTime)
         );
         expect(runtimeSample).toBeTruthy();
         expect(selectorSample).toBeTruthy();
         expectVectorsClose(runtimeSample?.values ?? [], selectorSample?.values ?? []);
+        expect(runtimeSample?.channelValues).toEqual(selectorSample?.channelValues);
     });
 });

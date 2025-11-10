@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
-import {
-    selectAudioFeatureFrame,
-    sampleAudioFeatureRange,
-} from '@state/selectors/audioFeatureSelectors';
+import { selectAudioFeatureFrame, sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createCache(trackId: string): AudioFeatureCache {
     const frameCount = 6;
@@ -24,6 +22,8 @@ function createCache(trackId: string): AudioFeatureCache {
         maxDecibels: null,
         window: null,
     } as const;
+    const defaultProfile = DEFAULT_ANALYSIS_PROFILE_ID;
+    const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
     return {
         version: 3,
         audioSourceId: trackId,
@@ -40,8 +40,8 @@ function createCache(trackId: string): AudioFeatureCache {
             calculatorVersions: { 'mvmnt.rms': 1 },
         },
         featureTracks: {
-            rms: {
-                key: 'rms',
+            [rmsKey]: {
+                key: rmsKey,
                 calculatorId: 'mvmnt.rms',
                 version: 1,
                 frameCount,
@@ -52,12 +52,12 @@ function createCache(trackId: string): AudioFeatureCache {
                 tempoProjection: { hopTicks, startTick: 0 },
                 format: 'float32',
                 data,
-                analysisProfileId: 'default',
+                analysisProfileId: defaultProfile,
                 channelAliases: null,
             },
         },
         analysisProfiles: { default: analysisProfile },
-        defaultAnalysisProfileId: 'default',
+        defaultAnalysisProfileId: defaultProfile,
         channelAliases: undefined,
     };
 }
@@ -155,8 +155,9 @@ describe('audio feature sampling selectors', () => {
         const customData = new Float32Array([0, 1, -1, 1, -1, 1]);
         const cache = createCache('altTrack');
         cache.audioSourceId = 'altTrack';
-        cache.featureTracks.rms.data = customData;
-        cache.featureTracks.rms.frameCount = customData.length;
+        const rmsKey = buildFeatureTrackKey('rms', cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID);
+        cache.featureTracks[rmsKey].data = customData;
+        cache.featureTracks[rmsKey].frameCount = customData.length;
         cache.frameCount = customData.length;
         useTimelineStore.setState((state) => ({
             ...state,
@@ -185,12 +186,12 @@ describe('audio feature sampling selectors', () => {
             options: { interpolation: 'spline' },
         });
         expect(result.sample).toBeDefined();
-        const expected = 0.5 * (
-            2 * customData[2] +
-            (-customData[1] + customData[3]) * 0.5 +
-            (2 * customData[1] - 5 * customData[2] + 4 * customData[3] - customData[4]) * 0.25 +
-            (-customData[1] + 3 * customData[2] - 3 * customData[3] + customData[4]) * 0.125
-        );
+        const expected =
+            0.5 *
+            (2 * customData[2] +
+                (-customData[1] + customData[3]) * 0.5 +
+                (2 * customData[1] - 5 * customData[2] + 4 * customData[3] - customData[4]) * 0.25 +
+                (-customData[1] + 3 * customData[2] - 3 * customData[3] + customData[4]) * 0.125);
         expect(result.sample?.values[0]).toBeCloseTo(expected, 5);
         expect(result.diagnostics.mapperDurationNs).toBeGreaterThan(0);
     });

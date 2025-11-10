@@ -7,7 +7,8 @@ import {
     getElementSubscriptionSnapshot,
 } from '@audio/features/sceneApi';
 import * as analysisIntents from '@audio/features/analysisIntents';
-import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
+import * as featureUtils from '@audio/audioFeatureUtils';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 
 const element = { id: 'element-1', type: 'testElement' };
 
@@ -27,6 +28,10 @@ let clearSpy: MockInstance<
     Parameters<typeof analysisIntents.clearAnalysisIntent>,
     ReturnType<typeof analysisIntents.clearAnalysisIntent>
 >;
+let sampleSpy: MockInstance<
+    Parameters<typeof featureUtils.sampleFeatureFrame>,
+    ReturnType<typeof featureUtils.sampleFeatureFrame>
+>;
 
 describe('sceneApi', () => {
     beforeEach(() => {
@@ -35,7 +40,7 @@ describe('sceneApi', () => {
         resetSceneFeatureStateForTests();
         publishSpy = vi.spyOn(analysisIntents, 'publishAnalysisIntent').mockImplementation(() => undefined);
         clearSpy = vi.spyOn(analysisIntents, 'clearAnalysisIntent').mockImplementation(() => undefined);
-        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue(sampleFrame as any);
+        sampleSpy = vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue(sampleFrame as any);
     });
 
     afterEach(() => {
@@ -69,20 +74,6 @@ describe('sceneApi', () => {
             clearFeatureData(element);
 
             expect(clearSpy).toHaveBeenCalledWith('element-1');
-        });
-
-        it('maps legacy smoothing option into sampling options', () => {
-            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
-            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-            getFeatureData(element, 'track-1', 'rms', { smoothing: 5 } as any, 0.75);
-
-            expect(spy).toHaveBeenCalled();
-            const [, descriptor, time, sampling] = spy.mock.calls.at(-1)!;
-            expect(descriptor).toMatchObject({ featureKey: 'rms' });
-            expect((descriptor as any).smoothing).toBeUndefined();
-            expect(time).toBeCloseTo(0.75);
-            expect(sampling).toMatchObject({ smoothing: 5 });
-            warnSpy.mockRestore();
         });
 
         it('accepts explicit sampling options parameter', () => {
@@ -123,11 +114,99 @@ describe('sceneApi', () => {
             const secondId = analysisIntents.buildDescriptorId(secondDescriptors[0] as any);
             expect(secondId).toBe(firstId);
         });
+
+        it('preserves existing descriptor profiles when sampling', () => {
+            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any;
+            syncElementFeatureIntents(element, 'track-1', [descriptor], 'oddProfile');
+            publishSpy.mockClear();
+
+            const spy = vi.spyOn(featureUtils, 'sampleFeatureFrame');
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 0.5);
+
+            expect(result?.values).toEqual([0.5]);
+            expect(spy).toHaveBeenCalled();
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('avoids registering duplicate descriptors when requirements use non-default profiles', () => {
+            const built = createFeatureDescriptor({ feature: 'spectrogram', profile: 'oddProfile' });
+            syncElementFeatureIntents(element, 'track-1', [built.descriptor], built.profile ?? undefined);
+            publishSpy.mockClear();
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 1.25);
+
+            expect(result?.metadata.descriptor.analysisProfileId).toBe('oddProfile');
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('reuses descriptors that specify profile overrides rather than creating defaults', () => {
+            const built = createFeatureDescriptor({
+                feature: 'spectrogram',
+                profileParams: {
+                    windowSize: 4096,
+                    hopSize: 1024,
+                    window: 'hann',
+                },
+            });
+            syncElementFeatureIntents(
+                element,
+                'track-1',
+                [built.descriptor],
+                built.profile ?? undefined,
+                built.profileRegistryDelta ?? undefined
+            );
+            publishSpy.mockClear();
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 2.5);
+
+            expect(result?.metadata.descriptor.profileOverridesHash).toBe(built.descriptor.profileOverridesHash);
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('samples regenerated data for ad-hoc profiles when available', () => {
+            const built = createFeatureDescriptor({
+                feature: 'spectrogram',
+                profileParams: {
+                    windowSize: 4096,
+                    hopSize: 1024,
+                    window: 'hann',
+                },
+            });
+            expect(built.profile).toBeTruthy();
+            expect(built.profile?.startsWith('adhoc-')).toBe(true);
+
+            syncElementFeatureIntents(
+                element,
+                'track-1',
+                [built.descriptor],
+                built.profile ?? undefined,
+                built.profileRegistryDelta ?? undefined
+            );
+            publishSpy.mockClear();
+
+            const adHocSample = {
+                ...sampleFrame,
+                values: [0.25],
+            } as any;
+            const defaultSample = { ...sampleFrame, values: [0.5] } as any;
+
+            sampleSpy.mockImplementation((trackId, descriptor, time) => {
+                return descriptor.analysisProfileId === built.profile ? adHocSample : defaultSample;
+            });
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 0.5);
+
+            expect(result?.values).toEqual([0.25]);
+            expect(sampleSpy).toHaveBeenCalled();
+            const [, descriptorArg] = sampleSpy.mock.calls.at(-1)!;
+            expect(descriptorArg.analysisProfileId).toBe(built.profile);
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
     });
 
     describe('syncElementFeatureIntents', () => {
         it('publishes descriptors for an element', () => {
-            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
             expect(publishSpy).toHaveBeenCalledTimes(1);
@@ -139,19 +218,19 @@ describe('sceneApi', () => {
         });
 
         it('avoids republishing when descriptors are unchanged', () => {
-            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
             publishSpy.mockClear();
 
             syncElementFeatureIntents(element, 'track-1', [
-                { featureKey: 'spectrogram', calculatorId: null, bandIndex: null, channel: null } as any,
+                { featureKey: 'spectrogram', calculatorId: null, bandIndex: null } as any,
             ]);
 
             expect(publishSpy).not.toHaveBeenCalled();
         });
 
         it('clears state when no descriptors remain', () => {
-            const descriptor = { featureKey: 'waveform', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'waveform', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
             clearSpy.mockClear();
 
@@ -162,7 +241,7 @@ describe('sceneApi', () => {
 
     describe('getElementSubscriptionSnapshot', () => {
         it('returns descriptors currently tracked for an element', () => {
-            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null, channel: null } as any;
+            const descriptor = { featureKey: 'rms', calculatorId: null, bandIndex: null } as any;
             syncElementFeatureIntents(element, 'track-1', [descriptor]);
 
             const snapshot = getElementSubscriptionSnapshot(element);

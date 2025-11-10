@@ -23,9 +23,8 @@ import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
-import { CacheDiagnosticsBanner } from '@workspace/components/CacheDiagnosticsBanner';
+import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { isFeatureEnabled } from '@utils/featureFlags';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -61,9 +60,8 @@ const MidiVisualizerInner: React.FC = () => {
         return clampNumber(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
     });
 
-    const diagnosticsEnabled = isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3');
     const diagnosticsBannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
-    const showDiagnosticsBanner = diagnosticsEnabled && diagnosticsBannerVisible;
+    const showDiagnosticsBanner = diagnosticsBannerVisible;
 
     const getTimelineBounds = useCallback(() => {
         if (typeof window === 'undefined') {
@@ -204,11 +202,6 @@ const MidiVisualizerInner: React.FC = () => {
             />
             <SceneSelectionProvider>
                 <>
-                    {showDiagnosticsBanner && (
-                        <div className="px-4 pt-3">
-                            <CacheDiagnosticsBanner />
-                        </div>
-                    )}
                     <div className="main-workspace" ref={workspaceRef}>
                         <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
                             <PreviewPanel />
@@ -276,6 +269,7 @@ const MidiVisualizerInner: React.FC = () => {
                     <RenderModal onClose={() => setShowRenderModal(false)} />
                 </Suspense>
             )}
+            <CacheDiagnosticsPopup />
         </div>
     );
 };

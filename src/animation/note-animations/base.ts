@@ -1,5 +1,5 @@
 import { Rectangle, RenderObject } from '@core/render/render-objects';
-import type { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
+import type { NoteBlock } from '@core/scene/elements/midi-displays/time-unit-piano-roll/note-block';
 
 // ADSR phase names
 export type AnimationPhase = 'attack' | 'decay' | 'sustain' | 'release' | 'static';

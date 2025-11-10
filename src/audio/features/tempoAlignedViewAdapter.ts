@@ -5,7 +5,9 @@ import type {
     AudioFeatureCache,
     AudioFeatureTrack,
     AudioFeatureTrackFormat,
+    ChannelLayoutMeta,
 } from './audioFeatureTypes';
+import { resolveFeatureTrackFromCache } from './featureTrackIdentity';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
@@ -14,9 +16,15 @@ const DEFAULT_INTERPOLATION: TempoInterpolationProfile = 'linear';
 
 export type TempoInterpolationProfile = 'hold' | 'linear' | 'spline';
 
+interface FrameVectorInfo {
+    flatValues: number[];
+    channelValues: number[][];
+    channelSizes: number[];
+    frameLength?: number;
+}
+
 export interface TempoAlignedFrameOptions {
     bandIndex?: number | null;
-    channelIndex?: number | null;
     smoothing?: number;
     interpolation?: TempoInterpolationProfile;
 }
@@ -44,7 +52,12 @@ export interface TempoAlignedFrameSample {
     fractionalIndex: number;
     hopTicks: number;
     values: number[];
+    channels: number;
+    channelValues: number[][];
+    channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
     format: AudioFeatureTrackFormat;
+    frameLength?: number;
 }
 
 export interface TempoAlignedRangeSample {
@@ -55,6 +68,8 @@ export interface TempoAlignedRangeSample {
     data: Float32Array;
     frameTicks: Float64Array;
     frameSeconds?: Float64Array;
+    channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
     requestedStartTick: number;
     requestedEndTick: number;
     windowStartTick: number;
@@ -69,6 +84,7 @@ export interface TempoAlignedFrameRequest {
     featureKey: string;
     tick: number;
     options?: TempoAlignedFrameOptions;
+    analysisProfileId?: string | null;
 }
 
 export interface TempoAlignedRangeRequest {
@@ -77,6 +93,7 @@ export interface TempoAlignedRangeRequest {
     startTick: number;
     endTick: number;
     options?: TempoAlignedRangeOptions;
+    analysisProfileId?: string | null;
 }
 
 export interface TempoAlignedFrameResult {
@@ -139,11 +156,7 @@ function resolveStartSeconds(track: AudioFeatureTrack, cache: AudioFeatureCache)
     return 0;
 }
 
-function resolveHopTicks(
-    track: AudioFeatureTrack,
-    cache: AudioFeatureCache,
-    tempoMapper: TempoMapper,
-): number {
+function resolveHopTicks(track: AudioFeatureTrack, cache: AudioFeatureCache, tempoMapper: TempoMapper): number {
     const direct = normalizeHopTicks(track.hopTicks);
     if (direct != null) {
         return direct;
@@ -153,9 +166,7 @@ function resolveHopTicks(
         return cacheHop;
     }
     const projection =
-        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
-            ? track.tempoProjection
-            : cache.tempoProjection;
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null ? track.tempoProjection : cache.tempoProjection;
     const hopSeconds = resolveHopSeconds(track, cache);
     return quantizeHopTicks({
         hopSeconds,
@@ -164,11 +175,68 @@ function resolveHopTicks(
     });
 }
 
+function flattenChannelValues(channelValues: number[][]): number[] {
+    const flattened: number[] = [];
+    for (const channel of channelValues) {
+        if (!channel?.length) {
+            continue;
+        }
+        for (const value of channel) {
+            flattened.push(value ?? 0);
+        }
+    }
+    return flattened;
+}
+
+function splitValuesBySizes(values: number[], sizes: number[]): number[][] {
+    const result: number[][] = [];
+    let offset = 0;
+    for (const size of sizes) {
+        const length = Math.max(0, Math.floor(size ?? 0));
+        const channel: number[] = [];
+        for (let i = 0; i < length; i += 1) {
+            channel.push(values[offset + i] ?? 0);
+        }
+        offset += length;
+        result.push(channel);
+    }
+    return result;
+}
+
+interface ChannelMetadata {
+    channels: number;
+    aliases: string[] | null;
+    layout: ChannelLayoutMeta | null;
+}
+
+function buildChannelMetadata(track: AudioFeatureTrack, cache: AudioFeatureCache): ChannelMetadata {
+    const channels = Math.max(1, Math.floor(track.channels ?? 0) || 1);
+    const trackLayout = track.channelLayout ?? null;
+    const trackLayoutAliases = trackLayout?.aliases ?? null;
+    const trackAliases = track.channelAliases ?? null;
+    const cacheAliases = cache.channelAliases ?? null;
+    const aliasesSource = trackLayoutAliases ?? trackAliases ?? cacheAliases ?? null;
+    const normalizedTrackLayout = trackLayout
+        ? {
+              ...trackLayout,
+              aliases: Array.isArray(trackLayout.aliases) ? [...trackLayout.aliases] : trackLayout.aliases ?? null,
+          }
+        : null;
+    const fallbackFromTrack = trackAliases ? { aliases: [...trackAliases] } : null;
+    const fallbackFromCache = cacheAliases ? { aliases: [...cacheAliases] } : null;
+    const layout = (normalizedTrackLayout ?? fallbackFromTrack ?? fallbackFromCache) as ChannelLayoutMeta | null;
+    return {
+        channels,
+        aliases: aliasesSource ? [...aliasesSource] : null,
+        layout,
+    };
+}
+
 function readNumericFrame(
     track: AudioFeatureTrack,
     index: number,
     channelIndex: number,
-    format: Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>,
+    format: Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>
 ): number {
     const frame = Math.max(0, Math.min(track.frameCount - 1, index));
     const data = track.data as NumericArray;
@@ -185,74 +253,163 @@ function readNumericFrame(
     return raw;
 }
 
-function resolveWaveformVectorLength(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): number {
+function resolveWaveformVectorLength(track: AudioFeatureTrack): number {
     const channelCount = Math.max(1, track.channels || 1);
-    if (options.channelIndex != null) {
-        return 2;
-    }
     return channelCount * 2;
 }
 
-function readWaveformFrame(
-    track: AudioFeatureTrack,
-    index: number,
-    options: TempoAlignedFrameOptions,
-): number[] {
+function resolvePeriodicWaveformLength(track: AudioFeatureTrack): number {
+    const metadata = (track.metadata ?? {}) as {
+        frameLengths?: unknown;
+        maxFrameLength?: unknown;
+    };
+    const explicit = Number(metadata.maxFrameLength);
+    if (Number.isFinite(explicit) && explicit > 0) {
+        return Math.max(0, Math.floor(explicit));
+    }
+    const lengths = Array.isArray(metadata.frameLengths) ? metadata.frameLengths : [];
+    let maxLength = 0;
+    for (const entry of lengths) {
+        const numeric = Number(entry);
+        if (Number.isFinite(numeric)) {
+            maxLength = Math.max(maxLength, Math.floor(numeric));
+        }
+    }
+    return Math.max(0, maxLength);
+}
+
+function readWaveformFrame(track: AudioFeatureTrack, index: number): number[][] {
     const frame = Math.max(0, Math.min(track.frameCount - 1, index));
     const payload = track.data as { min: Float32Array; max: Float32Array };
     const channelCount = Math.max(1, track.channels || 1);
     const minValues = payload.min ?? new Float32Array();
     const maxValues = payload.max ?? new Float32Array();
-    if (options.channelIndex != null) {
-        const clampedChannel = Math.max(0, Math.min(channelCount - 1, Math.floor(options.channelIndex)));
-        const offset = frame * channelCount + clampedChannel;
-        const min = minValues[offset] ?? 0;
-        const max = maxValues[offset] ?? min;
-        return [min, max];
-    }
-    const values: number[] = [];
+    const values: number[][] = [];
     for (let channel = 0; channel < channelCount; channel += 1) {
         const offset = frame * channelCount + channel;
         const min = minValues[offset] ?? 0;
         const max = maxValues[offset] ?? min;
-        values.push(min, max);
+        values.push([min, max]);
     }
     return values;
 }
 
-function buildFrameVector(
-    track: AudioFeatureTrack,
-    frameIndex: number,
-    options: TempoAlignedFrameOptions,
-): number[] {
-    if (track.format === 'waveform-minmax') {
-        return readWaveformFrame(track, frameIndex, options);
+function readPeriodicWaveformFrame(track: AudioFeatureTrack, index: number): FrameVectorInfo {
+    const frame = Math.max(0, Math.min(track.frameCount - 1, index));
+    const data = (track.data as Float32Array) ?? new Float32Array();
+    const metadata = (track.metadata ?? {}) as {
+        frameOffsets?: unknown;
+        frameLengths?: unknown;
+        maxFrameLength?: unknown;
+    };
+    const offsets = Array.isArray(metadata.frameOffsets) ? metadata.frameOffsets : [];
+    const lengths = Array.isArray(metadata.frameLengths) ? metadata.frameLengths : [];
+    const rawOffset = Number(offsets[frame] ?? 0);
+    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.floor(rawOffset)) : 0;
+    const rawLength = Number(lengths[frame] ?? 0);
+    const frameLength = Number.isFinite(rawLength) ? Math.max(0, Math.floor(rawLength)) : 0;
+    const maxLength = Math.max(frameLength, resolvePeriodicWaveformLength(track));
+    const values = new Array(Math.max(0, maxLength)).fill(0);
+    if (frameLength <= 0 || data.length === 0) {
+        return {
+            flatValues: [...values],
+            channelValues: [values.map((value) => value ?? 0)],
+            channelSizes: [values.length],
+            frameLength,
+        };
     }
-    const channels = Math.max(1, track.channels);
-    const format = track.format as Exclude<AudioFeatureTrackFormat, 'waveform-minmax'>;
-    const targetChannel = options.channelIndex ?? options.bandIndex ?? null;
-    if (targetChannel != null) {
-        const value = readNumericFrame(track, frameIndex, targetChannel, format);
-        return [value];
+    const clampedOffset = Math.min(Math.max(0, offset), data.length);
+    const available = Math.min(frameLength, data.length - clampedOffset, values.length);
+    for (let i = 0; i < available; i += 1) {
+        values[i] = data[clampedOffset + i] ?? 0;
     }
-    const vector: number[] = [];
-    for (let channel = 0; channel < channels; channel += 1) {
-        vector.push(readNumericFrame(track, frameIndex, channel, format));
-    }
-    return vector;
+    const vector = values.map((value) => value ?? 0);
+    return {
+        flatValues: [...vector],
+        channelValues: [vector],
+        channelSizes: [vector.length],
+        frameLength,
+    };
 }
 
-function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): number[] {
+function buildFrameVectorInfo(
+    track: AudioFeatureTrack,
+    frameIndex: number,
+    options: TempoAlignedFrameOptions
+): FrameVectorInfo {
     if (track.format === 'waveform-minmax') {
-        const length = resolveWaveformVectorLength(track, options);
-        return Array.from({ length }, () => 0);
+        const channelValues = readWaveformFrame(track, frameIndex);
+        return {
+            flatValues: flattenChannelValues(channelValues),
+            channelValues,
+            channelSizes: channelValues.map((channel) => channel.length),
+        };
     }
-    const targetChannel = options.channelIndex ?? options.bandIndex ?? null;
-    if (targetChannel != null) {
-        return [0];
+    if (track.format === 'waveform-periodic') {
+        return readPeriodicWaveformFrame(track, frameIndex);
+    }
+    const channels = Math.max(1, track.channels);
+    const format = track.format as Exclude<AudioFeatureTrackFormat, 'waveform-minmax' | 'waveform-periodic'>;
+    const channelValues: number[][] = [];
+    if (options.bandIndex != null) {
+        const target = Math.max(0, Math.min(channels - 1, Math.floor(options.bandIndex)));
+        const value = readNumericFrame(track, frameIndex, target, format);
+        channelValues.push([value]);
+        return {
+            flatValues: flattenChannelValues(channelValues),
+            channelValues,
+            channelSizes: [1],
+        };
+    }
+    for (let channel = 0; channel < channels; channel += 1) {
+        channelValues.push([readNumericFrame(track, frameIndex, channel, format)]);
+    }
+    return {
+        flatValues: flattenChannelValues(channelValues),
+        channelValues,
+        channelSizes: channelValues.map((entry) => entry.length),
+    };
+}
+
+function buildFrameVector(track: AudioFeatureTrack, frameIndex: number, options: TempoAlignedFrameOptions): number[] {
+    return buildFrameVectorInfo(track, frameIndex, options).flatValues;
+}
+
+function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameVectorInfo {
+    if (track.format === 'waveform-minmax') {
+        const channelCount = Math.max(1, track.channels || 1);
+        const channelValues = Array.from({ length: channelCount }, () => [0, 0]);
+        return {
+            flatValues: flattenChannelValues(channelValues),
+            channelValues,
+            channelSizes: channelValues.map((channel) => channel.length),
+        };
+    }
+    if (track.format === 'waveform-periodic') {
+        const length = resolvePeriodicWaveformLength(track);
+        const channelValues = [Array.from({ length }, () => 0)];
+        return {
+            flatValues: flattenChannelValues(channelValues),
+            channelValues,
+            channelSizes: channelValues.map((channel) => channel.length),
+            frameLength: length,
+        };
+    }
+    if (options.bandIndex != null) {
+        const channelValues = [[0]];
+        return {
+            flatValues: [0],
+            channelValues,
+            channelSizes: [1],
+        };
     }
     const channels = Math.max(1, track.channels || 1);
-    return Array.from({ length: channels }, () => 0);
+    const channelValues = Array.from({ length: channels }, () => [0]);
+    return {
+        flatValues: flattenChannelValues(channelValues),
+        channelValues,
+        channelSizes: channelValues.map((channel) => channel.length),
+    };
 }
 
 export function applySmoothingWindow(samples: number[][], radius: number): number[] {
@@ -278,10 +435,7 @@ export function applySmoothingWindow(samples: number[][], radius: number): numbe
 function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
     const t2 = t * t;
     const t3 = t2 * t;
-    return (
-        0.5 *
-        (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
-    );
+    return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
 }
 
 function interpolateVectors(
@@ -290,7 +444,7 @@ function interpolateVectors(
     prev: number[],
     next: number[],
     nextNext: number[],
-    frac: number,
+    frac: number
 ): number[] {
     if (profile === 'hold' || frac <= 1e-6) {
         return [...base];
@@ -318,35 +472,49 @@ function sampleLegacyFrame(
     cache: AudioFeatureCache,
     relativeTick: number,
     hopTicks: number,
-    options: TempoAlignedFrameOptions,
+    options: TempoAlignedFrameOptions
 ): TempoAlignedFrameSample | undefined {
     if (!Number.isFinite(relativeTick)) {
         return undefined;
     }
+    const channelMeta = buildChannelMetadata(track, cache);
     const startTick = track.tempoProjection?.startTick ?? cache.tempoProjection?.startTick ?? 0;
     const fractionalIndex = (relativeTick - startTick) / Math.max(1, hopTicks);
     const baseIndex = Math.floor(fractionalIndex);
     const frameIndex = Math.max(0, Math.min(track.frameCount - 1, baseIndex));
     if (!Number.isFinite(fractionalIndex)) {
+        const silent = buildSilentVector(track, options);
         return {
             frameIndex,
             fractionalIndex,
             hopTicks,
-            values: buildSilentVector(track, options),
+            values: [...silent.flatValues],
+            channels: silent.channelValues.length,
+            channelValues: silent.channelValues.map((channel) => [...channel]),
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
             format: track.format,
+            frameLength: silent.frameLength ?? 0,
         };
     }
     if (fractionalIndex < 0 || fractionalIndex >= track.frameCount) {
+        const silent = buildSilentVector(track, options);
         return {
             frameIndex,
             fractionalIndex,
             hopTicks,
-            values: buildSilentVector(track, options),
+            values: [...silent.flatValues],
+            channels: silent.channelValues.length,
+            channelValues: silent.channelValues.map((channel) => [...channel]),
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
             format: track.format,
+            frameLength: silent.frameLength ?? 0,
         };
     }
     const frac = fractionalIndex - baseIndex;
-    const baseVector = buildFrameVector(track, frameIndex, options);
+    const baseInfo = buildFrameVectorInfo(track, frameIndex, options);
+    const baseVector = baseInfo.flatValues;
     const profile = options.interpolation ?? DEFAULT_INTERPOLATION;
     let values = [...baseVector];
     if (profile !== 'hold') {
@@ -355,12 +523,18 @@ function sampleLegacyFrame(
         const nextNextVector = buildFrameVector(track, frameIndex + 2, options);
         values = interpolateVectors(profile, baseVector, prevVector, nextVector, nextNextVector, frac);
     }
+    const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
     return {
         frameIndex,
         fractionalIndex,
         hopTicks,
         values,
+        channels: channelValues.length,
+        channelValues,
+        channelAliases: channelMeta.aliases,
+        channelLayout: channelMeta.layout,
         format: track.format,
+        frameLength: baseInfo.frameLength,
     };
 }
 
@@ -377,7 +551,7 @@ function buildDiagnostics(
     mapperDurationNs: number,
     frameCount: number,
     fallbackReason: string | undefined,
-    requestEndTick?: number,
+    requestEndTick?: number
 ): TempoAlignedAdapterDiagnostics {
     return {
         trackId: request.trackId,
@@ -387,18 +561,14 @@ function buildDiagnostics(
         interpolation,
         mapperDurationNs,
         frameCount,
-        requestStartTick:
-            'tick' in request ? request.tick : Math.min(request.startTick, request.endTick),
+        requestStartTick: 'tick' in request ? request.tick : Math.min(request.startTick, request.endTick),
         requestEndTick: 'tick' in request ? request.tick : Math.max(request.startTick, request.endTick),
         fallbackReason,
         timestamp: Date.now(),
     };
 }
 
-export function getTempoAlignedFrame(
-    state: TimelineState,
-    request: TempoAlignedFrameRequest,
-): TempoAlignedFrameResult {
+export function getTempoAlignedFrame(state: TimelineState, request: TempoAlignedFrameRequest): TempoAlignedFrameResult {
     const options = request.options ?? {};
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
@@ -416,11 +586,14 @@ export function getTempoAlignedFrame(
             diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
         };
     }
-    const featureTrack = cache.featureTracks?.[request.featureKey];
+    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
+        analysisProfileId: request.analysisProfileId,
+    });
+    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
     if (!featureTrack || featureTrack.frameCount <= 0) {
         return {
             sample: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'feature-missing'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
         };
     }
 
@@ -428,10 +601,11 @@ export function getTempoAlignedFrame(
     if (hopSeconds <= 0) {
         return {
             sample: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
         };
     }
 
+    const channelMeta = buildChannelMetadata(featureTrack, cache);
     const startSeconds = resolveStartSeconds(featureTrack, cache);
     const adapterEnabled = resolveAdapterToggle(state);
     const offsetTicks = track.offsetTicks ?? 0;
@@ -443,7 +617,15 @@ export function getTempoAlignedFrame(
         const sample = sampleLegacyFrame(featureTrack, cache, relativeTick, hopTicksLegacy, options);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, sample ? 1 : 0, 'adapter-disabled'),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                0,
+                sample ? 1 : 0,
+                'adapter-disabled'
+            ),
         };
     }
 
@@ -454,12 +636,18 @@ export function getTempoAlignedFrame(
 
     const buildSilentSample = (fractionalIndex: number): TempoAlignedFrameSample => {
         const base = Number.isFinite(fractionalIndex) ? Math.floor(fractionalIndex) : 0;
+        const silent = buildSilentVector(featureTrack, options);
         return {
             frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, base)),
             fractionalIndex,
             hopTicks,
-            values: buildSilentVector(featureTrack, options),
+            values: [...silent.flatValues],
+            channels: silent.channelValues.length,
+            channelValues: silent.channelValues.map((channel) => [...channel]),
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
             format: featureTrack.format,
+            frameLength: silent.frameLength ?? 0,
         };
     };
 
@@ -469,7 +657,15 @@ export function getTempoAlignedFrame(
         const sample = buildSilentSample(fractionalIndex);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                1,
+                undefined
+            ),
         };
     }
 
@@ -480,7 +676,15 @@ export function getTempoAlignedFrame(
         const sample = buildSilentSample(frameFloat);
         return {
             sample,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                1,
+                undefined
+            ),
         };
     }
 
@@ -488,46 +692,58 @@ export function getTempoAlignedFrame(
     const frac = frameFloat - baseIndex;
     const radius = Math.max(0, Math.floor(options.smoothing ?? 0));
     const samples: number[][] = [];
-    const getVector = (index: number) => {
+    const getVectorInfo = (index: number): FrameVectorInfo => {
         if (index < 0 || index >= featureTrack.frameCount) {
             return buildSilentVector(featureTrack, options);
         }
-        return buildFrameVector(featureTrack, index, options);
+        return buildFrameVectorInfo(featureTrack, index, options);
     };
     for (let i = -radius; i <= radius; i += 1) {
         const idx = baseIndex + i;
-        samples.push(getVector(idx));
+        samples.push(getVectorInfo(idx).flatValues);
     }
     if (!samples.length) {
-        samples.push(getVector(baseIndex));
+        samples.push(getVectorInfo(baseIndex).flatValues);
     }
+    const baseInfo = getVectorInfo(baseIndex);
     let values = applySmoothingWindow(samples, radius);
     if (radius === 0) {
-        const prevVector = getVector(baseIndex - 1);
-        const baseVector = getVector(baseIndex);
-        const nextVector = getVector(baseIndex + 1);
-        const nextNextVector = getVector(baseIndex + 2);
+        const prevVector = getVectorInfo(baseIndex - 1).flatValues;
+        const baseVector = baseInfo.flatValues;
+        const nextVector = getVectorInfo(baseIndex + 1).flatValues;
+        const nextNextVector = getVectorInfo(baseIndex + 2).flatValues;
         values = interpolateVectors(interpolation, baseVector, prevVector, nextVector, nextNextVector, frac);
     }
 
+    const channelValues = splitValuesBySizes(values, baseInfo.channelSizes);
     const sample: TempoAlignedFrameSample = {
         frameIndex: Math.max(0, Math.min(featureTrack.frameCount - 1, baseIndex)),
         fractionalIndex: frameFloat,
         hopTicks,
         values,
+        channels: channelValues.length,
+        channelValues,
+        channelAliases: channelMeta.aliases,
+        channelLayout: channelMeta.layout,
         format: featureTrack.format,
+        frameLength: baseInfo.frameLength,
     };
 
     return {
         sample,
-        diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 1, undefined),
+        diagnostics: buildDiagnostics(
+            diagnosticsRequest,
+            sourceId,
+            true,
+            interpolation,
+            mapperDurationNs,
+            1,
+            undefined
+        ),
     };
 }
 
-export function getTempoAlignedRange(
-    state: TimelineState,
-    request: TempoAlignedRangeRequest,
-): TempoAlignedRangeResult {
+export function getTempoAlignedRange(state: TimelineState, request: TempoAlignedRangeRequest): TempoAlignedRangeResult {
     const options = request.options ?? {};
     const interpolation = options.interpolation ?? DEFAULT_INTERPOLATION;
     const resolved = resolveAudioSourceTrack(state, request.trackId);
@@ -545,11 +761,14 @@ export function getTempoAlignedRange(
             diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'cache-missing'),
         };
     }
-    const featureTrack = cache.featureTracks?.[request.featureKey];
+    const { track: featureTrack, key: resolvedFeatureKey } = resolveFeatureTrackFromCache(cache, request.featureKey, {
+        analysisProfileId: request.analysisProfileId,
+    });
+    const diagnosticsRequest = resolvedFeatureKey ? { ...request, featureKey: resolvedFeatureKey } : request;
     if (!featureTrack || featureTrack.frameCount <= 0) {
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, false, interpolation, 0, 0, 'feature-missing'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, false, interpolation, 0, 0, 'feature-missing'),
         };
     }
 
@@ -557,10 +776,11 @@ export function getTempoAlignedRange(
     if (hopSeconds <= 0) {
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
+            diagnostics: buildDiagnostics(diagnosticsRequest, sourceId, true, interpolation, 0, 0, 'invalid-hop'),
         };
     }
 
+    const channelMeta = buildChannelMetadata(featureTrack, cache);
     const adapterEnabled = resolveAdapterToggle(state);
     const offsetTicks = track.offsetTicks ?? 0;
     const regionStart = track.regionStartTick ?? 0;
@@ -595,7 +815,15 @@ export function getTempoAlignedRange(
         if (hopTicksLegacy <= 0) {
             return {
                 range: undefined,
-                diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, 0, 'adapter-disabled'),
+                diagnostics: buildDiagnostics(
+                    diagnosticsRequest,
+                    sourceId,
+                    true,
+                    interpolation,
+                    0,
+                    0,
+                    'adapter-disabled'
+                ),
             };
         }
         const padding = Math.max(0, Math.floor(options.framePadding ?? 0));
@@ -605,42 +833,42 @@ export function getTempoAlignedRange(
         const firstFrame = Math.max(0, Math.min(featureTrack.frameCount - 1, frameStart));
         const lastFrame = Math.max(firstFrame, Math.min(featureTrack.frameCount - 1, frameEnd));
         const frameCount = lastFrame - firstFrame + 1;
-        const isWaveform = featureTrack.format === 'waveform-minmax';
-        const waveformVectorLength = isWaveform ? resolveWaveformVectorLength(featureTrack, options) : 0;
-        const channels = (() => {
-            if (isWaveform) return waveformVectorLength;
-            if (options.channelIndex != null || options.bandIndex != null) return 1;
+        const isWaveformMinMax = featureTrack.format === 'waveform-minmax';
+        const isWaveformPeriodic = featureTrack.format === 'waveform-periodic';
+        const waveformVectorLength = isWaveformMinMax
+            ? resolveWaveformVectorLength(featureTrack)
+            : isWaveformPeriodic
+            ? resolvePeriodicWaveformLength(featureTrack)
+            : 0;
+        const vectorWidth = (() => {
+            if (isWaveformMinMax || isWaveformPeriodic) return waveformVectorLength;
+            if (options.bandIndex != null) return 1;
             return Math.max(1, featureTrack.channels);
         })();
-        const data = new Float32Array(frameCount * channels);
+        const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
         const frameTicks = new Float64Array(frameCount);
         let writeIndex = 0;
         for (let frame = 0; frame < frameCount; frame += 1) {
             const sampleIndex = firstFrame + frame;
-            const vector =
+            const vectorInfo =
                 sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
                     ? buildSilentVector(featureTrack, options)
-                    : buildFrameVector(featureTrack, sampleIndex, options);
+                    : buildFrameVectorInfo(featureTrack, sampleIndex, options);
+            const flat = vectorInfo.flatValues;
             frameTicks[frame] = trackStartTick + (startTick + sampleIndex * hopTicksLegacy);
-            if (isWaveform) {
-                for (let i = 0; i < vector.length; i += 1) {
-                    data[writeIndex++] = vector[i] ?? 0;
-                }
-            } else if (channels === 1) {
-                data[writeIndex++] = vector[0] ?? 0;
-            } else {
-                for (let channel = 0; channel < channels; channel += 1) {
-                    data[writeIndex++] = vector[channel] ?? 0;
-                }
+            for (let i = 0; i < vectorWidth; i += 1) {
+                data[writeIndex++] = flat[i] ?? 0;
             }
         }
         const range: TempoAlignedRangeSample = {
             hopTicks: hopTicksLegacy,
             frameCount,
-            channels,
+            channels: vectorWidth,
             format: featureTrack.format,
             data,
             frameTicks,
+            channelAliases: channelMeta.aliases,
+            channelLayout: channelMeta.layout,
             requestedStartTick: request.startTick,
             requestedEndTick: request.endTick,
             windowStartTick: Math.min(request.startTick, request.endTick),
@@ -651,7 +879,15 @@ export function getTempoAlignedRange(
         };
         return {
             range,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, 0, frameCount, 'adapter-disabled'),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                0,
+                frameCount,
+                'adapter-disabled'
+            ),
         };
     }
 
@@ -673,41 +909,45 @@ export function getTempoAlignedRange(
         const mapperDurationNs = nowNs() - mapperStart;
         return {
             range: undefined,
-            diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, 0, undefined),
+            diagnostics: buildDiagnostics(
+                diagnosticsRequest,
+                sourceId,
+                true,
+                interpolation,
+                mapperDurationNs,
+                0,
+                undefined
+            ),
         };
     }
 
-    const isWaveform = featureTrack.format === 'waveform-minmax';
-    const waveformVectorLength = isWaveform ? resolveWaveformVectorLength(featureTrack, options) : 0;
-    const channels = (() => {
-        if (isWaveform) return waveformVectorLength;
-        if (options.channelIndex != null || options.bandIndex != null) return 1;
+    const isWaveformMinMax = featureTrack.format === 'waveform-minmax';
+    const isWaveformPeriodic = featureTrack.format === 'waveform-periodic';
+    const waveformVectorLength = isWaveformMinMax
+        ? resolveWaveformVectorLength(featureTrack)
+        : isWaveformPeriodic
+        ? resolvePeriodicWaveformLength(featureTrack)
+        : 0;
+    const vectorWidth = (() => {
+        if (isWaveformMinMax || isWaveformPeriodic) return waveformVectorLength;
+        if (options.bandIndex != null) return 1;
         return Math.max(1, featureTrack.channels);
     })();
-    const data = new Float32Array(frameCount * channels);
+    const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
     const frameSeconds = new Float64Array(frameCount);
     const baseTick = offsetTicks - regionStart;
     const halfHopSeconds = hopSeconds / 2;
     let writeIndex = 0;
     for (let frame = 0; frame < frameCount; frame += 1) {
         const sampleIndex = firstFrame + frame;
-        const vector =
+        const vectorInfo =
             sampleIndex < 0 || sampleIndex >= featureTrack.frameCount
                 ? buildSilentVector(featureTrack, options)
-                : buildFrameVector(featureTrack, sampleIndex, options);
+                : buildFrameVectorInfo(featureTrack, sampleIndex, options);
+        const flat = vectorInfo.flatValues;
         frameSeconds[frame] = startSeconds + sampleIndex * hopSeconds + halfHopSeconds;
-        if (isWaveform) {
-            for (let i = 0; i < vector.length; i += 1) {
-                data[writeIndex++] = vector[i] ?? 0;
-            }
-            continue;
-        }
-        if (channels === 1) {
-            data[writeIndex++] = vector[0] ?? 0;
-        } else {
-            for (let channel = 0; channel < channels; channel += 1) {
-                data[writeIndex++] = vector[channel] ?? 0;
-            }
+        for (let i = 0; i < vectorWidth; i += 1) {
+            data[writeIndex++] = flat[i] ?? 0;
         }
     }
     const projectedTicks = tempoMapper.secondsToTicksBatch(frameSeconds);
@@ -719,11 +959,13 @@ export function getTempoAlignedRange(
     const range: TempoAlignedRangeSample = {
         hopTicks,
         frameCount,
-        channels,
+        channels: vectorWidth,
         format: featureTrack.format,
         data,
         frameTicks,
         frameSeconds,
+        channelAliases: channelMeta.aliases,
+        channelLayout: channelMeta.layout,
         requestedStartTick: request.startTick,
         requestedEndTick: request.endTick,
         windowStartTick: Math.min(request.startTick, request.endTick),
@@ -735,6 +977,14 @@ export function getTempoAlignedRange(
 
     return {
         range,
-        diagnostics: buildDiagnostics(request, sourceId, true, interpolation, mapperDurationNs, frameCount, undefined),
+        diagnostics: buildDiagnostics(
+            diagnosticsRequest,
+            sourceId,
+            true,
+            interpolation,
+            mapperDurationNs,
+            frameCount,
+            undefined
+        ),
     };
 }

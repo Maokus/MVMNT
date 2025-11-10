@@ -13,7 +13,6 @@ describe('sceneStore descriptor smoothing migration', () => {
                         featureKey: 'spectrogram',
                         calculatorId: 'calc.spectrogram',
                         bandIndex: null,
-                        channel: null,
                         smoothing: 6,
                     },
                 ],
@@ -29,7 +28,6 @@ describe('sceneStore descriptor smoothing migration', () => {
                     featureKey: 'spectrogram',
                     calculatorId: 'calc.spectrogram',
                     bandIndex: null,
-                    channel: null,
                 },
             ],
         });
@@ -61,7 +59,6 @@ describe('sceneStore descriptor smoothing migration', () => {
                     featureKey: 'rms',
                     calculatorId: null,
                     bandIndex: null,
-                    channel: null,
                 },
             ],
         });

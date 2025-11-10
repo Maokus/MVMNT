@@ -22,8 +22,7 @@
                     {
                         "featureKey": "spectrogram",
                         "calculatorId": "mvmnt.spectrogram",
-                        "bandIndex": null,
-                        "channel": null
+                        "bandIndex": null
                     }
                 ]
             },

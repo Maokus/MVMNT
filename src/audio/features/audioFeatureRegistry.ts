@@ -17,12 +17,10 @@ function register(calculator: AudioFeatureCalculator): void {
     const existing = featureDefaults.get(calculator.featureKey) ?? {
         calculatorId: null,
         bandIndex: null,
-        channel: null,
     };
     featureDefaults.set(calculator.featureKey, {
         calculatorId: calculator.id,
         bandIndex: existing.bandIndex,
-        channel: existing.channel,
     });
     try {
         useTimelineStore
@@ -44,7 +42,6 @@ function unregister(id: string): void {
         featureDefaults.set(calculator.featureKey, {
             calculatorId: null,
             bandIndex: defaults.bandIndex,
-            channel: defaults.channel,
         });
     }
 }
@@ -69,7 +66,6 @@ function getFeatureDefaults(featureKey: string): FeatureDescriptorDefaults {
     return {
         calculatorId: null,
         bandIndex: null,
-        channel: null,
     };
 }
 

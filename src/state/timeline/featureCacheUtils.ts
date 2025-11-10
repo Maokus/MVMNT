@@ -1,8 +1,9 @@
 import type { AudioFeatureAnalysisParams, AudioFeatureCache } from '@audio/features/audioFeatureTypes';
+import { normalizeFeatureTrackMap } from '@audio/features/featureTrackIdentity';
 
 function mergeAnalysisParams(
     existing: AudioFeatureAnalysisParams | undefined,
-    incoming: AudioFeatureAnalysisParams | undefined,
+    incoming: AudioFeatureAnalysisParams | undefined
 ): AudioFeatureAnalysisParams | undefined {
     if (!existing) {
         return incoming;
@@ -23,11 +24,26 @@ function mergeAnalysisParams(
 
 export function mergeFeatureCaches(
     existing: AudioFeatureCache | undefined,
-    incoming: AudioFeatureCache,
+    incoming: AudioFeatureCache
 ): AudioFeatureCache {
     if (!existing) {
-        return incoming;
+        const normalizedIncoming = normalizeFeatureTrackMap(
+            incoming.featureTracks,
+            incoming.defaultAnalysisProfileId ?? null
+        );
+        return {
+            ...incoming,
+            featureTracks: normalizedIncoming,
+        };
     }
+    const normalizedExistingTracks = normalizeFeatureTrackMap(
+        existing.featureTracks,
+        existing.defaultAnalysisProfileId ?? null
+    );
+    const normalizedIncomingTracks = normalizeFeatureTrackMap(
+        incoming.featureTracks,
+        incoming.defaultAnalysisProfileId ?? null
+    );
     return {
         ...existing,
         ...incoming,
@@ -39,9 +55,14 @@ export function mergeFeatureCaches(
         tempoProjection: incoming.tempoProjection ?? existing.tempoProjection,
         frameCount: incoming.frameCount || existing.frameCount,
         analysisParams: mergeAnalysisParams(existing.analysisParams, incoming.analysisParams)!,
+        analysisProfiles: {
+            ...(existing.analysisProfiles ?? {}),
+            ...(incoming.analysisProfiles ?? {}),
+        },
+        defaultAnalysisProfileId: incoming.defaultAnalysisProfileId ?? existing.defaultAnalysisProfileId,
         featureTracks: {
-            ...existing.featureTracks,
-            ...incoming.featureTracks,
+            ...normalizedExistingTracks,
+            ...normalizedIncomingTracks,
         },
     };
 }

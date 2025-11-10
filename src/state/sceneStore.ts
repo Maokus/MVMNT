@@ -5,13 +5,18 @@ import type { FontAsset } from '@state/scene/fonts';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
-import { migrateDescriptorChannels } from '@persistence/migrations/unifyChannelField';
+import {
+    migrateDescriptorChannels,
+    buildChannelSelectorMap,
+    type MigratedDescriptorChannelSelector,
+    type MigratedDescriptorChannelsResult,
+} from '@persistence/migrations/unifyChannelField';
 import {
     logSmoothingMigration,
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
-import { migrateSceneAudioSystemV4 } from '@persistence/migrations/audioSystemV4';
+import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -33,15 +38,32 @@ interface LegacyAudioFeatureBindingData {
     featureKey?: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    channel?: number | string | null;
-    channelIndex?: number | null;
-    channelAlias?: string | null;
     smoothing?: number | null;
 }
 
 interface LegacyDescriptorResult {
     descriptor: AudioFeatureDescriptor | null;
     smoothing: number | null;
+}
+
+function applyChannelSelectorsToBindings(bindings: ElementBindings, results: MigratedDescriptorChannelsResult[]) {
+    if (!Array.isArray(results) || !results.length) {
+        return;
+    }
+    const selectorMap = buildChannelSelectorMap(results);
+    if (!selectorMap || Object.keys(selectorMap).length === 0) {
+        return;
+    }
+    const existing = bindings.channelSelectors;
+    if (existing && existing.type === 'constant' && existing.value && typeof existing.value === 'object') {
+        const merged = {
+            ...((existing.value as Record<string, MigratedDescriptorChannelSelector>) ?? {}),
+            ...selectorMap,
+        };
+        bindings.channelSelectors = { type: 'constant', value: merged };
+        return;
+    }
+    bindings.channelSelectors = { type: 'constant', value: selectorMap };
 }
 
 function isLegacyAudioFeatureBinding(value: unknown): value is LegacyAudioFeatureBindingData {
@@ -56,16 +78,10 @@ function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): Legac
     const calculatorId = typeof payload.calculatorId === 'string' && payload.calculatorId ? payload.calculatorId : null;
     const smoothing =
         typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing) ? payload.smoothing : null;
-    const channelAlias =
-        typeof payload.channelAlias === 'string' && payload.channelAlias.trim().length > 0
-            ? payload.channelAlias.trim()
-            : null;
-    const channelValue = payload.channel != null ? payload.channel : channelAlias ?? coerceIndex(payload.channelIndex);
     const { descriptor } = createFeatureDescriptor({
         feature: featureKey,
         calculatorId,
         bandIndex: coerceIndex(payload.bandIndex),
-        channel: channelValue ?? null,
     });
     return { descriptor, smoothing };
 }
@@ -93,7 +109,6 @@ export function migrateLegacyAudioFeatureBinding(
                         typeof stripped.bandIndex === 'number' && Number.isFinite(stripped.bandIndex)
                             ? Math.trunc(stripped.bandIndex)
                             : null,
-                    channel: (stripped.channel as number | string | null | undefined) ?? null,
                 }).descriptor;
             }
             replacements.features = {
@@ -498,6 +513,7 @@ function resolveSmoothingProperty(elementType: string | undefined): string | nul
     switch (elementType) {
         case 'audioSpectrum':
         case 'audioVolumeMeter':
+        case 'audioWaveform':
         case 'audioOscilloscope':
             return 'smoothing';
         default:
@@ -541,16 +557,20 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
                     if (smoothingValues.length && migratedSmoothing == null) {
                         migratedSmoothing = smoothingValues[0] ?? null;
                     }
-                    constantValue = descriptors
-                        .map((entry) => migrateDescriptorChannels(entry) ?? null)
+                    const migratedDescriptors = descriptors.map((entry) => migrateDescriptorChannels(entry));
+                    const normalized = migratedDescriptors
+                        .map((entry) => entry.descriptor)
                         .filter((entry): entry is AudioFeatureDescriptor => entry != null);
+                    constantValue = normalized;
+                    applyChannelSelectorsToBindings(bindings, migratedDescriptors);
                 } else {
                     const { descriptor, smoothing } = stripDescriptorSmoothing(constantValue);
                     if (smoothing != null && migratedSmoothing == null) {
                         migratedSmoothing = smoothing;
                     }
                     const migrated = migrateDescriptorChannels(descriptor);
-                    constantValue = migrated ? [migrated] : [];
+                    constantValue = migrated.descriptor ? [migrated.descriptor] : [];
+                    applyChannelSelectorsToBindings(bindings, [migrated]);
                 }
             }
             bindings[key] = { type: 'constant', value: constantValue };
@@ -690,6 +710,11 @@ function validateMacroValue(
             return { valid: typeof value === 'boolean' };
         case 'color':
             return { valid: typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value) };
+        case 'colorAlpha':
+            if (typeof value !== 'string') return { valid: false };
+            if (/^#[0-9A-Fa-f]{8}$/i.test(value)) return { valid: true };
+            if (/^#[0-9A-Fa-f]{6}$/i.test(value)) return { valid: true };
+            return { valid: false };
         case 'font':
             if (typeof value !== 'string') return { valid: false };
             if (value.trim() === '') return { valid: true };
@@ -1469,7 +1494,7 @@ const createSceneStoreState = (
     },
 
     importScene: (payload) => {
-        const migratedPayload = migrateSceneAudioSystemV4(payload);
+        const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
             const elements = migratedPayload.elements ?? [];
             const sorted = [...elements].sort((a, b) => {

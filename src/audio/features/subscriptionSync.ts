@@ -1,4 +1,4 @@
-import { buildDescriptorMatchKey } from './analysisIntents';
+import { buildDescriptorIdentityKey } from './analysisIntents';
 import { createFeatureDescriptor } from './descriptorBuilder';
 import {
     clearFeatureData,
@@ -7,8 +7,8 @@ import {
     type ElementSubscriptionSnapshot,
     type SceneFeatureElementRef,
 } from './sceneApi';
-import type { AudioFeatureDescriptor } from './audioFeatureTypes';
-import type { AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
+import type { AudioFeatureAnalysisProfileDescriptor, AudioFeatureDescriptor } from './audioFeatureTypes';
+import type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
 
 function normalizeTrackId(trackId: string | null | undefined): string | null {
     if (typeof trackId !== 'string') {
@@ -18,22 +18,79 @@ function normalizeTrackId(trackId: string | null | undefined): string | null {
     return trimmed.length ? trimmed : null;
 }
 
-function dedupeDescriptors(descriptors: { descriptor: AudioFeatureDescriptor; profile: string | null }[]): {
+function dedupeDescriptors(
+    descriptors: {
+        descriptor: AudioFeatureDescriptor;
+        profile: string | null;
+        profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
+    }[]
+): {
     descriptors: AudioFeatureDescriptor[];
     profile: string | null;
+    profileRegistryDelta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 } {
     const map = new Map<string, AudioFeatureDescriptor>();
     let profile: string | null = null;
+    const registryAggregate: Record<string, AudioFeatureAnalysisProfileDescriptor> = {};
+    let hasRegistryDelta = false;
+
     for (const entry of descriptors) {
-        const key = buildDescriptorMatchKey(entry.descriptor);
-        if (!map.has(key)) {
-            map.set(key, entry.descriptor);
+        const key = buildDescriptorIdentityKey(entry.descriptor);
+        const existing = map.get(key);
+        if (!existing) {
+            const descriptor = entry.descriptor;
+            map.set(key, descriptor);
             if (!profile && entry.profile) {
                 profile = entry.profile;
             }
+            if (descriptor.profileRegistryDelta) {
+                for (const [id, delta] of Object.entries(descriptor.profileRegistryDelta)) {
+                    if (!registryAggregate[id]) {
+                        registryAggregate[id] = { ...delta };
+                        hasRegistryDelta = true;
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (!profile && entry.profile) {
+            profile = entry.profile;
+        }
+
+        if (entry.descriptor.profileOverrides && !existing.profileOverrides) {
+            existing.profileOverrides = { ...entry.descriptor.profileOverrides };
+            existing.profileOverridesHash =
+                entry.descriptor.profileOverridesHash ?? existing.profileOverridesHash ?? null;
+        }
+
+        if (!existing.analysisProfileId && entry.descriptor.analysisProfileId) {
+            existing.analysisProfileId = entry.descriptor.analysisProfileId;
+        }
+
+        if (!existing.requestedAnalysisProfileId && entry.descriptor.requestedAnalysisProfileId) {
+            existing.requestedAnalysisProfileId = entry.descriptor.requestedAnalysisProfileId;
+        }
+
+        if (entry.descriptor.profileRegistryDelta) {
+            existing.profileRegistryDelta = {
+                ...(existing.profileRegistryDelta ?? {}),
+                ...entry.descriptor.profileRegistryDelta,
+            };
+            for (const [id, delta] of Object.entries(entry.descriptor.profileRegistryDelta)) {
+                if (!registryAggregate[id]) {
+                    registryAggregate[id] = { ...delta };
+                    hasRegistryDelta = true;
+                }
+            }
         }
     }
-    return { descriptors: Array.from(map.values()), profile };
+
+    return {
+        descriptors: Array.from(map.values()),
+        profile,
+        profileRegistryDelta: hasRegistryDelta ? registryAggregate : null,
+    };
 }
 
 export function syncElementSubscriptions(
@@ -50,20 +107,26 @@ export function syncElementSubscriptions(
     const built = requirements.map((requirement) =>
         createFeatureDescriptor({
             feature: requirement.feature,
-            channel: requirement.channel ?? undefined,
             bandIndex: requirement.bandIndex ?? undefined,
             calculatorId: requirement.calculatorId ?? undefined,
             profile: requirement.profile ?? undefined,
+            profileParams: requirement.profileParams ?? undefined,
         })
     );
-    const { descriptors, profile } = dedupeDescriptors(built);
+    const { descriptors, profile, profileRegistryDelta } = dedupeDescriptors(built);
 
     if (!descriptors.length) {
         clearFeatureData(element, normalizedTrackId);
         return;
     }
 
-    syncElementFeatureIntents(element, normalizedTrackId, descriptors, profile ?? undefined);
+    syncElementFeatureIntents(
+        element,
+        normalizedTrackId,
+        descriptors,
+        profile ?? undefined,
+        profileRegistryDelta ?? undefined
+    );
 }
 
 export function getElementSubscriptions(
@@ -81,9 +144,9 @@ export function hasSubscription(
     if (!normalizedTrackId) {
         return false;
     }
-    const matchKey = buildDescriptorMatchKey(descriptor);
+    const identityKey = buildDescriptorIdentityKey(descriptor);
     return getElementSubscriptionSnapshot(element).some(
-        (entry) => entry.trackId === normalizedTrackId && buildDescriptorMatchKey(entry.descriptor) === matchKey
+        (entry) => entry.trackId === normalizedTrackId && buildDescriptorIdentityKey(entry.descriptor) === identityKey
     );
 }
 
@@ -91,8 +154,8 @@ export function isInRequirements(
     descriptor: AudioFeatureDescriptor,
     targetDescriptors: AudioFeatureDescriptor[]
 ): boolean {
-    const matchKey = buildDescriptorMatchKey(descriptor);
-    return targetDescriptors.some((entry) => buildDescriptorMatchKey(entry) === matchKey);
+    const identityKey = buildDescriptorIdentityKey(descriptor);
+    return targetDescriptors.some((entry) => buildDescriptorIdentityKey(entry) === identityKey);
 }
 
 export function getElementSubscriptionDetails(element: SceneFeatureElementRef | object): ElementSubscriptionSnapshot[] {

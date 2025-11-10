@@ -1,11 +1,7 @@
 import type { TempoMapper } from '@core/timing/tempo-mapper';
 import type { TempoMapEntry } from '@state/timelineTypes';
 
-export type AudioFeatureTrackFormat =
-    | 'float32'
-    | 'uint8'
-    | 'int16'
-    | 'waveform-minmax';
+export type AudioFeatureTrackFormat = 'float32' | 'uint8' | 'int16' | 'waveform-minmax' | 'waveform-periodic';
 
 export type AudioFeatureTrackData =
     | Float32Array
@@ -20,24 +16,41 @@ export type AudioFeatureTrackData =
  * Analysis identifier describing which feature track to read from the cache.
  *
  * Descriptors represent analysis-time identity only. Presentation choices such as
- * smoothing or interpolation belong to {@link AudioSamplingOptions} so caches can
- * be shared across elements that render the same data differently. For a guided
- * overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
+ * smoothing, interpolation, or channel filtering belong to {@link AudioSamplingOptions}
+ * so caches can be shared across elements that render the same data differently.
+ * For a guided overview see {@link ../../../docs/audio/concepts.md Audio Concepts}.
  */
+export interface CanonicalAnalysisProfile {
+    windowSize: number;
+    hopSize: number;
+    overlap: number;
+    sampleRate: number;
+    fftSize?: number | null;
+    minDecibels?: number | null;
+    maxDecibels?: number | null;
+    window?: string | null;
+}
+
+export interface AudioFeatureAnalysisProfileDescriptor extends CanonicalAnalysisProfile {
+    id: string;
+}
+
+export type AudioAnalysisProfileOverrides = Partial<CanonicalAnalysisProfile>;
+
 export interface AudioFeatureDescriptor {
     featureKey: string;
     calculatorId?: string | null;
     bandIndex?: number | null;
-    /**
-     * Channel selector for the descriptor.
-     *
-     * Accepts numeric indices (e.g., 0, 1) or semantic aliases ("Left", "Right", "Mono").
-     * When omitted or set to null the descriptor will default to the merged/mono channel.
-     *
-     * Note: Prior revisions exposed descriptor smoothing. That field was removed in October 2025
-     * because smoothing is a runtime sampling concern rather than an analysis requirement.
-     */
-    channel?: number | string | null;
+    /** Optional identifier for the resolved analysis profile. */
+    analysisProfileId?: string | null;
+    /** Identifier of the base profile prior to applying overrides. */
+    requestedAnalysisProfileId?: string | null;
+    /** Sanitized overrides applied to the base analysis profile. */
+    profileOverrides?: AudioAnalysisProfileOverrides | null;
+    /** Hash representing the merged profile parameters for ad-hoc overrides. */
+    profileOverridesHash?: string | null;
+    /** Locally scoped profiles that should be registered alongside this descriptor. */
+    profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 }
 
 /**
@@ -52,6 +65,13 @@ export interface AudioSamplingOptions {
     smoothing?: number;
     /** Interpolation method between frames */
     interpolation?: 'linear' | 'nearest' | 'cubic';
+}
+
+export interface ChannelLayoutMeta {
+    /** Optional aliases describing individual channel order (e.g., Left/Right). */
+    aliases?: string[] | null;
+    /** Optional semantic hint for downstream channel selectors. */
+    semantics?: 'mono' | 'stereo' | 'mid-side' | (string & {});
 }
 
 export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
@@ -81,8 +101,10 @@ export interface AudioFeatureTrack<Data = AudioFeatureTrackData> {
     analysisParams?: Record<string, unknown>;
     /** Data encoding hint to help downstream consumers deserialize. */
     format: AudioFeatureTrackFormat;
-    /** Optional alias labels for each channel (e.g., Left/Right). */
+    /** @deprecated Use channelLayout.aliases instead. */
     channelAliases?: string[] | null;
+    /** Optional metadata describing the channel layout for downstream filtering. */
+    channelLayout?: ChannelLayoutMeta | null;
     /** Identifier of the analysis profile used to generate this track. */
     analysisProfileId?: string | null;
 }
@@ -91,7 +113,6 @@ export interface AudioFeatureAnalysisParams {
     windowSize: number;
     hopSize: number;
     overlap: number;
-    smoothing?: number;
     sampleRate: number;
     fftSize?: number;
     minDecibels?: number;
@@ -99,19 +120,6 @@ export interface AudioFeatureAnalysisParams {
     window?: string;
     tempoMapHash?: string;
     calculatorVersions: Record<string, number>;
-}
-
-export interface AudioFeatureAnalysisProfileDescriptor {
-    id: string;
-    windowSize: number;
-    hopSize: number;
-    overlap: number;
-    sampleRate: number;
-    smoothing?: number | null;
-    fftSize?: number | null;
-    minDecibels?: number | null;
-    maxDecibels?: number | null;
-    window?: string | null;
 }
 
 export interface AudioFeatureCache {
@@ -180,6 +188,8 @@ export interface AudioFeatureCalculatorContext<P = unknown> {
     hopSeconds: number;
     frameCount: number;
     analysisParams: AudioFeatureAnalysisParams;
+    /** Requested analysis profile identifier for this job. */
+    analysisProfileId: string;
     timing: AudioFeatureCalculatorTiming;
     tempoProjection: AudioFeatureTempoProjection;
     tempoMapper: TempoMapper;
@@ -203,9 +213,9 @@ export interface AudioFeatureCalculator<Prepared = unknown> {
     /** Optional pre-flight hook executed before calculate (once per job). */
     prepare?: (params: AudioFeatureAnalysisParams) => Promise<Prepared> | Prepared;
     /** Execute the calculator and return feature track(s). */
-    calculate: (context: AudioFeatureCalculatorContext<Prepared>) =>
-        | Promise<AudioFeatureCalculationResult>
-        | AudioFeatureCalculationResult;
+    calculate: (
+        context: AudioFeatureCalculatorContext<Prepared>
+    ) => Promise<AudioFeatureCalculationResult> | AudioFeatureCalculationResult;
     /** Serialize a track into JSON-safe data. */
     serializeResult?: (track: AudioFeatureTrack) => Record<string, unknown>;
     /** Hydrate a serialized payload back into a runtime track. */
@@ -215,7 +225,6 @@ export interface AudioFeatureCalculator<Prepared = unknown> {
 export interface FeatureDescriptorDefaults {
     calculatorId: string | null;
     bandIndex: number | null;
-    channel: number | string | null;
 }
 
 export type AudioFeatureCalculatorRegistry = {

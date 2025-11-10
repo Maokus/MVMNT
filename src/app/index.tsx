@@ -4,6 +4,7 @@ import './tailwind.css';
 import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
+import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
 if (import.meta.env.DEV) {
   void import('@devtools/registerWindowTools');
 }
@@ -27,6 +28,8 @@ try {
   // eslint-disable-next-line no-console
   console.warn('[timing] Failed to initialize canonical PPQ from env', e);
 }
+
+registerBuiltInAudioFeatureCalculators();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 // Vite exposes the configured base as import.meta.env.BASE_URL (always ends with a slash)

@@ -1,5 +1,13 @@
 import { audioFeatureCalculatorRegistry } from './audioFeatureRegistry';
 import {
+    DEFAULT_ANALYSIS_PROFILE_ID,
+    buildFeatureTrackKey,
+    normalizeFeatureTrackEntry,
+    normalizeFeatureTrackMap,
+    parseFeatureTrackKey,
+    sanitizeAnalysisProfileId,
+} from './featureTrackIdentity';
+import {
     type AudioFeatureAnalysisParams,
     type AudioFeatureAnalysisProfileDescriptor,
     type AudioFeatureCalculator,
@@ -9,14 +17,16 @@ import {
     type AudioFeatureTempoProjection,
     type AudioFeatureTrack,
     type AudioFeatureTrackFormat,
+    type ChannelLayoutMeta,
 } from './audioFeatureTypes';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
-import { createFftPlan, fftRadix2 } from './fft';
+import { createPitchWaveformCalculator } from './calculators/pitchWaveformCalculator';
+import { createRmsCalculator } from './calculators/rmsCalculator';
+import { createSpectrogramCalculator } from './calculators/spectrogramCalculator';
+import { createWaveformCalculator } from './calculators/waveformCalculator';
 import { createTempoMapper, type TempoMapper } from '@core/timing';
 import { getSharedTimingManager } from '@state/timelineStore';
 import type { TempoMapEntry } from '@state/timelineTypes';
-
-const DEFAULT_ANALYSIS_PROFILE_ID = 'default';
 
 type SerializedTypedArray = {
     type: 'float32' | 'uint8' | 'int16';
@@ -65,6 +75,7 @@ export type SerializedAudioFeatureTrack = {
     metadata?: Record<string, unknown>;
     analysisParams?: Record<string, unknown>;
     channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
     analysisProfileId?: string | null;
     dataRef?: SerializedAudioFeatureTrackDataRef;
 };
@@ -85,10 +96,6 @@ export interface SerializedAudioFeatureCache {
 
 const DEFAULT_WINDOW_SIZE = 2048;
 const DEFAULT_HOP_SIZE = 512;
-const WAVEFORM_OVERSAMPLE_FACTOR = 8;
-const SPECTROGRAM_MIN_DECIBELS = -80;
-const SPECTROGRAM_MAX_DECIBELS = 0;
-const SPECTROGRAM_EPSILON = 1e-8;
 const ANALYSIS_YIELD_MIN_INTERVAL_MS = 12;
 
 type YieldCallback = () => Promise<void>;
@@ -201,7 +208,7 @@ function computeFrameCount(length: number, windowSize: number, hopSize: number):
 function createTimingSlice(
     globalBpm: number,
     beatsPerBar: number,
-    tempoMap?: TempoMapEntry[],
+    tempoMap?: TempoMapEntry[]
 ): AudioFeatureCalculatorTiming {
     const ticksPerQuarter = getSharedTimingManager().ticksPerQuarter;
     return {
@@ -217,7 +224,7 @@ function createAnalysisParams(
     tempoMap: TempoMapEntry[] | undefined,
     calculators: AudioFeatureCalculator[],
     windowSize: number,
-    hopSize: number,
+    hopSize: number
 ): AudioFeatureAnalysisParams {
     const versions: Record<string, number> = {};
     for (const calc of calculators) {
@@ -227,7 +234,6 @@ function createAnalysisParams(
         windowSize,
         hopSize,
         overlap: windowSize > hopSize ? windowSize / hopSize : 1,
-        smoothing: undefined,
         sampleRate,
         tempoMapHash: computeTempoMapHash(tempoMap),
         calculatorVersions: versions,
@@ -245,10 +251,8 @@ function serializeTypedArray(array: Float32Array | Uint8Array | Int16Array): Ser
 }
 
 function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array | Uint8Array | Int16Array {
-    const values = serialized.values as typeof serialized.values &
-        (number[] | Float32Array | Uint8Array | Int16Array);
-    const sliceView = (view: ArrayBufferView) =>
-        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    const values = serialized.values as typeof serialized.values & (number[] | Float32Array | Uint8Array | Int16Array);
+    const sliceView = (view: ArrayBufferView) => view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 
     if (serialized.type === 'float32') {
         if (Array.isArray(values)) return Float32Array.from(values);
@@ -272,7 +276,7 @@ function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array |
 }
 
 function toSerializedTempoProjection(
-    projection: AudioFeatureTempoProjection | undefined,
+    projection: AudioFeatureTempoProjection | undefined
 ): SerializedTempoProjection | undefined {
     if (!projection) {
         return undefined;
@@ -285,7 +289,7 @@ function toSerializedTempoProjection(
 }
 
 function fromSerializedTempoProjection(
-    projection: SerializedTempoProjection | undefined,
+    projection: SerializedTempoProjection | undefined
 ): AudioFeatureTempoProjection | undefined {
     if (!projection) {
         return undefined;
@@ -301,16 +305,14 @@ function fromSerializedTempoProjection(
 function resolveHopTicks(
     track: Pick<AudioFeatureTrack, 'hopTicks' | 'tempoProjection' | 'hopSeconds'>,
     fallbackProjection?: AudioFeatureTempoProjection,
-    tempoMapper?: TempoMapper,
+    tempoMapper?: TempoMapper
 ): number {
     const direct = normalizeHopTicks(track.hopTicks);
     if (direct != null) {
         return direct;
     }
     const projectionCandidate =
-        normalizeHopTicks(track.tempoProjection?.hopTicks) != null
-            ? track.tempoProjection
-            : fallbackProjection;
+        normalizeHopTicks(track.tempoProjection?.hopTicks) != null ? track.tempoProjection : fallbackProjection;
     if (tempoMapper) {
         return quantizeHopTicks({
             hopSeconds: track.hopSeconds,
@@ -363,14 +365,13 @@ function inferChannelAliases(channelCount: number): string[] {
 
 function buildDefaultProfile(
     params: AudioFeatureAnalysisParams,
-    id: string = DEFAULT_ANALYSIS_PROFILE_ID,
+    id: string = DEFAULT_ANALYSIS_PROFILE_ID
 ): Record<string, AudioFeatureAnalysisProfileDescriptor> {
     const descriptor: AudioFeatureAnalysisProfileDescriptor = {
         id,
         windowSize: params.windowSize,
         hopSize: params.hopSize,
         overlap: params.overlap,
-        smoothing: params.smoothing,
         sampleRate: params.sampleRate,
         fftSize: params.fftSize,
         minDecibels: params.minDecibels,
@@ -380,10 +381,7 @@ function buildDefaultProfile(
     return { [id]: descriptor };
 }
 
-function cloneTempoProjection(
-    projection: AudioFeatureTempoProjection,
-    hopTicks: number,
-): AudioFeatureTempoProjection {
+function cloneTempoProjection(projection: AudioFeatureTempoProjection, hopTicks: number): AudioFeatureTempoProjection {
     return {
         hopTicks,
         startTick: projection.startTick,
@@ -399,6 +397,19 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
     } else {
         data = serializeTypedArray(track.data as Float32Array | Uint8Array | Int16Array);
     }
+    let channelLayout: ChannelLayoutMeta | null | undefined;
+    if (track.channelLayout === undefined) {
+        channelLayout = undefined;
+    } else if (track.channelLayout === null) {
+        channelLayout = null;
+    } else {
+        channelLayout = {
+            aliases: Array.isArray(track.channelLayout.aliases)
+                ? track.channelLayout.aliases.slice()
+                : track.channelLayout.aliases ?? null,
+            semantics: track.channelLayout.semantics,
+        };
+    }
     return {
         key: track.key,
         calculatorId: track.calculatorId,
@@ -413,6 +424,7 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? undefined,
+        channelLayout,
         analysisProfileId: track.analysisProfileId ?? undefined,
         data,
         dataRef: undefined,
@@ -446,7 +458,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         payload = deserializeTypedArray(track.data as SerializedTypedArray);
     }
     const hopTicks = Math.max(1, Math.round(track.hopTicks ?? track.tempoProjection?.hopTicks ?? 1));
-    return {
+    const rawTrack: AudioFeatureTrack = {
         key: track.key,
         calculatorId: track.calculatorId,
         version: track.version,
@@ -464,14 +476,18 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         metadata: track.metadata,
         analysisParams: track.analysisParams,
         channelAliases: track.channelAliases ?? null,
+        channelLayout: track.channelLayout === undefined ? undefined : track.channelLayout ?? null,
         analysisProfileId: track.analysisProfileId ?? null,
         data: payload,
     };
+    const { track: normalizedTrack } = normalizeFeatureTrackEntry(track.key, rawTrack, track.analysisProfileId ?? null);
+    return normalizedTrack;
 }
 
 export function serializeAudioFeatureCache(cache: AudioFeatureCache): SerializedAudioFeatureCache {
+    const normalizedTracks = normalizeFeatureTrackMap(cache.featureTracks, cache.defaultAnalysisProfileId);
     const featureTracks: Record<string, SerializedAudioFeatureTrack> = {};
-    for (const [key, track] of Object.entries(cache.featureTracks)) {
+    for (const [key, track] of Object.entries(normalizedTracks)) {
         featureTracks[key] = serializeTrack(track);
     }
     const normalizedProfiles =
@@ -511,7 +527,13 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
     }
     const featureTracks: Record<string, AudioFeatureTrack> = {};
     for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-        featureTracks[key] = deserializeTrack(track);
+        const deserialized = deserializeTrack(track);
+        const { key: compositeKey, track: normalizedTrack } = normalizeFeatureTrackEntry(
+            key,
+            deserialized,
+            track.analysisProfileId ?? serialized.defaultAnalysisProfileId ?? null
+        );
+        featureTracks[compositeKey] = normalizedTrack;
     }
     const tempoProjection = fromSerializedTempoProjection(serialized.tempoProjection);
     const hopTicks = resolveHopTicks({
@@ -544,9 +566,38 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
         return calculators;
     }
     const builtins: AudioFeatureCalculator[] = [
-        createSpectrogramCalculator(),
-        createRmsCalculator(),
-        createWaveformCalculator(),
+        createSpectrogramCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            hannWindow,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+        }),
+        createPitchWaveformCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+            inferChannelAliases,
+        }),
+        createRmsCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+            inferChannelAliases,
+        }),
+        createWaveformCalculator({
+            createAnalysisYieldController,
+            mixBufferToMono,
+            cloneTempoProjection,
+            serializeTrack,
+            deserializeTrack,
+            inferChannelAliases,
+        }),
     ];
     for (const calc of builtins) {
         audioFeatureCalculatorRegistry.register(calc);
@@ -554,243 +605,8 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
     return audioFeatureCalculatorRegistry.list();
 }
 
-function createSpectrogramCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.spectrogram',
-        version: 3,
-        featureKey: 'spectrogram',
-        label: 'Spectrogram',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const { windowSize, hopSize } = analysisParams;
-            const fftSize = Math.pow(2, Math.ceil(Math.log2(Math.max(32, windowSize))));
-            const binCount = Math.floor(fftSize / 2) + 1;
-            const window = hannWindow(windowSize);
-            const output = new Float32Array(frameCount * binCount);
-            const sampleRate = audioBuffer.sampleRate || 44100;
-            const magnitudeScale = 2 / Math.max(1, windowSize);
-            const binYieldInterval = Math.max(1, Math.floor(binCount / 8));
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 4));
-            const fftPlan = createFftPlan(fftSize);
-            const real = new Float32Array(fftSize);
-            const imag = new Float32Array(fftSize);
-
-            for (let frame = 0; frame < frameCount; frame++) {
-                const start = frame * hopSize;
-                real.fill(0);
-                imag.fill(0);
-                for (let n = 0; n < windowSize; n++) {
-                    real[n] = (mono[start + n] ?? 0) * window[n];
-                }
-                fftRadix2(real, imag, fftPlan);
-                for (let bin = 0; bin < binCount; bin++) {
-                    const realValue = real[bin];
-                    const imagValue = imag[bin];
-                    const magnitude = Math.sqrt(realValue * realValue + imagValue * imagValue) * magnitudeScale;
-                    const decibels = 20 * Math.log10(magnitude + SPECTROGRAM_EPSILON);
-                    const clamped = Math.max(SPECTROGRAM_MIN_DECIBELS, Math.min(SPECTROGRAM_MAX_DECIBELS, decibels));
-                    output[frame * binCount + bin] = clamped;
-                    if ((bin + 1) % binYieldInterval === 0) {
-                        await maybeYield();
-                    }
-                }
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, frameCount);
-            }
-            await maybeYield();
-
-            return {
-                key: 'spectrogram',
-                calculatorId: 'mvmnt.spectrogram',
-                version: 3,
-                frameCount,
-                channels: binCount,
-                hopTicks,
-                hopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
-                format: 'float32',
-                data: output,
-                metadata: {
-                    fftSize,
-                    hopSize,
-                    sampleRate,
-                    window: 'hann',
-                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
-                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
-                },
-                analysisParams: {
-                    fftSize,
-                    windowSize,
-                    hopSize,
-                    minDecibels: SPECTROGRAM_MIN_DECIBELS,
-                    maxDecibels: SPECTROGRAM_MAX_DECIBELS,
-                    window: 'hann',
-                },
-                analysisProfileId: 'default',
-                channelAliases: null,
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            const track = deserializeTrack(payload as SerializedAudioFeatureTrack);
-            return track;
-        },
-    };
-}
-
-function createRmsCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.rms',
-        version: 1,
-        featureKey: 'rms',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, hopTicks, hopSeconds, frameCount, signal } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const mono = await mixBufferToMono(audioBuffer, maybeYield);
-            const { windowSize, hopSize } = analysisParams;
-            const output = new Float32Array(frameCount);
-            const frameYieldInterval = Math.max(1, Math.floor(frameCount / 12));
-            for (let frame = 0; frame < frameCount; frame++) {
-                const start = frame * hopSize;
-                let sumSquares = 0;
-                const end = Math.min(start + windowSize, mono.length);
-                for (let i = start; i < end; i++) {
-                    const sample = mono[i] ?? 0;
-                    sumSquares += sample * sample;
-                }
-                const count = Math.max(1, end - start);
-                output[frame] = Math.sqrt(sumSquares / count);
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, frameCount);
-            }
-            await maybeYield();
-            return {
-                key: 'rms',
-                calculatorId: 'mvmnt.rms',
-                version: 1,
-                frameCount,
-                channels: 1,
-                hopTicks,
-                hopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, hopTicks),
-                format: 'float32',
-                data: output,
-                metadata: {
-                    windowSize,
-                },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
-                analysisProfileId: 'default',
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            return deserializeTrack(payload as SerializedAudioFeatureTrack);
-        },
-    };
-}
-
-function createWaveformCalculator(): AudioFeatureCalculator {
-    return {
-        id: 'mvmnt.waveform',
-        version: 1,
-        featureKey: 'waveform',
-        async calculate(context: AudioFeatureCalculatorContext): Promise<AudioFeatureTrack> {
-            const { audioBuffer, analysisParams, signal, tempoMapper } = context;
-            const maybeYield = createAnalysisYieldController(signal);
-            const channelCount = Math.max(1, audioBuffer.numberOfChannels || 1);
-            const channelData = Array.from({ length: channelCount }, (_, index) => {
-                try {
-                    return audioBuffer.getChannelData(index);
-                } catch {
-                    return null;
-                }
-            });
-            const fallbackChannel = channelData.find((data) => data != null) ?? new Float32Array(audioBuffer.length || 0);
-            const totalSamples = fallbackChannel.length;
-            const sampleRate = audioBuffer.sampleRate || analysisParams.sampleRate || 44100;
-            const baseHopSeconds = Math.max(context.hopSeconds, analysisParams.hopSize / sampleRate);
-            const minHopSeconds = 1 / sampleRate;
-            const waveformHopSeconds = Math.max(baseHopSeconds / WAVEFORM_OVERSAMPLE_FACTOR, minHopSeconds);
-            const waveformHopSamples = Math.max(waveformHopSeconds * sampleRate, 1);
-            const waveformFrameCount = Math.max(1, Math.ceil(totalSamples / waveformHopSamples));
-            const minValues = new Float32Array(waveformFrameCount * channelCount);
-            const maxValues = new Float32Array(waveformFrameCount * channelCount);
-            const frameYieldInterval = Math.max(1, Math.floor(waveformFrameCount / 12));
-            for (let frame = 0; frame < waveformFrameCount; frame++) {
-                const frameStart = Math.floor(frame * waveformHopSamples);
-                const frameEnd =
-                    frame === waveformFrameCount - 1
-                        ? totalSamples
-                        : Math.ceil((frame + 1) * waveformHopSamples);
-                const start = Math.max(0, Math.min(totalSamples - 1, frameStart));
-                let end = Math.min(totalSamples, frameEnd);
-                if (end <= start) {
-                    end = Math.min(totalSamples, start + 1);
-                }
-                for (let channel = 0; channel < channelCount; channel++) {
-                    const samples = channelData[channel] ?? fallbackChannel;
-                    let min = Number.POSITIVE_INFINITY;
-                    let max = Number.NEGATIVE_INFINITY;
-                    for (let i = start; i < end; i++) {
-                        const value = samples[i] ?? 0;
-                        if (value < min) min = value;
-                        if (value > max) max = value;
-                    }
-                    if (!isFinite(min)) min = 0;
-                    if (!isFinite(max)) max = 0;
-                    const offset = frame * channelCount + channel;
-                    minValues[offset] = min;
-                    maxValues[offset] = max;
-                }
-                if ((frame + 1) % frameYieldInterval === 0) {
-                    await maybeYield();
-                }
-                context.reportProgress?.(frame + 1, waveformFrameCount);
-            }
-            await maybeYield();
-            const waveformHopTicks = quantizeHopTicks({
-                hopSeconds: waveformHopSeconds,
-                tempoMapper,
-            });
-            return {
-                key: 'waveform',
-                calculatorId: 'mvmnt.waveform',
-                version: 1,
-                frameCount: waveformFrameCount,
-                channels: channelCount,
-                hopTicks: waveformHopTicks,
-                hopSeconds: waveformHopSeconds,
-                startTimeSeconds: 0,
-                tempoProjection: cloneTempoProjection(context.tempoProjection, waveformHopTicks),
-                format: 'waveform-minmax',
-                data: { min: minValues, max: maxValues },
-                metadata: {
-                    hopSize: waveformHopSamples,
-                    oversampleFactor: WAVEFORM_OVERSAMPLE_FACTOR,
-                },
-                channelAliases: inferChannelAliases(audioBuffer.numberOfChannels || 1),
-                analysisProfileId: 'default',
-            };
-        },
-        serializeResult(track: AudioFeatureTrack) {
-            return serializeTrack(track);
-        },
-        deserializeResult(payload: Record<string, unknown>) {
-            return deserializeTrack(payload as SerializedAudioFeatureTrack);
-        },
-    };
+export function registerBuiltInAudioFeatureCalculators(): void {
+    ensureCalculatorsRegistered();
 }
 
 export interface AnalyzeAudioFeatureOptions {
@@ -804,6 +620,7 @@ export interface AnalyzeAudioFeatureOptions {
     calculators?: string[];
     onProgress?: (value: number, label?: string) => void;
     signal?: AbortSignal;
+    analysisProfileId?: string | null;
 }
 
 export interface AnalyzeAudioFeatureResult {
@@ -811,10 +628,10 @@ export interface AnalyzeAudioFeatureResult {
 }
 
 export async function analyzeAudioBufferFeatures(
-    options: AnalyzeAudioFeatureOptions,
+    options: AnalyzeAudioFeatureOptions
 ): Promise<AnalyzeAudioFeatureResult> {
     const calculators = ensureCalculatorsRegistered().filter((calc) =>
-        options.calculators?.length ? options.calculators.includes(calc.id) : true,
+        options.calculators?.length ? options.calculators.includes(calc.id) : true
     );
     if (!calculators.length) {
         throw new Error('No audio feature calculators registered');
@@ -834,8 +651,9 @@ export async function analyzeAudioBufferFeatures(
         options.tempoMap,
         calculators,
         windowSize,
-        hopSize,
+        hopSize
     );
+    const requestedProfileId = sanitizeAnalysisProfileId(options.analysisProfileId) ?? DEFAULT_ANALYSIS_PROFILE_ID;
     const hopTicks = quantizeHopTicks({
         hopSeconds,
         tempoMapper,
@@ -885,6 +703,7 @@ export async function analyzeAudioBufferFeatures(
             hopSeconds,
             frameCount,
             analysisParams,
+            analysisProfileId: requestedProfileId,
             timing: timingSlice,
             tempoProjection,
             tempoMapper,
@@ -902,7 +721,8 @@ export async function analyzeAudioBufferFeatures(
             track.tempoProjection = track.tempoProjection
                 ? cloneTempoProjection(track.tempoProjection, projectedHopTicks)
                 : cloneTempoProjection(tempoProjection, projectedHopTicks);
-            track.analysisProfileId = track.analysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+            const resolvedTrackProfile = sanitizeAnalysisProfileId(track.analysisProfileId) ?? requestedProfileId;
+            track.analysisProfileId = resolvedTrackProfile;
             if (track.channelAliases === undefined) {
                 if (track.channels > 1 && track.channels <= 8) {
                     track.channelAliases = inferChannelAliases(track.channels);
@@ -912,7 +732,19 @@ export async function analyzeAudioBufferFeatures(
                     track.channelAliases = null;
                 }
             }
-            featureTracks[track.key] = track;
+            if (track.channelLayout === undefined) {
+                if (Array.isArray(track.channelAliases) && track.channelAliases.length) {
+                    track.channelLayout = { aliases: track.channelAliases.slice() };
+                } else if (track.channelAliases === null) {
+                    track.channelLayout = null;
+                }
+            }
+            const trackIdentity = parseFeatureTrackKey(track.key);
+            const baseFeatureKey = trackIdentity.featureKey || calculator.featureKey || track.key;
+            const compositeKey = buildFeatureTrackKey(baseFeatureKey, resolvedTrackProfile);
+            track.key = compositeKey;
+            track.analysisProfileId = resolvedTrackProfile;
+            featureTracks[compositeKey] = track;
         }
         completedCalculators += 1;
         if (progress) {
@@ -922,7 +754,14 @@ export async function analyzeAudioBufferFeatures(
     if (progress) {
         progress(1, 'complete');
     }
-    const analysisProfiles = buildDefaultProfile(analysisParams, DEFAULT_ANALYSIS_PROFILE_ID);
+    const analysisProfiles = buildDefaultProfile(analysisParams, requestedProfileId);
+    if (requestedProfileId !== DEFAULT_ANALYSIS_PROFILE_ID) {
+        const descriptor = analysisProfiles[requestedProfileId];
+        analysisProfiles[DEFAULT_ANALYSIS_PROFILE_ID] = {
+            ...descriptor,
+            id: DEFAULT_ANALYSIS_PROFILE_ID,
+        };
+    }
     const channelAliases = inferChannelAliases(options.audioBuffer.numberOfChannels || 1);
     return {
         cache: {
@@ -936,7 +775,7 @@ export async function analyzeAudioBufferFeatures(
             featureTracks,
             analysisParams,
             analysisProfiles,
-            defaultAnalysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID,
+            defaultAnalysisProfileId: requestedProfileId,
             channelAliases,
         },
     };

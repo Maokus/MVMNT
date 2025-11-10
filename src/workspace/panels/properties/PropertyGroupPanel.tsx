@@ -12,6 +12,7 @@ type SupportedFormInputType =
     | 'number'
     | 'boolean'
     | 'color'
+    | 'colorAlpha'
     | 'select'
     | 'range'
     | 'file'
@@ -28,13 +29,14 @@ function resolveFormInputType(property: PropertyDefinition): SupportedFormInputT
         rawType === 'number' ||
         rawType === 'boolean' ||
         rawType === 'color' ||
+        rawType === 'colorAlpha' ||
         rawType === 'select' ||
         rawType === 'range' ||
         rawType === 'font' ||
         rawType === 'timelineTrackRef' ||
         rawType === 'audioAnalysisProfile'
     ) {
-        return rawType;
+        return rawType as SupportedFormInputType;
     }
     if (rawType === 'file' || rawType === 'file-midi' || rawType === 'file-image') {
         return 'file';
@@ -76,6 +78,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             'string',
             'boolean',
             'color',
+            'colorAlpha',
             'select',
             'file',
             'font',
@@ -101,6 +104,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         }
         if (macroType === 'font') {
             return (macrosSource as any[]).filter((macro: any) => macro.type === 'font');
+        }
+        if (macroType === 'colorAlpha') {
+            return (macrosSource as any[]).filter(
+                (macro: any) => macro.type === 'colorAlpha' || macro.type === 'color',
+            );
         }
         return (macrosSource as any[]).filter((macro: any) => macro.type === macroType);
     };
@@ -135,6 +143,11 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                 break;
             case 'boolean':
                 value = !!value;
+                break;
+            case 'colorAlpha':
+                if (typeof value !== 'string') {
+                    value = typeof prop.default === 'string' ? prop.default : '#000000FF';
+                }
                 break;
             case 'font':
                 if (typeof value !== 'string' || !value) value = 'Arial|400';

@@ -1,15 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
+import { AudioSpectrumElement } from '@core/scene/elements/audio-displays/audio-spectrum';
 import { Rectangle, Text } from '@core/render/render-objects';
 import * as sceneApi from '@audio/features/sceneApi';
 
 function createSample(values: number[]) {
     return {
         values,
-        frameIndex: 0,
-        fractionalIndex: 0,
-        hopTicks: 1,
-        format: 'float32',
+        metadata: {
+            descriptor: { featureKey: 'spectrogram' },
+            frame: {
+                values,
+                channelValues: [values.map((value) => value)],
+                channels: 1,
+                channelAliases: null,
+                channelLayout: null,
+                frameIndex: 0,
+                fractionalIndex: 0,
+                hopTicks: 1,
+                format: 'float32',
+            },
+            channels: 1,
+            channelAliases: null,
+            channelLayout: null,
+        },
     } as const;
 }
 

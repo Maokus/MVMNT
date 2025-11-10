@@ -1,0 +1,17 @@
+{
+    "frameIndex": 0,
+    "fractionalIndex": 0,
+    "hopTicks": 480,
+    "format": "float32",
+    "channels": 2,
+    "values": [0.15, -0.15],
+    "channelValues": [
+        [0.2, 0.1, 0.0],
+        [-0.2, -0.1, 0.0]
+    ],
+    "channelAliases": ["Mid", "Side"],
+    "channelLayout": {
+        "aliases": ["Mid", "Side"],
+        "semantics": "mid-side"
+    }
+}

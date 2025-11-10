@@ -4,10 +4,13 @@ import { exportScene, importScene } from '@persistence/index';
 import type { ExportSceneResultInline, ExportSceneResultZip } from '@persistence/export';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { parseScenePackage } from '@persistence/scene-package';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createFeatureCache(sourceId: string): AudioFeatureCache {
     const frameCount = 10;
     const hopTicks = 120;
+    const defaultProfile = DEFAULT_ANALYSIS_PROFILE_ID;
+    const spectrogramKey = buildFeatureTrackKey('spectrogram', defaultProfile);
     return {
         version: 3,
         audioSourceId: sourceId,
@@ -30,8 +33,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
             },
         },
         featureTracks: {
-            spectrogram: {
-                key: 'spectrogram',
+            [spectrogramKey]: {
+                key: spectrogramKey,
                 calculatorId: 'mvmnt.spectrogram',
                 version: 3,
                 frameCount,
@@ -48,6 +51,8 @@ function createFeatureCache(sourceId: string): AudioFeatureCache {
                     minDecibels: -80,
                     maxDecibels: 0,
                 },
+                channelAliases: ['Left', 'Right', 'Center', 'LFE'],
+                channelLayout: { aliases: ['Left', 'Right', 'Center', 'LFE'], semantics: 'surround' },
             },
         },
     };
@@ -112,15 +117,35 @@ describe('audio feature cache persistence', () => {
         expect(serialized.startTimeSeconds).toBe(0);
         expect(serialized.tempoProjection?.hopTicks).toBe(120);
         expect(serialized.analysisParams.windowSize).toBe(2048);
-        expect(serialized.featureTracks.spectrogram.startTimeSeconds).toBe(0);
-        expect(serialized.featureTracks.spectrogram.metadata?.fftSize).toBe(2048);
-        expect(serialized.featureTracks.spectrogram.metadata?.minDecibels).toBe(-80);
+        const serializedSpectrogramKey = buildFeatureTrackKey(
+            'spectrogram',
+            serialized.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
+        );
+        expect(serialized.featureTracks[serializedSpectrogramKey].startTimeSeconds).toBe(0);
+        expect(serialized.featureTracks[serializedSpectrogramKey].metadata?.fftSize).toBe(2048);
+        expect(serialized.featureTracks[serializedSpectrogramKey].metadata?.minDecibels).toBe(-80);
+        expect(serialized.featureTracks[serializedSpectrogramKey].channelLayout?.aliases).toEqual([
+            'Left',
+            'Right',
+            'Center',
+            'LFE',
+        ]);
         useTimelineStore.getState().resetTimeline();
         const importResult = await importScene(exported.json);
         expect(importResult.ok).toBe(true);
         const restored = useTimelineStore.getState().audioFeatureCaches[trackId];
         expect(restored).toBeDefined();
-        expect(restored?.featureTracks.spectrogram.frameCount).toBe(10);
+        const restoredSpectrogramKey = buildFeatureTrackKey(
+            'spectrogram',
+            restored?.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
+        );
+        expect(restored?.featureTracks[restoredSpectrogramKey]?.frameCount).toBe(10);
+        expect(restored?.featureTracks[restoredSpectrogramKey]?.channelLayout?.aliases).toEqual([
+            'Left',
+            'Right',
+            'Center',
+            'LFE',
+        ]);
         expect(restored?.tempoProjection?.hopTicks).toBe(120);
         expect(useTimelineStore.getState().audioFeatureCacheStatus[trackId]?.state).toBe('ready');
     });

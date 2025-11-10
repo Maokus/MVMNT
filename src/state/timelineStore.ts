@@ -13,6 +13,11 @@ import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
 } from '@audio/features/audioFeatureScheduler';
+import {
+    DEFAULT_ANALYSIS_PROFILE_ID,
+    resolveFeatureTrackFromCache,
+    sanitizeAnalysisProfileId,
+} from '@audio/features/featureTrackIdentity';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
@@ -35,10 +40,7 @@ import {
 } from './timeline/timelineShared';
 import { createTimelineCommandGateway } from './timeline/commandGateway';
 import type { AddTrackCommandResult } from './timeline/commands/addTrackCommand';
-import type {
-    TimelineCommandDispatchResult,
-    TimelineSerializedCommandDescriptor,
-} from './timeline/commandTypes';
+import type { TimelineCommandDispatchResult, TimelineSerializedCommandDescriptor } from './timeline/commandTypes';
 import { mergeFeatureCaches } from './timeline/featureCacheUtils';
 
 export { getSharedTimingManager, sharedTimingManager } from './timeline/timelineShared';
@@ -160,7 +162,7 @@ export type TimelineState = {
             originalFile?: AudioCacheOriginalFile;
             waveform?: AudioCacheWaveform;
             skipAutoAnalysis?: boolean;
-        },
+        }
     ) => void;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
@@ -168,16 +170,22 @@ export type TimelineState = {
         id: string,
         status: AudioFeatureCacheStatusState,
         message?: string,
-        progress?: AudioFeatureCacheStatusProgress | null,
+        progress?: AudioFeatureCacheStatusProgress | null
     ) => void;
     stopAudioFeatureAnalysis: (id: string) => void;
-    restartAudioFeatureAnalysis: (id: string) => void;
-    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[]) => void;
+    restartAudioFeatureAnalysis: (id: string, analysisProfileId?: string | null) => void;
+    reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[], analysisProfileId?: string | null) => void;
+    removeAudioFeatureTracks: (id: string, featureKeys: string[], analysisProfileId?: string | null) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
     setHybridCacheAdapterEnabled: (enabled: boolean, reason?: string) => void;
-    recordHybridCacheFallback: (event: { trackId: string; sourceId?: string; featureKey: string; reason: string }) => void;
+    recordHybridCacheFallback: (event: {
+        trackId: string;
+        sourceId?: string;
+        featureKey: string;
+        reason: string;
+    }) => void;
     recordTempoAlignedDiagnostics: (sourceId: string, diagnostics: TempoAlignedAdapterDiagnostics) => void;
     clearTempoAlignedDiagnostics: (sourceId?: string) => void;
 };
@@ -199,14 +207,9 @@ function buildAudioFeatureStatus(
     nextState: AudioFeatureCacheStatusState,
     message?: string,
     sourceHash?: string,
-    progress?: AudioFeatureCacheStatusProgress | null,
+    progress?: AudioFeatureCacheStatusProgress | null
 ): AudioFeatureCacheStatus {
-    const nextMessage =
-        message !== undefined
-            ? message
-            : previous?.state === nextState
-              ? previous?.message
-              : undefined;
+    const nextMessage = message !== undefined ? message : previous?.state === nextState ? previous?.message : undefined;
     const next: AudioFeatureCacheStatus = {
         state: nextState,
         message: nextMessage,
@@ -229,7 +232,7 @@ function buildAudioFeatureStatus(
 function markAllAudioFeatureStatuses(
     status: TimelineState['audioFeatureCacheStatus'],
     nextState: AudioFeatureCacheStatusState,
-    message: string,
+    message: string
 ): Record<string, AudioFeatureCacheStatus> {
     const next: Record<string, AudioFeatureCacheStatus> = { ...status };
     for (const [key, value] of Object.entries(status)) {
@@ -244,17 +247,11 @@ function updateAudioFeatureStatusEntry(
     nextState: AudioFeatureCacheStatusState,
     message?: string,
     sourceHash?: string,
-    progress?: AudioFeatureCacheStatusProgress | null,
+    progress?: AudioFeatureCacheStatusProgress | null
 ): Record<string, AudioFeatureCacheStatus> {
     return {
         ...status,
-        [id]: buildAudioFeatureStatus(
-            status[id],
-            nextState,
-            message,
-            sourceHash ?? status[id]?.sourceHash,
-            progress,
-        ),
+        [id]: buildAudioFeatureStatus(status[id], nextState, message, sourceHash ?? status[id]?.sourceHash, progress),
     };
 }
 
@@ -277,6 +274,7 @@ interface ScheduleAudioFeatureAnalysisOptions {
     calculators?: string[];
     statusMessage?: string;
     mergeWithExisting?: boolean;
+    analysisProfileId?: string | null;
 }
 
 function scheduleAudioFeatureAnalysis(
@@ -284,7 +282,7 @@ function scheduleAudioFeatureAnalysis(
     buffer: AudioBuffer,
     get: () => TimelineState,
     set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void,
-    options: ScheduleAudioFeatureAnalysisOptions = {},
+    options: ScheduleAudioFeatureAnalysisOptions = {}
 ): void {
     cancelActiveAudioFeatureJob(sourceId);
     if (process.env.NODE_ENV === 'test' && process.env.MVMNT_ENABLE_AUDIO_AUTO_ANALYSIS !== 'true') {
@@ -295,14 +293,14 @@ function scheduleAudioFeatureAnalysis(
                 'stale',
                 'analysis skipped in tests',
                 undefined,
-                null,
+                null
             ),
         }));
         return;
     }
     const snapshot = get();
-    const statusMessage = options.statusMessage
-        ?? (options.calculators?.length ? 'reanalysing selected features' : 'analyzing audio');
+    const statusMessage =
+        options.statusMessage ?? (options.calculators?.length ? 'reanalysing selected features' : 'analyzing audio');
     set((state: TimelineState) => ({
         audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
             state.audioFeatureCacheStatus,
@@ -310,7 +308,7 @@ function scheduleAudioFeatureAnalysis(
             'pending',
             statusMessage,
             undefined,
-            { value: 0, label: 'preparing' },
+            { value: 0, label: 'preparing' }
         ),
     }));
     const handle = sharedAudioFeatureAnalysisScheduler.schedule({
@@ -320,6 +318,7 @@ function scheduleAudioFeatureAnalysis(
         beatsPerBar: snapshot.timeline.beatsPerBar,
         tempoMap: snapshot.timeline.masterTempoMap,
         calculators: options.calculators,
+        analysisProfileId: options.analysisProfileId,
         onProgress: (value, label) => {
             const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
             set((state: TimelineState) => ({
@@ -329,7 +328,7 @@ function scheduleAudioFeatureAnalysis(
                     'pending',
                     undefined,
                     undefined,
-                    { value: clamped, label },
+                    { value: clamped, label }
                 ),
             }));
         },
@@ -343,9 +342,7 @@ function scheduleAudioFeatureAnalysis(
             activeAudioFeatureJobs.delete(sourceId);
             try {
                 const existing = get().audioFeatureCaches[sourceId];
-                const nextCache = options.mergeWithExisting
-                    ? mergeFeatureCaches(existing, cache)
-                    : cache;
+                const nextCache = options.mergeWithExisting ? mergeFeatureCaches(existing, cache) : cache;
                 get().ingestAudioFeatureCache(sourceId, nextCache);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -353,7 +350,7 @@ function scheduleAudioFeatureAnalysis(
                     `[timelineStore] failed to ingest analyzed audio features for source "${sourceId}". ${
                         message ? `Reason: ${message}.` : ''
                     }`,
-                    error,
+                    error
                 );
                 set((state: TimelineState) => ({
                     audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -362,7 +359,7 @@ function scheduleAudioFeatureAnalysis(
                         'failed',
                         `analysis ingest failed: ${message || 'unknown error'}`,
                         undefined,
-                        null,
+                        null
                     ),
                 }));
             }
@@ -380,7 +377,7 @@ function scheduleAudioFeatureAnalysis(
                 `[timelineStore] audio analysis failed for source "${sourceId}". ${
                     message ? `Reason: ${message}.` : ''
                 }`,
-                error,
+                error
             );
             set((state: TimelineState) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -389,7 +386,7 @@ function scheduleAudioFeatureAnalysis(
                     'failed',
                     `analysis failed: ${message || 'unknown error'}`,
                     undefined,
-                    null,
+                    null
                 ),
             }));
         });
@@ -454,12 +451,7 @@ function createInitialTimelineSlice(): Pick<
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ...createInitialTimelineSlice(),
 
-    async addMidiTrack(input: {
-        name: string;
-        file?: File;
-        midiData?: MIDIData;
-        offsetTicks?: number;
-    }) {
+    async addMidiTrack(input: { name: string; file?: File; midiData?: MIDIData; offsetTicks?: number }) {
         const result = await timelineCommandGateway.dispatchById<AddTrackCommandResult>(
             'timeline.addTrack',
             {
@@ -469,7 +461,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 midiData: input.midiData,
                 offsetTicks: input.offsetTicks,
             },
-            { source: 'timeline-store' },
+            { source: 'timeline-store' }
         );
         return result.result?.trackId ?? '';
     },
@@ -483,7 +475,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 buffer: input.buffer,
                 offsetTicks: input.offsetTicks,
             },
-            { source: 'timeline-store' },
+            { source: 'timeline-store' }
         );
         return result.result?.trackId ?? '';
     },
@@ -520,8 +512,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 timelineCommandGateway.dispatchById(
                     'timeline.setTrackOffsetTicks',
                     { trackId: id, offsetTicks: patch.offsetTicks },
-                    { source: 'timeline-store' },
-                ),
+                    { source: 'timeline-store' }
+                )
             );
         }
         if (Object.keys(propertyPatch).length) {
@@ -531,8 +523,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     {
                         updates: [{ trackId: id, patch: propertyPatch }],
                     },
-                    { source: 'timeline-store' },
-                ),
+                    { source: 'timeline-store' }
+                )
             );
         }
         if (!tasks.length) return;
@@ -549,7 +541,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.setTrackOffsetTicks',
                 { trackId: id, offsetTicks },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackOffsetTicks command failed', error);
@@ -569,7 +561,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         },
                     ],
                 },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackRegionTicks command failed', error);
@@ -583,7 +575,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.setTrackProperties',
                 { updates: [{ trackId: id, patch: { enabled } }] },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackEnabled command failed', error);
@@ -597,7 +589,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.setTrackProperties',
                 { updates: [{ trackId: id, patch: { mute } }] },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackMute command failed', error);
@@ -611,7 +603,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.setTrackProperties',
                 { updates: [{ trackId: id, patch: { solo } }] },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackSolo command failed', error);
@@ -624,7 +616,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.setTrackProperties',
                 { updates: [{ trackId: id, patch: { gain } }] },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] setTrackGain command failed', error);
@@ -641,7 +633,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
                     s.audioFeatureCacheStatus,
                     'stale',
-                    'tempo map updated',
+                    'tempo map updated'
                 );
             }
             // Propagate tempo map to shared timing manager for immediate effect in playback clock & UI
@@ -666,7 +658,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
                     s.audioFeatureCacheStatus,
                     'stale',
-                    'tempo updated',
+                    'tempo updated'
                 );
             }
             // Propagate BPM to shared timing manager so playback rate updates immediately
@@ -833,7 +825,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             await timelineCommandGateway.dispatchById(
                 'timeline.reorderTracks',
                 { order },
-                { source: 'timeline-store' },
+                { source: 'timeline-store' }
             );
         } catch (error) {
             console.error('[timelineStore] reorderTracks command failed', error);
@@ -880,7 +872,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ingestAudioToCache(
         id: string,
         buffer: AudioBuffer,
-        options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform; skipAutoAnalysis?: boolean },
+        options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform; skipAutoAnalysis?: boolean }
     ) {
         cancelActiveAudioFeatureJob(id);
         // Compute duration in ticks using shared timing manager
@@ -907,16 +899,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         [id]: { ...(s.tracks[id] as any), audioSourceId: id },
                     },
                 };
-                if (!options?.skipAutoAnalysis) {
-                    updates.audioFeatureCacheStatus = updateAudioFeatureStatusEntry(
-                        s.audioFeatureCacheStatus,
-                        id,
-                        'pending',
-                        'analyzing audio',
-                        undefined,
-                        { value: 0, label: 'preparing' },
-                    );
-                }
+                const existingStatus = s.audioFeatureCacheStatus[id];
+                const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');
+                updates.audioFeatureCacheStatus = preserveReadyStatus
+                    ? { ...s.audioFeatureCacheStatus }
+                    : updateAudioFeatureStatusEntry(
+                          s.audioFeatureCacheStatus,
+                          id,
+                          'idle',
+                          'analysis not started',
+                          undefined,
+                          null
+                      );
                 return updates as TimelineState;
             });
             // Kick off async peak extraction (non-blocking)
@@ -944,20 +938,17 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 } catch (error) {
                     console.warn(
                         `[timelineStore] waveform peak extraction failed for source "${id}". Waveform preview will be skipped`,
-                        error,
+                        error
                     );
                 }
             })();
-            if (!options?.skipAutoAnalysis) {
-                scheduleAudioFeatureAnalysis(id, buffer, get, set);
-            }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error(
                 `[timelineStore] failed to ingest audio buffer for source "${id}". ${
                     message ? `Reason: ${message}.` : ''
                 } Check the original audio file and try importing again.`,
-                error,
+                error
             );
             try {
                 set((state: TimelineState) => ({
@@ -967,13 +958,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         'failed',
                         `ingest failed: ${message || 'unknown error'}`,
                         undefined,
-                        null,
+                        null
                     ),
                 }));
             } catch (statusError) {
                 console.error(
                     `[timelineStore] failed to update audio feature status after ingest error for source "${id}"`,
-                    statusError,
+                    statusError
                 );
             }
         }
@@ -1002,7 +993,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 'ready',
                 undefined,
                 sourceHash,
-                null,
+                null
             ),
         }));
         try {
@@ -1020,7 +1011,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             for (const [sourceId, cache] of Object.entries(s.audioFeatureCaches)) {
                 const tracks = Object.values(cache.featureTracks || {});
                 const hasMismatch = tracks.some(
-                    (track) => track.calculatorId === calculatorId && track.version !== version,
+                    (track) => track.calculatorId === calculatorId && track.version !== version
                 );
                 if (!hasMismatch) {
                     continue;
@@ -1033,7 +1024,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     'stale',
                     'calculator updated',
                     sourceHash,
-                    null,
+                    null
                 );
             }
             if (!mutated) {
@@ -1047,7 +1038,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         id: string,
         status: AudioFeatureCacheStatusState,
         message?: string,
-        progress?: AudioFeatureCacheStatusProgress | null,
+        progress?: AudioFeatureCacheStatusProgress | null
     ) {
         set((s: TimelineState) => ({
             audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -1056,7 +1047,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 status,
                 message,
                 undefined,
-                progress,
+                progress
             ),
         }));
     },
@@ -1076,13 +1067,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     'idle',
                     hadJob || existing?.state === 'pending' ? 'analysis stopped' : existing?.message,
                     undefined,
-                    null,
+                    null
                 ),
             };
         });
     },
 
-    restartAudioFeatureAnalysis(id: string) {
+    restartAudioFeatureAnalysis(id: string, analysisProfileId?: string | null) {
         const buffer = get().audioCache[id]?.audioBuffer;
         if (!buffer) {
             set((s: TimelineState) => ({
@@ -1092,15 +1083,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     'failed',
                     'no audio buffer available',
                     undefined,
-                    null,
+                    null
                 ),
             }));
             return;
         }
-        scheduleAudioFeatureAnalysis(id, buffer, get, set);
+        scheduleAudioFeatureAnalysis(id, buffer, get, set, { analysisProfileId });
     },
 
-    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[]) {
+    reanalyzeAudioFeatureCalculators(id: string, calculatorIds: string[], analysisProfileId?: string | null) {
         const unique = Array.from(new Set((calculatorIds || []).filter((entry): entry is string => !!entry)));
         if (!unique.length) {
             return;
@@ -1114,7 +1105,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     'failed',
                     'no audio buffer available',
                     undefined,
-                    null,
+                    null
                 ),
             }));
             return;
@@ -1124,6 +1115,61 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             calculators: unique,
             statusMessage,
             mergeWithExisting: true,
+            analysisProfileId,
+        });
+    },
+
+    removeAudioFeatureTracks(id: string, featureKeys: string[], analysisProfileId?: string | null) {
+        const unique = Array.from(new Set((featureKeys || []).filter((key): key is string => Boolean(key?.trim()))));
+        if (!unique.length) {
+            return;
+        }
+        const requestedProfile = sanitizeAnalysisProfileId(analysisProfileId);
+        const strictProfileMatching = Boolean(requestedProfile && requestedProfile !== DEFAULT_ANALYSIS_PROFILE_ID);
+        set((s: TimelineState) => {
+            const cache = s.audioFeatureCaches[id];
+            if (!cache) {
+                return s;
+            }
+            const nextTracks = { ...cache.featureTracks };
+            let mutated = false;
+            for (const key of unique) {
+                const { key: resolvedKey } = resolveFeatureTrackFromCache(
+                    { featureTracks: nextTracks, defaultAnalysisProfileId: cache.defaultAnalysisProfileId },
+                    key,
+                    {
+                        analysisProfileId: requestedProfile,
+                        strictProfileMatching,
+                    }
+                );
+                if (resolvedKey && nextTracks[resolvedKey]) {
+                    delete nextTracks[resolvedKey];
+                    mutated = true;
+                }
+            }
+            if (!mutated) {
+                return s;
+            }
+            const remainingKeys = Object.keys(nextTracks);
+            if (!remainingKeys.length) {
+                const nextCaches = { ...s.audioFeatureCaches };
+                delete nextCaches[id];
+                const nextStatus = { ...s.audioFeatureCacheStatus };
+                delete nextStatus[id];
+                return {
+                    audioFeatureCaches: nextCaches,
+                    audioFeatureCacheStatus: nextStatus,
+                } as TimelineState;
+            }
+            return {
+                audioFeatureCaches: {
+                    ...s.audioFeatureCaches,
+                    [id]: {
+                        ...cache,
+                        featureTracks: nextTracks,
+                    },
+                },
+            } as TimelineState;
         });
     },
 
@@ -1295,7 +1341,7 @@ export const timelineCommandGateway = createTimelineCommandGateway({
 });
 
 export function dispatchTimelineCommandDescriptor<TResult = void>(
-    descriptor: TimelineSerializedCommandDescriptor,
+    descriptor: TimelineSerializedCommandDescriptor
 ): Promise<TimelineCommandDispatchResult<TResult>> {
     return timelineCommandGateway.dispatchDescriptor<TResult>(descriptor);
 }

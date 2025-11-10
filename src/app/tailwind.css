@@ -675,6 +675,32 @@
         @apply w-full h-1 border-0 rounded outline-none cursor-pointer;
         background-color: var(--twc-control2);
     }
+    .color-input-wrapper {
+        @apply relative;
+    }
+    .color-input-trigger {
+        @apply flex items-center gap-2 w-full h-5 px-1.5 text-[11px] rounded border border-control2 bg-[#383838] text-[#e0e0e0] transition-colors;
+    }
+    .color-input-trigger:focus {
+        @apply border-accent ring-1 ring-accent/30 outline-none;
+    }
+    .color-input-trigger:hover:not(:disabled) {
+        @apply border-accent/60;
+    }
+    .color-input-trigger:disabled,
+    .color-input-trigger--disabled {
+        @apply bg-[#2a2a2a] text-neutral-500 border-[#3a3a3a] cursor-not-allowed;
+    }
+    .color-input-trigger__swatch {
+        @apply w-3.5 h-3.5 rounded border border-[#1c1c1c] shadow-inner;
+    }
+    .color-input-trigger__label {
+        @apply uppercase tracking-wide text-[10px] leading-none font-medium text-left flex-1;
+    }
+    .color-input-popover {
+        @apply z-[80] rounded-md p-3;
+        min-width: 230px;
+    }
     .animation-test-page {
         @apply text-neutral-200 font-sans;
         background-color: var(--twc-background);
@@ -703,8 +729,6 @@
     }
     .color-input {
         @apply w-12 h-8 p-0.5 border rounded;
-        background-color: var(--twc-menubar);
-        border-color: var(--twc-control2);
     }
     /* .btn.small and .btn:disabled removed; using inline utilities */
     .field-label {

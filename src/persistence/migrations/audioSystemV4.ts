@@ -4,7 +4,12 @@ import {
     stripDescriptorArraySmoothing,
     stripDescriptorSmoothing,
 } from './removeSmoothingFromDescriptor';
-import { migrateDescriptorChannels } from './unifyChannelField';
+import {
+    migrateDescriptorChannels,
+    buildChannelSelectorMap,
+    type MigratedDescriptorChannelSelector,
+    type MigratedDescriptorChannelsResult,
+} from './unifyChannelField';
 
 interface SceneLike {
     elements?: unknown;
@@ -21,7 +26,12 @@ interface ElementSnapshot {
     children?: unknown;
 }
 
-const SMOOTHING_ELEMENT_TYPES = new Set(['audioSpectrum', 'audioVolumeMeter', 'audioOscilloscope']);
+const SMOOTHING_ELEMENT_TYPES = new Set([
+    'audioSpectrum',
+    'audioVolumeMeter',
+    'audioWaveform',
+    'audioOscilloscope',
+]);
 
 function resolveSmoothingProperty(elementType: string | null | undefined): string | null {
     if (!elementType) return null;
@@ -36,18 +46,19 @@ function normalizeSmoothingValue(value: unknown): number {
     return Math.max(0, numeric);
 }
 
-function sanitizeDescriptor(entry: unknown): AudioFeatureDescriptor | null {
+function sanitizeDescriptor(entry: unknown): MigratedDescriptorChannelsResult {
     const migrated = migrateDescriptorChannels(entry);
-    if (migrated && typeof migrated.featureKey === 'string' && migrated.featureKey) {
-        return { ...migrated };
+    const candidate = migrated.descriptor;
+    if (candidate && typeof candidate.featureKey === 'string' && candidate.featureKey) {
+        return { descriptor: { ...candidate }, channelSelector: migrated.channelSelector };
     }
     if (!entry || typeof entry !== 'object') {
-        return null;
+        return { descriptor: null, channelSelector: migrated.channelSelector };
     }
     const source = entry as Record<string, unknown>;
     const featureKey = typeof source.featureKey === 'string' && source.featureKey ? source.featureKey : null;
     if (!featureKey) {
-        return null;
+        return { descriptor: null, channelSelector: migrated.channelSelector };
     }
     const descriptor: AudioFeatureDescriptor = {
         featureKey,
@@ -55,14 +66,36 @@ function sanitizeDescriptor(entry: unknown): AudioFeatureDescriptor | null {
         bandIndex: typeof source.bandIndex === 'number' && Number.isFinite(source.bandIndex)
             ? Math.trunc(source.bandIndex)
             : null,
-        channel: (source.channel as number | string | null | undefined) ?? null,
     };
     for (const [key, value] of Object.entries(source)) {
-        if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex' || key === 'channel') continue;
-        if (key === 'smoothing' || key === 'channelAlias' || key === 'channelIndex') continue;
+        if (key === 'featureKey' || key === 'calculatorId' || key === 'bandIndex') continue;
+        if (key === 'smoothing' || key === 'channelAlias' || key === 'channelIndex' || key === 'channel') continue;
         (descriptor as unknown as Record<string, unknown>)[key] = value;
     }
-    return descriptor;
+    return { descriptor, channelSelector: migrated.channelSelector };
+}
+
+function attachChannelSelectors(
+    target: Record<string, unknown>,
+    results: MigratedDescriptorChannelsResult[],
+): void {
+    if (!Array.isArray(results) || results.length === 0) {
+        return;
+    }
+    const selectorMap = buildChannelSelectorMap(results);
+    if (Object.keys(selectorMap).length === 0) {
+        return;
+    }
+    const existing = target.channelSelectors;
+    if (existing && typeof existing === 'object' && (existing as { type?: string }).type === 'constant') {
+        const existingValue = (existing as { value?: Record<string, MigratedDescriptorChannelSelector> }).value ?? {};
+        target.channelSelectors = {
+            type: 'constant',
+            value: { ...existingValue, ...selectorMap },
+        };
+        return;
+    }
+    target.channelSelectors = { type: 'constant', value: selectorMap };
 }
 
 function cloneBinding(binding: any): Record<string, unknown> {
@@ -101,25 +134,31 @@ function migrateBindings(
                     if (smoothingValues.length && smoothingCandidate == null) {
                         smoothingCandidate = smoothingValues.find((entry) => Number.isFinite(entry)) ?? null;
                     }
-                    const normalized = descriptors
-                        .map((descriptor) => sanitizeDescriptor(descriptor))
+                    const migratedResults = descriptors.map((descriptor) => sanitizeDescriptor(descriptor));
+                    const normalized = migratedResults
+                        .map((entry) => entry.descriptor)
                         .filter((descriptor): descriptor is AudioFeatureDescriptor => descriptor != null);
                     binding.value = normalized;
+                    attachChannelSelectors(result, migratedResults);
                 } else {
                     const { descriptor, smoothing } = stripDescriptorSmoothing(value);
                     if (smoothing != null && smoothingCandidate == null) {
                         smoothingCandidate = smoothing;
                     }
-                    binding.value = descriptor ? [sanitizeDescriptor(descriptor)].filter(Boolean) : [];
+                    const migratedResult = descriptor ? sanitizeDescriptor(descriptor) : null;
+                    binding.value = migratedResult?.descriptor ? [migratedResult.descriptor] : [];
+                    if (migratedResult) {
+                        attachChannelSelectors(result, [migratedResult]);
+                    }
                 }
             } else if (key === 'featureDescriptor') {
                 const { descriptor, smoothing } = stripDescriptorSmoothing(value);
                 if (descriptor) {
-                    const normalized = sanitizeDescriptor(descriptor);
-                    if (normalized) {
+                    const migratedResult = sanitizeDescriptor(descriptor);
+                    if (migratedResult.descriptor) {
                         result.features = {
                             type: 'constant',
-                            value: [normalized],
+                            value: [migratedResult.descriptor],
                         };
                     } else {
                         result.features = {
@@ -127,6 +166,7 @@ function migrateBindings(
                             value: [],
                         };
                     }
+                    attachChannelSelectors(result, [migratedResult]);
                 }
                 if (smoothing != null && smoothingCandidate == null) {
                     smoothingCandidate = smoothing;
@@ -173,12 +213,14 @@ function migrateElementConfig(
         }
         delete result.audioFeatures;
         if (!Array.isArray(result.features)) {
-            const normalized = descriptors
-                .map((descriptor) => sanitizeDescriptor(descriptor))
+            const migratedResults = descriptors.map((descriptor) => sanitizeDescriptor(descriptor));
+            const normalized = migratedResults
+                .map((entry) => entry.descriptor)
                 .filter((descriptor): descriptor is AudioFeatureDescriptor => descriptor != null);
             if (normalized.length > 0) {
                 result.features = normalized;
             }
+            attachChannelSelectors(result, migratedResults);
         }
     }
 
@@ -186,8 +228,9 @@ function migrateElementConfig(
         const { descriptor, smoothing } = stripDescriptorSmoothing(result.featureDescriptor);
         delete result.featureDescriptor;
         if (descriptor && !Array.isArray(result.features)) {
-            const normalized = sanitizeDescriptor(descriptor);
-            result.features = normalized ? [normalized] : [];
+            const migratedResult = sanitizeDescriptor(descriptor);
+            result.features = migratedResult.descriptor ? [migratedResult.descriptor] : [];
+            attachChannelSelectors(result, [migratedResult]);
         }
         if (smoothing != null && smoothingCandidate == null) {
             smoothingCandidate = smoothing;

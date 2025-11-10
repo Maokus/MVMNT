@@ -62,7 +62,7 @@ describe('SceneRuntimeAdapter', () => {
     it('hydrates audio feature track bindings for new elements', () => {
         store.getState().addElement({
             id: 'osc',
-            type: 'audioOscilloscope',
+            type: 'audioWaveform',
             index: store.getState().order.length,
             bindings: {
                 audioTrackId: { type: 'constant', value: 'track-1' },
@@ -73,7 +73,6 @@ describe('SceneRuntimeAdapter', () => {
                             featureKey: 'waveform',
                             calculatorId: 'mvmnt.waveform',
                             bandIndex: null,
-                            channel: null,
                             smoothing: 0.1,
                         },
                     ],

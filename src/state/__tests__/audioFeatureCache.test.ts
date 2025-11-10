@@ -6,6 +6,7 @@ import {
     selectAudioFeatureStatus,
     selectAudioFeatureTrack,
 } from '@state/selectors/audioFeatureSelectors';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): AudioFeatureCache {
     const data = Float32Array.from({ length: frameCount }, (_, idx) => idx / frameCount);
@@ -22,6 +23,8 @@ function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): Audi
         maxDecibels: null,
         window: null,
     } as const;
+    const defaultProfile = DEFAULT_ANALYSIS_PROFILE_ID;
+    const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
     return {
         version: 3,
         audioSourceId: sourceId,
@@ -38,8 +41,8 @@ function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): Audi
             calculatorVersions: { 'mvmnt.rms': 1 },
         },
         featureTracks: {
-            rms: {
-                key: 'rms',
+            [rmsKey]: {
+                key: rmsKey,
                 calculatorId: 'mvmnt.rms',
                 version: 1,
                 frameCount,
@@ -51,11 +54,11 @@ function createTestCache(sourceId: string, frameCount = 8, hopTicks = 120): Audi
                 format: 'float32',
                 data,
                 channelAliases: null,
-                analysisProfileId: 'default',
+                analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles: { default: analysisProfile },
-        defaultAnalysisProfileId: 'default',
+        defaultAnalysisProfileId: defaultProfile,
         channelAliases: undefined,
     };
 }
@@ -102,7 +105,8 @@ describe('audio feature cache integration', () => {
         const status = selectAudioFeatureStatus(state, sourceId);
         expect(status?.state).toBe('ready');
         expect(status?.sourceHash).toBeTruthy();
-        const track = selectAudioFeatureTrack(state, sourceId, 'rms');
+        const rmsKey = buildFeatureTrackKey('rms', cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID);
+        const track = selectAudioFeatureTrack(state, sourceId, rmsKey);
         expect(track?.frameCount).toBe(16);
     });
 
@@ -176,12 +180,54 @@ describe('audio feature cache integration', () => {
             tracksOrder: [sourceId],
         }));
         const cache = createTestCache(sourceId, 6, 96);
-        cache.featureTracks.rms.version = 1;
-        cache.featureTracks.rms.calculatorId = 'plugin.feature';
+        const rmsKey = buildFeatureTrackKey('rms', cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID);
+        cache.featureTracks[rmsKey].version = 1;
+        cache.featureTracks[rmsKey].calculatorId = 'plugin.feature';
         useTimelineStore.getState().ingestAudioFeatureCache(sourceId, cache);
         useTimelineStore.getState().invalidateAudioFeatureCachesByCalculator('plugin.feature', 2);
         const status = selectAudioFeatureStatus(useTimelineStore.getState(), sourceId);
         expect(status?.state).toBe('stale');
         expect(status?.message).toBe('calculator updated');
+    });
+
+    it('removes specific feature tracks and clears cache when empty', () => {
+        const sourceId = 'aud_prune';
+        useTimelineStore.setState((state) => ({
+            tracks: {
+                ...state.tracks,
+                [sourceId]: {
+                    id: sourceId,
+                    name: 'Prune Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                },
+            },
+            tracksOrder: [sourceId],
+        }));
+        const cache = createTestCache(sourceId, 8, 120);
+        const profileId = cache.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const rmsKey = buildFeatureTrackKey('rms', profileId);
+        const spectrogramKey = buildFeatureTrackKey('spectrogram', profileId);
+        cache.featureTracks[spectrogramKey] = {
+            ...cache.featureTracks[rmsKey],
+            key: spectrogramKey,
+            calculatorId: 'mvmnt.spectrogram',
+        } as any;
+        cache.analysisParams.calculatorVersions['mvmnt.spectrogram'] = 1;
+        useTimelineStore.getState().ingestAudioFeatureCache(sourceId, cache);
+        expect(Object.keys(useTimelineStore.getState().audioFeatureCaches[sourceId].featureTracks)).toHaveLength(2);
+
+        useTimelineStore.getState().removeAudioFeatureTracks(sourceId, [spectrogramKey]);
+        const pruned = useTimelineStore.getState().audioFeatureCaches[sourceId];
+        expect(pruned).toBeDefined();
+        expect(Object.keys(pruned?.featureTracks ?? {})).toEqual([rmsKey]);
+
+        useTimelineStore.getState().removeAudioFeatureTracks(sourceId, [rmsKey]);
+        expect(useTimelineStore.getState().audioFeatureCaches[sourceId]).toBeUndefined();
+        expect(useTimelineStore.getState().audioFeatureCacheStatus[sourceId]).toBeUndefined();
     });
 });

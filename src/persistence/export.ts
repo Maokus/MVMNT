@@ -191,9 +191,209 @@ function decodeDataUrl(dataUrl: string | undefined): Uint8Array | null {
 }
 
 const MIDI_ASSET_FILENAME = 'midi.json';
+const MIDI_CACHE_ASSET_VERSION = 1;
+
+function sanitizeTypedArray(view: ArrayBufferView): number[] {
+    const slice = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    const ctor = (view as any)?.constructor;
+    if (typeof ctor === 'function' && typeof (ctor as any).BYTES_PER_ELEMENT === 'number') {
+        try {
+            const clone = new (ctor as any)(slice);
+            return Array.from(clone as ArrayLike<number>);
+        } catch {
+            /* fall through to Uint8Array fallback */
+        }
+    }
+    return Array.from(new Uint8Array(slice));
+}
+
+function sanitizePlainValue(value: any, stack: WeakSet<object>): any {
+    if (value === null) {
+        return null;
+    }
+    const valueType = typeof value;
+    if (valueType === 'undefined') {
+        return undefined;
+    }
+    if (valueType === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+    if (valueType === 'string' || valueType === 'boolean') {
+        return value;
+    }
+    if (valueType === 'bigint') {
+        const numeric = Number(value);
+        return Number.isSafeInteger(numeric) ? numeric : value.toString();
+    }
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    if (ArrayBuffer.isView(value)) {
+        return sanitizeTypedArray(value);
+    }
+    if (value instanceof ArrayBuffer) {
+        return sanitizeTypedArray(new Uint8Array(value.slice(0)));
+    }
+    if (Array.isArray(value)) {
+        if (stack.has(value)) {
+            return undefined;
+        }
+        stack.add(value);
+        try {
+            const arr: any[] = [];
+            for (const item of value) {
+                const sanitizedItem = sanitizePlainValue(item, stack);
+                if (sanitizedItem !== undefined) {
+                    arr.push(sanitizedItem);
+                }
+            }
+            return arr;
+        } finally {
+            stack.delete(value);
+        }
+    }
+    if (valueType === 'object') {
+        if (stack.has(value)) {
+            return undefined;
+        }
+        stack.add(value);
+        try {
+            const result: Record<string, any> = {};
+            for (const [key, val] of Object.entries(value)) {
+                if (typeof val === 'function' || typeof val === 'symbol') {
+                    continue;
+                }
+                const sanitizedVal = sanitizePlainValue(val, stack);
+                if (sanitizedVal !== undefined) {
+                    result[key] = sanitizedVal;
+                }
+            }
+            return result;
+        } finally {
+            stack.delete(value);
+        }
+    }
+    return undefined;
+}
+
+function pruneSelfReferences(node: any, stack: WeakSet<object> = new WeakSet<object>()): void {
+    if (!node || typeof node !== 'object') {
+        return;
+    }
+    if (stack.has(node)) {
+        return;
+    }
+    stack.add(node);
+
+    if (Array.isArray(node)) {
+        for (const item of node) {
+            pruneSelfReferences(item, stack);
+        }
+    } else {
+        for (const [key, value] of Object.entries(node)) {
+            if (value && typeof value === 'object') {
+                if (value === node) {
+                    delete (node as Record<string, any>)[key];
+                    continue;
+                }
+                pruneSelfReferences(value, stack);
+            }
+        }
+    }
+
+    stack.delete(node);
+}
+
+function sanitizeMidiCacheEntry(entry: any): Record<string, any> {
+    const sanitized = sanitizePlainValue(entry, new WeakSet<object>());
+    const normalized: Record<string, any> =
+        sanitized && typeof sanitized === 'object' && !Array.isArray(sanitized) ? { ...sanitized } : {};
+
+    const sourceTicks =
+        typeof entry?.ticksPerQuarter === 'number' && Number.isFinite(entry.ticksPerQuarter)
+            ? entry.ticksPerQuarter
+            : undefined;
+    const sanitizedTicks =
+        typeof normalized.ticksPerQuarter === 'number' && Number.isFinite(normalized.ticksPerQuarter)
+            ? normalized.ticksPerQuarter
+            : typeof normalized.midiData?.ticksPerQuarter === 'number' &&
+              Number.isFinite(normalized.midiData.ticksPerQuarter)
+            ? normalized.midiData.ticksPerQuarter
+            : undefined;
+    const ticksPerQuarter = sanitizedTicks ?? sourceTicks;
+    if (ticksPerQuarter !== undefined) {
+        normalized.ticksPerQuarter = ticksPerQuarter;
+    } else {
+        delete normalized.ticksPerQuarter;
+    }
+
+    if (!Array.isArray(normalized.notesRaw)) {
+        normalized.notesRaw = [];
+    }
+
+    if (Array.isArray(normalized.tempoMap)) {
+        normalized.tempoMap = normalized.tempoMap
+            .map((item: any) => {
+                if (!item || typeof item !== 'object') {
+                    return undefined;
+                }
+                const time = typeof item.time === 'number' && Number.isFinite(item.time) ? item.time : undefined;
+                const tempo = typeof item.tempo === 'number' && Number.isFinite(item.tempo) ? item.tempo : undefined;
+                if (time === undefined || tempo === undefined) {
+                    return undefined;
+                }
+                return { time, tempo };
+            })
+            .filter(Boolean);
+        if (!normalized.tempoMap.length) {
+            delete normalized.tempoMap;
+        }
+    }
+
+    if (normalized.midiData && typeof normalized.midiData === 'object') {
+        const midiData = normalized.midiData as Record<string, any>;
+        if (Array.isArray(midiData.events)) {
+            midiData.events = midiData.events.filter(
+                (event: any) => event && typeof event === 'object' && typeof event.type === 'string'
+            );
+        }
+        if (Array.isArray(midiData.trackSummaries)) {
+            midiData.trackSummaries = midiData.trackSummaries.filter(
+                (summary: any) => summary && typeof summary === 'object'
+            );
+        }
+        if (Array.isArray(midiData.trackDetails)) {
+            midiData.trackDetails = midiData.trackDetails
+                .filter((detail: any) => detail && typeof detail === 'object')
+                .map((detail: any) => {
+                    if (Array.isArray(detail.events)) {
+                        detail.events = detail.events.filter(
+                            (event: any) => event && typeof event === 'object' && typeof event.type === 'string'
+                        );
+                    }
+                    if (Array.isArray(detail.channels)) {
+                        detail.channels = detail.channels.filter(
+                            (channel: any) => typeof channel === 'number' && Number.isFinite(channel)
+                        );
+                    }
+                    return detail;
+                });
+        }
+    }
+
+    pruneSelfReferences(normalized);
+
+    return {
+        ...normalized,
+        __mvmntMidiAssetVersion: MIDI_CACHE_ASSET_VERSION,
+    };
+}
 
 function sanitizeAssetComponent(name: string, fallback: string): string {
-    const normalized = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+    const normalized = name
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
     return normalized.length ? normalized.slice(0, 80) : fallback;
 }
 
@@ -227,17 +427,29 @@ function prepareMidiAssets(
         }
         const assetId = encodeURIComponent(cacheId);
         const assetRef = `assets/midi/${assetId}/${MIDI_ASSET_FILENAME}`;
-        const payloadJson = serializeStable(entry);
+        const sanitizedEntry = sanitizeMidiCacheEntry(entry);
+        const payloadJson = serializeStable(sanitizedEntry);
         assetPayloads.set(assetId, {
             bytes: strToU8(payloadJson, true),
             filename: MIDI_ASSET_FILENAME,
             mimeType: 'application/json',
         });
+        const ticksPerQuarter =
+            typeof sanitizedEntry.ticksPerQuarter === 'number'
+                ? sanitizedEntry.ticksPerQuarter
+                : typeof entry.ticksPerQuarter === 'number'
+                ? entry.ticksPerQuarter
+                : undefined;
+        const notesCount = Array.isArray(sanitizedEntry.notesRaw)
+            ? sanitizedEntry.notesRaw.length
+            : Array.isArray(entry.notesRaw)
+            ? entry.notesRaw.length
+            : undefined;
         timelineMidiCache[cacheId] = {
             assetId,
             assetRef,
-            ticksPerQuarter: entry.ticksPerQuarter,
-            notes: Array.isArray(entry.notesRaw) ? { count: entry.notesRaw.length } : undefined,
+            ...(ticksPerQuarter !== undefined ? { ticksPerQuarter } : {}),
+            notes: notesCount !== undefined ? { count: notesCount } : undefined,
         };
     }
     return { timelineMidiCache, assetPayloads };
@@ -373,18 +585,21 @@ function prepareAudioFeatureCaches(
                     if (metadataTrack.data) {
                         const baseName = sanitizeAssetComponent(
                             metadataTrack.key || metadataTrack.calculatorId || `track_${index + 1}`,
-                            `track_${index + 1}`,
+                            `track_${index + 1}`
                         );
                         if (metadataTrack.format === 'waveform-minmax') {
-                            const waveform = metadataTrack.data as { min: number[] | Float32Array; max: number[] | Float32Array };
+                            const waveform = metadataTrack.data as {
+                                min: number[] | Float32Array;
+                                max: number[] | Float32Array;
+                            };
                             const minValues = Array.isArray(waveform.min)
                                 ? Float32Array.from(waveform.min)
                                 : new Float32Array(
                                       (waveform.min as ArrayBufferView).buffer.slice(
                                           (waveform.min as ArrayBufferView).byteOffset,
                                           (waveform.min as ArrayBufferView).byteOffset +
-                                              (waveform.min as ArrayBufferView).byteLength,
-                                      ),
+                                              (waveform.min as ArrayBufferView).byteLength
+                                      )
                                   );
                             const maxValues = Array.isArray(waveform.max)
                                 ? Float32Array.from(waveform.max)
@@ -392,8 +607,8 @@ function prepareAudioFeatureCaches(
                                       (waveform.max as ArrayBufferView).buffer.slice(
                                           (waveform.max as ArrayBufferView).byteOffset,
                                           (waveform.max as ArrayBufferView).byteOffset +
-                                              (waveform.max as ArrayBufferView).byteLength,
-                                      ),
+                                              (waveform.max as ArrayBufferView).byteLength
+                                      )
                                   );
                             const combined = new Float32Array(minValues.length + maxValues.length);
                             combined.set(minValues, 0);

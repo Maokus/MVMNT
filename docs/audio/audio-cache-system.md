@@ -1,6 +1,6 @@
 # Audio Cache System
 
-_Last reviewed: 24 October 2025_
+_Last reviewed: 25 October 2025_
 
 The audio cache system transforms decoded audio into tempo-aligned feature tracks that any scene element can sample. Phase 9 of the audio system simplification project clarified how the pieces fit together—this document captures the current mental model and links to the developer guides you will use most often.
 
@@ -84,8 +84,9 @@ Every cache (`AudioFeatureCache`) contains:
 -   **Analysis Parameters**: window size, hop size, FFT size, smoothing, calculator versions
 -   **Analysis Profiles**: reusable parameter sets for different quality/performance trade-offs
 -   **Channel Aliases**: semantic labels like "Left", "Right", "Mid" for multi-channel audio
+-   **Channel Layout**: optional metadata describing alias ordering and semantics for each track
 
-Track metadata includes calculator IDs, versions, channel counts, and per-track configuration so downstream consumers can render results without guessing at FFT sizes or smoothing strategies.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
+Track metadata includes calculator IDs, versions, channel counts, channel layout hints, and per-track configuration so downstream consumers can render results without guessing at FFT sizes or smoothing strategies.【F:src/audio/features/audioFeatureTypes.ts†L19-L111】
 
 ### Serialization
 
@@ -96,9 +97,11 @@ Cache serialization utilities:
 
 These utilities ensure caches can be saved and restored without data loss.【F:src/audio/features/audioFeatureAnalysis.ts†L569-L718】
 
-## Audio Descriptors and Channel Routing
+## Audio Descriptors and Channel Metadata
 
-Audio descriptors are the contract between scene elements and the cache. They describe which track, channel, and calculator output is required for a render pass.【F:src/audio/features/audioFeatureTypes.ts†L19-L58】
+Audio descriptors are the contract between scene elements and the cache. They describe which analysis
+track to read and which calculator/band produced it, but they no longer encode channel routing.
+Channel selection is a runtime decision driven by the track's channel metadata.【F:src/audio/features/audioFeatureTypes.ts†L19-L58】
 
 ```ts
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
@@ -106,7 +109,6 @@ import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 const rmsDescriptor: AudioFeatureDescriptor = {
     featureKey: 'rms',
     calculatorId: 'mvmnt.rms',
-    channel: 'Left',
 };
 ```
 
@@ -114,22 +116,25 @@ const rmsDescriptor: AudioFeatureDescriptor = {
 
 -   **`featureKey`**: The type of feature data (e.g., `'spectrogram'`, `'rms'`, `'waveform'`)
 -   **`calculatorId`**: Optional calculator identifier if multiple calculators produce the same feature key
--   **`channel`**: Accepts a zero-based index (`0`, `1`, …) or a semantic alias (`'Left'`, `'Right'`, `'Mono'`). When omitted, the descriptor resolves to the merged/mono channel.
 -   **`bandIndex`**: Optional frequency band index for multi-band features like spectrograms
--   **Sampling options**: Runtime parameters such as smoothing and interpolation are supplied when sampling via
-    `getFeatureData`, keeping descriptors focused on analysis identity.
+-   **Sampling options**: Runtime parameters such as smoothing and interpolation are supplied when sampling via `getFeatureData`, keeping descriptors focused on analysis identity.
 
-### Channel Resolution
+### Channel metadata & runtime filtering
 
--   Channel values are normalized through the resolver: numeric indices are bounds-checked and semantic aliases (`'Left'`, `'Right'`, `'Mono'`, etc.) are matched against track metadata or cache-level aliases.【F:src/audio/features/channelResolution.ts†L1-L109】
--   When only one channel exists, leaving the channel unset resolves to the mono/merged payload.【F:src/core/scene/elements/audioFeatureUtils.ts†L45-L147】
--   Descriptor coercion utilities fill in defaults and normalize aliases or numeric strings so a surface can
-    accept partial user input yet still emit deterministic analysis intents.【F:src/core/scene/elements/audioFeatureUtils.ts†L17-L147】
--   Channel resolution prefers track-specific aliases and falls back to cache aliases when necessary, keeping multi-channel caches consistent across calculators.【F:src/audio/features/channelResolution.ts†L1-L109】
+-   `AudioFeatureTrack.channelLayout` mirrors the runtime contract by exposing optional alias arrays
+    and semantics (e.g., `'stereo'`, `'mid-side'`).【F:src/audio/features/audioFeatureTypes.ts†L42-L88】
+-   Calculators populate `channelLayout.aliases` alongside legacy `channelAliases` so downstream
+    consumers can migrate gradually.
+-   Sampling utilities (`getFeatureData`, `sampleFeatureHistory`) now return full channel vectors.
+    Scene elements pick the desired channel index at render time using the metadata attached to the
+    cache or track.
+-   Cache-level `channelAliases` remain available for backwards compatibility and continue to
+    describe the canonical ordering when per-track metadata is missing.
 
 ### Match Keys and Deduplication
 
-Descriptors can be grouped under a match key. Elements that request the same feature and channel share analysis work even if they originate from different UI components, reducing duplicate cache entries.【F:src/audio/features/analysisIntents.ts†L25-L67】
+Descriptors can be grouped under a match key. Elements that request the same feature track share
+analysis work even if they originate from different UI components, reducing duplicate cache entries.【F:src/audio/features/analysisIntents.ts†L25-L67】
 
 ## Calculator Pipeline
 
@@ -321,11 +326,15 @@ export class DynamicAudioElement extends SceneElement {
     class subscribes automatically, and requirements are deduplicated across instances.
 -   **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
     smoothing or interpolation options.
--   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. Useful when building
-    tooling or diagnostics that operate outside the scene runtime.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
+-   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. It now forwards the
+    descriptor's resolved `analysisProfileId` so ad-hoc profiles sample the correct cache entry, and
+    memoization keys include the profile identifier to prevent cross-profile reuse.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L253】
+-   **`resolveDescriptorProfileId`**: Utility that sanitizes descriptor metadata into the effective
+    analysis profile id. Use it whenever you need to bridge descriptors with raw cache access or
+    timeline selectors.【F:src/core/scene/elements/audioFeatureUtils.ts†L134-L151】
 -   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
-    analysis. Returns an array of `FeatureHistoryFrame` objects with timestamps and
-    values.【F:src/utils/audioVisualization/history.ts†L1-L169】
+    analysis. The helper now uses `resolveDescriptorProfileId` internally so history requests stay
+    on the same profile-aware key path as single-frame sampling.【F:src/utils/audioVisualization/history.ts†L1-L170】
 -   **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for
     history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
@@ -416,6 +425,8 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 
 -   Diagnostics state subscribes to the intent bus, records job history, and coordinates regeneration actions. When a descriptor is published for a track with stale data, the diagnostics store prompts the user to re-run the necessary calculators.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
 
+-   Extraneous cache cleanup groups deletion candidates by `analysisProfileId`, protecting default caches when ad-hoc profiles are purged and logging whenever removals still have active owners so regressions surface immediately.【F:src/state/audioDiagnosticsStore.ts†L930-L1008】
+
 -   Tracks fallback reasons when sampling fails (missing cache, invalid descriptor, out-of-bounds time)
 -   Records tempo alignment mismatches and interpolation performance
 -   Provides real-time progress updates during analysis
@@ -454,29 +465,28 @@ export class AudioSpectrumElement extends SceneElement {
 
 ### Workflow 2: Multi-Channel Visualization
 
-**Goal**: Show left and right channel RMS levels with per-channel registration.
+**Goal**: Show left and right channel RMS levels using runtime channel selection.
 
 ```ts
-registerFeatureRequirements('dualRmsBars', [
-    { feature: 'rms', channel: 'Left' },
-    { feature: 'rms', channel: 'Right' },
-]);
+registerFeatureRequirements('dualRmsBars', [{ feature: 'rms' }]);
 
 export class DualRmsBars extends SceneElement {
     protected override _buildRenderObjects(config: unknown, targetTime: number) {
         const trackId = this.getProperty<string>('audioTrackId');
         if (!trackId) return [];
 
-        const left = getFeatureData(this, trackId, 'rms', { channel: 'Left' }, targetTime);
-        const right = getFeatureData(this, trackId, 'rms', { channel: 'Right' }, targetTime);
+        const frame = getFeatureData(this, trackId, 'rms', targetTime);
+        const values = frame?.values ?? [];
 
         return [
-            new Rectangle(0, 0, 40, (left?.values[0] ?? 0) * 200, '#ff3366'),
-            new Rectangle(50, 0, 40, (right?.values[0] ?? 0) * 200, '#3366ff'),
+            new Rectangle(0, 0, 40, (values[0] ?? 0) * 200, '#ff3366'),
+            new Rectangle(50, 0, 40, (values[1] ?? values[0] ?? 0) * 200, '#3366ff'),
         ];
     }
 }
 ```
+
+The `values` array contains one entry per channel in the order advertised by `AudioFeatureTrack.channelLayout.aliases`. Elements can read that metadata when they need to label UI controls or allow manual channel selection.
 
 ### Workflow 3: History/Trail Effects
 
@@ -582,7 +592,7 @@ function handleQualityChange(newFftSize: number) {
 // Or reanalyze just one calculator
 function reanalyzeSpectrum() {
     const store = useTimelineStore.getState();
-    store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram']);
+    store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram'], 'default');
 }
 ```
 
@@ -643,7 +653,7 @@ import { useTimelineStore } from '@state/timelineStore';
 const store = useTimelineStore.getState();
 
 // Reanalyze specific calculators for a track
-store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram']);
+store.reanalyzeAudioFeatureCalculators(audioSourceId, ['mvmnt.spectrogram'], 'default');
 
 // Clear entire cache (forces full reanalysis)
 store.clearAudioFeatureCache(audioSourceId);
@@ -733,7 +743,7 @@ for (let frame = 0; frame < frameCount; frame++) {
 | **Analysis Profile** | Preset configuration of window size, hop size, FFT parameters            |
 | **Calculator**       | Module that transforms audio into a specific feature track               |
 | **Channel Alias**    | Semantic label like "Left", "Right", "Mid" for multi-channel routing     |
-| **Descriptor**       | Query specification: which feature and channel to analyze                |
+| **Descriptor**       | Query specification: which feature track to analyze (channel-agnostic)   |
 | **Feature Track**    | Time-series array of analysis results (e.g., spectrogram frames)         |
 | **FFT**              | Fast Fourier Transform: converts time-domain audio to frequency spectrum |
 | **Frame**            | Single time slice of analysis data at one hop interval                   |
@@ -792,5 +802,5 @@ for (let frame = 0; frame < frameCount; frame++) {
 
 1. Check cache status: should be "ready", not "stale"
 2. Verify tempo map hash matches current timeline
-3. Reanalyze cache after changing tempo: `store.reanalyzeAudioFeatureCalculators(id, calculatorIds)`
+3. Reanalyze cache after changing tempo: `store.reanalyzeAudioFeatureCalculators(id, calculatorIds, profileId)`
 4. Confirm `hopTicks` are quantized correctly in cache metadata

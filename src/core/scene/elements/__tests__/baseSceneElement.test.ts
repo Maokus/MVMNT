@@ -10,10 +10,7 @@ vi.mock('@audio/features/subscriptionSync', () => ({
 
 import { SceneElement, asBoolean, asNumber, asTrimmedString } from '@core/scene/elements/base';
 import * as sceneApi from '@audio/features/sceneApi';
-import {
-    registerFeatureRequirements,
-    resetFeatureRequirementsForTests,
-} from '@core/scene/elements/audioElementMetadata';
+import { registerFeatureRequirements, resetFeatureRequirementsForTests } from '@audio/audioElementMetadata';
 import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 
 const mockedSync = vi.mocked(syncElementSubscriptions);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { mergeFeatureCaches } from '../featureCacheUtils';
+import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
 
 function createCache(options: {
     sourceId: string;
@@ -24,6 +25,8 @@ function createCache(options: {
             sampleRate: 48000,
         },
     };
+    const defaultProfile = DEFAULT_ANALYSIS_PROFILE_ID;
+    const compositeKey = buildFeatureTrackKey(options.featureKey, defaultProfile);
     return {
         version: options.version ?? 2,
         audioSourceId: options.sourceId,
@@ -42,8 +45,8 @@ function createCache(options: {
             },
         },
         featureTracks: {
-            [options.featureKey]: {
-                key: options.featureKey,
+            [compositeKey]: {
+                key: compositeKey,
                 calculatorId: options.calculatorId,
                 version: options.calculatorVersion ?? 1,
                 frameCount,
@@ -55,11 +58,11 @@ function createCache(options: {
                 format: 'float32',
                 data: new Float32Array(frameCount),
                 channelAliases,
-                analysisProfileId: 'default',
+                analysisProfileId: defaultProfile,
             },
         },
         analysisProfiles,
-        defaultAnalysisProfileId: 'default',
+        defaultAnalysisProfileId: defaultProfile,
         channelAliases,
     };
 }
@@ -71,7 +74,14 @@ describe('mergeFeatureCaches', () => {
             featureKey: 'spectrogram',
             calculatorId: 'mvmnt.spectrogram',
         });
-        expect(mergeFeatureCaches(undefined, incoming)).toBe(incoming);
+        const merged = mergeFeatureCaches(undefined, incoming);
+        const compositeKey = buildFeatureTrackKey(
+            'spectrogram',
+            incoming.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
+        );
+        expect(merged).not.toBe(incoming);
+        expect(Object.keys(merged.featureTracks)).toEqual([compositeKey]);
+        expect(merged.featureTracks[compositeKey]).toBe(incoming.featureTracks[compositeKey]);
     });
 
     it('merges feature tracks and analysis metadata', () => {
@@ -91,8 +101,14 @@ describe('mergeFeatureCaches', () => {
             calculatorVersion: 3,
         });
         const merged = mergeFeatureCaches(existing, incoming);
-        expect(merged.featureTracks.rms).toBe(existing.featureTracks.rms);
-        expect(merged.featureTracks.spectrogram).toBe(incoming.featureTracks.spectrogram);
+        const defaultProfile = existing.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
+        const spectrogramKey = buildFeatureTrackKey(
+            'spectrogram',
+            incoming.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID
+        );
+        expect(merged.featureTracks[rmsKey]).toBe(existing.featureTracks[rmsKey]);
+        expect(merged.featureTracks[spectrogramKey]).toBe(incoming.featureTracks[spectrogramKey]);
         expect(merged.version).toBe(3);
         expect(merged.hopTicks).toBe(180);
         expect(merged.frameCount).toBe(8);
@@ -115,7 +131,9 @@ describe('mergeFeatureCaches', () => {
             calculatorVersion: 5,
         });
         const merged = mergeFeatureCaches(existing, incoming);
-        expect(merged.featureTracks.rms).toBe(incoming.featureTracks.rms);
+        const defaultProfile = incoming.defaultAnalysisProfileId ?? DEFAULT_ANALYSIS_PROFILE_ID;
+        const rmsKey = buildFeatureTrackKey('rms', defaultProfile);
+        expect(merged.featureTracks[rmsKey]).toBe(incoming.featureTracks[rmsKey]);
         expect(merged.analysisParams.calculatorVersions['mvmnt.rms']).toBe(5);
     });
 });

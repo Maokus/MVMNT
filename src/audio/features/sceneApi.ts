@@ -1,6 +1,12 @@
-import type { AudioFeatureDescriptor, AudioSamplingOptions } from './audioFeatureTypes';
+import type {
+    AudioFeatureAnalysisProfileDescriptor,
+    AudioFeatureDescriptor,
+    AudioSamplingOptions,
+    ChannelLayoutMeta,
+} from './audioFeatureTypes';
 import {
     buildDescriptorId,
+    buildDescriptorIdentityKey,
     buildDescriptorMatchKey,
     clearAnalysisIntent,
     publishAnalysisIntent,
@@ -9,9 +15,8 @@ import {
     createFeatureDescriptor,
     type FeatureDescriptorBuildResult,
     type FeatureDescriptorBuilderOptions,
-    type FeatureDescriptorUpdateOptions,
 } from './descriptorBuilder';
-import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 
 /**
@@ -27,16 +32,12 @@ export interface SceneFeatureElementRef {
 
 export type FeatureInput = string | AudioFeatureDescriptor;
 
-export interface FeatureOptions {
-    channel?: number | string | null;
-    bandIndex?: number | null;
-    calculatorId?: string | null;
-    profile?: string | null;
-}
-
 export interface FeatureDataMetadata {
     descriptor: AudioFeatureDescriptor;
     frame: AudioFeatureFrameSample;
+    channels: number;
+    channelAliases?: string[] | null;
+    channelLayout?: ChannelLayoutMeta | null;
 }
 
 export interface FeatureDataResult {
@@ -53,6 +54,7 @@ interface DescriptorEntry {
 interface ElementIntentState {
     trackId: string;
     descriptors: Map<string, DescriptorEntry>;
+    profileRegistryDelta: Record<string, AudioFeatureAnalysisProfileDescriptor> | null;
 }
 
 let elementStates = new WeakMap<object, ElementIntentState>();
@@ -82,37 +84,20 @@ function resolveElementIdentity(element: SceneFeatureElementRef | object): { id:
     return { id: null, type: 'unknown' };
 }
 
-type LegacyFeatureOptions = FeatureOptions & { smoothing?: number | null };
-
-function buildDescriptor(
-    feature: FeatureInput,
-    options?: FeatureOptions,
-): FeatureDescriptorBuildResult {
+function buildDescriptor(feature: FeatureInput): FeatureDescriptorBuildResult {
     if (typeof feature === 'string') {
         const builderOptions: FeatureDescriptorBuilderOptions = {
             feature,
-            channel: options?.channel ?? undefined,
-            bandIndex: options?.bandIndex ?? undefined,
-            calculatorId: options?.calculatorId ?? undefined,
-            profile: options?.profile ?? undefined,
         };
         return createFeatureDescriptor(builderOptions);
     }
-    const updateOptions: FeatureDescriptorUpdateOptions | undefined = options
-        ? {
-              channel: options.channel,
-              bandIndex: options.bandIndex,
-              calculatorId: options.calculatorId,
-              profile: options.profile,
-          }
-        : undefined;
-    return createFeatureDescriptor(feature, updateOptions);
+    return createFeatureDescriptor(feature);
 }
 
 function publishIfNeeded(
     element: SceneFeatureElementRef | object,
     state: ElementIntentState,
-    identity: { id: string | null; type: string },
+    identity: { id: string | null; type: string }
 ): void {
     if (!identity.id) {
         return;
@@ -123,83 +108,44 @@ function publishIfNeeded(
         return;
     }
     const profile = descriptors.find((entry) => typeof entry.profile === 'string')?.profile ?? null;
+    const options =
+        profile || state.profileRegistryDelta
+            ? {
+                  profile: profile ?? undefined,
+                  profileRegistryDelta: state.profileRegistryDelta ?? undefined,
+              }
+            : undefined;
     publishAnalysisIntent(
         identity.id,
         identity.type,
         state.trackId,
         descriptors.map((entry) => entry.descriptor),
-        profile ? { profile } : undefined,
+        options
     );
 }
 
 function upsertDescriptorEntry(state: ElementIntentState, entry: DescriptorEntry): boolean {
-    const matchKey = buildDescriptorMatchKey(entry.descriptor);
-    const existing = state.descriptors.get(matchKey);
+    const identityKey = buildDescriptorIdentityKey(entry.descriptor);
+    const existing = state.descriptors.get(identityKey);
     if (!existing) {
-        state.descriptors.set(matchKey, entry);
+        state.descriptors.set(identityKey, entry);
         return true;
     }
-    if (existing.id !== entry.id || existing.profile !== entry.profile) {
-        state.descriptors.set(matchKey, entry);
+    const existingHash = existing.descriptor.profileOverridesHash ?? null;
+    const nextHash = entry.descriptor.profileOverridesHash ?? null;
+    const profileId = existing.profile;
+    const nextProfileId = entry.profile;
+    if (existing.id !== entry.id || profileId !== nextProfileId || existingHash !== nextHash) {
+        state.descriptors.set(identityKey, entry);
         return true;
     }
     return false;
 }
 
-function resolveInvocation(
-    optionsOrTime?: FeatureOptions | number | null,
-    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
-    maybeSampling?: AudioSamplingOptions | null,
-): { options: FeatureOptions | undefined; sampling: AudioSamplingOptions | undefined; time: number } {
-    let descriptorOptions: FeatureOptions | undefined;
-    let samplingOptions: AudioSamplingOptions | undefined;
-    let time = 0;
-
-    if (typeof optionsOrTime === 'number') {
-        time = optionsOrTime;
-        samplingOptions = (maybeTimeOrSampling as AudioSamplingOptions | undefined) ?? undefined;
-    } else {
-        descriptorOptions = optionsOrTime ?? undefined;
-        if (typeof maybeTimeOrSampling === 'number') {
-            time = maybeTimeOrSampling;
-            samplingOptions = maybeSampling ?? undefined;
-        } else if (maybeTimeOrSampling && typeof maybeTimeOrSampling === 'object') {
-            samplingOptions = maybeTimeOrSampling ?? undefined;
-        }
-    }
-
-    const legacy = descriptorOptions as LegacyFeatureOptions | undefined;
-    if (legacy && Object.prototype.hasOwnProperty.call(legacy, 'smoothing')) {
-        const { smoothing, ...rest } = legacy;
-        descriptorOptions = rest;
-        if (smoothing != null) {
-            const radius = typeof smoothing === 'number' && Number.isFinite(smoothing) ? smoothing : undefined;
-            samplingOptions = {
-                ...(samplingOptions ?? {}),
-                ...(radius != null ? { smoothing: radius } : {}),
-            };
-        }
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn(
-                '[sceneApi] getFeatureData legacy signature detected: smoothing passed in descriptor options. ' +
-                    'Pass smoothing via the samplingOptions argument instead.',
-            );
-        }
-    }
-
-    return {
-        options: descriptorOptions,
-        sampling: samplingOptions ?? undefined,
-        time,
-    };
-}
-
 /**
  * Lazily sample audio feature data for the provided element.
  *
- * Passing descriptor options as the fourth argument preserves backward compatibility with
- * legacy call signatures. Prefer the modern signature shown in the docs:
- * `getFeatureData(element, trackId, featureKey, time, samplingOptions?)`.
+ * Sampling options describe presentation-time adjustments applied after retrieving cached data.
  *
  * @see ../../../docs/audio/quickstart.md
  * @see ../../../docs/audio/audio-cache-system.md
@@ -209,25 +155,8 @@ export function getFeatureData(
     trackId: string | null | undefined,
     feature: FeatureInput,
     time: number,
-    samplingOptions?: AudioSamplingOptions | null,
-): FeatureDataResult | null;
-export function getFeatureData(
-    element: SceneFeatureElementRef | object,
-    trackId: string | null | undefined,
-    feature: FeatureInput,
-    options: FeatureOptions | null | undefined,
-    time: number,
-    samplingOptions?: AudioSamplingOptions | null,
-): FeatureDataResult | null;
-export function getFeatureData(
-    element: SceneFeatureElementRef | object,
-    trackId: string | null | undefined,
-    feature: FeatureInput,
-    optionsOrTime?: FeatureOptions | number | null,
-    maybeTimeOrSampling?: number | AudioSamplingOptions | null,
-    maybeSampling?: AudioSamplingOptions | null,
+    samplingOptions?: AudioSamplingOptions | null
 ): FeatureDataResult | null {
-    const { options, sampling, time } = resolveInvocation(optionsOrTime, maybeTimeOrSampling, maybeSampling);
     const normalizedTrackId = normalizeTrackId(trackId);
     const identity = resolveElementIdentity(element);
 
@@ -236,9 +165,6 @@ export function getFeatureData(
         return null;
     }
 
-    const { descriptor, profile } = buildDescriptor(feature, options);
-    const descriptorId = buildDescriptorId(descriptor);
-
     let state = elementStates.get(element as object);
     let publishNeeded = false;
 
@@ -246,24 +172,50 @@ export function getFeatureData(
         state = {
             trackId: normalizedTrackId,
             descriptors: new Map(),
+            profileRegistryDelta: null,
         };
         elementStates.set(element as object, state);
         publishNeeded = true;
     } else if (state.trackId !== normalizedTrackId) {
         state.trackId = normalizedTrackId;
         state.descriptors.clear();
+        state.profileRegistryDelta = null;
         publishNeeded = true;
     }
 
-    if (upsertDescriptorEntry(state, { descriptor, id: descriptorId, profile })) {
+    const workingState = state!;
+
+    const { descriptor: builtDescriptor, profile: defaultProfile } = buildDescriptor(feature);
+    let descriptor = builtDescriptor;
+    let descriptorId = buildDescriptorId(descriptor);
+    const identityKey = buildDescriptorIdentityKey(descriptor);
+    let entry = workingState.descriptors.get(identityKey);
+
+    if (!entry) {
+        const matchKey = buildDescriptorMatchKey(descriptor);
+        for (const candidate of workingState.descriptors.values()) {
+            if (buildDescriptorMatchKey(candidate.descriptor) === matchKey) {
+                entry = candidate;
+                break;
+            }
+        }
+    }
+
+    let profile = descriptor.analysisProfileId ?? defaultProfile;
+
+    if (entry) {
+        descriptor = entry.descriptor;
+        descriptorId = entry.id;
+        profile = entry.profile ?? descriptor.analysisProfileId ?? profile;
+    } else if (upsertDescriptorEntry(workingState, { descriptor, id: descriptorId, profile })) {
         publishNeeded = true;
     }
 
     if (publishNeeded) {
-        publishIfNeeded(element, state, identity);
+        publishIfNeeded(element, workingState, identity);
     }
 
-    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, sampling);
+    const sample = sampleFeatureFrame(normalizedTrackId, descriptor, time, samplingOptions ?? undefined);
     if (!sample) {
         return null;
     }
@@ -273,6 +225,9 @@ export function getFeatureData(
         metadata: {
             descriptor,
             frame: sample,
+            channels: Math.max(1, sample.channels || sample.channelValues?.length || 0),
+            channelAliases: sample.channelAliases ?? sample.channelLayout?.aliases ?? null,
+            channelLayout: sample.channelLayout ?? null,
         },
     };
 }
@@ -289,6 +244,7 @@ export function syncElementFeatureIntents(
     trackId: string | null | undefined,
     descriptors: AudioFeatureDescriptor[],
     profile?: string | null,
+    profileRegistryDelta?: Record<string, AudioFeatureAnalysisProfileDescriptor> | null
 ): void {
     const normalizedTrackId = normalizeTrackId(trackId);
     if (!normalizedTrackId || descriptors.length === 0) {
@@ -303,46 +259,52 @@ export function syncElementFeatureIntents(
         state = {
             trackId: normalizedTrackId,
             descriptors: new Map(),
+            profileRegistryDelta: null,
         };
         elementStates.set(element as object, state);
         publishNeeded = true;
     } else if (state.trackId !== normalizedTrackId) {
         state.trackId = normalizedTrackId;
         state.descriptors.clear();
+        state.profileRegistryDelta = null;
         publishNeeded = true;
     }
+
+    const workingState = state!;
+    workingState.profileRegistryDelta = profileRegistryDelta ?? null;
 
     const requiredKeys = new Set<string>();
     for (const descriptor of descriptors) {
         if (!descriptor || !descriptor.featureKey) {
             continue;
         }
+        const entryProfile = descriptor.analysisProfileId ?? profile ?? null;
         const entry: DescriptorEntry = {
             descriptor,
             id: buildDescriptorId(descriptor),
-            profile: profile ?? null,
+            profile: entryProfile,
         };
-        requiredKeys.add(buildDescriptorMatchKey(descriptor));
-        if (upsertDescriptorEntry(state, entry)) {
+        requiredKeys.add(buildDescriptorIdentityKey(descriptor));
+        if (upsertDescriptorEntry(workingState, entry)) {
             publishNeeded = true;
         }
     }
 
-    for (const key of Array.from(state.descriptors.keys())) {
+    for (const key of Array.from(workingState.descriptors.keys())) {
         if (!requiredKeys.has(key)) {
-            state.descriptors.delete(key);
+            workingState.descriptors.delete(key);
             publishNeeded = true;
         }
     }
 
-    if (!state.descriptors.size) {
+    if (!workingState.descriptors.size) {
         clearFeatureData(element, normalizedTrackId);
         return;
     }
 
     if (publishNeeded) {
         const identity = resolveElementIdentity(element);
-        publishIfNeeded(element, state, identity);
+        publishIfNeeded(element, workingState, identity);
     }
 }
 
@@ -353,7 +315,7 @@ export function syncElementFeatureIntents(
  * published.
  */
 export function getElementSubscriptionSnapshot(
-    element: SceneFeatureElementRef | object,
+    element: SceneFeatureElementRef | object
 ): ElementSubscriptionSnapshot[] {
     const state = elementStates.get(element as object);
     if (!state) {
@@ -368,10 +330,7 @@ export function getElementSubscriptionSnapshot(
 /**
  * Remove cached subscription state for an element and clear any published intents.
  */
-export function clearFeatureData(
-    element: SceneFeatureElementRef | object,
-    trackId?: string | null,
-): void {
+export function clearFeatureData(element: SceneFeatureElementRef | object, trackId?: string | null): void {
     const state = elementStates.get(element as object);
     if (!state) {
         return;
