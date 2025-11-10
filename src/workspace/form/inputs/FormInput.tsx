@@ -4,6 +4,7 @@ import FontInput from './FontInput';
 import TimelineTrackSelect from './TimelineTrackSelect';
 import { AudioAnalysisProfileSelect } from './AudioAnalysisProfileSelect';
 import { useNumberDrag } from './useNumberDrag';
+import ColorInput from './ColorInput';
 
 export interface FormInputChangeMeta {
     mergeSession?: {
@@ -103,13 +104,13 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
 
     if (type === 'color') {
         return (
-            <input
-                type="color"
+            <ColorInput
                 id={id}
-                value={value || schema?.default || '#000000'}
+                value={value ?? schema?.default ?? '#000000'}
+                schema={schema}
                 disabled={disabled}
                 title={title}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={(next) => emitChange(next)}
             />
         );
     }
