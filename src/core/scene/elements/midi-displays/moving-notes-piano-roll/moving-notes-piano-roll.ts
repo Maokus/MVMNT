@@ -97,7 +97,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return {
             name: 'Moving Notes Piano Roll',
             description: 'Notes move past a static playhead',
-            category: 'Note Displays',
+            category: 'MIDI Displays',
             groups: [
                 ...baseBasicGroups,
                 {

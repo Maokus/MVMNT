@@ -107,7 +107,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         return {
             name: 'Time Unit Piano Roll',
             description: 'Piano roll visualization split into time-aligned windows.',
-            category: 'Note Displays',
+            category: 'MIDI Displays',
             groups: [
                 ...baseBasicGroups,
                 {
@@ -1141,7 +1141,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatGridBeatWidth = props.beatGridBeatWidth ?? 1;
         const beatGridOpacity = props.beatGridOpacity ?? 1;
         const noteLabelFontSelection = props.noteLabelFontFamily ?? 'Inter';
-        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } = parseFontSelection(noteLabelFontSelection);
+        const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
+            parseFontSelection(noteLabelFontSelection);
         const noteLabelFontSize = props.noteLabelFontSize ?? 10;
         const noteLabelFontColor = props.noteLabelFontColor ?? '#ffffff';
         const noteLabelFontWeight = (noteLabelFontWeightPart || '400').toString();
@@ -1151,7 +1152,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const noteLabelOffsetY = props.noteLabelOffsetY ?? 0;
         const noteLabelOpacity = props.noteLabelOpacity ?? 1;
         const beatLabelFontSelection = props.beatLabelFontFamily ?? 'Inter';
-        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } = parseFontSelection(beatLabelFontSelection);
+        const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
+            parseFontSelection(beatLabelFontSelection);
         const beatLabelFontSize = props.beatLabelFontSize ?? 12;
         const beatLabelFontColor = props.beatLabelFontColor ?? '#ffffff';
         const beatLabelFontWeight = (beatLabelFontWeightPart || '400').toString();

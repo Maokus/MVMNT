@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { MovingNotesPianoRollElement } from '@core/scene/elements/moving-notes-piano-roll/moving-notes-piano-roll';
+import { MovingNotesPianoRollElement } from '@core/scene/elements/midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
 
 describe('MovingNotesPianoRollElement bindings', () => {
     afterEach(() => {

@@ -1,5 +1,5 @@
 import { skip } from 'node:test';
-import { TimeDisplayElement } from './time-display';
+import { TimeDisplayElement } from '@core/scene/elements/time-display';
 import { describe, it, expect, vi } from 'vitest';
 
 // Minimal mock for timeline store used inside TimeDisplayElement
