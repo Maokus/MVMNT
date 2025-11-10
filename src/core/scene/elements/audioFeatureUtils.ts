@@ -1,6 +1,6 @@
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
-import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
+import { resolveFeatureTrackFromCache, sanitizeAnalysisProfileId } from '@audio/features/featureTrackIdentity';
 import type {
     AudioFeatureDescriptor,
     AudioFeatureTrack,
@@ -166,6 +166,17 @@ export function selectChannelSample(
     };
 }
 
+export function resolveDescriptorProfileId(descriptor: AudioFeatureDescriptor | null | undefined): string | null {
+    if (!descriptor) {
+        return null;
+    }
+    return (
+        sanitizeAnalysisProfileId(descriptor.analysisProfileId) ??
+        sanitizeAnalysisProfileId(descriptor.requestedAnalysisProfileId) ??
+        null
+    );
+}
+
 export function resolveFeatureContext(
     trackId: string | null,
     featureKey: string | null,
@@ -178,15 +189,25 @@ export function resolveFeatureContext(
     const sourceId = entry.audioSourceId ?? entry.id;
     const cache = state.audioFeatureCaches[sourceId];
     const { track: featureTrack } = resolveFeatureTrackFromCache(cache, featureKey, {
-        analysisProfileId,
+        analysisProfileId: sanitizeAnalysisProfileId(analysisProfileId),
     });
     if (!featureTrack) return null;
     return { state, track: entry, sourceId, cache, featureTrack } as const;
 }
 
-function buildSampleCacheKey(tick: number, descriptor: AudioFeatureDescriptor): string {
+function buildSampleCacheKey(
+    tick: number,
+    descriptor: AudioFeatureDescriptor,
+    analysisProfileId: string | null
+): string {
+    const featureKey = typeof descriptor.featureKey === 'string' ? descriptor.featureKey.trim() : '';
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
-    return `${tick}:${descriptor.featureKey}:${band}`;
+    const profileComponent = sanitizeAnalysisProfileId(analysisProfileId) ?? 'default';
+    const overridesHash = descriptor.profileOverridesHash ?? null;
+    const base = `tick:${tick}|feature:${featureKey || 'unknown'}|${band}`;
+    const profilePart = `profile:${profileComponent}`;
+    const overridesPart = overridesHash ? `|overrides:${overridesHash}` : '';
+    return `${base}|${profilePart}${overridesPart}`;
 }
 
 function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string {
@@ -218,14 +239,15 @@ export function sampleFeatureFrame(
     samplingOptions?: AudioSamplingOptions | null
 ): AudioFeatureFrameSample | null {
     const state = useTimelineStore.getState();
-    const context = resolveFeatureContext(trackId, descriptor.featureKey);
+    const analysisProfileId = resolveDescriptorProfileId(descriptor);
+    const context = resolveFeatureContext(trackId, descriptor.featureKey, analysisProfileId);
     if (!context) {
         return null;
     }
     const { featureTrack } = context;
     const tm = getSharedTimingManager();
     const tick = tm.secondsToTicks(Math.max(0, targetTime));
-    const cacheKey = buildSampleCacheKey(tick, descriptor);
+    const cacheKey = buildSampleCacheKey(tick, descriptor, analysisProfileId);
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {
         trackCache = new Map();
@@ -244,6 +266,7 @@ export function sampleFeatureFrame(
         trackId,
         featureKey: descriptor.featureKey,
         tick,
+        analysisProfileId,
         options: {
             bandIndex: descriptor.bandIndex ?? undefined,
             smoothing: samplingOptions?.smoothing ?? undefined,

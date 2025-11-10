@@ -1,14 +1,12 @@
 import type { AudioFeatureDescriptor, AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager } from '@state/timelineStore';
-import { resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
+import { resolveDescriptorProfileId, resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
 
 const MIN_FRAME_COUNT = 1;
 const MIN_SPACING_SECONDS = 1 / 120;
 
-export type FeatureHistoryHopStrategy =
-    | { type: 'profileHop' }
-    | { type: 'equalSpacing'; seconds: number };
+export type FeatureHistoryHopStrategy = { type: 'profileHop' } | { type: 'equalSpacing'; seconds: number };
 
 export interface FeatureHistoryFrame {
     index: number;
@@ -28,18 +26,20 @@ function resolveSpacingSeconds(
     cache: {
         hopSeconds?: number | null;
         analysisParams?: { hopSize?: number; sampleRate?: number };
-    },
+    }
 ): number {
     if (strategy?.type === 'equalSpacing') {
         const requested = Number.isFinite(strategy.seconds) ? strategy.seconds : MIN_SPACING_SECONDS;
         return Math.max(MIN_SPACING_SECONDS, requested);
     }
-    const hopSecondsCandidates: Array<number | undefined | null> = [
-        featureTrack.hopSeconds,
-        cache.hopSeconds,
-    ];
+    const hopSecondsCandidates: Array<number | undefined | null> = [featureTrack.hopSeconds, cache.hopSeconds];
     const analysis = cache.analysisParams;
-    if (analysis && Number.isFinite(analysis.hopSize) && Number.isFinite(analysis.sampleRate) && analysis.sampleRate! > 0) {
+    if (
+        analysis &&
+        Number.isFinite(analysis.hopSize) &&
+        Number.isFinite(analysis.sampleRate) &&
+        analysis.sampleRate! > 0
+    ) {
         hopSecondsCandidates.push(analysis.hopSize! / analysis.sampleRate!);
     }
     for (const candidate of hopSecondsCandidates) {
@@ -54,7 +54,7 @@ function buildSampleTimeline(
     targetTime: number,
     frameCount: number,
     spacingSeconds: number,
-    earliestSeconds: number,
+    earliestSeconds: number
 ): number[] {
     const times: number[] = [];
     for (let i = 0; i < frameCount; i += 1) {
@@ -68,7 +68,7 @@ function buildSampleTimeline(
 function computeFrameTimes(
     frameTicks: Float64Array,
     frameSeconds: Float64Array | undefined,
-    ticksToSeconds: (ticks: number) => number,
+    ticksToSeconds: (ticks: number) => number
 ): number[] {
     const times: number[] = [];
     for (let i = 0; i < frameTicks.length; i += 1) {
@@ -104,13 +104,14 @@ export function sampleFeatureHistory(
     targetTime: number,
     frameCount: number,
     hopStrategy: FeatureHistoryHopStrategy = { type: 'profileHop' },
-    samplingOptions?: AudioSamplingOptions,
+    samplingOptions?: AudioSamplingOptions
 ): FeatureHistoryFrame[] {
     if (!trackId || !descriptor?.featureKey) {
         return [];
     }
 
-    const context = resolveFeatureContext(trackId, descriptor.featureKey);
+    const descriptorProfileId = resolveDescriptorProfileId(descriptor);
+    const context = resolveFeatureContext(trackId, descriptor.featureKey, descriptorProfileId);
     if (!context) {
         return [];
     }
@@ -125,11 +126,19 @@ export function sampleFeatureHistory(
     const startTick = tm.secondsToTicks(Math.max(0, startSeconds));
     const endTick = tm.secondsToTicks(Math.max(startSeconds, targetTime));
 
-    const range = sampleAudioFeatureRange(state, trackId, descriptor.featureKey, startTick, endTick, {
-        bandIndex: descriptor.bandIndex ?? undefined,
-        smoothing: samplingOptions?.smoothing ?? undefined,
-        framePadding: 2,
-    });
+    const range = sampleAudioFeatureRange(
+        state,
+        trackId,
+        descriptor.featureKey,
+        startTick,
+        endTick,
+        {
+            bandIndex: descriptor.bandIndex ?? undefined,
+            smoothing: samplingOptions?.smoothing ?? undefined,
+            framePadding: 2,
+        },
+        descriptorProfileId
+    );
 
     if (!range || range.frameCount <= 0 || !range.data?.length) {
         return [];

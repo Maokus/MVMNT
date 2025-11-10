@@ -4,6 +4,7 @@ import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
+import { resolveDescriptorProfileId } from './audioFeatureUtils';
 import { registerFeatureRequirements } from './audioElementMetadata';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
@@ -228,6 +229,7 @@ export class AudioWaveformElement extends SceneElement {
         const smoothingRadius = Math.max(0, Math.round(props.smoothing));
 
         const descriptor = WAVEFORM_DESCRIPTOR;
+        const analysisProfileId = resolveDescriptorProfileId(descriptor);
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
@@ -255,9 +257,17 @@ export class AudioWaveformElement extends SceneElement {
         const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
 
         const state = useTimelineStore.getState();
-        const range = sampleAudioFeatureRange(state, props.audioTrackId, descriptor.featureKey, startTick, endTick, {
-            smoothing: smoothingRadius,
-        });
+        const range = sampleAudioFeatureRange(
+            state,
+            props.audioTrackId,
+            descriptor.featureKey,
+            startTick,
+            endTick,
+            {
+                smoothing: smoothingRadius,
+            },
+            analysisProfileId
+        );
 
         if (!range || range.frameCount < 2 || !range.data?.length) {
             objects.push(

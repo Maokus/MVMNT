@@ -13,7 +13,11 @@ import {
     sharedAudioFeatureAnalysisScheduler,
     type AudioFeatureAnalysisHandle,
 } from '@audio/features/audioFeatureScheduler';
-import { resolveFeatureTrackFromCache } from '@audio/features/featureTrackIdentity';
+import {
+    DEFAULT_ANALYSIS_PROFILE_ID,
+    resolveFeatureTrackFromCache,
+    sanitizeAnalysisProfileId,
+} from '@audio/features/featureTrackIdentity';
 import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
@@ -171,7 +175,7 @@ export type TimelineState = {
     stopAudioFeatureAnalysis: (id: string) => void;
     restartAudioFeatureAnalysis: (id: string, analysisProfileId?: string | null) => void;
     reanalyzeAudioFeatureCalculators: (id: string, calculatorIds: string[], analysisProfileId?: string | null) => void;
-    removeAudioFeatureTracks: (id: string, featureKeys: string[]) => void;
+    removeAudioFeatureTracks: (id: string, featureKeys: string[], analysisProfileId?: string | null) => void;
     clearAudioFeatureCache: (id: string) => void;
     clearAllTracks: () => void;
     resetTimeline: () => void;
@@ -1115,11 +1119,13 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         });
     },
 
-    removeAudioFeatureTracks(id: string, featureKeys: string[]) {
+    removeAudioFeatureTracks(id: string, featureKeys: string[], analysisProfileId?: string | null) {
         const unique = Array.from(new Set((featureKeys || []).filter((key): key is string => Boolean(key?.trim()))));
         if (!unique.length) {
             return;
         }
+        const requestedProfile = sanitizeAnalysisProfileId(analysisProfileId);
+        const strictProfileMatching = Boolean(requestedProfile && requestedProfile !== DEFAULT_ANALYSIS_PROFILE_ID);
         set((s: TimelineState) => {
             const cache = s.audioFeatureCaches[id];
             if (!cache) {
@@ -1130,7 +1136,11 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             for (const key of unique) {
                 const { key: resolvedKey } = resolveFeatureTrackFromCache(
                     { featureTracks: nextTracks, defaultAnalysisProfileId: cache.defaultAnalysisProfileId },
-                    key
+                    key,
+                    {
+                        analysisProfileId: requestedProfile,
+                        strictProfileMatching,
+                    }
                 );
                 if (resolvedKey && nextTracks[resolvedKey]) {
                     delete nextTracks[resolvedKey];

@@ -28,6 +28,10 @@ let clearSpy: MockInstance<
     Parameters<typeof analysisIntents.clearAnalysisIntent>,
     ReturnType<typeof analysisIntents.clearAnalysisIntent>
 >;
+let sampleSpy: MockInstance<
+    Parameters<typeof featureUtils.sampleFeatureFrame>,
+    ReturnType<typeof featureUtils.sampleFeatureFrame>
+>;
 
 describe('sceneApi', () => {
     beforeEach(() => {
@@ -36,7 +40,7 @@ describe('sceneApi', () => {
         resetSceneFeatureStateForTests();
         publishSpy = vi.spyOn(analysisIntents, 'publishAnalysisIntent').mockImplementation(() => undefined);
         clearSpy = vi.spyOn(analysisIntents, 'clearAnalysisIntent').mockImplementation(() => undefined);
-        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue(sampleFrame as any);
+        sampleSpy = vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue(sampleFrame as any);
     });
 
     afterEach(() => {
@@ -156,6 +160,46 @@ describe('sceneApi', () => {
             const result = getFeatureData(element, 'track-1', 'spectrogram', 2.5);
 
             expect(result?.metadata.descriptor.profileOverridesHash).toBe(built.descriptor.profileOverridesHash);
+            expect(publishSpy).not.toHaveBeenCalled();
+        });
+
+        it('samples regenerated data for ad-hoc profiles when available', () => {
+            const built = createFeatureDescriptor({
+                feature: 'spectrogram',
+                profileParams: {
+                    windowSize: 4096,
+                    hopSize: 1024,
+                    window: 'hann',
+                },
+            });
+            expect(built.profile).toBeTruthy();
+            expect(built.profile?.startsWith('adhoc-')).toBe(true);
+
+            syncElementFeatureIntents(
+                element,
+                'track-1',
+                [built.descriptor],
+                built.profile ?? undefined,
+                built.profileRegistryDelta ?? undefined
+            );
+            publishSpy.mockClear();
+
+            const adHocSample = {
+                ...sampleFrame,
+                values: [0.25],
+            } as any;
+            const defaultSample = { ...sampleFrame, values: [0.5] } as any;
+
+            sampleSpy.mockImplementation((trackId, descriptor, time) => {
+                return descriptor.analysisProfileId === built.profile ? adHocSample : defaultSample;
+            });
+
+            const result = getFeatureData(element, 'track-1', 'spectrogram', 0.5);
+
+            expect(result?.values).toEqual([0.25]);
+            expect(sampleSpy).toHaveBeenCalled();
+            const [, descriptorArg] = sampleSpy.mock.calls.at(-1)!;
+            expect(descriptorArg.analysisProfileId).toBe(built.profile);
             expect(publishSpy).not.toHaveBeenCalled();
         });
     });

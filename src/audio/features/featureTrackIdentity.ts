@@ -83,6 +83,8 @@ export function normalizeFeatureTrackMap(
 export interface ResolveFeatureTrackOptions {
     analysisProfileId?: string | null;
     fallbackProfileId?: string | null;
+    /** When true, only attempt the explicitly requested profile without falling back to defaults. */
+    strictProfileMatching?: boolean;
 }
 
 export function resolveFeatureTrackFromCache(
@@ -116,29 +118,40 @@ export function resolveFeatureTrackFromCache(
     };
 
     const trackEntries = cache.featureTracks;
-    pushCandidate(trimmed);
 
     const parsed = parseFeatureTrackKey(trimmed);
     const baseFeatureKey = parsed.featureKey || trimmed;
 
     const requestedProfile = sanitizeAnalysisProfileId(options.analysisProfileId);
-    if (requestedProfile) {
-        pushCandidate(buildFeatureTrackKey(baseFeatureKey, requestedProfile));
-    }
+    const strictProfileMatching = Boolean(options.strictProfileMatching && requestedProfile);
 
-    if (parsed.analysisProfileId) {
-        pushCandidate(buildFeatureTrackKey(baseFeatureKey, parsed.analysisProfileId));
-    }
+    if (strictProfileMatching) {
+        if (trimmed.includes(FEATURE_TRACK_KEY_SEPARATOR)) {
+            pushCandidate(trimmed);
+        }
+        pushCandidate(buildFeatureTrackKey(baseFeatureKey, requestedProfile!));
+    } else {
+        if (trimmed) {
+            pushCandidate(trimmed);
+        }
+        if (requestedProfile) {
+            pushCandidate(buildFeatureTrackKey(baseFeatureKey, requestedProfile));
+        }
 
-    const fallbackProfile =
-        sanitizeAnalysisProfileId(options.fallbackProfileId) ??
-        sanitizeAnalysisProfileId(cache.defaultAnalysisProfileId);
-    if (fallbackProfile) {
-        pushCandidate(buildFeatureTrackKey(baseFeatureKey, fallbackProfile));
-    }
+        if (parsed.analysisProfileId) {
+            pushCandidate(buildFeatureTrackKey(baseFeatureKey, parsed.analysisProfileId));
+        }
 
-    pushCandidate(buildFeatureTrackKey(baseFeatureKey, DEFAULT_ANALYSIS_PROFILE_ID));
-    pushCandidate(baseFeatureKey);
+        const fallbackProfile =
+            sanitizeAnalysisProfileId(options.fallbackProfileId) ??
+            sanitizeAnalysisProfileId(cache.defaultAnalysisProfileId);
+        if (fallbackProfile) {
+            pushCandidate(buildFeatureTrackKey(baseFeatureKey, fallbackProfile));
+        }
+
+        pushCandidate(buildFeatureTrackKey(baseFeatureKey, DEFAULT_ANALYSIS_PROFILE_ID));
+        pushCandidate(baseFeatureKey);
+    }
 
     for (const candidate of candidates) {
         const track = trackEntries[candidate];

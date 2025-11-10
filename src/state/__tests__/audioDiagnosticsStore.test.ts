@@ -592,6 +592,120 @@ describe('audio diagnostics store', () => {
         expect(diff?.extraneous ?? []).toHaveLength(0);
     });
 
+    it('retains default profile caches when pruning ad-hoc extraneous tracks', () => {
+        const updatedAt = Date.now();
+        const defaultKey = buildFeatureTrackKey('spectrogram', 'default');
+        const adhocKey = buildFeatureTrackKey('spectrogram', 'adhoc-profile');
+
+        useTimelineStore.setState({
+            tracks: {
+                audioTrack: {
+                    id: 'audioTrack',
+                    name: 'Audio Track',
+                    type: 'audio',
+                    enabled: true,
+                    mute: false,
+                    solo: false,
+                    offsetTicks: 0,
+                    gain: 1,
+                    audioSourceId: 'audioSource',
+                },
+            },
+            tracksOrder: ['audioTrack'],
+            audioFeatureCaches: {
+                audioSource: {
+                    version: 1,
+                    audioSourceId: 'audioSource',
+                    hopSeconds: 0.01,
+                    startTimeSeconds: 0,
+                    frameCount: 32,
+                    featureTracks: {
+                        [defaultKey]: {
+                            key: defaultKey,
+                            calculatorId: 'test.spectrogram',
+                            version: 1,
+                            frameCount: 32,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                            analysisProfileId: 'default',
+                        } as any,
+                        [adhocKey]: {
+                            key: adhocKey,
+                            calculatorId: 'test.spectrogram',
+                            version: 1,
+                            frameCount: 32,
+                            channels: 1,
+                            hopSeconds: 0.01,
+                            startTimeSeconds: 0,
+                            data: new Float32Array(0),
+                            format: 'float32',
+                            analysisProfileId: 'adhoc-profile',
+                        } as any,
+                    },
+                    analysisParams: {
+                        windowSize: 512,
+                        hopSize: 256,
+                        overlap: 0.5,
+                        sampleRate: 44100,
+                        calculatorVersions: { 'test.spectrogram': 1 },
+                    },
+                    defaultAnalysisProfileId: 'default',
+                    updatedAt,
+                } as any,
+            },
+            audioFeatureCacheStatus: {
+                audioSource: { state: 'ready', updatedAt },
+            },
+        });
+
+        const descriptor = {
+            featureKey: 'spectrogram',
+            calculatorId: 'test.spectrogram',
+            analysisProfileId: 'adhoc-profile',
+        } as const;
+        const descriptorMatchKey = buildDescriptorMatchKey(descriptor);
+        const extraneousKey = `${descriptorMatchKey}|profile:adhoc-profile`;
+
+        useAudioDiagnosticsStore.setState((state) => ({
+            ...state,
+            diffs: [
+                {
+                    trackRefs: ['audioTrack'],
+                    audioSourceId: 'audioSource',
+                    analysisProfileId: 'adhoc-profile',
+                    descriptorsRequested: [],
+                    descriptorsCached: [extraneousKey],
+                    missing: [],
+                    stale: [],
+                    extraneous: [extraneousKey],
+                    badRequest: [],
+                    regenerating: [],
+                    descriptorDetails: {
+                        [extraneousKey]: {
+                            descriptor: descriptor as any,
+                            channelCount: 1,
+                            channelAliases: null,
+                            channelLayout: null,
+                            analysisProfileId: 'adhoc-profile',
+                        },
+                    },
+                    owners: {},
+                    updatedAt,
+                    status: 'issues',
+                },
+            ],
+        }));
+
+        useAudioDiagnosticsStore.getState().deleteExtraneousCaches();
+
+        const cache = useTimelineStore.getState().audioFeatureCaches['audioSource'];
+        expect(cache?.featureTracks[defaultKey]).toBeDefined();
+        expect(cache?.featureTracks[adhocKey]).toBeUndefined();
+    });
+
     it('marks cached descriptors as extraneous when no elements reference the audio source', () => {
         const updatedAt = Date.now();
         useTimelineStore.setState({

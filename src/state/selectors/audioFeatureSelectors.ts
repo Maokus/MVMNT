@@ -42,13 +42,15 @@ export function selectAudioFeatureFrame(
     trackId: string,
     featureKey: string,
     tick: number,
-    options: AudioFeatureFrameOptions = {}
+    options: AudioFeatureFrameOptions = {},
+    analysisProfileId?: string | null
 ): AudioFeatureFrameSample | undefined {
     const { sample } = getTempoAlignedFrame(state, {
         trackId,
         featureKey,
         tick,
         options,
+        analysisProfileId,
     });
     return sample;
 }
@@ -59,7 +61,8 @@ export function sampleAudioFeatureRange(
     featureKey: string,
     startTick: number,
     endTick: number,
-    options: AudioFeatureRangeOptions = {}
+    options: AudioFeatureRangeOptions = {},
+    analysisProfileId?: string | null
 ): AudioFeatureRangeSample | undefined {
     const { range } = getTempoAlignedRange(state, {
         trackId,
@@ -67,6 +70,7 @@ export function sampleAudioFeatureRange(
         startTick,
         endTick,
         options,
+        analysisProfileId,
     });
     return range;
 }

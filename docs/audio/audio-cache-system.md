@@ -326,11 +326,15 @@ export class DynamicAudioElement extends SceneElement {
     class subscribes automatically, and requirements are deduplicated across instances.
 -   **`getFeatureData`**: Samples a tempo-aligned frame for the current time, applying any runtime
     smoothing or interpolation options.
--   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. Useful when building
-    tooling or diagnostics that operate outside the scene runtime.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
+-   **`sampleFeatureFrame`**: Low-level helper powering `getFeatureData`. It now forwards the
+    descriptor's resolved `analysisProfileId` so ad-hoc profiles sample the correct cache entry, and
+    memoization keys include the profile identifier to prevent cross-profile reuse.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L253】
+-   **`resolveDescriptorProfileId`**: Utility that sanitizes descriptor metadata into the effective
+    analysis profile id. Use it whenever you need to bridge descriptors with raw cache access or
+    timeline selectors.【F:src/core/scene/elements/audioFeatureUtils.ts†L134-L151】
 -   **`sampleFeatureHistory`**: Retrieves multiple past frames for trail effects or historical
-    analysis. Returns an array of `FeatureHistoryFrame` objects with timestamps and
-    values.【F:src/utils/audioVisualization/history.ts†L1-L169】
+    analysis. The helper now uses `resolveDescriptorProfileId` internally so history requests stay
+    on the same profile-aware key path as single-frame sampling.【F:src/utils/audioVisualization/history.ts†L1-L170】
 -   **`getTempoAlignedFrame`**: Low-level adapter for range sampling and interpolation tools for
     history visualizations, peak meters, and envelope displays.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
@@ -420,6 +424,8 @@ Plans are created once per analysis pass and reused across all frames, avoiding 
 ### Diagnostics System
 
 -   Diagnostics state subscribes to the intent bus, records job history, and coordinates regeneration actions. When a descriptor is published for a track with stale data, the diagnostics store prompts the user to re-run the necessary calculators.【F:src/state/audioDiagnosticsStore.ts†L520-L635】
+
+-   Extraneous cache cleanup groups deletion candidates by `analysisProfileId`, protecting default caches when ad-hoc profiles are purged and logging whenever removals still have active owners so regressions surface immediately.【F:src/state/audioDiagnosticsStore.ts†L930-L1008】
 
 -   Tracks fallback reasons when sampling fails (missing cache, invalid descriptor, out-of-bounds time)
 -   Records tempo alignment mismatches and interpolation performance

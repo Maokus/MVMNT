@@ -18,6 +18,7 @@ import {
 
 vi.mock('@core/scene/elements/audioFeatureUtils', () => ({
     resolveFeatureContext: vi.fn(),
+    resolveDescriptorProfileId: vi.fn(() => null),
 }));
 
 vi.mock('@state/selectors/audioFeatureSelectors', () => ({
@@ -36,12 +37,14 @@ const stateSelectors = await import('@state/selectors/audioFeatureSelectors');
 const timelineStore = await import('@state/timelineStore');
 
 const resolveFeatureContext = vi.mocked(audioFeatureUtils.resolveFeatureContext);
+const resolveDescriptorProfileId = vi.mocked(audioFeatureUtils.resolveDescriptorProfileId);
 const sampleAudioFeatureRange = vi.mocked(stateSelectors.sampleAudioFeatureRange);
 const getSharedTimingManager = vi.mocked(timelineStore.getSharedTimingManager);
 
 describe('audio visualization utilities', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        resolveDescriptorProfileId.mockReturnValue(null);
         const timingMock = new TimingManager();
         timingMock.ticksPerQuarter = 480;
         timingMock.setBPM(120);

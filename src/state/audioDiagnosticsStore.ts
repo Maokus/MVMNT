@@ -961,27 +961,55 @@ export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get)
             console.warn('[audioDiagnostics] removeAudioFeatureTracks action unavailable on timeline store');
             return;
         }
-        const groups = new Map<string, Set<string>>();
+        const groups = new Map<string, Map<string | null, Set<string>>>();
         for (const diff of get().diffs) {
             if (!diff.extraneous.length) continue;
-            let featureSet = groups.get(diff.audioSourceId);
-            if (!featureSet) {
-                featureSet = new Set<string>();
-                groups.set(diff.audioSourceId, featureSet);
-            }
             for (const descriptorId of diff.extraneous) {
                 const detail = diff.descriptorDetails[descriptorId];
                 const featureKey = detail?.descriptor?.featureKey ?? extractFeatureKey(descriptorId);
-                if (featureKey) {
-                    featureSet.add(featureKey);
+                if (!featureKey) {
+                    console.warn(
+                        '[audioDiagnostics] unable to resolve feature key for extraneous descriptor',
+                        descriptorId
+                    );
+                    continue;
                 }
+                const detailProfile =
+                    detail?.analysisProfileId ??
+                    detail?.descriptor?.analysisProfileId ??
+                    detail?.descriptor?.requestedAnalysisProfileId ??
+                    diff.analysisProfileId ??
+                    null;
+                const profileId = sanitizeProfileId(detailProfile);
+                const owners = diff.owners?.[descriptorId] ?? [];
+                if (owners.length) {
+                    console.warn('[audioDiagnostics] removing feature track still referenced by descriptors', {
+                        featureKey,
+                        analysisProfileId: profileId ?? null,
+                        owners,
+                    });
+                }
+                let profileMap = groups.get(diff.audioSourceId);
+                if (!profileMap) {
+                    profileMap = new Map();
+                    groups.set(diff.audioSourceId, profileMap);
+                }
+                const profileKey = profileId ?? null;
+                let featureSet = profileMap.get(profileKey);
+                if (!featureSet) {
+                    featureSet = new Set<string>();
+                    profileMap.set(profileKey, featureSet);
+                }
+                featureSet.add(featureKey);
             }
         }
         if (!groups.size) {
             return;
         }
-        for (const [sourceId, featureSet] of groups.entries()) {
-            removeTracks(sourceId, Array.from(featureSet));
+        for (const [sourceId, profileMap] of groups.entries()) {
+            for (const [profileId, featureSet] of profileMap.entries()) {
+                removeTracks(sourceId, Array.from(featureSet), profileId);
+            }
         }
         get().recomputeDiffs();
     },
