@@ -23,7 +23,6 @@ import { useSceneStore } from '@state/sceneStore';
 import { clearStoredImportPayload, readStoredImportPayload } from '@utils/importPayloadStorage';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
-import { CacheDiagnosticsBanner } from '@workspace/components/CacheDiagnosticsBanner';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 
@@ -203,11 +202,6 @@ const MidiVisualizerInner: React.FC = () => {
             />
             <SceneSelectionProvider>
                 <>
-                    {showDiagnosticsBanner && (
-                        <div className="px-4 pt-3">
-                            <CacheDiagnosticsBanner />
-                        </div>
-                    )}
                     <div className="main-workspace" ref={workspaceRef}>
                         <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
                             <PreviewPanel />
