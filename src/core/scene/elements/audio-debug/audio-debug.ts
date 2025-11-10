@@ -1,10 +1,10 @@
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
 import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi';
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 
 interface FeatureOption {
     value: string;
@@ -223,9 +223,7 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
     }
 
     const metadata = result.metadata;
-    const frameRecord = metadata.frame
-        ? ((metadata.frame as unknown) as Record<string, unknown>)
-        : null;
+    const frameRecord = metadata.frame ? (metadata.frame as unknown as Record<string, unknown>) : null;
     const rawChannelCount = metadata.channels;
     const frameChannels = Number.isFinite((frameRecord as any)?.channels)
         ? Number((frameRecord as any).channels)
@@ -251,7 +249,8 @@ function collectMetadataLines(result: FeatureDataResult, maxEntries: number): st
             : (frameRecord as any)?.channelAliases && (frameRecord as any).channelAliases.length
             ? ((frameRecord as any).channelAliases as string[])
             : null;
-    const layout = metadata.channelLayout ?? ((frameRecord as any)?.channelLayout as ChannelLayoutMeta | undefined) ?? null;
+    const layout =
+        metadata.channelLayout ?? ((frameRecord as any)?.channelLayout as ChannelLayoutMeta | undefined) ?? null;
     if (channelCount != null) {
         let line = `Channels: ${channelCount}`;
         if (aliases?.length) {
@@ -309,7 +308,7 @@ export class AudioDebugElement extends SceneElement {
             ...base,
             name: 'Audio Debug',
             description: 'Inspect raw audio feature values and metadata for debugging.',
-            category: 'audio',
+            category: 'Audio Debug',
             groups: [
                 ...base.groups,
                 {
@@ -484,20 +483,24 @@ export class AudioDebugElement extends SceneElement {
                 const frameChannels = Array.isArray(activeResult.metadata?.frame?.channelValues)
                     ? (activeResult.metadata.frame.channelValues as number[][])
                     : [];
-                const frameAliasSource = (activeResult.metadata?.frame as { channelAliases?: (string | null | undefined)[] } | undefined)
-                    ?.channelAliases;
+                const frameAliasSource = (
+                    activeResult.metadata?.frame as { channelAliases?: (string | null | undefined)[] } | undefined
+                )?.channelAliases;
                 const aliasCandidates =
                     (activeResult.metadata?.channelAliases && activeResult.metadata.channelAliases.length
                         ? activeResult.metadata.channelAliases
-                        : null) ?? frameAliasSource ?? null;
+                        : null) ??
+                    frameAliasSource ??
+                    null;
                 const channelAliases = aliasCandidates && aliasCandidates.length ? aliasCandidates : null;
                 const perChannelLimit = Math.max(1, props.maxValuesToDisplay ?? 8);
                 if (frameChannels.length) {
                     frameChannels.forEach((channel, index) => {
                         const alias = channelAliases?.[index];
-                        const label = alias && typeof alias === 'string' && alias.length
-                            ? `${alias} (#${index + 1})`
-                            : `Channel ${index + 1}`;
+                        const label =
+                            alias && typeof alias === 'string' && alias.length
+                                ? `${alias} (#${index + 1})`
+                                : `Channel ${index + 1}`;
                         lines.push(`${label}: ${formatArray(channel, perChannelLimit)}`);
                     });
                 }

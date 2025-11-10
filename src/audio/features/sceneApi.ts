@@ -16,7 +16,7 @@ import {
     type FeatureDescriptorBuildResult,
     type FeatureDescriptorBuilderOptions,
 } from './descriptorBuilder';
-import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 
 /**

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { selectAudioFeatureFrame } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';

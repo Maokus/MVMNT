@@ -1,7 +1,7 @@
 import type { AudioFeatureDescriptor, AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { getSharedTimingManager } from '@state/timelineStore';
-import { resolveDescriptorProfileId, resolveFeatureContext } from '@core/scene/elements/audioFeatureUtils';
+import { resolveDescriptorProfileId, resolveFeatureContext } from '@audio/audioFeatureUtils';
 
 const MIN_FRAME_COUNT = 1;
 const MIN_SPACING_SECONDS = 1 / 120;

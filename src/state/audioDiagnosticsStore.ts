@@ -16,7 +16,7 @@ import {
     type AnalysisIntent,
 } from '@audio/features/analysisIntents';
 import { isAdhocAnalysisProfileId } from '@audio/features/analysisProfileRegistry';
-import { getFeatureRequirements, type AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
+import { getFeatureRequirements, type AudioFeatureRequirement } from '@audio/audioElementMetadata';
 import { useTimelineStore, type TimelineState } from './timelineStore';
 import {
     parseFeatureTrackKey,

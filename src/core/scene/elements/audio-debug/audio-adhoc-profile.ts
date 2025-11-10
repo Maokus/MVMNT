@@ -1,15 +1,20 @@
 import { EnhancedConfigSchema, RenderObject } from '@core/index';
-import { SceneElement, asTrimmedString } from './base';
+import { SceneElement, asTrimmedString } from '../base';
 import { Rectangle, Text } from '@core/render/render-objects';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
+import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeatureTypes';
 
-const ODD_PROFILE_ID = 'oddProfile';
+const ADHOC_PROFILE_OVERRIDES: AudioAnalysisProfileOverrides = {
+    windowSize: 4096,
+    hopSize: 1024,
+    window: 'hann',
+};
 
-registerFeatureRequirements('audioOddProfile', [
+registerFeatureRequirements('audioAdhocProfile', [
     {
         feature: 'spectrogram',
-        profile: ODD_PROFILE_ID,
+        profileParams: ADHOC_PROFILE_OVERRIDES,
     },
 ]);
 
@@ -34,23 +39,23 @@ function formatChannelValues(values: number[], limit = 8): string {
     return `[${slice.join(', ')}${suffix}]`;
 }
 
-export class AudioOddProfileElement extends SceneElement {
-    constructor(id: string = 'audioOddProfile', config: Record<string, unknown> = {}) {
-        super('audioOddProfile', id, config);
+export class AudioAdhocProfileElement extends SceneElement {
+    constructor(id: string = 'AudioAdhocProfile', config: Record<string, unknown> = {}) {
+        super('audioAdhocProfile', id, config);
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
         return {
             ...base,
-            name: 'Audio Odd Profile',
-            description: 'Requests a non-default analysis profile to validate cache handling',
-            category: 'Misc',
+            name: 'Audio Adhoc Profile',
+            description: 'Requests an adhoc analysis profile to validate cache handling',
+            category: 'Audio Debug',
             groups: [
                 ...base.groups,
                 {
-                    id: 'audioOddProfileBasics',
-                    label: 'Audio Odd Profile',
+                    id: 'audioAdhocProfileBasics',
+                    label: 'Audio Adhoc Profile',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
@@ -74,9 +79,7 @@ export class AudioOddProfileElement extends SceneElement {
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
-        const result = props.audioTrackId
-            ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime)
-            : null;
+        const result = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime) : null;
         const sample = result?.metadata?.frame ?? null;
         const channelValues =
             sample?.channelValues && sample.channelValues.length
@@ -85,6 +88,9 @@ export class AudioOddProfileElement extends SceneElement {
                 ? [result.values]
                 : [];
         const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
+        const descriptor = result?.metadata?.descriptor;
+        const resolvedProfileId = descriptor?.analysisProfileId ?? descriptor?.requestedAnalysisProfileId ?? 'default';
+        const overridesHash = descriptor?.profileOverridesHash ?? null;
 
         if (!result || !channelValues.length) {
             return [new Rectangle(0, 0, 200, 200, '#ff0000')];
@@ -92,12 +98,27 @@ export class AudioOddProfileElement extends SceneElement {
 
         const objects: RenderObject[] = [];
 
-        objects.push(new Text(0, -40, `Profile: ${ODD_PROFILE_ID}`, '28px Arial', '#00ffcc'));
+        const profileLabel = `Profile: ${resolvedProfileId}`;
+        objects.push(new Text(0, -48, profileLabel, '28px Arial', '#00ffcc'));
+
+        if (overridesHash) {
+            const hashLabel = `Overrides hash: ${overridesHash}`;
+            objects.push(new Text(0, -16, hashLabel, '24px Arial', '#66ffe0'));
+        }
+
+        const overrides = descriptor?.profileOverrides ?? null;
+        if (overrides) {
+            const entries = Object.entries(overrides)
+                .map(([key, value]) => `${key}=${value}`)
+                .join(', ');
+            const overridesLabel = entries.length ? `Overrides: ${entries}` : 'Overrides: <empty>';
+            objects.push(new Text(0, 16, overridesLabel, '24px Arial', '#66ffe0'));
+        }
 
         channelValues.forEach((values, index) => {
             const alias = aliases?.[index];
             const label = alias && alias.length ? `${alias} (#${index + 1})` : `Channel ${index + 1}`;
-            const y = index * 48;
+            const y = index * 48 + 64;
             objects.push(new Text(0, y, `${label}: ${formatChannelValues(values)}`, '32px Arial', '#ffffff'));
         });
 

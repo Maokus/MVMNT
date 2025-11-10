@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import midSideFrame from '../__fixtures__/mid-side-frame.json';
-import { selectChannelSample } from '@core/scene/elements/audioFeatureUtils';
+import { selectChannelSample } from '@audio/audioFeatureUtils';
 
 describe('channel selector fixtures', () => {
     it('selects mid-side channels using semantic aliases', () => {

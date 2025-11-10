@@ -32,7 +32,7 @@ vi.mock('@state/timelineStore', () => ({
     })),
 }));
 
-const audioFeatureUtils = await import('@core/scene/elements/audioFeatureUtils');
+const audioFeatureUtils = await import('@audio/audioFeatureUtils');
 const stateSelectors = await import('@state/selectors/audioFeatureSelectors');
 const timelineStore = await import('@state/timelineStore');
 

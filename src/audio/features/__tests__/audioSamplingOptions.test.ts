@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
-import { sampleFeatureFrame } from '@core/scene/elements/audioFeatureUtils';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 
 const { getTempoAlignedFrameMock, getTempoAlignedRangeMock } = vi.hoisted(() => ({

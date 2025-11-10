@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { migrateSceneAudioSystemV5, verifySceneAudioSystemV5 } from '../migrations/audioSystemV5';
 import legacyProject from '../__fixtures__/legacyProjects/scene.audio-channel-selector.json';
 import midSideFrame from '@audio/features/__fixtures__/mid-side-frame.json';
-import { selectChannelSample } from '@core/scene/elements/audioFeatureUtils';
+import { selectChannelSample } from '@audio/audioFeatureUtils';
 import type { AudioFeatureFrameSample } from '@state/selectors/audioFeatureSelectors';
 
 type AnyRecord = Record<string, any>;

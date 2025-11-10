@@ -1,14 +1,14 @@
 import { EnhancedConfigSchema, RenderObject } from '@core/index';
-import { SceneElement, asTrimmedString } from './base';
+import { SceneElement, asTrimmedString } from '../base';
 import { Rectangle, Text } from '@core/render/render-objects';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
-const ODD_PROFILE_ID = 'default';
+const ODD_PROFILE_ID = 'oddProfile';
 
-registerFeatureRequirements('default', [
+registerFeatureRequirements('audioOddProfile', [
     {
-        feature: 'fakeFeature',
+        feature: 'spectrogram',
         profile: ODD_PROFILE_ID,
     },
 ]);
@@ -34,23 +34,23 @@ function formatChannelValues(values: number[], limit = 8): string {
     return `[${slice.join(', ')}${suffix}]`;
 }
 
-export class AudioBadReqElement extends SceneElement {
-    constructor(id: string = 'audioBadReq', config: Record<string, unknown> = {}) {
-        super('audioBadReq', id, config);
+export class AudioOddProfileElement extends SceneElement {
+    constructor(id: string = 'audioOddProfile', config: Record<string, unknown> = {}) {
+        super('audioOddProfile', id, config);
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
         return {
             ...base,
-            name: 'Audio Bad Request',
-            description: 'Requests a non-existent analysis profile to validate cache handling',
-            category: 'Misc',
+            name: 'Audio Odd Profile',
+            description: 'Requests a non-default analysis profile to validate cache handling',
+            category: 'Audio Debug',
             groups: [
                 ...base.groups,
                 {
-                    id: 'audioBadReqBasics',
-                    label: 'Audio Bad Request',
+                    id: 'audioOddProfileBasics',
+                    label: 'Audio Odd Profile',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
@@ -72,7 +72,33 @@ export class AudioBadReqElement extends SceneElement {
     }
 
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
+        const props = this.getSchemaProps();
+
+        const result = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime) : null;
+        const sample = result?.metadata?.frame ?? null;
+        const channelValues =
+            sample?.channelValues && sample.channelValues.length
+                ? sample.channelValues
+                : result?.values?.length
+                ? [result.values]
+                : [];
+        const aliases = result?.metadata?.channelAliases ?? sample?.channelAliases ?? null;
+
+        if (!result || !channelValues.length) {
+            return [new Rectangle(0, 0, 200, 200, '#ff0000')];
+        }
+
         const objects: RenderObject[] = [];
+
+        objects.push(new Text(0, -40, `Profile: ${ODD_PROFILE_ID}`, '28px Arial', '#00ffcc'));
+
+        channelValues.forEach((values, index) => {
+            const alias = aliases?.[index];
+            const label = alias && alias.length ? `${alias} (#${index + 1})` : `Channel ${index + 1}`;
+            const y = index * 48;
+            objects.push(new Text(0, y, `${label}: ${formatChannelValues(values)}`, '32px Arial', '#ffffff'));
+        });
+
         return objects;
     }
 }

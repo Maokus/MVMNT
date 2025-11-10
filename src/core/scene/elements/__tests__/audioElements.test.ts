@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AudioVolumeMeterElement } from '@core/scene/elements/audio-displays/audio-volume-meter';
 import { AudioWaveformElement, AudioLockedOscilloscopeElement } from '@core/scene/elements';
-import { AudioDebugElement } from '@core/scene/elements/audio-debug';
+import { AudioDebugElement } from '@core/scene/elements/audio-debug/audio-debug';
 import { Poly, Rectangle, Text } from '@core/render/render-objects';
-import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
+import * as featureUtils from '@audio/audioFeatureUtils';
 import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';

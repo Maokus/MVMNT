@@ -3,7 +3,7 @@ import {
     getFeatureRequirements,
     registerFeatureRequirements,
     resetFeatureRequirementsForTests,
-} from '@core/scene/elements/audioElementMetadata';
+} from '@audio/audioElementMetadata';
 
 describe('audioElementMetadata', () => {
     afterEach(() => {

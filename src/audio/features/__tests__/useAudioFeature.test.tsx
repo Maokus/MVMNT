@@ -4,7 +4,7 @@ import { useAudioFeature, type UseAudioFeatureResult } from '@audio/features/use
 import * as sceneApi from '@audio/features/sceneApi';
 import { resetSceneFeatureStateForTests } from '@audio/features/sceneApi';
 import * as analysisIntents from '@audio/features/analysisIntents';
-import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
+import * as featureUtils from '@audio/audioFeatureUtils';
 
 const sampleFrame = {
     frameIndex: 0,

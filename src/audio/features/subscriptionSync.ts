@@ -8,7 +8,7 @@ import {
     type SceneFeatureElementRef,
 } from './sceneApi';
 import type { AudioFeatureAnalysisProfileDescriptor, AudioFeatureDescriptor } from './audioFeatureTypes';
-import type { AudioFeatureRequirement } from '@core/scene/elements/audioElementMetadata';
+import type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
 
 function normalizeTrackId(trackId: string | null | undefined): string | null {
     if (typeof trackId !== 'string') {

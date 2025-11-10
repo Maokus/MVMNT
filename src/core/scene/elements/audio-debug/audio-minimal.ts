@@ -1,6 +1,6 @@
 import { EnhancedConfigSchema, RenderObject, SceneElement, asTrimmedString } from '@core/index';
 import { Rectangle, Text } from '@core/render/render-objects';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { getFeatureData } from '@audio/features/sceneApi';
 
 //registerFeatureRequirements('audioMinimal', [{ feature: 'rms' }, { feature: 'waveform' }, { feature: 'spectrogram' }]);
@@ -37,7 +37,7 @@ export class AudioMinimalElement extends SceneElement {
             ...base,
             name: 'Audio Minimal',
             description: 'Minimal audio element for basic audio functionality testing',
-            category: 'Misc',
+            category: 'Audio Debug',
             groups: [
                 ...base.groups,
                 {
@@ -66,9 +66,7 @@ export class AudioMinimalElement extends SceneElement {
     protected override _buildRenderObjects(_config: any, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
 
-        const result = props.audioTrackId
-            ? getFeatureData(this, props.audioTrackId, 'waveform', targetTime)
-            : null;
+        const result = props.audioTrackId ? getFeatureData(this, props.audioTrackId, 'waveform', targetTime) : null;
         const sample = result?.metadata?.frame ?? null;
         const channelValues =
             sample?.channelValues && sample.channelValues.length

@@ -1,6 +1,6 @@
 import { migrateSceneAudioSystemV4 } from './audioSystemV4';
 import { migrateDescriptorChannels } from './unifyChannelField';
-import { normalizeChannelSelectorInput } from '@core/scene/elements/audioFeatureUtils';
+import { normalizeChannelSelectorInput } from '@audio/audioFeatureUtils';
 
 type MaybeRecord = Record<string, unknown>;
 
@@ -62,9 +62,11 @@ function extractChannelSelector(descriptor: MaybeRecord): ChannelSelectorValue |
     return tryNormalizeSelectorCandidate((descriptor as { channelIndex?: unknown }).channelIndex);
 }
 
-function sanitizeDescriptor(
-    descriptor: MaybeRecord,
-): { descriptor: MaybeRecord; selector: ChannelSelectorValue | null; mutated: boolean } {
+function sanitizeDescriptor(descriptor: MaybeRecord): {
+    descriptor: MaybeRecord;
+    selector: ChannelSelectorValue | null;
+    mutated: boolean;
+} {
     if (!isDescriptorLike(descriptor)) {
         return { descriptor, selector: null, mutated: false };
     }
@@ -86,7 +88,7 @@ function sanitizeDescriptor(
 
 function sanitizeDescriptorArray(
     value: unknown[],
-    recordSelector: (selector: ChannelSelectorValue | null) => void,
+    recordSelector: (selector: ChannelSelectorValue | null) => void
 ): { value: unknown[]; mutated: boolean } {
     let mutated = false;
     const result = value.map((entry) => {
@@ -113,7 +115,7 @@ function sanitizeDescriptorArray(
 
 function sanitizeBinding(
     binding: { type: 'constant'; value?: unknown },
-    recordSelector: (selector: ChannelSelectorValue | null) => void,
+    recordSelector: (selector: ChannelSelectorValue | null) => void
 ): { value: { type: 'constant'; value?: unknown }; mutated: boolean } {
     const { value } = binding;
     if (Array.isArray(value)) {
@@ -139,7 +141,7 @@ function sanitizeBinding(
 
 function sanitizeValue(
     value: unknown,
-    recordSelector: (selector: ChannelSelectorValue | null) => void,
+    recordSelector: (selector: ChannelSelectorValue | null) => void
 ): { value: unknown; mutated: boolean } {
     if (Array.isArray(value)) {
         const sanitized = sanitizeDescriptorArray(value, recordSelector);
@@ -167,11 +169,7 @@ function hasChannelSelectorBinding(source: MaybeRecord): boolean {
     return true;
 }
 
-function applyChannelSelector(
-    target: MaybeRecord,
-    selector: ChannelSelectorValue,
-    mutateConfig = false,
-): MaybeRecord {
+function applyChannelSelector(target: MaybeRecord, selector: ChannelSelectorValue, mutateConfig = false): MaybeRecord {
     let mutated = false;
     const next: MaybeRecord = { ...target };
     if (!hasChannelSelectorBinding(next)) {
@@ -197,7 +195,7 @@ function applyChannelSelector(
 
 function sanitizeRecord(
     source: MaybeRecord,
-    recordSelector: (selector: ChannelSelectorValue | null) => void,
+    recordSelector: (selector: ChannelSelectorValue | null) => void
 ): { record: MaybeRecord; mutated: boolean } {
     let mutated = false;
     const next: MaybeRecord = { ...source };

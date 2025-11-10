@@ -2,8 +2,8 @@ import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from 
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from '../audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from '../audioFeatureUtils';
+import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from '../../../../audio/audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;

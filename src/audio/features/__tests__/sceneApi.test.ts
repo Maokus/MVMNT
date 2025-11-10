@@ -7,7 +7,7 @@ import {
     getElementSubscriptionSnapshot,
 } from '@audio/features/sceneApi';
 import * as analysisIntents from '@audio/features/analysisIntents';
-import * as featureUtils from '@core/scene/elements/audioFeatureUtils';
+import * as featureUtils from '@audio/audioFeatureUtils';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 
 const element = { id: 'element-1', type: 'testElement' };

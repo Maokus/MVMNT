@@ -13,10 +13,13 @@ import {
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
 import { clearFeatureData } from '@audio/features/sceneApi';
 import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
-import { getFeatureRequirements } from './audioElementMetadata';
+import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 
-export type PropertyTransform<TValue, TElement = SceneElement> = (value: unknown, element: TElement) => TValue | undefined;
+export type PropertyTransform<TValue, TElement = SceneElement> = (
+    value: unknown,
+    element: TElement
+) => TValue | undefined;
 
 export interface PropertyDescriptor<TValue = unknown, TElement = SceneElement> {
     defaultValue?: TValue;
@@ -27,10 +30,7 @@ export type PropertyDescriptorMap<TElement = SceneElement> = Record<string, Prop
 
 type DescriptorValue<TDescriptor> = TDescriptor extends PropertyDescriptor<infer TValue, any> ? TValue : never;
 
-export type PropertySnapshot<
-    TDescriptors extends PropertyDescriptorMap<TElement>,
-    TElement = SceneElement,
-> = {
+export type PropertySnapshot<TDescriptors extends PropertyDescriptorMap<TElement>, TElement = SceneElement> = {
     [K in keyof TDescriptors]: DescriptorValue<TDescriptors[K]>;
 };
 
@@ -276,9 +276,7 @@ export class SceneElement implements SceneElementInterface {
             const transform = descriptor?.transform as PropertyTransform<unknown, this> | undefined;
             const transformed = transform ? transform(raw, this) : raw;
             const finalValue =
-                transformed !== undefined && transformed !== null
-                    ? transformed
-                    : descriptor?.defaultValue;
+                transformed !== undefined && transformed !== null ? transformed : descriptor?.defaultValue;
 
             resolved[key] = finalValue as PropertySnapshot<TDescriptors, this>[typeof key];
         }
