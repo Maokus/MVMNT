@@ -1,11 +1,11 @@
-import { SceneElement, asNumber, asTrimmedString } from './base';
+import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
-import { resolveDescriptorProfileId } from './audioFeatureUtils';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { resolveDescriptorProfileId } from '../audioFeatureUtils';
+import { registerFeatureRequirements } from '../audioElementMetadata';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -112,7 +112,7 @@ export class AudioWaveformElement extends SceneElement {
             ...base,
             name: 'Audio Waveform',
             description: 'Simple waveform preview for debugging audio features.',
-            category: 'audio',
+            category: 'Audio Displays',
             groups: [
                 ...basicGroups,
                 {

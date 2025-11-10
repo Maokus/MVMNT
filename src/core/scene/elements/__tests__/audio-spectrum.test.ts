@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AudioSpectrumElement } from '@core/scene/elements/audio-spectrum';
+import { AudioSpectrumElement } from '@core/scene/elements/audio-displays/audio-spectrum';
 import { Rectangle, Text } from '@core/render/render-objects';
 import * as sceneApi from '@audio/features/sceneApi';
 

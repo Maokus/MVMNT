@@ -1,9 +1,9 @@
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from './audioFeatureUtils';
-import { registerFeatureRequirements } from './audioElementMetadata';
+import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '../audioFeatureUtils';
+import { registerFeatureRequirements } from '../audioElementMetadata';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -43,7 +43,7 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             ...base,
             name: 'Audio Locked Oscilloscope',
             description: 'Displays a single pitch-locked waveform cycle.',
-            category: 'audio',
+            category: 'Audio Displays',
             groups: [
                 ...basicGroups,
                 {
@@ -144,8 +144,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '12px Inter, sans-serif',
                     '#94a3b8',
                     'left',
-                    'middle',
-                ),
+                    'middle'
+                )
             );
             return objects;
         }
@@ -163,8 +163,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '12px Inter, sans-serif',
                     '#94a3b8',
                     'left',
-                    'middle',
-                ),
+                    'middle'
+                )
             );
             return objects;
         }
@@ -187,8 +187,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                     '12px Inter, sans-serif',
                     '#94a3b8',
                     'left',
-                    'middle',
-                ),
+                    'middle'
+                )
             );
             return objects;
         }

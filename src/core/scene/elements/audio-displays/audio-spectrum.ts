@@ -1,9 +1,9 @@
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from './audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from './audioFeatureUtils';
+import { registerFeatureRequirements } from '../audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from '../audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -36,7 +36,7 @@ export class AudioSpectrumElement extends SceneElement {
             ...base,
             name: 'Audio Spectrum',
             description: 'Compact magnitude bars for inspecting spectral data.',
-            category: 'audio',
+            category: 'Audio Displays',
             groups: [
                 ...basicGroups,
                 {

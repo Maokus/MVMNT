@@ -1,9 +1,9 @@
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from './audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from './audioFeatureUtils';
+import { registerFeatureRequirements } from '../audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from '../audioFeatureUtils';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -50,7 +50,7 @@ export class AudioVolumeMeterElement extends SceneElement {
             ...base,
             name: 'Audio Volume Meter',
             description: 'Minimal RMS meter for quick debugging of audio levels.',
-            category: 'audio',
+            category: 'Audio Displays',
             groups: [
                 ...basicGroups,
                 {
