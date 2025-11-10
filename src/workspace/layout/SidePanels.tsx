@@ -13,11 +13,10 @@ import {
 } from '@floating-ui/react';
 import { SceneElementPanel, ElementDropdown } from '@workspace/panels/scene-element';
 import { PropertiesPanel } from '@workspace/panels/properties';
-import { CacheDiagnosticsPanel } from '@workspace/panels/properties/CacheDiagnosticsPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
 
-interface SidePanelsProps {}
+interface SidePanelsProps { }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const RESIZER_THICKNESS = 6;
@@ -319,7 +318,6 @@ const SidePanelsInternal: React.FC = () => {
                             onDebugSettingsChange={setDebugSettings}
                         />
                     </div>
-                    <CacheDiagnosticsPanel />
                 </div>
             </div>
         </div>

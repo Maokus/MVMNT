@@ -16,8 +16,7 @@ This involves the following changes in `src/state/audioDiagnosticsStore.ts`:
 
 1.  **Update `computeCacheDiffs` grouping:** Modify the initial loop that builds request groups. It should resolve the `audioSourceId` for each intent and use that for grouping instead of `trackRef`.
 2.  **Update `CacheDiff` interface:** The `trackRef` field in the `CacheDiff` interface should be changed to `trackRefs` (a string array) to accommodate multiple tracks being associated with a single diff entry.
-3.  **Update consumers of `CacheDiff`:** All UI components and logic that consume `CacheDiff` objects will need to be updated to handle the new `trackRefs` array instead of a single `trackRef`. This includes files like `CacheDiagnosticsPanel.tsx` and `AudioDiagnosticsSection.tsx`.
-4.  **Adjust regeneration logic:** Functions like `regenerateDescriptors` and `dismissExtraneous` are called with a `trackRef`. The logic needs to be adapted to handle the new grouping. It might involve looking up the `audioSourceId` from the `trackRef` and then finding the correct diff object.
+3.  **Adjust regeneration logic:** Functions like `regenerateDescriptors` and `dismissExtraneous` are called with a `trackRef`. The logic needs to be adapted to handle the new grouping. It might involve looking up the `audioSourceId` from the `trackRef` and then finding the correct diff object.
 
 ## 2. Persistent Dismissed Extraneous Descriptors
 
