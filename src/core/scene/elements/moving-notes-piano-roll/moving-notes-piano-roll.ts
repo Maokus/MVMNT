@@ -106,7 +106,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     variant: 'basic',
                     collapsed: false,
                     description: 'Choose which MIDI data feeds the piano roll.',
-                    properties: [{ key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null }],
+                    properties: [
+                        {
+                            key: 'midiTrackIds',
+                            type: 'timelineTrackRef',
+                            label: 'MIDI Tracks',
+                            default: [],
+                            allowMultiple: true,
+                            description: 'Optional multi-track selection for blending MIDI sources.',
+                        },
+                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
+                    ],
                     presets: [
                         { id: 'leadTrack', label: 'Lead Track', values: {} },
                         { id: 'accompaniment', label: 'Accompaniment', values: {} },
