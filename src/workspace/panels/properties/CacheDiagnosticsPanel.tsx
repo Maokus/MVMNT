@@ -7,7 +7,6 @@ import {
     type RegenerationJob,
 } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { isFeatureEnabled } from '@utils/featureFlags';
 
 interface DescriptorRow {
     id: string;
@@ -143,10 +142,6 @@ export const CacheDiagnosticsPanel: React.FC = () => {
         }
         return filtered;
     }, [diffs, preferences]);
-
-    if (!isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3')) {
-        return null;
-    }
 
     const totalIssues = diffs.reduce((acc, diff) => acc + diff.missing.length + diff.stale.length, 0);
     const trackName = (trackId: string): string => {
@@ -291,7 +286,7 @@ export const CacheDiagnosticsPanel: React.FC = () => {
                                                                 className={`rounded border px-2 py-1 text-[11px] transition ${disabled
                                                                     ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
                                                                     : 'border-emerald-400/60 text-emerald-200 hover:bg-emerald-500/20'
-                                                                }`}
+                                                                    }`}
                                                                 onClick={() => regenerateDescriptors(actionTrackRef, diff.analysisProfileId ?? null, [row.id], 'manual')}
                                                                 disabled={disabled}
                                                             >

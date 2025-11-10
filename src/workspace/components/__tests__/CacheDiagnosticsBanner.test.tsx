@@ -42,7 +42,6 @@ describe('CacheDiagnosticsBanner', () => {
             useAudioDiagnosticsStore.getState().reset();
         });
         resetAnalysisIntentStateForTests();
-        (window as any).__MVMNT_FLAGS__ = { 'feature.audioVis.cacheDiagnosticsPhase3': true };
         setupAudioTrack();
         audioFeatureCalculatorRegistry.unregister('test.spectrogram');
         audioFeatureCalculatorRegistry.register({
@@ -70,7 +69,6 @@ describe('CacheDiagnosticsBanner', () => {
             useTimelineStore.getState().resetTimeline();
         });
         resetAnalysisIntentStateForTests();
-        delete (window as any).__MVMNT_FLAGS__;
         vi.restoreAllMocks();
         audioFeatureCalculatorRegistry.unregister('test.spectrogram');
     });

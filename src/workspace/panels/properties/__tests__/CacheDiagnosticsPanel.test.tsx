@@ -69,7 +69,6 @@ describe('CacheDiagnosticsPanel', () => {
             useAudioDiagnosticsStore.getState().reset();
         });
         resetAnalysisIntentStateForTests();
-        (window as any).__MVMNT_FLAGS__ = { 'feature.audioVis.cacheDiagnosticsPhase3': true };
     });
 
     afterEach(() => {
@@ -78,7 +77,6 @@ describe('CacheDiagnosticsPanel', () => {
             useTimelineStore.getState().resetTimeline();
         });
         resetAnalysisIntentStateForTests();
-        delete (window as any).__MVMNT_FLAGS__;
         vi.restoreAllMocks();
     });
 

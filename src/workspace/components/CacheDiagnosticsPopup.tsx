@@ -1,9 +1,7 @@
 import React, { useCallback } from 'react';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { isFeatureEnabled } from '@utils/featureFlags';
 
 export const CacheDiagnosticsPopup: React.FC = () => {
-    const diagnosticsEnabled = isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3');
     const visible = useAudioDiagnosticsStore((state) => state.missingPopupVisible);
     const dismissMissingPopup = useAudioDiagnosticsStore((state) => state.dismissMissingPopup);
     const regenerateAll = useAudioDiagnosticsStore((state) => state.regenerateAll);
@@ -17,8 +15,7 @@ export const CacheDiagnosticsPopup: React.FC = () => {
         dismissMissingPopup();
     }, [regenerateAll, dismissMissingPopup]);
 
-    if (!diagnosticsEnabled || !visible) {
-        console.log(`[Cache Diagnostics Popup] ${diagnosticsEnabled} ${visible}`);
+    if (!visible) {
         return null;
     }
 

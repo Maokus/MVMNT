@@ -26,7 +26,6 @@ import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { CacheDiagnosticsBanner } from '@workspace/components/CacheDiagnosticsBanner';
 import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { isFeatureEnabled } from '@utils/featureFlags';
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const SIDE_MIN_WIDTH = 320;
@@ -62,9 +61,8 @@ const MidiVisualizerInner: React.FC = () => {
         return clampNumber(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
     });
 
-    const diagnosticsEnabled = isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3');
     const diagnosticsBannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
-    const showDiagnosticsBanner = diagnosticsEnabled && diagnosticsBannerVisible;
+    const showDiagnosticsBanner = diagnosticsBannerVisible;
 
     const getTimelineBounds = useCallback(() => {
         if (typeof window === 'undefined') {

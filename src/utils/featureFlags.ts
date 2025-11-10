@@ -1,6 +1,4 @@
-const DEFAULT_FLAGS: Record<string, boolean> = {
-    'feature.audioVis.cacheDiagnosticsPhase3': false,
-};
+const DEFAULT_FLAGS: Record<string, boolean> = {};
 
 function readWindowOverride(flag: string): boolean | undefined {
     if (typeof window === 'undefined') {

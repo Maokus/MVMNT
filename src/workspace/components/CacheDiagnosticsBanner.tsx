@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { isFeatureEnabled } from '@utils/featureFlags';
 
 export const CacheDiagnosticsBanner: React.FC = () => {
     const bannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
@@ -27,9 +26,6 @@ export const CacheDiagnosticsBanner: React.FC = () => {
         };
     }, [diffs]);
 
-    if (!isFeatureEnabled('feature.audioVis.cacheDiagnosticsPhase3')) {
-        return null;
-    }
     if (!bannerVisible || issueSummary.total === 0) {
         return null;
     }

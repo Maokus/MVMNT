@@ -9,14 +9,12 @@ describe('CacheDiagnosticsPopup', () => {
         act(() => {
             useAudioDiagnosticsStore.getState().reset();
         });
-        (window as any).__MVMNT_FLAGS__ = { 'feature.audioVis.cacheDiagnosticsPhase3': true };
     });
 
     afterEach(() => {
         act(() => {
             useAudioDiagnosticsStore.getState().reset();
         });
-        delete (window as any).__MVMNT_FLAGS__;
     });
 
     it('renders when diagnostics are enabled and popup is visible', () => {
@@ -33,11 +31,7 @@ describe('CacheDiagnosticsPopup', () => {
         expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
     });
 
-    it('does not render when feature flag is disabled', () => {
-        (window as any).__MVMNT_FLAGS__ = { 'feature.audioVis.cacheDiagnosticsPhase3': false };
-        act(() => {
-            useAudioDiagnosticsStore.setState({ missingPopupVisible: true });
-        });
+    it('does not render when the popup is hidden', () => {
         render(<CacheDiagnosticsPopup />);
         expect(
             screen.queryByText(
