@@ -18,6 +18,7 @@ export const CacheDiagnosticsPopup: React.FC = () => {
     }, [regenerateAll, dismissMissingPopup]);
 
     if (!diagnosticsEnabled || !visible) {
+        console.log(`[Cache Diagnostics Popup] ${diagnosticsEnabled} ${visible}`);
         return null;
     }
 
