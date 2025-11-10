@@ -92,7 +92,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
     }, [currentColor]);
 
     return (
-        <div className="color-input-wrapper">
+        <div className="color-input-wrapper" data-preserve-selection="true">
             <button
                 type="button"
                 id={id}
@@ -114,6 +114,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
                         ref={refs.setFloating}
                         style={floatingStyles}
                         className="color-input-popover"
+                        data-preserve-selection="true"
                         {...getFloatingProps()}
                     >
                         <Chrome color={currentColor} showAlpha={true} onChange={handleColorChange} placement={GithubPlacement.Bottom} />
