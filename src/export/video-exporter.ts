@@ -223,9 +223,10 @@ export class VideoExporter {
             // Determine bitrate: explicit overrides preset; else map preset -> mediabunny heuristic
             // QUALITY_HIGH may be an enum/opaque value; use simple numeric fallbacks if arithmetic not allowed.
             const presetMap: Record<string, number> = {
-                low: 1_000_000, // 1 Mbps
+                low: 1_000_000, // 1 Mbps – lightweight / preview quality
+                medium: 4_000_000, // 4 Mbps – good balance for social sharing
                 // prePadding removed (kept var for compatibility if downstream expects key)
-                high: 8_000_000, // 8 Mbps default
+                high: 8_000_000, // 8 Mbps default for visually lossless exports
             };
             // Manual bitrate overrides preset. videoBitrateMode/manual > legacy bitrate > preset.
             let chosenBitrate: number;

@@ -143,7 +143,9 @@ export class AVExporter {
             let mixDuration = (endTick - startTick) / ticksPerSecond;
             // Keep reference to raw mixed AudioBuffer so we can feed it into mediabunny directly
             let mixedAudioBuffer: AudioBuffer | null = null;
-            let mixedAudioChannels = 2;
+            const desiredMixChannels = (typeof audioChannels === 'number' ? audioChannels : 2) === 1 ? 1 : 2;
+            const desiredMixSampleRate = audioSampleRate === 'auto' ? sampleRate : audioSampleRate;
+            let mixedAudioChannels: 1 | 2 = desiredMixChannels;
             if (includeAudio) {
                 console.log('[AVExporter] Mixing audio for export range', startTick, 'to', endTick);
                 onProgress(3, 'Mixing audio...');
@@ -155,13 +157,13 @@ export class AVExporter {
                     startTick,
                     endTick,
                     ticksPerSecond,
-                    sampleRate,
-                    channels: 2,
+                    sampleRate: desiredMixSampleRate,
+                    channels: desiredMixChannels,
                 });
                 mixPeak = mixRes.peak;
                 mixDuration = mixRes.durationSeconds;
                 mixedAudioBuffer = mixRes.buffer;
-                mixedAudioChannels = mixRes.channels;
+                mixedAudioChannels = mixRes.channels === 1 ? 1 : 2;
                 if (mixRes.buffer.length === 0 || mixDuration === 0) {
                     console.warn(
                         '[AVExporter] Mixed audio buffer is empty (no audible tracks or zero-duration range). Video will have no audio.'

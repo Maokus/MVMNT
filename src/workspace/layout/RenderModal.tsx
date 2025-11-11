@@ -18,8 +18,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [rangeMode, setRangeMode] = useState(exportSettings.fullDuration);
     const [startTime, setStartTime] = useState<number>(exportSettings.startTime || 0);
     const [endTime, setEndTime] = useState<number>(exportSettings.endTime || 0);
-    const [qualityPreset, setQualityPreset] = useState<'low' | 'medium' | 'high'>('high'); // legacy preset (used when videoBitrateMode = auto && no manual override)
-    const [bitrate, setBitrate] = useState<number | ''>(''); // legacy custom bitrate (bps)
+    const [qualityPreset, setQualityPreset] = useState<'low' | 'medium' | 'high'>(exportSettings.qualityPreset || 'high');
     const [includeAudio, setIncludeAudio] = useState<boolean>(exportSettings.includeAudio !== false); // default true
     // New UI state
     const [fpsMode, setFpsMode] = useState<'24' | '30' | '60' | 'custom'>(exportSettings.fps === 24 ? '24' : exportSettings.fps === 30 ? '30' : exportSettings.fps === 60 ? '60' : 'custom');
@@ -118,7 +117,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             fps: effectiveFps,
             videoCodec,
             videoBitrateMode,
-            videoBitrate: videoBitrateMode === 'manual' ? videoBitrate : undefined,
+            videoBitrate: videoBitrateMode === 'manual' ? videoBitrate : prev.videoBitrate,
+            qualityPreset,
             audioCodec,
             audioBitrate,
             audioSampleRate,
@@ -134,7 +134,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     startTime,
                     endTime,
                     filename: filename.trim() || undefined,
-                    bitrate: bitrate === '' ? undefined : bitrate, // legacy path
                     qualityPreset,
                     includeAudio,
                     fps: effectiveFps,
@@ -210,18 +209,18 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                         <>
                             <label className="flex flex-col gap-1">Video Codec
                                 <select disabled={!capLoaded} value={videoCodec} onChange={e => setVideoCodec(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                    <option value="h264">H.264 (Default)</option>
-                                    <option value="auto">Auto</option>
                                     {videoCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </label>
-                            <label className="flex flex-col gap-1">Quality Preset
-                                <select value={qualityPreset} onChange={e => setQualityPreset(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </label>
+                            {videoBitrateMode === 'auto' && (
+                                <label className="flex flex-col gap-1">Quality Preset
+                                    <select value={qualityPreset} onChange={e => setQualityPreset(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </label>
+                            )}
                             <label className="flex flex-col gap-1">Video Bitrate Mode
                                 <select value={videoBitrateMode} onChange={e => setVideoBitrateMode(e.target.value as any)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
                                     <option value="auto">Auto</option>
@@ -248,8 +247,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 <>
                                     <label className="flex flex-col gap-1">Audio Codec
                                         <select disabled={!capLoaded} value={audioCodec} onChange={e => setAudioCodec(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                            <option value="aac">AAC (Default)</option>
-                                            <option value="auto">Auto</option>
                                             {audioCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </label>

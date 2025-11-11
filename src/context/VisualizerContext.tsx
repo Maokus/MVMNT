@@ -66,6 +66,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         videoCodec: 'h264',
         audioCodec: 'aac',
         videoBitrateMode: 'auto',
+        qualityPreset: 'high',
+        audioBitrate: 192_000,
         audioSampleRate: 'auto',
         audioChannels: 2,
     });
@@ -335,7 +337,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 maxFrames,
                 _startFrame: startFrame,
                 // Pass through new optional settings
-                bitrate: settings.bitrate,
                 qualityPreset: settings.qualityPreset,
                 includeAudio: settings.includeAudio,
                 videoCodec: settings.videoCodec,
