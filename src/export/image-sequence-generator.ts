@@ -3,6 +3,7 @@
 import { ExportClock } from '@export/export-clock';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
+import JSZip from 'jszip';
 
 interface ImageBlobData {
     blob: Blob;
@@ -31,13 +32,6 @@ interface GenerateSequenceOptions {
     // Internal/advanced options (not exposed in UI yet)
     _startFrame?: number; // used for partial exports
     deterministicTiming?: boolean; // snapshot tempo map at start (default true)
-}
-
-// Type for JSZip global
-declare global {
-    interface Window {
-        JSZip: any;
-    }
 }
 
 export class ImageSequenceGenerator {
@@ -220,14 +214,14 @@ export class ImageSequenceGenerator {
         sceneName: string,
         onProgress: (progress: number, text?: string) => void
     ): Promise<Blob> {
-        // Load JSZip library dynamically
-        const JSZip = await this.loadJSZip();
-
         const zip = new JSZip();
 
         // Create a folder for the sequence
         const folderName = `${sceneName}_sequence`.replace(/[^a-zA-Z0-9_]/g, '_');
         const folder = zip.folder(folderName);
+        if (!folder) {
+            throw new Error(`Failed to create ZIP folder: ${folderName}`);
+        }
 
         // Add metadata file
         const metadata: GenerationMetadata = {
@@ -268,30 +262,6 @@ export class ImageSequenceGenerator {
         onProgress(100);
         console.log(`ZIP file created: ${zipBlob.size} bytes`);
         return zipBlob;
-    }
-
-    private async loadJSZip(): Promise<any> {
-        if (window.JSZip) {
-            return window.JSZip;
-        }
-
-        console.log('Loading JSZip library...');
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
-            script.onload = () => {
-                if (window.JSZip) {
-                    console.log('✅ JSZip loaded successfully');
-                    resolve(window.JSZip);
-                } else {
-                    reject(new Error('JSZip not available after script load'));
-                }
-            };
-            script.onerror = () => {
-                reject(new Error('Failed to load JSZip library'));
-            };
-            document.head.appendChild(script);
-        });
     }
 
     stop(): void {

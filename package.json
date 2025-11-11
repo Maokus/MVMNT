@@ -11,6 +11,7 @@
         "@uiw/react-color-github": "^2.9.2",
         "fflate": "^0.8.2",
         "gifuct-js": "^2.1.2",
+        "jszip": "^3.10.1",
         "mediabunny": "^1.14.4",
         "opentype.js": "^1.3.4",
         "react": "^19.1.1",
