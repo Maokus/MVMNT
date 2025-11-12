@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useVisualizer } from '@context/VisualizerContext';
+import type { ExportSettings } from '@context/visualizer/types';
 // Capability helpers (mediabunny) – imported dynamically to avoid hard fail if tree-shaken
 // We use optional chaining; if unavailable we gracefully degrade.
 // @ts-ignore
@@ -133,22 +134,24 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     useEffect(() => {
         if (!audioCodecs.length) return;
-        if (audioCodecs.includes(form.audioCodec)) return;
         const priority = form.format === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
             : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
-        const fallbackCodec = priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0];
-        updateForm({ audioCodec: fallbackCodec });
+        const preferred = priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0];
+        if (preferred && preferred !== form.audioCodec) {
+            updateForm({ audioCodec: preferred });
+        }
     }, [audioCodecs, form.audioCodec, form.format, updateForm]);
 
     useEffect(() => {
         if (!videoCodecs.length) return;
-        if (videoCodecs.includes(form.videoCodec)) return;
         const mp4Priority = ['h264', 'avc', 'hevc', 'av1', 'vp9'];
         const webmPriority = ['vp9', 'av1', 'h264', 'avc'];
         const priority = form.format === 'webm' ? webmPriority : mp4Priority;
-        const fallbackCodec = priority.find((c) => videoCodecs.includes(c)) || videoCodecs[0];
-        updateForm({ videoCodec: fallbackCodec });
+        const preferred = priority.find((c) => videoCodecs.includes(c)) || videoCodecs[0];
+        if (preferred && preferred !== form.videoCodec) {
+            updateForm({ videoCodec: preferred });
+        }
     }, [videoCodecs, form.videoCodec, form.format, updateForm]);
     // Prefetch MP3 encoder chunk when user selects mp3 to reduce latency at export time.
     useEffect(() => {
@@ -167,47 +170,47 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     const beginExport = async () => {
         const effectiveContainer: 'mp4' | 'webm' = form.format === 'webm' ? 'webm' : 'mp4';
-        // Persist duration/range flags globally so future exports use them
-        setExportSettings((prev: any) => ({
-            ...prev,
+        const trimmedFilename = form.filename.trim();
+        const filename = trimmedFilename ? trimmedFilename : undefined;
+        const manualVideoBitrate = form.videoBitrateMode === 'manual' ? form.videoBitrate : undefined;
+        const baseOverrides: Partial<ExportSettings> = {
             fullDuration: form.fullDuration,
             startTime: form.startTime,
             endTime: form.endTime,
             includeAudio: form.includeAudio,
-            filename: form.filename.trim() || undefined,
+            filename,
             fps: effectiveFps,
-            container: form.format === 'png' ? prev.container : effectiveContainer,
             videoCodec: form.videoCodec,
             videoBitrateMode: form.videoBitrateMode,
-            videoBitrate: form.videoBitrateMode === 'manual' ? form.videoBitrate : prev.videoBitrate,
             qualityPreset: form.qualityPreset,
             audioCodec: form.audioCodec,
             audioBitrate: form.audioBitrate,
             audioSampleRate: form.audioSampleRate,
             audioChannels: form.audioChannels,
+        };
+
+        // Persist duration/range flags globally so future exports use them
+        setExportSettings((prev: ExportSettings) => ({
+            ...prev,
+            ...baseOverrides,
+            container: form.format === 'png' ? prev.container : effectiveContainer,
+            videoBitrate: manualVideoBitrate ?? prev.videoBitrate,
         }));
+
+        const exportOverrides: Partial<ExportSettings> = {
+            ...baseOverrides,
+            container: form.format === 'png' ? exportSettings.container : effectiveContainer,
+        };
+        if (manualVideoBitrate != null) {
+            exportOverrides.videoBitrate = manualVideoBitrate;
+        }
+
         setIsExporting(true);
         try {
             if (form.format === 'png') {
-                await exportSequence({ fullDuration: form.fullDuration, startTime: form.startTime, endTime: form.endTime, filename: form.filename.trim() || undefined });
+                await exportSequence(exportOverrides);
             } else {
-                await exportVideo({
-                    fullDuration: form.fullDuration,
-                    startTime: form.startTime,
-                    endTime: form.endTime,
-                    filename: form.filename.trim() || undefined,
-                    qualityPreset: form.qualityPreset,
-                    includeAudio: form.includeAudio,
-                    fps: effectiveFps,
-                    container: effectiveContainer,
-                    videoCodec: form.videoCodec,
-                    videoBitrateMode: form.videoBitrateMode,
-                    videoBitrate: form.videoBitrateMode === 'manual' ? form.videoBitrate : undefined,
-                    audioCodec: form.audioCodec,
-                    audioBitrate: form.audioBitrate,
-                    audioSampleRate: form.audioSampleRate,
-                    audioChannels: form.audioChannels,
-                });
+                await exportVideo(exportOverrides);
             }
             onClose();
         } catch (e) {
