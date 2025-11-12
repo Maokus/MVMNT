@@ -1,69 +1,97 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const featureControllerMocks = vi.hoisted(() => {
+    const store = new Map<object, any>();
+
+    const createController = () => ({
+        setStaticRequirements: vi.fn(),
+        updateTrack: vi.fn(),
+        registerAdHocDescriptor: vi.fn(),
+        syncExplicitDescriptors: vi.fn(),
+        getActiveTrackId: vi.fn(() => null),
+        getSubscriptionSnapshot: vi.fn(() => []),
+        clear: vi.fn(),
+    });
+
+    return {
+        store,
+        createController,
+    };
+});
+
 vi.mock('@audio/features/sceneApi', () => ({
-    clearFeatureData: vi.fn(),
-    syncElementFeatureIntents: vi.fn(),
     getElementSubscriptionSnapshot: vi.fn(() => []),
 }));
 
-import { clearFeatureData, syncElementFeatureIntents, getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
+vi.mock('@audio/features/featureSubscriptionController', () => {
+    const { store, createController } = featureControllerMocks;
+    return {
+        getFeatureSubscriptionController: vi.fn((element: object) => {
+            let controller = store.get(element);
+            if (!controller) {
+                controller = createController();
+                store.set(element, controller);
+            }
+            return controller;
+        }),
+        peekFeatureSubscriptionController: vi.fn((element: object) => store.get(element) ?? null),
+        releaseFeatureSubscriptionController: vi.fn((element: object) => {
+            store.delete(element);
+        }),
+        resetFeatureSubscriptionControllersForTests: vi.fn(() => {
+            store.clear();
+        }),
+        normalizeTrackId: (value: string | null | undefined) => {
+            if (typeof value !== 'string') return null;
+            const trimmed = value.trim();
+            return trimmed.length ? trimmed : null;
+        },
+    };
+});
+
+import { getElementSubscriptionSnapshot } from '@audio/features/sceneApi';
 import {
     getElementSubscriptions,
     hasSubscription,
     isInRequirements,
     syncElementSubscriptions,
 } from '@audio/features/subscriptionSync';
+import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
 
 const element = { id: 'element-1', type: 'test' };
 
 describe('subscriptionSync', () => {
     beforeEach(() => {
-        vi.mocked(clearFeatureData).mockClear();
-        vi.mocked(syncElementFeatureIntents).mockClear();
         vi.mocked(getElementSubscriptionSnapshot).mockClear();
+        featureControllerMocks.store.clear();
+        vi.mocked(getFeatureSubscriptionController).mockClear();
     });
 
-    it('clears feature data when track id is missing', () => {
-        syncElementSubscriptions(element, null, [{ feature: 'rms' }]);
-        expect(clearFeatureData).toHaveBeenCalledWith(element, null);
-        expect(syncElementFeatureIntents).not.toHaveBeenCalled();
+    it('routes requirements through the feature subscription controller', () => {
+        const requirements = [{ feature: 'spectrogram' }];
+        syncElementSubscriptions(element, 'track-1', requirements);
+
+        const controller = vi.mocked(getFeatureSubscriptionController).mock.results.at(-1)?.value as any;
+        expect(controller).toBeDefined();
+        expect(controller.setStaticRequirements).toHaveBeenCalledWith(requirements);
+        expect(controller.updateTrack).toHaveBeenCalledWith('track-1');
     });
 
-    it('clears feature data when requirements are empty', () => {
-        syncElementSubscriptions(element, 'track-1', []);
-        expect(clearFeatureData).toHaveBeenCalledWith(element, 'track-1');
-        expect(syncElementFeatureIntents).not.toHaveBeenCalled();
+    it('normalizes repeated invocations to the same controller instance', () => {
+        syncElementSubscriptions(element, 'track-a', [{ feature: 'rms' }]);
+        syncElementSubscriptions(element, 'track-b', [{ feature: 'rms' }]);
+
+        const controller = featureControllerMocks.store.get(element) as any;
+        expect(controller.setStaticRequirements).toHaveBeenCalledTimes(2);
+        expect(controller.updateTrack).toHaveBeenNthCalledWith(1, 'track-a');
+        expect(controller.updateTrack).toHaveBeenNthCalledWith(2, 'track-b');
     });
 
-    it('syncs unique descriptors for the provided requirements', () => {
-        syncElementSubscriptions(element, ' track-1 ', [
-            { feature: 'rms' },
-            { feature: 'rms' },
-            { feature: 'spectrogram', bandIndex: 1 },
-        ]);
+    it('passes through track ids with surrounding whitespace for controller normalization', () => {
+        syncElementSubscriptions(element, '  track-1  ', [{ feature: 'waveform' }]);
 
-        expect(clearFeatureData).not.toHaveBeenCalled();
-        expect(syncElementFeatureIntents).toHaveBeenCalledTimes(1);
-        const [, normalizedTrack, descriptors] = vi.mocked(syncElementFeatureIntents).mock.calls[0]!;
-        expect(normalizedTrack).toBe('track-1');
-        expect(descriptors).toHaveLength(2);
-    });
-
-    it('treats profile overrides as part of descriptor identity', () => {
-        syncElementSubscriptions(element, 'track-1', [
-            { feature: 'rms', profileParams: { windowSize: 1024 } },
-            { feature: 'rms', profileParams: { windowSize: 2048 } },
-        ]);
-
-        expect(syncElementFeatureIntents).toHaveBeenCalledTimes(1);
-        const [, , descriptors, profile, registryDelta] = vi.mocked(syncElementFeatureIntents).mock.calls[0]!;
-        expect(descriptors).toHaveLength(2);
-        const profileIds = new Set(descriptors.map((entry: any) => entry.analysisProfileId));
-        expect(profileIds.size).toBe(2);
-        expect(typeof profile).toBe('string');
-        expect(profileIds.has(profile as string)).toBe(true);
-        expect(registryDelta).toBeTruthy();
-        expect(Object.keys(registryDelta as Record<string, unknown>)).toEqual(Array.from(profileIds));
+        const controller = featureControllerMocks.store.get(element) as any;
+        expect(controller.updateTrack).toHaveBeenCalledWith('  track-1  ');
     });
 
     it('returns subscriptions from the scene api snapshot', () => {

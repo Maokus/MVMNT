@@ -56,31 +56,67 @@ vi.mock('@state/scene/macroSyncService', () => ({
     __resetMacroTestHarness: () => macroTestHarness.clearMacros(),
 }));
 
-vi.mock('@audio/features/subscriptionSync', () => ({
-    syncElementSubscriptions: vi.fn(),
-    getElementSubscriptions: vi.fn(() => []),
-    hasSubscription: vi.fn(() => false),
-    isInRequirements: vi.fn(() => false),
-    getElementSubscriptionDetails: vi.fn(() => []),
-}));
+const featureControllerMocks = vi.hoisted(() => {
+    const store = new Map<object, any>();
+
+    const createController = () => ({
+        setStaticRequirements: vi.fn(),
+        updateTrack: vi.fn(),
+        registerAdHocDescriptor: vi.fn(),
+        syncExplicitDescriptors: vi.fn(),
+        getActiveTrackId: vi.fn(() => null),
+        getSubscriptionSnapshot: vi.fn(() => []),
+        clear: vi.fn(),
+    });
+
+    return {
+        store,
+        createController,
+    };
+});
+
+vi.mock('@audio/features/featureSubscriptionController', () => {
+    const { store, createController } = featureControllerMocks;
+    return {
+        getFeatureSubscriptionController: vi.fn((element: object) => {
+            let controller = store.get(element);
+            if (!controller) {
+                controller = createController();
+                store.set(element, controller);
+            }
+            return controller;
+        }),
+        peekFeatureSubscriptionController: vi.fn((element: object) => store.get(element) ?? null),
+        releaseFeatureSubscriptionController: vi.fn((element: object) => {
+            store.delete(element);
+        }),
+        resetFeatureSubscriptionControllersForTests: vi.fn(() => {
+            store.clear();
+        }),
+        normalizeTrackId: (value: string | null | undefined) => {
+            if (typeof value !== 'string') return null;
+            const trimmed = value.trim();
+            return trimmed.length ? trimmed : null;
+        },
+    };
+});
 
 import { SceneElement, asBoolean, asNumber, asTrimmedString } from '@core/scene/elements/base';
 import * as sceneApi from '@audio/features/sceneApi';
 import { registerFeatureRequirements, resetFeatureRequirementsForTests } from '@audio/audioElementMetadata';
-import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 import * as macroSyncService from '@state/scene/macroSyncService';
-
-const mockedSync = vi.mocked(syncElementSubscriptions);
+import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
 
 beforeEach(() => {
     resetFeatureRequirementsForTests();
-    mockedSync.mockClear();
+    featureControllerMocks.store.clear();
+    vi.mocked(getFeatureSubscriptionController).mockClear();
     (macroSyncService as any).__resetMacroTestHarness?.();
 });
 
 afterEach(() => {
     resetFeatureRequirementsForTests();
-    mockedSync.mockClear();
+    featureControllerMocks.store.clear();
 });
 
 describe('SceneElement lifecycle', () => {
@@ -111,11 +147,9 @@ describe('SceneElement audio requirements integration', () => {
         }
 
         const element = new AudioTestElement({ audioTrackId: 'track-1' });
-        const calls = mockedSync.mock.calls.filter(([instance]) => instance === element);
-        expect(calls.length).toBeGreaterThan(0);
-        const lastCall = calls.at(-1);
-        expect(lastCall?.[1]).toBe('track-1');
-        expect(lastCall?.[2]).toEqual([{ feature: 'spectrogram' }]);
+        const controller = featureControllerMocks.store.get(element as object);
+        expect(controller?.setStaticRequirements).toHaveBeenCalledWith([{ feature: 'spectrogram' }]);
+        expect(controller?.updateTrack).toHaveBeenCalledWith('track-1');
     });
 
     it('resubscribes when the track id changes', () => {
@@ -128,15 +162,14 @@ describe('SceneElement audio requirements integration', () => {
         }
 
         const element = new AudioTestElement({ audioTrackId: 'initial' });
-        mockedSync.mockClear();
+        const controller = featureControllerMocks.store.get(element as object)!;
+        controller.setStaticRequirements.mockClear();
+        controller.updateTrack.mockClear();
 
         element.updateConfig({ audioTrackId: 'next-track' });
 
-        expect(mockedSync).toHaveBeenCalledTimes(1);
-        const [instance, trackId, requirements] = mockedSync.mock.calls[0]!;
-        expect(instance).toBe(element);
-        expect(trackId).toBe('next-track');
-        expect(requirements).toEqual([{ feature: 'rms' }]);
+        expect(controller.setStaticRequirements).toHaveBeenCalledWith([{ feature: 'rms' }]);
+        expect(controller.updateTrack).toHaveBeenCalledWith('next-track');
     });
 
     it('clears subscriptions when the track id is removed', () => {
@@ -149,14 +182,12 @@ describe('SceneElement audio requirements integration', () => {
         }
 
         const element = new AudioTestElement({ audioTrackId: 'keep-me' });
-        mockedSync.mockClear();
+        const controller = featureControllerMocks.store.get(element as object)!;
+        controller.updateTrack.mockClear();
 
         element.updateConfig({ audioTrackId: null });
 
-        expect(mockedSync).toHaveBeenCalledTimes(1);
-        const [instance, trackId] = mockedSync.mock.calls[0]!;
-        expect(instance).toBe(element);
-        expect(trackId).toBeNull();
+        expect(controller.updateTrack).toHaveBeenCalledWith(null);
     });
 
     it('resubscribes when a macro-bound track value changes', () => {
@@ -178,7 +209,8 @@ describe('SceneElement audio requirements integration', () => {
         element.bindToMacro('audioTrackId', 'macro-track');
         (element as any)._subscribeToRequiredFeatures();
 
-        mockedSync.mockClear();
+        const controller = featureControllerMocks.store.get(element as object)!;
+        controller.updateTrack.mockClear();
 
         (macroSyncService as any).__setMacro?.({
             id: 'macro-track',
@@ -193,11 +225,7 @@ describe('SceneElement audio requirements integration', () => {
             previousValue: 'track-initial',
         });
 
-        expect(mockedSync).toHaveBeenCalledTimes(1);
-        const [instance, trackId, requirements] = mockedSync.mock.calls[0]!;
-        expect(instance).toBe(element);
-        expect(trackId).toBe('track-next');
-        expect(requirements).toEqual([{ feature: 'waveform' }]);
+        expect(controller.updateTrack).toHaveBeenCalledWith('track-next');
 
         element.dispose();
     });
