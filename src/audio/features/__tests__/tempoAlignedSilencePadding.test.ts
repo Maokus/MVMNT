@@ -91,6 +91,7 @@ describe('tempoAlignedViewAdapter silence padding', () => {
         const channels = 3;
         const frameCount = 4;
         const data = Float32Array.from({ length: frameCount * channels }, (_, index) => index / 10);
+        const silentDecibels = -80;
 
         ingestTrack(trackId, {
             key: trackKey,
@@ -117,11 +118,11 @@ describe('tempoAlignedViewAdapter silence padding', () => {
 
         expect(sample).toBeDefined();
         expect(sample?.values).toHaveLength(channels);
-        expect(sample?.values.every((value) => value === 0)).toBe(true);
+        expect(sample?.values.every((value) => value === silentDecibels)).toBe(true);
         expect(sample?.channelValues).toHaveLength(channels);
         sample?.channelValues.forEach((channel) => {
             expect(channel).toHaveLength(1);
-            expect(channel.every((value) => value === 0)).toBe(true);
+            expect(channel.every((value) => value === silentDecibels)).toBe(true);
         });
     });
 

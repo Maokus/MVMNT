@@ -7,7 +7,7 @@ import type {
     AudioFeatureTrackFormat,
     ChannelLayoutMeta,
 } from './audioFeatureTypes';
-import { resolveFeatureTrackFromCache } from './featureTrackIdentity';
+import { parseFeatureTrackKey, resolveFeatureTrackFromCache } from './featureTrackIdentity';
 import { normalizeHopTicks, quantizeHopTicks } from './hopQuantization';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
@@ -510,12 +510,46 @@ function buildFrameVector(track: AudioFeatureTrack, frameIndex: number, options:
     return buildFrameVectorInfo(track, frameIndex, options).flatValues;
 }
 
+function toFiniteNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+            return parsed;
+        }
+    }
+    return undefined;
+}
+
+const DEFAULT_SILENT_SPECTROGRAM_DECIBELS = -80;
+
+function resolveSilentFillValue(track: AudioFeatureTrack): number {
+    const metadata = (track.metadata ?? {}) as { minDecibels?: unknown };
+    const analysisParams = (track.analysisParams ?? {}) as { minDecibels?: unknown };
+    const metadataMin = toFiniteNumber(metadata.minDecibels);
+    const analysisMin = toFiniteNumber(analysisParams.minDecibels);
+    if (metadataMin != null) {
+        return metadataMin;
+    }
+    if (analysisMin != null) {
+        return analysisMin;
+    }
+    const featureKey = parseFeatureTrackKey(track.key).featureKey;
+    if (featureKey === 'spectrogram' || track.calculatorId === 'mvmnt.spectrogram') {
+        return DEFAULT_SILENT_SPECTROGRAM_DECIBELS;
+    }
+    return 0;
+}
+
 function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameVectorInfo {
     const shape = ensureFrameShape(track, options);
     const channelSizes = cloneChannelSizes(shape.channelSizes);
-    const channelValues = channelSizes.map((size) => new Array(size).fill(0));
+    const silentValue = resolveSilentFillValue(track);
+    const channelValues = channelSizes.map((size) => new Array(size).fill(silentValue));
     const totalValues = channelSizes.reduce((total, size) => total + size, 0);
-    const flatValues = new Array(totalValues).fill(0);
+    const flatValues = new Array(totalValues).fill(silentValue);
     const frameLength =
         track.format === 'waveform-periodic'
             ? shape.frameLength != null && Number.isFinite(shape.frameLength)
