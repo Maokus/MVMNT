@@ -1,5 +1,7 @@
 # Creating audio-reactive scene elements
 
+_Last reviewed: 12 November 2025_
+
 ## Overview
 
 Audio-reactive elements request analysis data from the audio cache system. Elements declare the
@@ -9,8 +11,9 @@ runtime. Follow the patterns below to stay aligned with the v4 audio system simp
 ## Automatic feature requirements
 
 Use the metadata registry to declare fixed feature dependencies for your element. The base
-`SceneElement` automatically subscribes whenever `audioTrackId` changes, so subclasses only need to
-render.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L110】
+`SceneElement` forwards those requirements to a `FeatureSubscriptionController`, which watches both
+direct property edits and macro-driven updates to `audioTrackId`, so subclasses only need to
+render.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L43】【F:src/core/scene/elements/base.ts†L73-L210】
 
 ```ts
 import { SceneElement } from '@core/scene/elements/base';
@@ -37,17 +40,19 @@ export class AudioSpectrumElement extends SceneElement {
 ## Sampling audio feature data
 
 Call `getFeatureData` to retrieve tempo-aligned frames, passing any runtime smoothing or
-interpolation options you want to apply during rendering.【F:src/audio/features/sceneApi.ts†L126-L199】
-For range windows (such as oscilloscopes), use `sampleFeatureFrame` directly so you can control the
+interpolation options you want to apply during rendering. The subscription controller keeps the
+descriptor warm even if the element is still waiting for a persisted ID, using a deterministic
+fallback key until `SceneElement.id` is assigned.【F:src/audio/features/sceneApi.ts†L66-L207】 For
+range windows (such as oscilloscopes), use `sampleFeatureFrame` directly so you can control the
 start and end ticks.【F:src/core/scene/elements/audioFeatureUtils.ts†L126-L213】
 
 ## Handling dynamic feature choices
 
 If an element exposes a property that changes which feature it visualizes, update subscriptions
 explicitly. Generate descriptors with `createFeatureDescriptor` and call
-`syncElementFeatureIntents` so the scene API tracks active subscriptions and cleans up unused
-intents.【F:src/audio/features/sceneApi.ts†L210-L296】 Reset with `clearFeatureData` when the element no
-longer needs any audio data.
+`syncElementFeatureIntents`; the controller will merge these explicit descriptors with the static
+requirements so diagnostics stay in sync and bus churn is minimized. Reset with `clearFeatureData`
+when the element no longer needs any audio data.【F:src/audio/features/sceneApi.ts†L209-L303】
 
 ```ts
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';

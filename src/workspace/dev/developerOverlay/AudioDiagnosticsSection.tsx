@@ -17,6 +17,9 @@ type FeatureRequestRecord = {
     elementId: string;
     elementType: string;
     trackRef: string;
+    lastPublishedTrackRef: string;
+    previousTrackRef: string | null;
+    trackHistory: string[];
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorRecord>;
     requirementDiagnostics: Array<{ descriptor: AudioFeatureDescriptor; satisfied: boolean }>;
@@ -352,7 +355,14 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                         ({record.elementType})
                                                     </span>
                                                     <span style={{ opacity: 0.5 }}>
-                                                        · {record.trackRef}
+                                                        · last track: {record.lastPublishedTrackRef}
+                                                        {record.previousTrackRef &&
+                                                            record.previousTrackRef !== record.lastPublishedTrackRef ? (
+                                                            <span>
+                                                                {' '}
+                                                                (prev: {record.previousTrackRef})
+                                                            </span>
+                                                        ) : null}
                                                     </span>
                                                 </div>
                                                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
@@ -384,6 +394,14 @@ export const AudioDiagnosticsSection: React.FC<AudioDiagnosticsSectionProps> = (
                                                         ))}
                                                     </ul>
                                                 </div>
+                                                {record.trackHistory && record.trackHistory.length > 1 ? (
+                                                    <div>
+                                                        <div style={{ opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, marginBottom: 4 }}>
+                                                            Track history
+                                                        </div>
+                                                        <div>{record.trackHistory.join(' → ')}</div>
+                                                    </div>
+                                                ) : null}
                                                 {missingRequirements.length ? (
                                                     <div>
                                                         <div style={{ color: '#f97316', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>

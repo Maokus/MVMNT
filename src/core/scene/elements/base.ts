@@ -12,7 +12,7 @@ import {
 } from '@bindings/property-bindings';
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
 import { clearFeatureData } from '@audio/features/sceneApi';
-import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
+import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
 import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
@@ -139,11 +139,15 @@ export class SceneElement implements SceneElementInterface {
      */
     private _setupMacroListener(): void {
         this._macroUnsubscribe = subscribeToMacroEvents((event: MacroEvent) => {
+            let requiresFeatureResubscribe = false;
             if (event.type === 'macroValueChanged') {
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macroDeleted') {
@@ -153,16 +157,27 @@ export class SceneElement implements SceneElementInterface {
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macrosImported') {
                 // Imported snapshots may replace macro objects entirely; drop caches for macro-bound props.
+                const audioTrackBinding = this.bindings.get('audioTrackId');
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding) {
                         this._cacheValid.set(key, false);
                     }
                 });
                 this._invalidateBoundsCache();
+                if (audioTrackBinding instanceof MacroBinding) {
+                    requiresFeatureResubscribe = true;
+                }
+            }
+
+            if (requiresFeatureResubscribe) {
+                this._subscribeToRequiredFeatures();
             }
         });
     }
@@ -177,8 +192,9 @@ export class SceneElement implements SceneElementInterface {
         const requirements = getFeatureRequirements(this.type);
         const binding = this.bindings.get('audioTrackId');
         const rawTrack = binding ? this.getProperty<string>('audioTrackId') : null;
-        const normalized = typeof rawTrack === 'string' && rawTrack.trim().length > 0 ? rawTrack.trim() : null;
-        syncElementSubscriptions(this, normalized, requirements);
+        const controller = getFeatureSubscriptionController(this);
+        controller.setStaticRequirements(requirements);
+        controller.updateTrack(rawTrack);
     }
 
     /**
