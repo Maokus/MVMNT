@@ -57,6 +57,9 @@ interface AnalysisIntentRecord {
     elementId: string;
     elementType: string;
     trackRef: string;
+    lastPublishedTrackRef: string;
+    previousTrackRef: string | null;
+    trackHistory: string[];
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorInfo>;
     requestedAt: string;
@@ -188,6 +191,7 @@ function extractFeatureKey(descriptorId: string): string | null {
 }
 
 const DEFAULT_PROFILE_KEY = 'default';
+const TRACK_HISTORY_LIMIT = 5;
 
 function sanitizeProfileId(value: string | null | undefined): string | null {
     return sanitizeAnalysisProfileId(value);
@@ -217,6 +221,26 @@ function buildDescriptorRequestKey(matchKey: string, profileKey: string, profile
         parts.push(`hash:${profileHash}`);
     }
     return parts.join('|');
+}
+
+function buildTrackHistory(currentTrack: string, previousHistory: string[] | undefined): string[] {
+    const history: string[] = [];
+    const normalizedCurrent = typeof currentTrack === 'string' ? currentTrack.trim() : '';
+    if (normalizedCurrent.length) {
+        history.push(normalizedCurrent);
+    }
+    if (previousHistory && previousHistory.length) {
+        for (const entry of previousHistory) {
+            if (!entry || history.includes(entry)) {
+                continue;
+            }
+            history.push(entry);
+            if (history.length >= TRACK_HISTORY_LIMIT) {
+                break;
+            }
+        }
+    }
+    return history;
 }
 
 function isDescriptorKnown(
@@ -818,23 +842,36 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
             .map((entry) => entry.requestKey)
             .filter((key) => !requirementKeys.has(key));
         const autoManaged = requirementDiagnostics.length > 0;
-        set((state) => ({
-            intentsByElement: {
-                ...state.intentsByElement,
-                [intent.elementId]: {
-                    elementId: intent.elementId,
-                    elementType: intent.elementType,
-                    trackRef: intent.trackRef,
-                    analysisProfileId: intentProfileId,
-                    descriptors,
-                    requestedAt: intent.requestedAt,
-                    autoManaged,
-                    requirementDiagnostics,
-                    unexpectedDescriptors,
-                    profileRegistryDelta: intent.profileRegistryDelta ?? null,
+        set((state) => {
+            const previousRecord = state.intentsByElement[intent.elementId];
+            const previousPublishedTrack = previousRecord?.lastPublishedTrackRef ?? previousRecord?.trackRef ?? null;
+            const previousTrackRef =
+                previousPublishedTrack && previousPublishedTrack !== intent.trackRef
+                    ? previousPublishedTrack
+                    : previousRecord?.previousTrackRef ?? null;
+            const trackHistory = buildTrackHistory(intent.trackRef, previousRecord?.trackHistory);
+
+            return {
+                intentsByElement: {
+                    ...state.intentsByElement,
+                    [intent.elementId]: {
+                        elementId: intent.elementId,
+                        elementType: intent.elementType,
+                        trackRef: intent.trackRef,
+                        lastPublishedTrackRef: intent.trackRef,
+                        previousTrackRef,
+                        trackHistory,
+                        analysisProfileId: intentProfileId,
+                        descriptors,
+                        requestedAt: intent.requestedAt,
+                        autoManaged,
+                        requirementDiagnostics,
+                        unexpectedDescriptors,
+                        profileRegistryDelta: intent.profileRegistryDelta ?? null,
+                    },
                 },
-            },
-        }));
+            };
+        });
         get().recomputeDiffs();
     },
     removeIntent(elementId: string) {

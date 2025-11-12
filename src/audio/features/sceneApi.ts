@@ -58,6 +58,26 @@ interface ElementIntentState {
 }
 
 let elementStates = new WeakMap<object, ElementIntentState>();
+const fallbackElementIds = new WeakMap<object, string>();
+let fallbackElementIdCounter = 0;
+
+function slugifyElementType(value: string): string {
+    const sanitized = value.trim().toLowerCase();
+    const slug = sanitized.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return slug.length ? slug : 'unknown';
+}
+
+function getOrCreateFallbackElementId(element: object, elementType: string): string {
+    const existing = fallbackElementIds.get(element);
+    if (existing) {
+        return existing;
+    }
+    fallbackElementIdCounter += 1;
+    const slug = slugifyElementType(elementType);
+    const generated = `__feature:${slug}:${fallbackElementIdCounter.toString(36)}`;
+    fallbackElementIds.set(element, generated);
+    return generated;
+}
 
 export interface ElementSubscriptionSnapshot {
     trackId: string;
@@ -75,11 +95,25 @@ function resolveElementIdentity(element: SceneFeatureElementRef | object): { id:
         const rawId = (element as SceneFeatureElementRef).id;
         const id = typeof rawId === 'string' && rawId.trim().length ? rawId.trim() : null;
         const rawType = (element as SceneFeatureElementRef).type;
+        let resolvedType: string;
         if (typeof rawType === 'string' && rawType.trim().length) {
-            return { id, type: rawType.trim() };
+            resolvedType = rawType.trim();
+        } else {
+            const ctorName = (element as any)?.constructor?.name;
+            resolvedType = typeof ctorName === 'string' && ctorName.length ? ctorName : 'unknown';
         }
-        const ctorName = (element as any)?.constructor?.name;
-        return { id, type: typeof ctorName === 'string' && ctorName.length ? ctorName : 'unknown' };
+
+        if (id) {
+            fallbackElementIds.delete(element as object);
+            return { id, type: resolvedType };
+        }
+
+        if (typeof rawType === 'string' && rawType.trim().length) {
+            const fallbackId = getOrCreateFallbackElementId(element as object, resolvedType);
+            return { id: fallbackId, type: resolvedType };
+        }
+
+        return { id: null, type: resolvedType };
     }
     return { id: null, type: 'unknown' };
 }

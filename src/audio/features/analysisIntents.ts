@@ -154,6 +154,20 @@ export function publishAnalysisIntent(
     maybeOptionsOrDescriptors?: PublishAnalysisIntentOptions | DescriptorList
 ): void {
     if (!elementId) {
+        if (process.env.NODE_ENV !== 'production') {
+            const descriptorCount = Array.isArray(descriptorsOrProfile)
+                ? descriptorsOrProfile.filter(Boolean).length
+                : Array.isArray(maybeOptionsOrDescriptors)
+                ? (maybeOptionsOrDescriptors as DescriptorList).filter(Boolean).length
+                : 0;
+            console.warn(
+                `[analysisIntents] Dropping publish for element type "${elementType}" because elementId is missing`,
+                {
+                    trackRef: trackRef ?? null,
+                    descriptors: descriptorCount,
+                }
+            );
+        }
         return;
     }
     let descriptors: DescriptorList = [];

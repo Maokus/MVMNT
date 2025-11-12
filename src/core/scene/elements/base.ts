@@ -139,11 +139,15 @@ export class SceneElement implements SceneElementInterface {
      */
     private _setupMacroListener(): void {
         this._macroUnsubscribe = subscribeToMacroEvents((event: MacroEvent) => {
+            let requiresFeatureResubscribe = false;
             if (event.type === 'macroValueChanged') {
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macroDeleted') {
@@ -153,16 +157,27 @@ export class SceneElement implements SceneElementInterface {
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macrosImported') {
                 // Imported snapshots may replace macro objects entirely; drop caches for macro-bound props.
+                const audioTrackBinding = this.bindings.get('audioTrackId');
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding) {
                         this._cacheValid.set(key, false);
                     }
                 });
                 this._invalidateBoundsCache();
+                if (audioTrackBinding instanceof MacroBinding) {
+                    requiresFeatureResubscribe = true;
+                }
+            }
+
+            if (requiresFeatureResubscribe) {
+                this._subscribeToRequiredFeatures();
             }
         });
     }
