@@ -6,8 +6,12 @@ import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { resolveDescriptorProfileId } from '../../../../audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '../utils/color';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
+
+const DEFAULT_LINE_COLOR = '#22D3EEFF';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
 
 registerFeatureRequirements('audioWaveform', [{ feature: 'waveform' }]);
 registerFeatureRequirements('audioOscilloscope', [{ feature: 'waveform' }]);
@@ -170,10 +174,13 @@ export class AudioWaveformElement extends SceneElement {
                         },
                         {
                             key: 'lineColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Line Color',
-                            default: '#22d3ee',
-                            runtime: { transform: asTrimmedString, defaultValue: '#22d3ee' },
+                            default: DEFAULT_LINE_COLOR,
+                            runtime: {
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
+                                defaultValue: DEFAULT_LINE_COLOR,
+                            },
                         },
                         {
                             key: 'lineWidth',
@@ -193,12 +200,12 @@ export class AudioWaveformElement extends SceneElement {
                         },
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background',
-                            default: 'rgba(15, 23, 42, 0.35)',
+                            default: DEFAULT_BACKGROUND_COLOR,
                             runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(15, 23, 42, 0.35)',
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
                         },
                         {

@@ -172,7 +172,7 @@ describe('simplified audio scene elements', () => {
             | undefined;
 
         expect(waveform).toBeInstanceOf(Poly);
-        expect((waveform as Poly).strokeColor).toBe('#ff00ff');
+        expect((waveform as Poly).strokeColor).toBe('#FF00FFFF');
     });
 
     it('summarizes channel metadata in the audio debug panel', () => {

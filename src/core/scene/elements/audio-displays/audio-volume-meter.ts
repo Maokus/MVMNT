@@ -4,6 +4,7 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '../../../../audio/audioFeatureUtils';
+import { normalizeColorAlphaValue } from '../utils/color';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -15,6 +16,9 @@ function clamp(value: number, min: number, max: number): number {
 function clamp01(value: number): number {
     return clamp(value, 0, 1);
 }
+
+const DEFAULT_METER_COLOR = '#F472B6FF';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
 
 registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
 
@@ -127,19 +131,22 @@ export class AudioVolumeMeterElement extends SceneElement {
                         },
                         {
                             key: 'meterColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Meter Color',
-                            default: '#f472b6',
-                            runtime: { transform: asTrimmedString, defaultValue: '#f472b6' },
+                            default: DEFAULT_METER_COLOR,
+                            runtime: {
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_METER_COLOR),
+                                defaultValue: DEFAULT_METER_COLOR,
+                            },
                         },
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background',
-                            default: 'rgba(15, 23, 42, 0.35)',
+                            default: DEFAULT_BACKGROUND_COLOR,
                             runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(15, 23, 42, 0.35)',
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
                         },
                         {

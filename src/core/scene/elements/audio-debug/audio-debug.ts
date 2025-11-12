@@ -5,6 +5,7 @@ import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegi
 import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi';
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '../utils/color';
 
 interface FeatureOption {
     value: string;
@@ -71,6 +72,9 @@ function resolveFeatureOptions(): FeatureOption[] {
 
     return options;
 }
+
+const DEFAULT_TEXT_COLOR = '#E2E8F0FF';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A8C';
 
 const clampToRange =
     (min: number, max: number): PropertyTransform<number, SceneElementInterface> =>
@@ -405,19 +409,22 @@ export class AudioDebugElement extends SceneElement {
                         },
                         {
                             key: 'textColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Text Color',
-                            default: '#e2e8f0',
-                            runtime: { transform: asTrimmedString, defaultValue: '#e2e8f0' },
+                            default: DEFAULT_TEXT_COLOR,
+                            runtime: {
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_TEXT_COLOR),
+                                defaultValue: DEFAULT_TEXT_COLOR,
+                            },
                         },
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background',
-                            default: 'rgba(15, 23, 42, 0.55)',
+                            default: DEFAULT_BACKGROUND_COLOR,
                             runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(15, 23, 42, 0.55)',
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
                         },
                     ],

@@ -4,6 +4,7 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '../../../../audio/audioFeatureUtils';
+import { normalizeColorAlphaValue } from '../utils/color';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -17,6 +18,9 @@ function average(values: number[]): number {
     const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
     return total / values.length;
 }
+
+const DEFAULT_BAR_COLOR = '#60A5FAFF';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
@@ -122,19 +126,22 @@ export class AudioSpectrumElement extends SceneElement {
                         },
                         {
                             key: 'barColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Bar Color',
-                            default: '#60a5fa',
-                            runtime: { transform: asTrimmedString, defaultValue: '#60a5fa' },
+                            default: DEFAULT_BAR_COLOR,
+                            runtime: {
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BAR_COLOR),
+                                defaultValue: DEFAULT_BAR_COLOR,
+                            },
                         },
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background',
-                            default: 'rgba(15, 23, 42, 0.35)',
+                            default: DEFAULT_BACKGROUND_COLOR,
                             runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(15, 23, 42, 0.35)',
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
                         },
                         {

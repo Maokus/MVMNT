@@ -8,8 +8,12 @@ import {
     selectChannelSample,
 } from '../../../../audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '../utils/color';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
+
+const DEFAULT_LINE_COLOR = '#F472B6FF';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
 
 registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchWaveform' }]);
 
@@ -96,10 +100,13 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         },
                         {
                             key: 'lineColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Line Color',
-                            default: '#f472b6',
-                            runtime: { transform: asTrimmedString, defaultValue: '#f472b6' },
+                            default: DEFAULT_LINE_COLOR,
+                            runtime: {
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
+                                defaultValue: DEFAULT_LINE_COLOR,
+                            },
                         },
                         {
                             key: 'lineWidth',
@@ -119,12 +126,12 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         },
                         {
                             key: 'backgroundColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Background',
-                            default: 'rgba(15, 23, 42, 0.35)',
+                            default: DEFAULT_BACKGROUND_COLOR,
                             runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(15, 23, 42, 0.35)',
+                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                                defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
                         },
                     ],
