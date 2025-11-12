@@ -1,6 +1,6 @@
 # Audio Cache System
 
-_Last reviewed: 25 October 2025_
+_Last reviewed: 12 November 2025_
 
 The audio cache system transforms decoded audio into tempo-aligned feature tracks that any scene element can sample. Phase 9 of the audio system simplification project clarified how the pieces fit together—this document captures the current mental model and links to the developer guides you will use most often.
 
@@ -42,6 +42,7 @@ The sections below dive into architecture details, advanced usage, and the migra
 -   **Analysis Scheduler** runs calculators sequentially, reporting progress, handling cancellation, and ensuring only one analysis job touches a source at a time.【F:src/audio/features/audioFeatureScheduler.ts†L38-L102】【F:src/state/timelineStore.ts†L283-L375】
 -   **Feature Requirements Registry** lets elements register internal dependencies once. During runtime the registry informs diagnostics panels and simplifies reasoning about which data a surface needs.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】
 -   **Analysis Intent Bus** deduplicates subscriptions. When multiple surfaces need the same descriptor, they share cache entries automatically without triggering duplicate work.【F:src/audio/features/analysisIntents.ts†L80-L133】
+-   **Feature Subscription Controller** keeps per-element state, normalizes track IDs (including macro-driven changes), merges static requirements with ad-hoc descriptors, and publishes intents only when something meaningful changes. It also generates fallback element IDs during early render passes so requests are never dropped before persistence assigns a real ID.【F:src/audio/features/featureSubscriptionController.ts†L1-L404】
 -   **Tempo-Aligned View Adapter** translates timeline ticks or seconds into frame indices and applies runtime presentation logic (interpolation, smoothing) without altering descriptor identity.【F:src/audio/features/tempoAlignedViewAdapter.ts†L1-L218】
 
 ### Descriptors vs Sampling Options
@@ -50,7 +51,7 @@ The sections below dive into architecture details, advanced usage, and the migra
 
 ### Lazy and Explicit Subscription APIs
 
-Most elements rely on the lazy API: call `getFeatureData` during render and the scene runtime will publish intents, track descriptors, and resolve cache samples for you. When you need manual control (for example, to swap descriptor sets in response to animations) call `syncElementFeatureIntents` with explicit descriptors and manage sampling yourself. Both APIs feed the same intent bus, so diagnostics remain accurate regardless of approach.【F:src/audio/features/sceneApi.ts†L209-L303】
+Most elements rely on the lazy API: call `getFeatureData` during render and the scene runtime will publish intents, track descriptors, and resolve cache samples for you. The `FeatureSubscriptionController` hides the lifecycle details—static requirements, explicit overrides, and ad-hoc descriptors all flow through the same diffing logic, so swapping profiles or toggling macros no longer leaves stale intents behind. When you need manual control (for example, to swap descriptor sets in response to animations) call `syncElementFeatureIntents` with explicit descriptors and manage sampling yourself. Both APIs feed the same intent bus, so diagnostics remain accurate regardless of approach.【F:src/audio/features/sceneApi.ts†L209-L303】
 
 ## Cache Lifecycle and Storage
 
@@ -259,9 +260,11 @@ audioFeatureCalculatorRegistry.register(peakHoldCalculator);
 ## Requesting and Sampling Feature Data in Scene Elements
 
 Scene elements declare their audio feature needs through the metadata registry. The base
-`SceneElement` class subscribes automatically whenever the bound track changes, so renderers
-only have to sample data at runtime. Requirements remain internal to the element—authors never
-see or edit them in the property panel.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L110】
+`SceneElement` class subscribes automatically whenever the bound track changes (including
+macro-driven updates), so renderers only have to sample data at runtime. Requirements remain
+internal to the element—authors never see or edit them in the property panel. When an element is
+instantiated before it receives a persisted ID, the subscription controller now generates a
+deterministic fallback key so the initial intent is still published and cached.【F:src/core/scene/elements/audioElementMetadata.ts†L1-L44】【F:src/core/scene/elements/base.ts†L73-L210】
 
 ### Basic Usage Pattern
 

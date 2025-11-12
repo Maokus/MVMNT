@@ -1,6 +1,6 @@
 # Audio Concepts
 
-_Last reviewed: 25 October 2025_
+_Last reviewed: 12 November 2025_
 
 This guide clarifies the mental model behind the v4 audio system. Use it as a primer before diving
 into implementation details or when mentoring teammates on the new flow.
@@ -29,13 +29,15 @@ into implementation details or when mentoring teammates on the new flow.
 
 ## Automatic vs explicit subscriptions
 
--   **Automatic (lazy API)**: `getFeatureData` handles subscription lifecycle for the common case.
-    Use it in `_buildRenderObjects` to fetch the current frame on demand. The runtime deduplicates
-    descriptors per track.
+-   **Automatic (lazy API)**: `getFeatureData` handles subscription lifecycle for the common case via
+    the per-element `FeatureSubscriptionController`. Use it in `_buildRenderObjects` to fetch the
+    current frame on demand; the controller diffing logic deduplicates descriptors per track and
+    tracks macro-driven changes around `audioTrackId`.
 -   **Explicit**: When elements need full control (e.g., to prefetch multiple descriptors or swap sets
     mid-animation) build descriptors with `createFeatureDescriptor` and call
-    `syncElementFeatureIntents`. You can still sample via `sampleFeatureFrame` or reuse the lazy API by
-    passing the descriptor object.
+    `syncElementFeatureIntents`. The controller merges these explicit descriptors with the static
+    requirement set so you can still sample via `sampleFeatureFrame` or reuse the lazy API by passing
+    the descriptor object.
 -   Both paths publish to the same analysis intent bus, so diagnostics and tooling always show an
     accurate subscription graph.
 

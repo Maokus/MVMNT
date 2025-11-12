@@ -1,6 +1,6 @@
 # Audio Features Quick Start
 
-_Last reviewed: 24 October 2025_
+_Last reviewed: 12 November 2025_
 
 This quick start covers the recommended workflow for audio-reactive scene elements using the v4 audio
 system. It assumes you have already loaded audio into the timeline and want to consume analyzed
@@ -59,14 +59,15 @@ if (!sample) return [];
 
 You do **not** need to manually emit intents when using `getFeatureData`. The scene runtime will:
 
-1. Publish analysis intents based on the registered requirements.
+1. Publish analysis intents based on the registered requirements (even when the element is still using a fallback ID during creation).
 2. Deduplicate descriptors across elements.
-3. Subscribe/unsubscribe automatically when the bound track changes.
+3. Subscribe/unsubscribe automatically when the bound track changes, including macro-driven binding updates.
 
 If you need to swap descriptors dynamically (e.g., user selects a different feature), build explicit
 `AudioFeatureDescriptor` objects with `createFeatureDescriptor` and call
-`syncElementFeatureIntents`. The lazy and explicit APIs interoperate, so diagnostics still show the
-correct subscription state.
+`syncElementFeatureIntents`. The lazy and explicit APIs interoperate through the subscription
+controller, so diagnostics still show the correct subscription state without stale intents or
+duplicate cache work.
 
 ## 4. Handle missing data gracefully
 
