@@ -33,6 +33,133 @@ export interface TempoAlignedRangeOptions extends TempoAlignedFrameOptions {
     framePadding?: number;
 }
 
+type FrameShapeSource = 'observed' | 'metadata';
+
+interface FrameShape {
+    channelSizes: number[];
+    flatLength: number;
+    frameLength?: number;
+    source: FrameShapeSource;
+}
+
+type FrameShapeBucket = Map<string, FrameShape>;
+
+const frameShapeRegistry = new WeakMap<AudioFeatureTrack, FrameShapeBucket>();
+
+function getFrameShapeKey(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): string {
+    const bandKey = options.bandIndex != null ? 'band' : 'full';
+    return `${track.format}:${bandKey}`;
+}
+
+function cloneChannelSizes(sizes: number[]): number[] {
+    return sizes.map((size) => Math.max(0, Math.floor(size ?? 0)));
+}
+
+function createShapeFromVector(info: FrameVectorInfo, source: FrameShapeSource): FrameShape {
+    const normalizedChannelSizes = cloneChannelSizes(info.channelSizes ?? []);
+    const flatLength = info.flatValues.length;
+    const frameLength = typeof info.frameLength === 'number' ? info.frameLength : undefined;
+    return {
+        channelSizes: normalizedChannelSizes,
+        flatLength,
+        frameLength: typeof frameLength === 'number' && Number.isFinite(frameLength) ? frameLength : undefined,
+        source,
+    };
+}
+
+function upsertFrameShape(track: AudioFeatureTrack, key: string, shape: FrameShape): FrameShape {
+    let bucket = frameShapeRegistry.get(track);
+    if (!bucket) {
+        bucket = new Map();
+        frameShapeRegistry.set(track, bucket);
+    }
+    const existing = bucket.get(key);
+    if (!existing) {
+        bucket.set(key, shape);
+        return shape;
+    }
+    if (existing.source === 'observed' && shape.source === 'metadata') {
+        return existing;
+    }
+    if (existing.source === 'metadata' && shape.source === 'observed') {
+        bucket.set(key, shape);
+        return shape;
+    }
+    return existing;
+}
+
+function recordObservedFrameShape(track: AudioFeatureTrack, options: TempoAlignedFrameOptions, info: FrameVectorInfo) {
+    const key = getFrameShapeKey(track, options);
+    const shape = createShapeFromVector(info, 'observed');
+    upsertFrameShape(track, key, shape);
+}
+
+function resolveFrameShape(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameShape | undefined {
+    const key = getFrameShapeKey(track, options);
+    return frameShapeRegistry.get(track)?.get(key);
+}
+
+function deriveMetadataFrameShape(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameShape {
+    const format = track.format;
+    const isBandSample = options.bandIndex != null && format !== 'waveform-minmax' && format !== 'waveform-periodic';
+    if (isBandSample) {
+        return {
+            channelSizes: [1],
+            flatLength: 1,
+            frameLength: 1,
+            source: 'metadata',
+        };
+    }
+    if (format === 'waveform-minmax') {
+        const channels = Math.max(1, Math.floor(track.channels ?? 0) || 1);
+        const channelSizes = Array.from({ length: channels }, () => 2);
+        return {
+            channelSizes,
+            flatLength: channelSizes.reduce((total, size) => total + size, 0),
+            frameLength: 2,
+            source: 'metadata',
+        };
+    }
+    if (format === 'waveform-periodic') {
+        const length = Math.max(0, resolvePeriodicWaveformLength(track));
+        return {
+            channelSizes: [length],
+            flatLength: length,
+            frameLength: length,
+            source: 'metadata',
+        };
+    }
+    const channels = Math.max(1, Math.floor(track.channels ?? 0) || 1);
+    const channelSizes = Array.from({ length: channels }, () => 1);
+    return {
+        channelSizes,
+        flatLength: channelSizes.reduce((total, size) => total + size, 0),
+        frameLength: channels === 1 ? 1 : undefined,
+        source: 'metadata',
+    };
+}
+
+function ensureFrameShape(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameShape {
+    const existing = resolveFrameShape(track, options);
+    if (existing && existing.source === 'observed') {
+        return existing;
+    }
+    if (track.frameCount > 0) {
+        const observedIndex = Math.max(0, Math.min(track.frameCount - 1, 0));
+        const info = buildFrameVectorInfo(track, observedIndex, options);
+        const refreshed = resolveFrameShape(track, options);
+        if (refreshed) {
+            return refreshed;
+        }
+        const fallbackFromInfo = createShapeFromVector(info, 'metadata');
+        const key = getFrameShapeKey(track, options);
+        return upsertFrameShape(track, key, fallbackFromInfo);
+    }
+    const metadataShape = deriveMetadataFrameShape(track, options);
+    const key = getFrameShapeKey(track, options);
+    return upsertFrameShape(track, key, metadataShape);
+}
+
 export interface TempoAlignedAdapterDiagnostics {
     trackId: string;
     sourceId?: string;
@@ -339,14 +466,18 @@ function buildFrameVectorInfo(
 ): FrameVectorInfo {
     if (track.format === 'waveform-minmax') {
         const channelValues = readWaveformFrame(track, frameIndex);
-        return {
+        const result: FrameVectorInfo = {
             flatValues: flattenChannelValues(channelValues),
             channelValues,
             channelSizes: channelValues.map((channel) => channel.length),
         };
+        recordObservedFrameShape(track, options, result);
+        return result;
     }
     if (track.format === 'waveform-periodic') {
-        return readPeriodicWaveformFrame(track, frameIndex);
+        const result = readPeriodicWaveformFrame(track, frameIndex);
+        recordObservedFrameShape(track, options, result);
+        return result;
     }
     const channels = Math.max(1, track.channels);
     const format = track.format as Exclude<AudioFeatureTrackFormat, 'waveform-minmax' | 'waveform-periodic'>;
@@ -355,20 +486,24 @@ function buildFrameVectorInfo(
         const target = Math.max(0, Math.min(channels - 1, Math.floor(options.bandIndex)));
         const value = readNumericFrame(track, frameIndex, target, format);
         channelValues.push([value]);
-        return {
+        const result: FrameVectorInfo = {
             flatValues: flattenChannelValues(channelValues),
             channelValues,
             channelSizes: [1],
         };
+        recordObservedFrameShape(track, options, result);
+        return result;
     }
     for (let channel = 0; channel < channels; channel += 1) {
         channelValues.push([readNumericFrame(track, frameIndex, channel, format)]);
     }
-    return {
+    const result: FrameVectorInfo = {
         flatValues: flattenChannelValues(channelValues),
         channelValues,
         channelSizes: channelValues.map((entry) => entry.length),
     };
+    recordObservedFrameShape(track, options, result);
+    return result;
 }
 
 function buildFrameVector(track: AudioFeatureTrack, frameIndex: number, options: TempoAlignedFrameOptions): number[] {
@@ -376,39 +511,22 @@ function buildFrameVector(track: AudioFeatureTrack, frameIndex: number, options:
 }
 
 function buildSilentVector(track: AudioFeatureTrack, options: TempoAlignedFrameOptions): FrameVectorInfo {
-    if (track.format === 'waveform-minmax') {
-        const channelCount = Math.max(1, track.channels || 1);
-        const channelValues = Array.from({ length: channelCount }, () => [0, 0]);
-        return {
-            flatValues: flattenChannelValues(channelValues),
-            channelValues,
-            channelSizes: channelValues.map((channel) => channel.length),
-        };
-    }
-    if (track.format === 'waveform-periodic') {
-        const length = resolvePeriodicWaveformLength(track);
-        const channelValues = [Array.from({ length }, () => 0)];
-        return {
-            flatValues: flattenChannelValues(channelValues),
-            channelValues,
-            channelSizes: channelValues.map((channel) => channel.length),
-            frameLength: length,
-        };
-    }
-    if (options.bandIndex != null) {
-        const channelValues = [[0]];
-        return {
-            flatValues: [0],
-            channelValues,
-            channelSizes: [1],
-        };
-    }
-    const channels = Math.max(1, track.channels || 1);
-    const channelValues = Array.from({ length: channels }, () => [0]);
+    const shape = ensureFrameShape(track, options);
+    const channelSizes = cloneChannelSizes(shape.channelSizes);
+    const channelValues = channelSizes.map((size) => new Array(size).fill(0));
+    const totalValues = channelSizes.reduce((total, size) => total + size, 0);
+    const flatValues = new Array(totalValues).fill(0);
+    const frameLength =
+        track.format === 'waveform-periodic'
+            ? shape.frameLength != null && Number.isFinite(shape.frameLength)
+                ? Math.max(0, Math.floor(shape.frameLength))
+                : totalValues
+            : undefined;
     return {
-        flatValues: flattenChannelValues(channelValues),
+        flatValues,
         channelValues,
-        channelSizes: channelValues.map((channel) => channel.length),
+        channelSizes,
+        frameLength,
     };
 }
 
@@ -840,11 +958,16 @@ export function getTempoAlignedRange(state: TimelineState, request: TempoAligned
             : isWaveformPeriodic
             ? resolvePeriodicWaveformLength(featureTrack)
             : 0;
-        const vectorWidth = (() => {
-            if (isWaveformMinMax || isWaveformPeriodic) return waveformVectorLength;
-            if (options.bandIndex != null) return 1;
-            return Math.max(1, featureTrack.channels);
-        })();
+        const canonicalShape = ensureFrameShape(featureTrack, options);
+        const vectorWidth = Math.max(
+            0,
+            canonicalShape.flatLength ||
+                (isWaveformMinMax || isWaveformPeriodic
+                    ? waveformVectorLength
+                    : options.bandIndex != null
+                    ? 1
+                    : Math.max(1, featureTrack.channels))
+        );
         const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
         const frameTicks = new Float64Array(frameCount);
         let writeIndex = 0;
@@ -928,11 +1051,16 @@ export function getTempoAlignedRange(state: TimelineState, request: TempoAligned
         : isWaveformPeriodic
         ? resolvePeriodicWaveformLength(featureTrack)
         : 0;
-    const vectorWidth = (() => {
-        if (isWaveformMinMax || isWaveformPeriodic) return waveformVectorLength;
-        if (options.bandIndex != null) return 1;
-        return Math.max(1, featureTrack.channels);
-    })();
+    const canonicalShape = ensureFrameShape(featureTrack, options);
+    const vectorWidth = Math.max(
+        0,
+        canonicalShape.flatLength ||
+            (isWaveformMinMax || isWaveformPeriodic
+                ? waveformVectorLength
+                : options.bandIndex != null
+                ? 1
+                : Math.max(1, featureTrack.channels))
+    );
     const data = new Float32Array(frameCount * Math.max(0, vectorWidth));
     const frameSeconds = new Float64Array(frameCount);
     const baseTick = offsetTicks - regionStart;
