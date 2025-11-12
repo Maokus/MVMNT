@@ -84,6 +84,24 @@ describe('RenderModal export options behaviour', () => {
         await waitFor(() => expect(mockEnsureMp3EncoderRegistered).toHaveBeenCalled());
     });
 
+    it('allows manual codec overrides to persist', async () => {
+        const { default: RenderModal } = await loadComponent();
+        render(<RenderModal onClose={() => { }} />);
+
+        const audioCodecSelect = await screen.findByLabelText('Audio Codec');
+        const videoCodecSelect = await screen.findByLabelText('Video Codec');
+
+        await act(async () => {
+            fireEvent.change(audioCodecSelect, { target: { value: 'mp3' } });
+            fireEvent.change(videoCodecSelect, { target: { value: 'vp9' } });
+        });
+
+        await waitFor(() => {
+            expect((audioCodecSelect as HTMLSelectElement).value).toBe('mp3');
+            expect((videoCodecSelect as HTMLSelectElement).value).toBe('vp9');
+        });
+    });
+
     it('switching to WebM format chooses vp9 and opus defaults', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);

@@ -76,6 +76,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const [audioCodecs, setAudioCodecs] = useState<string[]>(['pcm-s16', 'mp3']);
     const [capLoaded, setCapLoaded] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [autoVideoCodecSelection, setAutoVideoCodecSelection] = useState(true);
+    const [autoAudioCodecSelection, setAutoAudioCodecSelection] = useState(true);
 
     useEffect(() => {
         const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -134,6 +136,11 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     useEffect(() => {
         if (!audioCodecs.length) return;
+        const currentAvailable = audioCodecs.includes(form.audioCodec);
+        if (!currentAvailable) {
+            setAutoAudioCodecSelection(true);
+        }
+        if (!autoAudioCodecSelection && currentAvailable) return;
         const priority = form.format === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
             : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
@@ -141,10 +148,15 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (preferred && preferred !== form.audioCodec) {
             updateForm({ audioCodec: preferred });
         }
-    }, [audioCodecs, form.audioCodec, form.format, updateForm]);
+    }, [audioCodecs, autoAudioCodecSelection, form.audioCodec, form.format, updateForm]);
 
     useEffect(() => {
         if (!videoCodecs.length) return;
+        const currentAvailable = videoCodecs.includes(form.videoCodec);
+        if (!currentAvailable) {
+            setAutoVideoCodecSelection(true);
+        }
+        if (!autoVideoCodecSelection && currentAvailable) return;
         const mp4Priority = ['h264', 'avc', 'hevc', 'av1', 'vp9'];
         const webmPriority = ['vp9', 'av1', 'h264', 'avc'];
         const priority = form.format === 'webm' ? webmPriority : mp4Priority;
@@ -152,7 +164,17 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (preferred && preferred !== form.videoCodec) {
             updateForm({ videoCodec: preferred });
         }
-    }, [videoCodecs, form.videoCodec, form.format, updateForm]);
+    }, [autoVideoCodecSelection, videoCodecs, form.videoCodec, form.format, updateForm]);
+    const handleVideoCodecSelect = useCallback((codec: string) => {
+        setAutoVideoCodecSelection(false);
+        updateForm({ videoCodec: codec });
+    }, [updateForm]);
+
+    const handleAudioCodecSelect = useCallback((codec: string) => {
+        setAutoAudioCodecSelection(false);
+        updateForm({ audioCodec: codec });
+    }, [updateForm]);
+
     // Prefetch MP3 encoder chunk when user selects mp3 to reduce latency at export time.
     useEffect(() => {
         if (form.audioCodec === 'mp3') {
@@ -236,6 +258,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         setForm((prev) => {
             if (prev.format === nextFormat) return prev;
             const next: FormState = { ...prev, format: nextFormat };
+            setAutoVideoCodecSelection(true);
+            setAutoAudioCodecSelection(true);
             if (nextFormat === 'png') return next;
             const nextVideoCodec = resolveDefaultVideoCodec(nextFormat);
             const nextAudioCodec = resolveDefaultAudioCodec(nextFormat);
@@ -302,7 +326,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     {form.format !== 'png' && (
                         <>
                             <label className="flex flex-col gap-1">Video Codec
-                                <select disabled={!capLoaded} value={form.videoCodec} onChange={e => updateForm({ videoCodec: e.target.value })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
+                                <select disabled={!capLoaded} value={form.videoCodec} onChange={e => handleVideoCodecSelect(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
                                     {videoCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </label>
@@ -340,7 +364,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             {form.includeAudio && (
                                 <>
                                     <label className="flex flex-col gap-1">Audio Codec
-                                        <select disabled={!capLoaded} value={form.audioCodec} onChange={e => updateForm({ audioCodec: e.target.value })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
+                                        <select disabled={!capLoaded} value={form.audioCodec} onChange={e => handleAudioCodecSelect(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
                                             {audioCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </label>
