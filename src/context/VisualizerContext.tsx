@@ -347,6 +347,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 audioBitrate: settings.audioBitrate,
                 audioSampleRate: settings.audioSampleRate,
                 audioChannels: settings.audioChannels,
+                container: settings.container,
                 startTick,
                 endTick,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),

@@ -18,6 +18,7 @@ const mockExportSettings = {
     audioBitrate: 192000,
     audioSampleRate: 'auto' as const,
     audioChannels: 2 as const,
+    container: 'mp4' as const,
 };
 
 const mockSetExportSettings = vi.fn();
@@ -36,6 +37,7 @@ vi.mock('@context/VisualizerContext', () => ({
         exportVideo: mockExportVideo,
         exportSequence: mockExportSequence,
         sceneName: 'My Scene',
+        exportKind: 'video' as const,
     }),
 }));
 
@@ -53,6 +55,14 @@ vi.mock('mediabunny', () => ({
 // Lazy import to ensure mocks apply before module evaluation
 const loadComponent = () => import('../RenderModal');
 
+const selectVideoFormat = async () => {
+    const formatSelect = await screen.findByLabelText('Format');
+    await act(async () => {
+        fireEvent.change(formatSelect, { target: { value: 'video' } });
+    });
+    return formatSelect as HTMLSelectElement;
+};
+
 describe('RenderModal export options behaviour', () => {
     beforeEach(() => {
         mockEnsureMp3EncoderRegistered.mockClear();
@@ -62,6 +72,8 @@ describe('RenderModal export options behaviour', () => {
     it('defaults audio codec to pcm-s16 when capabilities load', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
+
+        await selectVideoFormat();
 
         const select = await screen.findByLabelText('Audio Codec');
         expect((select as HTMLSelectElement).value).toBe('pcm-s16');
@@ -76,6 +88,8 @@ describe('RenderModal export options behaviour', () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
 
+        await selectVideoFormat();
+
         const select = await screen.findByLabelText('Audio Codec');
         await act(async () => {
             fireEvent.change(select, { target: { value: 'mp3' } });
@@ -87,6 +101,8 @@ describe('RenderModal export options behaviour', () => {
     it('allows manual codec overrides to persist', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
+
+        await selectVideoFormat();
 
         const audioCodecSelect = await screen.findByLabelText('Audio Codec');
         const videoCodecSelect = await screen.findByLabelText('Video Codec');
@@ -106,9 +122,10 @@ describe('RenderModal export options behaviour', () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
 
-        const formatSelect = await screen.findByLabelText('Format');
+        await selectVideoFormat();
+        const containerSelect = await screen.findByLabelText('Container');
         await act(async () => {
-            fireEvent.change(formatSelect, { target: { value: 'webm' } });
+            fireEvent.change(containerSelect, { target: { value: 'webm' } });
         });
 
         const videoCodecSelect = await screen.findByLabelText('Video Codec');
@@ -121,9 +138,10 @@ describe('RenderModal export options behaviour', () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
 
-        const formatSelect = await screen.findByLabelText('Format');
+        await selectVideoFormat();
+        const containerSelect = await screen.findByLabelText('Container');
         await act(async () => {
-            fireEvent.change(formatSelect, { target: { value: 'webm' } });
+            fireEvent.change(containerSelect, { target: { value: 'webm' } });
         });
 
         const startButton = await screen.findByRole('button', { name: 'Start WebM Render' });

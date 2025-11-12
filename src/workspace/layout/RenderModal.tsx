@@ -13,10 +13,12 @@ interface RenderModalProps {
 
 type FpsMode = '24' | '30' | '60' | 'custom';
 
-type VideoFormat = 'png' | 'mp4' | 'webm';
+type ExportFormat = 'video' | 'png';
+type VideoContainer = 'mp4' | 'webm';
 
 interface FormState {
-    format: VideoFormat;
+    format: ExportFormat;
+    container: VideoContainer;
     fullDuration: boolean;
     startTime: number;
     endTime: number;
@@ -36,14 +38,16 @@ interface FormState {
 
 // Simple modal to configure export settings & trigger video export.
 const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
-    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName } = useVisualizer() as any;
+    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind } = useVisualizer() as any;
     // Local UI state managed via single form object
     const initialFps = exportSettings.fps || 60;
     const initialFpsMode: FpsMode = initialFps === 24 ? '24' : initialFps === 30 ? '30' : initialFps === 60 ? '60' : 'custom';
-    const initialFormat: VideoFormat = exportSettings.container === 'webm' ? 'webm' : 'mp4';
+    const initialContainer: VideoContainer = exportSettings.container === 'webm' ? 'webm' : 'mp4';
+    const initialFormat: ExportFormat = exportKind === 'png' ? 'png' : 'video';
     const persistedAudioCodec = exportSettings.audioCodec && exportSettings.audioCodec !== 'aac' ? exportSettings.audioCodec : undefined;
     const [form, setForm] = useState<FormState>(() => ({
         format: initialFormat,
+        container: initialContainer,
         fullDuration: exportSettings.fullDuration !== false,
         startTime: exportSettings.startTime ?? 0,
         endTime: exportSettings.endTime ?? 0,
@@ -51,10 +55,10 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         includeAudio: exportSettings.includeAudio !== false,
         fpsMode: initialFpsMode,
         customFps: Math.max(1, initialFps || 60),
-        videoCodec: exportSettings.videoCodec || (initialFormat === 'webm' ? 'vp9' : 'h264'),
+        videoCodec: exportSettings.videoCodec || (initialContainer === 'webm' ? 'vp9' : 'h264'),
         videoBitrateMode: exportSettings.videoBitrateMode || 'auto',
         videoBitrate: exportSettings.videoBitrate || 0,
-        audioCodec: persistedAudioCodec || (initialFormat === 'webm' ? 'opus' : 'pcm-s16'),
+        audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'pcm-s16'),
         audioBitrate: exportSettings.audioBitrate || 192000,
         audioSampleRate: exportSettings.audioSampleRate || 'auto',
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
@@ -135,23 +139,23 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     }, []);
 
     useEffect(() => {
-        if (!audioCodecs.length) return;
+        if (form.format !== 'video' || !audioCodecs.length) return;
         const currentAvailable = audioCodecs.includes(form.audioCodec);
         if (!currentAvailable) {
             setAutoAudioCodecSelection(true);
         }
         if (!autoAudioCodecSelection && currentAvailable) return;
-        const priority = form.format === 'webm'
+        const priority = form.container === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
             : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
         const preferred = priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0];
         if (preferred && preferred !== form.audioCodec) {
             updateForm({ audioCodec: preferred });
         }
-    }, [audioCodecs, autoAudioCodecSelection, form.audioCodec, form.format, updateForm]);
+    }, [audioCodecs, autoAudioCodecSelection, form.audioCodec, form.format, form.container, updateForm]);
 
     useEffect(() => {
-        if (!videoCodecs.length) return;
+        if (form.format !== 'video' || !videoCodecs.length) return;
         const currentAvailable = videoCodecs.includes(form.videoCodec);
         if (!currentAvailable) {
             setAutoVideoCodecSelection(true);
@@ -159,12 +163,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (!autoVideoCodecSelection && currentAvailable) return;
         const mp4Priority = ['h264', 'avc', 'hevc', 'av1', 'vp9'];
         const webmPriority = ['vp9', 'av1', 'h264', 'avc'];
-        const priority = form.format === 'webm' ? webmPriority : mp4Priority;
+        const priority = form.container === 'webm' ? webmPriority : mp4Priority;
         const preferred = priority.find((c) => videoCodecs.includes(c)) || videoCodecs[0];
         if (preferred && preferred !== form.videoCodec) {
             updateForm({ videoCodec: preferred });
         }
-    }, [autoVideoCodecSelection, videoCodecs, form.videoCodec, form.format, updateForm]);
+    }, [autoVideoCodecSelection, videoCodecs, form.videoCodec, form.format, form.container, updateForm]);
     const handleVideoCodecSelect = useCallback((codec: string) => {
         setAutoVideoCodecSelection(false);
         updateForm({ videoCodec: codec });
@@ -191,7 +195,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     }, [effectiveFps, exportSettings.height, exportSettings.width]);
 
     const beginExport = async () => {
-        const effectiveContainer: 'mp4' | 'webm' = form.format === 'webm' ? 'webm' : 'mp4';
+        const isVideoExport = form.format === 'video';
+        const effectiveContainer: VideoContainer = form.container;
         const trimmedFilename = form.filename.trim();
         const filename = trimmedFilename ? trimmedFilename : undefined;
         const manualVideoBitrate = form.videoBitrateMode === 'manual' ? form.videoBitrate : undefined;
@@ -209,19 +214,18 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             audioBitrate: form.audioBitrate,
             audioSampleRate: form.audioSampleRate,
             audioChannels: form.audioChannels,
+            container: effectiveContainer,
         };
 
         // Persist duration/range flags globally so future exports use them
         setExportSettings((prev: ExportSettings) => ({
             ...prev,
             ...baseOverrides,
-            container: form.format === 'png' ? prev.container : effectiveContainer,
             videoBitrate: manualVideoBitrate ?? prev.videoBitrate,
         }));
 
         const exportOverrides: Partial<ExportSettings> = {
             ...baseOverrides,
-            container: form.format === 'png' ? exportSettings.container : effectiveContainer,
         };
         if (manualVideoBitrate != null) {
             exportOverrides.videoBitrate = manualVideoBitrate;
@@ -229,7 +233,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
         setIsExporting(true);
         try {
-            if (form.format === 'png') {
+            if (!isVideoExport) {
                 await exportSequence(exportOverrides);
             } else {
                 await exportVideo(exportOverrides);
@@ -242,27 +246,44 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         }
     };
 
-    const resolveDefaultVideoCodec = useCallback((format: VideoFormat) => {
-        const priority = format === 'webm' ? ['vp9', 'av1', 'h264', 'avc'] : ['h264', 'avc', 'hevc', 'av1', 'vp9'];
-        return priority.find((c) => videoCodecs.includes(c)) || priority[0];
+    const resolveDefaultVideoCodec = useCallback((container: VideoContainer) => {
+        const priority = container === 'webm' ? ['vp9', 'av1', 'h264', 'avc'] : ['h264', 'avc', 'hevc', 'av1', 'vp9'];
+        return priority.find((c) => videoCodecs.includes(c)) || videoCodecs[0] || (container === 'webm' ? 'vp9' : 'h264');
     }, [videoCodecs]);
 
-    const resolveDefaultAudioCodec = useCallback((format: VideoFormat) => {
-        const priority = format === 'webm'
+    const resolveDefaultAudioCodec = useCallback((container: VideoContainer) => {
+        const priority = container === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
             : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
-        return priority.find((c) => audioCodecs.includes(c)) || priority[0];
+        return priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0] || (container === 'webm' ? 'opus' : 'pcm-s16');
     }, [audioCodecs]);
 
-    const handleFormatChange = useCallback((nextFormat: VideoFormat) => {
+    const handleFormatChange = useCallback((nextFormat: ExportFormat) => {
+        setAutoVideoCodecSelection(true);
+        setAutoAudioCodecSelection(true);
         setForm((prev) => {
             if (prev.format === nextFormat) return prev;
             const next: FormState = { ...prev, format: nextFormat };
-            setAutoVideoCodecSelection(true);
-            setAutoAudioCodecSelection(true);
-            if (nextFormat === 'png') return next;
-            const nextVideoCodec = resolveDefaultVideoCodec(nextFormat);
-            const nextAudioCodec = resolveDefaultAudioCodec(nextFormat);
+            if (nextFormat !== 'video') return next;
+            const nextVideoCodec = resolveDefaultVideoCodec(next.container);
+            const nextAudioCodec = resolveDefaultAudioCodec(next.container);
+            return {
+                ...next,
+                videoCodec: nextVideoCodec,
+                audioCodec: nextAudioCodec,
+            };
+        });
+    }, [resolveDefaultAudioCodec, resolveDefaultVideoCodec]);
+
+    const handleContainerChange = useCallback((nextContainer: VideoContainer) => {
+        setAutoVideoCodecSelection(true);
+        setAutoAudioCodecSelection(true);
+        setForm((prev) => {
+            if (prev.container === nextContainer) return prev;
+            const next: FormState = { ...prev, container: nextContainer };
+            if (next.format !== 'video') return next;
+            const nextVideoCodec = resolveDefaultVideoCodec(nextContainer);
+            const nextAudioCodec = resolveDefaultAudioCodec(nextContainer);
             return {
                 ...next,
                 videoCodec: nextVideoCodec,
@@ -285,15 +306,40 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             onChange={e => updateForm({ filename: e.target.value })}
                             className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm"
                         />
-                        <span className="text-[10px] opacity-60">Do not include extension; it will be added automatically (.mp4 or .zip).</span>
+                        <span className="text-[10px] opacity-60">Do not include extension; it will be added automatically (.mp4, .webm, or .zip).</span>
                     </label>
                     <label className="flex flex-col gap-1">Format
-                        <select value={form.format} onChange={e => handleFormatChange(e.target.value as FormState['format'])} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                            <option value="mp4">MP4 Video</option>
-                            <option value="webm">WebM Video</option>
+                        <select
+                            value={form.format}
+                            onChange={e => {
+                                const next = e.target.value;
+                                if (next === 'video' || next === 'png') {
+                                    handleFormatChange(next);
+                                }
+                            }}
+                            className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm"
+                        >
+                            <option value="video">Video</option>
                             <option value="png">PNG Sequence</option>
                         </select>
                     </label>
+                    {form.format === 'video' && (
+                        <label className="flex flex-col gap-1">Container
+                            <select
+                                value={form.container}
+                                onChange={e => {
+                                    const next = e.target.value;
+                                    if (next === 'mp4' || next === 'webm') {
+                                        handleContainerChange(next);
+                                    }
+                                }}
+                                className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm"
+                            >
+                                <option value="mp4">MP4 (.mp4)</option>
+                                <option value="webm">WebM (.webm)</option>
+                            </select>
+                        </label>
+                    )}
                     <label className="flex flex-col gap-1">Frame Rate
                         <div className="flex gap-2 items-center">
                             <select value={form.fpsMode} onChange={e => updateForm({ fpsMode: e.target.value as FpsMode })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm flex-1">
@@ -323,7 +369,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             </label>
                         </>
                     )}
-                    {form.format !== 'png' && (
+                    {form.format === 'video' && (
                         <>
                             <label className="flex flex-col gap-1">Video Codec
                                 <select disabled={!capLoaded} value={form.videoCodec} onChange={e => handleVideoCodecSelect(e.target.value)} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
@@ -392,7 +438,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 </div>
                 <div className="flex gap-2 justify-end mt-2">
                     <button disabled={isExporting} onClick={onClose} className="px-3 py-1 border rounded text-xs font-medium bg-neutral-700 border-neutral-600 text-neutral-200 hover:bg-neutral-600 hover:text-white disabled:opacity-50">Cancel</button>
-                    <button disabled={isExporting} onClick={beginExport} className="px-4 py-1 rounded text-xs font-semibold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white shadow hover:opacity-90 disabled:opacity-50">{isExporting ? 'Starting...' : (form.format === 'mp4' ? 'Start MP4 Render' : form.format === 'webm' ? 'Start WebM Render' : 'Start PNG Export')}</button>
+                    <button disabled={isExporting} onClick={beginExport} className="px-4 py-1 rounded text-xs font-semibold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white shadow hover:opacity-90 disabled:opacity-50">{isExporting ? 'Starting...' : (form.format === 'video' ? (form.container === 'webm' ? 'Start WebM Render' : 'Start MP4 Render') : 'Start PNG Export')}</button>
                 </div>
             </div>
         </div>
