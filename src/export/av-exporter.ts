@@ -68,7 +68,7 @@ export interface AVExportOptions {
     videoCodec?: string; // 'auto' | specific (avc, hevc, av1, vp9)
     videoBitrateMode?: 'auto' | 'manual';
     videoBitrate?: number; // manual override (bps) when videoBitrateMode === 'manual'
-    audioCodec?: string; // 'auto' | specific (aac, opus, etc.)
+    audioCodec?: string; // 'auto' | specific (mp3, opus, etc.)
     audioBitrate?: number; // audio target bitrate (bps)
     audioSampleRate?: 'auto' | 44100 | 48000; // requested mix SR
     audioChannels?: 1 | 2; // channel layout (currently mix always produces 2 when channels=2)
@@ -118,7 +118,7 @@ export class AVExporter {
             videoCodec = 'auto',
             videoBitrateMode = 'auto',
             videoBitrate,
-            audioCodec = 'auto',
+            audioCodec = 'mp3',
             audioBitrate,
             audioSampleRate = 'auto',
             audioChannels = 2,
@@ -265,15 +265,36 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    // Prefer aac by default now (UI default). 'auto' attempts aac → opus.
-                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'aac';
-                    const preferOrder = ['aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
-                    const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
-                    console.log('[AVExporter] Audio codec', resolvedAudioCodec, 'supported=', supportedPreferred);
+                    let resolvedAudioCodec: any = !audioCodec || audioCodec === 'auto' ? 'mp3' : audioCodec;
+                    const preferOrder = ['mp3', 'opus', 'vorbis', 'flac', 'pcm-s16'];
+                    const resolvedSampleRate =
+                        audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
+                    const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
+                    const capabilityOptions = {
+                        numberOfChannels: mixedAudioChannels,
+                        sampleRate: resolvedSampleRate,
+                        bitrate: bitrateBps,
+                    };
+                    const supportedPreferred = await canEncodeAudio?.(
+                        resolvedAudioCodec as any,
+                        capabilityOptions
+                    ).catch(() => false);
+                    console.log(
+                        '[AVExporter] Audio codec',
+                        resolvedAudioCodec,
+                        'supported=',
+                        supportedPreferred,
+                        capabilityOptions
+                    );
                     if (!supportedPreferred) {
                         try {
-                            const encodable = await (getEncodableAudioCodecs?.() as any);
-                            const match = preferOrder.find((c) => encodable?.includes?.(c));
+                            const encodable = await (getEncodableAudioCodecs?.(undefined, capabilityOptions) as any);
+                            const sanitized = Array.isArray(encodable)
+                                ? encodable.filter(
+                                      (c): c is string => typeof c === 'string' && c.toLowerCase() !== 'aac'
+                                  )
+                                : [];
+                            const match = preferOrder.find((c) => sanitized.includes(c));
                             if (match) resolvedAudioCodec = match;
                             // If user explicitly requested mp3 or auto fallback includes it, attempt registration lazily
                             if (audioCodec === 'mp3' || encodable?.includes?.('mp3')) {
@@ -289,9 +310,6 @@ export class AVExporter {
                         resolvedAudioCodec = 'mp3';
                     }
                     // Choose sample rate
-                    const resolvedSampleRate =
-                        audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
-                    const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
                     audioSource = new AudioBufferSource({
                         codec: resolvedAudioCodec,
                         numberOfChannels: mixedAudioChannels,

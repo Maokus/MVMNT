@@ -64,7 +64,7 @@ describe('RenderModal audio codec behaviour', () => {
         render(<RenderModal onClose={() => { }} />);
 
         const select = await screen.findByLabelText('Audio Codec');
-        expect((select as HTMLSelectElement).value).toBe('aac');
+        expect((select as HTMLSelectElement).value).toBe('mp3');
 
         const options = Array.from(select.querySelectorAll('option')).map((o) => o.value);
         expect(options[0]).toBe('aac');

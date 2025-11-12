@@ -49,7 +49,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         videoCodec: exportSettings.videoCodec || 'h264',
         videoBitrateMode: exportSettings.videoBitrateMode || 'auto',
         videoBitrate: exportSettings.videoBitrate || 0,
-        audioCodec: exportSettings.audioCodec || 'aac',
+        audioCodec: exportSettings.audioCodec && exportSettings.audioCodec !== 'aac' ? exportSettings.audioCodec : 'mp3',
         audioBitrate: exportSettings.audioBitrate || 192000,
         audioSampleRate: exportSettings.audioSampleRate || 'auto',
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
@@ -68,7 +68,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     }, [sceneName]);
     // Capability lists
     const [videoCodecs, setVideoCodecs] = useState<string[]>([]); // display list (avc shown as h264)
-    const [audioCodecs, setAudioCodecs] = useState<string[]>(['aac', 'mp3']);
+    const [audioCodecs, setAudioCodecs] = useState<string[]>(['mp3']);
     const [capLoaded, setCapLoaded] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
@@ -105,14 +105,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     const normalizeCodec = (codec: unknown) => {
                         if (typeof codec !== 'string') return null;
                         const id = codec.toLowerCase();
-                        if (id === 'mp4a.40.2' || id === 'audio/aac' || id === 'aac-lc') return 'aac';
+                        if (id === 'mp4a.40.2' || id === 'audio/aac' || id === 'aac-lc' || id === 'aac') return null;
                         return codec;
                     };
-                    const preferOrder = ['aac', 'mp3', 'opus', 'vorbis', 'flac', 'pcm-s16'];
+                    const preferOrder = ['mp3', 'opus', 'vorbis', 'flac', 'pcm-s16'];
                     const discovered = Array.isArray(acs)
                         ? acs.map(normalizeCodec).filter((c): c is string => Boolean(c))
                         : [];
-                    const merged = Array.from(new Set(['aac', 'mp3', ...discovered]));
+                    const merged = Array.from(new Set(['mp3', ...discovered]));
                     const ordered = [
                         ...preferOrder.filter((c) => merged.includes(c)),
                         ...merged.filter((c) => !preferOrder.includes(c)),
@@ -120,7 +120,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     setAudioCodecs(ordered);
                 }
             } catch {
-                if (mounted) setAudioCodecs(['aac', 'mp3']);
+                if (mounted) setAudioCodecs(['mp3']);
             }
             if (mounted) setCapLoaded(true);
         })();
@@ -130,7 +130,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     useEffect(() => {
         if (!audioCodecs.length) return;
         if (audioCodecs.includes(form.audioCodec)) return;
-        const fallbackCodec = audioCodecs.includes('aac') ? 'aac' : audioCodecs[0];
+        const fallbackCodec = audioCodecs.includes('mp3') ? 'mp3' : audioCodecs[0];
         updateForm({ audioCodec: fallbackCodec });
     }, [audioCodecs, form.audioCodec, updateForm]);
     // Prefetch MP3 encoder chunk when user selects mp3 to reduce latency at export time.
