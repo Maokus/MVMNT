@@ -29,6 +29,7 @@ import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import {
     Output,
     Mp4OutputFormat,
+    WebMOutputFormat,
     BufferTarget,
     CanvasSource,
     AudioBufferSource,
@@ -118,7 +119,7 @@ export class AVExporter {
             videoCodec = 'auto',
             videoBitrateMode = 'auto',
             videoBitrate,
-            audioCodec = 'mp3',
+            audioCodec = 'auto',
             audioBitrate,
             audioSampleRate = 'auto',
             audioChannels = 2,
@@ -202,23 +203,28 @@ export class AVExporter {
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
-            // Container selection (currently mediabunny only exposes Mp4OutputFormat; future: WebMOutputFormat)
-            let resolvedContainer: 'mp4' | 'webm' = 'mp4';
-            if (container === 'webm') resolvedContainer = 'webm';
+            let resolvedContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
             // Video codec resolution
-            // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'.
-            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'. Prefer vp9 for webm.
+            const defaultCodecForContainer = resolvedContainer === 'webm' ? 'vp9' : 'avc';
+            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : defaultCodecForContainer;
             if (codecInput === 'h264') codecInput = 'avc';
             let codec: string = codecInput;
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
-                    if (Array.isArray(codecs) && codecs.length) codec = codecs[0];
+                    if (Array.isArray(codecs) && codecs.length) {
+                        const mp4Priority = ['avc', 'h264', 'hevc', 'av1', 'vp9'];
+                        const webmPriority = ['vp9', 'av1', 'avc', 'h264'];
+                        const priority = resolvedContainer === 'webm' ? webmPriority : mp4Priority;
+                        const match = priority.find((c) => codecs.includes(c));
+                        codec = match || codecs[0];
+                    }
                 } catch {}
             }
             const target = new BufferTarget();
-            // NOTE: Only mp4 implemented in current mediabunny build; webm path reserved for future addition.
-            const output = new Output({ format: new Mp4OutputFormat(), target });
+            const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
+            const output = new Output({ format: outputFormat, target });
             // Bitrate handling & quality rationale:
             // Previous implementation hard-coded 100_000 bps (~0.1 Mbps) when user bitrate invalid, producing extreme macroblocking.
             // We now:
@@ -265,8 +271,12 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    let resolvedAudioCodec: any = !audioCodec || audioCodec === 'auto' ? 'mp3' : audioCodec;
-                    const preferOrder = ['mp3', 'opus', 'vorbis', 'flac', 'pcm-s16'];
+                    const defaultAudioCodec = resolvedContainer === 'webm' ? 'opus' : 'pcm-s16';
+                    let resolvedAudioCodec: any = !audioCodec || audioCodec === 'auto' ? defaultAudioCodec : audioCodec;
+                    const preferOrder =
+                        resolvedContainer === 'webm'
+                            ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
+                            : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
                     const resolvedSampleRate =
                         audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
                     const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
@@ -354,11 +364,15 @@ export class AVExporter {
             onProgress(92, 'Finalizing container...');
             await output.finalize();
             const raw = target.buffer;
-            const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: 'video/mp4' }) : null;
+            const mimeType = resolvedContainer === 'webm' ? 'video/webm' : 'video/mp4';
+            const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: mimeType }) : null;
 
             let combinedBlob: Blob | undefined = audioAdded ? videoBlob ?? undefined : undefined;
             if (includeAudio && !audioAdded) {
-                console.warn('[AVExporter] Audio track not muxed into MP4. Providing separate WAV blob instead.');
+                const containerLabel = resolvedContainer.toUpperCase();
+                console.warn(
+                    `[AVExporter] Audio track not muxed into ${containerLabel}. Providing separate WAV blob instead.`
+                );
             }
 
             // Compute reproducibility hash

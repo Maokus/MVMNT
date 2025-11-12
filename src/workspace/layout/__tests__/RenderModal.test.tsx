@@ -27,7 +27,7 @@ const mockExportSequence = vi.fn(() => Promise.resolve());
 const mockEnsureMp3EncoderRegistered = vi.fn(() => Promise.resolve());
 
 const mockGetEncodableAudioCodecs = vi.fn(async () => ['aac', 'opus']);
-const mockGetEncodableVideoCodecs = vi.fn(async () => ['avc']);
+const mockGetEncodableVideoCodecs = vi.fn(async () => ['avc', 'vp9']);
 
 vi.mock('@context/VisualizerContext', () => ({
     useVisualizer: () => ({
@@ -53,22 +53,23 @@ vi.mock('mediabunny', () => ({
 // Lazy import to ensure mocks apply before module evaluation
 const loadComponent = () => import('../RenderModal');
 
-describe('RenderModal audio codec behaviour', () => {
+describe('RenderModal export options behaviour', () => {
     beforeEach(() => {
         mockEnsureMp3EncoderRegistered.mockClear();
         mockGetEncodableAudioCodecs.mockClear();
     });
 
-    it('preselects AAC when available codecs load', async () => {
+    it('defaults audio codec to pcm-s16 when capabilities load', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
 
         const select = await screen.findByLabelText('Audio Codec');
-        expect((select as HTMLSelectElement).value).toBe('mp3');
+        expect((select as HTMLSelectElement).value).toBe('pcm-s16');
 
         const options = Array.from(select.querySelectorAll('option')).map((o) => o.value);
-        expect(options[0]).toBe('aac');
+        expect(options[0]).toBe('pcm-s16');
         expect(options).toContain('mp3');
+        expect(options).toContain('opus');
     });
 
     it('prefetches MP3 encoder when user selects mp3', async () => {
@@ -81,5 +82,39 @@ describe('RenderModal audio codec behaviour', () => {
         });
 
         await waitFor(() => expect(mockEnsureMp3EncoderRegistered).toHaveBeenCalled());
+    });
+
+    it('switching to WebM format chooses vp9 and opus defaults', async () => {
+        const { default: RenderModal } = await loadComponent();
+        render(<RenderModal onClose={() => { }} />);
+
+        const formatSelect = await screen.findByLabelText('Format');
+        await act(async () => {
+            fireEvent.change(formatSelect, { target: { value: 'webm' } });
+        });
+
+        const videoCodecSelect = await screen.findByLabelText('Video Codec');
+        const audioCodecSelect = await screen.findByLabelText('Audio Codec');
+        expect((videoCodecSelect as HTMLSelectElement).value).toBe('vp9');
+        expect((audioCodecSelect as HTMLSelectElement).value).toBe('opus');
+    });
+
+    it('submits webm export with container and defaults', async () => {
+        const { default: RenderModal } = await loadComponent();
+        render(<RenderModal onClose={() => { }} />);
+
+        const formatSelect = await screen.findByLabelText('Format');
+        await act(async () => {
+            fireEvent.change(formatSelect, { target: { value: 'webm' } });
+        });
+
+        const startButton = await screen.findByRole('button', { name: 'Start WebM Render' });
+        await act(async () => {
+            fireEvent.click(startButton);
+        });
+
+        await waitFor(() => expect(mockExportVideo).toHaveBeenCalled());
+        const lastCall = mockExportVideo.mock.calls[mockExportVideo.mock.calls.length - 1] as any[] | undefined;
+        expect(lastCall?.[0]).toMatchObject({ container: 'webm', videoCodec: 'vp9', audioCodec: 'opus' });
     });
 });
