@@ -12,12 +12,8 @@ import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
 import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
-import {
-    decodeSceneText,
-    parseLegacyInlineScene,
-    parseScenePackage,
-    ScenePackageError,
-} from './scene-package';
+import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
+import { isTestEnvironment } from '@utils/env';
 
 const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
@@ -56,9 +52,11 @@ interface ParsedArtifact {
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
     if (typeof input === 'string') {
         try {
-            console.warn(
-                '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
-            );
+            if (!isTestEnvironment()) {
+                console.warn(
+                    '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+                );
+            }
             const legacy = parseLegacyInlineScene(input);
             return {
                 envelope: legacy.envelope,
@@ -94,9 +92,11 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
             if (error.code === 'ERR_PACKAGE_FORMAT') {
                 try {
                     const text = decodeSceneText(bytes);
-                    console.warn(
-                        '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
-                    );
+                    if (!isTestEnvironment()) {
+                        console.warn(
+                            '[importScene] Inline JSON scene imports are deprecated. Please re-export scenes as packaged .mvt files.'
+                        );
+                    }
                     const legacy = parseLegacyInlineScene(text);
                     return {
                         envelope: legacy.envelope,
@@ -121,7 +121,7 @@ function hydrateAudioFeatureCacheFromAssets(
     serialized: SerializedAudioFeatureCache,
     payloads: Map<string, Uint8Array>,
     cacheId: string,
-    warnings: string[],
+    warnings: string[]
 ): SerializedAudioFeatureCache | null {
     const hydratedTracks: Record<string, SerializedAudioFeatureTrack> = {};
     for (const [trackKey, track] of Object.entries(serialized.featureTracks || {})) {
@@ -146,7 +146,7 @@ function hydrateAudioFeatureCacheFromAssets(
                     }
                     if (ref.valueCount && values.length !== ref.valueCount) {
                         warnings.push(
-                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${ref.valueCount}, got ${values.length})`,
+                            `Audio feature data length mismatch for ${cacheId}:${trackKey} (expected ${ref.valueCount}, got ${values.length})`
                         );
                     }
                     hydrated.data = { type: ref.type, values };
@@ -200,7 +200,8 @@ function buildDocumentShape(
     if (tl.audioFeatureCaches && typeof tl.audioFeatureCaches === 'object') {
         for (const [id, cache] of Object.entries(tl.audioFeatureCaches as Record<string, any>)) {
             if (cache && typeof cache === 'object' && 'assetRef' in cache) {
-                const assetId = typeof (cache as any).assetId === 'string' ? (cache as any).assetId : encodeURIComponent(id);
+                const assetId =
+                    typeof (cache as any).assetId === 'string' ? (cache as any).assetId : encodeURIComponent(id);
                 const payloadGroup = audioFeaturePayloads.get(assetId);
                 if (!payloadGroup) {
                     featureWarnings.push(`Missing audio feature payload for cache ${id}`);
@@ -217,7 +218,7 @@ function buildDocumentShape(
                         serialized as SerializedAudioFeatureCache,
                         payloadGroup,
                         id,
-                        featureWarnings,
+                        featureWarnings
                     );
                     if (hydrated) {
                         featureCaches[id] = deserializeAudioFeatureCache(hydrated as any);
@@ -272,7 +273,8 @@ function restoreMidiCache(
             restored[cacheId] = value;
             continue;
         }
-        const assetId = typeof (value as any).assetId === 'string' ? (value as any).assetId : encodeURIComponent(cacheId);
+        const assetId =
+            typeof (value as any).assetId === 'string' ? (value as any).assetId : encodeURIComponent(cacheId);
         const payload = midiPayloads.get(assetId);
         if (!payload) {
             warnings.push(`Missing MIDI payload for cache ${cacheId}`);
@@ -325,8 +327,7 @@ async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promi
             const target = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
             target.set(source, startInChannel);
         },
-        getChannelData: (channel: number) =>
-            channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
+        getChannelData: (channel: number) => channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
     } as unknown as AudioBuffer;
     return fallback;
 }
@@ -513,11 +514,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
     if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4) && envelope.assets) {
-        hydrationWarnings = await hydrateAudioAssets(
-            envelope,
-            audioPayloads,
-            waveformPayloads
-        );
+        hydrationWarnings = await hydrateAudioAssets(envelope, audioPayloads, waveformPayloads);
     }
 
     if (envelope.scene?.fontAssets && typeof envelope.scene.fontAssets === 'object') {

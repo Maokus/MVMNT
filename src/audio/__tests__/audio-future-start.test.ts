@@ -41,7 +41,12 @@ class InstrumentedAudioContextDelayed {
     }
     createGain(): any {
         return {
-            gain: { setValueAtTime: () => {}, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} },
+            gain: {
+                setValueAtTime: () => {},
+                linearRampToValueAtTime: () => {},
+                cancelScheduledValues: () => {},
+                setTargetAtTime: () => {},
+            },
             connect: () => ({ connect: () => {} }),
         };
     }

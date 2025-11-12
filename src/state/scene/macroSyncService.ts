@@ -10,8 +10,11 @@ export type MacroEvent =
 
 export type MacroEventListener = (event: MacroEvent) => void;
 
+type SceneStoreBinding = typeof useSceneStore;
+
 let currentSnapshot: SceneMacroState | null = null;
 let unsubscribeFromStore: (() => void) | null = null;
+let storeBinding: SceneStoreBinding = useSceneStore;
 const listeners = new Set<MacroEventListener>();
 
 function cloneMacroState(state: SceneMacroState): SceneMacroState {
@@ -84,9 +87,9 @@ function ensureSubscription() {
     if (unsubscribeFromStore) {
         return;
     }
-    currentSnapshot = cloneMacroState(useSceneStore.getState().macros);
+    currentSnapshot = cloneMacroState(storeBinding.getState().macros);
 
-    unsubscribeFromStore = useSceneStore.subscribe((state, prev) => {
+    unsubscribeFromStore = storeBinding.subscribe((state, prev) => {
         const prevSnapshot = currentSnapshot ?? cloneMacroState(prev?.macros ?? state.macros);
         currentSnapshot = cloneMacroState(state.macros);
         diffAndEmit(state.macros, prevSnapshot);
@@ -115,7 +118,7 @@ export function subscribeToMacroEvents(listener: MacroEventListener): () => void
 
 export function getMacroById(macroId: string): Macro | undefined {
     ensureSubscription();
-    return useSceneStore.getState().macros.byId[macroId];
+    return storeBinding.getState().macros.byId[macroId];
 }
 
 export function getMacroValue(macroId: string): unknown {
@@ -124,17 +127,30 @@ export function getMacroValue(macroId: string): unknown {
 
 export function updateMacroValue(macroId: string, value: unknown) {
     ensureSubscription();
-    const store = useSceneStore.getState();
+    const store = storeBinding.getState();
     store.updateMacroValue(macroId, value);
 }
 
 export function getMacroSnapshot(): SceneSerializedMacros | null {
     ensureSubscription();
-    const state = useSceneStore.getState().macros;
+    const state = storeBinding.getState().macros;
     return buildSerializedPayload(state);
 }
 
 export function replaceMacrosFromSnapshot(payload: SceneSerializedMacros | null | undefined) {
     ensureSubscription();
-    useSceneStore.getState().replaceMacros(payload);
+    storeBinding.getState().replaceMacros(payload);
+}
+
+export function setMacroStoreBinding(nextBinding: SceneStoreBinding | null | undefined) {
+    const resolved = nextBinding ?? useSceneStore;
+    if (resolved === storeBinding) {
+        return;
+    }
+    stopMacroSync();
+    storeBinding = resolved;
+}
+
+export function resetMacroStoreBinding() {
+    setMacroStoreBinding(useSceneStore);
 }

@@ -1,4 +1,5 @@
-import { create, type StateCreator } from 'zustand';
+import { type StateCreator } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
 import type { MIDIData } from '@core/types';
 import type { AudioTrack, AudioCacheEntry, AudioCacheOriginalFile, AudioCacheWaveform } from '@audio/audioTypes';
@@ -1330,7 +1331,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 });
 
-export const useTimelineStore = create<TimelineState>(storeImpl);
+export const useTimelineStore = createWithEqualityFn<TimelineState>(storeImpl);
 
 // Convenience shallow selector hook re-export (optional for consumers)
 export const useTimelineStoreShallow = <T>(selector: (s: TimelineState) => T) => useTimelineStore(selector, shallow);

@@ -1,4 +1,4 @@
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { describe, it, expect } from 'vitest';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '../timelineStore';

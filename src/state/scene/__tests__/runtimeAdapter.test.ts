@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 
 describe('SceneRuntimeAdapter', () => {
@@ -9,12 +10,14 @@ describe('SceneRuntimeAdapter', () => {
 
     beforeEach(() => {
         store = createSceneStore();
+        setMacroStoreBinding(store);
         store.getState().importScene(fixture as any);
         adapter = new SceneRuntimeAdapter({ store });
     });
 
     afterEach(() => {
         adapter.dispose();
+        resetMacroStoreBinding();
     });
 
     it('initializes runtime elements respecting store order', () => {

@@ -15,6 +15,7 @@ import { clearFeatureData } from '@audio/features/sceneApi';
 import { syncElementSubscriptions } from '@audio/features/subscriptionSync';
 import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
+import { isTestEnvironment } from '@utils/env';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -240,7 +241,9 @@ export class SceneElement implements SceneElementInterface {
 
         const binding = this.bindings.get(key);
         if (!binding) {
-            console.warn(`No binding found for property '${key}' in element ${this.id}`);
+            if (!isTestEnvironment()) {
+                console.warn(`No binding found for property '${key}' in element ${this.id}`);
+            }
             return undefined as T;
         }
 

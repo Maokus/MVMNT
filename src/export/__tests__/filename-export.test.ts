@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type SpyInstance } from 'vitest';
 import { buildExportFilename } from '@utils/filename';
 import { VideoExporter } from '@export/video-exporter';
 
@@ -82,6 +82,7 @@ describe('VideoExporter filename integration', () => {
     let canvas: HTMLCanvasElement;
     let exporter: VideoExporter;
     let anchor: HTMLAnchorElement | null;
+    let anchorClickSpy: SpyInstance | null;
 
     beforeEach(() => {
         canvas = document.createElement('canvas');
@@ -89,6 +90,13 @@ describe('VideoExporter filename integration', () => {
         canvas.height = 10;
         exporter = new VideoExporter(canvas, new MockVisualizer());
         anchor = null;
+        anchorClickSpy = vi
+            .spyOn(HTMLAnchorElement.prototype, 'click')
+            .mockImplementation(function (this: HTMLAnchorElement) {
+                // jsdom triggers navigation for anchor clicks; keep it as a no-op to avoid errors.
+                const event = new Event('click', { bubbles: true, cancelable: true });
+                this.dispatchEvent(event);
+            });
         // Spy on document.createElement to capture anchor used for download
         const realCreate = document.createElement.bind(document);
         vi.spyOn(document, 'createElement').mockImplementation(((tag: string, options?: any) => {
@@ -103,6 +111,11 @@ describe('VideoExporter filename integration', () => {
             URL.createObjectURL = ((blob: any) => 'blob:mock-' + (blob?.size || 0)) as any;
             (URL as any).__mocked = true;
         }
+    });
+
+    afterEach(() => {
+        anchorClickSpy?.mockRestore();
+        anchorClickSpy = null;
     });
 
     it('uses provided filename when downloading', async () => {

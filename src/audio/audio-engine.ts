@@ -160,18 +160,25 @@ export class AudioEngine {
         const node = this.active.get(trackId);
         if (node) {
             const g = Math.max(0, Math.min(2, gain));
-            node.gainNode.gain.setTargetAtTime(g, this.ctx!.currentTime, 0.01);
+            const param = node.gainNode.gain as AudioParam & { value?: number };
+            if (typeof param.setTargetAtTime === 'function') {
+                param.setTargetAtTime(g, this.ctx!.currentTime, 0.01);
+            } else if (typeof param.value === 'number') {
+                param.value = g;
+            }
         }
     }
 
     applyMuteState(trackId: string, muted: boolean) {
         const node = this.active.get(trackId);
         if (node) {
-            node.gainNode.gain.setTargetAtTime(
-                muted ? 0 : (useTimelineStore.getState().tracks[trackId] as any).gain ?? 1,
-                this.ctx!.currentTime,
-                0.005
-            );
+            const target = muted ? 0 : (useTimelineStore.getState().tracks[trackId] as any).gain ?? 1;
+            const param = node.gainNode.gain as AudioParam & { value?: number };
+            if (typeof param.setTargetAtTime === 'function') {
+                param.setTargetAtTime(target, this.ctx!.currentTime, 0.005);
+            } else if (typeof param.value === 'number') {
+                param.value = target;
+            }
         }
     }
 

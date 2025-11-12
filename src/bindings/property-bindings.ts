@@ -7,6 +7,7 @@
  */
 
 import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
+import { isTestEnvironment } from '@utils/env';
 
 export type BindingType = 'constant' | 'macro';
 
@@ -15,9 +16,7 @@ export interface PropertyBindingContext {
     sceneConfig: Record<string, unknown>;
 }
 
-export type PropertyBindingData =
-    | { type: 'constant'; value: any }
-    | { type: 'macro'; macroId: string };
+export type PropertyBindingData = { type: 'constant'; value: any } | { type: 'macro'; macroId: string };
 
 /**
  * Abstract base class for property bindings
@@ -116,7 +115,9 @@ export class MacroBinding<T = any> extends PropertyBinding<T> {
     getValue(): T {
         const macro = getMacroById(this.macroId);
         if (!macro) {
-            console.warn(`Macro '${this.macroId}' not found, returning undefined`);
+            if (!isTestEnvironment()) {
+                console.warn(`Macro '${this.macroId}' not found, returning undefined`);
+            }
             return undefined as T;
         }
         return macro.value as T;

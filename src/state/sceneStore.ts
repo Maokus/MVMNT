@@ -1,4 +1,5 @@
-import { create, type StateCreator } from 'zustand';
+import { type StateCreator } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
@@ -1661,6 +1662,6 @@ const createSceneStoreState = (
 
 const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSceneStoreState(set, get);
 
-export const createSceneStore = () => create<SceneStoreState>(sceneStoreCreator);
+export const createSceneStore = () => createWithEqualityFn<SceneStoreState>(sceneStoreCreator);
 
 export const useSceneStore = createSceneStore();

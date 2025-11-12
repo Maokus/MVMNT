@@ -11,6 +11,7 @@ import { collectFontAssets } from './font-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { isTestEnvironment } from '@utils/env';
 import iconDataUrl from '@assets/Icon.icns?inline';
 import {
     serializeAudioFeatureCache,
@@ -678,7 +679,9 @@ export async function exportScene(
     if (storage === 'inline-json') {
         const message =
             'Legacy inline JSON export mode is deprecated. Packaged .mvt exports are recommended for future compatibility.';
-        console.warn(`[exportScene] ${message}`);
+        if (!isTestEnvironment()) {
+            console.warn(`[exportScene] ${message}`);
+        }
         preflightWarnings.push(message);
     }
     const doc = DocumentGateway.build();

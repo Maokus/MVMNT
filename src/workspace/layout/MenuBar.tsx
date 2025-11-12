@@ -16,6 +16,8 @@ interface MenuBarProps {
 const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const { sceneName, setSceneName, saveScene, loadScene, clearScene, createNewDefaultScene } = useScene();
     const [isEditingName, setIsEditingName] = useState(false);
+    // temporary local state while editing so user can clear the input fully
+    const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuRef = useRef<HTMLDivElement>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -46,13 +48,19 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
 
     const handleSceneNameSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        // commit temporary name to store when form submitted (Enter)
+        setSceneName(tempSceneName);
         setIsEditingName(false);
     };
 
     const handleSceneNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
+            // commit on Enter
+            setSceneName(tempSceneName);
             setIsEditingName(false);
         } else if (e.key === 'Escape') {
+            // revert temporary changes on Escape
+            setTempSceneName(sceneName);
             setIsEditingName(false);
         }
     };
@@ -110,9 +118,13 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 <input
                                     type="text"
                                     className="scene-name-input"
-                                    value={sceneName}
-                                    onChange={(e) => setSceneName(e.target.value)}
-                                    onBlur={() => setIsEditingName(false)}
+                                    value={tempSceneName}
+                                    onChange={(e) => setTempSceneName(e.target.value)}
+                                    onBlur={() => {
+                                        // commit on blur as well (matches Enter behaviour)
+                                        setSceneName(tempSceneName);
+                                        setIsEditingName(false);
+                                    }}
                                     onKeyDown={handleSceneNameKeyDown}
                                     autoFocus
                                 />
@@ -120,7 +132,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         ) : (
                             <span
                                 className="scene-name-display"
-                                onDoubleClick={() => setIsEditingName(true)}
+                                onDoubleClick={() => { setTempSceneName(sceneName); setIsEditingName(true); }}
                             >
                                 {sceneName}
                             </span>

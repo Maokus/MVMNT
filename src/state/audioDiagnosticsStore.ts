@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import type {
     AudioFeatureAnalysisProfileDescriptor,
     AudioFeatureCache,
@@ -754,7 +754,7 @@ const initialState: Omit<
     missingPopupFingerprint: null,
 };
 
-export const useAudioDiagnosticsStore = create<AudioDiagnosticsState>((set, get) => ({
+export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsState>((set, get) => ({
     ...initialState,
     publishIntent(intent: AnalysisIntent) {
         const intentProfileId = sanitizeProfileId(intent.analysisProfileId);
