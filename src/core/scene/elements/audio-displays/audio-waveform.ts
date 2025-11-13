@@ -6,7 +6,7 @@ import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
 import { resolveDescriptorProfileId } from '../../../../audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../utils/color';
+import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 

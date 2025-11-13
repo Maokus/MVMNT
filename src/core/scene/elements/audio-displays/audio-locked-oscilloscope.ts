@@ -8,7 +8,7 @@ import {
     selectChannelSample,
 } from '../../../../audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../utils/color';
+import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 

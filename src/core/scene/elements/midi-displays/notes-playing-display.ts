@@ -1,5 +1,5 @@
 // Notes Playing Display: show currently playing notes per channel/track
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -27,7 +27,7 @@ export class NotesPlayingDisplayElement extends SceneElement {
         return {
             name: 'Notes Playing Display',
             description: 'Displays active notes and velocities per track/channel (timeline-backed)',
-            category: 'MIDI Info',
+            category: 'MIDI Displays',
             groups: [
                 ...baseBasicGroups,
                 {
@@ -42,7 +42,10 @@ export class NotesPlayingDisplayElement extends SceneElement {
                             type: 'timelineTrackRef',
                             label: 'MIDI Track',
                             default: null,
-                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                         {
                             key: 'showAllAvailableTracks',

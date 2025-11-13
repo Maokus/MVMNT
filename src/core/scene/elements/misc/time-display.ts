@@ -1,5 +1,5 @@
 // Time display element for showing current time with property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString } from '../base';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
@@ -37,7 +37,7 @@ export class TimeDisplayElement extends SceneElement {
         return {
             name: 'Time Display',
             description: 'Current time and beat position display',
-            category: 'Time',
+            category: 'Misc',
             groups: [
                 ...baseBasicGroups,
                 {

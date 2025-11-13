@@ -1,5 +1,5 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { EnhancedConfigSchema, type SceneElementInterface } from '@core/types.js';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -66,7 +66,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
             name: 'Chord Estimate Display',
             description:
                 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
-            category: 'MIDI Info',
+            category: 'MIDI Displays',
             groups: [
                 ...baseBasicGroups,
                 {

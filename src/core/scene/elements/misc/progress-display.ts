@@ -1,5 +1,5 @@
 // Progress display element for showing playback progress with property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { parseFontSelection, ensureFontLoaded } from '@fonts/font-loader';
@@ -45,7 +45,7 @@ export class ProgressDisplayElement extends SceneElement {
         return {
             name: 'Progress Display',
             description: 'Playback progress bar and statistics',
-            category: 'Time',
+            category: 'Misc',
             groups: [
                 ...baseBasicGroups,
                 {

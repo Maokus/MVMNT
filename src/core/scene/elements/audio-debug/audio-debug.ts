@@ -5,7 +5,7 @@ import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegi
 import { getFeatureData, type FeatureDataResult } from '@audio/features/sceneApi';
 import type { ChannelLayoutMeta } from '@audio/features/audioFeatureTypes';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../utils/color';
+import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 interface FeatureOption {
     value: string;

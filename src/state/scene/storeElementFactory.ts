@@ -39,8 +39,8 @@ function assignDefaultAudioTrackIfAvailable(bindings: ElementBindings): void {
     }
 
     const timelineState = useTimelineStore.getState();
-    const audioTracks = Object.values(timelineState.tracks).filter(
-        (track): track is AudioTrack => Boolean(track && track.type === 'audio')
+    const audioTracks = Object.values(timelineState.tracks).filter((track): track is AudioTrack =>
+        Boolean(track && track.type === 'audio')
     );
 
     if (audioTracks.length !== 1) {
@@ -59,9 +59,7 @@ export function createSceneElementInputFromSchema(options: CreateSceneElementInp
     const elementConfig = { ...(options.config ?? {}), id: options.id };
     const instance = registry.createElement(options.type, elementConfig) as SceneElement | null;
     if (!instance || typeof (instance as any).getSerializableConfig !== 'function') {
-        throw new Error(
-            `[sceneStore] Failed to instantiate element '${options.type}' via registry for store creation`
-        );
+        throw new Error(`[sceneStore] Failed to instantiate element '${options.type}' via registry for store creation`);
     }
 
     try {

@@ -9,12 +9,7 @@ export { ImageSequenceGenerator } from '@export/image-sequence-generator';
 // ==========================================
 // Property Binding System Exports
 // ==========================================
-export {
-    PropertyBinding,
-    ConstantBinding,
-    MacroBinding,
-    PropertyBindingUtils,
-} from '@bindings/property-bindings';
+export { PropertyBinding, ConstantBinding, MacroBinding, PropertyBindingUtils } from '@bindings/property-bindings';
 export type { PropertyBindingData, PropertyBindingContext } from '@bindings/property-bindings';
 export { loadDefaultScene, resetToDefaultScene } from './default-scene-loader';
 

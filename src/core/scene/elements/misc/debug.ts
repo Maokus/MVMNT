@@ -1,4 +1,4 @@
-import { SceneElement, asBoolean } from './base';
+import { SceneElement, asBoolean } from '../base';
 import { EnhancedConfigSchema } from '@core/types';
 import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
 

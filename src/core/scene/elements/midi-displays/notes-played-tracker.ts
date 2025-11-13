@@ -1,5 +1,5 @@
 // Notes Played Tracker element: shows counts of played notes and events from a MIDI file
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -26,7 +26,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         return {
             name: 'Notes Played Tracker',
             description: 'Displays how many notes/events have played so far (timeline-backed)',
-            category: 'MIDI Info',
+            category: 'MIDI Displays',
             groups: [
                 ...baseBasicGroups,
                 {
@@ -41,7 +41,10 @@ export class NotesPlayedTrackerElement extends SceneElement {
                             type: 'timelineTrackRef',
                             label: 'MIDI Track',
                             default: null,
-                            runtime: { transform: (value, element) => asTrimmedString(value, element) ?? null, defaultValue: null },
+                            runtime: {
+                                transform: (value, element) => asTrimmedString(value, element) ?? null,
+                                defaultValue: null,
+                            },
                         },
                     ],
                     presets: [
@@ -104,9 +107,17 @@ export class NotesPlayedTrackerElement extends SceneElement {
                         },
                     ],
                     presets: [
-                        { id: 'studio', label: 'Studio Monitor', values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 } },
+                        {
+                            id: 'studio',
+                            label: 'Studio Monitor',
+                            values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
+                        },
                         { id: 'sidebar', label: 'Sidebar', values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 } },
-                        { id: 'bigBoard', label: 'Big Board', values: { fontSize: 36, color: '#f97316', lineSpacing: 8 } },
+                        {
+                            id: 'bigBoard',
+                            label: 'Big Board',
+                            values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
+                        },
                     ],
                 },
                 ...baseAdvancedGroups,

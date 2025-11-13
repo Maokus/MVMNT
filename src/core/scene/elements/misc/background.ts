@@ -1,5 +1,5 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement, asTrimmedString } from './base';
+import { SceneElement, asTrimmedString } from '../base';
 import { Rectangle, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 
@@ -31,7 +31,7 @@ export class BackgroundElement extends SceneElement {
         return {
             name: 'Background',
             description: 'Solid background color for the visualization',
-            category: 'Layout',
+            category: 'Misc',
             groups: [
                 ...baseBasicGroups,
                 {

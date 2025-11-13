@@ -1,5 +1,5 @@
 // Image scene element for displaying images with transformations and property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from './base';
+import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import type { SceneElementInterface } from '@core/types.js';
@@ -61,7 +61,7 @@ export class ImageElement extends SceneElement {
         return {
             name: 'Image',
             description: 'Display an image with transformations',
-            category: 'Layout',
+            category: 'Misc',
             groups: [
                 ...baseBasicGroups,
                 {

@@ -10,17 +10,17 @@ export {
     type PropertySnapshot,
     type PropertyTransform,
 } from './base';
-export { BackgroundElement } from './background';
-export { ImageElement } from './image';
-export { ProgressDisplayElement } from './progress-display';
-export { TextOverlayElement } from './text-overlay';
-export { TimeDisplayElement } from './time-display';
+export { BackgroundElement } from './misc/background';
+export { ImageElement } from './misc/image';
+export { ProgressDisplayElement } from './misc/progress-display';
+export { TextOverlayElement } from './misc/text-overlay';
+export { TimeDisplayElement } from './misc/time-display';
+export { DebugElement } from './misc/debug';
 export { TimeUnitPianoRollElement } from './midi-displays/time-unit-piano-roll/time-unit-piano-roll';
 export { MovingNotesPianoRollElement } from './midi-displays/moving-notes-piano-roll/moving-notes-piano-roll';
-export { DebugElement } from './debug';
-export { NotesPlayedTrackerElement } from './notes-played-tracker';
-export { NotesPlayingDisplayElement } from './notes-playing-display';
-export { ChordEstimateDisplayElement } from './chord-estimate-display';
+export { NotesPlayedTrackerElement } from './midi-displays/notes-played-tracker';
+export { NotesPlayingDisplayElement } from './midi-displays/notes-playing-display';
+export { ChordEstimateDisplayElement } from './midi-displays/chord-estimate-display';
 export { AudioSpectrumElement } from './audio-displays/audio-spectrum';
 export { AudioVolumeMeterElement } from './audio-displays/audio-volume-meter';
 export { AudioWaveformElement } from './audio-displays/audio-waveform';
