@@ -16,21 +16,22 @@ export class ScaleAnimation extends BaseNoteAnimation {
             case 'attack':
                 // Slightly smaller preview scaling up to 90%
                 rect.scaleX = rect.scaleY = af.lerp(0, 1, ef.easeOutQuad(progress));
-                rect.opacity = af.lerp(0, 0.9, progress);
+                rect.opacity = af.lerp(0, 1, ef.easeOutQuad(progress));
                 break;
             case 'decay':
                 rect.shadowBlur = af.lerp(100, 0, ef.easeInOutQuad(progress));
                 rect.shadowColor = color;
                 break;
             case 'sustain':
+                rect.opacity = 1;
                 break;
             case 'release':
                 rect.scaleX = rect.scaleY = af.lerp(1, 0, ef.easeInExpo(p));
-                rect.opacity = af.lerp(0.8, 0, p);
+                rect.opacity = af.lerp(1, 0, p);
                 break;
             default:
                 rect.scaleX = rect.scaleY = 1;
-                rect.opacity = 0.8;
+                rect.opacity = 1;
                 break;
         }
 

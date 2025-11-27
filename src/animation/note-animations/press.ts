@@ -24,16 +24,16 @@ export class PressAnimation extends BaseNoteAnimation {
                     [1, 0, ef.linear],
                 ]);
                 rect.y = y + bounceCurve.valAt(progress);
-                rect.opacity = af.lerp(1, 0.8, progress);
+                rect.opacity = 1;
                 return this.markNonLayout([rect]);
             }
             case 'sustain':
                 rect.y = y;
-                rect.opacity = 0.8;
+                rect.opacity = 1;
                 return this.markNonLayout([rect]);
             case 'release': {
                 rect.y = y;
-                rect.opacity = af.lerp(0.8, 0, progress);
+                rect.opacity = af.lerp(1, 0, progress);
                 return this.markNonLayout([rect]);
             }
             default:

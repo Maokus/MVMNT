@@ -3,11 +3,27 @@ import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescri
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@animation/note-animations';
+import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 import { TimingManager } from '@core/timing';
+
+const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
+
+const applyLegacyOpacity = (color: string, opacity?: number): string => {
+    const sanitized = ensureEightDigitHex(color, DEFAULT_NOTE_COLOR);
+    if (opacity === undefined || opacity === null) {
+        return sanitized;
+    }
+    const clamped = Math.max(0, Math.min(1, opacity));
+    const alphaHex = Math.round(clamped * 255)
+        .toString(16)
+        .padStart(2, '0')
+        .toUpperCase();
+    return `${sanitized.slice(0, 7)}${alphaHex}`;
+};
 
 export class MovingNotesPianoRollElement extends SceneElement {
     public animationController: MovingNotesAnimationController;
@@ -221,9 +237,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         },
                         {
                             key: 'noteColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Note Color',
-                            default: channelColorDefaults[0],
+                            default: DEFAULT_NOTE_COLOR,
                             visibleWhen: [
                                 { key: 'showNotes', truthy: true },
                                 { key: 'useChannelColors', falsy: true },
@@ -237,16 +253,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             min: 4,
                             max: 40,
                             step: 1,
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteOpacity',
-                            type: 'number',
-                            label: 'Note Opacity',
-                            default: 0.8,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
                         {
@@ -309,19 +315,29 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         {
                             id: 'classicBlocks',
                             label: 'Classic Blocks',
-                            values: { showNotes: true, noteHeight: 20, noteOpacity: 0.85, noteGlowOpacity: 0.4 },
+                            values: {
+                                showNotes: true,
+                                noteHeight: 20,
+                                noteColor: '#FF6B6BD9',
+                                noteGlowOpacity: 0.4,
+                            },
                         },
                         {
                             id: 'ghosted',
                             label: 'Ghosted',
-                            values: { showNotes: true, noteOpacity: 0.5, noteGlowOpacity: 0.2, noteStrokeWidth: 1 },
+                            values: {
+                                showNotes: true,
+                                noteColor: '#FF6B6B80',
+                                noteGlowOpacity: 0.2,
+                                noteStrokeWidth: 1,
+                            },
                         },
                         {
                             id: 'neon',
                             label: 'Neon',
                             values: {
                                 showNotes: true,
-                                noteOpacity: 0.9,
+                                noteColor: '#FF6B6BE6',
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
                                 noteGlowColor: 'rgba(56,189,248,0.7)',
@@ -360,7 +376,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             values: {
                                 showNotes: true,
                                 useChannelColors: false,
-                                noteColor: channelColorDefaults[0],
+                                noteColor: DEFAULT_NOTE_COLOR,
                             },
                         },
                     ],
@@ -708,7 +724,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     const numeric = asNumber(value, element);
                     return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
                 },
-                defaultValue: 0.8,
+                defaultValue: undefined,
             },
             noteCornerRadius: {
                 transform: (value, element) => {
@@ -854,7 +870,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             );
 
             // Style customizations
-            const noteOpacity = props.noteOpacity;
             const noteCornerRadius = props.noteCornerRadius;
             const noteStrokeColor = props.noteStrokeColor;
             const noteStrokeWidth = props.noteStrokeWidth;
@@ -867,8 +882,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     obj.setCornerRadius(noteCornerRadius);
                 if (noteStrokeWidth > 0 && typeof obj.setStroke === 'function')
                     obj.setStroke(noteStrokeColor, noteStrokeWidth);
-                if (typeof obj.setGlobalAlpha === 'function') obj.setGlobalAlpha(noteOpacity);
-                else if (typeof obj.setOpacity === 'function') obj.setOpacity(noteOpacity);
                 if (noteGlowBlur > 0 && typeof obj.setShadow === 'function') {
                     let glowColorOut = noteGlowColor;
                     if (noteGlowColor.startsWith('#') && noteGlowOpacity < 1) {
@@ -996,10 +1009,21 @@ export class MovingNotesPianoRollElement extends SceneElement {
     getChannelColors(): string[] {
         const props = this.getSchemaProps({
             useChannelColors: { transform: asBoolean, defaultValue: false },
-            noteColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
+            noteColor: { transform: (value) => normalizeColorAlphaValue(value, DEFAULT_NOTE_COLOR) },
+            noteOpacity: {
+                transform: (value, element) => {
+                    const numeric = asNumber(value, element);
+                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
+                },
+                defaultValue: undefined,
+            },
             channel0Color: { transform: asTrimmedString },
         });
-        const baseColor = props.noteColor ?? props.channel0Color ?? '#ff6b6b';
+        const rawBaseColor = props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR;
+        const baseColor = applyLegacyOpacity(
+            normalizeColorAlphaValue(rawBaseColor, DEFAULT_NOTE_COLOR),
+            props.noteOpacity
+        );
         if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
@@ -1012,7 +1036,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
 
         return Array.from({ length: 16 }, (_, index) => {
             const key = `channel${index}Color` as const;
-            return (channelColors[key] as string | undefined) ?? baseColor;
+            const rawChannelColor = (channelColors[key] as string | undefined) ?? baseColor;
+            return applyLegacyOpacity(normalizeColorAlphaValue(rawChannelColor, baseColor), props.noteOpacity);
         });
     }
 }

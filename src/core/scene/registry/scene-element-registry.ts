@@ -70,26 +70,29 @@ export class SceneElementRegistry {
     }
 
     private registerDefaultElements() {
-        this.registerElementFromClass('timeUnitPianoRoll', elements.TimeUnitPianoRollElement);
-        this.registerElementFromClass('movingNotesPianoRoll', elements.MovingNotesPianoRollElement);
         this.registerElementFromClass('background', elements.BackgroundElement);
         this.registerElementFromClass('image', elements.ImageElement);
         this.registerElementFromClass('progressDisplay', elements.ProgressDisplayElement);
         this.registerElementFromClass('textOverlay', elements.TextOverlayElement);
         this.registerElementFromClass('timeDisplay', elements.TimeDisplayElement);
-        this.registerElementFromClass('debug', elements.DebugElement);
+
+        this.registerElementFromClass('timeUnitPianoRoll', elements.TimeUnitPianoRollElement);
+        this.registerElementFromClass('movingNotesPianoRoll', elements.MovingNotesPianoRollElement);
         this.registerElementFromClass('notesPlayedTracker', elements.NotesPlayedTrackerElement);
         this.registerElementFromClass('notesPlayingDisplay', elements.NotesPlayingDisplayElement);
         this.registerElementFromClass('chordEstimateDisplay', elements.ChordEstimateDisplayElement);
+
         this.registerElementFromClass('audioSpectrum', elements.AudioSpectrumElement);
         this.registerElementFromClass('audioVolumeMeter', elements.AudioVolumeMeterElement);
         this.registerElementFromClass('audioWaveform', elements.AudioWaveformElement);
         this.registerElementFromClass('audioLockedOscilloscope', elements.AudioLockedOscilloscopeElement);
-        this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);
-        this.registerElementFromClass('audioOddProfile', elements.AudioOddProfileElement);
-        this.registerElementFromClass('audioAdhocProfile', elements.AudioAdhocProfileElement);
-        this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
-        this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
+
+        // this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);
+        // this.registerElementFromClass('audioOddProfile', elements.AudioOddProfileElement);
+        // this.registerElementFromClass('audioAdhocProfile', elements.AudioAdhocProfileElement);
+        // this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
+        // this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
+        this.registerElementFromClass('debug', elements.DebugElement);
     }
 }
 

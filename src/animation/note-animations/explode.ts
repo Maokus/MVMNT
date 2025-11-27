@@ -95,7 +95,7 @@ export class ExplodeAnimation extends BaseNoteAnimation {
                     color,
                     2
                 );
-                skeleton.opacity = 0.8;
+                skeleton.opacity = 1;
 
                 renderObjs.push(skeleton);
 
@@ -103,11 +103,11 @@ export class ExplodeAnimation extends BaseNoteAnimation {
             }
             case 'sustain':
                 let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
-                skeleton.opacity = 0.8;
+                skeleton.opacity = 1;
                 return this.markNonLayout([skeleton]);
             case 'release': {
                 let skeleton = new Rectangle(x, y, width, height, 'rgba(0,0,0,0)', color, 2);
-                skeleton.opacity = af.lerp(0.8, 0, progress);
+                skeleton.opacity = af.lerp(1, 0, progress);
                 return this.markNonLayout([skeleton]);
             }
             default:
