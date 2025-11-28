@@ -33,9 +33,10 @@ function clamp(value: number, min: number, max: number): number {
     return value;
 }
 
-function ensurePointCount(width: number, fallback: number): number {
+function ensurePointCount(width: number, fallback: number, preferLarger: boolean = true): number {
     const desired = Math.max(2, Math.round(width));
-    return Math.max(desired, fallback);
+    const safeFallback = Math.max(2, Math.round(fallback));
+    return preferLarger ? Math.max(desired, safeFallback) : Math.min(desired, safeFallback);
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -171,22 +172,110 @@ function applyRollingAverage(values: number[], radius: number): number[] {
     return result;
 }
 
+function applyGain(values: number[], gain: number): number[] {
+    if (!Number.isFinite(gain) || gain === 1) {
+        return [...values];
+    }
+    const safeGain = Math.max(0, gain);
+    return values.map((value) => clamp(value * safeGain, -1, 1));
+}
+
 function prepareValuesForDisplay(
     values: number[] | undefined,
     width: number,
     rollingAverageRadius: number,
-    side: WaveformSide
+    side: WaveformSide,
+    density: number,
+    gain: number
 ): number[] | undefined {
     if (!values || values.length < 2) {
         return undefined;
     }
-    const targetCount = ensurePointCount(width, values.length);
-    const normalized = normalizeForDisplay(values, targetCount);
-    const averaged = applyRollingAverage(normalized, rollingAverageRadius);
-    return applySideSelection(averaged, side);
+    const normalizedDensity = clamp(Number.isFinite(density) ? density : 1, 0.1, 1);
+    const basePointCount = ensurePointCount(width, values.length, true);
+    const normalized = normalizeForDisplay(values, basePointCount);
+    const shouldDownsample = normalizedDensity < 0.999;
+    const densityTarget = shouldDownsample ? Math.max(2, Math.round(width * normalizedDensity)) : basePointCount;
+    const densityAdjusted =
+        shouldDownsample && densityTarget < normalized.length
+            ? normalizeForDisplay(normalized, densityTarget)
+            : normalized;
+    const averaged = applyRollingAverage(densityAdjusted, rollingAverageRadius);
+    const amplified = applyGain(averaged, gain);
+    return applySideSelection(amplified, side);
 }
 
 type ChannelSeriesMap = Partial<Record<WaveformChannel, number[]>>;
+
+interface ChannelPaddingPlan {
+    targetLength: number;
+    padStart: number;
+    padEnd: number;
+}
+
+function buildChannelPaddingPlan(
+    range: AudioFeatureRangeSample,
+    series: ChannelSeriesMap,
+    requestedStartTick: number,
+    requestedEndTick: number
+): ChannelPaddingPlan {
+    const seriesLengths = Object.values(series).map((values) => values?.length ?? 0);
+    const baseLength = Math.max(range.frameCount || 0, ...seriesLengths, 0);
+    const hopTicks = typeof range.hopTicks === 'number' && range.hopTicks > 0 ? range.hopTicks : 0;
+    if (!hopTicks || !Number.isFinite(hopTicks)) {
+        return {
+            targetLength: Math.max(2, baseLength || 0),
+            padStart: 0,
+            padEnd: 0,
+        };
+    }
+    const trackStartTick = Number.isFinite(range.trackStartTick) ? range.trackStartTick : requestedStartTick;
+    const trackEndTick = Number.isFinite(range.trackEndTick) ? range.trackEndTick : requestedEndTick;
+    const missingBeforeTicks = Math.max(0, trackStartTick - requestedStartTick);
+    const missingAfterTicks = Math.max(0, requestedEndTick - trackEndTick);
+    const padStart = Math.max(0, Math.ceil(missingBeforeTicks / hopTicks));
+    const padEnd = Math.max(0, Math.ceil(missingAfterTicks / hopTicks));
+    const targetLength = Math.max(2, baseLength + padStart + padEnd);
+    return {
+        targetLength,
+        padStart,
+        padEnd,
+    };
+}
+
+function padChannelSeries(series: ChannelSeriesMap, plan: ChannelPaddingPlan): ChannelSeriesMap {
+    const safeTarget = Math.max(2, Math.floor(plan.targetLength));
+    const padStart = Math.max(0, Math.floor(plan.padStart));
+    const padEnd = Math.max(0, Math.floor(plan.padEnd));
+    let mutated = false;
+    const padded: ChannelSeriesMap = {};
+    (Object.entries(series) as [WaveformChannel, number[]][]).forEach(([key, values]) => {
+        if (!values) {
+            return;
+        }
+        const needsPadding = padStart > 0 || padEnd > 0 || values.length < safeTarget;
+        if (!needsPadding) {
+            padded[key] = values;
+            return;
+        }
+        mutated = true;
+        const desiredLength = Math.max(safeTarget, padStart + values.length + padEnd);
+        const extended = new Array<number>(desiredLength);
+        let writeIndex = 0;
+        for (; writeIndex < padStart && writeIndex < desiredLength; writeIndex += 1) {
+            extended[writeIndex] = 0;
+        }
+        const copyCount = Math.min(values.length, desiredLength - writeIndex);
+        for (let i = 0; i < copyCount; i += 1) {
+            extended[writeIndex++] = values[i] ?? 0;
+        }
+        while (writeIndex < desiredLength) {
+            extended[writeIndex++] = 0;
+        }
+        padded[key] = extended;
+    });
+    return mutated ? { ...series, ...padded } : series;
+}
 
 function extractBaseChannelValues(range: AudioFeatureRangeSample): number[][] {
     const channelStride = Math.max(1, Math.floor(range.channels ?? 0) || 1);
@@ -222,10 +311,10 @@ function extractWaveformChannels(range: AudioFeatureRangeSample): ChannelSeriesM
     const map: ChannelSeriesMap = {};
     const left = baseChannels[0];
     const right = baseChannels[1];
-    if (left?.length) {
+    if (left) {
         map.left = left;
     }
-    if (right?.length) {
+    if (right) {
         map.right = right;
     }
     if (map.left && map.right && map.left.length === map.right.length) {
@@ -490,6 +579,38 @@ export class AudioWaveformElement extends SceneElement {
                             },
                         },
                         {
+                            key: 'gain',
+                            type: 'number',
+                            label: 'Gain',
+                            default: 1,
+                            min: 0,
+                            max: 10,
+                            step: 0.1,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0, 10);
+                                },
+                                defaultValue: 1,
+                            },
+                        },
+                        {
+                            key: 'density',
+                            type: 'number',
+                            label: 'Density',
+                            default: 1,
+                            min: 0.1,
+                            max: 1,
+                            step: 0.05,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0.1, 1);
+                                },
+                                defaultValue: 1,
+                            },
+                        },
+                        {
                             key: 'backgroundColor',
                             type: 'colorAlpha',
                             label: 'Background',
@@ -566,6 +687,8 @@ export class AudioWaveformElement extends SceneElement {
         const lineWidth = Math.max(0.5, props.lineWidth ?? 2);
         const primaryColor = props.primaryColor ?? DEFAULT_PRIMARY_LINE_COLOR;
         const secondaryColor = props.secondaryColor ?? DEFAULT_SECONDARY_LINE_COLOR;
+        const gain = clamp(typeof props.gain === 'number' ? props.gain : 1, 0, 10);
+        const density = clamp(typeof props.density === 'number' ? props.density : 1, 0.1, 1);
 
         const descriptor = WAVEFORM_DESCRIPTOR;
         const analysisProfileId = resolveDescriptorProfileId(descriptor);
@@ -600,11 +723,13 @@ export class AudioWaveformElement extends SceneElement {
             analysisProfileId
         );
 
-        if (!range || range.frameCount < 2 || !range.data?.length) {
+        if (!range || !range.data?.length) {
             return pushMessage('No waveform data');
         }
 
-        const channelSeries = extractWaveformChannels(range);
+        const baseChannelSeries = extractWaveformChannels(range);
+        const paddingPlan = buildChannelPaddingPlan(range, baseChannelSeries, startTick, endTick);
+        const channelSeries = padChannelSeries(baseChannelSeries, paddingPlan);
         const primarySelection = resolveChannelSelection(channelSeries, primaryChannel);
         const secondarySelection = resolveChannelSelection(
             channelSeries,
@@ -613,10 +738,10 @@ export class AudioWaveformElement extends SceneElement {
         );
 
         const preparedPrimary = primarySelection
-            ? prepareValuesForDisplay(primarySelection.values, width, rollingAverageRadius, side)
+            ? prepareValuesForDisplay(primarySelection.values, width, rollingAverageRadius, side, density, gain)
             : undefined;
         const preparedSecondary = secondarySelection
-            ? prepareValuesForDisplay(secondarySelection.values, width, rollingAverageRadius, side)
+            ? prepareValuesForDisplay(secondarySelection.values, width, rollingAverageRadius, side, density, gain)
             : undefined;
 
         const hasRenderableSeries = Boolean(
@@ -626,7 +751,7 @@ export class AudioWaveformElement extends SceneElement {
             return pushMessage('Waveform too short');
         }
 
-        if (preparedSecondary) {
+        if (preparedSecondary !== undefined) {
             renderWaveformSeries(preparedSecondary, {
                 mode: displayMode,
                 width,
@@ -637,7 +762,7 @@ export class AudioWaveformElement extends SceneElement {
             });
         }
 
-        if (preparedPrimary) {
+        if (preparedPrimary !== undefined) {
             renderWaveformSeries(preparedPrimary, {
                 mode: displayMode,
                 width,
