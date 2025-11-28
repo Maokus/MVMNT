@@ -21,11 +21,128 @@ function average(values: number[]): number {
 
 const DEFAULT_BAR_COLOR = '#60A5FAFF';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_MIN_FREQUENCY = 20;
+const DEFAULT_MAX_FREQUENCY = 20000;
+const MAX_FREQUENCY_LIMIT = 48000;
+
+const SPECTRUM_SCALES = ['linear', 'log', 'mel'] as const;
+const SPECTRUM_DISPLAY_MODES = ['bar', 'line', 'dot'] as const;
+
+export type AudioSpectrumScale = (typeof SPECTRUM_SCALES)[number];
+export type AudioSpectrumDisplayMode = (typeof SPECTRUM_DISPLAY_MODES)[number];
+
+const spectrumScaleSet = new Set<string>(SPECTRUM_SCALES);
+const spectrumDisplaySet = new Set<string>(SPECTRUM_DISPLAY_MODES);
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
 const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
     normalizeChannelSelectorInput(value);
+
+const normalizeSpectrumScale: PropertyTransform<AudioSpectrumScale, SceneElementInterface> = (value, element) => {
+    const normalized = (asTrimmedString(value, element) ?? '').toLowerCase();
+    if (spectrumScaleSet.has(normalized)) {
+        return normalized as AudioSpectrumScale;
+    }
+    return undefined;
+};
+
+const normalizeSpectrumDisplay: PropertyTransform<AudioSpectrumDisplayMode, SceneElementInterface> = (
+    value,
+    element
+) => {
+    const normalized = (asTrimmedString(value, element) ?? '').toLowerCase();
+    if (spectrumDisplaySet.has(normalized)) {
+        return normalized as AudioSpectrumDisplayMode;
+    }
+    return undefined;
+};
+
+const normalizeThickness: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) {
+        return undefined;
+    }
+    return clamp(numeric, 0.5, 64);
+};
+
+const normalizeFrequency: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) {
+        return undefined;
+    }
+    return clamp(numeric, 0, MAX_FREQUENCY_LIMIT);
+};
+
+export interface SpectrogramBinConversionOptions {
+    values: readonly number[];
+    sampleRate: number;
+    minFrequency: number;
+    maxFrequency: number;
+    targetBinCount: number;
+    scale: AudioSpectrumScale;
+}
+
+const MEL_FACTOR = 2595;
+const MEL_DIVISOR = 700;
+const LOG_MIN_FREQUENCY = 1e-3;
+
+function frequencyToScale(frequency: number, scale: AudioSpectrumScale): number {
+    const hz = Math.max(0, frequency);
+    if (scale === 'linear') {
+        return hz;
+    }
+    if (scale === 'log') {
+        return Math.log10(Math.max(LOG_MIN_FREQUENCY, hz));
+    }
+    const mel = MEL_FACTOR * Math.log10(1 + hz / MEL_DIVISOR);
+    return mel;
+}
+
+function scaleToFrequency(value: number, scale: AudioSpectrumScale): number {
+    if (scale === 'linear') {
+        return Math.max(0, value);
+    }
+    if (scale === 'log') {
+        return Math.pow(10, value);
+    }
+    return MEL_DIVISOR * (Math.pow(10, value / MEL_FACTOR) - 1);
+}
+
+export function convertSpectrogramBins(options: SpectrogramBinConversionOptions): number[] {
+    const { values, sampleRate, minFrequency, maxFrequency, targetBinCount, scale } = options;
+
+    const sanitizedTargetBins = Math.max(1, Math.floor(targetBinCount));
+    const sanitizedSampleRate = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 44100;
+    const nyquist = sanitizedSampleRate / 2;
+    const clampedMin = clamp(minFrequency ?? 0, 0, nyquist);
+    const clampedMax = clamp(maxFrequency ?? nyquist, clampedMin || 0, nyquist);
+    const safeMax = clampedMax <= clampedMin ? Math.min(nyquist, clampedMin + Math.max(1, nyquist * 0.01)) : clampedMax;
+    const safeMin = Math.min(clampedMin, safeMax);
+
+    const sourceBins = Math.max(1, values.length);
+    const frequencyStep = sourceBins > 1 ? nyquist / (sourceBins - 1) : nyquist;
+    const scaleMin = frequencyToScale(scale === 'linear' ? safeMin : Math.max(LOG_MIN_FREQUENCY, safeMin), scale);
+    const scaleMax = frequencyToScale(Math.max(safeMin, safeMax), scale);
+    const scaleRange = Math.max(1e-9, scaleMax - scaleMin);
+
+    const output: number[] = new Array(sanitizedTargetBins);
+    for (let i = 0; i < sanitizedTargetBins; i += 1) {
+        const t = (i + 0.5) / sanitizedTargetBins;
+        const scaledValue = scaleMin + scaleRange * t;
+        const frequency = clamp(scaleToFrequency(scaledValue, scale), safeMin, safeMax);
+        const rawIndex = frequencyStep > 0 ? frequency / frequencyStep : 0;
+        const clampedIndex = clamp(rawIndex, 0, sourceBins - 1);
+        const lowerIndex = Math.floor(clampedIndex);
+        const upperIndex = Math.min(sourceBins - 1, lowerIndex + 1);
+        const interpolation = clampedIndex - lowerIndex;
+        const lowerValue = values[lowerIndex] ?? values[sourceBins - 1] ?? 0;
+        const upperValue = values[upperIndex] ?? lowerValue;
+        output[i] = lowerValue + (upperValue - lowerValue) * interpolation;
+    }
+
+    return output;
+}
 
 export class AudioSpectrumElement extends SceneElement {
     constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {
@@ -89,7 +206,7 @@ export class AudioSpectrumElement extends SceneElement {
                             type: 'number',
                             label: 'Minimum Value',
                             default: -80,
-                            min: -160,
+                            min: -80,
                             max: 0,
                             step: 1,
                             runtime: { transform: asNumber, defaultValue: -80 },
@@ -143,6 +260,60 @@ export class AudioSpectrumElement extends SceneElement {
                                 transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
                                 defaultValue: DEFAULT_BACKGROUND_COLOR,
                             },
+                        },
+                        {
+                            key: 'display',
+                            type: 'select',
+                            label: 'Display Mode',
+                            default: 'bar',
+                            options: [
+                                { label: 'Bars', value: 'bar' },
+                                { label: 'Line', value: 'line' },
+                                { label: 'Dots', value: 'dot' },
+                            ],
+                            runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
+                        },
+                        {
+                            key: 'thickness',
+                            type: 'number',
+                            label: 'Thickness',
+                            default: 4,
+                            min: 0.5,
+                            max: 64,
+                            step: 0.5,
+                            runtime: { transform: normalizeThickness, defaultValue: 4 },
+                        },
+                        {
+                            key: 'scale',
+                            type: 'select',
+                            label: 'Frequency Scale',
+                            default: 'linear',
+                            options: [
+                                { label: 'Linear', value: 'linear' },
+                                { label: 'Logarithmic', value: 'log' },
+                                { label: 'Mel', value: 'mel' },
+                            ],
+                            runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
+                        },
+                        {
+                            key: 'minFrequency',
+                            type: 'number',
+                            label: 'Min Frequency (Hz)',
+                            default: DEFAULT_MIN_FREQUENCY,
+                            min: 0,
+                            max: MAX_FREQUENCY_LIMIT,
+                            step: 1,
+                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
+                        },
+                        {
+                            key: 'maxFrequency',
+                            type: 'number',
+                            label: 'Max Frequency (Hz)',
+                            default: DEFAULT_MAX_FREQUENCY,
+                            min: 1,
+                            max: MAX_FREQUENCY_LIMIT,
+                            step: 1,
+                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
                         },
                         {
                             key: 'smoothing',
