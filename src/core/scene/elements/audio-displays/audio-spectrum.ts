@@ -1,10 +1,9 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
-import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeChannelSelectorInput } from '../../../../audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 function clamp(value: number, min: number, max: number): number {
@@ -31,9 +30,6 @@ const spectrumDisplaySet = new Set<string>(SPECTRUM_DISPLAY_MODES);
 
 registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
 
-const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
-    normalizeChannelSelectorInput(value);
-
 const normalizeSpectrumScale: PropertyTransform<AudioSpectrumScale, SceneElementInterface> = (value, element) => {
     const normalized = (asTrimmedString(value, element) ?? '').toLowerCase();
     if (spectrumScaleSet.has(normalized)) {
@@ -51,14 +47,6 @@ const normalizeSpectrumDisplay: PropertyTransform<AudioSpectrumDisplayMode, Scen
         return normalized as AudioSpectrumDisplayMode;
     }
     return undefined;
-};
-
-const normalizeThickness: PropertyTransform<number, SceneElementInterface> = (value, element) => {
-    const numeric = asNumber(value, element);
-    if (numeric === undefined) {
-        return undefined;
-    }
-    return clamp(numeric, 0.5, 64);
 };
 
 const normalizeFrequency: PropertyTransform<number, SceneElementInterface> = (value, element) => {
@@ -191,6 +179,18 @@ function normalizeDecibelBins(values: number[], minDecibels: number, maxDecibels
     return values.map((value) => clamp((value - minDecibels) / range, 0, 1));
 }
 
+function applyTilt(values: number[], tilt: number): number[] {
+    const len = values.length;
+    return values.map((value, index) => {
+        const factor = 1 + tilt * (index / (len - 1) - 0.5) * 2;
+        return (value + 80) * factor - 80;
+    });
+}
+
+function applyGain(values: number[], gain: number): number[] {
+    return values.map((value) => (value + 80) * gain - 80);
+}
+
 export class AudioSpectrumElement extends SceneElement {
     constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {
         super('audioSpectrum', id, config);
@@ -223,13 +223,6 @@ export class AudioSpectrumElement extends SceneElement {
                                 transform: (value, element) => asTrimmedString(value, element) ?? null,
                                 defaultValue: null,
                             },
-                        },
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
                         },
                         {
                             key: 'barCount',
@@ -289,9 +282,9 @@ export class AudioSpectrumElement extends SceneElement {
                             runtime: { transform: asNumber, defaultValue: 180 },
                         },
                         {
-                            key: 'barColor',
+                            key: 'primaryColor',
                             type: 'colorAlpha',
-                            label: 'Bar Color',
+                            label: 'Color',
                             default: DEFAULT_BAR_COLOR,
                             runtime: {
                                 transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BAR_COLOR),
@@ -328,7 +321,7 @@ export class AudioSpectrumElement extends SceneElement {
                             min: 0.5,
                             max: 64,
                             step: 0.5,
-                            runtime: { transform: normalizeThickness, defaultValue: 4 },
+                            runtime: { transform: asNumber, defaultValue: 4 },
                         },
                         {
                             key: 'scale',
@@ -341,6 +334,26 @@ export class AudioSpectrumElement extends SceneElement {
                                 { label: 'Mel', value: 'mel' },
                             ],
                             runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
+                        },
+                        {
+                            key: 'tilt',
+                            type: 'number',
+                            label: 'Tilt Factor',
+                            default: 0,
+                            min: -1,
+                            max: 1,
+                            step: 0.01,
+                            runtime: { transform: asNumber, defaultValue: 0 },
+                        },
+                        {
+                            key: 'gain',
+                            type: 'number',
+                            label: 'Gain',
+                            default: 1,
+                            min: 0,
+                            max: 10,
+                            step: 0.01,
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'minFrequency',
@@ -422,17 +435,63 @@ export class AudioSpectrumElement extends SceneElement {
             scale: props.scale ?? 'linear',
         });
 
-        const normalized = normalizeDecibelBins(scaledBins, props.minDecibels, props.maxDecibels);
+        const transformedBins = applyGain(applyTilt(scaledBins, props.tilt), props.gain);
 
+        const normalized = normalizeDecibelBins(transformedBins, props.minDecibels, props.maxDecibels);
         const actualBarWidth = props.width / props.barCount;
         const gap = Math.min(2, actualBarWidth * 0.25);
-        normalized.forEach((ratio, index) => {
-            const x = index * actualBarWidth + gap * 0.5;
-            const barWidth = Math.max(1, actualBarWidth - gap);
-            const barHeight = ratio * props.height;
-            const y = props.height - barHeight;
-            objects.push(new Rectangle(x, y, barWidth, barHeight, props.barColor));
-        });
+        const peakY = (ratio: number) => props.height - ratio * props.height;
+        const binLeft = (index: number) => index * actualBarWidth;
+        const binCenter = (index: number) => binLeft(index) + actualBarWidth / 2;
+        const shapeThickness = Math.max(0.5, props.thickness ?? 1);
+
+        const renderBars = () => {
+            const barWidth = Math.max(1, Math.min(actualBarWidth - gap, shapeThickness));
+            normalized.forEach((ratio, index) => {
+                const x = binLeft(index) + gap * 0.5;
+                const barHeight = ratio * props.height;
+                const y = peakY(ratio);
+                objects.push(new Rectangle(x, y, barWidth, barHeight, props.primaryColor));
+            });
+        };
+
+        const renderLine = () => {
+            if (!normalized.length) return;
+            const points = normalized.map((ratio, index) => ({ x: binCenter(index), y: peakY(ratio) }));
+            if (points.length === 1) {
+                points.push({ ...points[0] });
+            }
+            const poly = new Poly(points, null, props.primaryColor, shapeThickness);
+            poly.setClosed(false).setLineJoin('round').setLineCap('round');
+            objects.push(poly);
+        };
+
+        const renderDots = () => {
+            const radius = Math.max(0.25, shapeThickness / 2);
+            normalized.forEach((ratio, index) => {
+                const x = binCenter(index);
+                const y = peakY(ratio);
+                objects.push(
+                    new Arc(x, y, radius, 0, Math.PI * 2, false, {
+                        fillColor: props.primaryColor,
+                        strokeColor: '#FFFFFF00',
+                    })
+                );
+            });
+        };
+
+        switch (props.display) {
+            case 'line':
+                renderLine();
+                break;
+            case 'dot':
+                renderDots();
+                break;
+            case 'bar':
+            default:
+                renderBars();
+                break;
+        }
 
         return objects;
     }
