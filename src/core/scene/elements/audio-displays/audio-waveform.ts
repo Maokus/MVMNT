@@ -103,6 +103,23 @@ function buildPolylinePoints(values: number[], width: number, height: number): {
     });
 }
 
+function applyRollingAverage(values: number[], radius: number): number[] {
+    if (radius <= 0) return [...values];
+    const result = new Array(values.length);
+    for (let i = 0; i < values.length; i += 1) {
+        let total = 0;
+        let count = 0;
+        const start = Math.max(0, i);
+        const end = Math.min(values.length - 1, i + radius);
+        for (let j = start; j <= end; j += 1) {
+            total += values[j] ?? 0;
+            count += 1;
+        }
+        result[i] = count > 0 ? total / count : values[i] ?? 0;
+    }
+    return result;
+}
+
 export class AudioWaveformElement extends SceneElement {
     constructor(id: string = 'audioWaveform', config: Record<string, unknown> = {}) {
         super('audioWaveform', id, config);
@@ -209,9 +226,9 @@ export class AudioWaveformElement extends SceneElement {
                             },
                         },
                         {
-                            key: 'smoothing',
+                            key: 'rollingAverage',
                             type: 'number',
-                            label: 'Smoothing',
+                            label: 'Rolling Average (pts)',
                             default: 0,
                             min: 0,
                             max: 64,
@@ -219,7 +236,9 @@ export class AudioWaveformElement extends SceneElement {
                             runtime: {
                                 transform: (value, element) => {
                                     const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
+                                    if (numeric === undefined) return undefined;
+                                    const clamped = clamp(numeric, 0, 64);
+                                    return Math.round(clamped);
                                 },
                                 defaultValue: 0,
                             },
@@ -233,7 +252,7 @@ export class AudioWaveformElement extends SceneElement {
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        const smoothingRadius = Math.max(0, Math.round(props.smoothing));
+        const rollingAverageRadius = Math.max(0, Math.round(props.rollingAverage ?? 0));
 
         const descriptor = WAVEFORM_DESCRIPTOR;
         const analysisProfileId = resolveDescriptorProfileId(descriptor);
@@ -270,9 +289,7 @@ export class AudioWaveformElement extends SceneElement {
             descriptor.featureKey,
             startTick,
             endTick,
-            {
-                smoothing: smoothingRadius,
-            },
+            undefined,
             analysisProfileId
         );
 
@@ -320,7 +337,8 @@ export class AudioWaveformElement extends SceneElement {
                 }
                 const targetCount = ensurePointCount(props.width, values.length);
                 const normalizedValues = normalizeForDisplay(values, targetCount);
-                const points = buildPolylinePoints(normalizedValues, props.width, props.height);
+                const averagedValues = applyRollingAverage(normalizedValues, rollingAverageRadius);
+                const points = buildPolylinePoints(averagedValues, props.width, props.height);
                 const line = new Poly(points, null, props.lineColor, props.lineWidth, {
                     includeInLayoutBounds: false,
                 });
@@ -358,7 +376,8 @@ export class AudioWaveformElement extends SceneElement {
 
         const targetCount = ensurePointCount(props.width, values.length);
         const normalizedValues = normalizeForDisplay(values, targetCount);
-        const points = buildPolylinePoints(normalizedValues, props.width, props.height);
+        const averagedValues = applyRollingAverage(normalizedValues, rollingAverageRadius);
+        const points = buildPolylinePoints(averagedValues, props.width, props.height);
 
         const line = new Poly(points, null, props.lineColor, props.lineWidth, { includeInLayoutBounds: false });
         line.setClosed(false);
