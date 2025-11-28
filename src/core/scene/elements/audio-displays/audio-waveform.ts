@@ -1,17 +1,27 @@
 import { SceneElement, asNumber, asTrimmedString } from '../base';
-import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
-import { sampleAudioFeatureRange } from '@state/selectors/audioFeatureSelectors';
+import { sampleAudioFeatureRange, type AudioFeatureRangeSample } from '@state/selectors/audioFeatureSelectors';
 import { resolveDescriptorProfileId } from '../../../../audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
-const DEFAULT_LINE_COLOR = '#22D3EEFF';
+const DEFAULT_PRIMARY_LINE_COLOR = '#22D3EEFF';
+const DEFAULT_SECONDARY_LINE_COLOR = '#F472B6FF';
 const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+
+type WaveformSide = 'both' | 'sideA' | 'sideB';
+type WaveformChannel = 'left' | 'right' | 'mid' | 'side';
+type WaveformDisplayMode = 'line' | 'bar' | 'dot';
+
+const DEFAULT_WAVEFORM_SIDE: WaveformSide = 'both';
+const DEFAULT_PRIMARY_CHANNEL: WaveformChannel = 'left';
+const DEFAULT_SECONDARY_CHANNEL: WaveformChannel = 'right';
+const DEFAULT_DISPLAY_MODE: WaveformDisplayMode = 'line';
 
 registerFeatureRequirements('audioWaveform', [{ feature: 'waveform' }]);
 registerFeatureRequirements('audioOscilloscope', [{ feature: 'waveform' }]);
@@ -103,6 +113,47 @@ function buildPolylinePoints(values: number[], width: number, height: number): {
     });
 }
 
+function applySideSelection(values: number[], side: WaveformSide): number[] {
+    if (side === 'both') {
+        return [...values];
+    }
+    const sign = side === 'sideA' ? 1 : -1;
+    return values.map((value) => sign * Math.abs(value ?? 0));
+}
+
+function normalizeWaveformSide(value: unknown, fallback: WaveformSide = DEFAULT_WAVEFORM_SIDE): WaveformSide {
+    if (typeof value === 'string') {
+        if (value === 'both' || value === 'sideA' || value === 'sideB') {
+            return value;
+        }
+    }
+    return fallback;
+}
+
+function normalizeWaveformChannel(
+    value: unknown,
+    fallback: WaveformChannel = DEFAULT_PRIMARY_CHANNEL
+): WaveformChannel {
+    if (typeof value === 'string') {
+        if (value === 'left' || value === 'right' || value === 'mid' || value === 'side') {
+            return value;
+        }
+    }
+    return fallback;
+}
+
+function normalizeWaveformDisplay(
+    value: unknown,
+    fallback: WaveformDisplayMode = DEFAULT_DISPLAY_MODE
+): WaveformDisplayMode {
+    if (typeof value === 'string') {
+        if (value === 'line' || value === 'bar' || value === 'dot') {
+            return value;
+        }
+    }
+    return fallback;
+}
+
 function applyRollingAverage(values: number[], radius: number): number[] {
     if (radius <= 0) return [...values];
     const result = new Array(values.length);
@@ -118,6 +169,156 @@ function applyRollingAverage(values: number[], radius: number): number[] {
         result[i] = count > 0 ? total / count : values[i] ?? 0;
     }
     return result;
+}
+
+function prepareValuesForDisplay(
+    values: number[] | undefined,
+    width: number,
+    rollingAverageRadius: number,
+    side: WaveformSide
+): number[] | undefined {
+    if (!values || values.length < 2) {
+        return undefined;
+    }
+    const targetCount = ensurePointCount(width, values.length);
+    const normalized = normalizeForDisplay(values, targetCount);
+    const averaged = applyRollingAverage(normalized, rollingAverageRadius);
+    return applySideSelection(averaged, side);
+}
+
+type ChannelSeriesMap = Partial<Record<WaveformChannel, number[]>>;
+
+function extractBaseChannelValues(range: AudioFeatureRangeSample): number[][] {
+    const channelStride = Math.max(1, Math.floor(range.channels ?? 0) || 1);
+    if (!range.data?.length || range.frameCount < 1) {
+        return [];
+    }
+    if (range.format === 'waveform-minmax') {
+        const waveformChannels = Math.max(1, Math.floor(channelStride / 2) || 1);
+        const channelValues = Array.from({ length: waveformChannels }, () => [] as number[]);
+        for (let frame = 0; frame < range.frameCount; frame += 1) {
+            const baseIndex = frame * Math.max(1, channelStride);
+            for (let channel = 0; channel < waveformChannels; channel += 1) {
+                const pairIndex = baseIndex + channel * 2;
+                const min = range.data[pairIndex] ?? 0;
+                const max = range.data[pairIndex + 1] ?? min;
+                channelValues[channel].push(clamp((min + max) / 2, -1, 1));
+            }
+        }
+        return channelValues;
+    }
+    const channelValues = Array.from({ length: channelStride }, () => [] as number[]);
+    for (let frame = 0; frame < range.frameCount; frame += 1) {
+        const baseIndex = frame * channelStride;
+        for (let channel = 0; channel < channelStride; channel += 1) {
+            channelValues[channel].push(clamp(range.data[baseIndex + channel] ?? 0, -1, 1));
+        }
+    }
+    return channelValues;
+}
+
+function extractWaveformChannels(range: AudioFeatureRangeSample): ChannelSeriesMap {
+    const baseChannels = extractBaseChannelValues(range);
+    const map: ChannelSeriesMap = {};
+    const left = baseChannels[0];
+    const right = baseChannels[1];
+    if (left?.length) {
+        map.left = left;
+    }
+    if (right?.length) {
+        map.right = right;
+    }
+    if (map.left && map.right && map.left.length === map.right.length) {
+        map.mid = map.left.map((value, index) => clamp((value + (map.right?.[index] ?? value)) / 2, -1, 1));
+        map.side = map.left.map((value, index) => clamp((value - (map.right?.[index] ?? value)) / 2, -1, 1));
+    }
+    return map;
+}
+
+type ChannelSelection = { key: WaveformChannel; values: number[] };
+
+const CHANNEL_FALLBACK_ORDER: WaveformChannel[] = ['left', 'right', 'mid', 'side'];
+
+function resolveChannelSelection(
+    series: ChannelSeriesMap,
+    selection: WaveformChannel,
+    exclude?: Set<WaveformChannel>
+): ChannelSelection | null {
+    const exact = series[selection];
+    if (exact?.length) {
+        return { key: selection, values: exact };
+    }
+    for (const key of CHANNEL_FALLBACK_ORDER) {
+        if (exclude?.has(key)) {
+            continue;
+        }
+        const values = series[key];
+        if (values?.length) {
+            return { key, values };
+        }
+    }
+    return null;
+}
+
+interface RenderWaveformSeriesOptions {
+    mode: WaveformDisplayMode;
+    width: number;
+    height: number;
+    color: string;
+    lineWidth: number;
+    objects: RenderObject[];
+}
+
+function renderWaveformSeries(values: number[], options: RenderWaveformSeriesOptions): void {
+    if (!values.length) return;
+    const points = buildPolylinePoints(values, options.width, options.height);
+    if (!points.length) return;
+    switch (options.mode) {
+        case 'bar':
+            renderWaveformBars(points, options);
+            break;
+        case 'dot':
+            renderWaveformDots(points, options);
+            break;
+        case 'line':
+        default:
+            renderWaveformLine(points, options);
+            break;
+    }
+}
+
+function renderWaveformLine(points: { x: number; y: number }[], options: RenderWaveformSeriesOptions) {
+    const strokeWidth = Math.max(0.5, options.lineWidth);
+    const linePoints = points.length === 1 ? [...points, { ...points[0], x: points[0].x + 0.001 }] : points;
+    const poly = new Poly(linePoints, null, options.color, strokeWidth, { includeInLayoutBounds: false });
+    poly.setClosed(false).setLineJoin('round').setLineCap('round');
+    options.objects.push(poly);
+}
+
+function renderWaveformBars(points: { x: number; y: number }[], options: RenderWaveformSeriesOptions) {
+    const centerY = options.height / 2;
+    const strokeWidth = Math.max(0.5, options.lineWidth);
+    const spacing =
+        points.length > 1 ? Math.abs(points[1].x - points[0].x) : options.width / Math.max(1, points.length || 1);
+    const barWidth = Math.max(1, Math.min(spacing * 0.8, strokeWidth * 4));
+    points.forEach(({ x, y }) => {
+        const delta = y - centerY;
+        const rectHeight = Math.max(1, Math.abs(delta));
+        const rectY = delta < 0 ? y : centerY;
+        const rect = new Rectangle(x - barWidth / 2, rectY, barWidth, rectHeight, options.color);
+        options.objects.push(rect);
+    });
+}
+
+function renderWaveformDots(points: { x: number; y: number }[], options: RenderWaveformSeriesOptions) {
+    const radius = Math.max(0.5, options.lineWidth / 2);
+    points.forEach(({ x, y }) => {
+        const dot = new Arc(x, y, radius, 0, Math.PI * 2, false, {
+            fillColor: options.color,
+            strokeColor: '#FFFFFF00',
+        });
+        options.objects.push(dot);
+    });
 }
 
 export class AudioWaveformElement extends SceneElement {
@@ -190,13 +391,86 @@ export class AudioWaveformElement extends SceneElement {
                             runtime: { transform: asNumber, defaultValue: 140 },
                         },
                         {
-                            key: 'lineColor',
-                            type: 'colorAlpha',
-                            label: 'Line Color',
-                            default: DEFAULT_LINE_COLOR,
+                            key: 'side',
+                            type: 'select',
+                            label: 'Side',
+                            default: DEFAULT_WAVEFORM_SIDE,
+                            options: [
+                                { label: 'Both', value: 'both' },
+                                { label: 'Side A', value: 'sideA' },
+                                { label: 'Side B', value: 'sideB' },
+                            ],
                             runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
-                                defaultValue: DEFAULT_LINE_COLOR,
+                                transform: (value) => normalizeWaveformSide(value, DEFAULT_WAVEFORM_SIDE),
+                                defaultValue: DEFAULT_WAVEFORM_SIDE,
+                            },
+                        },
+                        {
+                            key: 'primaryChannel',
+                            type: 'select',
+                            label: 'Primary Channel',
+                            default: DEFAULT_PRIMARY_CHANNEL,
+                            options: [
+                                { label: 'Left', value: 'left' },
+                                { label: 'Right', value: 'right' },
+                                { label: 'Mid (L+R)', value: 'mid' },
+                                { label: 'Side (L-R)', value: 'side' },
+                            ],
+                            runtime: {
+                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_PRIMARY_CHANNEL),
+                                defaultValue: DEFAULT_PRIMARY_CHANNEL,
+                            },
+                        },
+                        {
+                            key: 'secondaryChannel',
+                            type: 'select',
+                            label: 'Secondary Channel',
+                            default: DEFAULT_SECONDARY_CHANNEL,
+                            options: [
+                                { label: 'Left', value: 'left' },
+                                { label: 'Right', value: 'right' },
+                                { label: 'Mid (L+R)', value: 'mid' },
+                                { label: 'Side (L-R)', value: 'side' },
+                            ],
+                            runtime: {
+                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
+                                defaultValue: DEFAULT_SECONDARY_CHANNEL,
+                            },
+                        },
+                        {
+                            key: 'primaryColor',
+                            type: 'colorAlpha',
+                            label: 'Primary Color',
+                            default: DEFAULT_PRIMARY_LINE_COLOR,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const legacyColor =
+                                        element instanceof AudioWaveformElement
+                                            ? element.readLegacyLineColor()
+                                            : undefined;
+                                    const fallback = legacyColor ?? DEFAULT_PRIMARY_LINE_COLOR;
+                                    const candidate = value ?? legacyColor;
+                                    return normalizeColorAlphaValue(candidate ?? fallback, fallback);
+                                },
+                                defaultValue: DEFAULT_PRIMARY_LINE_COLOR,
+                            },
+                        },
+                        {
+                            key: 'secondaryColor',
+                            type: 'colorAlpha',
+                            label: 'Secondary Color',
+                            default: DEFAULT_SECONDARY_LINE_COLOR,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const legacyColor =
+                                        element instanceof AudioWaveformElement
+                                            ? element.readLegacyLineColor()
+                                            : undefined;
+                                    const fallback = legacyColor ?? DEFAULT_SECONDARY_LINE_COLOR;
+                                    const candidate = value ?? legacyColor;
+                                    return normalizeColorAlphaValue(candidate ?? fallback, fallback);
+                                },
+                                defaultValue: DEFAULT_SECONDARY_LINE_COLOR,
                             },
                         },
                         {
@@ -226,6 +500,21 @@ export class AudioWaveformElement extends SceneElement {
                             },
                         },
                         {
+                            key: 'display',
+                            type: 'select',
+                            label: 'Display',
+                            default: DEFAULT_DISPLAY_MODE,
+                            options: [
+                                { label: 'Bars', value: 'bar' },
+                                { label: 'Line', value: 'line' },
+                                { label: 'Dots', value: 'dot' },
+                            ],
+                            runtime: {
+                                transform: (value) => normalizeWaveformDisplay(value, DEFAULT_DISPLAY_MODE),
+                                defaultValue: DEFAULT_DISPLAY_MODE,
+                            },
+                        },
+                        {
                             key: 'rollingAverage',
                             type: 'number',
                             label: 'Rolling Average (pts)',
@@ -250,29 +539,47 @@ export class AudioWaveformElement extends SceneElement {
         };
     }
 
+    private readLegacyLineColor(): string | undefined {
+        if (!this.bindings.has('lineColor')) {
+            return undefined;
+        }
+        try {
+            const legacy = this.getProperty<string>('lineColor');
+            if (typeof legacy === 'string' && legacy.trim()) {
+                return normalizeColorAlphaValue(legacy, DEFAULT_PRIMARY_LINE_COLOR);
+            }
+        } catch {
+            return undefined;
+        }
+        return undefined;
+    }
+
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
+        const width = props.width ?? 420;
+        const height = props.height ?? 140;
         const rollingAverageRadius = Math.max(0, Math.round(props.rollingAverage ?? 0));
+        const side = normalizeWaveformSide(props.side, DEFAULT_WAVEFORM_SIDE);
+        const displayMode = normalizeWaveformDisplay(props.display, DEFAULT_DISPLAY_MODE);
+        const primaryChannel = normalizeWaveformChannel(props.primaryChannel, DEFAULT_PRIMARY_CHANNEL);
+        const secondaryChannel = normalizeWaveformChannel(props.secondaryChannel, DEFAULT_SECONDARY_CHANNEL);
+        const lineWidth = Math.max(0.5, props.lineWidth ?? 2);
+        const primaryColor = props.primaryColor ?? DEFAULT_PRIMARY_LINE_COLOR;
+        const secondaryColor = props.secondaryColor ?? DEFAULT_SECONDARY_LINE_COLOR;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
         const analysisProfileId = resolveDescriptorProfileId(descriptor);
 
         const objects: RenderObject[] = [];
-        objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
+        objects.push(new Rectangle(0, 0, width, height, props.backgroundColor));
+
+        const pushMessage = (message: string) => {
+            objects.push(new Text(8, height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
+            return objects;
+        };
 
         if (!props.audioTrackId) {
-            objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    'Select an audio track',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                )
-            );
-            return objects;
+            return pushMessage('Select an audio track');
         }
 
         const timing = getSharedTimingManager();
@@ -294,94 +601,52 @@ export class AudioWaveformElement extends SceneElement {
         );
 
         if (!range || range.frameCount < 2 || !range.data?.length) {
-            objects.push(
-                new Text(8, props.height / 2, 'No waveform data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
-            );
-            return objects;
+            return pushMessage('No waveform data');
         }
 
-        const channelStride = Math.max(1, range.channels || 1);
+        const channelSeries = extractWaveformChannels(range);
+        const primarySelection = resolveChannelSelection(channelSeries, primaryChannel);
+        const secondarySelection = resolveChannelSelection(
+            channelSeries,
+            secondaryChannel,
+            primarySelection ? new Set<WaveformChannel>([primarySelection.key]) : undefined
+        );
 
-        if (range.format === 'waveform-minmax') {
-            const waveformChannels = Math.max(1, Math.floor(channelStride / 2) || 1);
-            const channelValues = Array.from({ length: waveformChannels }, () => [] as number[]);
-            for (let frame = 0; frame < range.frameCount; frame += 1) {
-                const baseIndex = frame * channelStride;
-                for (let channel = 0; channel < waveformChannels; channel += 1) {
-                    const pairIndex = baseIndex + channel * 2;
-                    const min = range.data[pairIndex] ?? 0;
-                    const max = range.data[pairIndex + 1] ?? min;
-                    channelValues[channel].push(clamp((min + max) / 2, -1, 1));
-                }
-            }
+        const preparedPrimary = primarySelection
+            ? prepareValuesForDisplay(primarySelection.values, width, rollingAverageRadius, side)
+            : undefined;
+        const preparedSecondary = secondarySelection
+            ? prepareValuesForDisplay(secondarySelection.values, width, rollingAverageRadius, side)
+            : undefined;
 
-            const hasRenderableChannel = channelValues.some((values) => values.length >= 2);
-            if (!hasRenderableChannel) {
-                objects.push(
-                    new Text(
-                        8,
-                        props.height / 2,
-                        'Waveform too short',
-                        '12px Inter, sans-serif',
-                        '#94a3b8',
-                        'left',
-                        'middle'
-                    )
-                );
-                return objects;
-            }
+        const hasRenderableSeries = Boolean(
+            (preparedPrimary && preparedPrimary.length >= 2) || (preparedSecondary && preparedSecondary.length >= 2)
+        );
+        if (!hasRenderableSeries) {
+            return pushMessage('Waveform too short');
+        }
 
-            channelValues.forEach((values, channelIndex) => {
-                if (values.length < 2) {
-                    return;
-                }
-                const targetCount = ensurePointCount(props.width, values.length);
-                const normalizedValues = normalizeForDisplay(values, targetCount);
-                const averagedValues = applyRollingAverage(normalizedValues, rollingAverageRadius);
-                const points = buildPolylinePoints(averagedValues, props.width, props.height);
-                const line = new Poly(points, null, props.lineColor, props.lineWidth, {
-                    includeInLayoutBounds: false,
-                });
-                line.setClosed(false);
-                if (channelIndex > 0) {
-                    line.setGlobalAlpha(0.7);
-                    line.setLineDash([6, 4]);
-                }
-                objects.push(line);
+        if (preparedSecondary) {
+            renderWaveformSeries(preparedSecondary, {
+                mode: displayMode,
+                width,
+                height,
+                color: secondaryColor,
+                lineWidth,
+                objects,
             });
-
-            return objects;
         }
 
-        const values: number[] = [];
-        for (let frame = 0; frame < range.frameCount; frame += 1) {
-            const baseIndex = frame * channelStride;
-            values.push(clamp(range.data[baseIndex] ?? 0, -1, 1));
+        if (preparedPrimary) {
+            renderWaveformSeries(preparedPrimary, {
+                mode: displayMode,
+                width,
+                height,
+                color: primaryColor,
+                lineWidth,
+                objects,
+            });
         }
-
-        if (values.length < 2) {
-            objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    'Waveform too short',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                )
-            );
-            return objects;
-        }
-
-        const targetCount = ensurePointCount(props.width, values.length);
-        const normalizedValues = normalizeForDisplay(values, targetCount);
-        const averagedValues = applyRollingAverage(normalizedValues, rollingAverageRadius);
-        const points = buildPolylinePoints(averagedValues, props.width, props.height);
-
-        const line = new Poly(points, null, props.lineColor, props.lineWidth, { includeInLayoutBounds: false });
-        line.setClosed(false);
-        objects.push(line);
 
         return objects;
     }
