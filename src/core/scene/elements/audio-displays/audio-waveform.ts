@@ -155,21 +155,39 @@ function normalizeWaveformDisplay(
     return fallback;
 }
 
-function applyRollingAverage(values: number[], radius: number): number[] {
+function applyDamp(values: number[], radius: number): number[] {
     if (radius <= 0) return [...values];
+    const baseWindowSize = Math.max(1, Math.floor(radius) + 1);
     const result = new Array(values.length);
+    const denom = Math.max(1, values.length - 1);
     for (let i = 0; i < values.length; i += 1) {
+        const position = denom === 0 ? 0 : i / denom;
+        const taperedWindowSize = computeTaperedWindowSize(baseWindowSize, position);
+        const dynamicRadius = Math.max(0, Math.round(taperedWindowSize) - 1);
         let total = 0;
         let count = 0;
-        const start = Math.max(0, i);
-        const end = Math.min(values.length - 1, i + radius);
-        for (let j = start; j <= end; j += 1) {
+        const end = Math.min(values.length - 1, i + dynamicRadius);
+        for (let j = i; j <= end; j += 1) {
             total += values[j] ?? 0;
             count += 1;
         }
         result[i] = count > 0 ? total / count : values[i] ?? 0;
     }
     return result;
+}
+
+function computeTaperedWindowSize(baseWindowSize: number, position: number): number {
+    if (baseWindowSize <= 1) {
+        return 1;
+    }
+    const clampedPosition = clamp(Number.isFinite(position) ? position : 0, 0, 1);
+    const midWindowSize = Math.max(1, baseWindowSize / 2);
+    if (clampedPosition <= 0.5) {
+        const t = clampedPosition / 0.5;
+        return lerp(baseWindowSize, midWindowSize, t);
+    }
+    const t = (clampedPosition - 0.5) / 0.5;
+    return lerp(midWindowSize, 1, t);
 }
 
 function applyGain(values: number[], gain: number): number[] {
@@ -183,7 +201,7 @@ function applyGain(values: number[], gain: number): number[] {
 function prepareValuesForDisplay(
     values: number[] | undefined,
     width: number,
-    rollingAverageRadius: number,
+    dampRadius: number,
     side: WaveformSide,
     density: number,
     gain: number
@@ -200,7 +218,7 @@ function prepareValuesForDisplay(
         shouldDownsample && densityTarget < normalized.length
             ? normalizeForDisplay(normalized, densityTarget)
             : normalized;
-    const averaged = applyRollingAverage(densityAdjusted, rollingAverageRadius);
+    const averaged = applyDamp(densityAdjusted, dampRadius);
     const amplified = applyGain(averaged, gain);
     return applySideSelection(amplified, side);
 }
@@ -636,9 +654,9 @@ export class AudioWaveformElement extends SceneElement {
                             },
                         },
                         {
-                            key: 'rollingAverage',
+                            key: 'damp',
                             type: 'number',
-                            label: 'Rolling Average (pts)',
+                            label: 'Damp',
                             default: 0,
                             min: 0,
                             max: 64,
@@ -679,7 +697,7 @@ export class AudioWaveformElement extends SceneElement {
         const props = this.getSchemaProps();
         const width = props.width ?? 420;
         const height = props.height ?? 140;
-        const rollingAverageRadius = Math.max(0, Math.round(props.rollingAverage ?? 0));
+        const dampRadius = Math.max(0, Math.round(props.damp ?? 0));
         const side = normalizeWaveformSide(props.side, DEFAULT_WAVEFORM_SIDE);
         const displayMode = normalizeWaveformDisplay(props.display, DEFAULT_DISPLAY_MODE);
         const primaryChannel = normalizeWaveformChannel(props.primaryChannel, DEFAULT_PRIMARY_CHANNEL);
@@ -738,10 +756,10 @@ export class AudioWaveformElement extends SceneElement {
         );
 
         const preparedPrimary = primarySelection
-            ? prepareValuesForDisplay(primarySelection.values, width, rollingAverageRadius, side, density, gain)
+            ? prepareValuesForDisplay(primarySelection.values, width, dampRadius, side, density, gain)
             : undefined;
         const preparedSecondary = secondarySelection
-            ? prepareValuesForDisplay(secondarySelection.values, width, rollingAverageRadius, side, density, gain)
+            ? prepareValuesForDisplay(secondarySelection.values, width, dampRadius, side, density, gain)
             : undefined;
 
         const hasRenderableSeries = Boolean(
