@@ -2,8 +2,9 @@ import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from 
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
+import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from '../../../../audio/audioFeatureUtils';
+import { normalizeChannelSelectorInput } from '../../../../audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '../../../../utils/color';
 
 function clamp(value: number, min: number, max: number): number {
@@ -11,12 +12,6 @@ function clamp(value: number, min: number, max: number): number {
     if (value < min) return min;
     if (value > max) return max;
     return value;
-}
-
-function average(values: number[]): number {
-    if (!values.length) return 0;
-    const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
-    return total / values.length;
 }
 
 const DEFAULT_BAR_COLOR = '#60A5FAFF';
@@ -142,6 +137,58 @@ export function convertSpectrogramBins(options: SpectrogramBinConversionOptions)
     }
 
     return output;
+}
+
+function resolveSpectrogramSampleRate(result: FeatureDataResult | null): number {
+    if (!result) {
+        return 44100;
+    }
+
+    const descriptor = result.metadata?.descriptor;
+    const frameRecord = result.metadata?.frame as { sampleRate?: number } | undefined;
+    const candidates: unknown[] = [];
+
+    if (typeof frameRecord?.sampleRate === 'number') {
+        candidates.push(frameRecord.sampleRate);
+    }
+
+    if (descriptor?.profileOverrides?.sampleRate != null) {
+        candidates.push(descriptor.profileOverrides.sampleRate);
+    }
+
+    const registry = descriptor?.profileRegistryDelta ?? null;
+    const analysisProfileId = descriptor?.analysisProfileId ?? null;
+    if (registry && analysisProfileId && registry[analysisProfileId]?.sampleRate != null) {
+        candidates.push(registry[analysisProfileId]?.sampleRate);
+    }
+    if (registry) {
+        for (const entry of Object.values(registry)) {
+            if (entry?.sampleRate != null) {
+                candidates.push(entry.sampleRate);
+            }
+        }
+    }
+
+    for (const candidate of candidates) {
+        const numeric = Number(candidate);
+        if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric;
+        }
+    }
+
+    return 44100;
+}
+
+function sanitizeSpectrogramValues(values: number[]): number[] {
+    if (!Array.isArray(values) || !values.length) {
+        return [];
+    }
+    return values.map((value) => (Number.isFinite(value) ? value : 0));
+}
+
+function normalizeDecibelBins(values: number[], minDecibels: number, maxDecibels: number): number[] {
+    const range = Math.max(1e-6, maxDecibels - minDecibels);
+    return values.map((value) => clamp((value - minDecibels) / range, 0, 1));
 }
 
 export class AudioSpectrumElement extends SceneElement {
@@ -344,45 +391,38 @@ export class AudioSpectrumElement extends SceneElement {
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, props.width, props.height, props.backgroundColor));
 
-        if (!props.audioTrackId) {
-            objects.push(
-                new Text(
-                    8,
-                    props.height / 2,
-                    'Select an audio track',
-                    '12px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'middle'
-                )
-            );
+        const pushMessage = (message: string) => {
+            objects.push(new Text(8, props.height / 2, message, '12px Inter, sans-serif', '#94a3b8', 'left', 'middle'));
             return objects;
+        };
+
+        if (!props.audioTrackId) {
+            return pushMessage('Select an audio track');
         }
 
         const sample = getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, {
             smoothing: props.smoothing,
         });
-        const values = sample?.values ?? [];
-        if (!values.length) {
-            objects.push(
-                new Text(8, props.height / 2, 'No spectrum data', '12px Inter, sans-serif', '#94a3b8', 'left', 'middle')
-            );
-            return objects;
+        const rawValues = sample?.values ?? [];
+        if (!rawValues.length) {
+            return pushMessage('No spectrum data');
         }
 
-        const binsPerBar = Math.max(1, Math.floor(values.length / props.barCount));
-        const normalized: number[] = [];
-        for (let bar = 0; bar < props.barCount; bar += 1) {
-            const start = bar * binsPerBar;
-            const slice = values.slice(start, start + binsPerBar);
-            const magnitude = average(slice);
-            const ratio = clamp(
-                (magnitude - props.minDecibels) / Math.max(1e-6, props.maxDecibels - props.minDecibels),
-                0,
-                1
-            );
-            normalized.push(ratio);
+        const sanitizedSource = sanitizeSpectrogramValues(rawValues);
+        if (!sanitizedSource.length) {
+            return pushMessage('No spectrum data');
         }
+
+        const scaledBins = convertSpectrogramBins({
+            values: sanitizedSource,
+            sampleRate: resolveSpectrogramSampleRate(sample),
+            minFrequency: props.minFrequency,
+            maxFrequency: props.maxFrequency,
+            targetBinCount: props.barCount,
+            scale: props.scale ?? 'linear',
+        });
+
+        const normalized = normalizeDecibelBins(scaledBins, props.minDecibels, props.maxDecibels);
 
         const actualBarWidth = props.width / props.barCount;
         const gap = Math.min(2, actualBarWidth * 0.25);
