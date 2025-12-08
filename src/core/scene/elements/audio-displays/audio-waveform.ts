@@ -629,6 +629,32 @@ export class AudioWaveformElement extends SceneElement {
                             },
                         },
                         {
+                            key: 'startOffset',
+                            type: 'number',
+                            label: 'Start Offset',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            runtime: {
+                                transform: (value, element) => {
+                                    const numeric = asNumber(value, element);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0, 1);
+                                },
+                                defaultValue: 0.5,
+                            },
+                        },
+                        {
+                            key: 'showPlayhead',
+                            type: 'boolean',
+                            label: 'Show Playhead',
+                            default: false,
+                            runtime: {
+                                transform: (value) => (typeof value === 'boolean' ? value : undefined),
+                                defaultValue: false,
+                            },
+                        },
+                        {
                             key: 'backgroundColor',
                             type: 'colorAlpha',
                             label: 'Background',
@@ -707,6 +733,8 @@ export class AudioWaveformElement extends SceneElement {
         const secondaryColor = props.secondaryColor ?? DEFAULT_SECONDARY_LINE_COLOR;
         const gain = clamp(typeof props.gain === 'number' ? props.gain : 1, 0, 10);
         const density = clamp(typeof props.density === 'number' ? props.density : 1, 0.1, 1);
+        const startOffset = clamp(typeof props.startOffset === 'number' ? props.startOffset : 0.5, 0, 1);
+        const showPlayhead = props.showPlayhead === true;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
         const analysisProfileId = resolveDescriptorProfileId(descriptor);
@@ -724,8 +752,7 @@ export class AudioWaveformElement extends SceneElement {
         }
 
         const timing = getSharedTimingManager();
-        const halfWindow = props.windowSeconds / 2;
-        const startSeconds = Math.max(0, targetTime - halfWindow);
+        const startSeconds = targetTime - props.windowSeconds * startOffset;
         const endSeconds = startSeconds + props.windowSeconds;
         const startTick = Math.floor(timing.secondsToTicks(startSeconds));
         const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
@@ -789,6 +816,22 @@ export class AudioWaveformElement extends SceneElement {
                 lineWidth,
                 objects,
             });
+        }
+
+        if (showPlayhead) {
+            const playheadX = startOffset * width;
+            const playheadLine = new Poly(
+                [
+                    { x: playheadX, y: 0 },
+                    { x: playheadX, y: height },
+                ],
+                null,
+                primaryColor,
+                Math.max(1, lineWidth),
+                { includeInLayoutBounds: false }
+            );
+            playheadLine.setClosed(false).setLineJoin('round').setLineCap('round');
+            objects.push(playheadLine);
         }
 
         return objects;
