@@ -6,7 +6,7 @@ import type { ExportSettings } from '@context/visualizer/types';
 // @ts-ignore
 import { canEncodeVideo, getEncodableVideoCodecs, canEncodeAudio, getEncodableAudioCodecs } from 'mediabunny';
 import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
-import { estimateFileSize, type EstimationParams, type FileSizeEstimate } from '@export/fileSizeEstimator';
+import { calculateAutoBitrate, estimateFileSize, type EstimationParams, type FileSizeEstimate } from '@export/fileSizeEstimator';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -92,14 +92,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         window.addEventListener('keydown', esc);
         return () => window.removeEventListener('keydown', esc);
     }, [onClose]);
-
-    // Heuristic auto bitrate (bits per pixel per frame * w * h * fps) reused from AV exporter defaults
-    function computeHeuristicBitrate(width: number, height: number, fps: number) {
-        const BPPPF = 0.09; // visually lossless synthetic graphics baseline
-        const MIN = 500_000; const MAX = 80_000_000;
-        const est = width * height * fps * BPPPF;
-        return Math.round(Math.min(Math.max(est, MIN), MAX));
-    }
 
     // Load supported codecs once
     useEffect(() => {
@@ -198,10 +190,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         : (form.videoBitrateSetting as Exclude<VideoBitrateSetting, 'manual'>);
 
     const autoBitrateEstimate = useMemo(() => {
-        const w = exportSettings.width; const h = exportSettings.height;
+        const w = exportSettings.width;
+        const h = exportSettings.height;
         if (!w || !h || !effectiveFps) return null;
-        return computeHeuristicBitrate(w, h, effectiveFps);
-    }, [effectiveFps, exportSettings.height, exportSettings.width]);
+        const codec = form.videoCodec || (form.container === 'webm' ? 'vp9' : 'h264');
+        return calculateAutoBitrate(w, h, effectiveFps, codec, resolvedQualityPreset);
+    }, [effectiveFps, exportSettings.height, exportSettings.width, form.container, form.videoCodec, resolvedQualityPreset]);
 
     // Calculate effective export duration based on form settings
     const effectiveDuration = useMemo(() => {

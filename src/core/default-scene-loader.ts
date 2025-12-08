@@ -1,8 +1,13 @@
 import { importScene } from '@persistence/import';
-import type { SceneSettingsState } from '@state/sceneStore';
+import { useSceneStore, type SceneMacroDefinition, type SceneSettingsState } from '@state/sceneStore';
 import type { SceneMetadataState } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from '@persistence/scene-package';
+import {
+    decodeSceneText,
+    parseLegacyInlineScene,
+    parseScenePackage,
+    ScenePackageError,
+} from '@persistence/scene-package';
 
 interface DefaultSceneCache {
     sceneData: string | Uint8Array;
@@ -11,6 +16,54 @@ interface DefaultSceneCache {
 }
 
 let defaultSceneCachePromise: Promise<DefaultSceneCache | null> | null = null;
+
+const LEGACY_DEFAULT_MACROS: Record<string, SceneMacroDefinition> = {
+    midiTrack: {
+        type: 'timelineTrackRef',
+        value: null,
+        defaultValue: null,
+        options: {
+            description:
+                'ID of a MIDI track from the Timeline store. When set, default scene elements follow this track.',
+            allowedTrackTypes: ['midi'],
+        },
+    },
+    noteAnimation: {
+        type: 'select',
+        value: 'expand',
+        defaultValue: 'expand',
+        options: {
+            description: 'Note animation style',
+            selectOptions: [
+                { label: 'Debug', value: 'debug' },
+                { label: 'Expand', value: 'expand' },
+                { label: 'Explode', value: 'explode' },
+                { label: 'Fade In/Out', value: 'fade' },
+                { label: 'Press', value: 'press' },
+                { label: 'Scale', value: 'scale' },
+                { label: 'Slide', value: 'slide' },
+                { label: 'No Animation', value: 'none' },
+            ],
+        },
+    },
+};
+
+function ensureLegacyMacrosPresent() {
+    try {
+        const store = useSceneStore.getState();
+        const missing = Object.entries(LEGACY_DEFAULT_MACROS).filter(([macroId]) => !store.macros.byId[macroId]);
+        if (!missing.length) return;
+        missing.forEach(([macroId, definition]) => {
+            try {
+                store.createMacro(macroId, definition);
+            } catch (error) {
+                console.warn('[default-scene-loader] Failed to create fallback macro', macroId, error);
+            }
+        });
+    } catch (error) {
+        console.warn('[default-scene-loader] Failed to ensure legacy macros', error);
+    }
+}
 
 function toUint8Array(value: unknown): Uint8Array | null {
     if (value instanceof Uint8Array) return value;
@@ -70,9 +123,7 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
             try {
                 const packaged = parseScenePackage(bytes);
                 const envelope = packaged.envelope;
-                const settings = envelope?.scene?.sceneSettings
-                    ? { ...envelope.scene.sceneSettings }
-                    : undefined;
+                const settings = envelope?.scene?.sceneSettings ? { ...envelope.scene.sceneSettings } : undefined;
                 const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                 return { sceneData: bytes, settings, metadata };
             } catch (error) {
@@ -87,7 +138,10 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
                         const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                         return { sceneData: text, settings, metadata };
                     } catch (legacyError) {
-                        console.error('[default-scene-loader] Failed to parse legacy default scene payload', legacyError);
+                        console.error(
+                            '[default-scene-loader] Failed to parse legacy default scene payload',
+                            legacyError
+                        );
                         return null;
                     }
                 }
@@ -115,6 +169,7 @@ export async function loadDefaultScene(source = 'default-scene-loader.loadDefaul
                     .join('\n')}`
             );
         }
+        ensureLegacyMacrosPresent();
         return true;
     } catch (error) {
         console.error(`[${source}] failed to load default scene`, error);

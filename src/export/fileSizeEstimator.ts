@@ -63,7 +63,7 @@ export interface FileSizeEstimate {
  * Quality preset multipliers for auto bitrate calculation.
  * These adjust the base bitrate up or down based on user's quality preference.
  */
-const QUALITY_MULTIPLIERS: Record<'low' | 'medium' | 'high', number> = {
+export const QUALITY_MULTIPLIERS: Record<'low' | 'medium' | 'high', number> = {
     low: 0.5,
     medium: 0.75,
     high: 1.0,
@@ -119,7 +119,7 @@ const PNG_COMPRESSION_RATIO = 0.35; // ~35% of raw RGBA size
  * Calculate video bitrate using a perceptual quality model.
  * Based on bits-per-pixel-per-frame heuristic.
  */
-function calculateAutoBitrate(
+export function calculateAutoBitrate(
     width: number,
     height: number,
     fps: number,
