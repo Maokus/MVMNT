@@ -197,6 +197,14 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         return calculateAutoBitrate(w, h, effectiveFps, codec, resolvedQualityPreset);
     }, [effectiveFps, exportSettings.height, exportSettings.width, form.container, form.videoCodec, resolvedQualityPreset]);
 
+    const resolvedVideoBitrate = useMemo(() => {
+        if (isManualVideoBitrate) {
+            const manual = Number(form.videoBitrate);
+            return Number.isFinite(manual) && manual > 0 ? manual : null;
+        }
+        return autoBitrateEstimate ?? null;
+    }, [autoBitrateEstimate, form.videoBitrate, isManualVideoBitrate]);
+
     // Calculate effective export duration based on form settings
     const effectiveDuration = useMemo(() => {
         if (form.fullDuration) {
@@ -268,7 +276,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         const effectiveContainer: VideoContainer = form.container;
         const trimmedFilename = form.filename.trim();
         const filename = trimmedFilename ? trimmedFilename : undefined;
-        const manualVideoBitrate = isManualVideoBitrate ? form.videoBitrate : undefined;
+        const effectiveVideoBitrate = resolvedVideoBitrate ?? undefined;
         const baseOverrides: Partial<ExportSettings> = {
             fullDuration: form.fullDuration,
             startTime: form.startTime,
@@ -286,19 +294,18 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             container: effectiveContainer,
         };
 
+        const overridesWithBitrate =
+            effectiveVideoBitrate != null ? { ...baseOverrides, videoBitrate: effectiveVideoBitrate } : baseOverrides;
+
         // Persist duration/range flags globally so future exports use them
         setExportSettings((prev: ExportSettings) => ({
             ...prev,
-            ...baseOverrides,
-            videoBitrate: manualVideoBitrate ?? prev.videoBitrate,
+            ...overridesWithBitrate,
         }));
 
         const exportOverrides: Partial<ExportSettings> = {
-            ...baseOverrides,
+            ...overridesWithBitrate,
         };
-        if (manualVideoBitrate != null) {
-            exportOverrides.videoBitrate = manualVideoBitrate;
-        }
 
         setIsExporting(true);
         try {
