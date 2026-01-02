@@ -467,12 +467,12 @@ export class AudioWaveformElement extends SceneElement {
                             label: 'Window (seconds)',
                             default: 0.12,
                             min: 0.01,
-                            max: 0.5,
+                            max: 100,
                             step: 0.01,
                             runtime: {
                                 transform: (value, element) => {
                                     const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.01, 1);
+                                    return numeric === undefined ? undefined : clamp(numeric, 0.01, 100);
                                 },
                                 defaultValue: 0.12,
                             },
