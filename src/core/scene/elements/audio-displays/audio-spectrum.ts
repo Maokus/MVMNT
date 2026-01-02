@@ -3,8 +3,8 @@ import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/rend
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../../../../utils/color';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '@utils/color';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;

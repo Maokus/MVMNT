@@ -4,9 +4,9 @@ import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { sampleAudioFeatureRange, type AudioFeatureRangeSample } from '@state/selectors/audioFeatureSelectors';
-import { resolveDescriptorProfileId } from '../../../../audio/audioFeatureUtils';
-import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../../../../utils/color';
+import { resolveDescriptorProfileId } from '@audio/audioFeatureUtils';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '@utils/color';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
