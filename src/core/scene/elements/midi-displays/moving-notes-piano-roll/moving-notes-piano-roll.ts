@@ -543,9 +543,9 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         { key: 'showPlayhead', type: 'boolean', label: 'Show Playhead', default: true },
                         {
                             key: 'playheadColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Playhead Color',
-                            default: '#ff6b6b',
+                            default: '#ff6b6bff',
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         },
                         {
@@ -558,16 +558,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             step: 1,
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         },
-                        {
-                            key: 'playheadOpacity',
-                            type: 'number',
-                            label: 'Playhead Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        },
                     ],
                     presets: [
                         {
@@ -577,7 +567,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 showPlayhead: true,
                                 playheadColor: '#ff6b6b',
                                 playheadLineWidth: 2,
-                                playheadOpacity: 1,
                             },
                         },
                         {
@@ -586,30 +575,10 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             values: {
                                 showPlayhead: true,
                                 playheadLineWidth: 1,
-                                playheadOpacity: 0.8,
                                 playheadColor: '#f8fafc',
                             },
                         },
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
-                    ],
-                },
-                {
-                    id: 'noteColors',
-                    label: 'Per-Channel Colors',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Assign colors for each MIDI channel.',
-                    properties: Array.from({ length: 16 }).map((_, i) => ({
-                        key: `channel${i}Color`,
-                        type: 'color',
-                        label: `Channel ${i + 1}`,
-                        default: channelColorDefaults[i],
-                    })),
-                    presets: [
-                        { id: 'rainbow', label: 'Rainbow', values: createChannelPreset(channelColorDefaults) },
-                        { id: 'pastel', label: 'Pastel', values: createChannelPreset(channelColorPastel) },
-                        { id: 'heatmap', label: 'Heat Map', values: createChannelPreset(channelColorHeatmap) },
-                        { id: 'mono', label: 'Monochrome', values: createChannelPreset(Array(16).fill('#f8fafc')) },
                     ],
                 },
                 ...baseAdvancedGroups,
@@ -661,13 +630,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 defaultValue: 2,
             },
             playheadColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
-            playheadOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
             playheadPosition: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -744,7 +706,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const showPlayhead = props.showPlayhead;
         const playheadLineWidth = props.playheadLineWidth;
         const playheadColor = props.playheadColor;
-        const playheadOpacity = props.playheadOpacity;
         const playheadPosition = props.playheadPosition;
         const playheadOffset = props.playheadOffset;
         const showPiano = props.showPiano;
@@ -884,7 +845,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 playheadOffset
             );
             (ph as any[]).forEach((l) => {
-                l.setOpacity?.(playheadOpacity);
                 (l as any).setIncludeInLayoutBounds?.(false);
             });
             renderObjects.push(...ph);
