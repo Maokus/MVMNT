@@ -121,17 +121,15 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'MIDI Source',
                     variant: 'basic',
                     collapsed: false,
-                    description: 'Choose which MIDI data feeds the piano roll.',
+                    description: 'Choose which MIDI track drives this piano roll.',
                     properties: [
                         {
-                            key: 'midiTrackIds',
+                            key: 'midiTrackId',
                             type: 'timelineTrackRef',
-                            label: 'MIDI Tracks',
-                            default: [],
-                            allowMultiple: true,
-                            description: 'Optional multi-track selection for blending MIDI sources.',
+                            label: 'MIDI Track',
+                            default: null,
+                            description: 'Legacy single-track selector used when no list is specified.',
                         },
-                        { key: 'midiTrackId', type: 'timelineTrackRef', label: 'MIDI Track', default: null },
                     ],
                     presets: [
                         { id: 'leadTrack', label: 'Lead Track', values: {} },
@@ -143,31 +141,12 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     label: 'Layout & Range',
                     variant: 'basic',
                     collapsed: false,
-                    description: 'Set viewport width, duration, and pitch range.',
+                    description: 'Configure viewport width, time window, and pitch range.',
                     properties: [
-                        {
-                            key: 'pianoWidth',
-                            type: 'number',
-                            label: 'Piano Width (px)',
-                            default: 0,
-                            min: 80,
-                            max: 300,
-                            step: 10,
-                        },
                         {
                             key: 'rollWidth',
                             type: 'number',
-                            label: 'Legacy Roll Width (px)',
-                            default: 800,
-                            min: 200,
-                            max: 2000,
-                            step: 50,
-                            description: 'Deprecated value (use Element Width instead).',
-                        },
-                        {
-                            key: 'elementWidth',
-                            type: 'number',
-                            label: 'Element Width (px)',
+                            label: 'Roll Width (px)',
                             default: 800,
                             min: 100,
                             max: 4000,
@@ -206,17 +185,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         {
                             id: 'wideStage',
                             label: 'Wide Stage',
-                            values: { pianoWidth: 140, elementWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 84 },
+                            values: { pianoWidth: 140, rollWidth: 1200, timeUnitBars: 2, minNote: 24, maxNote: 84 },
                         },
                         {
                             id: 'compactKeys',
                             label: 'Compact Keys',
-                            values: { pianoWidth: 100, elementWidth: 700, timeUnitBars: 1, minNote: 36, maxNote: 84 },
+                            values: { pianoWidth: 100, rollWidth: 700, timeUnitBars: 1, minNote: 36, maxNote: 84 },
                         },
                         {
                             id: 'fullRange',
                             label: 'Full Range',
-                            values: { pianoWidth: 120, elementWidth: 1400, timeUnitBars: 4, minNote: 21, maxNote: 108 },
+                            values: { pianoWidth: 120, rollWidth: 1400, timeUnitBars: 4, minNote: 21, maxNote: 108 },
                         },
                     ],
                 },
@@ -270,7 +249,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             type: 'color',
                             label: 'Note Stroke Color',
                             default: '#ffffff',
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
+                            visibleWhen: [{ key: 'showNotes', truthy: true }, { key: 'noteStrokeWidth', truthy: true }],
                         },
                         {
                             key: 'noteStrokeWidth',
@@ -390,6 +369,16 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     properties: [
                         { key: 'showPiano', type: 'boolean', label: 'Show Piano', default: false },
                         {
+                            key: 'pianoWidth',
+                            type: 'number',
+                            label: 'Piano Width (px)',
+                            default: 0,
+                            min: 80,
+                            max: 300,
+                            step: 10,
+                            visibleWhen: [{ key: 'showPiano', truthy: true }],
+                        },
+                        {
                             key: 'whiteKeyColor',
                             type: 'color',
                             label: 'White Key Color',
@@ -453,25 +442,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             },
                         },
                         { id: 'hiddenKeys', label: 'No Keyboard', values: { showPiano: false } },
-                    ],
-                },
-                {
-                    id: 'noteColors',
-                    label: 'Per-Channel Colors',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Assign colors for each MIDI channel.',
-                    properties: Array.from({ length: 16 }).map((_, i) => ({
-                        key: `channel${i}Color`,
-                        type: 'color',
-                        label: `Channel ${i + 1}`,
-                        default: channelColorDefaults[i],
-                    })),
-                    presets: [
-                        { id: 'rainbow', label: 'Rainbow', values: createChannelPreset(channelColorDefaults) },
-                        { id: 'pastel', label: 'Pastel', values: createChannelPreset(channelColorPastel) },
-                        { id: 'heatmap', label: 'Heat Map', values: createChannelPreset(channelColorHeatmap) },
-                        { id: 'mono', label: 'Monochrome', values: createChannelPreset(Array(16).fill('#f8fafc')) },
                     ],
                 },
                 {
@@ -623,6 +593,25 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
                 },
+                {
+                    id: 'noteColors',
+                    label: 'Per-Channel Colors',
+                    variant: 'advanced',
+                    collapsed: true,
+                    description: 'Assign colors for each MIDI channel.',
+                    properties: Array.from({ length: 16 }).map((_, i) => ({
+                        key: `channel${i}Color`,
+                        type: 'color',
+                        label: `Channel ${i + 1}`,
+                        default: channelColorDefaults[i],
+                    })),
+                    presets: [
+                        { id: 'rainbow', label: 'Rainbow', values: createChannelPreset(channelColorDefaults) },
+                        { id: 'pastel', label: 'Pastel', values: createChannelPreset(channelColorPastel) },
+                        { id: 'heatmap', label: 'Heat Map', values: createChannelPreset(channelColorHeatmap) },
+                        { id: 'mono', label: 'Monochrome', values: createChannelPreset(Array(16).fill('#f8fafc')) },
+                    ],
+                },
                 ...baseAdvancedGroups,
             ],
         };
@@ -638,7 +627,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             },
             pianoWidth: { transform: asNumber, defaultValue: 0 },
             rollWidth: { transform: asNumber, defaultValue: 800 },
-            elementWidth: { transform: asNumber },
             showNotes: { transform: asBoolean, defaultValue: true },
             minNote: {
                 transform: (value, element) => {
@@ -706,15 +694,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 },
                 defaultValue: 2,
             },
-            midiTrackIds: {
-                transform: (value) => {
-                    if (!Array.isArray(value)) return undefined;
-                    return value
-                        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-                        .filter((entry) => entry.length > 0);
-                },
-                defaultValue: [] as string[],
-            },
             midiTrackId: {
                 transform: (value, element) => asTrimmedString(value, element) ?? null,
                 defaultValue: null,
@@ -756,9 +735,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
         // timeOffset removed; use targetTime directly
         const effectiveTime = targetTime;
         const timeUnitBars = props.timeUnitBars;
-        const pianoWidth = props.pianoWidth;
-        const rollWidth = props.rollWidth;
-        const elementWidth = props.elementWidth ?? rollWidth;
+        const pianoWidth = Math.max(0, props.pianoWidth ?? 0);
+        const rollWidth = Math.max(0, props.rollWidth ?? 0);
         const showNotes = props.showNotes;
         const minNote = props.minNote;
         const maxNote = props.maxNote;
@@ -775,6 +753,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoOpacity = props.pianoOpacity;
         const pianoRightBorderColor = props.pianoRightBorderColor;
         const pianoRightBorderWidth = props.pianoRightBorderWidth;
+        const effectivePianoWidth = showPiano ? pianoWidth : 0; // mirror TimeUnit roll layout behavior
 
         // Update local timing manager from global store for view window duration calculations
         try {
@@ -825,14 +804,11 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowEnd = windowStart + duration;
 
         // Fetch notes for this window from timeline store
-        const trackIds = props.midiTrackIds;
-        const trackId = props.midiTrackId;
-        const effectiveTrackIds = trackIds.length > 0 ? trackIds : trackId ? [trackId] : [];
         const state = useTimelineStore.getState();
         const rawNotes =
-            effectiveTrackIds.length > 0
+            props.midiTrackId
                 ? selectNotesInWindow(state, {
-                      trackIds: effectiveTrackIds,
+                      trackIds: [props.midiTrackId],
                       startSec: windowStart,
                       endSec: windowEnd,
                   }).map((n) => ({
@@ -851,8 +827,8 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     noteHeight,
                     minNote,
                     maxNote,
-                    pianoWidth,
-                    rollWidth: elementWidth,
+                    pianoWidth: effectivePianoWidth,
+                    rollWidth: rollWidth,
                     playheadPosition,
                     playheadOffset,
                     windowStart,
@@ -892,15 +868,15 @@ export class MovingNotesPianoRollElement extends SceneElement {
         // Add a non-drawing rectangle to establish layout bounds for the content area
         {
             const totalHeight = (maxNote - minNote + 1) * noteHeight;
-            const layoutRect = new Rectangle(0, 0, pianoWidth + elementWidth, totalHeight, null, null, 0);
+            const layoutRect = new Rectangle(0, 0, effectivePianoWidth + rollWidth, totalHeight, null, null, 0);
             (layoutRect as any).setIncludeInLayoutBounds?.(true);
             renderObjects.push(layoutRect);
         }
 
         if (showPlayhead) {
             const ph = this._createStaticPlayhead(
-                pianoWidth,
-                elementWidth,
+                effectivePianoWidth,
+                rollWidth,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
                 playheadColor,
