@@ -394,6 +394,71 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         });
     };
 
+    const shouldTreatStringMacroAsTimelineTrack = (macro: Macro) => {
+        if (macro.type !== 'string') return false;
+        const allowedTypes = macro.options?.allowedTrackTypes;
+        if (Array.isArray(allowedTypes) && allowedTypes.length > 0) return true;
+        if (typeof macro.options?.allowMultiple === 'boolean') return true;
+
+        const normalizedName = (macro.name || '')
+            .replace(/[^a-z0-9]+/gi, '')
+            .toLowerCase();
+        const trackSuffixes = ['track', 'trackid', 'trackref', 'miditrack', 'miditrackid', 'timelinetrack'];
+        const nameSuggestsTrack = trackSuffixes.some((suffix) => normalizedName.endsWith(suffix));
+        if (nameSuggestsTrack) return true;
+
+        const valueCandidate = Array.isArray(macro.value) ? macro.value[0] : macro.value;
+        if (typeof valueCandidate === 'string' && /(timeline|audio|midi)[-_]?track/i.test(valueCandidate)) {
+            return true;
+        }
+        return false;
+    };
+
+    const renderTrackSelectControl = (macro: Macro) => {
+        const allowMultiple = Boolean(macro.options?.allowMultiple) || Array.isArray(macro.value);
+        const inferTrackTypeFromValue = () => {
+            const candidate = Array.isArray(macro.value) ? macro.value.find((entry) => typeof entry === 'string') : macro.value;
+            if (typeof candidate !== 'string') return undefined;
+            if (/audio[-_]?track/i.test(candidate)) return ['audio'] as Array<'audio'>;
+            if (/midi[-_]?track/i.test(candidate)) return ['midi'] as Array<'midi'>;
+            return undefined;
+        };
+        const allowedTrackTypes =
+            (macro.options?.allowedTrackTypes && macro.options.allowedTrackTypes.length > 0
+                ? (macro.options.allowedTrackTypes as Array<'midi' | 'audio'>)
+                : inferTrackTypeFromValue()) || undefined;
+
+        let normalizedValue: string | string[] | null;
+        if (allowMultiple) {
+            if (Array.isArray(macro.value)) {
+                normalizedValue = macro.value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+            } else if (typeof macro.value === 'string' && macro.value.length > 0) {
+                normalizedValue = [macro.value];
+            } else {
+                normalizedValue = [];
+            }
+        } else {
+            if (typeof macro.value === 'string' && macro.value.length > 0) {
+                normalizedValue = macro.value;
+            } else if (Array.isArray(macro.value)) {
+                normalizedValue = macro.value.find((entry): entry is string => typeof entry === 'string' && entry.length > 0) ?? null;
+            } else if (macro.value == null) {
+                normalizedValue = null;
+            } else {
+                normalizedValue = null;
+            }
+        }
+
+        return (
+            <TimelineTrackSelect
+                id={`macro-track-${macro.name}`}
+                value={normalizedValue as any}
+                schema={{ allowMultiple, allowedTrackTypes }}
+                onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+            />
+        );
+    };
+
     const renderMacroInput = (macro: Macro) => {
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Enter') {
@@ -401,7 +466,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             }
         };
 
-        switch (macro.type) {
+        const macroType = (typeof macro.type === 'string' ? macro.type.trim() : macro.type) as Macro['type'];
+
+        switch (macroType) {
             case 'number':
                 return (
                     <MacroNumberInput
@@ -492,28 +559,26 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     />
                 );
             case 'timelineTrackRef': {
-                return (
-                    <TimelineTrackSelect
-                        id={`macro-track-${macro.name}`}
-                        value={macro.value ?? null}
-                        schema={{ allowMultiple: false, allowedTrackTypes: macro.options?.allowedTrackTypes }}
-                        onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
-                    />
-                );
+                return renderTrackSelectControl(macro);
             }
             default: // string
                 return (
                     (() => {
-                        // Heuristic: if macro named 'track' is a string, render the track dropdown
-                        if (macro.type === 'string' && /track$/i.test(macro.name)) {
-                            return (
-                                <TimelineTrackSelect
-                                    id={`macro-track-${macro.name}`}
-                                    value={macro.value ?? null}
-                                    schema={{ allowMultiple: false }}
-                                    onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
-                                />
-                            );
+                        // Heuristic: legacy scenes may store track refs as strings
+                        if (macro.type === 'string') {
+                            if (shouldTreatStringMacroAsTimelineTrack(macro)) {
+                                return renderTrackSelectControl(macro);
+                            }
+                            if (/track$/i.test(macro.name)) {
+                                return (
+                                    <TimelineTrackSelect
+                                        id={`macro-track-${macro.name}`}
+                                        value={macro.value ?? null}
+                                        schema={{ allowMultiple: false }}
+                                        onChange={(val: any) => handleUpdateMacroValue(macro.name, val)}
+                                    />
+                                );
+                            }
                         }
                         return (
                             <input

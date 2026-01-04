@@ -6,6 +6,7 @@ import type { ExportSettings } from '@context/visualizer/types';
 // @ts-ignore
 import { canEncodeVideo, getEncodableVideoCodecs, canEncodeAudio, getEncodableAudioCodecs } from 'mediabunny';
 import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
+import { calculateAutoBitrate, estimateFileSize, type EstimationParams, type FileSizeEstimate } from '@export/fileSizeEstimator';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -15,6 +16,7 @@ type FpsMode = '24' | '30' | '60' | 'custom';
 
 type ExportFormat = 'video' | 'png';
 type VideoContainer = 'mp4' | 'webm';
+type VideoBitrateSetting = 'low' | 'medium' | 'high' | 'manual';
 
 interface FormState {
     format: ExportFormat;
@@ -22,12 +24,11 @@ interface FormState {
     fullDuration: boolean;
     startTime: number;
     endTime: number;
-    qualityPreset: 'low' | 'medium' | 'high';
     includeAudio: boolean;
     fpsMode: FpsMode;
     customFps: number;
     videoCodec: string;
-    videoBitrateMode: 'auto' | 'manual';
+    videoBitrateSetting: VideoBitrateSetting;
     videoBitrate: number;
     audioCodec: string;
     audioBitrate: number;
@@ -38,25 +39,28 @@ interface FormState {
 
 // Simple modal to configure export settings & trigger video export.
 const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
-    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind } = useVisualizer() as any;
+    const { exportSettings, exportVideo, exportSequence, setExportSettings, sceneName, exportKind, totalDuration } = useVisualizer() as any;
     // Local UI state managed via single form object
     const initialFps = exportSettings.fps || 60;
     const initialFpsMode: FpsMode = initialFps === 24 ? '24' : initialFps === 30 ? '30' : initialFps === 60 ? '60' : 'custom';
     const initialContainer: VideoContainer = exportSettings.container === 'webm' ? 'webm' : 'mp4';
     const initialFormat: ExportFormat = exportKind === 'png' ? 'png' : 'video';
     const persistedAudioCodec = exportSettings.audioCodec && exportSettings.audioCodec !== 'aac' ? exportSettings.audioCodec : undefined;
+    const initialQualityPreset = (exportSettings.qualityPreset || 'high') as Exclude<VideoBitrateSetting, 'manual'>;
+    const initialVideoBitrateSetting: VideoBitrateSetting = exportSettings.videoBitrateMode === 'manual'
+        ? 'manual'
+        : initialQualityPreset;
     const [form, setForm] = useState<FormState>(() => ({
         format: initialFormat,
         container: initialContainer,
         fullDuration: exportSettings.fullDuration !== false,
         startTime: exportSettings.startTime ?? 0,
         endTime: exportSettings.endTime ?? 0,
-        qualityPreset: exportSettings.qualityPreset || 'high',
         includeAudio: exportSettings.includeAudio !== false,
         fpsMode: initialFpsMode,
         customFps: Math.max(1, initialFps || 60),
         videoCodec: exportSettings.videoCodec || (initialContainer === 'webm' ? 'vp9' : 'h264'),
-        videoBitrateMode: exportSettings.videoBitrateMode || 'auto',
+        videoBitrateSetting: initialVideoBitrateSetting,
         videoBitrate: exportSettings.videoBitrate || 0,
         audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'pcm-s16'),
         audioBitrate: exportSettings.audioBitrate || 192000,
@@ -88,14 +92,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         window.addEventListener('keydown', esc);
         return () => window.removeEventListener('keydown', esc);
     }, [onClose]);
-
-    // Heuristic auto bitrate (bits per pixel per frame * w * h * fps) reused from AV exporter defaults
-    function computeHeuristicBitrate(width: number, height: number, fps: number) {
-        const BPPPF = 0.09; // visually lossless synthetic graphics baseline
-        const MIN = 500_000; const MAX = 80_000_000;
-        const est = width * height * fps * BPPPF;
-        return Math.round(Math.min(Math.max(est, MIN), MAX));
-    }
 
     // Load supported codecs once
     useEffect(() => {
@@ -188,18 +184,99 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
 
     // Recompute auto bitrate estimate when deps change or on mount
     const effectiveFps = useMemo(() => (form.fpsMode === 'custom' ? Math.max(1, form.customFps || 1) : Number(form.fpsMode)), [form.customFps, form.fpsMode]);
+    const isManualVideoBitrate = form.videoBitrateSetting === 'manual';
+    const resolvedQualityPreset: Exclude<VideoBitrateSetting, 'manual'> = isManualVideoBitrate
+        ? 'high'
+        : (form.videoBitrateSetting as Exclude<VideoBitrateSetting, 'manual'>);
+
     const autoBitrateEstimate = useMemo(() => {
-        const w = exportSettings.width; const h = exportSettings.height;
+        const w = exportSettings.width;
+        const h = exportSettings.height;
         if (!w || !h || !effectiveFps) return null;
-        return computeHeuristicBitrate(w, h, effectiveFps);
-    }, [effectiveFps, exportSettings.height, exportSettings.width]);
+        const codec = form.videoCodec || (form.container === 'webm' ? 'vp9' : 'h264');
+        return calculateAutoBitrate(w, h, effectiveFps, codec, resolvedQualityPreset);
+    }, [effectiveFps, exportSettings.height, exportSettings.width, form.container, form.videoCodec, resolvedQualityPreset]);
+
+    const resolvedVideoBitrate = useMemo(() => {
+        if (isManualVideoBitrate) {
+            const manual = Number(form.videoBitrate);
+            return Number.isFinite(manual) && manual > 0 ? manual : null;
+        }
+        return autoBitrateEstimate ?? null;
+    }, [autoBitrateEstimate, form.videoBitrate, isManualVideoBitrate]);
+
+    // Calculate effective export duration based on form settings
+    const effectiveDuration = useMemo(() => {
+        if (form.fullDuration) {
+            return totalDuration > 0 ? totalDuration : 0;
+        }
+        const start = Math.max(0, form.startTime);
+        const end = Math.max(start, form.endTime);
+        return end - start;
+    }, [form.fullDuration, form.startTime, form.endTime, totalDuration]);
+
+    // Estimate file size based on current export settings
+    const fileSizeEstimate = useMemo((): FileSizeEstimate | null => {
+        const w = exportSettings.width;
+        const h = exportSettings.height;
+        if (!w || !h || !effectiveFps || effectiveDuration <= 0) {
+            return null;
+        }
+
+        const baseParams = {
+            width: w,
+            height: h,
+            fps: effectiveFps,
+            durationSeconds: effectiveDuration,
+        };
+
+        if (form.format === 'video') {
+            const effectiveSampleRate = form.audioSampleRate === 'auto' ? 48000 : form.audioSampleRate;
+            const params: EstimationParams = {
+                ...baseParams,
+                format: 'video',
+                videoCodec: form.videoCodec,
+                videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
+                videoBitrate: isManualVideoBitrate ? form.videoBitrate : undefined,
+                qualityPreset: resolvedQualityPreset,
+                includeAudio: form.includeAudio,
+                audioCodec: form.includeAudio ? form.audioCodec : undefined,
+                audioBitrate: form.includeAudio ? form.audioBitrate : undefined,
+                audioChannels: form.audioChannels,
+                audioSampleRate: effectiveSampleRate,
+                container: form.container,
+            };
+            return estimateFileSize(params);
+        } else {
+            const params: EstimationParams = {
+                ...baseParams,
+                format: 'png',
+            };
+            return estimateFileSize(params);
+        }
+    }, [
+        exportSettings.width,
+        exportSettings.height,
+        effectiveFps,
+        effectiveDuration,
+        form.format,
+        form.videoCodec,
+        form.videoBitrateSetting,
+        form.videoBitrate,
+        form.includeAudio,
+        form.audioCodec,
+        form.audioBitrate,
+        form.audioChannels,
+        form.audioSampleRate,
+        form.container,
+    ]);
 
     const beginExport = async () => {
         const isVideoExport = form.format === 'video';
         const effectiveContainer: VideoContainer = form.container;
         const trimmedFilename = form.filename.trim();
         const filename = trimmedFilename ? trimmedFilename : undefined;
-        const manualVideoBitrate = form.videoBitrateMode === 'manual' ? form.videoBitrate : undefined;
+        const effectiveVideoBitrate = resolvedVideoBitrate ?? undefined;
         const baseOverrides: Partial<ExportSettings> = {
             fullDuration: form.fullDuration,
             startTime: form.startTime,
@@ -208,8 +285,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             filename,
             fps: effectiveFps,
             videoCodec: form.videoCodec,
-            videoBitrateMode: form.videoBitrateMode,
-            qualityPreset: form.qualityPreset,
+            videoBitrateMode: isManualVideoBitrate ? 'manual' : 'auto',
+            qualityPreset: resolvedQualityPreset,
             audioCodec: form.audioCodec,
             audioBitrate: form.audioBitrate,
             audioSampleRate: form.audioSampleRate,
@@ -217,19 +294,18 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             container: effectiveContainer,
         };
 
+        const overridesWithBitrate =
+            effectiveVideoBitrate != null ? { ...baseOverrides, videoBitrate: effectiveVideoBitrate } : baseOverrides;
+
         // Persist duration/range flags globally so future exports use them
         setExportSettings((prev: ExportSettings) => ({
             ...prev,
-            ...baseOverrides,
-            videoBitrate: manualVideoBitrate ?? prev.videoBitrate,
+            ...overridesWithBitrate,
         }));
 
         const exportOverrides: Partial<ExportSettings> = {
-            ...baseOverrides,
+            ...overridesWithBitrate,
         };
-        if (manualVideoBitrate != null) {
-            exportOverrides.videoBitrate = manualVideoBitrate;
-        }
 
         setIsExporting(true);
         try {
@@ -376,31 +452,28 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                     {videoCodecs.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </label>
-                            {form.videoBitrateMode === 'auto' && (
-                                <label className="flex flex-col gap-1">Quality Preset
-                                    <select value={form.qualityPreset} onChange={e => updateForm({ qualityPreset: e.target.value as FormState['qualityPreset'] })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                        <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="high">High</option>
-                                    </select>
-                                </label>
-                            )}
-                            <label className="flex flex-col gap-1">Video Bitrate Mode
-                                <select value={form.videoBitrateMode} onChange={e => updateForm({ videoBitrateMode: e.target.value as FormState['videoBitrateMode'] })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm">
-                                    <option value="auto">Auto</option>
+                            <label className="flex flex-col gap-1">Video Bitrate
+                                <select
+                                    value={form.videoBitrateSetting}
+                                    onChange={e => updateForm({ videoBitrateSetting: e.target.value as VideoBitrateSetting })}
+                                    className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm"
+                                >
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
                                     <option value="manual">Manual</option>
                                 </select>
                             </label>
-                            {form.videoBitrateMode === 'manual' ? (
-                                <label className="flex flex-col gap-1">Video Bitrate
+                            {form.videoBitrateSetting === 'manual' ? (
+                                <label className="flex flex-col gap-1">Manual Bitrate
                                     <div className="flex items-center gap-2">
                                         <input type="number" min={500000} step={100000} value={form.videoBitrate} onChange={e => updateForm({ videoBitrate: Number(e.target.value) || 0 })} className="bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-sm flex-1" />
                                         <span className="text-[10px] opacity-60">bps</span>
                                     </div>
                                 </label>
                             ) : (
-                                <label className="flex flex-col gap-1">Auto Bitrate
-                                    <div className="text-xs opacity-80 h-[32px] flex items-center">{autoBitrateEstimate ? `${Math.round(autoBitrateEstimate / 1_000_000 * 10) / 10} Mbps (est)` : 'Computing…'}</div>
+                                <label className="flex flex-col gap-1">Estimated Bitrate
+                                    <div className="text-xs opacity-80 h-[32px] flex items-center">{autoBitrateEstimate ? `${Math.round(autoBitrateEstimate / 1_000_000 * 10) / 10} Mbps (${form.videoBitrateSetting})` : 'Computing…'}</div>
                                 </label>
                             )}
                             <label className="flex items-center gap-2 col-span-2 mt-1 select-none">
@@ -434,6 +507,44 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                                 </>
                             )}
                         </>
+                    )}
+                </div>
+                {/* File size estimate */}
+                <div className="mt-4 p-3 bg-neutral-900/50 border border-neutral-700 rounded text-sm">
+                    <div className="flex items-center justify-between">
+                        <span className="text-neutral-400">Estimated file size:</span>
+                        <span className="font-medium text-neutral-200">
+                            {fileSizeEstimate ? (
+                                <>
+                                    {fileSizeEstimate.formatted}
+                                    {fileSizeEstimate.confidence !== 'high' && (
+                                        <span className="text-neutral-500 text-xs ml-1">
+                                            ({fileSizeEstimate.confidence === 'medium' ? 'approx' : 'rough'})
+                                        </span>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="text-neutral-500">—</span>
+                            )}
+                        </span>
+                    </div>
+                    {fileSizeEstimate && (
+                        <div className="mt-2 text-xs text-neutral-500">
+                            {effectiveDuration > 0 && (
+                                <span>Duration: {effectiveDuration.toFixed(1)}s • </span>
+                            )}
+                            {exportSettings.width}×{exportSettings.height} @ {effectiveFps} fps
+                            {fileSizeEstimate.breakdown.video != null && fileSizeEstimate.breakdown.audio != null && form.includeAudio && (
+                                <span className="block mt-1">
+                                    Video: ~{Math.round(fileSizeEstimate.breakdown.video / 1024 / 1024)} MB • Audio: ~{Math.round(fileSizeEstimate.breakdown.audio / 1024 / 1024)} MB
+                                </span>
+                            )}
+                            {form.format === 'png' && fileSizeEstimate.breakdown.frames != null && (
+                                <span className="block mt-1">
+                                    {Math.ceil(effectiveFps * effectiveDuration)} frames
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
                 <div className="flex gap-2 justify-end mt-2">

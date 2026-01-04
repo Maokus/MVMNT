@@ -2,13 +2,9 @@ import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from 
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import {
-    normalizeChannelSelectorInput,
-    sampleFeatureFrame,
-    selectChannelSample,
-} from '../../../../audio/audioFeatureUtils';
-import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeColorAlphaValue } from '../../../../utils/color';
+import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '@audio/audioFeatureUtils';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
+import { normalizeColorAlphaValue } from '@utils/color';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 

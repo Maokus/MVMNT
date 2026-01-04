@@ -2,9 +2,9 @@ import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransf
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { getFeatureData } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from '../../../../audio/audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from '../../../../audio/audioFeatureUtils';
-import { normalizeColorAlphaValue } from '../../../../utils/color';
+import { registerFeatureRequirements } from '@audio/audioElementMetadata';
+import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
+import { normalizeColorAlphaValue } from '@utils/color';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;

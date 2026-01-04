@@ -225,14 +225,9 @@ export class AVExporter {
             const target = new BufferTarget();
             const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
             const output = new Output({ format: outputFormat, target });
-            // Bitrate handling & quality rationale:
-            // Previous implementation hard-coded 100_000 bps (~0.1 Mbps) when user bitrate invalid, producing extreme macroblocking.
-            // We now:
-            //  1. Interpret small numeric values (< 500_000) as Kbps (common UX expectation) -> multiply by 1000.
-            //  2. If no bitrate provided, compute a heuristic based on resolution & fps using bits-per-pixel-per-frame (bpppf).
-            //     Typical high quality H.264 visually lossless for synthetic graphics ~0.09 bpppf.
-            //     bitrate ≈ width * height * fps * bpppf.
-            //  3. Clamp to sane bounds (0.5 Mbps – 80 Mbps) to avoid pathological values.
+            // Bitrate handling:
+            // Primary source is now the numeric bitrate resolved upstream (RenderModal). We keep heuristic fallback to
+            // protect other legacy call sites that might not provide an explicit value yet.
             const MIN_FALLBACK = 500_000; // 0.5 Mbps lower bound
             const MAX_FALLBACK = 80_000_000; // 80 Mbps upper bound to protect from runaway huge canvases
             const BPPPF = 0.09; // heuristic bits per pixel per frame
@@ -241,14 +236,14 @@ export class AVExporter {
                 return Math.min(Math.max(est, MIN_FALLBACK), MAX_FALLBACK);
             }
             let resolvedBitrate: number | undefined;
-            // videoBitrateMode/manual takes precedence over legacy bitrate prop
-            const userBitrateCandidate = videoBitrateMode === 'manual' ? videoBitrate : bitrate;
-            if (
-                typeof userBitrateCandidate === 'number' &&
-                Number.isFinite(userBitrateCandidate) &&
-                userBitrateCandidate > 0
-            ) {
-                resolvedBitrate = userBitrateCandidate < 500_000 ? userBitrateCandidate * 1000 : userBitrateCandidate; // treat as Kbps if suspiciously small
+            const upstreamBitrateCandidate =
+                typeof videoBitrate === 'number' && videoBitrate > 0
+                    ? videoBitrate
+                    : typeof bitrate === 'number' && bitrate > 0
+                    ? bitrate
+                    : null;
+            if (upstreamBitrateCandidate != null) {
+                resolvedBitrate = upstreamBitrateCandidate;
             } else {
                 resolvedBitrate = computeHeuristicBitrate(width, height, fps);
                 console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');

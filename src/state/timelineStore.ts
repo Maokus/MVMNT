@@ -786,7 +786,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     seekTick(tick: number) {
         set((s: TimelineState) => ({
             timeline: { ...s.timeline, currentTick: Math.max(0, tick), playheadAuthority: 'user' },
-            transport: { ...s.transport, state: 'seeking' },
+            transport: { ...s.transport, isPlaying: false, state: s.transport.isPlaying ? 'paused' : 'seeking' },
         }));
     },
     scrubTick(tick: number) {

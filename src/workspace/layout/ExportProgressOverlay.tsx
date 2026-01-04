@@ -18,7 +18,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     kind = 'png'
 }) => {
     const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && downloadUrl) {
             onClose();
         }
     };
@@ -41,7 +41,8 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                 style={{ width: `${progress}%` }}
                             ></div>
                         </div>
-                        <div className="text-xs text-neutral-300">{text}</div>
+                        <div className="text-xs text-neutral-300 mb-2">{text}</div>
+                        <div className="text-xs text-neutral-300">For fastest export, please do not click off this tab.</div>
                     </div>
                 ) : (
                     <div className="download-section">

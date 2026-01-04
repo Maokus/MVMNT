@@ -243,9 +243,9 @@ export class VideoExporter {
                 // prePadding removed (kept var for compatibility if downstream expects key)
                 high: 8_000_000, // 8 Mbps default for visually lossless exports
             };
-            // Manual bitrate overrides preset. videoBitrateMode/manual > legacy bitrate > preset.
+            // Prefer explicit bitrate supplied by caller (RenderModal now resolves presets into numeric values).
             let chosenBitrate: number;
-            if (videoBitrateMode === 'manual' && typeof videoBitrate === 'number' && videoBitrate > 0) {
+            if (typeof videoBitrate === 'number' && videoBitrate > 0) {
                 chosenBitrate = videoBitrate;
             } else if (typeof bitrate === 'number' && bitrate > 0) {
                 chosenBitrate = bitrate;

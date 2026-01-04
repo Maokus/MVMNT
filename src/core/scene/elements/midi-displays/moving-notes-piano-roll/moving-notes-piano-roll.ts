@@ -719,13 +719,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 transform: (value, element) => asTrimmedString(value, element) ?? null,
                 defaultValue: null,
             },
-            noteOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: undefined,
-            },
             noteCornerRadius: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -1010,20 +1003,10 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const props = this.getSchemaProps({
             useChannelColors: { transform: asBoolean, defaultValue: false },
             noteColor: { transform: (value) => normalizeColorAlphaValue(value, DEFAULT_NOTE_COLOR) },
-            noteOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: undefined,
-            },
             channel0Color: { transform: asTrimmedString },
         });
         const rawBaseColor = props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR;
-        const baseColor = applyLegacyOpacity(
-            normalizeColorAlphaValue(rawBaseColor, DEFAULT_NOTE_COLOR),
-            props.noteOpacity
-        );
+        const baseColor = normalizeColorAlphaValue(rawBaseColor, DEFAULT_NOTE_COLOR);
         if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
@@ -1037,7 +1020,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
         return Array.from({ length: 16 }, (_, index) => {
             const key = `channel${index}Color` as const;
             const rawChannelColor = (channelColors[key] as string | undefined) ?? baseColor;
-            return applyLegacyOpacity(normalizeColorAlphaValue(rawChannelColor, baseColor), props.noteOpacity);
+            return normalizeColorAlphaValue(rawChannelColor, baseColor);
         });
     }
 }
