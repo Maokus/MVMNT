@@ -30,7 +30,7 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
           </div>
           <div className="space-y-1">
             <p className="text-base font-semibold tracking-tight text-neutral-100">{message}</p>
-            <p className="text-sm text-neutral-400">Booting up the studio experience…</p>
+            <p className="text-sm text-neutral-400">Booting up MVMNT…</p>
           </div>
         </div>
       </div>

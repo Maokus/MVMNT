@@ -327,7 +327,7 @@ export class AudioSpectrumElement extends SceneElement {
                             key: 'scale',
                             type: 'select',
                             label: 'Frequency Scale',
-                            default: 'linear',
+                            default: 'mel',
                             options: [
                                 { label: 'Linear', value: 'linear' },
                                 { label: 'Logarithmic', value: 'log' },

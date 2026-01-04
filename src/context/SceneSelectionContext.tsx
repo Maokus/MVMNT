@@ -47,12 +47,33 @@ interface SelectedElementView {
     bindings: ElementBindings;
 }
 
+type OffsetBindingKey = 'offsetX' | 'offsetY';
+type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
+
+const ARROW_KEY_TO_OFFSET: Record<ArrowKey, { bindingKey: OffsetBindingKey; delta: number }> = {
+    ArrowLeft: { bindingKey: 'offsetX', delta: -1 },
+    ArrowRight: { bindingKey: 'offsetX', delta: 1 },
+    ArrowUp: { bindingKey: 'offsetY', delta: -1 },
+    ArrowDown: { bindingKey: 'offsetY', delta: 1 },
+};
+
 function readNumericBinding(binding: BindingState | undefined): number | null {
     if (!binding) return null;
     if (binding.type === 'constant') {
         return typeof binding.value === 'number' ? binding.value : null;
     }
     return null;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+    const element = target as HTMLElement | null;
+    if (!element) return false;
+    if (element.isContentEditable) return true;
+    const tag = element.tagName;
+    if (!tag) return false;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    const role = element.getAttribute('role');
+    return role === 'textbox' || role === 'combobox';
 }
 
 interface SceneSelectionProviderProps {
@@ -85,6 +106,17 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             bindings: selectedBindings,
         };
     }, [selectedRecord, selectedBindings]);
+
+    const selectionSnapshotRef = useRef<{ elementId: string | null; bindings: ElementBindings }>(
+        { elementId: selectedElementId, bindings: selectedBindings }
+    );
+
+    useEffect(() => {
+        selectionSnapshotRef.current = {
+            elementId: selectedElementId,
+            bindings: selectedBindings,
+        };
+    }, [selectedElementId, selectedBindings]);
 
     const updatePropertiesHeader = useCallback((element: any) => {
         const propertiesHeader = document.getElementById('propertiesHeader');
@@ -346,6 +378,34 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         deleteElement,
         updateElementId,
     };
+
+    useEffect(() => {
+        const handleArrowKey = (event: KeyboardEvent) => {
+            if (event.metaKey || event.ctrlKey || event.altKey) return;
+            const mapping = ARROW_KEY_TO_OFFSET[event.key as ArrowKey];
+            if (!mapping) return;
+            if (isEditableTarget(event.target)) return;
+
+            const { elementId, bindings } = selectionSnapshotRef.current;
+            if (!elementId) return;
+
+            const targetBinding = bindings?.[mapping.bindingKey];
+            if (targetBinding && targetBinding.type !== 'constant') return;
+
+            event.preventDefault();
+            const currentValue = readNumericBinding(targetBinding) ?? 0;
+            const nextValue = currentValue + mapping.delta;
+
+            updateElementConfig(
+                elementId,
+                { [mapping.bindingKey]: { type: 'constant', value: nextValue } },
+                { mergeKey: `keyboard-offset:${elementId}:${mapping.bindingKey}` }
+            );
+        };
+
+        window.addEventListener('keydown', handleArrowKey, { capture: true });
+        return () => window.removeEventListener('keydown', handleArrowKey, { capture: true } as any);
+    }, [updateElementConfig]);
 
     return (
         <SceneSelectionContext.Provider value={contextValue}>
