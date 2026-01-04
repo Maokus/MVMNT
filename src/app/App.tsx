@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Tailwind styles are loaded via index.tsx
@@ -14,6 +14,8 @@ const DeveloperOverlayLazy = lazy(() =>
     default: module.DeveloperOverlay,
   })),
 );
+
+const SCREEN_WARNING_MAX_WIDTH = 1200;
 
 const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading MVMNT…' }) => {
   return (
@@ -39,6 +41,8 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
 };
 
 export function App() {
+  const [isScreenSmall, setIsScreenSmall] = useState(false);
+  const [isScreenWarningDismissed, setIsScreenWarningDismissed] = useState(false);
 
   useEffect(() => {
     const preventPinchZoom = (e: any) => {
@@ -67,8 +71,41 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const updateScreenSizeState = () => {
+      setIsScreenSmall(window.innerWidth <= SCREEN_WARNING_MAX_WIDTH);
+    };
+
+    updateScreenSizeState();
+    window.addEventListener('resize', updateScreenSizeState);
+
+    return () => {
+      window.removeEventListener('resize', updateScreenSizeState);
+    };
+  }, []);
+
   return (
     <div className="App">
+      {isScreenSmall && !isScreenWarningDismissed ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="w-[min(90vw,24rem)] rounded-3xl border border-rose-400/60 bg-neutral-900/95 px-8 py-9 text-center shadow-[0_45px_120px_-35px_rgba(244,63,94,0.55)]">
+            <p className="mb-6 text-lg font-semibold tracking-tight text-neutral-100">
+              your screen size is bogus. expect trouble
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsScreenWarningDismissed(true)}
+              className="inline-flex items-center justify-center rounded-full bg-rose-500 px-6 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+            >
+              ok :(
+            </button>
+          </div>
+        </div>
+      ) : null}
       <Suspense fallback={<AppLoadingScreen />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
