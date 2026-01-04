@@ -17,7 +17,23 @@ const DeveloperOverlayLazy = lazy(() =>
 
 const SCREEN_WARNING_MAX_WIDTH = 1200;
 
+const LOADING_SUBTEXTS = [
+  'Quashing rebellions...',
+  'Choosing a better default song...',
+  'Polishing invisible buttons...',
+  'Asking chatgpt how to open the app...',
+  'Fixing last-minute bugs...',
+  'Begging people to beta test the app...',
+  'Hiding easter eggs...',
+  'Learning how to read MIDI files...',
+  'Booting up the studio experience...',
+];
+
+const getRandomLoadingSubtext = () => LOADING_SUBTEXTS[Math.floor(Math.random() * LOADING_SUBTEXTS.length)];
+
 const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading MVMNT…' }) => {
+  const [subtext] = useState(() => getRandomLoadingSubtext());
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-neutral-100">
       <div className="relative">
@@ -32,7 +48,7 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
           </div>
           <div className="space-y-1">
             <p className="text-base font-semibold tracking-tight text-neutral-100">{message}</p>
-            <p className="text-sm text-neutral-400">Booting up MVMNT…</p>
+            <p className="text-sm text-neutral-400">{subtext}</p>
           </div>
         </div>
       </div>
