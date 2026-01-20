@@ -88,6 +88,48 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hasFiles = (dt: DataTransfer | null) => {
+      if (!dt) return false;
+      if (dt.items && dt.items.length) {
+        return Array.from(dt.items).some((item) => item.kind === 'file');
+      }
+      if (dt.files && dt.files.length) return true;
+      const types = dt.types ? Array.from(dt.types) : [];
+      return types.includes('Files');
+    };
+
+    const isTimelineTarget = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return false;
+      return !!target.closest('.timeline-panel');
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer)) return;
+      if (isTimelineTarget(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer)) return;
+      if (isTimelineTarget(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    window.addEventListener('dragover', handleDragOver, { capture: true });
+    window.addEventListener('drop', handleDrop, { capture: true });
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver, { capture: true } as any);
+      window.removeEventListener('drop', handleDrop, { capture: true } as any);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
