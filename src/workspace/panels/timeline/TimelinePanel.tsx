@@ -318,6 +318,7 @@ const TimelinePanel: React.FC = () => {
         if (dt.items && dt.items.length) {
             return Array.from(dt.items).some((item) => item.kind === 'file');
         }
+        if (dt.files && dt.files.length) return true;
         const types = dt.types ? Array.from(dt.types) : [];
         return types.includes('Files');
     }, []);
@@ -335,12 +336,12 @@ const TimelinePanel: React.FC = () => {
 
     const onPanelDragOver = useCallback<React.DragEventHandler<HTMLDivElement>>(
         (e) => {
-            if (!hasFiles(e.dataTransfer)) return;
+            if (!isDragActive && !hasFiles(e.dataTransfer)) return;
             e.preventDefault();
             e.stopPropagation();
             e.dataTransfer.dropEffect = 'copy';
         },
-        [hasFiles],
+        [hasFiles, isDragActive],
     );
 
     const onPanelDragLeave = useCallback<React.DragEventHandler<HTMLDivElement>>(
@@ -358,17 +359,25 @@ const TimelinePanel: React.FC = () => {
 
     const onPanelDrop = useCallback<React.DragEventHandler<HTMLDivElement>>(
         (e) => {
+            // Always clear overlay state on drop, even if the browser doesn't expose file items.
+            dragCounterRef.current = 0;
+            setIsDragActive(false);
+            console.log("set is drag active false");
             if (!hasFiles(e.dataTransfer)) return;
             e.preventDefault();
             e.stopPropagation();
-            dragCounterRef.current = 0;
-            setIsDragActive(false);
             const files = Array.from(e.dataTransfer.files ?? []);
             if (!files.length) return;
             void handleDroppedFiles(files);
         },
         [hasFiles, handleDroppedFiles],
     );
+
+    const onPanelDropCapture = useCallback<React.DragEventHandler<HTMLDivElement>>(() => {
+        // Ensure the overlay clears even when a child drop handler stops propagation.
+        dragCounterRef.current = 0;
+        setIsDragActive(false);
+    }, []);
 
     // Optional: on mount, nudge visualizer play range to current ruler state (no-op when already synced)
     useEffect(() => {
@@ -500,6 +509,7 @@ const TimelinePanel: React.FC = () => {
                 className="timeline-panel relative flex h-full flex-col"
                 role="region"
                 aria-label="Timeline panel"
+                onDropCapture={onPanelDropCapture}
                 onDragEnter={onPanelDragEnter}
                 onDragOver={onPanelDragOver}
                 onDragLeave={onPanelDragLeave}
