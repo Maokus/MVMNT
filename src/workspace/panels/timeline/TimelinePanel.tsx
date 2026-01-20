@@ -251,8 +251,15 @@ const TimelinePanel: React.FC = () => {
                 return false;
             }
             const name = file.name.replace(/\.[^/.]+$/, '');
-            await addAudioTrack({ name, file });
-            return true;
+            try {
+                await addAudioTrack({ name, file });
+                return true;
+            } catch (error) {
+                console.error('Failed to import audio track', error);
+                const reason = error instanceof Error ? error.message : 'The format may be unsupported or the file may be corrupted.';
+                alert(`Unable to import ${file.name}. ${reason}`);
+                return false;
+            }
         },
         [addAudioTrack],
     );
@@ -272,9 +279,18 @@ const TimelinePanel: React.FC = () => {
     const handleDroppedFiles = useCallback(
         async (files: File[]) => {
             if (!files.length) return;
+            const unique: File[] = [];
+            const seen = new Set<string>();
+            for (const file of files) {
+                const key = `${file.name}__${file.size}__${file.lastModified}__${file.type}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(file);
+            }
+            if (!unique.length) return;
             const midiFiles: File[] = [];
             const audioFiles: File[] = [];
-            for (const file of files) {
+            for (const file of unique) {
                 if (isMidiFile(file)) {
                     midiFiles.push(file);
                     continue;
@@ -289,7 +305,7 @@ const TimelinePanel: React.FC = () => {
             for (const audio of audioFiles) {
                 await importAudioFile(audio);
             }
-            const ignored = files.length - midiFiles.length - audioFiles.length;
+            const ignored = unique.length - midiFiles.length - audioFiles.length;
             if (ignored > 0) {
                 alert(`Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`);
             }
@@ -310,6 +326,7 @@ const TimelinePanel: React.FC = () => {
         (e) => {
             if (!hasFiles(e.dataTransfer)) return;
             e.preventDefault();
+            e.stopPropagation();
             dragCounterRef.current += 1;
             setIsDragActive(true);
         },
@@ -320,6 +337,7 @@ const TimelinePanel: React.FC = () => {
         (e) => {
             if (!hasFiles(e.dataTransfer)) return;
             e.preventDefault();
+            e.stopPropagation();
             e.dataTransfer.dropEffect = 'copy';
         },
         [hasFiles],
@@ -329,6 +347,7 @@ const TimelinePanel: React.FC = () => {
         (e) => {
             if (!hasFiles(e.dataTransfer)) return;
             e.preventDefault();
+            e.stopPropagation();
             dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
             if (dragCounterRef.current === 0) {
                 setIsDragActive(false);
@@ -341,6 +360,7 @@ const TimelinePanel: React.FC = () => {
         (e) => {
             if (!hasFiles(e.dataTransfer)) return;
             e.preventDefault();
+            e.stopPropagation();
             dragCounterRef.current = 0;
             setIsDragActive(false);
             const files = Array.from(e.dataTransfer.files ?? []);
