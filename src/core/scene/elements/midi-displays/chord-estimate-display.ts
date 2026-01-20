@@ -13,6 +13,12 @@ const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (va
     return numeric === undefined ? undefined : Math.max(0.05, numeric);
 };
 
+const clampWindowFuturePercent: PropertyTransform<number, SceneElementInterface> = (value, element) => {
+    const numeric = asNumber(value, element);
+    if (numeric === undefined) return undefined;
+    return Math.max(0, Math.min(100, numeric));
+};
+
 const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
     return numeric === undefined ? undefined : Math.max(0, numeric);
@@ -31,6 +37,7 @@ const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInt
 type ChordEstimateRuntimeProps = {
     visible: boolean;
     windowSeconds: number;
+    windowFuturePercent: number;
     midiTrackId: string | null;
     includeTriads: boolean;
     includeDiminished: boolean;
@@ -93,6 +100,16 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             step: 0.05,
                             runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
                         },
+                        {
+                            key: 'windowFuturePercent',
+                            type: 'number',
+                            label: 'Future Window (%)',
+                            default: 0,
+                            min: 0,
+                            max: 100,
+                            step: 5,
+                            runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
+                        },
                     ],
                 },
                 {
@@ -148,7 +165,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             key: 'smoothingMs',
                             type: 'number',
                             label: 'Hold Chord (ms)',
-                            default: 1,
+                            default: 100,
                             min: 0,
                             max: 1000,
                             step: 10,
@@ -283,17 +300,6 @@ export class ChordEstimateDisplayElement extends SceneElement {
                             default: true,
                             runtime: { transform: asBoolean, defaultValue: true },
                         },
-                        {
-                            key: 'chromaPrecision',
-                            type: 'number',
-                            label: 'Chroma Precision',
-                            default: 2,
-                            min: 0,
-                            max: 6,
-                            step: 1,
-                            visibleWhen: [{ key: 'showChroma', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 2 },
-                        },
                     ],
                     presets: [
                         {
@@ -325,6 +331,7 @@ export class ChordEstimateDisplayElement extends SceneElement {
 
         const {
             windowSeconds,
+            windowFuturePercent,
             midiTrackId,
             includeTriads,
             includeDiminished,
@@ -350,8 +357,15 @@ export class ChordEstimateDisplayElement extends SceneElement {
         const t = Math.max(0, targetTime);
 
         // Estimation window
-        const start = Math.max(0, t - windowSeconds / 2);
-        const end = t + windowSeconds / 2;
+        const futureRatio = Math.max(0, Math.min(1, windowFuturePercent / 100));
+        const pastRatio = 1 - futureRatio;
+        let start = t - windowSeconds * pastRatio;
+        let end = t + windowSeconds * futureRatio;
+        if (start < 0) {
+            const deficit = -start;
+            start = 0;
+            end += deficit;
+        }
 
         // Active notes and chroma via timeline store
         const noteEvents: { note: number; channel: number; startTime: number; endTime: number; velocity: number }[] =

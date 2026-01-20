@@ -55,7 +55,6 @@ Feedback highlighted that the existing chord estimator feels inaccurate and hard
 - Color/opacity scaling is linear with chroma magnitude, so moderate energy (~0.2) is barely visible; there is no legend tying each bar back to pitch-class text, which reduces the diagnostic value of the chart.
 
 **Improvements**
-1. Either wire `chromaPrecision` into the display (e.g., tooltip text, numeric table) or remove it to reduce confusion; consider a compact text grid showing rounded chroma bins.
 2. Let users scroll or expand the active-note list, or group notes into pitch-class buckets so every note that influenced the decision is visible.
 3. Normalize chroma visualization per-frame (max -> 1) or use logarithmic opacity so mid-level contributions remain readable, and label each bar with its pitch class.
 
