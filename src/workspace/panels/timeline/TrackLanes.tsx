@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
+import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
@@ -76,6 +77,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const audioCacheEntry = useTimelineStore((s) => s.audioCache[trackId]);
         const isAudioTrack = track?.type === 'audio';
         const audioSourceId = isAudioTrack ? (track as AudioTrack).audioSourceId ?? trackId : undefined;
+        const hasFeatureRequirements = useAudioDiagnosticsStore((state) =>
+            audioSourceId ? (state.sourcesWithIntents[audioSourceId] ?? 0) > 0 : false,
+        );
         const audioFeatureStatus = useTimelineStore((s) =>
             audioSourceId ? s.audioFeatureCacheStatus[audioSourceId] : undefined,
         );
@@ -274,9 +278,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
         }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
+        const showFeatureChip = isAudioTrack && hasFeatureRequirements;
         let featureStatusLabel: string | null = null;
         let featureStatusClass = '';
-        if (isAudioTrack) {
+        if (showFeatureChip) {
             const pendingProgress = audioFeatureStatus?.progress;
             const pendingPercent = pendingProgress
                 ? Math.round(Math.max(0, Math.min(1, pendingProgress.value)) * 100)
@@ -310,7 +315,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         }
 
         const featureStatusTitle = useMemo(() => {
-            if (!audioFeatureStatus) return undefined;
+            if (!showFeatureChip || !audioFeatureStatus) return undefined;
             const parts: string[] = [];
             if (audioFeatureStatus.message) {
                 parts.push(audioFeatureStatus.message);
@@ -319,7 +324,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 parts.push(`Phase: ${audioFeatureStatus.progress.label}`);
             }
             return parts.length ? parts.join(' • ') : undefined;
-        }, [audioFeatureStatus]);
+        }, [audioFeatureStatus, showFeatureChip]);
 
         return (
             <div className="relative h-full"
@@ -357,12 +362,12 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                         <div className="relative z-10 flex items-center gap-1">
                             <span>{track?.name}</span>
                             <span className="opacity-80">{label}</span>
-                            {track?.type === 'audio' ? (
+                                    {track?.type === 'audio' ? (
                                 <>
                                     <span className="ml-1 text-[10px] opacity-80">
                                         {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
                                     </span>
-                                    {featureStatusLabel && (
+                                            {showFeatureChip && featureStatusLabel && (
                                         <span
                                             className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
                                             title={featureStatusTitle}
