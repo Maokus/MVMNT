@@ -60,6 +60,7 @@ interface AnalysisIntentRecord {
     lastPublishedTrackRef: string;
     previousTrackRef: string | null;
     trackHistory: string[];
+    audioSourceId: string;
     analysisProfileId: string | null;
     descriptors: Record<string, DescriptorInfo>;
     requestedAt: string;
@@ -138,6 +139,7 @@ interface AudioDiagnosticsState {
     history: AnalysisHistoryEntry[];
     pendingDescriptors: Record<string, Set<string>>;
     dismissedExtraneous: Record<string, Set<string>>;
+    sourcesWithIntents: Record<string, number>;
     missingPopupVisible: boolean;
     missingPopupSuppressed: boolean;
     missingPopupFingerprint: string | null;
@@ -715,12 +717,12 @@ const activeJobKeys = new Set<string>();
 function buildMissingFingerprint(diffs: CacheDiff[]): string | null {
     const entries: string[] = [];
     for (const diff of diffs) {
-        if (!diff.missing.length) {
-            continue;
-        }
         const profileId = diff.analysisProfileId ?? 'null';
         for (const descriptorId of diff.missing) {
-            entries.push(`${diff.audioSourceId}::${profileId}::${descriptorId}`);
+            entries.push(`missing::${diff.audioSourceId}::${profileId}::${descriptorId}`);
+        }
+        for (const descriptorId of diff.stale) {
+            entries.push(`stale::${diff.audioSourceId}::${profileId}::${descriptorId}`);
         }
     }
     if (!entries.length) {
@@ -773,6 +775,7 @@ const initialState: Omit<
     history: [],
     pendingDescriptors: {},
     dismissedExtraneous: {},
+    sourcesWithIntents: {},
     missingPopupVisible: false,
     missingPopupSuppressed: false,
     missingPopupFingerprint: null,
@@ -781,6 +784,8 @@ const initialState: Omit<
 export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsState>((set, get) => ({
     ...initialState,
     publishIntent(intent: AnalysisIntent) {
+        const timelineState = useTimelineStore.getState();
+        const audioSourceId = resolveAudioSourceId(intent.trackRef, timelineState);
         const intentProfileId = sanitizeProfileId(intent.analysisProfileId);
         const descriptors: Record<string, DescriptorInfo> = {};
         for (const entry of intent.descriptors) {
@@ -850,6 +855,19 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                     ? previousPublishedTrack
                     : previousRecord?.previousTrackRef ?? null;
             const trackHistory = buildTrackHistory(intent.trackRef, previousRecord?.trackHistory);
+            const nextSources = { ...state.sourcesWithIntents };
+            if (!previousRecord) {
+                nextSources[audioSourceId] = (nextSources[audioSourceId] ?? 0) + 1;
+            } else if (previousRecord.audioSourceId !== audioSourceId) {
+                const prevSourceId = previousRecord.audioSourceId;
+                const prevCount = (nextSources[prevSourceId] ?? 1) - 1;
+                if (prevCount <= 0) {
+                    delete nextSources[prevSourceId];
+                } else {
+                    nextSources[prevSourceId] = prevCount;
+                }
+                nextSources[audioSourceId] = (nextSources[audioSourceId] ?? 0) + 1;
+            }
 
             return {
                 intentsByElement: {
@@ -861,6 +879,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                         lastPublishedTrackRef: intent.trackRef,
                         previousTrackRef,
                         trackHistory,
+                        audioSourceId,
                         analysisProfileId: intentProfileId,
                         descriptors,
                         requestedAt: intent.requestedAt,
@@ -870,18 +889,30 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                         profileRegistryDelta: intent.profileRegistryDelta ?? null,
                     },
                 },
+                sourcesWithIntents: nextSources,
             };
         });
         get().recomputeDiffs();
     },
     removeIntent(elementId: string) {
         set((state) => {
-            if (!state.intentsByElement[elementId]) {
+            const existing = state.intentsByElement[elementId];
+            if (!existing) {
                 return state;
             }
-            const next = { ...state.intentsByElement };
-            delete next[elementId];
-            return { intentsByElement: next };
+            const nextIntents = { ...state.intentsByElement };
+            delete nextIntents[elementId];
+            const nextSources = { ...state.sourcesWithIntents };
+            const sourceId = existing.audioSourceId;
+            const currentCount = nextSources[sourceId];
+            if (typeof currentCount === 'number') {
+                if (currentCount <= 1) {
+                    delete nextSources[sourceId];
+                } else {
+                    nextSources[sourceId] = currentCount - 1;
+                }
+            }
+            return { intentsByElement: nextIntents, sourcesWithIntents: nextSources };
         });
         get().recomputeDiffs();
     },
@@ -900,13 +931,13 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
         const bannerVisible = diffs.some(
             (diff) => diff.missing.length + diff.stale.length + diff.badRequest.length > 0
         );
-        const missingFingerprint = buildMissingFingerprint(diffs);
-        const hasMissing = missingFingerprint !== null;
+        const issueFingerprint = buildMissingFingerprint(diffs);
+        const hasBlockingDescriptors = issueFingerprint !== null;
         set((current) => {
             let missingPopupVisible = current.missingPopupVisible;
             let missingPopupSuppressed = current.missingPopupSuppressed;
-            const fingerprintChanged = current.missingPopupFingerprint !== missingFingerprint;
-            if (!hasMissing) {
+            const fingerprintChanged = current.missingPopupFingerprint !== issueFingerprint;
+            if (!hasBlockingDescriptors) {
                 missingPopupVisible = false;
                 missingPopupSuppressed = false;
             } else if (fingerprintChanged) {
@@ -923,7 +954,7 @@ export const useAudioDiagnosticsStore = createWithEqualityFn<AudioDiagnosticsSta
                 dismissedExtraneous: nextDismissed,
                 missingPopupVisible,
                 missingPopupSuppressed,
-                missingPopupFingerprint: missingFingerprint,
+                missingPopupFingerprint: issueFingerprint,
             };
         });
     },

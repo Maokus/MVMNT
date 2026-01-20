@@ -18,23 +18,15 @@ const ChangelogPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-10">
-                    <ChangelogEntry
-                        version="0.15.0"
-                        date="24-10-25"
-                        notes={[
-                            'Simplified audio descriptor model with runtime sampling options',
-                            'Introduced feature requirement registry for audio-reactive elements',
-                            'Refreshed documentation (architecture, concepts, quick start)',
-                            'Updated README examples to use lazy sampling API',
-                        ]}
-                    />
 
-                    <ChangelogEntry version="0.14.0" date="15-10-25" notes={[
-                        'Implemented background audio feature extraction and analysis',
+                    <ChangelogEntry version="0.14.0" date="20-1-26" notes={[
+                        'Implemented audio feature extraction and analysis',
                         'Added audio elements (volume meter, oscilloscope, spectrum analyzer)',
                         'Overhauled properties system for improved UX and template compatibility',
                         'Improved responsiveness through lazy loading and user indicators',
                         'Added new templates',
+                        'Improved chord estimation controls',
+                        'Improved color selection with picker and alpha support',
                         'Bugfixes (weird midi parser issues, negative offsets, scroll desync)',
                     ]} />
 

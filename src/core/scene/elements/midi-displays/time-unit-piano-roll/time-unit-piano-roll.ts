@@ -842,9 +842,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         { key: 'showPlayhead', type: 'boolean', label: 'Show Playhead', default: true },
                         {
                             key: 'playheadColor',
-                            type: 'color',
+                            type: 'colorAlpha',
                             label: 'Playhead Color',
-                            default: '#ff6b6b',
+                            default: '#ff6b6bff',
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         },
                         {
@@ -857,16 +857,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             step: 1,
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                         },
-                        {
-                            key: 'playheadOpacity',
-                            type: 'number',
-                            label: 'Playhead Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
-                            visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        },
                     ],
                     presets: [
                         {
@@ -876,7 +866,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 showPlayhead: true,
                                 playheadColor: '#ff6b6b',
                                 playheadLineWidth: 2,
-                                playheadOpacity: 1,
                             },
                         },
                         {
@@ -885,7 +874,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             values: {
                                 showPlayhead: true,
                                 playheadLineWidth: 1,
-                                playheadOpacity: 0.8,
                                 playheadColor: '#f8fafc',
                             },
                         },
@@ -959,13 +947,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 defaultValue: 2,
             },
             playheadColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
-            playheadOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
             whiteKeyColor: { transform: asTrimmedString, defaultValue: '#f0f0f0' },
             blackKeyColor: { transform: asTrimmedString, defaultValue: '#555555' },
             pianoOpacity: {
@@ -1134,7 +1115,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const showPlayhead = props.showPlayhead ?? true;
         const playheadLineWidth = props.playheadLineWidth ?? 2;
         const playheadColor = props.playheadColor ?? '#ff6b6b';
-        const playheadOpacity = props.playheadOpacity ?? 1;
         const whiteKeyColor = props.whiteKeyColor ?? '#f0f0f0';
         const blackKeyColor = props.blackKeyColor ?? '#555555';
         const pianoOpacity = props.pianoOpacity ?? 1;
@@ -1422,7 +1402,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 playheadColor
             );
             (ph as any[]).forEach((l) => {
-                l.setOpacity?.(playheadOpacity);
                 (l as any).setIncludeInLayoutBounds?.(false);
             });
             renderObjects.push(...ph);

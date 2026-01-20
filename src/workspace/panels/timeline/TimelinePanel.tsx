@@ -38,6 +38,23 @@ import {
 } from '@state/timeline/quantize';
 import { MidiImportModeModal } from './MidiImportModeModal';
 
+const MIDI_FILE_REGEX = /\.mid(i)?$/i;
+const AUDIO_FILE_REGEX = /\.(wav|mp3|ogg|flac|m4a|aac|aiff|aif|caf|opus|wma)$/i;
+
+const isMidiFile = (file: File) => {
+    const name = file.name?.toLowerCase?.() ?? '';
+    const type = file.type?.toLowerCase?.() ?? '';
+    return MIDI_FILE_REGEX.test(name) || type === 'audio/midi' || type === 'audio/x-midi';
+};
+
+const isAudioFile = (file: File) => {
+    if (!file) return false;
+    const type = file.type?.toLowerCase?.() ?? '';
+    if (type.startsWith('audio/')) return true;
+    const name = file.name?.toLowerCase?.() ?? '';
+    return AUDIO_FILE_REGEX.test(name);
+};
+
 type MultiTrackChoice = 'single' | 'split' | 'cancel';
 
 interface MultiTrackDecisionState {
@@ -58,6 +75,8 @@ const TimelinePanel: React.FC = () => {
     const audioFileRef = useRef<HTMLInputElement | null>(null);
     const [multiTrackPrompt, setMultiTrackPrompt] = useState<MultiTrackDecisionState | null>(null);
     const multiTrackResolverRef = useRef<((choice: MultiTrackChoice) => void) | null>(null);
+    const dragCounterRef = useRef(0);
+    const [isDragActive, setIsDragActive] = useState(false);
 
     const requestImportMode = useCallback(
         (info: MultiTrackDecisionState) =>
@@ -81,6 +100,18 @@ const TimelinePanel: React.FC = () => {
                 multiTrackResolverRef.current('cancel');
                 multiTrackResolverRef.current = null;
             }
+        };
+    }, []);
+    useEffect(() => {
+        const resetDragState = () => {
+            dragCounterRef.current = 0;
+            setIsDragActive(false);
+        };
+        window.addEventListener('drop', resetDragState);
+        window.addEventListener('dragend', resetDragState);
+        return () => {
+            window.removeEventListener('drop', resetDragState);
+            window.removeEventListener('dragend', resetDragState);
         };
     }, []);
     // Scroll containers for sync
@@ -150,78 +181,203 @@ const TimelinePanel: React.FC = () => {
         };
     }, [lanesScrollEl]);
 
+    const importMidiFile = useCallback(
+        async (file: File) => {
+            const baseName = file.name.replace(/\.[^/.]+$/, '');
+            let midiData: MIDIData;
+            try {
+                midiData = await parseMIDIFileToData(file);
+            } catch (error) {
+                console.error('Failed to parse MIDI file', error);
+                alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
+                return false;
+            }
+            const details = midiData.trackDetails ?? [];
+            const playableTracks = details.length ? details : [];
+            if (playableTracks.length <= 1) {
+                const detailName = playableTracks[0]?.name?.trim();
+                const trackName = detailName && detailName.length ? detailName : baseName;
+                await addMidiTrack({ name: trackName, midiData });
+                return true;
+            }
+            const choice = await requestImportMode({
+                fileName: file.name,
+                midiData,
+                tracks: playableTracks,
+            });
+            if (choice === 'cancel') return false;
+            if (choice === 'single') {
+                await addMidiTrack({ name: baseName, midiData });
+                return true;
+            }
+            const splits = splitMidiDataByTracks(midiData);
+            if (!splits.length) {
+                await addMidiTrack({ name: baseName, midiData });
+                return true;
+            }
+            for (let index = 0; index < splits.length; index++) {
+                const entry = splits[index];
+                const labelCandidate = entry.track.name?.trim();
+                const trackName = labelCandidate && labelCandidate.length
+                    ? labelCandidate
+                    : `${baseName} - Track ${index + 1}`;
+                await addMidiTrack({ name: trackName, midiData: entry.data });
+            }
+            return true;
+        },
+        [addMidiTrack, requestImportMode],
+    );
+
     const handleAddFile = useCallback(
         async (e: React.ChangeEvent<HTMLInputElement>) => {
             const files = Array.from(e.target.files ?? []);
             if (!files.length) return;
             if (fileRef.current) fileRef.current.value = '';
             for (const file of files) {
-                const baseName = file.name.replace(/\.[^/.]+$/, '');
-                let midiData: MIDIData;
-                try {
-                    midiData = await parseMIDIFileToData(file);
-                } catch (error) {
-                    console.error('Failed to parse MIDI file', error);
-                    alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
-                    continue;
-                }
-                const details = midiData.trackDetails ?? [];
-                const playableTracks = details.length
-                    ? details
-                    : [];
-                if (playableTracks.length <= 1) {
-                    const detailName = playableTracks[0]?.name?.trim();
-                    const trackName = detailName && detailName.length ? detailName : baseName;
-                    await addMidiTrack({ name: trackName, midiData });
-                    continue;
-                }
-                const choice = await requestImportMode({
-                    fileName: file.name,
-                    midiData,
-                    tracks: playableTracks,
-                });
-                if (choice === 'cancel') continue;
-                if (choice === 'single') {
-                    await addMidiTrack({ name: baseName, midiData });
-                    continue;
-                }
-                const splits = splitMidiDataByTracks(midiData);
-                if (!splits.length) {
-                    await addMidiTrack({ name: baseName, midiData });
-                    continue;
-                }
-                for (let index = 0; index < splits.length; index++) {
-                    const entry = splits[index];
-                    const labelCandidate = entry.track.name?.trim();
-                    const trackName = labelCandidate && labelCandidate.length
-                        ? labelCandidate
-                        : `${baseName} - Track ${index + 1}`;
-                    await addMidiTrack({ name: trackName, midiData: entry.data });
-                }
+                await importMidiFile(file);
             }
         },
-        [addMidiTrack, requestImportMode],
+        [importMidiFile],
     );
 
-    const handleAddAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        const lower = f.name.toLowerCase();
-        if (/(\.mid|\.midi)$/.test(lower)) {
-            alert('MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).');
+    const importAudioFile = useCallback(
+        async (file: File) => {
+            if (isMidiFile(file)) {
+                alert('MIDI files are not allowed for audio tracks. Please use an audio file (wav, mp3, ogg, flac, m4a).');
+                return false;
+            }
+            if (!isAudioFile(file)) {
+                alert('Unsupported file type. Please select an audio file.');
+                return false;
+            }
+            const name = file.name.replace(/\.[^/.]+$/, '');
+            try {
+                await addAudioTrack({ name, file });
+                return true;
+            } catch (error) {
+                console.error('Failed to import audio track', error);
+                const reason = error instanceof Error ? error.message : 'The format may be unsupported or the file may be corrupted.';
+                alert(`Unable to import ${file.name}. ${reason}`);
+                return false;
+            }
+        },
+        [addAudioTrack],
+    );
+
+    const handleAddAudio = useCallback(
+        async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const files = Array.from(e.target.files ?? []);
+            if (!files.length) return;
+            for (const file of files) {
+                await importAudioFile(file);
+            }
             if (audioFileRef.current) audioFileRef.current.value = '';
-            return;
+        },
+        [importAudioFile],
+    );
+
+    const handleDroppedFiles = useCallback(
+        async (files: File[]) => {
+            if (!files.length) return;
+            const unique: File[] = [];
+            const seen = new Set<string>();
+            for (const file of files) {
+                const key = `${file.name}__${file.size}__${file.lastModified}__${file.type}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(file);
+            }
+            if (!unique.length) return;
+            const midiFiles: File[] = [];
+            const audioFiles: File[] = [];
+            for (const file of unique) {
+                if (isMidiFile(file)) {
+                    midiFiles.push(file);
+                    continue;
+                }
+                if (isAudioFile(file)) {
+                    audioFiles.push(file);
+                }
+            }
+            for (const midi of midiFiles) {
+                await importMidiFile(midi);
+            }
+            for (const audio of audioFiles) {
+                await importAudioFile(audio);
+            }
+            const ignored = unique.length - midiFiles.length - audioFiles.length;
+            if (ignored > 0) {
+                alert(`Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`);
+            }
+        },
+        [importMidiFile, importAudioFile],
+    );
+
+    const hasFiles = useCallback((dt: DataTransfer | null) => {
+        if (!dt) return false;
+        if (dt.items && dt.items.length) {
+            return Array.from(dt.items).some((item) => item.kind === 'file');
         }
-        // Basic file type filter; rely on accept attribute but double-check MIME starts with audio/
-        if (!f.type.startsWith('audio/')) {
-            alert('Unsupported file type. Please select an audio file.');
-            if (audioFileRef.current) audioFileRef.current.value = '';
-            return;
-        }
-        const name = f.name.replace(/\.[^/.]+$/, '');
-        await addAudioTrack({ name, file: f });
-        if (audioFileRef.current) audioFileRef.current.value = '';
-    };
+        if (dt.files && dt.files.length) return true;
+        const types = dt.types ? Array.from(dt.types) : [];
+        return types.includes('Files');
+    }, []);
+
+    const onPanelDragEnter = useCallback<React.DragEventHandler<HTMLDivElement>>(
+        (e) => {
+            if (!hasFiles(e.dataTransfer)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounterRef.current += 1;
+            setIsDragActive(true);
+        },
+        [hasFiles],
+    );
+
+    const onPanelDragOver = useCallback<React.DragEventHandler<HTMLDivElement>>(
+        (e) => {
+            if (!isDragActive && !hasFiles(e.dataTransfer)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+        },
+        [hasFiles, isDragActive],
+    );
+
+    const onPanelDragLeave = useCallback<React.DragEventHandler<HTMLDivElement>>(
+        (e) => {
+            if (!hasFiles(e.dataTransfer)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+            if (dragCounterRef.current === 0) {
+                setIsDragActive(false);
+            }
+        },
+        [hasFiles],
+    );
+
+    const onPanelDrop = useCallback<React.DragEventHandler<HTMLDivElement>>(
+        (e) => {
+            // Always clear overlay state on drop, even if the browser doesn't expose file items.
+            dragCounterRef.current = 0;
+            setIsDragActive(false);
+            console.log("set is drag active false");
+            if (!hasFiles(e.dataTransfer)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const files = Array.from(e.dataTransfer.files ?? []);
+            if (!files.length) return;
+            void handleDroppedFiles(files);
+        },
+        [hasFiles, handleDroppedFiles],
+    );
+
+    const onPanelDropCapture = useCallback<React.DragEventHandler<HTMLDivElement>>(() => {
+        // Ensure the overlay clears even when a child drop handler stops propagation.
+        dragCounterRef.current = 0;
+        setIsDragActive(false);
+    }, []);
 
     // Optional: on mount, nudge visualizer play range to current ruler state (no-op when already synced)
     useEffect(() => {
@@ -349,7 +505,16 @@ const TimelinePanel: React.FC = () => {
 
     return (
         <>
-            <div className="timeline-panel flex h-full flex-col" role="region" aria-label="Timeline panel">
+            <div
+                className="timeline-panel relative flex h-full flex-col"
+                role="region"
+                aria-label="Timeline panel"
+                onDropCapture={onPanelDropCapture}
+                onDragEnter={onPanelDragEnter}
+                onDragOver={onPanelDragOver}
+                onDragLeave={onPanelDragLeave}
+                onDrop={onPanelDrop}
+            >
                 {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
                 <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
                     {/* Left: Add track */}
@@ -415,6 +580,11 @@ const TimelinePanel: React.FC = () => {
                         </div>
                     </div>
                 </div>
+                {isDragActive && (
+                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">
+                        Drop MIDI or audio files to add tracks
+                    </div>
+                )}
             </div>
             <MidiImportModeModal
                 open={!!multiTrackPrompt}

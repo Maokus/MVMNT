@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
+import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
@@ -76,6 +77,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const audioCacheEntry = useTimelineStore((s) => s.audioCache[trackId]);
         const isAudioTrack = track?.type === 'audio';
         const audioSourceId = isAudioTrack ? (track as AudioTrack).audioSourceId ?? trackId : undefined;
+        const hasFeatureRequirements = useAudioDiagnosticsStore((state) =>
+            audioSourceId ? (state.sourcesWithIntents[audioSourceId] ?? 0) > 0 : false,
+        );
         const audioFeatureStatus = useTimelineStore((s) =>
             audioSourceId ? s.audioFeatureCacheStatus[audioSourceId] : undefined,
         );
@@ -274,9 +278,10 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             return `Track: ${track?.name}\n${snapInfo}\nOffset ${label}\nStart ${fmt(absStartSec)} (${fmtBar(barsStart)})\nEnd ${fmt(absEndSec)} (${fmtBar(barsEnd)})`;
         }, [offsetTick, localStartTick, localEndTick, label, bpb, track?.name, quantize, ppq]);
 
+        const showFeatureChip = isAudioTrack && hasFeatureRequirements;
         let featureStatusLabel: string | null = null;
         let featureStatusClass = '';
-        if (isAudioTrack) {
+        if (showFeatureChip) {
             const pendingProgress = audioFeatureStatus?.progress;
             const pendingPercent = pendingProgress
                 ? Math.round(Math.max(0, Math.min(1, pendingProgress.value)) * 100)
@@ -310,7 +315,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         }
 
         const featureStatusTitle = useMemo(() => {
-            if (!audioFeatureStatus) return undefined;
+            if (!showFeatureChip || !audioFeatureStatus) return undefined;
             const parts: string[] = [];
             if (audioFeatureStatus.message) {
                 parts.push(audioFeatureStatus.message);
@@ -319,7 +324,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 parts.push(`Phase: ${audioFeatureStatus.progress.label}`);
             }
             return parts.length ? parts.join(' • ') : undefined;
-        }, [audioFeatureStatus]);
+        }, [audioFeatureStatus, showFeatureChip]);
 
         return (
             <div className="relative h-full"
@@ -362,7 +367,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                                     <span className="ml-1 text-[10px] opacity-80">
                                         {audioCacheEntry ? `${(audioCacheEntry.durationTicks / ppq).toFixed(2)} beats` : 'loading...'}
                                     </span>
-                                    {featureStatusLabel && (
+                                    {showFeatureChip && featureStatusLabel && (
                                         <span
                                             className={`ml-1 rounded px-1.5 py-[1px] text-[10px] font-medium ${featureStatusClass}`}
                                             title={featureStatusTitle}
@@ -399,6 +404,23 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         );
     };
 
+const MIDI_FILE_REGEX = /\.mid(i)?$/i;
+const AUDIO_FILE_REGEX = /\.(wav|mp3|ogg|flac|m4a|aac|aiff|aif|caf|opus|wma)$/i;
+
+const isMidiFile = (file: File) => {
+    const name = file.name?.toLowerCase?.() ?? '';
+    const type = file.type?.toLowerCase?.() ?? '';
+    return MIDI_FILE_REGEX.test(name) || type === 'audio/midi' || type === 'audio/x-midi';
+};
+
+const isAudioFile = (file: File) => {
+    if (!file) return false;
+    const type = file.type?.toLowerCase?.() ?? '';
+    if (type.startsWith('audio/')) return true;
+    const name = file.name?.toLowerCase?.() ?? '';
+    return AUDIO_FILE_REGEX.test(name);
+};
+
 const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [width, setWidth] = useState(0);
@@ -407,6 +429,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     const { view, toTick, toX } = useTickScale();
     const snapTicks = useSnapTicks();
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
+    const addAudioTrack = useTimelineStore((s) => s.addAudioTrack);
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const selectTracks = useTimelineStore((s) => s.selectTracks);
     const tracksMap = useTimelineStore((s) => s.tracks);
@@ -440,16 +463,57 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     const onDragLeave = () => setHoverX(null);
     const onDrop = async (e: React.DragEvent) => {
         e.preventDefault();
+        e.stopPropagation(); // Prevent parent TimelinePanel from also handling the drop
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const candTick = toTick(x, width);
         const snappedTick = snapTicks(candTick, e.altKey, true);
+        const offsetTicks = Math.max(0, snappedTick);
 
         const files = Array.from(e.dataTransfer.files || []);
-        const midi = files.find((f) => /\.midi?$/.test(f.name.toLowerCase())) || files[0];
-        if (midi) {
-            await addMidiTrack({ name: midi.name.replace(/\.[^/.]+$/, ''), file: midi, offsetTicks: Math.max(0, snappedTick) });
+
+        // Dedupe files by key
+        const unique: File[] = [];
+        const seen = new Set<string>();
+        for (const file of files) {
+            const key = `${file.name}__${file.size}__${file.lastModified}__${file.type}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            unique.push(file);
+        }
+
+        // Separate MIDI and audio files
+        const midiFiles: File[] = [];
+        const audioFiles: File[] = [];
+        for (const file of unique) {
+            if (isMidiFile(file)) {
+                midiFiles.push(file);
+            } else if (isAudioFile(file)) {
+                audioFiles.push(file);
+            }
+        }
+
+        // Import MIDI files
+        for (const midi of midiFiles) {
+            await addMidiTrack({ name: midi.name.replace(/\.[^/.]+$/, ''), file: midi, offsetTicks });
+        }
+
+        // Import audio files
+        for (const audio of audioFiles) {
+            const name = audio.name.replace(/\.[^/.]+$/, '');
+            try {
+                await addAudioTrack({ name, file: audio, offsetTicks });
+            } catch (error) {
+                console.error('Failed to import audio track', error);
+                const reason = error instanceof Error ? error.message : 'The format may be unsupported or the file may be corrupted.';
+                alert(`Unable to import ${audio.name}. ${reason}`);
+            }
+        }
+
+        const ignored = unique.length - midiFiles.length - audioFiles.length;
+        if (ignored > 0) {
+            alert(`Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`);
         }
         setHoverX(null);
     };

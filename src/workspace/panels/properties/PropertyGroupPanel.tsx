@@ -420,14 +420,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     <span className="ae-property-name" title={property.description}>
                         {property.label}
                     </span>
-                    {hasAnimationIcon && (
+                    {/*hasAnimationIcon && (
                         <span
                             className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
                             title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
                         >
                             ⏱
                         </span>
-                    )}
+                    )*/}
                 </div>
 
                 <div className="ae-property-controls">
