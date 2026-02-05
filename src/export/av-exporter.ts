@@ -23,12 +23,13 @@
  */
 import { offlineMix } from '@audio/offline-audio-mixer';
 import { computeReproHash, normalizeTracksForHash } from './repro-hash';
-import ExportClock from './export-clock';
+import { ExportClock } from './export-clock';
 import { createExportTimingSnapshot } from './export-timing-snapshot';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import {
     Output,
     Mp4OutputFormat,
+    WebMOutputFormat,
     BufferTarget,
     CanvasSource,
     AudioBufferSource,
@@ -68,7 +69,7 @@ export interface AVExportOptions {
     videoCodec?: string; // 'auto' | specific (avc, hevc, av1, vp9)
     videoBitrateMode?: 'auto' | 'manual';
     videoBitrate?: number; // manual override (bps) when videoBitrateMode === 'manual'
-    audioCodec?: string; // 'auto' | specific (aac, opus, etc.)
+    audioCodec?: string; // 'auto' | specific (mp3, opus, etc.)
     audioBitrate?: number; // audio target bitrate (bps)
     audioSampleRate?: 'auto' | 44100 | 48000; // requested mix SR
     audioChannels?: 1 | 2; // channel layout (currently mix always produces 2 when channels=2)
@@ -143,7 +144,9 @@ export class AVExporter {
             let mixDuration = (endTick - startTick) / ticksPerSecond;
             // Keep reference to raw mixed AudioBuffer so we can feed it into mediabunny directly
             let mixedAudioBuffer: AudioBuffer | null = null;
-            let mixedAudioChannels = 2;
+            const desiredMixChannels = (typeof audioChannels === 'number' ? audioChannels : 2) === 1 ? 1 : 2;
+            const desiredMixSampleRate = audioSampleRate === 'auto' ? sampleRate : audioSampleRate;
+            let mixedAudioChannels: 1 | 2 = desiredMixChannels;
             if (includeAudio) {
                 console.log('[AVExporter] Mixing audio for export range', startTick, 'to', endTick);
                 onProgress(3, 'Mixing audio...');
@@ -155,13 +158,13 @@ export class AVExporter {
                     startTick,
                     endTick,
                     ticksPerSecond,
-                    sampleRate,
-                    channels: 2,
+                    sampleRate: desiredMixSampleRate,
+                    channels: desiredMixChannels,
                 });
                 mixPeak = mixRes.peak;
                 mixDuration = mixRes.durationSeconds;
                 mixedAudioBuffer = mixRes.buffer;
-                mixedAudioChannels = mixRes.channels;
+                mixedAudioChannels = mixRes.channels === 1 ? 1 : 2;
                 if (mixRes.buffer.length === 0 || mixDuration === 0) {
                     console.warn(
                         '[AVExporter] Mixed audio buffer is empty (no audible tracks or zero-duration range). Video will have no audio.'
@@ -200,31 +203,31 @@ export class AVExporter {
 
             // Setup mediabunny output
             onProgress(8, 'Configuring video encoder...');
-            // Container selection (currently mediabunny only exposes Mp4OutputFormat; future: WebMOutputFormat)
-            let resolvedContainer: 'mp4' | 'webm' = 'mp4';
-            if (container === 'webm') resolvedContainer = 'webm';
+            let resolvedContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
             // Video codec resolution
-            // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'.
-            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            // Resolve video codec. Accept user alias 'h264' which maps to internal 'avc'. Prefer vp9 for webm.
+            const defaultCodecForContainer = resolvedContainer === 'webm' ? 'vp9' : 'avc';
+            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : defaultCodecForContainer;
             if (codecInput === 'h264') codecInput = 'avc';
             let codec: string = codecInput;
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
-                    if (Array.isArray(codecs) && codecs.length) codec = codecs[0];
+                    if (Array.isArray(codecs) && codecs.length) {
+                        const mp4Priority = ['avc', 'h264', 'hevc', 'av1', 'vp9'];
+                        const webmPriority = ['vp9', 'av1', 'avc', 'h264'];
+                        const priority = resolvedContainer === 'webm' ? webmPriority : mp4Priority;
+                        const match = priority.find((c) => codecs.includes(c));
+                        codec = match || codecs[0];
+                    }
                 } catch {}
             }
             const target = new BufferTarget();
-            // NOTE: Only mp4 implemented in current mediabunny build; webm path reserved for future addition.
-            const output = new Output({ format: new Mp4OutputFormat(), target });
-            // Bitrate handling & quality rationale:
-            // Previous implementation hard-coded 100_000 bps (~0.1 Mbps) when user bitrate invalid, producing extreme macroblocking.
-            // We now:
-            //  1. Interpret small numeric values (< 500_000) as Kbps (common UX expectation) -> multiply by 1000.
-            //  2. If no bitrate provided, compute a heuristic based on resolution & fps using bits-per-pixel-per-frame (bpppf).
-            //     Typical high quality H.264 visually lossless for synthetic graphics ~0.09 bpppf.
-            //     bitrate ≈ width * height * fps * bpppf.
-            //  3. Clamp to sane bounds (0.5 Mbps – 80 Mbps) to avoid pathological values.
+            const outputFormat = resolvedContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
+            const output = new Output({ format: outputFormat, target });
+            // Bitrate handling:
+            // Primary source is now the numeric bitrate resolved upstream (RenderModal). We keep heuristic fallback to
+            // protect other legacy call sites that might not provide an explicit value yet.
             const MIN_FALLBACK = 500_000; // 0.5 Mbps lower bound
             const MAX_FALLBACK = 80_000_000; // 80 Mbps upper bound to protect from runaway huge canvases
             const BPPPF = 0.09; // heuristic bits per pixel per frame
@@ -233,14 +236,14 @@ export class AVExporter {
                 return Math.min(Math.max(est, MIN_FALLBACK), MAX_FALLBACK);
             }
             let resolvedBitrate: number | undefined;
-            // videoBitrateMode/manual takes precedence over legacy bitrate prop
-            const userBitrateCandidate = videoBitrateMode === 'manual' ? videoBitrate : bitrate;
-            if (
-                typeof userBitrateCandidate === 'number' &&
-                Number.isFinite(userBitrateCandidate) &&
-                userBitrateCandidate > 0
-            ) {
-                resolvedBitrate = userBitrateCandidate < 500_000 ? userBitrateCandidate * 1000 : userBitrateCandidate; // treat as Kbps if suspiciously small
+            const upstreamBitrateCandidate =
+                typeof videoBitrate === 'number' && videoBitrate > 0
+                    ? videoBitrate
+                    : typeof bitrate === 'number' && bitrate > 0
+                    ? bitrate
+                    : null;
+            if (upstreamBitrateCandidate != null) {
+                resolvedBitrate = upstreamBitrateCandidate;
             } else {
                 resolvedBitrate = computeHeuristicBitrate(width, height, fps);
                 console.log('[AVExporter] Using heuristic video bitrate', Math.round(resolvedBitrate), 'bps');
@@ -263,15 +266,40 @@ export class AVExporter {
                 onProgress(6, 'Preparing audio track...');
                 try {
                     // Resolve audio codec
-                    // Prefer aac by default now (UI default). 'auto' attempts aac → opus.
-                    let resolvedAudioCodec: any = audioCodec && audioCodec !== 'auto' ? audioCodec : 'aac';
-                    const preferOrder = ['aac', 'opus', 'vorbis', 'flac', 'pcm-s16'];
-                    const supportedPreferred = await canEncodeAudio?.(resolvedAudioCodec as any).catch(() => false);
-                    console.log('[AVExporter] Audio codec', resolvedAudioCodec, 'supported=', supportedPreferred);
+                    const defaultAudioCodec = resolvedContainer === 'webm' ? 'opus' : 'pcm-s16';
+                    let resolvedAudioCodec: any = !audioCodec || audioCodec === 'auto' ? defaultAudioCodec : audioCodec;
+                    const preferOrder =
+                        resolvedContainer === 'webm'
+                            ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
+                            : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
+                    const resolvedSampleRate =
+                        audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
+                    const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
+                    const capabilityOptions = {
+                        numberOfChannels: mixedAudioChannels,
+                        sampleRate: resolvedSampleRate,
+                        bitrate: bitrateBps,
+                    };
+                    const supportedPreferred = await canEncodeAudio?.(
+                        resolvedAudioCodec as any,
+                        capabilityOptions
+                    ).catch(() => false);
+                    console.log(
+                        '[AVExporter] Audio codec',
+                        resolvedAudioCodec,
+                        'supported=',
+                        supportedPreferred,
+                        capabilityOptions
+                    );
                     if (!supportedPreferred) {
                         try {
-                            const encodable = await (getEncodableAudioCodecs?.() as any);
-                            const match = preferOrder.find((c) => encodable?.includes?.(c));
+                            const encodable = await (getEncodableAudioCodecs?.(undefined, capabilityOptions) as any);
+                            const sanitized = Array.isArray(encodable)
+                                ? encodable.filter(
+                                      (c): c is string => typeof c === 'string' && c.toLowerCase() !== 'aac'
+                                  )
+                                : [];
+                            const match = preferOrder.find((c) => sanitized.includes(c));
                             if (match) resolvedAudioCodec = match;
                             // If user explicitly requested mp3 or auto fallback includes it, attempt registration lazily
                             if (audioCodec === 'mp3' || encodable?.includes?.('mp3')) {
@@ -287,9 +315,6 @@ export class AVExporter {
                         resolvedAudioCodec = 'mp3';
                     }
                     // Choose sample rate
-                    const resolvedSampleRate =
-                        audioSampleRate === 'auto' ? mixedAudioBuffer.sampleRate : audioSampleRate;
-                    const bitrateBps = typeof audioBitrate === 'number' && audioBitrate > 0 ? audioBitrate : 192_000; // sensible default
                     audioSource = new AudioBufferSource({
                         codec: resolvedAudioCodec,
                         numberOfChannels: mixedAudioChannels,
@@ -334,11 +359,15 @@ export class AVExporter {
             onProgress(92, 'Finalizing container...');
             await output.finalize();
             const raw = target.buffer;
-            const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: 'video/mp4' }) : null;
+            const mimeType = resolvedContainer === 'webm' ? 'video/webm' : 'video/mp4';
+            const videoBlob = raw ? new Blob([raw as ArrayBuffer], { type: mimeType }) : null;
 
             let combinedBlob: Blob | undefined = audioAdded ? videoBlob ?? undefined : undefined;
             if (includeAudio && !audioAdded) {
-                console.warn('[AVExporter] Audio track not muxed into MP4. Providing separate WAV blob instead.');
+                const containerLabel = resolvedContainer.toUpperCase();
+                console.warn(
+                    `[AVExporter] Audio track not muxed into ${containerLabel}. Providing separate WAV blob instead.`
+                );
             }
 
             // Compute reproducibility hash

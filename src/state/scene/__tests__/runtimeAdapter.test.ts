@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore } from '@state/sceneStore';
+import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { SceneRuntimeAdapter } from '@state/scene/runtimeAdapter';
 
 describe('SceneRuntimeAdapter', () => {
@@ -9,12 +10,14 @@ describe('SceneRuntimeAdapter', () => {
 
     beforeEach(() => {
         store = createSceneStore();
+        setMacroStoreBinding(store);
         store.getState().importScene(fixture as any);
         adapter = new SceneRuntimeAdapter({ store });
     });
 
     afterEach(() => {
         adapter.dispose();
+        resetMacroStoreBinding();
     });
 
     it('initializes runtime elements respecting store order', () => {
@@ -58,5 +61,34 @@ describe('SceneRuntimeAdapter', () => {
         expect(bindings.background.zIndex).toEqual({ type: 'constant', value: 1 });
         expect(bindings.title.zIndex).toEqual({ type: 'constant', value: 0 });
     });
-});
 
+    it('hydrates audio feature track bindings for new elements', () => {
+        store.getState().addElement({
+            id: 'osc',
+            type: 'audioWaveform',
+            index: store.getState().order.length,
+            bindings: {
+                audioTrackId: { type: 'constant', value: 'track-1' },
+                features: {
+                    type: 'constant',
+                    value: [
+                        {
+                            featureKey: 'waveform',
+                            calculatorId: 'mvmnt.waveform',
+                            bandIndex: null,
+                            smoothing: 0.1,
+                        },
+                    ],
+                },
+                analysisProfileId: { type: 'constant', value: 'default' },
+            },
+        });
+
+        const runtimeElement = adapter.getElements().find((element) => element.id === 'osc');
+        expect(runtimeElement).toBeDefined();
+        const trackBinding = runtimeElement?.getBinding('audioTrackId');
+        const descriptorBinding = runtimeElement?.getBinding('features');
+        expect(trackBinding?.getValue()).toBe('track-1');
+        expect(descriptorBinding?.getValue()).toEqual([expect.objectContaining({ featureKey: 'waveform' })]);
+    });
+});

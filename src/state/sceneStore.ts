@@ -1,7 +1,23 @@
-import { create, type StateCreator } from 'zustand';
+import { type StateCreator } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
+import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
+import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
+import { useTimelineStore } from '@state/timelineStore';
+import {
+    migrateDescriptorChannels,
+    buildChannelSelectorMap,
+    type MigratedDescriptorChannelSelector,
+    type MigratedDescriptorChannelsResult,
+} from '@persistence/migrations/unifyChannelField';
+import {
+    logSmoothingMigration,
+    stripDescriptorArraySmoothing,
+    stripDescriptorSmoothing,
+} from '@persistence/migrations/removeSmoothingFromDescriptor';
+import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 
 export type BindingState = ConstantBindingState | MacroBindingState;
 
@@ -16,6 +32,117 @@ export interface MacroBindingState {
 }
 
 export type ElementBindings = Record<string, BindingState>;
+
+interface LegacyAudioFeatureBindingData {
+    type: 'audioFeature';
+    trackId?: string;
+    featureKey?: string;
+    calculatorId?: string | null;
+    bandIndex?: number | null;
+    smoothing?: number | null;
+}
+
+interface LegacyDescriptorResult {
+    descriptor: AudioFeatureDescriptor | null;
+    smoothing: number | null;
+}
+
+function applyChannelSelectorsToBindings(bindings: ElementBindings, results: MigratedDescriptorChannelsResult[]) {
+    if (!Array.isArray(results) || !results.length) {
+        return;
+    }
+    const selectorMap = buildChannelSelectorMap(results);
+    if (!selectorMap || Object.keys(selectorMap).length === 0) {
+        return;
+    }
+    const existing = bindings.channelSelectors;
+    if (existing && existing.type === 'constant' && existing.value && typeof existing.value === 'object') {
+        const merged = {
+            ...((existing.value as Record<string, MigratedDescriptorChannelSelector>) ?? {}),
+            ...selectorMap,
+        };
+        bindings.channelSelectors = { type: 'constant', value: merged };
+        return;
+    }
+    bindings.channelSelectors = { type: 'constant', value: selectorMap };
+}
+
+function isLegacyAudioFeatureBinding(value: unknown): value is LegacyAudioFeatureBindingData {
+    return Boolean(value && typeof value === 'object' && (value as { type?: string }).type === 'audioFeature');
+}
+
+function sanitizeLegacyDescriptor(payload: LegacyAudioFeatureBindingData): LegacyDescriptorResult {
+    const featureKey = typeof payload.featureKey === 'string' && payload.featureKey ? payload.featureKey : null;
+    if (!featureKey) return { descriptor: null, smoothing: null };
+    const coerceIndex = (input: unknown): number | null =>
+        typeof input === 'number' && Number.isFinite(input) ? input : null;
+    const calculatorId = typeof payload.calculatorId === 'string' && payload.calculatorId ? payload.calculatorId : null;
+    const smoothing =
+        typeof payload.smoothing === 'number' && Number.isFinite(payload.smoothing) ? payload.smoothing : null;
+    const { descriptor } = createFeatureDescriptor({
+        feature: featureKey,
+        calculatorId,
+        bandIndex: coerceIndex(payload.bandIndex),
+    });
+    return { descriptor, smoothing };
+}
+
+export interface LegacyBindingMigrationResult {
+    clearedKeys: string[];
+    replacements: Record<string, BindingState>;
+}
+
+export function migrateLegacyAudioFeatureBinding(
+    propertyKey: string,
+    value: unknown
+): LegacyBindingMigrationResult | null {
+    if (propertyKey === 'featureDescriptor') {
+        const replacements: Record<string, BindingState> = {};
+        if ((value as ConstantBindingState | MacroBindingState | undefined)?.type === 'constant') {
+            const descriptorValue = (value as ConstantBindingState).value;
+            const { descriptor: stripped, smoothing } = stripDescriptorSmoothing(descriptorValue);
+            let normalized: AudioFeatureDescriptor | null = null;
+            if (stripped && typeof stripped.featureKey === 'string' && stripped.featureKey) {
+                normalized = createFeatureDescriptor({
+                    feature: stripped.featureKey,
+                    calculatorId: (stripped.calculatorId as string | null | undefined) ?? null,
+                    bandIndex:
+                        typeof stripped.bandIndex === 'number' && Number.isFinite(stripped.bandIndex)
+                            ? Math.trunc(stripped.bandIndex)
+                            : null,
+                }).descriptor;
+            }
+            replacements.features = {
+                type: 'constant',
+                value: normalized ? [normalized] : [],
+            };
+            replacements.analysisProfileId = { type: 'constant', value: 'default' };
+            if (smoothing != null) {
+                replacements.smoothing = { type: 'constant', value: normalizeSmoothingValue(smoothing) };
+            }
+        }
+        return { clearedKeys: ['featureDescriptor'], replacements };
+    }
+    if (propertyKey !== 'featureBinding') return null;
+    const clearedKeys = ['featureBinding', 'audioTrackId', 'featureDescriptor', 'analysisProfileId'];
+    if (!isLegacyAudioFeatureBinding(value)) {
+        return { clearedKeys, replacements: {} };
+    }
+    const replacements: Record<string, BindingState> = {};
+    const trackId = typeof value.trackId === 'string' && value.trackId ? value.trackId : null;
+    if (trackId) {
+        replacements.audioTrackId = { type: 'constant', value: trackId };
+    }
+    const { descriptor, smoothing } = sanitizeLegacyDescriptor(value);
+    if (descriptor) {
+        replacements.features = { type: 'constant', value: [descriptor] };
+        replacements.analysisProfileId = { type: 'constant', value: 'default' };
+    }
+    if (smoothing != null) {
+        replacements.smoothing = { type: 'constant', value: normalizeSmoothingValue(smoothing) };
+    }
+    return { clearedKeys, replacements };
+}
 
 export interface MacroBindingAssignment {
     elementId: string;
@@ -65,6 +192,7 @@ export interface SceneRuntimeMeta {
     lastMutationSource?: SceneMutationSource;
     lastMutatedAt?: number;
     persistentDirty: boolean;
+    hasInitializedScene: boolean;
 }
 
 export type SceneMutationSource =
@@ -172,7 +300,7 @@ export interface SceneStoreState extends SceneStoreActions {
     runtimeMeta: SceneRuntimeMeta;
 }
 
-const SCENE_SCHEMA_VERSION = 1;
+const SCENE_SCHEMA_VERSION = 4;
 
 export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     fps: 60,
@@ -196,16 +324,104 @@ function createEmptyBindingsState(): SceneBindingsState {
 }
 
 function cloneBinding(binding: BindingState): BindingState {
-    return binding.type === 'constant'
-        ? { type: 'constant', value: binding.value }
-        : { type: 'macro', macroId: binding.macroId };
+    if (binding.type === 'constant') {
+        return { type: 'constant', value: binding.value };
+    }
+    if (binding.type === 'macro') {
+        return { type: 'macro', macroId: binding.macroId };
+    }
+    throw new Error(`Unsupported binding type: ${(binding as { type?: string }).type ?? 'unknown'}`);
 }
 
-function cloneBindingsMap(bindings: ElementBindings): ElementBindings {
+function hasAudioFeatureDescriptors(binding: ConstantBindingState): boolean {
+    const value = binding.value;
+    if (!Array.isArray(value)) return false;
+    return value.some((descriptor) => {
+        if (!descriptor || typeof descriptor !== 'object') return false;
+        const key = (descriptor as { featureKey?: unknown }).featureKey;
+        return typeof key === 'string' && key.length > 0;
+    });
+}
+
+function ensureDefaultAnalysisProfileBinding(bindings: ElementBindings): boolean {
+    const featuresBinding = bindings.features;
+    if (!featuresBinding || featuresBinding.type !== 'constant') return false;
+    if (!hasAudioFeatureDescriptors(featuresBinding)) return false;
+
+    const profileBinding = bindings.analysisProfileId;
+    if (profileBinding) {
+        if (profileBinding.type === 'macro') return false;
+        if (
+            profileBinding.type === 'constant' &&
+            typeof profileBinding.value === 'string' &&
+            profileBinding.value.trim().length > 0
+        ) {
+            return false;
+        }
+    }
+
+    bindings.analysisProfileId = { type: 'constant', value: 'default' };
+    return true;
+}
+
+function cloneBindingsMap(bindings: ElementBindings, elementType?: string): ElementBindings {
+    const smoothingKey = resolveSmoothingProperty(elementType);
     const result: ElementBindings = {};
+    let migratedSmoothing: number | null = null;
     for (const [key, binding] of Object.entries(bindings)) {
+        if (binding.type === 'constant' && key === 'features') {
+            const value = binding.value;
+            if (Array.isArray(value)) {
+                const { descriptors, smoothingValues } = stripDescriptorArraySmoothing(value);
+                if (smoothingValues.length && migratedSmoothing == null) {
+                    migratedSmoothing = smoothingValues[0] ?? null;
+                }
+                const sanitized = descriptors.filter(
+                    (entry): entry is Record<string, unknown> & { featureKey: string } =>
+                        Boolean(
+                            entry &&
+                                typeof entry === 'object' &&
+                                typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                        )
+                ) as AudioFeatureDescriptor[];
+                result.features = {
+                    type: 'constant',
+                    value: sanitized,
+                } as ConstantBindingState;
+                continue;
+            }
+            const { descriptor, smoothing } = stripDescriptorSmoothing(value);
+            if (smoothing != null && migratedSmoothing == null) {
+                migratedSmoothing = smoothing;
+            }
+            const validDescriptor =
+                descriptor && typeof (descriptor as { featureKey?: unknown }).featureKey === 'string'
+                    ? (descriptor as unknown as AudioFeatureDescriptor)
+                    : null;
+            result.features = {
+                type: 'constant',
+                value: validDescriptor ? [validDescriptor] : [],
+            } as ConstantBindingState;
+            continue;
+        }
+        if (binding.type === 'constant' && smoothingKey && key === smoothingKey) {
+            result[key] = {
+                type: 'constant',
+                value: normalizeSmoothingValue(binding.value),
+            };
+            continue;
+        }
         result[key] = cloneBinding(binding);
     }
+    if (migratedSmoothing != null) {
+        if (smoothingKey && !result[smoothingKey]) {
+            result[smoothingKey] = {
+                type: 'constant',
+                value: normalizeSmoothingValue(migratedSmoothing),
+            };
+        }
+    }
+    ensureDefaultAnalysisProfileBinding(result);
     return result;
 }
 
@@ -294,18 +510,99 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     return false;
 }
 
+function resolveSmoothingProperty(elementType: string | undefined): string | null {
+    switch (elementType) {
+        case 'audioSpectrum':
+        case 'audioVolumeMeter':
+        case 'audioWaveform':
+        case 'audioOscilloscope':
+            return 'smoothing';
+        default:
+            return null;
+    }
+}
+
+function normalizeSmoothingValue(value: unknown): number {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) {
+        return 0;
+    }
+    return Math.max(0, numeric);
+}
+
 export function deserializeElementBindings(raw: SceneSerializedElement): ElementBindings {
     const bindings: ElementBindings = {};
+    let migratedSmoothing: number | null = null;
     for (const [key, value] of Object.entries(raw)) {
         if (key === 'id' || key === 'type' || key === 'index') continue;
         if (!value || typeof value !== 'object') continue;
-        const payload = value as PropertyBindingData;
-        if (payload.type === 'constant') {
-            bindings[key] = { type: 'constant', value: payload.value };
-        } else if (payload.type === 'macro' && typeof payload.macroId === 'string') {
-            bindings[key] = { type: 'macro', macroId: payload.macroId };
+        const payload = value as Partial<PropertyBindingData>;
+        const type = (value as { type?: string }).type;
+
+        const migration = migrateLegacyAudioFeatureBinding(key, payload);
+        if (migration) {
+            for (const clearedKey of migration.clearedKeys) {
+                delete bindings[clearedKey as keyof ElementBindings];
+            }
+            for (const [replacementKey, binding] of Object.entries(migration.replacements)) {
+                bindings[replacementKey as keyof ElementBindings] = binding;
+            }
+            continue;
+        }
+
+        if (type === 'constant') {
+            let constantValue = (payload as { value?: unknown }).value;
+            if (key === 'features') {
+                if (Array.isArray(constantValue)) {
+                    const { descriptors, smoothingValues } = stripDescriptorArraySmoothing(constantValue);
+                    if (smoothingValues.length && migratedSmoothing == null) {
+                        migratedSmoothing = smoothingValues[0] ?? null;
+                    }
+                    const migratedDescriptors = descriptors.map((entry) => migrateDescriptorChannels(entry));
+                    const normalized = migratedDescriptors
+                        .map((entry) => entry.descriptor)
+                        .filter((entry): entry is AudioFeatureDescriptor => entry != null);
+                    constantValue = normalized;
+                    applyChannelSelectorsToBindings(bindings, migratedDescriptors);
+                } else {
+                    const { descriptor, smoothing } = stripDescriptorSmoothing(constantValue);
+                    if (smoothing != null && migratedSmoothing == null) {
+                        migratedSmoothing = smoothing;
+                    }
+                    const migrated = migrateDescriptorChannels(descriptor);
+                    constantValue = migrated.descriptor ? [migrated.descriptor] : [];
+                    applyChannelSelectorsToBindings(bindings, [migrated]);
+                }
+            }
+            bindings[key] = { type: 'constant', value: constantValue };
+            continue;
+        }
+        if (type === 'macro' && typeof (payload as { macroId?: unknown }).macroId === 'string') {
+            const macroId = (payload as { macroId: string }).macroId;
+            bindings[key] = { type: 'macro', macroId };
+            continue;
+        }
+        if (type === 'audioFeature') {
+            const legacyMigration = migrateLegacyAudioFeatureBinding(key, payload);
+            if (legacyMigration) {
+                for (const clearedKey of legacyMigration.clearedKeys) {
+                    delete bindings[clearedKey as keyof ElementBindings];
+                }
+                for (const [replacementKey, binding] of Object.entries(legacyMigration.replacements)) {
+                    bindings[replacementKey as keyof ElementBindings] = binding;
+                }
+            }
         }
     }
+    if (migratedSmoothing != null) {
+        const propertyKey = resolveSmoothingProperty(raw.type);
+        if (propertyKey && !bindings[propertyKey]) {
+            const normalized = normalizeSmoothingValue(migratedSmoothing);
+            bindings[propertyKey] = { type: 'constant', value: normalized };
+            logSmoothingMigration(raw.id, raw.type, normalized);
+        }
+    }
+    ensureDefaultAnalysisProfileBinding(bindings);
     return bindings;
 }
 
@@ -320,10 +617,11 @@ function serializeElement(
         index,
     };
     for (const [key, binding] of Object.entries(bindings)) {
-        serialized[key] =
-            binding.type === 'constant'
-                ? ({ type: 'constant', value: binding.value } satisfies PropertyBindingData)
-                : ({ type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData);
+        if (binding.type === 'constant') {
+            serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
+        } else if (binding.type === 'macro') {
+            serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
+        }
     }
     return serialized;
 }
@@ -335,6 +633,7 @@ function createRuntimeMeta(): SceneRuntimeMeta {
         initializedAt: now,
         lastMutatedAt: now,
         persistentDirty: false,
+        hasInitializedScene: false,
     };
 }
 
@@ -345,6 +644,7 @@ function markDirty(prev: SceneStoreState, source: SceneMutationSource): SceneRun
         persistentDirty: true,
         lastMutationSource: source,
         lastMutatedAt: now,
+        hasInitializedScene: true,
     };
 }
 
@@ -386,49 +686,103 @@ function cloneMacroOptions(source?: Macro['options']): Macro['options'] {
     if (Array.isArray(source.selectOptions)) {
         next.selectOptions = source.selectOptions.map((entry) => ({ ...entry }));
     }
+    if (Array.isArray(source.allowedTrackTypes)) {
+        next.allowedTrackTypes = [...source.allowedTrackTypes];
+    }
     return next;
 }
+
+type MacroValidationResult = { valid: true } | { valid: false; reason?: string };
 
 function validateMacroValue(
     type: Macro['type'],
     value: unknown,
     options: Macro['options'] = {} as Macro['options']
-): boolean {
+): MacroValidationResult {
     switch (type) {
         case 'number':
-            if (typeof value !== 'number' || Number.isNaN(value)) return false;
-            if (typeof options.min === 'number' && value < options.min) return false;
-            if (typeof options.max === 'number' && value > options.max) return false;
-            return true;
+            if (typeof value !== 'number' || Number.isNaN(value)) return { valid: false };
+            if (typeof options.min === 'number' && value < options.min) return { valid: false };
+            if (typeof options.max === 'number' && value > options.max) return { valid: false };
+            return { valid: true };
         case 'string':
-            return typeof value === 'string';
+            return { valid: typeof value === 'string' };
         case 'boolean':
-            return typeof value === 'boolean';
+            return { valid: typeof value === 'boolean' };
         case 'color':
-            return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value);
+            return { valid: typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/i.test(value) };
+        case 'colorAlpha':
+            if (typeof value !== 'string') return { valid: false };
+            if (/^#[0-9A-Fa-f]{8}$/i.test(value)) return { valid: true };
+            if (/^#[0-9A-Fa-f]{6}$/i.test(value)) return { valid: true };
+            return { valid: false };
         case 'font':
-            if (typeof value !== 'string') return false;
-            if (value.trim() === '') return true;
+            if (typeof value !== 'string') return { valid: false };
+            if (value.trim() === '') return { valid: true };
             const parts = value.split('|');
-            if (parts.length === 1) return true;
+            if (parts.length === 1) return { valid: true };
             if (parts.length === 2) {
-                return /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]);
+                return { valid: /^(?:100|200|300|400|500|600|700|800|900)$/.test(parts[1]) };
             }
-            return false;
+            return { valid: false };
         case 'select':
-            if (!Array.isArray(options.selectOptions) || options.selectOptions.length === 0) return true;
-            return options.selectOptions.some((opt) => opt.value === value);
+            if (!Array.isArray(options.selectOptions) || options.selectOptions.length === 0) {
+                return { valid: true };
+            }
+            return { valid: options.selectOptions.some((opt) => opt.value === value) };
         case 'file':
-            if (value === null || value === undefined) return true;
-            if (typeof File === 'undefined') return true;
-            return value instanceof File;
-        case 'midiTrackRef':
-            if (value == null) return true;
-            if (typeof value === 'string') return true;
-            if (Array.isArray(value)) return value.every((entry) => typeof entry === 'string');
-            return false;
+            if (value === null || value === undefined) return { valid: true };
+            if (typeof File === 'undefined') return { valid: true };
+            return { valid: value instanceof File };
+        case 'timelineTrackRef':
+            if (value == null) return { valid: true };
+            const allowed =
+                Array.isArray(options.allowedTrackTypes) && options.allowedTrackTypes.length
+                    ? options.allowedTrackTypes
+                    : ['midi'];
+            const allowedSet = new Set(allowed);
+            const toCheck = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+
+            if (!Array.isArray(value) && typeof value !== 'string') {
+                return { valid: false, reason: 'Expected a track id string or array.' };
+            }
+
+            if (Array.isArray(value) && !value.every((entry) => typeof entry === 'string')) {
+                return { valid: false, reason: 'Track assignments must be string ids.' };
+            }
+
+            const trackIds = toCheck.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+            if (trackIds.length === 0) {
+                return { valid: true };
+            }
+
+            const timelineState = useTimelineStore.getState();
+            for (const trackId of trackIds) {
+                const track = timelineState.tracks[trackId] as { type?: string } | undefined;
+                if (!track || (track.type !== 'audio' && track.type !== 'midi')) {
+                    continue;
+                }
+                if (!allowedSet.has(track.type)) {
+                    const allowedLabel = (() => {
+                        const labels = allowed.map((entry) => (entry === 'audio' ? 'audio' : 'MIDI'));
+                        if (labels.length === 1) {
+                            return `${labels[0]} tracks`;
+                        }
+                        if (labels.length === 2) {
+                            return `${labels[0]} or ${labels[1]} tracks`;
+                        }
+                        return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]} tracks`;
+                    })();
+                    const actualLabel = track.type === 'audio' ? 'audio' : 'MIDI';
+                    return {
+                        valid: false,
+                        reason: `Track '${trackId}' is ${actualLabel}, but this macro accepts ${allowedLabel}.`,
+                    };
+                }
+            }
+            return { valid: true };
         default:
-            return true;
+            return { valid: true };
     }
 }
 
@@ -503,7 +857,7 @@ const createSceneStoreState = (
             const insertionIndex = normalizeIndex(input.index ?? nextOrder.length, nextOrder.length);
             nextOrder.splice(insertionIndex, 0, element.id);
 
-            const initialBindings = cloneBindingsMap(input.bindings ?? {});
+            const initialBindings = cloneBindingsMap(input.bindings ?? {}, input.type);
             const nextByElement = { ...state.bindings.byElement, [element.id]: initialBindings };
             const nextBindings: SceneBindingsState = {
                 byElement: nextByElement,
@@ -581,7 +935,7 @@ const createSceneStoreState = (
                 throw new Error(`SceneStore.duplicateElement: element '${newId}' already exists`);
 
             const source = state.elements[sourceId];
-            const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {});
+            const clonedBindings = cloneBindingsMap(state.bindings.byElement[sourceId] ?? {}, source.type);
 
             const insertAfter = opts?.insertAfter ?? true;
             const sourceIndex = state.order.indexOf(sourceId);
@@ -705,6 +1059,8 @@ const createSceneStoreState = (
             const existing = state.bindings.byElement[elementId];
             if (!existing) throw new Error(`SceneStore.updateBindings: element '${elementId}' not found`);
 
+            const elementType = state.elements[elementId]?.type;
+
             let changed = false;
             let zIndexChanged = false;
             const nextBindingsForElement: ElementBindings = { ...existing };
@@ -721,10 +1077,93 @@ const createSceneStoreState = (
                     continue;
                 }
 
-                const normalized =
-                    binding.type === 'constant'
-                        ? ({ type: 'constant', value: binding.value } as BindingState)
-                        : ({ type: 'macro', macroId: binding.macroId } as BindingState);
+                if ((binding as any)?.type === 'audioFeature') {
+                    const migration = migrateLegacyAudioFeatureBinding(key, binding);
+                    if (migration) {
+                        for (const clearedKey of migration.clearedKeys) {
+                            if (clearedKey in nextBindingsForElement) {
+                                delete nextBindingsForElement[clearedKey];
+                                changed = true;
+                                if (clearedKey === 'zIndex') {
+                                    zIndexChanged = true;
+                                }
+                            }
+                        }
+                        for (const [replacementKey, replacementBinding] of Object.entries(migration.replacements)) {
+                            const current = nextBindingsForElement[replacementKey];
+                            if (!current || !bindingEquals(current, replacementBinding)) {
+                                nextBindingsForElement[replacementKey] = replacementBinding;
+                                changed = true;
+                                if (replacementKey === 'zIndex') {
+                                    zIndexChanged = true;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+
+                let normalized: BindingState;
+                if (binding.type === 'constant') {
+                    if (key === 'features') {
+                        let smoothingFromDescriptor: number | null = null;
+                        let descriptors: AudioFeatureDescriptor[] = [];
+                        const value = binding.value;
+                        if (Array.isArray(value)) {
+                            const { descriptors: entries, smoothingValues } = stripDescriptorArraySmoothing(value);
+                            if (smoothingValues.length) {
+                                smoothingFromDescriptor = smoothingValues[0] ?? null;
+                            }
+                            descriptors = entries
+                                .filter((entry): entry is Record<string, unknown> & { featureKey: string } =>
+                                    Boolean(
+                                        entry &&
+                                            typeof entry === 'object' &&
+                                            typeof (entry as { featureKey?: unknown }).featureKey === 'string'
+                                    )
+                                )
+                                .map((entry) => entry as AudioFeatureDescriptor);
+                        } else {
+                            const { descriptor, smoothing } = stripDescriptorSmoothing(value);
+                            if (smoothing != null) {
+                                smoothingFromDescriptor = smoothing;
+                            }
+                            if (descriptor && typeof (descriptor as { featureKey?: unknown }).featureKey === 'string') {
+                                descriptors = [descriptor as unknown as AudioFeatureDescriptor];
+                            } else {
+                                descriptors = [];
+                            }
+                        }
+                        normalized = { type: 'constant', value: descriptors };
+                        if (smoothingFromDescriptor != null) {
+                            const smoothingKey = resolveSmoothingProperty(elementType);
+                            if (smoothingKey && !patch[smoothingKey]) {
+                                const normalizedRadius = normalizeSmoothingValue(smoothingFromDescriptor);
+                                const currentSmoothing = nextBindingsForElement[smoothingKey];
+                                if (
+                                    !currentSmoothing ||
+                                    currentSmoothing.type !== 'constant' ||
+                                    currentSmoothing.value !== normalizedRadius
+                                ) {
+                                    nextBindingsForElement[smoothingKey] = {
+                                        type: 'constant',
+                                        value: normalizedRadius,
+                                    };
+                                    changed = true;
+                                }
+                            }
+                        }
+                    } else if (key === resolveSmoothingProperty(elementType)) {
+                        normalized = { type: 'constant', value: normalizeSmoothingValue(binding.value) };
+                    } else {
+                        normalized = { type: 'constant', value: binding.value };
+                    }
+                } else if (binding.type === 'macro') {
+                    normalized = { type: 'macro', macroId: binding.macroId };
+                } else {
+                    console.warn('[SceneStore] Ignoring unsupported binding type', binding);
+                    continue;
+                }
 
                 const current = nextBindingsForElement[key];
                 if (!current || !bindingEquals(current, normalized)) {
@@ -734,6 +1173,10 @@ const createSceneStoreState = (
                         zIndexChanged = true;
                     }
                 }
+            }
+
+            if (ensureDefaultAnalysisProfileBinding(nextBindingsForElement)) {
+                changed = true;
             }
 
             if (!changed) return state;
@@ -765,8 +1208,10 @@ const createSceneStoreState = (
 
             const options = cloneMacroOptions(definition.options);
             const defaultValue = definition.defaultValue !== undefined ? definition.defaultValue : definition.value;
-            if (!validateMacroValue(definition.type, definition.value, options)) {
-                throw new Error(`SceneStore.createMacro: invalid value for macro '${id}'`);
+            const validation = validateMacroValue(definition.type, definition.value, options);
+            if (!validation.valid) {
+                const reason = validation.reason ? `: ${validation.reason}` : '';
+                throw new Error(`SceneStore.createMacro: invalid value for macro '${id}'${reason}`);
             }
 
             const now = Date.now();
@@ -799,8 +1244,10 @@ const createSceneStoreState = (
         set((state) => {
             const macro = state.macros.byId[macroId];
             if (!macro) return state;
-            if (!validateMacroValue(macro.type, value, macro.options)) {
-                throw new Error(`SceneStore.updateMacroValue: invalid value for macro '${macroId}'`);
+            const validation = validateMacroValue(macro.type, value, macro.options);
+            if (!validation.valid) {
+                const reason = validation.reason ? `: ${validation.reason}` : '';
+                throw new Error(`SceneStore.updateMacroValue: invalid value for macro '${macroId}'${reason}`);
             }
             if (Object.is(macro.value, value)) return state;
 
@@ -978,7 +1425,10 @@ const createSceneStoreState = (
         set((state) => {
             const existing = state.fonts.assets[assetId];
             if (!existing) return state;
-            const merged: FontAsset = normalizeFontAssetInput({ ...existing, ...patch, id: assetId } as FontAsset, existing);
+            const merged: FontAsset = normalizeFontAssetInput(
+                { ...existing, ...patch, id: assetId } as FontAsset,
+                existing
+            );
             if (JSON.stringify(existing) === JSON.stringify(merged)) {
                 return state;
             }
@@ -1045,8 +1495,9 @@ const createSceneStoreState = (
     },
 
     importScene: (payload) => {
+        const migratedPayload = migrateSceneAudioSystemV5(payload);
         set((state) => {
-            const elements = payload.elements ?? [];
+            const elements = migratedPayload.elements ?? [];
             const sorted = [...elements].sort((a, b) => {
                 const ai = typeof a.index === 'number' ? a.index : elements.indexOf(a);
                 const bi = typeof b.index === 'number' ? b.index : elements.indexOf(b);
@@ -1078,14 +1529,14 @@ const createSceneStoreState = (
 
             const nextSettings = {
                 ...DEFAULT_SCENE_SETTINGS,
-                ...(payload.sceneSettings ?? {}),
+                ...(migratedPayload.sceneSettings ?? {}),
             } satisfies SceneSettingsState;
 
             const importTimestamp = Date.now();
 
             const normalizedFontAssets: Record<string, FontAsset> = {};
-            if (payload.fontAssets) {
-                for (const [assetId, asset] of Object.entries(payload.fontAssets)) {
+            if (migratedPayload.fontAssets) {
+                for (const [assetId, asset] of Object.entries(migratedPayload.fontAssets)) {
                     if (!assetId || !asset) continue;
                     const id = typeof asset.id === 'string' ? asset.id : assetId;
                     normalizedFontAssets[id] = normalizeFontAssetInput({ ...asset, id } as FontAsset);
@@ -1093,8 +1544,8 @@ const createSceneStoreState = (
             }
             const fontOrder = Object.keys(normalizedFontAssets);
             const fontLicensingAcknowledgedAt =
-                typeof payload.fontLicensingAcknowledgedAt === 'number'
-                    ? payload.fontLicensingAcknowledgedAt
+                typeof migratedPayload.fontLicensingAcknowledgedAt === 'number'
+                    ? migratedPayload.fontLicensingAcknowledgedAt
                     : undefined;
 
             return {
@@ -1103,7 +1554,7 @@ const createSceneStoreState = (
                 elements: nextElements,
                 order: sortedOrder,
                 bindings: nextBindings,
-                macros: buildMacroState(payload.macros),
+                macros: buildMacroState(migratedPayload.macros),
                 fonts: {
                     assets: normalizedFontAssets,
                     order: fontOrder,
@@ -1117,6 +1568,7 @@ const createSceneStoreState = (
                     lastHydratedAt: importTimestamp,
                     lastMutationSource: 'importScene',
                     lastMutatedAt: importTimestamp,
+                    hasInitializedScene: true,
                 },
             };
         });
@@ -1210,6 +1662,6 @@ const createSceneStoreState = (
 
 const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSceneStoreState(set, get);
 
-export const createSceneStore = () => create<SceneStoreState>(sceneStoreCreator);
+export const createSceneStore = () => createWithEqualityFn<SceneStoreState>(sceneStoreCreator);
 
 export const useSceneStore = createSceneStore();

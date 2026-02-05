@@ -1,8 +1,13 @@
 import { importScene } from '@persistence/import';
-import type { SceneSettingsState } from '@state/sceneStore';
+import { useSceneStore, type SceneMacroDefinition, type SceneSettingsState } from '@state/sceneStore';
 import type { SceneMetadataState } from '@state/sceneMetadataStore';
 import { useTimelineStore } from '@state/timelineStore';
-import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from '@persistence/scene-package';
+import {
+    decodeSceneText,
+    parseLegacyInlineScene,
+    parseScenePackage,
+    ScenePackageError,
+} from '@persistence/scene-package';
 
 interface DefaultSceneCache {
     sceneData: string | Uint8Array;
@@ -70,9 +75,7 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
             try {
                 const packaged = parseScenePackage(bytes);
                 const envelope = packaged.envelope;
-                const settings = envelope?.scene?.sceneSettings
-                    ? { ...envelope.scene.sceneSettings }
-                    : undefined;
+                const settings = envelope?.scene?.sceneSettings ? { ...envelope.scene.sceneSettings } : undefined;
                 const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                 return { sceneData: bytes, settings, metadata };
             } catch (error) {
@@ -87,7 +90,10 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
                         const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                         return { sceneData: text, settings, metadata };
                     } catch (legacyError) {
-                        console.error('[default-scene-loader] Failed to parse legacy default scene payload', legacyError);
+                        console.error(
+                            '[default-scene-loader] Failed to parse legacy default scene payload',
+                            legacyError
+                        );
                         return null;
                     }
                 }

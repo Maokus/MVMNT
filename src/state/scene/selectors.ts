@@ -42,7 +42,10 @@ function bindingsFingerprint(bindings: ElementBindings): string {
             if (binding.type === 'constant') {
                 return `${property}=const:${stableValueFingerprint(binding.value)}`;
             }
-            return `${property}=macro:${binding.macroId}`;
+            if (binding.type === 'macro') {
+                return `${property}=macro:${binding.macroId}`;
+            }
+            return `${property}=unknown:${stableValueFingerprint(binding)}`;
         })
         .sort();
     return pairs.join('|');

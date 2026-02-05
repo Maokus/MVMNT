@@ -2,6 +2,7 @@ import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@sta
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';
+import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { exportScene, importScene } from '@persistence/index';
 import type { ImportSceneResult } from '@persistence/index';
 import {
@@ -90,11 +91,17 @@ const persistenceTools = {
     },
 };
 
+const diagnosticsTools = {
+    getState: () => useAudioDiagnosticsStore.getState(),
+    historySummary: () => useAudioDiagnosticsStore.getState().getHistorySummary(),
+};
+
 export interface MvmntDevTools {
     scene: typeof sceneTools;
     timeline: typeof timelineTools;
     undo: typeof undoTools;
     persistence: typeof persistenceTools;
+    diagnostics: typeof diagnosticsTools;
 }
 
 declare global {
@@ -109,6 +116,7 @@ if (typeof window !== 'undefined') {
         timeline: timelineTools,
         undo: undoTools,
         persistence: persistenceTools,
+        diagnostics: diagnosticsTools,
     };
     (window as any).mvmntTools = tools;
 }

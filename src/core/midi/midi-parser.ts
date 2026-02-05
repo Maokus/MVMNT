@@ -1,5 +1,5 @@
 // MIDI Parser Module - TypeScript migration (Timing logic inlined; TimingManager removed)
-import { MIDIEvent, MIDIData, MIDITimeSignature } from '@core/types';
+import { MIDIEvent, MIDIData, MIDITimeSignature, MIDITrackDetails, MIDITrackSummary } from '@core/types';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 
 interface MIDIHeader {
@@ -11,6 +11,8 @@ interface MIDIHeader {
 interface MIDITrack {
     events: MIDIEvent[];
     length: number;
+    index: number;
+    name?: string;
 }
 
 interface VariableLengthResult {
@@ -32,6 +34,7 @@ export class MIDIParser {
     public bpm: number;
     // Tempo map as collected during parse (absolute time in ticks until conversion stage)
     private tempoEvents: Array<{ tick: number; tempo: number }>; // microseconds per quarter at given tick
+    private headerInfo: MIDIHeader | null;
 
     // Cached values to avoid recomputation
     private _secondsPerBeat?: number;
@@ -53,6 +56,7 @@ export class MIDIParser {
         this.beatsPerBar = this.timeSignature.numerator || 4;
         this._invalidateCache();
         this.tempoEvents = [];
+        this.headerInfo = null;
     }
 
     async parseMIDIFile(file: File): Promise<MIDIData> {
@@ -61,6 +65,7 @@ export class MIDIParser {
 
         // Parse MIDI header
         const headerChunk = this.parseHeader(dataView, 0);
+        this.headerInfo = headerChunk;
         let offset = 14; // Header is always 14 bytes
 
         this.tracks = [];
@@ -78,7 +83,7 @@ export class MIDIParser {
 
         // Parse all tracks
         for (let i = 0; i < headerChunk.numTracks; i++) {
-            const track = this.parseTrack(dataView, offset);
+            const track = this.parseTrack(dataView, offset, i);
             this.tracks.push(track);
             offset += track.length + 8; // 8 bytes for track header
         }
@@ -125,7 +130,7 @@ export class MIDIParser {
         return { format, numTracks, division };
     }
 
-    private parseTrack(dataView: DataView, offset: number): MIDITrack {
+    private parseTrack(dataView: DataView, offset: number, trackIndex: number): MIDITrack {
         // Check if we have enough bytes for track header
         if (offset + 8 > dataView.byteLength) {
             throw new Error('Invalid MIDI track: Insufficient data for track header');
@@ -143,6 +148,7 @@ export class MIDIParser {
         const endOffset = currentOffset + length;
         let runningStatus = 0;
         let absoluteTime = 0;
+        let trackName: string | undefined;
 
         // Check if track length is valid
         if (endOffset > dataView.byteLength) {
@@ -171,30 +177,78 @@ export class MIDIParser {
 
             // Handle running status
             if (status < 0x80) {
+                if (runningStatus === 0) {
+                    // Invalid running status scenario; bail out of track parsing
+                    break;
+                }
                 status = runningStatus;
                 currentOffset--; // Back up one byte
-            } else {
+            } else if (status < 0xf0) {
                 runningStatus = status;
+            } else {
+                // System common/meta events reset running status per the MIDI spec.
+                runningStatus = 0;
             }
 
             currentOffset++;
 
             const event = this.parseEvent(dataView, currentOffset, status, absoluteTime);
             if (event) {
-                events.push(event);
-                currentOffset = event.nextOffset;
+                const { nextOffset, ...rest } = event;
+                const midiEvent: MIDIEvent = { ...rest, trackIndex };
+                events.push(midiEvent);
+                if (
+                    !trackName &&
+                    midiEvent.type === 'meta' &&
+                    midiEvent.metaType === 0x03 &&
+                    typeof midiEvent.text === 'string'
+                ) {
+                    const candidate = midiEvent.text.trim();
+                    if (candidate.length) trackName = candidate;
+                }
+                currentOffset = nextOffset;
             } else {
                 currentOffset++;
             }
         }
 
-        return { events, length };
+        return { events, length, index: trackIndex, name: trackName };
     }
 
     private parseEvent(dataView: DataView, offset: number, status: number, absoluteTime: number): ParsedEvent | null {
         // Check bounds before accessing data
         if (offset >= dataView.byteLength) {
             return null;
+        }
+
+        // System Exclusive (0xF0 / 0xF7) - variable length payload
+        if (status === 0xf0 || status === 0xf7) {
+            const lengthResult = this.readVariableLength(dataView, offset);
+            const length = lengthResult.value;
+            const dataStart = lengthResult.offset;
+            const nextOffset = Math.min(dataStart + length, dataView.byteLength);
+            return {
+                type: 'meta',
+                metaType: status,
+                time: absoluteTime,
+                nextOffset,
+            };
+        }
+
+        if (status === 0xff) {
+            return this.parseMetaEvent(dataView, offset, absoluteTime);
+        }
+
+        // Non-meta system messages (0xF1-0xFE)
+        if (status >= 0xf0) {
+            const dataLen = this.getSystemMessageLength(status);
+            const nextOffset = Math.min(offset + dataLen, dataView.byteLength);
+            return {
+                type: 'meta',
+                metaType: status,
+                time: absoluteTime,
+                nextOffset,
+            };
         }
 
         const eventType = status & 0xf0;
@@ -244,16 +298,69 @@ export class MIDIParser {
                     nextOffset: offset + 1,
                 };
 
-            case 0xff: // Meta Event
-                return this.parseMetaEvent(dataView, offset, absoluteTime);
+            case 0xe0: { // Pitch Bend
+                if (offset + 1 >= dataView.byteLength) return null;
+                const lsb = dataView.getUint8(offset);
+                const msb = dataView.getUint8(offset + 1);
+                return {
+                    type: 'pitchBend',
+                    channel,
+                    data: [lsb, msb],
+                    time: absoluteTime,
+                    nextOffset: offset + 2,
+                };
+            }
 
             default:
-                // Skip unknown events
+                // Skip other channel events (aftertouch, channel pressure, etc.) while preserving alignment
+                const dataLen = this.getChannelMessageLength(status);
+                const nextOffset = Math.min(offset + dataLen, dataView.byteLength);
                 return {
                     type: 'meta',
+                    metaType: status,
                     time: absoluteTime,
-                    nextOffset: offset + 1,
+                    nextOffset,
                 };
+        }
+    }
+
+    private getChannelMessageLength(status: number): number {
+        const type = status & 0xf0;
+        switch (type) {
+            case 0x80: // Note off
+            case 0x90: // Note on
+            case 0xa0: // Polyphonic key pressure
+            case 0xb0: // Control change
+            case 0xe0: // Pitch bend
+                return 2;
+            case 0xc0: // Program change
+            case 0xd0: // Channel pressure
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    private getSystemMessageLength(status: number): number {
+        switch (status) {
+            case 0xf1: // MIDI Time Code Quarter Frame
+            case 0xf3: // Song Select
+            case 0xf4: // Undefined, treat as 1 byte data if present
+            case 0xf5: // Undefined
+                return 1;
+            case 0xf2: // Song Position Pointer
+                return 2;
+            case 0xf6: // Tune Request
+            case 0xf8: // Timing Clock
+            case 0xf9: // Undefined (real-time)
+            case 0xfa: // Start
+            case 0xfb: // Continue
+            case 0xfc: // Stop
+            case 0xfd: // Undefined
+            case 0xfe: // Active Sensing
+                return 0;
+            default:
+                return 0;
         }
     }
 
@@ -457,42 +564,23 @@ export class MIDIParser {
 
         // Convert ticks to seconds using tempo map and trim by earliest note time
         const earliestSeconds = ticksToSeconds(earliestNoteTime);
-        const playableEvents: MIDIEvent[] = noteEvents.map((event) => ({
-            ...event,
-            time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds),
-            tick: event.time - earliestNoteTime,
-        }));
+        const perTrackEvents = new Map<number, MIDIEvent[]>();
+        const playableEvents: MIDIEvent[] = noteEvents.map((event) => {
+            const trimmed: MIDIEvent = {
+                ...event,
+                time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds),
+                tick: event.time - earliestNoteTime,
+            };
+            const idx = typeof trimmed.trackIndex === 'number' ? trimmed.trackIndex : -1;
+            if (!perTrackEvents.has(idx)) {
+                perTrackEvents.set(idx, []);
+            }
+            perTrackEvents.get(idx)!.push(trimmed);
+            return trimmed;
+        });
 
         // Calculate total duration based on the end of the final note
-        // Pair noteOn/noteOff to compute note end times precisely; fallback to 1s for unmatched notes
-        let duration = 0;
-        if (playableEvents.length > 0) {
-            const noteOnMap = new Map<string, MIDIEvent>();
-            const noteEndTimes: number[] = [];
-
-            for (const ev of playableEvents) {
-                if (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0) {
-                    const key = `${ev.note}_${ev.channel || 0}`;
-                    noteOnMap.set(key, ev);
-                } else if (ev.type === 'noteOff' || (ev.type === 'noteOn' && (ev.velocity ?? 0) === 0)) {
-                    const key = `${ev.note}_${ev.channel || 0}`;
-                    const on = noteOnMap.get(key);
-                    if (on) {
-                        noteEndTimes.push(ev.time);
-                        noteOnMap.delete(key);
-                    }
-                }
-            }
-
-            // Any remaining noteOns without an off: assume 1s duration
-            noteOnMap.forEach((on) => {
-                noteEndTimes.push(on.time + 1.0);
-            });
-
-            if (noteEndTimes.length > 0) {
-                duration = Math.max(...noteEndTimes);
-            }
-        }
+        const duration = this.computeDurationFromEvents(playableEvents);
 
         // Build tempo map (in seconds) from collected tempoEvents
         let tempoMapSec: Array<{ time: number; tempo: number }> | undefined = undefined;
@@ -514,6 +602,32 @@ export class MIDIParser {
             tempoMapEntries: tempoMapSec?.length || 0,
         });
 
+        const trackSummaries: MIDITrackSummary[] = [];
+        const trackDetails: MIDITrackDetails[] = [];
+        for (const track of this.tracks) {
+            const idx = track.index;
+            const eventsForTrack = perTrackEvents.get(idx) ?? [];
+            const noteOnCount = eventsForTrack.reduce(
+                (count, ev) => (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0 ? count + 1 : count),
+                0,
+            );
+            const channels = Array.from(new Set(eventsForTrack.map((ev) => ev.channel ?? 0))).sort((a, b) => a - b);
+            const summary: MIDITrackSummary = {
+                trackIndex: idx,
+                name: track.name,
+                noteCount: noteOnCount,
+                channels,
+            };
+            trackSummaries.push(summary);
+            if (eventsForTrack.length > 0) {
+                trackDetails.push({
+                    ...summary,
+                    events: eventsForTrack,
+                    duration: this.computeDurationFromEvents(eventsForTrack),
+                });
+            }
+        }
+
         return {
             events: playableEvents,
             duration,
@@ -524,7 +638,37 @@ export class MIDIParser {
             // Note: types.ts doesn't include tempoMap yet; MidiManager will read it if present
             ...(tempoMapSec ? ({ tempoMap: tempoMapSec } as any) : {}),
             trimmedTicks: earliestNoteTime, // Include info about how much was trimmed for debugging
+            format: this.headerInfo?.format,
+            trackCount: this.headerInfo?.numTracks,
+            trackSummaries,
+            trackDetails,
         };
+    }
+
+    private computeDurationFromEvents(events: MIDIEvent[]): number {
+        if (!events.length) return 0;
+        const noteOnMap = new Map<string, MIDIEvent>();
+        const noteEndTimes: number[] = [];
+        for (const ev of events) {
+            if (ev.type === 'noteOn' && (ev.velocity ?? 0) > 0) {
+                const key = `${ev.note}_${ev.channel || 0}`;
+                noteOnMap.set(key, ev);
+            } else if (ev.type === 'noteOff' || (ev.type === 'noteOn' && (ev.velocity ?? 0) === 0)) {
+                const key = `${ev.note}_${ev.channel || 0}`;
+                const on = noteOnMap.get(key);
+                if (on) {
+                    noteEndTimes.push(ev.time);
+                    noteOnMap.delete(key);
+                }
+            }
+        }
+        noteOnMap.forEach((on) => {
+            noteEndTimes.push(on.time + 1.0);
+        });
+        if (!noteEndTimes.length) {
+            return 0;
+        }
+        return Math.max(...noteEndTimes);
     }
 
     private checkForTempoInMetadata(): void {

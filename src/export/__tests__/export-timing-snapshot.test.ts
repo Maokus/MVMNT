@@ -6,7 +6,7 @@ import {
     snapshotSecondsToTicks,
     snapshotTicksToSeconds,
 } from '@export/export-timing-snapshot';
-import ExportClock from '@export/export-clock';
+import { ExportClock } from '@export/export-clock';
 
 describe('ExportTimingSnapshot', () => {
     it('roundtrip seconds->ticks->seconds stable fixed tempo', () => {

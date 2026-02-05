@@ -1,18 +1,6 @@
 /* Minimal typing (improve later) */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-    TimeUnitPianoRollElement,
-    MovingNotesPianoRollElement,
-    BackgroundElement,
-    ImageElement,
-    ProgressDisplayElement,
-    TextOverlayElement,
-    TimeDisplayElement,
-    DebugElement,
-    NotesPlayedTrackerElement,
-    NotesPlayingDisplayElement,
-    ChordEstimateDisplayElement,
-} from '@core/scene/elements';
+import * as elements from '@core/scene/elements';
 
 export interface SceneElementFactorySchema {
     name?: string;
@@ -22,6 +10,11 @@ export interface SceneElementFactorySchema {
 }
 
 export type SceneElementFactory = (config?: any) => any;
+
+interface RegisterableSceneElement {
+    new (...args: any[]): elements.SceneElement;
+    getConfigSchema(): SceneElementFactorySchema;
+}
 
 export class SceneElementRegistry {
     private factories = new Map<string, SceneElementFactory>();
@@ -34,6 +27,17 @@ export class SceneElementRegistry {
     registerElement(type: string, factory: SceneElementFactory, schema: SceneElementFactorySchema) {
         this.factories.set(type, factory);
         this.schemas.set(type, schema);
+    }
+
+    registerElementFromClass(type: string, ElementClass: RegisterableSceneElement) {
+        if (typeof (ElementClass as any)?.getConfigSchema !== 'function') {
+            console.error('[SceneElementRegistry] Missing getConfigSchema for', type, ElementClass);
+        }
+        this.registerElement(
+            type,
+            (config) => new ElementClass(config.id || type, config),
+            ElementClass.getConfigSchema()
+        );
     }
 
     createElement(type: string, config: any = {}) {
@@ -66,64 +70,29 @@ export class SceneElementRegistry {
     }
 
     private registerDefaultElements() {
-        this.registerElement(
-            'timeUnitPianoRoll',
-            (config) => new TimeUnitPianoRollElement(config.id || 'timeUnitPianoRoll', config),
-            TimeUnitPianoRollElement.getConfigSchema()
-        );
-        this.registerElement(
-            'movingNotesPianoRoll',
-            (config) => new MovingNotesPianoRollElement(config.id || 'movingNotesPianoRoll', config),
-            MovingNotesPianoRollElement.getConfigSchema()
-        );
-        this.registerElement(
-            'background',
-            (config) => new BackgroundElement(config.id || 'background', config),
-            BackgroundElement.getConfigSchema()
-        );
-        this.registerElement(
-            'image',
-            (config) => new ImageElement(config.id || 'image', config),
-            ImageElement.getConfigSchema()
-        );
-        this.registerElement(
-            'progressDisplay',
-            (config) => new ProgressDisplayElement(config.id || 'progressDisplay', config),
-            ProgressDisplayElement.getConfigSchema()
-        );
-        this.registerElement(
-            'textOverlay',
-            (config) => new TextOverlayElement(config.id || 'textOverlay', config),
-            TextOverlayElement.getConfigSchema()
-        );
-        this.registerElement(
-            'timeDisplay',
-            (config) => new TimeDisplayElement(config.id || 'timeDisplay', config),
-            TimeDisplayElement.getConfigSchema()
-        );
-        this.registerElement(
-            'debug',
-            (config) => new DebugElement(config.id || 'debug', config),
-            DebugElement.getConfigSchema()
-        );
+        this.registerElementFromClass('background', elements.BackgroundElement);
+        this.registerElementFromClass('image', elements.ImageElement);
+        this.registerElementFromClass('progressDisplay', elements.ProgressDisplayElement);
+        this.registerElementFromClass('textOverlay', elements.TextOverlayElement);
+        this.registerElementFromClass('timeDisplay', elements.TimeDisplayElement);
 
-        this.registerElement(
-            'notesPlayedTracker',
-            (config) => new NotesPlayedTrackerElement(config.id || 'notesPlayedTracker', config),
-            NotesPlayedTrackerElement.getConfigSchema()
-        );
+        this.registerElementFromClass('timeUnitPianoRoll', elements.TimeUnitPianoRollElement);
+        this.registerElementFromClass('movingNotesPianoRoll', elements.MovingNotesPianoRollElement);
+        this.registerElementFromClass('notesPlayedTracker', elements.NotesPlayedTrackerElement);
+        this.registerElementFromClass('notesPlayingDisplay', elements.NotesPlayingDisplayElement);
+        this.registerElementFromClass('chordEstimateDisplay', elements.ChordEstimateDisplayElement);
 
-        this.registerElement(
-            'notesPlayingDisplay',
-            (config) => new NotesPlayingDisplayElement(config.id || 'notesPlayingDisplay', config),
-            NotesPlayingDisplayElement.getConfigSchema()
-        );
+        this.registerElementFromClass('audioSpectrum', elements.AudioSpectrumElement);
+        this.registerElementFromClass('audioVolumeMeter', elements.AudioVolumeMeterElement);
+        this.registerElementFromClass('audioWaveform', elements.AudioWaveformElement);
+        this.registerElementFromClass('audioLockedOscilloscope', elements.AudioLockedOscilloscopeElement);
 
-        this.registerElement(
-            'chordEstimateDisplay',
-            (config) => new ChordEstimateDisplayElement(config.id || 'chordEstimateDisplay', config),
-            ChordEstimateDisplayElement.getConfigSchema()
-        );
+        // this.registerElementFromClass('audioMinimal', elements.AudioMinimalElement);
+        // this.registerElementFromClass('audioOddProfile', elements.AudioOddProfileElement);
+        // this.registerElementFromClass('audioAdhocProfile', elements.AudioAdhocProfileElement);
+        // this.registerElementFromClass('audioBadReq', elements.AudioBadReqElement);
+        // this.registerElementFromClass('audioDebug', elements.AudioDebugElement);
+        this.registerElementFromClass('debug', elements.DebugElement);
     }
 }
 

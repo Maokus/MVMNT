@@ -503,14 +503,53 @@
     .ae-property-group {
         @apply border-b border-[#383838];
     }
+    .ae-properties-toolbar {
+        @apply px-2 py-2 border-b border-[#383838] bg-[#1f1f1f] flex flex-col gap-2;
+    }
+    .ae-toolbar-row {
+        @apply flex flex-wrap items-center gap-2;
+    }
+    .ae-properties-search {
+        @apply flex-1 min-w-[140px] h-7 rounded border border-[#3f3f46] bg-[#2b2b2b] px-3 text-[12px] text-[#f4f4f5] placeholder:text-[#9ca3af] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40;
+    }
+    .ae-element-actions {
+        @apply flex flex-wrap items-center gap-1;
+    }
+    .ae-element-preset {
+        @apply h-7 rounded border border-[#3f3f46] bg-[#1f1f1f] px-2 text-[11px] text-[#f4f4f5] focus:outline-none focus:border-accent flex-1 min-w-[180px] max-w-[260px];
+    }
+    .ae-element-action {
+        @apply h-7 px-3 rounded border border-[#3f3f46] bg-[#1f1f1f] text-[11px] uppercase tracking-wide text-[#f4f4f5] cursor-pointer transition-colors flex-shrink-0;
+    }
+    .ae-element-action:disabled {
+        @apply cursor-not-allowed opacity-50;
+    }
+    .ae-element-action:not(:disabled):hover {
+        @apply border-accent bg-accent/10 text-white;
+    }
+    .ae-empty-search {
+        @apply px-4 py-6 text-center text-[12px] text-[#a3a3a3];
+    }
     .ae-group-header {
-        @apply flex items-center px-2 py-1.5 bg-[#2c2c2c] cursor-pointer select-none transition-colors hover:bg-[#333333];
+        @apply flex items-start gap-2 px-2 py-1.5 bg-[#2c2c2c] select-none transition-colors hover:bg-[#333333] items-center;
+    }
+    .ae-collapse-trigger {
+        @apply flex items-center justify-center w-5 h-5 mt-[2px] rounded bg-[#1f1f1f] text-[#a0a0a0] text-[10px] border border-[#3f3f46] cursor-pointer;
+    }
+    .ae-collapse-trigger:hover {
+        @apply text-[#f8fafc] border-[#4c4c4f] bg-[#353535];
     }
     .ae-collapse-icon {
-        @apply w-3 h-3 flex items-center justify-center mr-1.5 text-[10px] text-[#a0a0a0] transition-transform;
+        @apply w-3 h-3 flex items-center justify-center text-[10px] transition-transform;
     }
     .ae-collapse-icon.collapsed {
         @apply -rotate-90;
+    }
+    .ae-group-meta {
+        @apply flex flex-col gap-0.5 flex-1;
+    }
+    .ae-group-title-row {
+        @apply flex items-center gap-1;
     }
     .ae-group-label {
         @apply font-bold text-[11px] text-[#e0e0e0];
@@ -518,8 +557,14 @@
     .ae-property-list {
         @apply bg-[#2c2c2c];
     }
+    .ae-property-list-empty {
+        @apply bg-[#2c2c2c] px-3 py-4;
+    }
+    .ae-property-empty {
+        @apply text-[11px] text-[#9ca3af];
+    }
     .ae-property-row {
-        @apply flex items-center justify-between px-2 py-1 border-b;
+        @apply flex flex-wrap items-center gap-2 px-2 py-1 border-b;
         padding-left: 26px;
         min-height: 24px;
         border-color: rgba(255, 255, 255, 0.05);
@@ -528,11 +573,14 @@
         @apply bg-white/5;
     }
     .ae-property-label {
-        @apply flex items-center shrink-0 mr-2;
-        min-width: 80px;
+        @apply flex items-center gap-1 shrink-0 min-w-0;
+    }
+    .ae-property-row-error {
+        border-color: rgba(248, 113, 113, 0.45);
+        background-color: rgba(127, 29, 29, 0.35);
     }
     .ae-property-name {
-        @apply text-[11px] text-[#e0e0e0] select-none;
+        @apply text-[11px] text-[#e0e0e0] select-none truncate max-w-[180px];
     }
     .ae-animation-icon {
         @apply w-[14px] h-[14px] ml-1 flex items-center justify-center text-[10px] text-[#666] cursor-pointer transition-colors;
@@ -544,7 +592,24 @@
         color: var(--twc-accent);
     }
     .ae-property-controls {
-        @apply flex items-center gap-1.5 flex-1 justify-end;
+        @apply flex items-center gap-1.5 flex-1 justify-end flex-wrap min-w-0;
+    }
+    .ae-property-error {
+        @apply text-[11px];
+        color: #fecaca;
+        background-color: rgba(127, 29, 29, 0.5);
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        border-radius: 4px;
+        padding: 6px 8px;
+        line-height: 1.25;
+        max-width: 100%;
+        word-break: break-word;
+    }
+    .ae-property-error strong {
+        @apply block;
+        color: #fee2e2;
+        font-weight: 600;
+        margin-bottom: 2px;
     }
     .ae-macro-assignment {
         @apply relative flex-shrink-0;
@@ -589,7 +654,7 @@
         @apply px-3 py-2 text-[11px] text-[#9ca3af];
     }
     .ae-property-input {
-        @apply flex-[0_0_120px] max-w-[120px];
+        @apply flex-[1_1_140px] min-w-[120px] max-w-[220px];
     }
     .ae-style .ae-property-input input,
     .ae-style .ae-property-input select {
@@ -609,6 +674,32 @@
     .ae-style .ae-property-input input[type='range'] {
         @apply w-full h-1 border-0 rounded outline-none cursor-pointer;
         background-color: var(--twc-control2);
+    }
+    .color-input-wrapper {
+        @apply relative;
+    }
+    .color-input-trigger {
+        @apply flex items-center gap-2 w-full h-5 px-1.5 text-[11px] rounded border border-control2 bg-[#383838] text-[#e0e0e0] transition-colors;
+    }
+    .color-input-trigger:focus {
+        @apply border-accent ring-1 ring-accent/30 outline-none;
+    }
+    .color-input-trigger:hover:not(:disabled) {
+        @apply border-accent/60;
+    }
+    .color-input-trigger:disabled,
+    .color-input-trigger--disabled {
+        @apply bg-[#2a2a2a] text-neutral-500 border-[#3a3a3a] cursor-not-allowed;
+    }
+    .color-input-trigger__swatch {
+        @apply w-3.5 h-3.5 rounded border border-[#1c1c1c] shadow-inner;
+    }
+    .color-input-trigger__label {
+        @apply uppercase tracking-wide text-[10px] leading-none font-medium text-left flex-1;
+    }
+    .color-input-popover {
+        @apply z-[80] rounded-md p-3;
+        min-width: 230px;
     }
     .animation-test-page {
         @apply text-neutral-200 font-sans;
@@ -638,8 +729,6 @@
     }
     .color-input {
         @apply w-12 h-8 p-0.5 border rounded;
-        background-color: var(--twc-menubar);
-        border-color: var(--twc-control2);
     }
     /* .btn.small and .btn:disabled removed; using inline utilities */
     .field-label {

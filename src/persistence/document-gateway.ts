@@ -1,7 +1,8 @@
-import { useTimelineStore, sharedTimingManager } from '../state/timelineStore';
+import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
+import { migrateSceneAudioSystemV5 } from './migrations/audioSystemV5';
 import { useSceneMetadataStore, type SceneMetadataState } from '@state/sceneMetadataStore';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
@@ -20,6 +21,8 @@ export interface PersistentDocumentV1 {
     playbackRangeUserDefined: boolean;
     rowHeight: number;
     midiCache: any;
+    audioFeatureCaches?: Record<string, any>;
+    audioFeatureCacheStatus?: Record<string, any>;
     scene: { elements: any[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number };
     metadata?: Partial<SceneMetadataState>;
 }
@@ -91,6 +94,8 @@ export const DocumentGateway = {
             playbackRangeUserDefined: state.playbackRangeUserDefined,
             rowHeight: state.rowHeight,
             midiCache: state.midiCache,
+            audioFeatureCaches: state.audioFeatureCaches,
+            audioFeatureCacheStatus: state.audioFeatureCacheStatus,
             scene: {
                 elements,
                 sceneSettings,
@@ -127,6 +132,8 @@ export const DocumentGateway = {
             playbackRangeUserDefined: !!doc.playbackRangeUserDefined,
             rowHeight: typeof doc.rowHeight === 'number' ? doc.rowHeight : prev.rowHeight,
             midiCache: doc.midiCache || {},
+            audioFeatureCaches: doc.audioFeatureCaches || {},
+            audioFeatureCacheStatus: doc.audioFeatureCacheStatus || {},
         }));
 
         // After timeline slice merge, propagate restored tempo state to shared timing manager.
@@ -150,13 +157,15 @@ export const DocumentGateway = {
         }
 
         // Scene & macros (note: sceneSettings tempo/meter SHOULD NOT override timeline if timeline already specified).
-        const sceneData = {
+        const rawSceneData = {
             elements: Array.isArray(doc.scene?.elements) ? doc.scene.elements : [],
             sceneSettings: doc.scene?.sceneSettings,
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
         };
+
+        const sceneData = migrateSceneAudioSystemV5(rawSceneData);
 
         try {
             useSceneStore.getState().importScene(sceneData);

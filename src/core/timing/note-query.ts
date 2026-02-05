@@ -164,5 +164,3 @@ export const noteQueryApi = {
     getNotesInWindow,
     getNotesNearTimeUnit,
 };
-
-export default noteQueryApi;

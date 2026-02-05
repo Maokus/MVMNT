@@ -80,6 +80,8 @@ describe('AudioWaveform integration in TrackLanes', () => {
                     channels: 1,
                 }
             },
+            audioFeatureCaches: {},
+            audioFeatureCacheStatus: {},
             midiCache: {},
             selection: { selectedTrackIds: [] },
             timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },

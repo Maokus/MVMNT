@@ -18,12 +18,28 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run NPM Test",
+			"label": "Run NPM lint",
 			"type": "shell",
-			"command": "npx vitest --watch false",
+			"command": "npm run lint",
 			"group": "build",
 			"isBackground": false,
 			"problemMatcher": []
-		}
+		},
+		{
+			"label": "Run NPM Test",
+			"type": "shell",
+			"command": "npm run test",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run NPM Install",
+			"type": "shell",
+			"command": "npm run install",
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
 	]
 }

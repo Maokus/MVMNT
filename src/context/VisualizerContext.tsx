@@ -64,10 +64,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         endTime: 0,
         includeAudio: true,
         videoCodec: 'h264',
-        audioCodec: 'aac',
+        audioCodec: 'pcm-s16',
         videoBitrateMode: 'auto',
+        qualityPreset: 'high',
+        audioBitrate: 192_000,
         audioSampleRate: 'auto',
         audioChannels: 2,
+        container: 'mp4',
     });
     const isBetaMode = import.meta.env.VITE_APP_MODE === 'beta';
     const defaultDebugSettings: DebugSettings = {
@@ -335,7 +338,6 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 maxFrames,
                 _startFrame: startFrame,
                 // Pass through new optional settings
-                bitrate: settings.bitrate,
                 qualityPreset: settings.qualityPreset,
                 includeAudio: settings.includeAudio,
                 videoCodec: settings.videoCodec,
@@ -345,6 +347,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
                 audioBitrate: settings.audioBitrate,
                 audioSampleRate: settings.audioSampleRate,
                 audioChannels: settings.audioChannels,
+                container: settings.container,
                 startTick,
                 endTick,
                 onProgress: (progress: number, text: string = 'Exporting video...') => setProgressData({ progress, text }),

@@ -25,6 +25,8 @@
  */
 import { AVExporter, type AVExportOptions, type AVExportResult } from './av-exporter';
 import { VideoExporter, type VideoExportOptions } from './video-exporter';
+import { useAudioDiagnosticsStore, type AnalysisHistorySummary } from '@state/audioDiagnosticsStore';
+import { useTimelineStore } from '@state/timelineStore';
 
 // Unified request describing what the caller wants. Additional backend-specific
 // knobs can still be passed through via `rawVideoOptions` / `rawAVOptions` if needed.
@@ -72,6 +74,10 @@ export interface ExportServiceResult {
     mixPeak?: number | null; // A/V path peak
     // Additional raw result reference for advanced inspection
     _raw?: any;
+    analysisHistoryManifest?: {
+        path: string;
+        payload: AnalysisHistorySummary;
+    };
 }
 
 export class ExportService {
@@ -155,6 +161,7 @@ export class ExportService {
                 durationSeconds: result.durationSeconds,
                 _raw: result,
             };
+            attachDiagnosticsManifest(serviceResult);
             onComplete(serviceResult);
             return serviceResult;
         }
@@ -184,9 +191,29 @@ export class ExportService {
         } as VideoExportOptions;
         await this.videoExporter.exportVideo(videoOptions);
         const final: ExportServiceResult = { type: 'video', videoBlob: capturedBlob, _raw: capturedBlob };
+        attachDiagnosticsManifest(final);
         onComplete(final);
         return final;
     }
+}
+
+function attachDiagnosticsManifest(result: ExportServiceResult): void {
+    const store = useAudioDiagnosticsStore.getState();
+    const summary = store.getHistorySummary();
+    if (!summary.entries.length) {
+        return;
+    }
+    let sceneId = 'scene';
+    try {
+        const timeline = useTimelineStore.getState();
+        sceneId = timeline.timeline?.id ?? sceneId;
+    } catch {
+        /* ignore timeline lookup failures */
+    }
+    result.analysisHistoryManifest = {
+        path: `exports/${sceneId}/analysis-history.json`,
+        payload: summary,
+    };
 }
 
 declare global {

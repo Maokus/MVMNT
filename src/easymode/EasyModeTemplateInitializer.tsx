@@ -30,17 +30,19 @@ const EasyModeTemplateInitializer: React.FC = () => {
     useEffect(() => {
         if (!visualizer) return;
         const state: any = location.state || {};
-        const hasScene = (() => {
+        const sceneStoreState = (() => {
             try {
-                return useSceneStore.getState().order.length > 0;
+                return useSceneStore.getState();
             } catch {
-                return false;
+                return null;
             }
         })();
+        const hasScene = sceneStoreState ? sceneStoreState.order.length > 0 : false;
+        const hasInitializedScene = sceneStoreState?.runtimeMeta?.hasInitializedScene ?? false;
 
         const shouldImport = Boolean(state.importScene);
         const shouldLoadTemplate = Boolean(state.template);
-        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene;
+        const shouldLoadDefault = !shouldImport && !shouldLoadTemplate && !hasScene && !hasInitializedScene;
         const shouldShowIndicator = shouldImport || shouldLoadTemplate || shouldLoadDefault;
         const message = shouldImport
             ? 'Importing scene…'
@@ -49,14 +51,30 @@ const EasyModeTemplateInitializer: React.FC = () => {
                 : 'Preparing default scene…';
 
         let finished = false;
+        let unsubscribeHydration: (() => void) | null = null;
         const finish = () => {
             if (finished || !shouldShowIndicator) return;
             finished = true;
+            unsubscribeHydration?.();
+            unsubscribeHydration = null;
             finishTemplateLoading();
         };
 
         if (shouldShowIndicator) {
             startTemplateLoading(message);
+            try {
+                const initialHydration = useSceneStore.getState().runtimeMeta?.lastHydratedAt ?? 0;
+                unsubscribeHydration = useSceneStore.subscribe((state, previousState) => {
+                    if (finished) return;
+                    const nextHydration = state.runtimeMeta?.lastHydratedAt ?? 0;
+                    const prevHydration = previousState.runtimeMeta?.lastHydratedAt ?? 0;
+                    if (!nextHydration || nextHydration === prevHydration) return;
+                    if (prevHydration !== initialHydration) return;
+                    finish();
+                });
+            } catch {
+                /* ignore */
+            }
         }
 
         const run = async () => {

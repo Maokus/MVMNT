@@ -3,13 +3,14 @@
 // hardware accelerated (WebCodecs) encoding directly in the browser.
 // The public API is intentionally kept the same so existing callers keep working.
 
-import ExportClock from '@export/export-clock';
+import { ExportClock } from '@export/export-clock';
 import { buildExportFilename } from '@utils/filename';
 import { createExportTimingSnapshot, type ExportTimingSnapshot } from '@export/export-timing-snapshot';
 import { getSharedTimingManager } from '@state/timelineStore';
 import {
     Output,
     Mp4OutputFormat,
+    WebMOutputFormat,
     BufferTarget,
     CanvasSource,
     QUALITY_HIGH,
@@ -53,6 +54,7 @@ export interface VideoExportOptions {
     audioBitrate?: number; // target audio bitrate (bps)
     audioSampleRate?: 'auto' | 44100 | 48000; // mixing / encode SR preference
     audioChannels?: 1 | 2; // channel layout
+    container?: 'auto' | 'mp4' | 'webm';
 }
 
 interface InternalFrameData {
@@ -99,12 +101,17 @@ export class VideoExporter {
             audioBitrate,
             audioSampleRate = 'auto',
             audioChannels = 2,
+            container = 'mp4',
             suppressDownload = false,
         } = options;
 
         if (this.isExporting) throw new Error('Video export already in progress');
         this.isExporting = true;
         this.frames = [];
+
+        const effectiveContainer: 'mp4' | 'webm' = container === 'webm' ? 'webm' : 'mp4';
+        const fileExtension = effectiveContainer === 'webm' ? '.webm' : '.mp4';
+        const mimeType = effectiveContainer === 'webm' ? 'video/webm' : 'video/mp4';
 
         const originalWidth = this.canvas.width;
         const originalHeight = this.canvas.height;
@@ -156,6 +163,7 @@ export class VideoExporter {
                             includeAudio: true,
                             deterministicTiming,
                             bitrate, // legacy support
+                            container: effectiveContainer,
                             videoCodec,
                             videoBitrateMode,
                             videoBitrate,
@@ -167,7 +175,7 @@ export class VideoExporter {
                         });
                         if (result.combinedBlob) {
                             if (!suppressDownload) {
-                                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
                                 this.downloadBlob(result.combinedBlob, finalName);
                             }
                             onComplete(result.combinedBlob);
@@ -175,7 +183,7 @@ export class VideoExporter {
                         } else if (result.videoBlob) {
                             // fallback: deliver video only (separate audio returned separately if UI wants to prompt)
                             if (!suppressDownload) {
-                                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
                                 this.downloadBlob(result.videoBlob, finalName);
                             }
                             onComplete(result.videoBlob);
@@ -202,16 +210,22 @@ export class VideoExporter {
 
             onProgress(0, 'Preparing encoder...');
 
-            // Decide on codec (prefer avc, else first encodable fall-back)
-            // Container currently fixed to mp4 for mediabunny; webm reserved for future.
+            // Decide on codec (prefer avc/vp9 based on container, else first encodable fall-back)
             // Resolve video codec (allow user override). Accept alias 'h264' → 'avc'.
-            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : 'avc';
+            const defaultCodecForContainer = effectiveContainer === 'webm' ? 'vp9' : 'avc';
+            let codecInput = videoCodec && videoCodec !== 'auto' ? videoCodec : defaultCodecForContainer;
             if (codecInput === 'h264') codecInput = 'avc';
             let codec: string = codecInput;
             if (!(await canEncodeVideo?.(codec as any))) {
                 try {
                     const codecs = await (getEncodableVideoCodecs?.() as any);
-                    if (Array.isArray(codecs) && codecs.length) codec = codecs[0];
+                    if (Array.isArray(codecs) && codecs.length) {
+                        const mp4Priority = ['avc', 'h264', 'hevc', 'av1', 'vp9'];
+                        const webmPriority = ['vp9', 'av1', 'avc', 'h264'];
+                        const priority = effectiveContainer === 'webm' ? webmPriority : mp4Priority;
+                        const match = priority.find((c) => codecs.includes(c));
+                        codec = match || codecs[0];
+                    }
                 } catch {
                     /* ignore */
                 }
@@ -219,17 +233,19 @@ export class VideoExporter {
 
             // mediabunny Output setup
             const target = new BufferTarget();
-            const output = new Output({ format: new Mp4OutputFormat(), target });
+            const outputFormat = effectiveContainer === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
+            const output = new Output({ format: outputFormat, target });
             // Determine bitrate: explicit overrides preset; else map preset -> mediabunny heuristic
             // QUALITY_HIGH may be an enum/opaque value; use simple numeric fallbacks if arithmetic not allowed.
             const presetMap: Record<string, number> = {
-                low: 1_000_000, // 1 Mbps
+                low: 1_000_000, // 1 Mbps – lightweight / preview quality
+                medium: 4_000_000, // 4 Mbps – good balance for social sharing
                 // prePadding removed (kept var for compatibility if downstream expects key)
-                high: 8_000_000, // 8 Mbps default
+                high: 8_000_000, // 8 Mbps default for visually lossless exports
             };
-            // Manual bitrate overrides preset. videoBitrateMode/manual > legacy bitrate > preset.
+            // Prefer explicit bitrate supplied by caller (RenderModal now resolves presets into numeric values).
             let chosenBitrate: number;
-            if (videoBitrateMode === 'manual' && typeof videoBitrate === 'number' && videoBitrate > 0) {
+            if (typeof videoBitrate === 'number' && videoBitrate > 0) {
                 chosenBitrate = videoBitrate;
             } else if (typeof bitrate === 'number' && bitrate > 0) {
                 chosenBitrate = bitrate;
@@ -289,10 +305,10 @@ export class VideoExporter {
             const raw = target.buffer;
             if (!raw) throw new Error('No video data produced');
             const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
-            const videoBlob = new Blob([u8.buffer], { type: 'video/mp4' });
+            const videoBlob = new Blob([u8.buffer], { type: mimeType });
             onProgress(100, 'Video ready');
             if (!suppressDownload) {
-                const finalName = buildExportFilename(filename, sceneName, 'export', '.mp4');
+                const finalName = buildExportFilename(filename, sceneName, 'export', fileExtension);
                 this.downloadBlob(videoBlob, finalName);
             }
             onComplete(videoBlob);

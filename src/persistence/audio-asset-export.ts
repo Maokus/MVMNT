@@ -3,6 +3,8 @@ import type { AudioCacheEntry } from '@audio/audioTypes';
 import { encodeAudioBufferToWavFloat32 } from '@audio/wav/encode-audio-buffer';
 import { uint8ArrayToBase64 } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
+import { serializeStable } from './stable-stringify';
+import { strToU8 } from 'fflate';
 
 export type AssetStorageMode =
     | 'zip-package'
@@ -22,17 +24,34 @@ export interface AudioAssetRecord {
     dataBase64?: string;
 }
 
+export interface WaveformDataReference {
+    type: 'float32';
+    filename: string;
+    valueCount: number;
+}
+
 export interface WaveformAssetRecord {
     version: 1;
-    channelPeaks: number[];
+    channelPeaks?: number[];
     sampleStep: number;
+    channelCount?: number;
+    dataRef?: WaveformDataReference;
 }
+
+export interface WaveformAssetReference {
+    version: 1;
+    assetId: string;
+    assetRef: string;
+}
+
+export type WaveformExportRecord = WaveformAssetRecord | WaveformAssetReference;
 
 export interface CollectedAudioAssets {
     audioById: Record<string, AudioAssetRecord>;
-    waveforms?: { byAudioId: Record<string, WaveformAssetRecord> };
+    waveforms?: { byAudioId: Record<string, WaveformExportRecord> };
     audioIdMap: Record<string, string>;
     assetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+    waveformAssetPayloads: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
     totalBytes: number;
     warnings: string[];
     missingIds: string[];
@@ -58,6 +77,9 @@ const MIME_EXT: Record<string, string> = {
     'audio/aac': '.aac',
     'audio/mp4': '.m4a',
 };
+
+const WAVEFORM_ASSET_FILENAME = 'waveform.json';
+const WAVEFORM_BINARY_FILENAME = 'waveform.f32';
 
 function sanitizeFilename(name: string, fallback: string): string {
     const cleaned = name.replace(/[\\/:*?"<>|]+/g, '_').trim();
@@ -105,8 +127,9 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
     }
 
     const audioById: Record<string, AudioAssetRecord> = {};
-    const waveforms: Record<string, WaveformAssetRecord> = {};
+    const waveforms: Record<string, WaveformExportRecord> = {};
     const assetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+    const waveformAssetPayloads = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
     const audioIdMap: Record<string, string> = {};
     const warnings: string[] = [];
     const missingIds: string[] = [];
@@ -156,11 +179,47 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
         }
         audioIdMap[audioId] = hash;
         if (entry.waveform?.channelPeaks && entry.waveform.channelPeaks.length > 0) {
-            waveforms[hash] = {
-                version: 1,
-                channelPeaks: Array.from(entry.waveform.channelPeaks),
-                sampleStep: entry.waveform.sampleStep,
-            };
+            const peaksArray = entry.waveform.channelPeaks;
+            const sampleStep = entry.waveform.sampleStep;
+            const channelCount = entry.channels ?? 1;
+            if (options.mode === 'zip-package') {
+                const assetId = hash;
+                const assetRef = `assets/waveforms/${assetId}/${WAVEFORM_ASSET_FILENAME}`;
+                const valueCount = peaksArray.length;
+                const metadata: WaveformAssetRecord = {
+                    version: 1,
+                    sampleStep,
+                    channelCount,
+                    dataRef: {
+                        type: 'float32',
+                        filename: WAVEFORM_BINARY_FILENAME,
+                        valueCount,
+                    },
+                };
+                waveforms[hash] = { version: 1, assetId, assetRef };
+                const payloadJson = serializeStable(metadata);
+                waveformAssetPayloads.set(`${assetId}/${WAVEFORM_ASSET_FILENAME}`, {
+                    bytes: strToU8(payloadJson, true),
+                    filename: WAVEFORM_ASSET_FILENAME,
+                    mimeType: 'application/json',
+                });
+                const buffer = peaksArray.buffer.slice(
+                    peaksArray.byteOffset,
+                    peaksArray.byteOffset + peaksArray.byteLength,
+                );
+                waveformAssetPayloads.set(`${assetId}/${WAVEFORM_BINARY_FILENAME}`, {
+                    bytes: new Uint8Array(buffer),
+                    filename: WAVEFORM_BINARY_FILENAME,
+                    mimeType: 'application/octet-stream',
+                });
+            } else {
+                waveforms[hash] = {
+                    version: 1,
+                    channelPeaks: Array.from(peaksArray),
+                    sampleStep,
+                    channelCount,
+                };
+            }
         }
     }
 
@@ -177,6 +236,7 @@ export async function collectAudioAssets(options: CollectAssetsOptions): Promise
         waveforms: Object.keys(waveforms).length ? { byAudioId: waveforms } : undefined,
         audioIdMap,
         assetPayloads,
+        waveformAssetPayloads,
         totalBytes,
         warnings,
         missingIds,

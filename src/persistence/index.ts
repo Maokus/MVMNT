@@ -16,11 +16,11 @@
 
 export { exportScene } from './export';
 export { importScene } from './import';
-export { createPatchUndoController } from '../state/undo/patch-undo';
+export { createPatchUndoController } from '@state/undo';
 
 // Feature flags removed; persistence always enabled.
 
 // Re-export placeholder types to stabilize import paths for early adopters & tests.
 export type { ExportSceneResult } from './export';
 export type { ImportSceneResult } from './import';
-export type { UndoController, CreatePatchUndoOptions } from '../state/undo/patch-undo';
+export type { UndoController, CreatePatchUndoOptions } from '@state/undo';

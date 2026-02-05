@@ -56,4 +56,3 @@ export class ExportClock {
     }
 }
 
-export default ExportClock;

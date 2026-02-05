@@ -1,18 +1,32 @@
 # MVMNT
 
-MVMNT (pronounced _movement_) is a React-based MIDI visualization application for creating polished social media videos from MIDI files. The project ships with a store-first architecture, deterministic export pipeline, and tooling to design custom animations without leaving the browser.
+> Create polished MIDI-driven motion graphics without leaving your browser.
 
-### Scene Files (.mvt)
+MVMNT (pronounced _movement_) is a React-powered MIDI visualization studio for producing social-media-ready videos from standard MIDI files. The project embraces a store-first architecture, deterministic rendering pipeline, and in-browser tooling so artists can experiment, iterate, and export with confidence.
 
-Scenes can now be saved and loaded using a compact `.mvt` file extension (JSON payload internally). Older exports with `.mvmnt.scene.json` are still supported on import. Filenames are used to restore the scene name if the embedded metadata is missing.
+## Table of Contents
 
-### License
+-   [Features](#features)
+-   [Quick Start](#quick-start)
+-   [Development Workflow](#development-workflow)
+-   [Scene Files](#scene-files)
+-   [Extending MVMNT](#extending-mvmnt)
+    -   [Custom Scene Elements](#custom-scene-elements)
+    -   [Custom Piano Roll Animations](#custom-piano-roll-animations)
+-   [Debug Utilities](#debug-utilities)
+-   [License](#license)
 
-MVMNT is released under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this software and make it available to users, you must also provide those users access to the complete corresponding source code of your modified version under the same license. See the `LICENSE` file for details.
+## Features
 
-### Installation
+-   **Deterministic exports** – a reproducible render pipeline ensures your final video always matches what you preview in the browser.
+-   **Store-driven architecture** – centralized state management keeps elements in sync across the UI, scene runtime, and export tools.
+-   **Customizable visuals** – craft bespoke looks through configurable scene elements, animation presets, and extensible tooling.
+-   **Scene portability** – save and load complete project files using the compact `.mvt` format, with backwards compatibility for legacy `.mvmnt.scene.json` exports.
+-   **Developer-friendly tooling** – powered by Vite, Tailwind, and TypeScript for instant feedback and a modern DX.
 
-```
+## Quick Start
+
+```bash
 git clone https://github.com/Maokus/MVMNT.git
 cd MVMNT
 npm install
@@ -21,11 +35,11 @@ npm run dev
 
 The development server runs on Vite with hot module replacement. If optional Rollup native dependencies fail to compile on your platform, rerun `npm install` so npm can choose a compatible fallback build.
 
-### Validation
+## Development Workflow
 
-Before opening a pull request, run the full verification suite:
+Before opening a pull request, verify your changes with the full test suite:
 
-```
+```bash
 npm run test
 npm run build
 npm run lint
@@ -33,72 +47,92 @@ npm run lint
 
 If `npm run test` fails because of missing optional binaries, rerun `npm install` and execute the tests again.
 
-### Custom sceneElements
+## Scene Files
 
-Elements are the things you see and can move around. They are located in `src/core/scene/elements`. They inherit from `SceneElement` in `base.ts`.
+Scenes can be saved and restored with a compact `.mvt` file (internally a JSON payload). Older exports using the `.mvmnt.scene.json` suffix remain supported on import. When embedded metadata is absent, MVMNT falls back to the filename to restore the scene name.
 
-For an example of a simple sceneElement, lets look at the text element.
+## Extending MVMNT
 
-```
-export class TextOverlayElement extends SceneElement {
-    constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
-        super('textOverlay', id, config);
-    }
+### Custom Scene Elements
 
-    static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        return {
-            <removed for brevity>
-        };
-    }
+Scene elements represent the visuals you can place on the canvas. They live in `src/core/scene/elements` and inherit from `SceneElement` in `base.ts`.
 
-    protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const renderObjects: RenderObject[] = [];
+Audio-reactive elements should follow the registration pattern introduced in the v4 audio system.
+See [docs/audio/quickstart.md](docs/audio/quickstart.md) for a full walkthrough.
 
-        // Get properties from bindings
-        const text = this.getProperty('text') as string;
-        <removed>
-        const textElement = new Text(0, 0, text, font, color, 'center', 'middle');
-        renderObjects.push(textElement);
+Below is a simplified example that registers spectrogram requirements and samples data lazily during
+render:
 
-        return renderObjects;
+```ts
+import { registerFeatureRequirements } from '@core/scene/elements/audioElementMetadata';
+import { getFeatureData } from '@audio/features/sceneApi';
+
+registerFeatureRequirements('audioSpectrum', [{ feature: 'spectrogram' }]);
+
+export class AudioSpectrumElement extends SceneElement {
+    protected override _buildRenderObjects(config: unknown, targetTime: number): RenderObject[] {
+        const trackId = this.getProperty<string>('audioTrackId');
+        if (!trackId) {
+            return [];
+        }
+
+        const smoothing = this.getProperty<number>('smoothing') ?? 0;
+        const sample = getFeatureData(this, trackId, 'spectrogram', targetTime, { smoothing });
+        if (!sample) {
+            return [];
+        }
+
+        return sample.values.map((magnitude, index) => {
+            const height = Math.max(0, magnitude + 80) * 2;
+            return new Rectangle(index * 6, 0, 4, height, '#00ffcc');
+        });
     }
 }
 ```
 
-two important functions are defined: `getConfigSchema` tells the ui how to render controls. `_buildRenderObjects` is invoked by the scene runtime after the Zustand store resolves element configuration and returns an array of RenderObjects.
+Key points:
 
-In `_buildRenderObjects`, the controls defined in `getConfigSchema` are accessed through **bindings**. You don't need to know how these work, only that you can access these settings through `this.getProperty('id')`.
+-   `registerFeatureRequirements` is called once when the module loads so the runtime knows which
+    descriptors to subscribe to. These requirements are never surfaced to end users.
+-   `getFeatureData` fetches the tempo-aligned frame and applies runtime presentation options (such as
+    smoothing) without changing the underlying cache identity.
+-   Element properties (e.g., `audioTrackId`, `smoothing`) remain user-configurable through the
+    standard config schema.
 
-### Custom piano roll animations
+### Custom Piano Roll Animations
 
-The `/animation-test` route helps design animations for the time unit piano roll. These animations live in `src/animation/note-animations`.
-To make a new animation:
+Use the `/animation-test` route to design animations for the time-unit piano roll. Animations live in `src/animation/note-animations`.
 
-1. Create a new filename
-2. Copy the contents of template.ts into the file
-3. Rename the class
-4. Uncomment registerAnimation at the bottom and fill in the details
+To add a new animation:
 
-This registers the animation so it appears in `/animation-test` and the main app.
+1. Create a new file in `src/animation/note-animations`.
+2. Copy the contents of `template.ts` into the file.
+3. Rename the class and customize the implementation.
+4. Uncomment `registerAnimation` at the bottom and update the metadata.
 
-### Debug stuff
+Once registered, the animation appears in both `/animation-test` and the main application.
 
-`window.mvmntTools.timeline.setMasterTempoMap([{ time: 0, bpm: 100 }, { time: 3, bpm: 200 }])` run in the console in the default scene adds a tempo map to the time unit piano roll via the store-driven timeline adapter.
+## Debug Utilities
 
-`localStorage.setItem("VIS_DEBUG",1)` enables debug logging.
+-   `window.mvmntTools.timeline.setMasterTempoMap([{ time: 0, bpm: 100 }, { time: 3, bpm: 200 }])` adds a tempo map to the time unit piano roll via the store-driven timeline adapter.
+-   `localStorage.setItem("VIS_DEBUG", 1)` enables verbose visualization debug logging.
+-   `localStorage.removeItem("mvmnt_onboarded_v1")` re-enables the onboarding modal.
+-   Dispatch manual scene updates from the console:
 
-`localStorage.removeItem("mvmnt_onboarded_v1")` re-enables onboarding modal
+    ```ts
+    window.mvmntTools.scene.dispatch(
+        {
+            type: 'updateElementConfig',
+            elementId: 'background',
+            patch: { offsetX: 120 },
+        },
+        { source: 'console tweak' }
+    );
 
-```
-window.mvmntTools.scene.dispatch(
-  {
-    type: 'updateElementConfig',
-    elementId: 'background',
-    patch: { offsetX: 120 },
-  },
-  { source: 'console tweak' }
-);
+    // Example macro patch
+    // patch: { offsetX: { type: 'macro', macroId: 'beat-shift' } }
+    ```
 
-patch: { offsetX: { type: 'macro', macroId: 'beat-shift' } }
-```
+## License
+
+MVMNT is released under the GNU Affero General Public License v3.0 (AGPL-3.0). If you modify this software and make it available to users, you must also provide those users access to the complete corresponding source code of your modified version under the same license. See the [`LICENSE`](LICENSE) file for details.

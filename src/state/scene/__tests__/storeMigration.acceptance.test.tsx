@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import fixture from '@persistence/__fixtures__/baseline/scene.edge-macros.json';
 import { createSceneStore, useSceneStore } from '@state/sceneStore';
+import { resetMacroStoreBinding, setMacroStoreBinding } from '@state/scene/macroSyncService';
 import { createSceneSelectors } from '@state/scene/selectors';
 import {
     dispatchSceneCommand,
@@ -50,24 +51,34 @@ describe('store migration acceptance criteria', () => {
     describe('store scaffolding behavior', () => {
         it('imports and exports the regression fixture in store-only mode', () => {
             const store = createSceneStore();
-            store.getState().importScene(fixture as any);
+            setMacroStoreBinding(store);
+            try {
+                store.getState().importScene(fixture as any);
 
-            const exported = store.getState().exportSceneDraft();
-            expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
-            expect(exported.elements).toEqual(fixture.elements);
-            expect(exported.macros).toEqual(fixture.macros);
+                const exported = store.getState().exportSceneDraft();
+                expect(exported.sceneSettings).toEqual(fixture.sceneSettings);
+                expect(exported.elements).toEqual(fixture.elements);
+                expect(exported.macros).toEqual(fixture.macros);
+            } finally {
+                resetMacroStoreBinding();
+            }
         });
 
         it('keeps selector references stable across unrelated updates', () => {
             const store = createSceneStore();
-            store.getState().importScene(fixture as any);
-            const selectors = createSceneSelectors();
+            setMacroStoreBinding(store);
+            try {
+                store.getState().importScene(fixture as any);
+                const selectors = createSceneSelectors();
 
-            const first = selectors.selectOrderedElements(store.getState());
-            store.getState().updateSettings({ width: 1920 });
-            const second = selectors.selectOrderedElements(store.getState());
+                const first = selectors.selectOrderedElements(store.getState());
+                store.getState().updateSettings({ width: 1920 });
+                const second = selectors.selectOrderedElements(store.getState());
 
-            expect(second).toBe(first);
+                expect(second).toBe(first);
+            } finally {
+                resetMacroStoreBinding();
+            }
         });
     });
 
@@ -131,6 +142,7 @@ describe('store migration acceptance criteria', () => {
     describe('runtime adapter hydration', () => {
         it('hydrates elements from the store and tracks cache versions', () => {
             const store = createSceneStore();
+            setMacroStoreBinding(store);
             store.getState().importScene(fixture as any);
             const adapter = new SceneRuntimeAdapter({ store });
             try {
@@ -143,6 +155,7 @@ describe('store migration acceptance criteria', () => {
                 expect(afterVersion).toBeGreaterThan(beforeVersion);
             } finally {
                 adapter.dispose();
+                resetMacroStoreBinding();
             }
         });
     });
@@ -150,20 +163,25 @@ describe('store migration acceptance criteria', () => {
     describe('macro consolidation & undo wiring', () => {
         it('keeps macro inverse index synchronized after edits', () => {
             const store = createSceneStore();
-            store.getState().importScene(fixture as any);
+            setMacroStoreBinding(store);
+            try {
+                store.getState().importScene(fixture as any);
 
-            store.getState().updateBindings('title', {
-                color: { type: 'constant', value: '#ffffff' },
-            });
-            expect(store.getState().bindings.byMacro['macro.color.primary']).toBeUndefined();
+                store.getState().updateBindings('title', {
+                    color: { type: 'constant', value: '#ffffff' },
+                });
+                expect(store.getState().bindings.byMacro['macro.color.primary']).toBeUndefined();
 
-            store.getState().updateBindings('title', {
-                color: { type: 'macro', macroId: 'macro.color.primary' },
-            });
+                store.getState().updateBindings('title', {
+                    color: { type: 'macro', macroId: 'macro.color.primary' },
+                });
 
-            expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
-                { elementId: 'title', propertyPath: 'color' },
-            ]);
+                expect(store.getState().bindings.byMacro['macro.color.primary']).toEqual([
+                    { elementId: 'title', propertyPath: 'color' },
+                ]);
+            } finally {
+                resetMacroStoreBinding();
+            }
         });
     });
 

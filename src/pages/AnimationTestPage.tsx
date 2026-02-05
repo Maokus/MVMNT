@@ -3,7 +3,7 @@ import easings from '@animation/easing';
 import { ModularRenderer } from '@core/render/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '@animation/note-animations';
 import type { AnimationPhase } from '@animation/note-animations';
-import { NoteBlock } from '@core/scene/elements/time-unit-piano-roll/note-block';
+import { NoteBlock } from '@core/scene/elements/midi-displays/time-unit-piano-roll/note-block';
 import { RenderObject } from '@core/index';
 // Using Tailwind component classes defined in tailwind.css
 

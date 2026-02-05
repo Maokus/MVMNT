@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { SceneNameGenerator } from '@core/scene-name-generator';
 import { useTimelineStore } from './timelineStore';
 
@@ -47,7 +47,7 @@ const syncTimeline = (patch: Partial<Pick<SceneMetadataState, 'id' | 'name'>>) =
     }));
 };
 
-export const useSceneMetadataStore = create<SceneMetadataStore>((set, get) => {
+export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((set, get) => {
     const initialMetadata = createDefaultMetadata();
     syncTimeline({ id: initialMetadata.id, name: initialMetadata.name });
     return {
@@ -64,38 +64,38 @@ export const useSceneMetadataStore = create<SceneMetadataStore>((set, get) => {
             set((state) => ({ metadata: { ...state.metadata, ...nextPatch } }));
             syncTimeline({ id: patch.id, name: patch.name });
         },
-    setName: (name) => {
-        const trimmed = name.trim();
-        if (!trimmed) return;
-        get().setMetadata({ name: trimmed });
-    },
-    setId: (id) => {
-        const trimmed = id.trim();
-        if (!trimmed) return;
-        get().setMetadata({ id: trimmed });
-    },
-    setDescription: (description) => {
-        get().setMetadata({ description });
-    },
-    setAuthor: (author) => {
-        get().setMetadata({ author });
-    },
-    hydrate: (metadata) => {
-        if (!metadata) return;
-        const fallback = get().metadata;
-        const hydrated: SceneMetadataState = {
-            id: metadata.id?.trim() || fallback.id,
-            name: metadata.name?.trim() || fallback.name,
-            description: metadata.description ?? fallback.description,
-            author: typeof metadata.author === 'string' ? metadata.author.trim() : fallback.author,
-            createdAt: metadata.createdAt || fallback.createdAt || nowIso(),
-            modifiedAt: metadata.modifiedAt || nowIso(),
-        };
-        set({ metadata: hydrated });
-        syncTimeline({ id: hydrated.id, name: hydrated.name });
-    },
-    touchModified: () => {
-        set((state) => ({ metadata: { ...state.metadata, modifiedAt: nowIso() } }));
-    },
+        setName: (name) => {
+            const trimmed = name.trim();
+            if (!trimmed) return;
+            get().setMetadata({ name: trimmed });
+        },
+        setId: (id) => {
+            const trimmed = id.trim();
+            if (!trimmed) return;
+            get().setMetadata({ id: trimmed });
+        },
+        setDescription: (description) => {
+            get().setMetadata({ description });
+        },
+        setAuthor: (author) => {
+            get().setMetadata({ author });
+        },
+        hydrate: (metadata) => {
+            if (!metadata) return;
+            const fallback = get().metadata;
+            const hydrated: SceneMetadataState = {
+                id: metadata.id?.trim() || fallback.id,
+                name: metadata.name?.trim() || fallback.name,
+                description: metadata.description ?? fallback.description,
+                author: typeof metadata.author === 'string' ? metadata.author.trim() : fallback.author,
+                createdAt: metadata.createdAt || fallback.createdAt || nowIso(),
+                modifiedAt: metadata.modifiedAt || nowIso(),
+            };
+            set({ metadata: hydrated });
+            syncTimeline({ id: hydrated.id, name: hydrated.name });
+        },
+        touchModified: () => {
+            set((state) => ({ metadata: { ...state.metadata, modifiedAt: nowIso() } }));
+        },
     };
 });

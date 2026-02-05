@@ -8,9 +8,98 @@ import {
     PropertyBindingUtils,
     PropertyBindingData,
     BindingType,
+    type PropertyBindingContext,
 } from '@bindings/property-bindings';
 import { subscribeToMacroEvents, type MacroEvent } from '@state/scene/macroSyncService';
+import { clearFeatureData } from '@audio/features/sceneApi';
+import { getFeatureSubscriptionController } from '@audio/features/featureSubscriptionController';
+import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
+import { isTestEnvironment } from '@utils/env';
+
+export type PropertyTransform<TValue, TElement = SceneElement> = (
+    value: unknown,
+    element: TElement
+) => TValue | undefined;
+
+export interface PropertyDescriptor<TValue = unknown, TElement = SceneElement> {
+    defaultValue?: TValue;
+    transform?: PropertyTransform<TValue, TElement>;
+}
+
+export type PropertyDescriptorMap<TElement = SceneElement> = Record<string, PropertyDescriptor<any, TElement>>;
+
+type DescriptorValue<TDescriptor> = TDescriptor extends PropertyDescriptor<infer TValue, any> ? TValue : never;
+
+export type PropertySnapshot<TDescriptors extends PropertyDescriptorMap<TElement>, TElement = SceneElement> = {
+    [K in keyof TDescriptors]: DescriptorValue<TDescriptors[K]>;
+};
+
+export const asNumber: PropertyTransform<number, SceneElementInterface> = (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value.trim());
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+};
+
+export const asBoolean: PropertyTransform<boolean, SceneElementInterface> = (value) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') {
+            return true;
+        }
+        if (normalized === 'false') {
+            return false;
+        }
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    return undefined;
+};
+
+export const asString: PropertyTransform<string, SceneElementInterface> = (value) => {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (value == null) {
+        return undefined;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    return undefined;
+};
+
+export const asTrimmedString: PropertyTransform<string, SceneElementInterface> = (value, element) => {
+    const stringValue = asString(value, element);
+    if (typeof stringValue !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = stringValue.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const schemaRuntimeDescriptorCache: WeakMap<object, PropertyDescriptorMap<any>> = new WeakMap();
+
+const hasOwn = (object: unknown, key: PropertyKey): boolean =>
+    typeof object === 'object' && object !== null ? Object.prototype.hasOwnProperty.call(object, key) : false;
 
 export class SceneElement implements SceneElementInterface {
     public type: string;
@@ -27,6 +116,7 @@ export class SceneElement implements SceneElementInterface {
     private _boundsDirty: boolean = true;
 
     private _macroUnsubscribe?: () => void;
+    private _renderContext: PropertyBindingContext | null = null;
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -40,6 +130,8 @@ export class SceneElement implements SceneElementInterface {
 
         // Set up macro change listener to invalidate cache
         this._setupMacroListener();
+
+        this._subscribeToRequiredFeatures();
     }
 
     /**
@@ -47,11 +139,15 @@ export class SceneElement implements SceneElementInterface {
      */
     private _setupMacroListener(): void {
         this._macroUnsubscribe = subscribeToMacroEvents((event: MacroEvent) => {
+            let requiresFeatureResubscribe = false;
             if (event.type === 'macroValueChanged') {
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding && binding.getMacroId() === event.macroId) {
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macroDeleted') {
@@ -61,24 +157,59 @@ export class SceneElement implements SceneElementInterface {
                         this.bindings.set(key, new ConstantBinding(currentValue));
                         this._cacheValid.set(key, false);
                         this._invalidateBoundsCache();
+                        if (key === 'audioTrackId') {
+                            requiresFeatureResubscribe = true;
+                        }
                     }
                 });
             } else if (event.type === 'macrosImported') {
                 // Imported snapshots may replace macro objects entirely; drop caches for macro-bound props.
+                const audioTrackBinding = this.bindings.get('audioTrackId');
                 this.bindings.forEach((binding, key) => {
                     if (binding instanceof MacroBinding) {
                         this._cacheValid.set(key, false);
                     }
                 });
                 this._invalidateBoundsCache();
+                if (audioTrackBinding instanceof MacroBinding) {
+                    requiresFeatureResubscribe = true;
+                }
+            }
+
+            if (requiresFeatureResubscribe) {
+                this._subscribeToRequiredFeatures();
             }
         });
+    }
+
+    protected onPropertyChanged(key: string, oldValue: unknown, newValue: unknown): void {
+        if (key === 'audioTrackId' && oldValue !== newValue) {
+            this._subscribeToRequiredFeatures();
+        }
+    }
+
+    protected _subscribeToRequiredFeatures(): void {
+        const requirements = getFeatureRequirements(this.type);
+        const binding = this.bindings.get('audioTrackId');
+        const rawTrack = binding ? this.getProperty<string>('audioTrackId') : null;
+        const controller = getFeatureSubscriptionController(this);
+        controller.setStaticRequirements(requirements);
+        controller.updateTrack(rawTrack);
+    }
+
+    /**
+     * Lifecycle hook for subclasses to release resources.
+     * The base implementation clears any lazily managed audio feature intents.
+     */
+    protected onDestroy(): void {
+        clearFeatureData(this);
     }
 
     /**
      * Dispose element resources and detach listeners
      */
     dispose(): void {
+        this.onDestroy();
         if (this._macroUnsubscribe) {
             this._macroUnsubscribe();
             this._macroUnsubscribe = undefined;
@@ -126,11 +257,17 @@ export class SceneElement implements SceneElementInterface {
 
         const binding = this.bindings.get(key);
         if (!binding) {
-            console.warn(`No binding found for property '${key}' in element ${this.id}`);
+            if (!isTestEnvironment()) {
+                console.warn(`No binding found for property '${key}' in element ${this.id}`);
+            }
             return undefined as T;
         }
 
-        let value = binding.getValue();
+        const context = this._renderContext;
+        let value =
+            context && typeof binding.getValueWithContext === 'function'
+                ? binding.getValueWithContext(context)
+                : binding.getValue();
         // Normalize angle properties to radians for internal use
         if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && value != null) {
             // If bound to a macro, assume macro stores degrees and convert to radians here
@@ -147,21 +284,123 @@ export class SceneElement implements SceneElementInterface {
         return value;
     }
 
+    protected getProps<TDescriptors extends PropertyDescriptorMap<this>>(
+        descriptors: TDescriptors
+    ): PropertySnapshot<TDescriptors, this> {
+        const resolved = {} as PropertySnapshot<TDescriptors, this>;
+
+        for (const key of Object.keys(descriptors) as Array<keyof TDescriptors>) {
+            const descriptor = descriptors[key];
+            const raw = this.getProperty(key as string);
+            const transform = descriptor?.transform as PropertyTransform<unknown, this> | undefined;
+            const transformed = transform ? transform(raw, this) : raw;
+            const finalValue =
+                transformed !== undefined && transformed !== null ? transformed : descriptor?.defaultValue;
+
+            resolved[key] = finalValue as PropertySnapshot<TDescriptors, this>[typeof key];
+        }
+
+        return resolved;
+    }
+
+    protected getSchemaProps<TAdditional extends PropertyDescriptorMap<this>>(
+        additionalDescriptors?: TAdditional
+    ): PropertySnapshot<PropertyDescriptorMap<this> & TAdditional, this> {
+        const ctor = this.constructor as typeof SceneElement;
+        let baseDescriptors = schemaRuntimeDescriptorCache.get(ctor);
+        if (!baseDescriptors) {
+            baseDescriptors = SceneElement._collectSchemaRuntimeDescriptors(ctor);
+            schemaRuntimeDescriptorCache.set(ctor, baseDescriptors);
+        }
+
+        const typedBase = baseDescriptors as PropertyDescriptorMap<this>;
+        if (!additionalDescriptors || Object.keys(additionalDescriptors).length === 0) {
+            const baseOnly = this.getProps(typedBase as PropertyDescriptorMap<this>);
+            return baseOnly as PropertySnapshot<PropertyDescriptorMap<this> & TAdditional, this>;
+        }
+
+        const merged = {
+            ...(typedBase as Record<string, PropertyDescriptor<any, this>>),
+            ...(additionalDescriptors as Record<string, PropertyDescriptor<any, this>>),
+        } as PropertyDescriptorMap<this> & TAdditional;
+
+        return this.getProps(merged);
+    }
+
+    private static _collectSchemaRuntimeDescriptors(ctor: typeof SceneElement): PropertyDescriptorMap<any> {
+        const descriptors: PropertyDescriptorMap<any> = {};
+        try {
+            const schema = typeof ctor.getConfigSchema === 'function' ? ctor.getConfigSchema() : null;
+            const groups = schema?.groups ?? [];
+            for (const group of groups) {
+                if (!group?.properties) continue;
+                for (const property of group.properties as PropertyDefinition[]) {
+                    if (!property) continue;
+                    const runtime = property.runtime;
+                    if (!runtime) continue;
+                    const key = runtime.runtimeKey ?? property.key;
+                    if (!key) continue;
+
+                    const descriptor: PropertyDescriptor<any, SceneElement> = {};
+                    const runtimeConfig = runtime as NonNullable<PropertyDefinition['runtime']>;
+                    if (typeof runtimeConfig.transform === 'function') {
+                        descriptor.transform = runtimeConfig.transform as PropertyTransform<any, SceneElement>;
+                    }
+
+                    if (hasOwn(runtimeConfig, 'defaultValue')) {
+                        descriptor.defaultValue = runtimeConfig.defaultValue;
+                    } else if (hasOwn(property, 'default')) {
+                        descriptor.defaultValue = property.default;
+                    }
+
+                    descriptors[key] = descriptor;
+                }
+            }
+        } catch (error) {
+            debugLog('Failed to collect schema runtime descriptors', error);
+        }
+
+        return descriptors;
+    }
+
     /**
      * Set a property value through its binding
      */
     protected setProperty<T>(key: string, value: T): void {
-        const binding = this.bindings.get(key);
-        if (!binding) {
+        let oldValue: unknown = undefined;
+        const existingBinding = this.bindings.get(key);
+        if (existingBinding) {
+            try {
+                oldValue = this.getProperty(key);
+            } catch (error) {
+                oldValue = undefined;
+            }
+        }
+
+        if (!existingBinding) {
             // Create a new constant binding
             this.bindings.set(key, new ConstantBinding(value));
         } else {
-            binding.setValue(value);
+            existingBinding.setValue(value);
         }
 
         // Invalidate cache
         this._cacheValid.set(key, false);
         this._invalidateBoundsCache();
+
+        let newValue: unknown = undefined;
+        const updatedBinding = this.bindings.get(key);
+        if (updatedBinding) {
+            try {
+                newValue = this.getProperty(key);
+            } catch (error) {
+                newValue = undefined;
+            }
+        }
+
+        if (oldValue !== newValue) {
+            this.onPropertyChanged(key, oldValue, newValue);
+        }
     }
 
     /**
@@ -300,7 +539,9 @@ export class SceneElement implements SceneElementInterface {
         if (!this.visible) return [];
 
         // Call the child class implementation to build the base render objects
+        this._renderContext = { targetTime, sceneConfig: config };
         const childRenderObjects = this._buildRenderObjects(config, targetTime);
+        this._renderContext = null;
 
         if (childRenderObjects.length === 0) return [];
 
@@ -485,126 +726,214 @@ export class SceneElement implements SceneElementInterface {
             category: 'general',
             groups: [
                 {
-                    id: 'visibility',
+                    id: 'basicVisibility',
                     label: 'Visibility & Layer',
-                    collapsed: true,
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Control whether the element is visible and how it blends with other layers.',
                     properties: [
-                        { key: 'visible', type: 'boolean', label: 'Visible', default: true },
                         {
-                            key: 'zIndex',
-                            type: 'number',
-                            label: 'Layer (Z-Index)',
-                            default: 0,
-                            min: 0,
-                            max: 100,
-                            step: 1,
+                            key: 'visible',
+                            type: 'boolean',
+                            label: 'Visible',
+                            default: true,
+                            runtime: { transform: asBoolean, defaultValue: true },
                         },
                         {
                             key: 'elementOpacity',
                             type: 'number',
-                            label: 'Opacity',
+                            label: 'Opacity (0–1)',
                             default: 1,
                             min: 0,
                             max: 1,
                             step: 0.01,
-                            description: 'Element transparency (0 = transparent, 1 = opaque)',
+                            description: 'Element transparency (0 = transparent, 1 = opaque).',
+                            runtime: { transform: asNumber, defaultValue: 1 },
+                        },
+                        {
+                            key: 'zIndex',
+                            type: 'number',
+                            label: 'Layer Order',
+                            default: 0,
+                            min: 0,
+                            max: 100,
+                            step: 1,
+                            description: 'Stacking order for overlapping layers (higher values appear on top).',
+                            runtime: { transform: asNumber, defaultValue: 0 },
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'fullyVisible',
+                            label: 'Fully Visible',
+                            values: { visible: true, elementOpacity: 1 },
+                        },
+                        {
+                            id: 'ghostedOverlay',
+                            label: 'Ghosted Overlay',
+                            values: { visible: true, elementOpacity: 0.4 },
+                        },
+                        {
+                            id: 'hiddenLayer',
+                            label: 'Hidden Layer',
+                            values: { visible: false, elementOpacity: 0 },
                         },
                     ],
                 },
                 {
-                    id: 'transform',
-                    label: 'Transform',
-                    collapsed: true,
+                    id: 'basicTransform',
+                    label: 'Position & Scale',
+                    variant: 'basic',
+                    collapsed: false,
+                    description: 'Set the element position and size adjustments relative to its default layout.',
                     properties: [
                         {
                             key: 'offsetX',
                             type: 'number',
-                            label: 'Offset X',
+                            label: 'Offset X (px)',
                             default: 0,
                             min: -10000,
                             max: 10000,
                             step: 1,
-                            description: 'Element horizontal position offset',
+                            description: 'Horizontal position offset in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'offsetY',
                             type: 'number',
-                            label: 'Offset Y',
+                            label: 'Offset Y (px)',
                             default: 0,
                             min: -10000,
                             max: 10000,
                             step: 1,
-                            description: 'Element vertical position offset',
-                        },
-                        {
-                            key: 'anchorX',
-                            type: 'number',
-                            label: 'Anchor X',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Horizontal anchor point for transforms',
-                        },
-                        {
-                            key: 'anchorY',
-                            type: 'number',
-                            label: 'Anchor Y',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            description: 'Vertical anchor point for transforms',
+                            description: 'Vertical position offset in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementScaleX',
                             type: 'number',
-                            label: 'Scale X',
+                            label: 'Scale X (multiplier)',
                             default: 1,
                             min: 0.01,
                             max: 5,
                             step: 0.01,
-                            description: 'Element horizontal scaling factor',
+                            description: 'Horizontal scaling factor.',
+                            runtime: { transform: asNumber, defaultValue: 1 },
                         },
                         {
                             key: 'elementScaleY',
                             type: 'number',
-                            label: 'Scale Y',
+                            label: 'Scale Y (multiplier)',
                             default: 1,
                             min: 0.01,
                             max: 5,
                             step: 0.01,
-                            description: 'Element vertical scaling factor',
+                            description: 'Vertical scaling factor.',
+                            runtime: { transform: asNumber, defaultValue: 1 },
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'centered',
+                            label: 'Centered (100%)',
+                            values: { offsetX: 0, offsetY: 0, elementScaleX: 1, elementScaleY: 1 },
+                        },
+                        {
+                            id: 'scaledUp',
+                            label: 'Scaled Up 150%',
+                            values: { elementScaleX: 1.5, elementScaleY: 1.5 },
+                        },
+                        {
+                            id: 'scaledDown',
+                            label: 'Scaled Down 75%',
+                            values: { elementScaleX: 0.75, elementScaleY: 0.75 },
+                        },
+                    ],
+                },
+                {
+                    id: 'advancedAnchor',
+                    label: 'Anchor & Rotation',
+                    variant: 'advanced',
+                    collapsed: true,
+                    description: 'Advanced pivot, rotation, and skew controls.',
+                    properties: [
+                        {
+                            key: 'anchorX',
+                            type: 'number',
+                            label: 'Anchor X (0–1)',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            description: 'Horizontal anchor point (0 = left, 1 = right).',
+                            runtime: { transform: asNumber, defaultValue: 0.5 },
+                        },
+                        {
+                            key: 'anchorY',
+                            type: 'number',
+                            label: 'Anchor Y (0–1)',
+                            default: 0.5,
+                            min: 0,
+                            max: 1,
+                            step: 0.01,
+                            description: 'Vertical anchor point (0 = top, 1 = bottom).',
+                            runtime: { transform: asNumber, defaultValue: 0.5 },
                         },
                         {
                             key: 'elementRotation',
                             type: 'number',
-                            label: 'Rotation (deg)',
+                            label: 'Rotation (°)',
                             default: 0,
                             min: -360,
                             max: 360,
                             step: 1,
-                            description: 'Element rotation angle in degrees',
+                            description: 'Element rotation angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewX',
                             type: 'number',
-                            label: 'Skew X (deg)',
+                            label: 'Skew X (°)',
                             default: 0,
                             min: -45,
                             max: 45,
                             step: 1,
-                            description: 'Element horizontal skew angle in degrees',
+                            description: 'Horizontal skew angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewY',
                             type: 'number',
-                            label: 'Skew Y (deg)',
+                            label: 'Skew Y (°)',
                             default: 0,
                             min: -45,
                             max: 45,
                             step: 1,
-                            description: 'Element vertical skew angle in degrees',
+                            description: 'Vertical skew angle in degrees.',
+                            runtime: { transform: asNumber, defaultValue: 0 },
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'centeredAnchor',
+                            label: 'Centered Anchor',
+                            values: {
+                                anchorX: 0.5,
+                                anchorY: 0.5,
+                                elementRotation: 0,
+                                elementSkewX: 0,
+                                elementSkewY: 0,
+                            },
+                        },
+                        {
+                            id: 'topLeftPivot',
+                            label: 'Top-Left Pivot',
+                            values: { anchorX: 0, anchorY: 0, elementRotation: 0, elementSkewX: 0, elementSkewY: 0 },
+                        },
+                        {
+                            id: 'rotated30',
+                            label: 'Rotate 30°',
+                            values: { elementRotation: 30 },
                         },
                     ],
                 },
@@ -665,6 +994,16 @@ export class SceneElement implements SceneElementInterface {
         for (const [key, value] of Object.entries(config)) {
             if (key === 'id' || key === 'type') continue;
 
+            let oldValue: unknown = undefined;
+            const hadBinding = this.bindings.has(key);
+            if (hadBinding) {
+                try {
+                    oldValue = this.getProperty(key);
+                } catch (error) {
+                    oldValue = undefined;
+                }
+            }
+
             // Check if this is binding data
             if (
                 value &&
@@ -702,6 +1041,20 @@ export class SceneElement implements SceneElementInterface {
 
             this._cacheValid.set(key, false);
             this._invalidateBoundsCache();
+
+            let newValue: unknown = undefined;
+            const binding = this.bindings.get(key);
+            if (binding) {
+                try {
+                    newValue = this.getProperty(key);
+                } catch (error) {
+                    newValue = undefined;
+                }
+            }
+
+            if (oldValue !== newValue) {
+                this.onPropertyChanged(key, oldValue, newValue);
+            }
         }
     }
 

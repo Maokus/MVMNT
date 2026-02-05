@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractPeaks } from '@audio/waveform/peak-extractor';
-import { offlineMix } from '../../audio/offline-audio-mixer';
+import { offlineMix } from '@audio/offline-audio-mixer';
 
 // Minimal AudioBuffer polyfill for tests if needed
 function makeTestBuffer(

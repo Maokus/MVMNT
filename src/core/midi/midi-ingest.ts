@@ -1,4 +1,4 @@
-import type { MIDIData } from '@core/types';
+import type { MIDIData, MIDITrackDetails } from '@core/types';
 import type { NoteRaw, TempoMapEntry } from '@state/timelineTypes';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { parseMIDIFileToData } from './midi-library';
@@ -82,4 +82,38 @@ export async function parseAndNormalize(input: File | MIDIData) {
         return buildNotesFromMIDI(data);
     }
     return buildNotesFromMIDI(input);
+}
+
+export function splitMidiDataByTracks(
+    midiData: MIDIData,
+): Array<{ data: MIDIData; track: MIDITrackDetails }> {
+    const trackDetails = midiData.trackDetails;
+    if (!trackDetails || trackDetails.length === 0) {
+        return [];
+    }
+    return trackDetails
+        .filter((detail) => detail.events.length > 0)
+        .map((detail) => {
+            const events = detail.events.map((event) => ({ ...event }));
+            const clonedDetail: MIDITrackDetails = {
+                ...detail,
+                events,
+                channels: [...detail.channels],
+            };
+            const childData: MIDIData = {
+                ...midiData,
+                events,
+                duration: detail.duration,
+                trackSummaries: [
+                    {
+                        trackIndex: detail.trackIndex,
+                        name: detail.name,
+                        noteCount: detail.noteCount,
+                        channels: [...detail.channels],
+                    },
+                ],
+                trackDetails: [clonedDetail],
+            };
+            return { data: childData, track: clonedDetail };
+        });
 }

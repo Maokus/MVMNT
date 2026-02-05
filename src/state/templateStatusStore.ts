@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 
 interface TemplateStatusState {
     isTemplateLoading: boolean;
@@ -10,7 +10,7 @@ interface TemplateStatusState {
 
 const DEFAULT_MESSAGE = 'Loading template…';
 
-export const useTemplateStatusStore = create<TemplateStatusState>((set, get) => ({
+export const useTemplateStatusStore = createWithEqualityFn<TemplateStatusState>((set, get) => ({
     isTemplateLoading: false,
     message: DEFAULT_MESSAGE,
     pendingCount: 0,

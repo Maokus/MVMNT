@@ -1,4 +1,4 @@
-import type { AudioTrack } from '@audio/audioTypes';
+import type { AudioTrack, AudioCacheOriginalFile } from '@audio/audioTypes';
 import type { MIDIData } from '@core/types';
 import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
@@ -49,7 +49,7 @@ function ensureWindowEvent(context: TimelineCommandContext, trackId: string): vo
 async function ingestMidiSource(
     context: TimelineCommandContext,
     trackId: string,
-    payload: { midiData?: MIDIData; file?: File },
+    payload: { midiData?: MIDIData; file?: File }
 ): Promise<void> {
     const store = context.getState();
     if (payload.midiData) {
@@ -80,40 +80,56 @@ async function ingestMidiSource(
     }
 }
 
-async function ingestAudioSource(
-    context: TimelineCommandContext,
-    trackId: string,
-    payload: { buffer?: AudioBuffer; file?: File },
-): Promise<void> {
+interface PreparedAudioSource {
+    buffer: AudioBuffer;
+    originalFile?: AudioCacheOriginalFile;
+}
+
+async function prepareAudioSource(payload: { buffer?: AudioBuffer; file?: File }): Promise<PreparedAudioSource> {
     if (payload.buffer) {
-        context
-            .getState()
-            .ingestAudioToCache(trackId, payload.buffer, undefined);
-        return;
+        return { buffer: payload.buffer };
     }
     if (payload.file) {
+        const arrayBuffer = await payload.file.arrayBuffer();
+        const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextCtor) {
+            throw new Error('Audio decoding is not supported in this environment.');
+        }
+        const ctx = new AudioContextCtor();
         try {
-            const arrayBuffer = await payload.file.arrayBuffer();
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            context.getState().ingestAudioToCache(trackId, decoded, {
-                originalFile: {
-                    name: payload.file.name,
-                    mimeType: payload.file.type || 'application/octet-stream',
-                    bytes: new Uint8Array(arrayBuffer),
-                    byteLength: arrayBuffer.byteLength,
-                },
-            });
-        } catch (error) {
-            console.warn('[timeline][command] audio ingestion failed', error);
+            const originalFile: AudioCacheOriginalFile = {
+                name: payload.file.name,
+                mimeType: payload.file.type || 'application/octet-stream',
+                bytes: new Uint8Array(arrayBuffer),
+                byteLength: arrayBuffer.byteLength,
+            };
+            return { buffer: decoded, originalFile };
+        } finally {
+            try {
+                await ctx.close();
+            } catch {
+                /* ignore */
+            }
         }
     }
+    throw new Error('No audio source provided.');
+}
+
+function ingestAudioSource(context: TimelineCommandContext, trackId: string, source: PreparedAudioSource): void {
+    context
+        .getState()
+        .ingestAudioToCache(
+            trackId,
+            source.buffer,
+            source.originalFile ? { originalFile: source.originalFile } : undefined
+        );
 }
 
 function buildRedoPayload(
     context: TimelineCommandContext,
     trackId: string,
-    previousSelection: string[],
+    previousSelection: string[]
 ): TimelinePatchAddTrackPayload {
     const state = context.getState();
     const track = state.tracks[trackId] as TimelineTrackLike;
@@ -136,6 +152,10 @@ function buildRedoPayload(
         if (cache) {
             payload.audioCache = { key, value: cache };
         }
+        const featureCache = state.audioFeatureCaches?.[key];
+        if (featureCache) {
+            payload.audioFeatureCache = { key, value: featureCache };
+        }
     }
     return payload;
 }
@@ -143,12 +163,13 @@ function buildRedoPayload(
 function buildUndoPayload(
     context: TimelineCommandContext,
     trackId: string,
-    previousSelection: string[],
+    previousSelection: string[]
 ): TimelinePatchRemoveTracksPayload {
     const state = context.getState();
     const track = state.tracks[trackId] as TimelineTrackLike | undefined;
     const midiCacheKeys: string[] = [];
     const audioCacheKeys: string[] = [];
+    const audioFeatureCacheKeys: string[] = [];
     if (track?.type === 'midi') {
         const key = track.midiSourceId ?? trackId;
         if (state.midiCache[key]) {
@@ -160,29 +181,32 @@ function buildUndoPayload(
         if (state.audioCache[key]) {
             audioCacheKeys.push(key);
         }
+        if (state.audioFeatureCaches?.[key]) {
+            audioFeatureCacheKeys.push(key);
+        }
     }
     return {
         trackIds: [trackId],
         midiCacheKeys: midiCacheKeys.length ? midiCacheKeys : undefined,
         audioCacheKeys: audioCacheKeys.length ? audioCacheKeys : undefined,
+        audioFeatureCacheKeys: audioFeatureCacheKeys.length ? audioFeatureCacheKeys : undefined,
         selection: previousSelection,
     };
 }
 
 export function createAddTrackCommand(
     payload: AddTrackCommandPayload,
-    metadataOverride?: TimelineCommand['metadata'],
+    metadataOverride?: TimelineCommand['metadata']
 ): TimelineCommand<AddTrackCommandResult> {
     const id = payload.trackId ?? makeTimelineTrackId(payload.type === 'audio' ? 'aud' : 'trk');
     return {
         id: 'timeline.addTrack',
         mode: 'serial',
-        metadata:
-            metadataOverride ?? {
-                commandId: 'timeline.addTrack',
-                undoLabel: 'Add Track',
-                telemetryEvent: 'timeline_add_track',
-            },
+        metadata: metadataOverride ?? {
+            commandId: 'timeline.addTrack',
+            undoLabel: 'Add Track',
+            telemetryEvent: 'timeline_add_track',
+        },
         async execute(context: TimelineCommandContext): Promise<TimelineCommandExecuteResult<AddTrackCommandResult>> {
             const previousSelection = context.getState().selection.selectedTrackIds;
             if (payload.type === 'midi') {
@@ -201,6 +225,13 @@ export function createAddTrackCommand(
                 }));
                 await ingestMidiSource(context, id, { midiData: payload.midiData, file: payload.file });
             } else {
+                let prepared: PreparedAudioSource;
+                try {
+                    prepared = await prepareAudioSource({ buffer: payload.buffer, file: payload.file });
+                } catch (error) {
+                    console.warn('[timeline][command] audio ingestion failed', error);
+                    throw error instanceof Error ? error : new Error('Audio ingestion failed');
+                }
                 const track: AudioTrack = {
                     id,
                     name: payload.name || 'Audio Track',
@@ -215,7 +246,7 @@ export function createAddTrackCommand(
                     tracks: { ...state.tracks, [id]: track },
                     tracksOrder: [...state.tracksOrder, id],
                 }));
-                await ingestAudioSource(context, id, { buffer: payload.buffer, file: payload.file });
+                ingestAudioSource(context, id, prepared);
             }
             autoAdjustSceneRangeIfNeeded(context.getState, context.setState);
             ensureWindowEvent(context, id);
@@ -240,16 +271,10 @@ export function createAddTrackCommand(
                 result: { trackId: id },
             };
         },
-        async undo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async undo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.undo;
         },
-        async redo(
-            _context: TimelineCommandContext,
-            patch: TimelineCommandPatch,
-        ): Promise<TimelinePatchAction[]> {
+        async redo(_context: TimelineCommandContext, patch: TimelineCommandPatch): Promise<TimelinePatchAction[]> {
             return patch.redo;
         },
     };

@@ -16,7 +16,8 @@ const AboutPage: React.FC = () => {
                 <div className="flex justify-between items-start mb-10">
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">MVMNT <span className="text-indigo-400">v{((import.meta as any).env?.VITE_VERSION)}</span></h1>
-                        <p className="mt-3 text-neutral-400 leading-relaxed max-w-2xl">MVMNT (pronounced movement) is a free, open-source MIDI visualization & rendering tool by <a className="text-indigo-300 hover:text-indigo-200 underline" href='https://maok.us' target='_blank'>Maokus</a>.</p>
+                        <p className=" text-neutral-400 leading-relaxed max-w-2xl text-sm">Music Visualization & Motion eNgineering Tools</p>
+                        <p className="mt-3 text-neutral-400 leading-relaxed max-w-2xl">MVMNT (pronounced movement) is a free, open-source MIDI visualization & rendering tool by <a className="text-indigo-300 hover:text-indigo-200 underline" href='https://maok.us' target='_blank'>Maokus</a>. </p>
                     </div>
                     <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">Back to Home</Link>
                 </div>
@@ -45,6 +46,7 @@ const AboutPage: React.FC = () => {
                         <ul className="space-y-2 text-sm text-neutral-300">
                             <li>Inspired by <a href="https://x.com/Kashiwade_music/status/1931349155101982945" target="_blank" className="text-indigo-300 hover:text-indigo-200 underline">Kashiwade's MIDI visualizer</a>.</li>
                             <li>Special thanks to <a href="https://www.youtube.com/sunnexo" target="_blank" className="text-indigo-300 hover:text-indigo-200 underline">Sunnexo</a>, <a href="https://www.youtube.com/@djebrayass" target="_blank" className="text-indigo-300 hover:text-indigo-200 underline">djeb</a> and <a href="https://www.youtube.com/@2L3L" target="_blank" className="text-indigo-300 hover:text-indigo-200 underline">2L&L</a> for testing!! The app in its current state would not be possible without them.</li>
+                            <li>Powered by <a href="https://github.com/Vanilagy/MediaBunny" target="_blank" className="text-indigo-300 hover:text-indigo-200 underline">Vanilagy's MediaBunny</a>!!!! This app would not be possible without it.</li>
                         </ul>
                     </section>
                     <section className="md:col-span-1 p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
@@ -56,6 +58,7 @@ const AboutPage: React.FC = () => {
                     <section className="md:col-span-2 p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
                         <h2 className="text-xl font-semibold mb-3 text-white">Contributing / Feedback</h2>
                         <p className="text-sm text-neutral-300 leading-relaxed">Ideas, PRs, and bug reports welcome. Join the Discord or open an issue. Response time may vary—this is a passion project.</p>
+                        <p className="text-sm text-neutral-300 leading-relaxed">This project does incur some costs to maintain and develop, so if you find it useful, consider supporting it through the kofi :) </p>
                         <div className="flex flex-wrap gap-3 mt-5">
                             <Link to="/" className="px-4 py-2 rounded bg-neutral-800 hover:bg-neutral-700 text-xs font-medium">Back to Home</Link>
                             <a href='https://maok.us/discord' target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded bg-[#5865F2] hover:brightness-110 text-xs font-medium inline-flex items-center gap-2" aria-label="Join the Discord server">
