@@ -3,6 +3,7 @@
 _Revision Date: 10 February 2026_
 _Phase 2 Completed: 10 February 2026_
 _Phase 3 Completed: 10 February 2026_
+_Phase 4 Completed: 10 February 2026_
 
 ## Overview
 
@@ -203,27 +204,60 @@ Key integration decisions (Phase 1 + Phase 3):
 
 ---
 
-## Phase 4: UI + Safety Controls
+## Phase 4: UI + Safety Controls ✅ COMPLETED
 
 **Goal:** Provide a stable user-facing plugin manager and minimal safety constraints.
 
 ### Deliverables
 
-1. **Settings Plugin Manager**
-   - New Settings tab for plugins
-   - Import, enable/disable, remove
-   - Error display for invalid bundles
+1. **Settings Plugin Manager** ✅
+   - Added [src/pages/PluginsPage.tsx](src/pages/PluginsPage.tsx)
+   - Import .mvmnt-plugin bundles via file picker
+   - Enable/disable plugins dynamically
+   - Remove plugins with confirmation
+   - Error display for invalid bundles and failed loads
+   - Shows plugin metadata (name, version, author, description, homepage)
+   - Lists all element types provided by each plugin
+   - Integrated into app routing at `/plugins`
+   - Added link from home page
 
-2. **Safety Controls**
-   - Max render object count per element
-   - Timeout limit on render loop for plugin elements
-   - Capability flags (`audio-analysis`, `midi-events`)
+2. **Safety Controls** ✅
+   - Added [src/core/scene/plugins/plugin-safety.ts](src/core/scene/plugins/plugin-safety.ts):
+     - `withRenderSafety()` - Wraps render calls with timeout and error handling
+     - `limitRenderObjects()` - Enforces max render object count per element
+     - `checkCapability()` - Validates element capabilities
+     - `DEFAULT_SAFETY_CONFIG` - Configurable safety limits
+   - Max render object count: 10,000 per element
+   - Timeout limit: 100ms per render call
+   - Capability flags tracked in registry (`audio-analysis`, `midi-events`, `network`, `storage`)
+   - Plugin elements auto-disable on errors
+   - Safety controls applied automatically to all plugin elements in [src/core/scene/elements/base.ts](src/core/scene/elements/base.ts)
+   - Lazy registry loading to avoid circular dependencies
+
+3. **Testing** ✅
+   - Added [src/core/scene/plugins/__tests__/plugin-safety.test.ts](src/core/scene/plugins/__tests__/plugin-safety.test.ts)
+   - 23 new tests for safety controls
+   - All 441 tests passing (111 test files)
+   - Build and lint passing
 
 ### Acceptance Criteria
 
-- Users can manage plugins in Settings without developer tools.
-- Safety limits prevent runaway render loops or excessive objects.
-- Errors are visible and actionable in the UI.
+- ✅ Users can manage plugins in Settings without developer tools
+- ✅ Safety limits prevent runaway render loops or excessive objects
+- ✅ Errors are visible and actionable in the UI
+- ✅ Plugin elements can be toggled on/off without app restart
+- ✅ Import errors are clearly displayed to users
+- ✅ All tests pass including new safety control tests
+
+### Implementation Notes
+
+- Plugins page uses Zustand store for reactive state management
+- File picker validates `.mvmnt-plugin` extension before import
+- Safety controls use `performance.now()` for accurate timing
+- Console warnings/errors for debugging slow renders and violations
+- Lazy `require()` in base.ts prevents circular dependency with registry
+- Safety controls only applied to plugin elements (built-ins unchanged)
+- TypeScript strict mode compliance
 
 ---
 

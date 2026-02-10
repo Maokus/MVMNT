@@ -81,6 +81,7 @@ export async function loadPlugin(bundleData: ArrayBuffer): Promise<PluginLoadRes
                     {
                         pluginId: manifest.id,
                         overrideCategory: elementManifest.category,
+                        capabilities: elementManifest.capabilities,
                     }
                 );
 

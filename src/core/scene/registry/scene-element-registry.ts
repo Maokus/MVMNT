@@ -19,6 +19,7 @@ interface RegisterableSceneElement {
 export interface RegisterCustomElementOptions {
     pluginId?: string;
     overrideCategory?: string;
+    capabilities?: string[];
 }
 
 export class SceneElementRegistry {
@@ -26,6 +27,7 @@ export class SceneElementRegistry {
     private schemas = new Map<string, SceneElementFactorySchema>();
     private builtInTypes = new Set<string>();
     private pluginTypes = new Map<string, string>(); // type -> pluginId
+    private elementCapabilities = new Map<string, string[]>(); // type -> capabilities
 
     constructor() {
         this.registerDefaultElements();
@@ -102,6 +104,11 @@ export class SceneElementRegistry {
         if (options.pluginId) {
             this.pluginTypes.set(type, options.pluginId);
         }
+
+        // Track capabilities
+        if (options.capabilities) {
+            this.elementCapabilities.set(type, options.capabilities);
+        }
     }
 
     /**
@@ -116,6 +123,7 @@ export class SceneElementRegistry {
         const hadFactory = this.factories.delete(type);
         this.schemas.delete(type);
         this.pluginTypes.delete(type);
+        this.elementCapabilities.delete(type);
         return hadFactory;
     }
 
@@ -138,6 +146,13 @@ export class SceneElementRegistry {
      */
     getPluginId(type: string): string | undefined {
         return this.pluginTypes.get(type);
+    }
+
+    /**
+     * Get the capabilities for an element type
+     */
+    getCapabilities(type: string): string[] | undefined {
+        return this.elementCapabilities.get(type);
     }
 
     /**

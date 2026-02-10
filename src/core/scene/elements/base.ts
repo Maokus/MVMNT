@@ -16,6 +16,7 @@ import { getFeatureSubscriptionController } from '@audio/features/featureSubscri
 import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
+import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -540,7 +541,44 @@ export class SceneElement implements SceneElementInterface {
 
         // Call the child class implementation to build the base render objects
         this._renderContext = { targetTime, sceneConfig: config };
-        const childRenderObjects = this._buildRenderObjects(config, targetTime);
+        
+        // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
+        let pluginId: string | undefined;
+        try {
+            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
+            pluginId = sceneElementRegistry.getPluginId(this.type);
+        } catch {
+            // If registry not available (e.g., during initialization), skip safety checks
+            pluginId = undefined;
+        }
+        
+        let childRenderObjects: RenderObject[];
+        
+        if (pluginId) {
+            // This is a plugin element - apply safety controls
+            const result = withRenderSafety(
+                () => this._buildRenderObjects(config, targetTime),
+                DEFAULT_SAFETY_CONFIG,
+                { pluginId, elementType: this.type }
+            );
+            
+            if (result === null) {
+                // Render failed or timed out
+                this._renderContext = null;
+                return [];
+            }
+            
+            // Limit render object count
+            childRenderObjects = limitRenderObjects(
+                result,
+                DEFAULT_SAFETY_CONFIG,
+                { pluginId, elementType: this.type }
+            );
+        } else {
+            // Built-in element - no safety wrapper needed
+            childRenderObjects = this._buildRenderObjects(config, targetTime);
+        }
+        
         this._renderContext = null;
 
         if (childRenderObjects.length === 0) return [];
