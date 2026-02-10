@@ -141,7 +141,7 @@ async function bundleElement(element, pluginDir, outputDir) {
         await build({
             entryPoints: [entryPath],
             bundle: true,
-            format: 'esm',
+            format: 'cjs',
             outfile: outputPath,
             platform: 'browser',
             target: 'es2020',

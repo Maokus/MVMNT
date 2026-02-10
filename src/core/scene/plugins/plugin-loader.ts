@@ -226,53 +226,132 @@ function validateManifest(manifest: any): string | null {
  */
 async function loadElementFromCode(code: string, elementType: string): Promise<any> {
     try {
-        // Create a module-like environment
-        // The bundled code should export the element class as default
-        const module: any = { exports: {} };
-        
-        // Create a function that evaluates the code
-        // The code should be in the format that esbuild produces
-        const loadFn = new Function('module', 'exports', 'require', code);
-        
-        // Mock require function for common imports
-        const mockRequire = (id: string) => {
-            // Map common imports to global scope
-            if (id === 'react' || id === 'React') {
-                return (globalThis as any).React;
+        return evaluateCommonJsModule(code, elementType);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/import declarations may only appear/.test(message) || /Unexpected token 'export'/.test(message)) {
+            try {
+                const transformed = transformEsModuleToCommonJs(code);
+                return evaluateCommonJsModule(transformed, elementType);
+            } catch (fallbackError) {
+                const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+                throw new Error(`Failed to load element code: ${fallbackMessage}`);
             }
-            if (id === 'react-dom') {
-                return (globalThis as any).ReactDOM;
-            }
-            // Core imports should be available via window/globalThis
-            if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
-                const path = id.replace(/^@core\//, 'MVMNT.core.')
-                    .replace(/^@audio\//, 'MVMNT.audio.')
-                    .replace(/^@utils\//, 'MVMNT.utils.');
-                const parts = path.split('.');
-                let obj: any = globalThis;
-                for (const part of parts) {
-                    obj = obj[part];
-                    if (!obj) {
-                        throw new Error(`Module not found: ${id} (tried ${path})`);
-                    }
-                }
-                return obj;
-            }
-            throw new Error(`Module not found: ${id}`);
-        };
+        }
+        throw new Error(`Failed to load element code: ${message}`);
+    }
+}
 
-        // Execute the code
-        loadFn(module, module.exports, mockRequire);
-        
-        // Get the exported class
-        const ElementClass = module.exports.default || module.exports[elementType];
-        
-        if (!ElementClass) {
-            throw new Error(`Element class not found in module (expected default export or ${elementType} export)`);
+function evaluateCommonJsModule(code: string, elementType: string): any {
+    const module: any = { exports: {} };
+    const loadFn = new Function('module', 'exports', 'require', code);
+
+    const mockRequire = (id: string) => {
+        if (id === 'react' || id === 'React') {
+            return (globalThis as any).React;
+        }
+        if (id === 'react-dom') {
+            return (globalThis as any).ReactDOM;
+        }
+        if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
+            const path = id.replace(/^@core\//, 'MVMNT.core.')
+                .replace(/^@audio\//, 'MVMNT.audio.')
+                .replace(/^@utils\//, 'MVMNT.utils.');
+            const parts = path.split('.');
+            let obj: any = globalThis;
+            for (const part of parts) {
+                obj = obj[part];
+                if (!obj) {
+                    throw new Error(`Module not found: ${id} (tried ${path})`);
+                }
+            }
+            return obj;
+        }
+        throw new Error(`Module not found: ${id}`);
+    };
+
+    loadFn(module, module.exports, mockRequire);
+
+    const ElementClass = module.exports.default || module.exports[elementType];
+    if (!ElementClass) {
+        throw new Error(`Element class not found in module (expected default export or ${elementType} export)`);
+    }
+
+    return ElementClass;
+}
+
+function transformEsModuleToCommonJs(code: string): string {
+    let transformed = code;
+    let importIndex = 0;
+
+    transformed = transformed.replace(/^\s*import\s+type\s+[^;]+;?/gm, '');
+
+    transformed = transformed.replace(/^\s*import\s+['"]([^'"]+)['"];?/gm, 'require("$1");');
+
+    transformed = transformed.replace(/^\s*import\s+([^;]+?)\s+from\s+['"]([^'"]+)['"];?/gm, (_match, clause, specifier) => {
+        const requireVar = `__mvmnt_import_${importIndex++}`;
+        const lines: string[] = [`const ${requireVar} = require("${specifier}");`];
+
+        const trimmedClause = String(clause).trim();
+        let defaultPart: string | null = null;
+        let namedPart: string | null = null;
+        let namespacePart: string | null = null;
+
+        if (trimmedClause.includes(',')) {
+            const [first, rest] = trimmedClause.split(',', 2).map((value: string) => value.trim());
+            defaultPart = first || null;
+            if (rest.startsWith('{')) {
+                namedPart = rest;
+            } else if (rest.startsWith('*')) {
+                namespacePart = rest;
+            }
+        } else if (trimmedClause.startsWith('{')) {
+            namedPart = trimmedClause;
+        } else if (trimmedClause.startsWith('*')) {
+            namespacePart = trimmedClause;
+        } else if (trimmedClause.length > 0) {
+            defaultPart = trimmedClause;
         }
 
-        return ElementClass;
-    } catch (error) {
-        throw new Error(`Failed to load element code: ${error instanceof Error ? error.message : String(error)}`);
-    }
+        if (defaultPart) {
+            lines.push(`const ${defaultPart} = ${requireVar};`);
+        }
+
+        if (namespacePart) {
+            const match = namespacePart.match(/\*\s+as\s+(\w+)/);
+            if (match) {
+                lines.push(`const ${match[1]} = ${requireVar};`);
+            }
+        }
+
+        if (namedPart) {
+            const normalized = namedPart.replace(/\{([\s\S]*)\}/, '$1').trim();
+            const mapped = normalized.replace(/\s+as\s+/g, ': ');
+            lines.push(`const { ${mapped} } = ${requireVar};`);
+        }
+
+        return lines.join('\n');
+    });
+
+    transformed = transformed.replace(/^\s*export\s+default\s+/gm, 'module.exports.default = ');
+
+    transformed = transformed.replace(/^\s*export\s+\{([^}]+)\};?/gm, (_match, specifiers) => {
+        const assignments = String(specifiers)
+            .split(',')
+            .map((raw) => raw.trim())
+            .filter(Boolean)
+            .map((spec) => {
+                const [original, alias] = spec.split(/\s+as\s+/).map((value) => value.trim());
+                const exportName = alias || original;
+                if (exportName === 'default') {
+                    return `module.exports.default = ${original};`;
+                }
+                return `exports.${exportName} = ${original};`;
+            });
+        return assignments.join('\n');
+    });
+
+    transformed = transformed.replace(/^\s*export\s+(const|let|var|function|class)\s+/gm, '$1 ');
+
+    return transformed;
 }
