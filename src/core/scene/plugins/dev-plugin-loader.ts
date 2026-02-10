@@ -129,7 +129,12 @@ async function loadElement(
 ): Promise<{ success: boolean; error?: string }> {
     try {
         // Construct the module path
-        const modulePath = `${pluginPath}/${element.entry.replace('.ts', '.js')}`;
+        // In dev mode, import .ts files directly (Vite transpiles on-the-fly)
+        // In production (for bundled .mvmnt-plugin files), use .js
+        const entryFile = isDevEnvironment() 
+            ? element.entry 
+            : element.entry.replace('.ts', '.js');
+        const modulePath = `${pluginPath}/${entryFile}`;
         
         debugLog(`[DevPluginLoader] Importing element module: ${modulePath}`);
         
@@ -211,21 +216,33 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
 }
 
 /**
- * Discover available plugins by trying common plugin directory patterns
+ * Discover available plugins by scanning the src/plugins directory
  * 
- * In a real implementation with a file system API, we'd scan the directory.
- * For now, we try to load plugins based on conventions.
+ * Uses Vite's import.meta.glob to discover all plugin.json files at build time.
  */
 async function discoverPlugins(): Promise<string[]> {
     const discoveredPlugins: string[] = [];
     
-    // Try to load a known plugins manifest if it exists
-    // For now, we'll just return an empty array and rely on explicit registration
-    // A more complete dev loader would scan the src/plugins directory
-    
-    // Note: In a real implementation, we'd use fs.readdirSync in a dev server plugin
-    // to enumerate plugins. For now, plugins need to be registered explicitly or
-    // discovered through other means.
+    try {
+        // Use Vite's import.meta.glob to discover all plugin.json files
+        // This works at build time and is safe for both dev and production
+        const pluginManifests = import.meta.glob('/src/plugins/*/plugin.json', { eager: false });
+        
+        // Extract plugin paths from the manifest paths
+        for (const manifestPath of Object.keys(pluginManifests)) {
+            // Extract plugin directory name from path like "/src/plugins/myplugin/plugin.json"
+            const match = manifestPath.match(/\/src\/plugins\/([\w.-]+)\/plugin\.json$/);
+            if (match) {
+                const pluginId = match[1];
+                const pluginPath = `${PLUGIN_BASE_PATH}/${pluginId}`;
+                discoveredPlugins.push(pluginPath);
+            }
+        }
+        
+        debugLog(`[DevPluginLoader] Discovered ${discoveredPlugins.length} plugin(s)`);
+    } catch (error) {
+        console.error('[DevPluginLoader] Error discovering plugins:', error);
+    }
     
     return discoveredPlugins;
 }

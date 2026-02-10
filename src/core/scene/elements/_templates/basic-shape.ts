@@ -92,7 +92,7 @@ export class BasicShapeElement extends SceneElement {
         
         if (props.shapeType === 'circle') {
             // Use Arc to draw a circle (full 360 degrees)
-            objects.push(new Arc(0, 0, props.shapeSize, 0, Math.PI * 2, props.shapeColor));
+            objects.push(new Arc(0, 0, props.shapeSize, 0, Math.PI * 2));
         } else {
             objects.push(
                 new Rectangle(

@@ -47,6 +47,7 @@
     },
     "scripts": {
         "dev": "vite",
+        "previewprod": "npm run build -- --base /; npx serve build -s -l 5001",
         "start": "vite",
         "build": "vite build",
         "preview": "vite preview",

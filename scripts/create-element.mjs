@@ -168,7 +168,7 @@ function checkElementTypeUniqueness(elementType) {
 }
 
 // Generate plugin.json
-function generatePluginJson(pluginId, pluginName, elementType, elementName, elementDescription, category, entryFile) {
+function generatePluginJson(pluginId, pluginName, elementType, elementName, elementDescription, entryFile) {
     return {
         id: pluginId,
         name: pluginName,
@@ -180,7 +180,7 @@ function generatePluginJson(pluginId, pluginName, elementType, elementName, elem
             {
                 type: elementType,
                 name: elementName,
-                category: category,
+                category: pluginId, // Use plugin ID as category
                 description: elementDescription,
                 entry: entryFile
             }
@@ -188,15 +188,42 @@ function generatePluginJson(pluginId, pluginName, elementType, elementName, elem
     };
 }
 
+// Add element to existing plugin.json
+function addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile) {
+    const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+    
+    // Check if element type already exists in this plugin
+    if (pluginJson.elements.some(el => el.type === elementType)) {
+        throw new Error(`Element type "${elementType}" already exists in this plugin`);
+    }
+    
+    // Add new element
+    pluginJson.elements.push({
+        type: elementType,
+        name: elementName,
+        category: pluginJson.id, // Use plugin ID as category
+        description: elementDescription,
+        entry: entryFile
+    });
+    
+    // Update description if it was auto-generated
+    if (pluginJson.elements.length > 1) {
+        pluginJson.description = `Custom plugin providing ${pluginJson.elements.length} elements`;
+    }
+    
+    fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
+    return pluginJson;
+}
+
 // Customize template content
-function customizeTemplate(templateContent, elementType, className, elementName, elementDescription, category) {
+function customizeTemplate(templateContent, elementType, className, elementName, elementDescription, pluginId) {
     return templateContent
         .replace(/export class \w+Element/g, `export class ${className}`)
         .replace(/super\('[\w-]+'/g, `super('${elementType}'`)
         .replace(/constructor\(id: string = '\w+'/g, `constructor(id: string = '${elementType}'`)
         .replace(/name: '[^']+'/g, `name: '${elementName}'`)
         .replace(/description: '[^']+'/g, `description: '${elementDescription}'`)
-        .replace(/category: '[^']+'/g, `category: '${category}'`);
+        .replace(/category: '[^']+'/g, `category: '${pluginId}'`);
 }
 
 async function main() {
@@ -255,56 +282,60 @@ async function main() {
     const templateKey = templateKeys[templateIndex];
     const template = TEMPLATES[templateKey];
     
-    // Step 4: Choose category
-    console.log('\nAvailable categories:');
-    CATEGORIES.forEach((cat, index) => {
-        console.log(`  ${index + 1}. ${cat}`);
-    });
-    
-    const categoryChoice = await prompt(`Choose category [${template.category}]: `) || template.category;
-    const categoryIndex = parseInt(categoryChoice) - 1;
-    const category = (categoryIndex >= 0 && categoryIndex < CATEGORIES.length) 
-        ? CATEGORIES[categoryIndex] 
-        : (CATEGORIES.includes(categoryChoice.toLowerCase()) ? categoryChoice.toLowerCase() : template.category);
-    
-    // Step 5: Create files
+    // Step 4: Create files
     console.log('\n' + '='.repeat(60));
-    console.log('Creating plugin...');
+    console.log('Creating element...');
     console.log('='.repeat(60));
     
     const pluginsDir = path.join(projectRoot, 'src/plugins');
     const pluginDir = path.join(pluginsDir, pluginId.split('.').pop());
+    const pluginJsonPath = path.join(pluginDir, 'plugin.json');
     const entryFile = `${elementType}.ts`;
     const elementFile = path.join(pluginDir, entryFile);
     
-    // Create plugin directory
+    // Create plugin directory if needed
     if (!fs.existsSync(pluginsDir)) {
         fs.mkdirSync(pluginsDir, { recursive: true });
         console.log(`✓ Created plugins directory`);
     }
     
-    if (fs.existsSync(pluginDir)) {
-        console.error(`Error: Plugin directory already exists: ${pluginDir}`);
-        process.exit(1);
+    const pluginExists = fs.existsSync(pluginDir);
+    let pluginJson;
+    
+    if (pluginExists) {
+        // Add to existing plugin
+        console.log(`Plugin already exists, adding element to existing plugin`);
+        
+        if (!fs.existsSync(pluginJsonPath)) {
+            console.error(`Error: Plugin directory exists but plugin.json is missing: ${pluginDir}`);
+            process.exit(1);
+        }
+        
+        if (fs.existsSync(elementFile)) {
+            console.error(`Error: Element file already exists: ${elementFile}`);
+            process.exit(1);
+        }
+        
+        pluginJson = addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile);
+        console.log(`✓ Updated plugin.json (now has ${pluginJson.elements.length} elements)`);
+    } else {
+        // Create new plugin
+        fs.mkdirSync(pluginDir, { recursive: true });
+        console.log(`✓ Created plugin directory: ${path.relative(projectRoot, pluginDir)}`);
+        
+        // Generate plugin.json
+        pluginJson = generatePluginJson(
+            pluginId,
+            pluginName,
+            elementType,
+            elementName,
+            elementDescription,
+            entryFile
+        );
+        
+        fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
+        console.log(`✓ Created plugin.json`);
     }
-    
-    fs.mkdirSync(pluginDir, { recursive: true });
-    console.log(`✓ Created plugin directory: ${path.relative(projectRoot, pluginDir)}`);
-    
-    // Generate plugin.json
-    const pluginJson = generatePluginJson(
-        pluginId,
-        pluginName,
-        elementType,
-        elementName,
-        elementDescription,
-        category,
-        entryFile
-    );
-    
-    const pluginJsonPath = path.join(pluginDir, 'plugin.json');
-    fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
-    console.log(`✓ Created plugin.json`);
     
     // Copy and customize template
     const templatePath = path.join(projectRoot, 'src/core/scene/elements/_templates', template.file);
@@ -316,7 +347,7 @@ async function main() {
         className,
         elementName,
         elementDescription,
-        category
+        pluginId
     );
     
     fs.writeFileSync(elementFile, customizedContent);
@@ -325,11 +356,16 @@ async function main() {
     console.log('\n' + '='.repeat(60));
     console.log('Success!');
     console.log('='.repeat(60));
-    console.log(`\nPlugin created at: ${path.relative(projectRoot, pluginDir)}`);
+    console.log(`\nElement "${elementName}" (${elementType}) added to plugin: ${pluginJson.name}`);
+    console.log(`Plugin location: ${path.relative(projectRoot, pluginDir)}`);
     console.log(`\nNext steps:`);
     console.log(`  1. Start the dev server: npm run dev`);
     console.log(`  2. Open the app and add your element to a scene`);
     console.log(`  3. Edit ${path.relative(projectRoot, elementFile)} to customize`);
+    if (pluginJson.elements.length > 1) {
+        console.log(`\nThis plugin now has ${pluginJson.elements.length} elements:`);
+        pluginJson.elements.forEach(el => console.log(`  - ${el.name} (${el.type})`));
+    }
     console.log(`\nSee docs/creating-custom-elements.md for more information.`);
 }
 
