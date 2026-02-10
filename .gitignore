@@ -22,6 +22,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+/plugins/*
+!/plugins/plugins_go_here.txt
+
 # development files
 /devscripts
 output.txt
