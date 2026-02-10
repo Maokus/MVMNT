@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mvmnt.app/schemas/plugin-manifest.schema.json",
+  "title": "MVMNT Plugin Manifest",
+  "description": "Schema for MVMNT custom element plugin manifests",
+  "type": "object",
+  "required": ["id", "name", "version", "mvmntVersion", "elements"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique plugin identifier (reverse domain notation recommended, e.g., com.example.myplugin)",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 3
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable plugin name",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "description": "Plugin version (semantic versioning)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$"
+    },
+    "mvmntVersion": {
+      "type": "string",
+      "description": "Compatible MVMNT version range (semver range, e.g., ^1.0.0, >=1.2.0 <2.0.0)",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable plugin description"
+    },
+    "author": {
+      "type": "string",
+      "description": "Plugin author name or organization"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Plugin homepage or repository URL"
+    },
+    "license": {
+      "type": "string",
+      "description": "Plugin license (e.g., MIT, Apache-2.0)"
+    },
+    "elements": {
+      "type": "array",
+      "description": "Array of custom elements provided by this plugin",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "name", "category", "entry"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Unique element type identifier (kebab-case recommended)",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable element name",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "description": "Element category for UI organization",
+            "enum": ["shapes", "effects", "text", "particles", "audio-reactive", "midi", "utility", "custom"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable element description"
+          },
+          "entry": {
+            "type": "string",
+            "description": "Path to element entry point relative to plugin root (e.g., elements/my-element.js)",
+            "pattern": "\\.(js|mjs)$"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Path to optional icon asset relative to plugin root"
+          },
+          "thumbnail": {
+            "type": "string",
+            "description": "Path to optional thumbnail image relative to plugin root"
+          },
+          "capabilities": {
+            "type": "array",
+            "description": "Element capabilities required for operation",
+            "items": {
+              "type": "string",
+              "enum": ["audio-analysis", "midi-events", "network", "storage"]
+            }
+          },
+          "tags": {
+            "type": "array",
+            "description": "Searchable tags for the element",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "peerDependencies": {
+      "type": "object",
+      "description": "Optional peer dependencies (other plugins required)",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "assets": {
+      "type": "object",
+      "description": "Asset paths included in the plugin bundle",
+      "properties": {
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "other": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
