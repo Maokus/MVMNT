@@ -25,6 +25,9 @@ yarn-error.log*
 /plugins/*
 !/plugins/plugins_go_here.txt
 
+/src/plugins/*
+!/src/plugins/plugins_go_here.txt
+
 # development files
 /devscripts
 output.txt

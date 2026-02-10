@@ -5,6 +5,7 @@ import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
+import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
 if (import.meta.env.DEV) {
   void import('@devtools/registerWindowTools');
 }
@@ -30,6 +31,11 @@ try {
 }
 
 registerBuiltInAudioFeatureCalculators();
+
+// Load development plugins (Phase 1)
+loadDevPlugins().catch((error) => {
+  console.error('[App] Failed to load dev plugins:', error);
+});
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 // Vite exposes the configured base as import.meta.env.BASE_URL (always ends with a slash)

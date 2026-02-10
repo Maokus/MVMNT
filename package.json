@@ -53,6 +53,7 @@
         "test": "vitest run",
         "test:watch": "vitest --watch",
         "lint": "npx tsc --noEmit",
+        "create-element": "node scripts/create-element.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional"
     },

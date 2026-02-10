@@ -15,7 +15,10 @@
 			"command": "npm run build",
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"close": true
+			}
 		},
 		{
 			"label": "Run NPM lint",
@@ -23,7 +26,10 @@
 			"command": "npm run lint",
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"close": true
+			}
 		},
 		{
 			"label": "Run NPM Test",
@@ -31,7 +37,10 @@
 			"command": "npm run test",
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"close": true
+			}
 		},
 		{
 			"label": "Run NPM Install",
