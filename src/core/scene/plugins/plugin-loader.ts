@@ -253,6 +253,12 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
         if (id === 'react-dom') {
             return (globalThis as any).ReactDOM;
         }
+        if (id === 'react/jsx-runtime') {
+            return (globalThis as any).ReactJSXRuntime;
+        }
+        if (id === 'react/jsx-dev-runtime') {
+            return (globalThis as any).ReactJSXDevRuntime;
+        }
         if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
             const path = id.replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
@@ -272,12 +278,44 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
 
     loadFn(module, module.exports, mockRequire);
 
-    const ElementClass = module.exports.default || module.exports[elementType];
+    const ElementClass = resolveElementExport(module.exports, elementType);
     if (!ElementClass) {
         throw new Error(`Element class not found in module (expected default export or ${elementType} export)`);
     }
 
     return ElementClass;
+}
+
+function resolveElementExport(exportsObj: any, elementType: string): any {
+    if (!exportsObj) return null;
+    if (typeof exportsObj === 'function') return exportsObj;
+    if (exportsObj.default) return exportsObj.default;
+    if (exportsObj[elementType]) return exportsObj[elementType];
+
+    const normalizedType = normalizeElementType(elementType);
+    const candidateKeys = [normalizedType, `${normalizedType}Element`];
+
+    for (const key of candidateKeys) {
+        if (exportsObj[key]) return exportsObj[key];
+    }
+
+    const exportEntries = Object.entries(exportsObj).filter(([, value]) => typeof value === 'function');
+    if (exportEntries.length === 1) {
+        return exportEntries[0][1];
+    }
+
+    const elementLike = exportEntries.find(([, value]) => typeof (value as any).getConfigSchema === 'function');
+    if (elementLike) return elementLike[1];
+
+    return null;
+}
+
+function normalizeElementType(elementType: string): string {
+    return elementType
+        .split(/[^a-zA-Z0-9]+/g)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('');
 }
 
 function transformEsModuleToCommonJs(code: string): string {

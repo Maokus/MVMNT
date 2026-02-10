@@ -1,5 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import * as ReactJsxRuntime from 'react/jsx-runtime';
+import * as ReactJsxDevRuntime from 'react/jsx-dev-runtime';
 import './tailwind.css';
 import App from './App'; // Fast Refresh boundary
 import { BrowserRouter } from 'react-router-dom';
@@ -11,6 +13,11 @@ if (import.meta.env.DEV) {
   void import('@devtools/registerWindowTools');
 }
 import { setCanonicalPPQ } from '@core/timing/ppq';
+
+(globalThis as any).React = React;
+(globalThis as any).ReactDOM = ReactDOM;
+(globalThis as any).ReactJSXRuntime = ReactJsxRuntime;
+(globalThis as any).ReactJSXDevRuntime = ReactJsxDevRuntime;
 
 // Early initialization: allow overriding canonical PPQ via Vite env var VITE_CANONICAL_PPQ
 try {
