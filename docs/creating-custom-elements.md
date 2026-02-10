@@ -552,27 +552,109 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 
 ## Packaging and Distribution
 
-_(Phase 2 - coming soon)_
-
 ### Building a Plugin
 
-Once implemented, use the build script to create a distributable `.mvmnt-plugin` bundle:
+Use the build script to create a distributable `.mvmnt-plugin` bundle:
 
 ```bash
-npm run build-plugin -- --plugin my-plugin
+# Build a specific plugin
+npm run build-plugin src/plugins/my-plugin
+
+# List available plugins
+npm run build-plugin
 ```
 
 This will:
-1. Validate `plugin.json` against schema
-2. Bundle element code with dependencies
-3. Create a `.mvmnt-plugin` ZIP file
+1. Validate `plugin.json` against the manifest schema
+2. Check for element type collisions with built-in elements
+3. Validate element classes have required methods
+4. Bundle each element with esbuild (minified, ESM format)
+5. Create a `.mvmnt-plugin` ZIP file in the `dist/` directory
+
+### Build Output
+
+The build process produces:
+- **Location:** `dist/{plugin-id}-{version}.mvmnt-plugin`
+- **Format:** ZIP archive with `.mvmnt-plugin` extension
+- **Size:** Typically 50-500 KB per element (minified and compressed)
+
+Example output:
+```
+Building plugin: My Plugin v1.0.0
+Plugin ID: myplugin
+Elements: 5
+
+Validating manifest...
+✓ Manifest is valid
+
+Validating element classes...
+✓ All element classes are valid
+
+Bundling elements...
+  ✓ My Element
+  ✓ My Element Two
+  ...
+
+✓ Bundle created: myplugin-1.0.0.mvmnt-plugin
+
+Output: dist/myplugin-1.0.0.mvmnt-plugin
+Size: 243.36 KB
+Elements: 5
+```
 
 ### Distribution Format
 
 The `.mvmnt-plugin` format is a ZIP archive containing:
-- `manifest.json`: Plugin metadata
-- `elements/*.js`: Bundled element code
-- `assets/`: Optional assets (images, fonts, etc.)
+- `manifest.json`: Plugin metadata (generated from `plugin.json`)
+- `elements/*.js`: Bundled element code (minified ES modules)
+- `assets/`: Optional assets (images, fonts, etc.) if present
+
+### Validation Rules
+
+The build process enforces several validation rules:
+
+**Manifest Validation:**
+- Required fields must be present (`id`, `name`, `version`, `mvmntVersion`, `elements`)
+- Plugin ID must be lowercase alphanumeric with dots/hyphens, minimum 3 characters
+- Version must follow semantic versioning (`1.0.0`, `2.1.3-beta`, etc.)
+- Each element must have `type`, `name`, `category`, and `entry` fields
+- Element types must be kebab-case starting with a letter
+- Entry files must exist and have `.ts`, `.js`, or `.mjs` extension
+
+**Collision Detection:**
+- Element types must be unique within the plugin
+- Element types cannot conflict with built-in elements:
+  - `background`, `image`, `progressDisplay`, `textOverlay`, `timeDisplay`
+  - `timeUnitPianoRoll`, `movingNotesPianoRoll`, `notesPlayedTracker`
+  - `notesPlayingDisplay`, `chordEstimateDisplay`, `audioSpectrum`
+  - `audioVolumeMeter`, `audioWaveform`, `audioLockedOscilloscope`, `debug`
+
+**Element Class Validation:**
+- Must extend `SceneElement`
+- Must implement `static getConfigSchema()` method (or `static override getConfigSchema()`)
+- Must implement rendering via `_buildRenderObjects()` method
+
+### Build Configuration
+
+The build process uses esbuild with the following configuration:
+- **Format:** ES modules (ESM)
+- **Target:** ES2020
+- **Minification:** Enabled
+- **Source maps:** Disabled (for smaller bundle size)
+- **External dependencies:**
+  - `react`, `react-dom` (provided by host)
+  - `@core/*`, `@audio/*`, `@utils/*`, `@state/*`, `@types/*`, `@constants/*` (MVMNT APIs)
+
+### Distributing Your Plugin
+
+_(Phase 3 - Runtime loading)_
+
+Once Phase 3 is implemented, users will be able to:
+1. Import `.mvmnt-plugin` files through the Settings panel
+2. Enable/disable plugins without app restart
+3. Share plugins as single files
+
+For now, plugins can only be used during development by placing them in `src/plugins/`.
 
 ## Best Practices
 

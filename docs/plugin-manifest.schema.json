@@ -65,8 +65,8 @@
           },
           "category": {
             "type": "string",
-            "description": "Element category for UI organization",
-            "enum": ["shapes", "effects", "text", "particles", "audio-reactive", "midi", "utility", "custom"]
+            "description": "Element category for UI organization. Standard categories: shapes, effects, text, particles, audio-reactive, midi, utility, custom. Custom categories are also supported.",
+            "minLength": 1
           },
           "description": {
             "type": "string",
