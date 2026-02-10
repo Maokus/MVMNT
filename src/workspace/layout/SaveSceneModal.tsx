@@ -3,17 +3,19 @@ import { useEffect, useRef, useState } from 'react';
 interface SaveSceneModalProps {
     initialName: string;
     onCancel: () => void;
-    onConfirm: (name: string) => void | Promise<void>;
+    onConfirm: (name: string, options: { embedPlugins: boolean }) => void | Promise<void>;
 }
 
 export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneModalProps) {
     const [name, setName] = useState(initialName);
     const [error, setError] = useState<string | null>(null);
+    const [embedPlugins, setEmbedPlugins] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setName(initialName);
         setError(null);
+        setEmbedPlugins(false);
     }, [initialName]);
 
     useEffect(() => {
@@ -47,7 +49,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
             inputRef.current?.focus();
             return;
         }
-        onConfirm(trimmed);
+        onConfirm(trimmed, { embedPlugins });
     };
 
     return (
@@ -72,6 +74,20 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                             className="rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                             placeholder="Enter a name"
                         />
+                    </label>
+                    <label className="flex items-start gap-2 text-[12px] text-neutral-300">
+                        <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={embedPlugins}
+                            onChange={(event) => setEmbedPlugins(event.target.checked)}
+                        />
+                        <span>
+                            Embed required plugins in this file
+                            <span className="block text-[11px] text-neutral-500">
+                                Plugin bundles are stored inside the .mvt export for easier sharing.
+                            </span>
+                        </span>
                     </label>
                     {error && <p className="m-0 text-[12px] text-blue-400">{error}</p>}
                     <div className="flex justify-end gap-2">

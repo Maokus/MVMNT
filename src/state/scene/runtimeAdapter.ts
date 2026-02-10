@@ -1,5 +1,6 @@
 import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
+import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
 import {
@@ -72,6 +73,7 @@ export class SceneRuntimeAdapter {
     private unsubscribe?: () => void;
     private disposed = false;
     private readonly handleFontLoaded: (event: Event) => void;
+    private readonly handlePluginInstalled: (event: Event) => void;
 
     constructor(options?: SceneRuntimeAdapterOptions) {
         this.store = options?.store ?? useSceneStore;
@@ -81,6 +83,13 @@ export class SceneRuntimeAdapter {
                 try {
                     entry.element.markBoundsDirty?.();
                 } catch {}
+            }
+        };
+        this.handlePluginInstalled = (event: Event) => {
+            const detail = (event as CustomEvent)?.detail as { registeredTypes?: string[] } | undefined;
+            const types = Array.isArray(detail?.registeredTypes) ? detail.registeredTypes : [];
+            if (types.length) {
+                this.refreshElementsForTypes(types);
             }
         };
 
@@ -93,6 +102,7 @@ export class SceneRuntimeAdapter {
         });
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
+            window.addEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
         }
     }
 
@@ -100,6 +110,7 @@ export class SceneRuntimeAdapter {
         if (this.disposed) return;
         if (typeof window !== 'undefined') {
             window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
+            window.removeEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
         }
         this.unsubscribe?.();
         this.cache.forEach((entry) => {
@@ -198,8 +209,15 @@ export class SceneRuntimeAdapter {
             const config = buildConfigPayload(record, bindings);
             const element = this.registry.createElement(record.type, config) as SceneElement | null;
             if (!element) {
-                console.warn(`[SceneRuntimeAdapter] failed to create element '${record.id}' of type '${record.type}'`);
-                return null;
+                const placeholder = new MissingPluginElement(record.id, {
+                    ...config,
+                    missingType: record.type,
+                });
+                return {
+                    element: placeholder,
+                    signature: bindingsSignature(record.type, bindings),
+                    version: 1,
+                };
             }
             return {
                 element,
@@ -209,6 +227,32 @@ export class SceneRuntimeAdapter {
         } catch (error) {
             console.error('[SceneRuntimeAdapter] element instantiation failed', { record }, error);
             return null;
+        }
+    }
+
+    private refreshElementsForTypes(types: string[]) {
+        if (this.disposed) return;
+        const typeSet = new Set(types);
+        const state = this.store.getState();
+        let mutated = false;
+        for (const id of state.order) {
+            const record = state.elements[id];
+            if (!record || !typeSet.has(record.type)) continue;
+            const bindings = state.bindings.byElement[id] ?? {};
+            const entry = this.cache.get(id);
+            if (entry) {
+                try {
+                    entry.element.dispose?.();
+                } catch {}
+            }
+            const created = this.instantiateElement(record, bindings);
+            if (created) {
+                this.cache.set(id, created);
+                mutated = true;
+            }
+        }
+        if (mutated) {
+            this.adapterVersion += 1;
         }
     }
 

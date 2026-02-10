@@ -15,7 +15,10 @@ export interface PluginLoadResult {
 /**
  * Load a plugin from a .mvmnt-plugin bundle (ZIP file)
  */
-export async function loadPlugin(bundleData: ArrayBuffer): Promise<PluginLoadResult> {
+export async function loadPlugin(
+    bundleData: ArrayBuffer,
+    options: { persist?: boolean } = {}
+): Promise<PluginLoadResult> {
     try {
         // Unzip the bundle
         const uint8Data = new Uint8Array(bundleData);
@@ -53,8 +56,11 @@ export async function loadPlugin(bundleData: ArrayBuffer): Promise<PluginLoadRes
             };
         }
 
-        // Store the bundle for future use
-        await PluginBinaryStore.put(manifest.id, bundleData);
+        // Store the bundle for future use (optional)
+        const shouldPersist = options.persist !== false;
+        if (shouldPersist) {
+            await PluginBinaryStore.put(manifest.id, bundleData);
+        }
 
         // Load and register each element
         const registeredTypes: string[] = [];
@@ -108,11 +114,24 @@ export async function loadPlugin(bundleData: ArrayBuffer): Promise<PluginLoadRes
             console.warn(`[PluginLoader] Partial load for plugin '${manifest.id}':`, loadErrors);
         }
 
-        return {
+        const result: PluginLoadResult = {
             success: true,
             pluginId: manifest.id,
             registeredTypes,
         };
+        try {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                    new CustomEvent('mvmnt-plugin-installed', {
+                        detail: { pluginId: manifest.id, registeredTypes },
+                    })
+                );
+            }
+        } catch {
+            /* ignore event failures */
+        }
+
+        return result;
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         return {

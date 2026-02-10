@@ -26,7 +26,7 @@ interface UseMenuBarProps {
 }
 
 interface MenuBarActions {
-    saveScene: (projectName?: string) => Promise<void>;
+    saveScene: (projectName?: string, options?: { embedPlugins?: boolean }) => Promise<void>;
     loadScene: () => void;
     clearScene: () => void;
     createNewDefaultScene: () => void;
@@ -46,10 +46,10 @@ export const useMenuBar = ({
         /* provider may not exist in some tests */
     }
 
-    const saveScene = async (projectName?: string) => {
+    const saveScene = async (projectName?: string, options?: { embedPlugins?: boolean }) => {
         try {
             const nameToUse = projectName?.trim() ? projectName.trim() : sceneName;
-            const res = await exportScene(nameToUse);
+            const res = await exportScene(nameToUse, { embedPlugins: options?.embedPlugins });
             if (!res.ok) {
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;

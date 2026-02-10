@@ -11,6 +11,7 @@ export interface ScenePackageContents {
     fontPayloads: Map<string, Uint8Array>;
     waveformPayloads: Map<string, Map<string, Uint8Array>>;
     audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
+    pluginPayloads: Map<string, Uint8Array>;
     warnings: { message: string }[];
 }
 
@@ -43,12 +44,14 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
     fonts: Map<string, Uint8Array>;
     waveforms: Map<string, Map<string, Uint8Array>>;
     audioFeatures: Map<string, Map<string, Uint8Array>>;
+    plugins: Map<string, Uint8Array>;
 } {
     const audioPayloads = new Map<string, Uint8Array>();
     const midiPayloads = new Map<string, Uint8Array>();
     const fontPayloads = new Map<string, Uint8Array>();
     const waveformPayloads = new Map<string, Map<string, Uint8Array>>();
     const audioFeaturePayloads = new Map<string, Map<string, Uint8Array>>();
+    const pluginPayloads = new Map<string, Uint8Array>();
 
     for (const path of Object.keys(archive)) {
         if (path.startsWith('assets/audio/')) {
@@ -101,6 +104,15 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
                     group.set(filename, archive[path]);
                 }
             }
+        } else if (path.startsWith('plugins/')) {
+            const parts = path.split('/');
+            if (parts.length >= 2) {
+                const filename = parts.slice(1).join('/');
+                const pluginId = filename.replace(/\.mvmnt-plugin$/i, '');
+                if (!pluginPayloads.has(pluginId)) {
+                    pluginPayloads.set(pluginId, archive[path]);
+                }
+            }
         }
     }
 
@@ -110,6 +122,7 @@ function collectScenePayloads(archive: Record<string, Uint8Array>): {
         fonts: fontPayloads,
         waveforms: waveformPayloads,
         audioFeatures: audioFeaturePayloads,
+        plugins: pluginPayloads,
     };
 }
 
@@ -139,6 +152,7 @@ export function parseScenePackage(bytes: Uint8Array): ScenePackageContents {
         fontPayloads: payloads.fonts,
         waveformPayloads: payloads.waveforms,
         audioFeaturePayloads: payloads.audioFeatures,
+        pluginPayloads: payloads.plugins,
         warnings: [],
     };
 }
@@ -155,6 +169,7 @@ export function parseLegacyInlineScene(jsonText: string): ScenePackageContents {
         fontPayloads: new Map(),
         waveformPayloads: new Map(),
         audioFeaturePayloads: new Map(),
+        pluginPayloads: new Map(),
         warnings: [
             {
                 message: 'Legacy inline JSON scene payloads are deprecated. Please re-export as a packaged .mvt scene.',

@@ -1,6 +1,6 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
-import type { SceneExportEnvelope } from './export';
+import type { SceneExportEnvelope, ScenePluginDependency } from './export';
 import {
     deserializeAudioFeatureCache,
     type SerializedAudioFeatureCache,
@@ -10,6 +10,9 @@ import {
 import { base64ToUint8Array } from '@utils/base64';
 import { sha256Hex } from '@utils/hash/sha256';
 import { FontBinaryStore } from './font-binary-store';
+import { PluginBinaryStore } from './plugin-binary-store';
+import { loadPlugin, satisfiesVersion } from '@core/scene/plugins';
+import { usePluginStore } from '@state/pluginStore';
 import { ensureFontVariantsRegistered } from '@fonts/font-loader';
 import type { FontAsset } from '@state/scene/fonts';
 import { decodeSceneText, parseLegacyInlineScene, parseScenePackage, ScenePackageError } from './scene-package';
@@ -47,6 +50,7 @@ interface ParsedArtifact {
     fontPayloads: Map<string, Uint8Array>;
     waveformPayloads: Map<string, Map<string, Uint8Array>>;
     audioFeaturePayloads: Map<string, Map<string, Uint8Array>>;
+    pluginPayloads: Map<string, Uint8Array>;
 }
 
 async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | { error: ImportError }> {
@@ -66,6 +70,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                 fontPayloads: legacy.fontPayloads,
                 waveformPayloads: legacy.waveformPayloads,
                 audioFeaturePayloads: legacy.audioFeaturePayloads,
+                pluginPayloads: legacy.pluginPayloads,
             };
         } catch (error: any) {
             return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + error.message } };
@@ -106,6 +111,7 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
                         fontPayloads: legacy.fontPayloads,
                         waveformPayloads: legacy.waveformPayloads,
                         audioFeaturePayloads: legacy.audioFeaturePayloads,
+                        pluginPayloads: legacy.pluginPayloads,
                     };
                 } catch (inner: any) {
                     return { error: { code: 'ERR_JSON_PARSE', message: 'Invalid JSON: ' + inner.message } };
@@ -115,6 +121,104 @@ async function parseArtifact(input: ImportSceneInput): Promise<ParsedArtifact | 
         }
         return { error: { code: 'ERR_PACKAGE_FORMAT', message: (error as Error).message } };
     }
+}
+
+async function assessPluginDependencies(
+    dependencies: ScenePluginDependency[] | undefined,
+    pluginPayloads: Map<string, Uint8Array>
+): Promise<{
+    missing: ScenePluginDependency[];
+    embeddedMissing: ScenePluginDependency[];
+    warnings: string[];
+}> {
+    const warnings: string[] = [];
+    const missing: ScenePluginDependency[] = [];
+    const embeddedMissing: ScenePluginDependency[] = [];
+
+    if (!dependencies?.length) {
+        return { missing, embeddedMissing, warnings };
+    }
+
+    const installedPlugins = usePluginStore.getState().plugins;
+
+    for (const dep of dependencies) {
+        if (!dep || !dep.pluginId) continue;
+        const installed = installedPlugins[dep.pluginId];
+        let versionOk = true;
+        if (installed && dep.version && dep.version !== 'unknown') {
+            versionOk = satisfiesVersion(installed.manifest.version, dep.version);
+            if (!versionOk) {
+                warnings.push(
+                    `Plugin ${dep.pluginId} version mismatch (requires ${dep.version}, found ${installed.manifest.version}).`
+                );
+            }
+        }
+
+        let hashOk = true;
+        if (installed && dep.hash) {
+            try {
+                const stored = await PluginBinaryStore.get(dep.pluginId);
+                if (stored) {
+                    const storedHash = await sha256Hex(new Uint8Array(stored));
+                    if (storedHash !== dep.hash) {
+                        hashOk = false;
+                        warnings.push(`Plugin ${dep.pluginId} hash mismatch; embedded install recommended.`);
+                    }
+                }
+            } catch {
+                /* ignore hash failures */
+            }
+        }
+
+        if (!installed || !versionOk || !hashOk) {
+            missing.push(dep);
+            if (dep.embedded && pluginPayloads.has(dep.pluginId)) {
+                embeddedMissing.push(dep);
+            }
+        }
+    }
+
+    return { missing, embeddedMissing, warnings };
+}
+
+async function installEmbeddedPlugins(
+    dependencies: ScenePluginDependency[],
+    pluginPayloads: Map<string, Uint8Array>,
+    persist: boolean
+): Promise<string[]> {
+    const warnings: string[] = [];
+    for (const dep of dependencies) {
+        const payload = pluginPayloads.get(dep.pluginId);
+        if (!payload) {
+            warnings.push(`Embedded plugin payload missing for ${dep.pluginId}.`);
+            continue;
+        }
+
+        if (dep.hash) {
+            try {
+                const payloadHash = await sha256Hex(payload);
+                if (payloadHash !== dep.hash) {
+                    warnings.push(`Embedded plugin ${dep.pluginId} failed hash verification.`);
+                    continue;
+                }
+            } catch {
+                warnings.push(`Failed to verify embedded plugin ${dep.pluginId}.`);
+                continue;
+            }
+        }
+
+        if (usePluginStore.getState().plugins[dep.pluginId]) {
+            continue;
+        }
+
+        const buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+        const result = await loadPlugin(buffer, { persist });
+        if (!result.success) {
+            warnings.push(`Failed to install plugin ${dep.pluginId}: ${result.error || 'Unknown error'}`);
+        }
+    }
+
+    return warnings;
 }
 
 function hydrateAudioFeatureCacheFromAssets(
@@ -496,6 +600,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         fontPayloads,
         waveformPayloads,
         audioFeaturePayloads,
+        pluginPayloads,
     } = parsed;
     const validation = validateSceneEnvelope(envelope);
     if (!validation.ok) {
@@ -504,6 +609,34 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             errors: validation.errors.map((e) => ({ code: e.code, message: e.message, path: e.path })),
             warnings: [...artifactWarnings, ...validation.warnings.map((w) => ({ message: w.message }))],
         };
+    }
+
+    const pluginWarnings: string[] = [];
+    const dependencies = Array.isArray(envelope?.plugins) ? (envelope.plugins as ScenePluginDependency[]) : [];
+    const dependencyAssessment = await assessPluginDependencies(dependencies, pluginPayloads);
+    pluginWarnings.push(...dependencyAssessment.warnings);
+
+    if (dependencyAssessment.embeddedMissing.length) {
+        const canPrompt = !isTestEnvironment() && typeof window !== 'undefined' && typeof window.confirm === 'function';
+        const shouldInstall = canPrompt
+            ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
+            : false;
+        if (shouldInstall) {
+            let persist = true;
+            if (canPrompt) {
+                persist = window.confirm('Remember these plugins on this browser for future projects?');
+            }
+            pluginWarnings.push(...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads, persist)));
+        }
+    }
+
+    if (dependencyAssessment.missing.length) {
+        const missingList = dependencyAssessment.missing.map((dep) => dep.pluginId).filter(Boolean);
+        if (missingList.length) {
+            pluginWarnings.push(
+                `Missing plugins: ${missingList.join(', ')}. Some elements are shown as placeholders.`
+            );
+        }
     }
 
     const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
@@ -542,6 +675,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
         ...featureWarnings.map((message) => ({ message })),
         ...hydrationWarnings.map((message) => ({ message })),
         ...fontWarnings.map((message) => ({ message })),
+        ...pluginWarnings.map((message) => ({ message })),
     ];
     return { ok: true, errors: [], warnings };
 }
