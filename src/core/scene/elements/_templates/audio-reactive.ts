@@ -57,14 +57,6 @@ export class AudioReactiveElement extends SceneElement {
                             runtime: { transform: normalizeAudioTrackId, defaultValue: null },
                         },
                         {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            description: 'Channel to use (null = mix all, 0 = left, 1 = right)',
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
-                        },
-                        {
                             key: 'smoothing',
                             type: 'number',
                             label: 'Smoothing',
@@ -112,14 +104,6 @@ export class AudioReactiveElement extends SceneElement {
                             default: '#F472B6FF',
                             runtime: { transform: asTrimmedString, defaultValue: '#F472B6FF' },
                         },
-                        {
-                            key: 'useCircle',
-                            type: 'boolean',
-                            label: 'Use Circle',
-                            default: true,
-                            description: 'Circle (true) or square (false)',
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
                     ],
                 },
                 ...advancedGroups,
@@ -143,26 +127,14 @@ export class AudioReactiveElement extends SceneElement {
             { smoothing: props.smoothing }
         );
         
-        // Select channel
-        const channelData = selectChannelSample(
-            audioData?.metadata.frame,
-            props.channelSelector
-        );
-        
         // Get volume value (0-1 range typically)
-        const volume = channelData?.values?.[0] ?? audioData?.values?.[0] ?? 0;
+        const volume = audioData?.values?.[0] ?? 0;
         
         // Calculate reactive size
         const size = props.baseSize + (volume * props.reactivityScale);
         
-        // Render shape
-        if (props.useCircle) {
-            // Use Arc to draw a circle (full 360 degrees)
-            objects.push(new Arc(0, 0, size, 0, Math.PI * 2, props.shapeColor));
-        } else {
-            const half = size / 2;
-            objects.push(new Rectangle(-half, -half, size, size, props.shapeColor));
-        }
+        const half = size / 2;
+        objects.push(new Rectangle(-half, -half, size, size, props.shapeColor));
         
         return objects;
     }

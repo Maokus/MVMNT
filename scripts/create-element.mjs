@@ -180,7 +180,7 @@ function generatePluginJson(pluginId, pluginName, elementType, elementName, elem
             {
                 type: elementType,
                 name: elementName,
-                category: pluginId, // Use plugin ID as category
+                category: pluginName, // Use plugin ID as category
                 description: elementDescription,
                 entry: entryFile
             }
@@ -241,15 +241,36 @@ async function main() {
         validationError = validatePluginName(pluginId);
     }
     
-    const pluginName = await prompt('Plugin Name (e.g., My Plugin): ') || toTitleCase(pluginId.split('.').pop());
+    // Determine plugin directory and decide whether to prompt for plugin display name.
+    const pluginsDir = path.join(projectRoot, 'src/plugins');
+    const pluginDirName = pluginId.split('.').pop();
+    const pluginDir = path.join(pluginsDir, pluginDirName);
+
+    let pluginName;
+    if (fs.existsSync(pluginDir)) {
+        // If plugin folder exists, use its plugin.json name if present, otherwise derive a title-case name.
+        const existingPluginJson = path.join(pluginDir, 'plugin.json');
+        if (fs.existsSync(existingPluginJson)) {
+            try {
+                const existing = JSON.parse(fs.readFileSync(existingPluginJson, 'utf8'));
+                pluginName = existing.name || toTitleCase(pluginDirName);
+            } catch (e) {
+                pluginName = toTitleCase(pluginDirName);
+            }
+        } else {
+            pluginName = toTitleCase(pluginDirName);
+        }
+    } else {
+        pluginName = await prompt('Plugin Name (e.g., My Plugin): ') || toTitleCase(pluginDirName);
+    }
     
     // Step 2: Get element type
-    let elementType = await prompt('Element Type (kebab-case, e.g., my-element): ');
+    let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
     elementType = toKebabCase(elementType);
     validationError = validateElementType(elementType);
     while (validationError) {
         console.error(`Error: ${validationError}`);
-        elementType = await prompt('Element Type (kebab-case, e.g., my-element): ');
+        elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
         elementType = toKebabCase(elementType);
         validationError = validateElementType(elementType);
     }
@@ -287,8 +308,6 @@ async function main() {
     console.log('Creating element...');
     console.log('='.repeat(60));
     
-    const pluginsDir = path.join(projectRoot, 'src/plugins');
-    const pluginDir = path.join(pluginsDir, pluginId.split('.').pop());
     const pluginJsonPath = path.join(pluginDir, 'plugin.json');
     const entryFile = `${elementType}.ts`;
     const elementFile = path.join(pluginDir, entryFile);
