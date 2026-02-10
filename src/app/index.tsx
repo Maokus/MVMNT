@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
 import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
+import { loadAllPluginsFromStorage } from '@core/scene/plugins';
 if (import.meta.env.DEV) {
   void import('@devtools/registerWindowTools');
 }
@@ -35,6 +36,11 @@ registerBuiltInAudioFeatureCalculators();
 // Load development plugins (Phase 1)
 loadDevPlugins().catch((error) => {
   console.error('[App] Failed to load dev plugins:', error);
+});
+
+// Load runtime plugins from storage (Phase 3)
+loadAllPluginsFromStorage().catch((error) => {
+  console.error('[App] Failed to load plugins from storage:', error);
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
