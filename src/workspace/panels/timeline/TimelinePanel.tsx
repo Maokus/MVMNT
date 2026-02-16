@@ -558,7 +558,7 @@ const TimelinePanel: React.FC = () => {
                 <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
                     <div className="flex h-full w-full overflow-hidden">
                         <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
-                            <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                            <div className="tracklist-container w-70 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
                                 <TrackList trackIds={trackIds} />
                             </div>
                             <div className="flex min-h-full flex-1 flex-col">
