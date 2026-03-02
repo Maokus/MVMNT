@@ -55,6 +55,15 @@ When using a template as a starting point:
 4. Add/remove/modify properties as needed
 5. Implement your custom rendering logic in `_buildRenderObjects()`
 
+### Host Plugin API Access
+
+Plugin-facing templates must use the public host API helper from `@core/scene/plugins`:
+
+- `getPluginHostApi(requiredCapabilities?)`
+- `PLUGIN_CAPABILITIES`
+
+For MIDI/audio templates, request required capabilities and render a capability-specific fallback message when unavailable (for example, `timeline.read` or `audio.features.read`). Avoid direct access to internal host state/selectors.
+
 ## See Also
 
 - [Creating Custom Elements Guide](../../../../docs/creating-custom-elements.md)

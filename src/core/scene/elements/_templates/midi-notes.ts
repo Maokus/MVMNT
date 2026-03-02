@@ -3,45 +3,10 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
 
 const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;
-
-type TimelineStoreApi = {
-    getState: () => unknown;
-};
-
-type NoteWindowParams = {
-    trackIds: string[];
-    startSec: number;
-    endSec: number;
-};
-
-type ActiveNote = {
-    note: number;
-};
-
-type SelectNotesInWindowFn = (state: unknown, params: NoteWindowParams) => ActiveNote[];
-
-function getHostTimelineApi(): {
-    timelineStore: TimelineStoreApi | null;
-    selectNotesInWindow: SelectNotesInWindowFn | null;
-} {
-    const hostApi = (globalThis as {
-        MVMNT?: {
-            state?: { timelineStore?: TimelineStoreApi };
-            selectors?: { selectNotesInWindow?: SelectNotesInWindowFn };
-        };
-    }).MVMNT;
-
-    const timelineStore = hostApi?.state?.timelineStore;
-    const noteSelector = hostApi?.selectors?.selectNotesInWindow;
-
-    return {
-        timelineStore: timelineStore && typeof timelineStore.getState === 'function' ? timelineStore : null,
-        selectNotesInWindow: typeof noteSelector === 'function' ? noteSelector : null,
-    };
-}
 
 export class MidiNotesElement extends SceneElement {
     constructor(id: string = 'midiNotes', config: Record<string, unknown> = {}) {
@@ -165,15 +130,20 @@ export class MidiNotesElement extends SceneElement {
             return objects;
         }
         
-        // Get MIDI data at current time from host timeline API
+        // Get MIDI data at current time from public host plugin API
         const EPS = 1e-3; // Small epsilon to get notes at current time
-        const { timelineStore, selectNotesInWindow } = getHostTimelineApi();
+        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
-        if (!timelineStore || !selectNotesInWindow) {
+        if (!api || status !== 'ok') {
+            const message = status === 'unsupported-version'
+                ? 'Plugin API version unsupported'
+                : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                    ? 'Timeline API unavailable (requires timeline.read)'
+                    : 'Plugin host API unavailable';
             objects.push(
                 new Text(
                     0, 0,
-                    'MIDI API unavailable',
+                    message,
                     '12px Inter, sans-serif',
                     '#64748b',
                     'left',
@@ -183,8 +153,7 @@ export class MidiNotesElement extends SceneElement {
             return objects;
         }
 
-        const state = timelineStore.getState();
-        const activeNotes = selectNotesInWindow(state, {
+        const activeNotes = api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - EPS,
             endSec: targetTime + EPS,
@@ -206,7 +175,7 @@ export class MidiNotesElement extends SceneElement {
         }
         
         // Render each active note
-        activeNotes.forEach((noteData: ActiveNote, index: number) => {
+        activeNotes.forEach((noteData, index: number) => {
             const x = index * (props.noteWidth + props.noteSpacing);
             
             // Draw note bar
@@ -222,7 +191,7 @@ export class MidiNotesElement extends SceneElement {
             
             // Draw note name if enabled
             if (props.showNoteNames) {
-                const noteName = this._getNoteNameFromNumber(noteData.note);
+                const noteName = api.utilities.midiNoteToName(noteData.note);
                 objects.push(
                     new Text(
                         x + props.noteWidth / 2,
@@ -238,12 +207,5 @@ export class MidiNotesElement extends SceneElement {
         });
         
         return objects;
-    }
-    
-    private _getNoteNameFromNumber(noteNumber: number): string {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(noteNumber / 12) - 1;
-        const noteName = noteNames[noteNumber % 12];
-        return `${noteName}${octave}`;
     }
 }

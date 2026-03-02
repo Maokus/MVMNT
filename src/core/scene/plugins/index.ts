@@ -22,3 +22,8 @@ export {
     type PluginHostApi,
     type PluginHostCapability,
 } from './host-api/plugin-api';
+export {
+    getPluginHostApi,
+    type PluginHostApiResolution,
+    type PluginHostApiStatus,
+} from './host-api/get-plugin-host-api';

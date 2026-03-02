@@ -1,11 +1,10 @@
 // Template: Audio Reactive Element
 // Reacts to audio volume/RMS to create dynamic visualizations
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
-import { Arc, Rectangle, type RenderObject } from '@core/render/render-objects';
+import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
+import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getFeatureData } from '@audio/features/sceneApi';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
 
 // Register audio features this element needs
 registerFeatureRequirements('audioReactive', [
@@ -14,9 +13,6 @@ registerFeatureRequirements('audioReactive', [
 
 const normalizeAudioTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;
-
-const normalizeChannelSelector: PropertyTransform<string | number | null, SceneElementInterface> = (value) =>
-    normalizeChannelSelectorInput(value);
 
 const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -117,15 +113,26 @@ export class AudioReactiveElement extends SceneElement {
         if (!props.visible) return [];
         
         const objects: RenderObject[] = [];
+
+        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        if (!api || status !== 'ok') {
+            const message = status === 'unsupported-version'
+                ? 'Plugin API version unsupported'
+                : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
+                    ? 'Audio API unavailable (requires audio.features.read)'
+                    : 'Plugin host API unavailable';
+            objects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            return objects;
+        }
         
-        // Get audio data
-        const audioData = getFeatureData(
-            this,
-            props.audioTrackId,
-            'rms',
-            targetTime,
-            { smoothing: props.smoothing }
-        );
+        // Get audio data from public host API
+        const audioData = api.audio.sampleFeatureAtTime({
+            element: this,
+            trackId: props.audioTrackId,
+            feature: 'rms',
+            time: targetTime,
+            samplingOptions: { smoothing: props.smoothing },
+        });
         
         // Get volume value (0-1 range typically)
         const volume = audioData?.values?.[0] ?? 0;
