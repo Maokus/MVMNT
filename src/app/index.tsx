@@ -9,6 +9,8 @@ import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
 import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
 import { loadAllPluginsFromStorage } from '@core/scene/plugins';
+import { useTimelineStore } from '@state/timelineStore';
+import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
   void import('@devtools/registerWindowTools');
 }
@@ -18,6 +20,16 @@ import { setCanonicalPPQ } from '@core/timing/ppq';
 (globalThis as any).ReactDOM = ReactDOM;
 (globalThis as any).ReactJSXRuntime = ReactJsxRuntime;
 (globalThis as any).ReactJSXDevRuntime = ReactJsxDevRuntime;
+
+const mvmntGlobal = ((globalThis as any).MVMNT ??= {});
+mvmntGlobal.state = {
+  ...(mvmntGlobal.state ?? {}),
+  timelineStore: useTimelineStore,
+};
+mvmntGlobal.selectors = {
+  ...(mvmntGlobal.selectors ?? {}),
+  selectNotesInWindow,
+};
 
 // Early initialization: allow overriding canonical PPQ via Vite env var VITE_CANONICAL_PPQ
 try {

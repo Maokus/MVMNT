@@ -3,11 +3,45 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
 
 const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;
+
+type TimelineStoreApi = {
+    getState: () => unknown;
+};
+
+type NoteWindowParams = {
+    trackIds: string[];
+    startSec: number;
+    endSec: number;
+};
+
+type ActiveNote = {
+    note: number;
+};
+
+type SelectNotesInWindowFn = (state: unknown, params: NoteWindowParams) => ActiveNote[];
+
+function getHostTimelineApi(): {
+    timelineStore: TimelineStoreApi | null;
+    selectNotesInWindow: SelectNotesInWindowFn | null;
+} {
+    const hostApi = (globalThis as {
+        MVMNT?: {
+            state?: { timelineStore?: TimelineStoreApi };
+            selectors?: { selectNotesInWindow?: SelectNotesInWindowFn };
+        };
+    }).MVMNT;
+
+    const timelineStore = hostApi?.state?.timelineStore;
+    const noteSelector = hostApi?.selectors?.selectNotesInWindow;
+
+    return {
+        timelineStore: timelineStore && typeof timelineStore.getState === 'function' ? timelineStore : null,
+        selectNotesInWindow: typeof noteSelector === 'function' ? noteSelector : null,
+    };
+}
 
 export class MidiNotesElement extends SceneElement {
     constructor(id: string = 'midiNotes', config: Record<string, unknown> = {}) {
@@ -131,9 +165,25 @@ export class MidiNotesElement extends SceneElement {
             return objects;
         }
         
-        // Get MIDI data at current time from timeline store
+        // Get MIDI data at current time from host timeline API
         const EPS = 1e-3; // Small epsilon to get notes at current time
-        const state = useTimelineStore.getState();
+        const { timelineStore, selectNotesInWindow } = getHostTimelineApi();
+
+        if (!timelineStore || !selectNotesInWindow) {
+            objects.push(
+                new Text(
+                    0, 0,
+                    'MIDI API unavailable',
+                    '12px Inter, sans-serif',
+                    '#64748b',
+                    'left',
+                    'top'
+                )
+            );
+            return objects;
+        }
+
+        const state = timelineStore.getState();
         const activeNotes = selectNotesInWindow(state, {
             trackIds: [props.midiTrackId],
             startSec: targetTime - EPS,
@@ -156,7 +206,7 @@ export class MidiNotesElement extends SceneElement {
         }
         
         // Render each active note
-        activeNotes.forEach((noteData: any, index: number) => {
+        activeNotes.forEach((noteData: ActiveNote, index: number) => {
             const x = index * (props.noteWidth + props.noteSpacing);
             
             // Draw note bar
