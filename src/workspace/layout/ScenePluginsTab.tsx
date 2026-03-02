@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
-import { loadPlugin, unloadPlugin } from '@core/scene/plugins';
+import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin } from '@core/scene/plugins';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -45,13 +45,12 @@ const ScenePluginsTab: React.FC = () => {
 
     const handleTogglePlugin = async (pluginId: string, currentlyEnabled: boolean) => {
         if (currentlyEnabled) {
-            usePluginStore.getState().disablePlugin(pluginId);
-            await unloadPlugin(pluginId);
+            const result = await disablePlugin(pluginId);
+            if (!result.success) {
+                usePluginStore.getState().setPluginError(pluginId, result.error || 'Failed to disable plugin');
+            }
         } else {
-            usePluginStore.getState().clearPluginError(pluginId);
-            usePluginStore.getState().enablePlugin(pluginId);
-            const { reloadPluginFromStorage } = await import('@core/scene/plugins/plugin-loader');
-            const result = await reloadPluginFromStorage(pluginId);
+            const result = await enablePlugin(pluginId);
             if (!result.success) {
                 usePluginStore.getState().setPluginError(pluginId, result.error || 'Failed to reload plugin');
             }

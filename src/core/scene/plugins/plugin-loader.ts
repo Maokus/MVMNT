@@ -12,12 +12,32 @@ export interface PluginLoadResult {
     registeredTypes?: string[];
 }
 
+interface LoadPluginOptions {
+    persist?: boolean;
+    allowExistingPlugin?: boolean;
+}
+
+function dispatchPluginAvailabilityEvent(detail: {
+    action: 'installed' | 'enabled' | 'disabled' | 'removed';
+    pluginId: string;
+    registeredTypes?: string[];
+    unregisteredTypes?: string[];
+}) {
+    try {
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('mvmnt-plugin-availability-changed', { detail }));
+        }
+    } catch {
+        /* ignore event failures */
+    }
+}
+
 /**
  * Load a plugin from a .mvmnt-plugin bundle (ZIP file)
  */
 export async function loadPlugin(
     bundleData: ArrayBuffer,
-    options: { persist?: boolean } = {}
+    options: LoadPluginOptions = {}
 ): Promise<PluginLoadResult> {
     try {
         // Unzip the bundle
@@ -49,7 +69,7 @@ export async function loadPlugin(
 
         // Check if plugin is already loaded
         const existingPlugin = usePluginStore.getState().plugins[manifest.id];
-        if (existingPlugin) {
+        if (existingPlugin && !options.allowExistingPlugin) {
             return {
                 success: false,
                 error: `Plugin '${manifest.id}' is already loaded`,
@@ -119,17 +139,11 @@ export async function loadPlugin(
             pluginId: manifest.id,
             registeredTypes,
         };
-        try {
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(
-                    new CustomEvent('mvmnt-plugin-installed', {
-                        detail: { pluginId: manifest.id, registeredTypes },
-                    })
-                );
-            }
-        } catch {
-            /* ignore event failures */
-        }
+        dispatchPluginAvailabilityEvent({
+            action: existingPlugin ? 'enabled' : 'installed',
+            pluginId: manifest.id,
+            registeredTypes,
+        });
 
         return result;
     } catch (error) {
@@ -160,6 +174,12 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
         // Remove from storage
         await PluginBinaryStore.delete(pluginId);
 
+        dispatchPluginAvailabilityEvent({
+            action: 'removed',
+            pluginId,
+            unregisteredTypes: unregistered,
+        });
+
         console.log(`[PluginLoader] Unloaded plugin '${pluginId}', unregistered ${unregistered.length} elements`);
 
         return { success: true };
@@ -170,16 +190,61 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
 }
 
 /**
+ * Disable a plugin without removing it from storage or settings.
+ */
+export async function disablePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const plugin = usePluginStore.getState().plugins[pluginId];
+        if (!plugin) {
+            return { success: false, error: `Plugin '${pluginId}' is not loaded` };
+        }
+
+        const unregistered = sceneElementRegistry.unregisterPlugin(pluginId);
+        usePluginStore.getState().disablePlugin(pluginId);
+
+        dispatchPluginAvailabilityEvent({
+            action: 'disabled',
+            pluginId,
+            unregisteredTypes: unregistered,
+        });
+
+        return { success: true };
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errorMsg };
+    }
+}
+
+/**
+ * Re-enable a plugin from persisted binary storage.
+ */
+export async function enablePlugin(pluginId: string): Promise<PluginLoadResult> {
+    try {
+        usePluginStore.getState().clearPluginError(pluginId);
+        return await reloadPluginFromStorage(pluginId, { allowExistingPlugin: true });
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errorMsg };
+    }
+}
+
+/**
  * Reload a plugin from storage (used on app startup)
  */
-export async function reloadPluginFromStorage(pluginId: string): Promise<PluginLoadResult> {
+export async function reloadPluginFromStorage(
+    pluginId: string,
+    options: Pick<LoadPluginOptions, 'allowExistingPlugin'> = {}
+): Promise<PluginLoadResult> {
     try {
         const bundleData = await PluginBinaryStore.get(pluginId);
         if (!bundleData) {
             return { success: false, error: `Plugin '${pluginId}' not found in storage` };
         }
 
-        return await loadPlugin(bundleData);
+        return await loadPlugin(bundleData, {
+            persist: false,
+            allowExistingPlugin: options.allowExistingPlugin,
+        });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         return { success: false, error: errorMsg };

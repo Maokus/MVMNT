@@ -74,6 +74,7 @@ export class SceneRuntimeAdapter {
     private disposed = false;
     private readonly handleFontLoaded: (event: Event) => void;
     private readonly handlePluginInstalled: (event: Event) => void;
+    private readonly handlePluginAvailabilityChanged: (event: Event) => void;
 
     constructor(options?: SceneRuntimeAdapterOptions) {
         this.store = options?.store ?? useSceneStore;
@@ -92,6 +93,25 @@ export class SceneRuntimeAdapter {
                 this.refreshElementsForTypes(types);
             }
         };
+        this.handlePluginAvailabilityChanged = (event: Event) => {
+            const detail = (event as CustomEvent)?.detail as
+                | { registeredTypes?: string[]; unregisteredTypes?: string[] }
+                | undefined;
+            const types = new Set<string>();
+            if (Array.isArray(detail?.registeredTypes)) {
+                for (const type of detail.registeredTypes) {
+                    if (type) types.add(type);
+                }
+            }
+            if (Array.isArray(detail?.unregisteredTypes)) {
+                for (const type of detail.unregisteredTypes) {
+                    if (type) types.add(type);
+                }
+            }
+            if (types.size > 0) {
+                this.refreshElementsForTypes(Array.from(types));
+            }
+        };
 
         const initialState = this.store.getState();
         this.settings = { ...initialState.settings };
@@ -103,6 +123,7 @@ export class SceneRuntimeAdapter {
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
             window.addEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
+            window.addEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
         }
     }
 
@@ -111,6 +132,7 @@ export class SceneRuntimeAdapter {
         if (typeof window !== 'undefined') {
             window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
             window.removeEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
+            window.removeEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
         }
         this.unsubscribe?.();
         this.cache.forEach((entry) => {
@@ -253,6 +275,11 @@ export class SceneRuntimeAdapter {
         }
         if (mutated) {
             this.adapterVersion += 1;
+            try {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+                }
+            } catch {}
         }
     }
 

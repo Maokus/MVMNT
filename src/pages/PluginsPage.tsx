@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePluginStore } from '@state/pluginStore';
-import { loadPlugin, unloadPlugin } from '@core/scene/plugins';
+import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin } from '@core/scene/plugins';
 
 /**
  * Plugins Settings Page
@@ -51,16 +51,12 @@ const PluginsPage: React.FC = () => {
 
     const handleTogglePlugin = async (pluginId: string, currentlyEnabled: boolean) => {
         if (currentlyEnabled) {
-            // Disable plugin
-            usePluginStore.getState().disablePlugin(pluginId);
-            await unloadPlugin(pluginId);
+            const result = await disablePlugin(pluginId);
+            if (!result.success) {
+                usePluginStore.getState().setPluginError(pluginId, result.error || 'Failed to disable plugin');
+            }
         } else {
-            // Re-enable plugin
-            usePluginStore.getState().clearPluginError(pluginId);
-            usePluginStore.getState().enablePlugin(pluginId);
-            // Reload the plugin from storage
-            const { reloadPluginFromStorage } = await import('@core/scene/plugins/plugin-loader');
-            const result = await reloadPluginFromStorage(pluginId);
+            const result = await enablePlugin(pluginId);
             if (!result.success) {
                 usePluginStore.getState().setPluginError(pluginId, result.error || 'Failed to reload plugin');
             }
@@ -148,10 +144,10 @@ const PluginsPage: React.FC = () => {
                                     <div
                                         key={plugin.manifest.id}
                                         className={`p-4 rounded-lg border transition ${hasError
-                                                ? 'bg-rose-900/20 border-rose-500/40'
-                                                : plugin.enabled
-                                                    ? 'bg-emerald-900/20 border-emerald-500/40'
-                                                    : 'bg-neutral-800/50 border-neutral-700'
+                                            ? 'bg-rose-900/20 border-rose-500/40'
+                                            : plugin.enabled
+                                                ? 'bg-emerald-900/20 border-emerald-500/40'
+                                                : 'bg-neutral-800/50 border-neutral-700'
                                             }`}
                                     >
                                         <div className="flex justify-between items-start">
@@ -242,8 +238,8 @@ const PluginsPage: React.FC = () => {
                                                     onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}
                                                     disabled={isLoading}
                                                     className={`px-3 py-1.5 rounded text-sm font-medium transition ${plugin.enabled
-                                                            ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                        ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                                                         } disabled:bg-neutral-700 disabled:text-neutral-400`}
                                                 >
                                                     {plugin.enabled ? 'Disable' : 'Enable'}

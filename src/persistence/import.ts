@@ -211,8 +211,9 @@ async function installEmbeddedPlugins(
             continue;
         }
 
-        const buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
-        const result = await loadPlugin(buffer, { persist });
+        const pluginBuffer = new ArrayBuffer(payload.byteLength);
+        new Uint8Array(pluginBuffer).set(payload);
+        const result = await loadPlugin(pluginBuffer, { persist });
         if (!result.success) {
             warnings.push(`Failed to install plugin ${dep.pluginId}: ${result.error || 'Unknown error'}`);
         }

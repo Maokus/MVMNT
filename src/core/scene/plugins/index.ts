@@ -1,4 +1,11 @@
-export { loadPlugin, unloadPlugin, loadAllPluginsFromStorage, type PluginLoadResult } from './plugin-loader';
+export {
+    loadPlugin,
+    unloadPlugin,
+    disablePlugin,
+    enablePlugin,
+    loadAllPluginsFromStorage,
+    type PluginLoadResult,
+} from './plugin-loader';
 export {
     withRenderSafety,
     limitRenderObjects,
