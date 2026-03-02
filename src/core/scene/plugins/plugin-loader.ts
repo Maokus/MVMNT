@@ -13,7 +13,6 @@ export interface PluginLoadResult {
 }
 
 interface LoadPluginOptions {
-    persist?: boolean;
     allowExistingPlugin?: boolean;
 }
 
@@ -76,11 +75,8 @@ export async function loadPlugin(
             };
         }
 
-        // Store the bundle for future use (optional)
-        const shouldPersist = options.persist !== false;
-        if (shouldPersist) {
-            await PluginBinaryStore.put(manifest.id, bundleData);
-        }
+        // Store the bundle for future use
+        await PluginBinaryStore.put(manifest.id, bundleData);
 
         // Load and register each element
         const registeredTypes: string[] = [];
@@ -242,7 +238,6 @@ export async function reloadPluginFromStorage(
         }
 
         return await loadPlugin(bundleData, {
-            persist: false,
             allowExistingPlugin: options.allowExistingPlugin,
         });
     } catch (error) {

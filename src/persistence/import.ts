@@ -183,8 +183,7 @@ async function assessPluginDependencies(
 
 async function installEmbeddedPlugins(
     dependencies: ScenePluginDependency[],
-    pluginPayloads: Map<string, Uint8Array>,
-    persist: boolean
+    pluginPayloads: Map<string, Uint8Array>
 ): Promise<string[]> {
     const warnings: string[] = [];
     for (const dep of dependencies) {
@@ -213,7 +212,7 @@ async function installEmbeddedPlugins(
 
         const pluginBuffer = new ArrayBuffer(payload.byteLength);
         new Uint8Array(pluginBuffer).set(payload);
-        const result = await loadPlugin(pluginBuffer, { persist });
+        const result = await loadPlugin(pluginBuffer);
         if (!result.success) {
             warnings.push(`Failed to install plugin ${dep.pluginId}: ${result.error || 'Unknown error'}`);
         }
@@ -623,11 +622,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
             ? window.confirm('This scene includes embedded plugins needed for some elements. Install them now?')
             : false;
         if (shouldInstall) {
-            let persist = true;
-            if (canPrompt) {
-                persist = window.confirm('Remember these plugins on this browser for future projects?');
-            }
-            pluginWarnings.push(...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads, persist)));
+            pluginWarnings.push(...(await installEmbeddedPlugins(dependencyAssessment.embeddedMissing, pluginPayloads)));
         }
     }
 
