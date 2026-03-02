@@ -5,6 +5,8 @@ import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '@utils/color';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -42,6 +44,7 @@ const normalizeChannelSelector: PropertyTransform<string | number | null, SceneE
     normalizeChannelSelectorInput(value);
 
 export class AudioVolumeMeterElement extends SceneElement {
+    // Phase 3 reference pattern: intentionally consume audio data through the public plugin API.
     constructor(id: string = 'audioVolumeMeter', config: Record<string, unknown> = {}) {
         super('audioVolumeMeter', id, config);
     }
@@ -194,7 +197,17 @@ export class AudioVolumeMeterElement extends SceneElement {
             return objects;
         }
 
-        const result = getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const result =
+            api && status === 'ok'
+                ? api.audio.sampleFeatureAtTime({
+                      element: this,
+                      trackId: props.audioTrackId,
+                      feature: 'rms',
+                      time: targetTime,
+                      samplingOptions: { smoothing: props.smoothing },
+                  })
+                : getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
         const selected = selectChannelSample(result?.metadata.frame, props.channelSelector);
         const rawValue = selected?.values?.[0] ?? result?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - props.minValue) / Math.max(1e-6, props.maxValue - props.minValue));

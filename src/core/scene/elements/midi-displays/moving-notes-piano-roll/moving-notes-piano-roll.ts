@@ -6,8 +6,8 @@ import { getAnimationSelectOptions } from '@animation/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 import { TimingManager } from '@core/timing';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
@@ -28,7 +28,7 @@ const applyLegacyOpacity = (color: string, opacity?: number): string => {
 export class MovingNotesPianoRollElement extends SceneElement {
     public animationController: MovingNotesAnimationController;
     private timingManager: TimingManager;
-    // TimelineService removed; use store selectors for MIDI retrieval
+    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
@@ -715,17 +715,18 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor;
         const pianoRightBorderWidth = props.pianoRightBorderWidth;
         const effectivePianoWidth = showPiano ? pianoWidth : 0; // mirror TimeUnit roll layout behavior
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
 
-        // Update local timing manager from global store for view window duration calculations
+        // Update local timing manager from global timeline snapshot for view window duration calculations
         try {
-            const state = useTimelineStore.getState();
-            const bpm = state.timeline.globalBpm || 120;
-            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            const bpm = timelineState?.timeline.globalBpm || 120;
+            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
             this.timingManager.setBPM(bpm);
             this.timingManager.setBeatsPerBar(beatsPerBar);
             // If a master tempo map exists, apply to timing manager for accurate windows
-            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
-                this.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
+                this.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
             } else {
                 this.timingManager.setTempoMap(null);
             }
@@ -764,11 +765,10 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowStart = effectiveTime - duration * playheadPosition;
         const windowEnd = windowStart + duration;
 
-        // Fetch notes for this window from timeline store
-        const state = useTimelineStore.getState();
+        // Fetch notes for this window from public plugin host API
         const rawNotes =
-            props.midiTrackId
-                ? selectNotesInWindow(state, {
+            props.midiTrackId && status === 'ok' && api
+                ? api.timeline.selectNotesInWindow({
                       trackIds: [props.midiTrackId],
                       startSec: windowStart,
                       endSec: windowEnd,

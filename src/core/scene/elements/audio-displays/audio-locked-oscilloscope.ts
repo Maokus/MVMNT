@@ -5,6 +5,8 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
@@ -35,6 +37,7 @@ const normalizeChannelSelector: PropertyTransform<string | number | null, SceneE
     normalizeChannelSelectorInput(value);
 
 export class AudioLockedOscilloscopeElement extends SceneElement {
+    // Phase 3 reference pattern: intentionally consume audio data through the public plugin API.
     constructor(id: string = 'audioLockedOscilloscope', config: Record<string, unknown> = {}) {
         super('audioLockedOscilloscope', id, config);
     }
@@ -157,9 +160,20 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
             return objects;
         }
 
-        const frame = sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const sample =
+            api && status === 'ok'
+                ? api.audio.sampleFeatureAtTime({
+                      element: this,
+                      trackId: props.audioTrackId,
+                      feature: PITCH_WAVEFORM_DESCRIPTOR,
+                      time: targetTime,
+                  })
+                : null;
+
+        const frame = sample?.metadata.frame ?? sampleFeatureFrame(props.audioTrackId, PITCH_WAVEFORM_DESCRIPTOR, targetTime);
         const selection = selectChannelSample(frame, props.channelSelector);
-        const channelValues = selection?.values ?? frame?.values ?? [];
+        const channelValues = selection?.values ?? sample?.values ?? frame?.values ?? [];
 
         if (!channelValues.length) {
             objects.push(

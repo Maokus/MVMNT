@@ -7,6 +7,8 @@ import { sampleAudioFeatureRange, type AudioFeatureRangeSample } from '@state/se
 import { resolveDescriptorProfileId } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -295,6 +297,115 @@ function padChannelSeries(series: ChannelSeriesMap, plan: ChannelPaddingPlan): C
     return mutated ? { ...series, ...padded } : series;
 }
 
+function averageFinite(values: number[]): number {
+    if (!values.length) {
+        return 0;
+    }
+    let total = 0;
+    let count = 0;
+    values.forEach((value) => {
+        if (Number.isFinite(value)) {
+            total += value;
+            count += 1;
+        }
+    });
+    return count > 0 ? total / count : 0;
+}
+
+function extractSampleChannelScalars(sample: {
+    values?: number[];
+    metadata?: {
+        channels?: number;
+        frame?: {
+            channels?: number;
+            channelValues?: number[][];
+            format?: AudioFeatureRangeSample['format'];
+        };
+    };
+}): number[] {
+    const frame = sample.metadata?.frame;
+    const channelValues = frame?.channelValues;
+    if (Array.isArray(channelValues) && channelValues.length > 0) {
+        return channelValues.map((channel) => averageFinite(Array.isArray(channel) ? channel : []));
+    }
+
+    const values = Array.isArray(sample.values) ? sample.values : [];
+    const detectedChannels = Math.max(
+        1,
+        Math.floor(Number(sample.metadata?.channels ?? frame?.channels ?? 1)) || 1
+    );
+    if (values.length >= detectedChannels) {
+        return Array.from({ length: detectedChannels }, (_, index) => {
+            const value = values[index] ?? 0;
+            return Number.isFinite(value) ? value : 0;
+        });
+    }
+
+    if (values.length === 0) {
+        return Array.from({ length: detectedChannels }, () => 0);
+    }
+
+    const fallback = Number.isFinite(values[0]) ? (values[0] as number) : 0;
+    return Array.from({ length: detectedChannels }, (_, index) => {
+        const value = values[index] ?? fallback;
+        return Number.isFinite(value) ? value : 0;
+    });
+}
+
+function buildRangeFromHostSamples(
+    samples: Array<{
+        values?: number[];
+        metadata?: {
+            channels?: number;
+            frame?: {
+                channels?: number;
+                channelValues?: number[][];
+                format?: AudioFeatureRangeSample['format'];
+            };
+        };
+    }>,
+    startTick: number,
+    endTick: number,
+    trackId: string
+): AudioFeatureRangeSample | null {
+    if (!samples.length) {
+        return null;
+    }
+
+    const perSample = samples.map((sample) => extractSampleChannelScalars(sample));
+    const channels = Math.max(1, ...perSample.map((values) => values.length));
+    const data: number[] = [];
+
+    perSample.forEach((values) => {
+        for (let channelIndex = 0; channelIndex < channels; channelIndex += 1) {
+            const fallback = values.length > 0 ? (values[values.length - 1] ?? 0) : 0;
+            const value = values[channelIndex] ?? fallback;
+            data.push(clamp(value, -1, 1));
+        }
+    });
+
+    const frameCount = perSample.length;
+    const hopTicks = Math.max(1, Math.round((endTick - startTick) / Math.max(1, frameCount - 1)));
+    const frameTicks = Float64Array.from({ length: frameCount }, (_, index) => startTick + index * hopTicks);
+    const format = samples[0]?.metadata?.frame?.format ?? 'float32';
+
+    return {
+        hopTicks,
+        frameCount,
+        channels,
+        format,
+        data: Float32Array.from(data),
+        frameTicks,
+        requestedStartTick: startTick,
+        requestedEndTick: endTick,
+        windowStartTick: startTick,
+        windowEndTick: endTick,
+        trackStartTick: startTick,
+        trackEndTick: endTick,
+        sourceId: trackId,
+    };
+}
+
 function extractBaseChannelValues(range: AudioFeatureRangeSample): number[][] {
     const channelStride = Math.max(1, Math.floor(range.channels ?? 0) || 1);
     if (!range.data?.length || range.frameCount < 1) {
@@ -429,6 +540,7 @@ function renderWaveformDots(points: { x: number; y: number }[], options: RenderW
 }
 
 export class AudioWaveformElement extends SceneElement {
+    // Phase 3 reference pattern: intentionally consume audio/timing data through the public plugin API.
     constructor(id: string = 'audioWaveform', config: Record<string, unknown> = {}) {
         super('audioWaveform', id, config);
     }
@@ -751,22 +863,54 @@ export class AudioWaveformElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const timing = getSharedTimingManager();
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead, PLUGIN_CAPABILITIES.timingConversion]);
+
         const startSeconds = targetTime - props.windowSeconds * startOffset;
         const endSeconds = startSeconds + props.windowSeconds;
-        const startTick = Math.floor(timing.secondsToTicks(startSeconds));
-        const endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
+        let startTick = 0;
+        let endTick = 0;
 
-        const state = useTimelineStore.getState();
-        const range = sampleAudioFeatureRange(
-            state,
-            props.audioTrackId,
-            descriptor.featureKey,
-            startTick,
-            endTick,
-            undefined,
-            analysisProfileId
-        );
+        const range = (() => {
+            if (api && status === 'ok') {
+                const startTickRaw = api.timing.secondsToTicks(startSeconds);
+                const endTickRaw = api.timing.secondsToTicks(endSeconds);
+                if (startTickRaw === null || endTickRaw === null) {
+                    return null;
+                }
+                startTick = Math.floor(startTickRaw);
+                endTick = Math.max(startTick + 1, Math.ceil(endTickRaw));
+                const stepSec = Math.max(1 / 240, props.windowSeconds / Math.max(32, Math.round(width)));
+                const hostSamples = api.audio.sampleFeatureRange({
+                    element: this,
+                    trackId: props.audioTrackId,
+                    feature: descriptor,
+                    startTime: startSeconds,
+                    endTime: endSeconds,
+                    stepSec,
+                });
+                return buildRangeFromHostSamples(hostSamples, startTick, endTick, props.audioTrackId);
+            }
+
+            if (status !== 'ok') {
+                const timing = getSharedTimingManager();
+                startTick = Math.floor(timing.secondsToTicks(startSeconds));
+                endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
+                const state = useTimelineStore.getState();
+                return (
+                    sampleAudioFeatureRange(
+                        state,
+                        props.audioTrackId,
+                        descriptor.featureKey,
+                        startTick,
+                        endTick,
+                        undefined,
+                        analysisProfileId
+                    ) ?? null
+                );
+            }
+
+            return null;
+        })();
 
         if (!range || !range.data?.length) {
             return pushMessage('No waveform data');

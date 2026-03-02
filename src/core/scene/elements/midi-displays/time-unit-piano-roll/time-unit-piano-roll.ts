@@ -7,8 +7,8 @@ import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from './note-block';
 import { MidiManager } from '@core/midi/midi-manager';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 
@@ -32,6 +32,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
     public midiManager: MidiManager;
     public animationController: AnimationController;
     // (Min BBox cache removed; layout stabilizes via includeInLayoutBounds)
+    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
 
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
@@ -1148,20 +1149,21 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetY = props.beatLabelOffsetY ?? -5;
         const beatLabelOffsetX = props.beatLabelOffsetX ?? 5;
         const beatLabelOpacity = props.beatLabelOpacity ?? 1;
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
         // midiFile handling removed; use timeline tracks only
 
-        // Update timing via midiManager from global store
+        // Update timing via midiManager from global timeline snapshot
         try {
-            const state = useTimelineStore.getState();
-            const bpm = state.timeline.globalBpm || 120;
-            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            const bpm = timelineState?.timeline.globalBpm || 120;
+            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
             this.midiManager.setBPM(bpm);
             this.midiManager.setBeatsPerBar(beatsPerBar);
-            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
-                this.midiManager.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
+                this.midiManager.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
             } else {
                 this.midiManager.timingManager.setTempoMap(null);
             }
@@ -1228,12 +1230,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end;
-                const state = useTimelineStore.getState();
-                const events = selectNotesInWindow(state, {
+                const events = status === 'ok' && api
+                    ? api.timeline.selectNotesInWindow({
                     trackIds: effectiveTrackIds,
                     startSec: queryStart,
                     endSec: queryEnd,
-                });
+                })
+                    : [];
                 sourceNotes = events.map((e) => ({
                     note: e.note,
                     channel: e.channel,

@@ -4,8 +4,8 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types.js
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 
 const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
     const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
@@ -15,6 +15,7 @@ const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInt
 };
 
 export class NotesPlayedTrackerElement extends SceneElement {
+    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
     constructor(id: string = 'notesPlayedTracker', config: { [key: string]: any } = {}) {
         super('notesPlayedTracker', id, config);
     }
@@ -133,6 +134,7 @@ export class NotesPlayedTrackerElement extends SceneElement {
         const renderObjects: RenderObject[] = [];
 
         const effectiveTime = Math.max(0, targetTime);
+        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
         // Compute counts from notes via timeline
         const trackId = props.midiTrackId;
@@ -140,13 +142,22 @@ export class NotesPlayedTrackerElement extends SceneElement {
         let totalNotes = 0;
         let playedNotes = 0;
         let playedEvents = 0;
+        if (trackId && (!api || status !== 'ok')) {
+            const message =
+                status === 'unsupported-version'
+                    ? 'Plugin API version unsupported'
+                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                    ? 'Timeline API unavailable (requires timeline.read)'
+                    : 'Plugin host API unavailable';
+            renderObjects.push(new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            return renderObjects;
+        }
         if (trackId) {
-            const state = useTimelineStore.getState();
-            const all = selectNotesInWindow(state, {
+            const all = api?.timeline.selectNotesInWindow({
                 trackIds: [trackId],
                 startSec: 0,
                 endSec: Number.POSITIVE_INFINITY,
-            });
+            }) ?? [];
             totalNotes = all.length;
             if (targetTime >= 0) {
                 for (const note of all) {
