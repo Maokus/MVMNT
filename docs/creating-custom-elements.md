@@ -7,6 +7,7 @@ This guide explains how to create custom scene elements for MVMNT using the plug
 ## Table of Contents
 
 - [Overview](#overview)
+- [Public Plugin API (Required)](#public-plugin-api-required)
 - [Getting Started](#getting-started)
 - [Minimal Example Plugin](#minimal-example-plugin)
 - [Plugin Manifest Reference](#plugin-manifest-reference)
@@ -27,6 +28,22 @@ Key concepts:
 - **Plugin System**: Bundles custom elements for distribution and runtime loading
 - **Property Bindings**: Dynamic property system supporting constants, macros, and data-driven values
 - **Render Objects**: Low-level primitives (Rectangle, Circle, Text, etc.) that define visual output
+
+## Public Plugin API (Required)
+
+Plugin-facing element code must use the stable host API from `@core/scene/plugins`.
+
+Do not import host internals (`@state/*`, `@selectors/*`, `@audio/features/sceneApi`) from plugin/template code.
+
+Use:
+
+- `getPluginHostApi(requiredCapabilities?)`
+- `PLUGIN_CAPABILITIES`
+
+See:
+
+- [Plugin API v1](plugin-api-v1.md)
+- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 
 ## Getting Started
 
@@ -339,36 +356,32 @@ Elements can bind properties to various data sources for dynamic behavior.
 Example: Creating an audio-reactive element
 
 ```typescript
-import { getFeatureData } from '@audio/features/sceneApi';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
-import { selectChannelSample } from '@audio/audioFeatureUtils';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
 
-// Register required features (do this at module level)
-registerFeatureRequirements('myAudioElement', [
-    { feature: 'rms' },      // Volume/RMS
-    { feature: 'spectrum' }, // Frequency spectrum
-]);
+const REQUIRED_CAPS = [PLUGIN_CAPABILITIES.audioFeaturesRead] as const;
 
 export class MyAudioElement extends SceneElement {
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
+
+        const { api, status, missingCapabilities } = getPluginHostApi([...REQUIRED_CAPS]);
+        if (!api || status !== 'ok') {
+            const message = status === 'unsupported-version'
+                ? 'Plugin API version unsupported'
+                : missingCapabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead)
+                    ? 'Audio API unavailable (requires audio.features.read)'
+                    : 'Plugin host API unavailable';
+            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
+        }
         
-        // Get RMS data for the specified audio track
-        const rmsData = getFeatureData(
-            this,
-            props.audioTrackId,
-            'rms',
-            targetTime,
-            { smoothing: props.smoothing }
-        );
-        
-        // Select specific channel or use default
-        const channelData = selectChannelSample(
-            rmsData?.metadata.frame,
-            props.channelSelector
-        );
-        
-        const volume = channelData?.values?.[0] ?? rmsData?.values?.[0] ?? 0;
+        const rmsData = api.audio.sampleFeatureAtTime({
+            element: this,
+            trackId: props.audioTrackId,
+            feature: 'rms',
+            time: targetTime,
+            samplingOptions: { smoothing: props.smoothing },
+        });
+        const volume = rmsData?.values?.[0] ?? 0;
         
         // Use volume to drive visualization
         const size = 50 + volume * 200;
@@ -390,22 +403,33 @@ export class MyAudioElement extends SceneElement {
 Example: Responding to MIDI notes
 
 ```typescript
-import { getMidiData } from '@core/midi/midiDataService';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
     
     if (!props.midiTrackId) return [];
+
+    const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+    if (!api || status !== 'ok') {
+        const message = status === 'unsupported-version'
+            ? 'Plugin API version unsupported'
+            : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                ? 'Timeline API unavailable (requires timeline.read)'
+                : 'Plugin host API unavailable';
+        return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
+    }
     
-    // Get MIDI data at current time
-    const midiData = getMidiData(props.midiTrackId, targetTime);
-    
-    // Access active notes
-    const activeNotes = midiData?.notesPlaying || [];
+    const EPS = 1e-3;
+    const activeNotes = api.timeline.selectNotesInWindow({
+        trackIds: [props.midiTrackId],
+        startSec: targetTime - EPS,
+        endSec: targetTime + EPS,
+    });
     
     // Render based on active notes
     return activeNotes.map((note, i) => {
-        const y = (128 - note.noteNumber) * 5;
+        const y = (128 - note.note) * 5;
         return new Rectangle(i * 20, y, 18, 4, props.noteColor);
     });
 }
@@ -816,6 +840,8 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 
 ## Related Documentation
 
+- [Plugin API v1](plugin-api-v1.md)
+- [Plugin API Migration Guide](plugin-api-migration-guide.md)
 - [Plugin Manifest Schema](plugin-manifest.schema.json)
 - [Architecture Overview](ARCHITECTURE.md)
 - Scene System Documentation _(coming soon)_
