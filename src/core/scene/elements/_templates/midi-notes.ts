@@ -3,7 +3,8 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
+import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
 
 const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;

@@ -1,5 +1,9 @@
 import { unzipSync } from 'fflate';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import * as sceneElementBaseModule from '@core/scene/elements/base';
+import * as renderObjectsModule from '@core/render/render-objects';
+import * as pluginHostApiModule from '@core/scene/plugins/host-api/get-plugin-host-api';
+import * as pluginApiModule from '@core/scene/plugins/host-api/plugin-api';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { satisfiesVersion } from './version-check';
@@ -15,6 +19,18 @@ export interface PluginLoadResult {
 interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
 }
+
+const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
+    '@core/scene/elements/base': sceneElementBaseModule,
+    '@core/scene/elements/base.js': sceneElementBaseModule,
+    '@core/render/render-objects': renderObjectsModule,
+    '@core/render/render-objects/index': renderObjectsModule,
+    '@core/render/render-objects/index.js': renderObjectsModule,
+    '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
+    '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
+    '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
+    '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
+};
 
 function dispatchPluginAvailabilityEvent(detail: {
     action: 'installed' | 'enabled' | 'disabled' | 'removed';
@@ -326,6 +342,11 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
     const loadFn = new Function('module', 'exports', 'require', code);
 
     const mockRequire = (id: string) => {
+        const directModule = PLUGIN_RUNTIME_MODULES[id];
+        if (directModule) {
+            return directModule;
+        }
+
         if (id === 'react' || id === 'React') {
             return (globalThis as any).React;
         }
@@ -341,7 +362,8 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
         if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
             const path = id.replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
-                .replace(/^@utils\//, 'MVMNT.utils.');
+                .replace(/^@utils\//, 'MVMNT.utils.')
+                .replace(/\//g, '.');
             const parts = path.split('.');
             let obj: any = globalThis;
             for (const part of parts) {

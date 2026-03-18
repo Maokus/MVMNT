@@ -157,15 +157,6 @@ async function bundleElement(element, pluginDir, outputDir) {
                 '@types/*',
                 '@constants/*',
             ],
-            // Resolve path aliases
-            alias: {
-                '@core': path.join(projectRoot, 'src/core'),
-                '@audio': path.join(projectRoot, 'src/audio'),
-                '@utils': path.join(projectRoot, 'src/utils'),
-                '@state': path.join(projectRoot, 'src/state'),
-                '@types': path.join(projectRoot, 'src/types'),
-                '@constants': path.join(projectRoot, 'src/constants'),
-            },
         });
         
         return outputFileName;
@@ -419,7 +410,7 @@ async function main() {
             process.exit(1);
         }
         
-        console.log('Available plugins:');
+        console.log('Detected plugins:');
         pluginDirs.forEach(dir => {
             const pluginJsonPath = path.join(pluginsDir, dir.name, 'plugin.json');
             try {
