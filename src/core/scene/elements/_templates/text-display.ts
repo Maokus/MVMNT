@@ -1,8 +1,15 @@
 // Template: Text Display Element
 // Displays customizable text with various formatting options
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
-import { Text, Rectangle, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
+import {
+    SceneElement,
+    asNumber,
+    asTrimmedString,
+    Text,
+    Rectangle,
+    type PropertyTransform,
+    type RenderObject,
+} from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
 
 const normalizeTextAlign: PropertyTransform<'left' | 'center' | 'right', SceneElementInterface> = (value, element) => {
     const normalized = asTrimmedString(value, element)?.toLowerCase();

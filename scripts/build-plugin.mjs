@@ -30,6 +30,89 @@ const BUILTIN_ELEMENT_TYPES = [
     'audioVolumeMeter', 'audioWaveform', 'audioLockedOscilloscope', 'debug'
 ];
 
+const PLUGIN_PUBLIC_IMPORTS = new Set([
+    '@mvmnt/plugin-sdk',
+    'react',
+    'react-dom',
+    'react/jsx-runtime',
+    'react/jsx-dev-runtime',
+]);
+
+const LEGACY_INTERNAL_IMPORT_PREFIXES = ['@core/', '@audio/', '@utils/'];
+
+const BLOCKED_INTERNAL_IMPORT_PREFIXES = [
+    '@state/',
+    '@selectors/',
+    '@persistence/',
+    '@constants/',
+    '@types/',
+    '@app/',
+    '@workspace/',
+    '@context/',
+    '@fonts/',
+    '@assets/',
+    '@export/',
+    '@animation/',
+    '@bindings/',
+    '@math/',
+    '@pages/',
+    '@devtools/',
+    '@config/',
+];
+
+function extractModuleSpecifiers(sourceCode) {
+    const specifiers = new Set();
+    const patterns = [
+        /import\s+[^'"\n]+\s+from\s+['"]([^'"\n]+)['"]/g,
+        /import\s+['"]([^'"\n]+)['"]/g,
+        /require\(\s*['"]([^'"\n]+)['"]\s*\)/g,
+        /import\(\s*['"]([^'"\n]+)['"]\s*\)/g,
+    ];
+
+    for (const pattern of patterns) {
+        let match = pattern.exec(sourceCode);
+        while (match) {
+            specifiers.add(match[1]);
+            match = pattern.exec(sourceCode);
+        }
+    }
+
+    return [...specifiers];
+}
+
+function validateElementImports(sourceCode, elementName) {
+    const errors = [];
+    const warnings = [];
+    const moduleSpecifiers = extractModuleSpecifiers(sourceCode);
+
+    for (const specifier of moduleSpecifiers) {
+        if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) {
+            continue;
+        }
+
+        if (PLUGIN_PUBLIC_IMPORTS.has(specifier)) {
+            continue;
+        }
+
+        const blockedPrefix = BLOCKED_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
+        if (blockedPrefix) {
+            errors.push(
+                `${elementName}: Import '${specifier}' is not part of the public plugin API. Use '@mvmnt/plugin-sdk' instead.`
+            );
+            continue;
+        }
+
+        const legacyPrefix = LEGACY_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
+        if (legacyPrefix) {
+            warnings.push(
+                `${elementName}: Import '${specifier}' is a legacy internal alias. Migrate to '@mvmnt/plugin-sdk'.`
+            );
+        }
+    }
+
+    return { errors, warnings };
+}
+
 /**
  * Validate plugin manifest against schema
  */
@@ -148,6 +231,7 @@ async function bundleElement(element, pluginDir, outputDir) {
             minify: true,
             sourcemap: false,
             external: [
+                '@mvmnt/plugin-sdk',
                 'react',
                 'react-dom',
                 '@core/*',
@@ -301,6 +385,33 @@ async function buildPlugin(pluginDir) {
         throw new Error('Element class validation failed');
     }
     console.log('✓ All element classes are valid');
+    console.log();
+
+    // Validate imports against public plugin API contract
+    console.log('Validating plugin imports...');
+    const importValidationErrors = [];
+    const importValidationWarnings = [];
+    for (const element of manifest.elements) {
+        const entryPath = path.join(pluginDir, element.entry);
+        const elementCode = fs.readFileSync(entryPath, 'utf8');
+        const { errors, warnings } = validateElementImports(elementCode, element.name);
+        importValidationErrors.push(...errors);
+        importValidationWarnings.push(...warnings);
+    }
+
+    if (importValidationWarnings.length > 0) {
+        console.warn('Import compatibility warnings:');
+        importValidationWarnings.forEach(warning => console.warn(`  ⚠ ${warning}`));
+        console.warn('  ⚠ Legacy aliases still work for now but will be removed in a future release.');
+    }
+
+    if (importValidationErrors.length > 0) {
+        console.error('Plugin import validation failed:');
+        importValidationErrors.forEach(error => console.error(`  ✗ ${error}`));
+        throw new Error('Plugin import validation failed');
+    }
+
+    console.log('✓ Plugin imports use the public contract');
     console.log();
     
     // Create build directory

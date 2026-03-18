@@ -79,6 +79,9 @@
       ],
       "@assets/*": [
         "assets/*"
+      ],
+      "@mvmnt/plugin-sdk": [
+        "core/scene/plugins/plugin-sdk"
       ]
     }
   },

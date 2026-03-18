@@ -11,7 +11,9 @@ This document defines the stable host API available to plugins at runtime.
 - Semver compatibility rule for plugins: require `^1.0.0` for v1 hosts
 - Capability model: plugins request capabilities and degrade gracefully when unavailable
 
-Use `getPluginHostApi(requiredCapabilities?)` from `@core/scene/plugins` instead of reading host internals directly.
+Use `getPluginHostApi(requiredCapabilities?)` from `@mvmnt/plugin-sdk` instead of reading host internals directly.
+
+Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, etc.) as private implementation details.
 
 ## Capabilities
 
@@ -25,7 +27,7 @@ Exported constants:
 ## Access Pattern
 
 ```ts
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { api, status, missingCapabilities } = getPluginHostApi([
     PLUGIN_CAPABILITIES.timelineRead,
