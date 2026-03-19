@@ -5,8 +5,7 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample } from '@audio/audioFeatureUtils';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 

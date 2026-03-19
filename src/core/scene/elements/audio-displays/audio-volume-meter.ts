@@ -5,8 +5,7 @@ import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '@utils/color';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;

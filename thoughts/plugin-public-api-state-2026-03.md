@@ -43,13 +43,13 @@ The default scene elements serve a dual purpose: they are functional app element
 
 ### Audio Display Elements
 
-All four switch to the plugin API for data access but import `getPluginHostApi` and `PLUGIN_CAPABILITIES` from the internal path `@core/scene/plugins/host-api/…` rather than from `@mvmnt/plugin-sdk`. They retain legacy fallback paths for when the host API is unavailable.
+All four switch to the plugin API for data access and now import `getPluginHostApi` and `PLUGIN_CAPABILITIES` from `@mvmnt/plugin-sdk`. They retain legacy fallback paths for when the host API is unavailable.
 
 | Element | Plugin API import source | Legacy fallback |
 |---------|--------------------------|-----------------|
-| `audio-spectrum.ts` | `@core/scene/plugins/host-api/…` (internal) | `getFeatureData` from `@audio/features/sceneApi` |
-| `audio-volume-meter.ts` | `@core/scene/plugins/host-api/…` (internal) | `getFeatureData` from `@audio/features/sceneApi` |
-| `audio-locked-oscilloscope.ts` | `@core/scene/plugins/host-api/…` (internal) | `sampleFeatureFrame` from `@audio/audioFeatureUtils` |
+| `audio-spectrum.ts` | `@mvmnt/plugin-sdk` ✓ | `getFeatureData` from `@audio/features/sceneApi` |
+| `audio-volume-meter.ts` | `@mvmnt/plugin-sdk` ✓ | `getFeatureData` from `@audio/features/sceneApi` |
+| `audio-locked-oscilloscope.ts` | `@mvmnt/plugin-sdk` ✓ | `sampleFeatureFrame` from `@audio/audioFeatureUtils` |
 | `audio-waveform.ts` | `@core/scene/plugins/host-api/…` (internal) | Deep: `@state/selectors/audioFeatureSelectors` + `getSharedTimingManager` + `useTimelineStore.getState()` |
 
 The legacy fallbacks make sense for internal elements (they will always run in-process) but undermine the reference implementation goal.
@@ -58,11 +58,11 @@ The legacy fallbacks make sense for internal elements (they will always run in-p
 
 | Element | Status | Notes |
 |---------|--------|-------|
-| `notes-played-tracker.ts` | Partial | Uses internal `@core/scene/plugins/host-api/…` |
-| `moving-notes-piano-roll.ts` | Partial | Uses internal `@core/scene/plugins/host-api/…` |
+| `notes-played-tracker.ts` | Migrated ✓ | Uses `@mvmnt/plugin-sdk` |
+| `moving-notes-piano-roll.ts` | Migrated ✓ | Uses `@mvmnt/plugin-sdk` |
 | `time-unit-piano-roll.ts` | Partial | Uses internal `@core/scene/plugins/host-api/…`, also retains a `MidiManager` instance |
-| `chord-estimate-display.ts` | Not migrated | Calls `useTimelineStore`/`@selectors/timelineSelectors` directly |
-| `notes-playing-display.ts` | Not migrated | Calls `useTimelineStore`/`@selectors/timelineSelectors` directly |
+| `chord-estimate-display.ts` | Migrated ✓ | Uses `getPluginHostApi` from `@mvmnt/plugin-sdk`; graceful-empty on missing API |
+| `notes-playing-display.ts` | Migrated ✓ | Uses `getPluginHostApi` from `@mvmnt/plugin-sdk`; graceful-empty on missing API |
 
 ---
 
@@ -78,35 +78,24 @@ Two sample plugin directories exist under `src/plugins/`.
 
 ## Current Issues
 
-### 1. `myplugin/` uses legacy imports
-Five files in the original sample plugin use `@core/…` paths, which are not available to external bundled plugins. These will fire runtime warnings from the legacy compat mechanism and may fail entirely for developers who try to use them as a starting point.
-
-**Severity:** Medium. Risks misleading plugin developers if they discover `myplugin/` rather than `myplugin2/`.
-
-### 2. Default elements import plugin API internals, not `@mvmnt/plugin-sdk`
-The Phase 3 "reference implementation" elements import `getPluginHostApi` from `@core/scene/plugins/host-api/…` rather than from `@mvmnt/plugin-sdk`. This means they don't actually demonstrate the public API surface in use. A plugin author reading these for guidance will copy internal paths that won't work outside the monorepo.
-
-**Severity:** Low for app correctness, medium for the reference goal.
+### ~~2. Default elements import plugin API internals, not `@mvmnt/plugin-sdk`~~ — Resolved
+All partially-migrated elements (`audio-spectrum`, `audio-volume-meter`, `audio-locked-oscilloscope`, `notes-played-tracker`, `moving-notes-piano-roll`) now import `getPluginHostApi` and `PLUGIN_CAPABILITIES` from `@mvmnt/plugin-sdk`. `audio-waveform.ts` is unchanged (lower-priority item).
 
 ### 3. `audio-waveform.ts` has the most entangled legacy fallback
 Its fallback path reaches directly into `@state/selectors/audioFeatureSelectors`, `getSharedTimingManager`, and `useTimelineStore.getState()`. This is the most internal-state-coupled element and the most work to fully migrate.
 
 **Severity:** Medium complexity. Not urgent unless the element needs to become a true external plugin example.
 
-### 4. `chord-estimate-display.ts` and `notes-playing-display.ts` are untouched
-These two MIDI elements have no plugin API involvement at all — they call `useTimelineStore` and `selectNotesInWindow` from `@selectors/` directly, with no attempt to use the host API. They are listed as Phase 3 targets but no migration work has started.
-
-**Severity:** Medium. These are the most common visual types (chord readout, notes playing) and would make valuable reference implementations.
+### ~~4. `chord-estimate-display.ts` and `notes-playing-display.ts` are untouched~~ — Resolved
+Both now use `getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead])` and `api.timeline.selectNotesInWindow(…)`. Direct `useTimelineStore`/`@selectors/` imports removed. Graceful-empty degradation when the host API is unavailable.
 
 ### 5. `time-unit-piano-roll.ts` retains a `MidiManager` instance
 In addition to using internal `@core/…` plugin API paths, this element holds a direct `MidiManager` reference — a deeper coupling that goes beyond just the host API access layer.
 
 **Severity:** Medium. Requires understanding `MidiManager`'s lifecycle before the fallback can be removed.
 
-### 6. `FeatureDataResult` type not exported from `@mvmnt/plugin-sdk`
-The return type of `sampleAudio()` (and related audio functions) is not publicly exported. Plugin authors who want to type their audio data variables cannot do so from the public SDK.
-
-**Severity:** Low. Can be fixed with a single export.
+### ~~6. `FeatureDataResult` type not exported from `@mvmnt/plugin-sdk`~~ — Resolved
+Added `export type { FeatureDataResult } from '@audio/features/sceneApi'` to `plugin-sdk.ts`.
 
 ### 7. Phase 5 (lint/CI enforcement) not implemented
 Nothing in the build pipeline currently prevents:
@@ -147,14 +136,7 @@ The legacy compat warnings only fire at runtime for packaged plugins, not for in
 
 ## Next Steps
 
-**High priority:**
-1. Implement Phase 5 lint enforcement. Add an ESLint rule or `eslint-plugin-import` config that rejects `@state/`, `@selectors/`, `@core/`, `@audio/` imports in the `src/plugins/` directory and in any file tagged as a plugin example. This is the single highest-leverage step to prevent regression.
-2. Migrate or remove `myplugin/`. Either update all five files to `@mvmnt/plugin-sdk` imports to match `myplugin2/`, or delete the directory and leave only `myplugin2/` as the reference sample.
-
-**Medium priority:**
-3. Migrate `chord-estimate-display.ts` and `notes-playing-display.ts` to use the plugin host API for their data access, completing Phase 3 for MIDI elements.
-4. Update the partially-migrated elements (`audio-spectrum`, `audio-volume-meter`, `audio-locked-oscilloscope`, `notes-played-tracker`, `moving-notes-piano-roll`) to import `getPluginHostApi` and `PLUGIN_CAPABILITIES` from `@mvmnt/plugin-sdk` rather than from internal paths.
-5. Export `FeatureDataResult` (and any other result types) from `plugin-sdk.ts` so plugin authors can type their own variables.
+**Medium priority:** *(all done)*
 
 **Lower priority:**
 6. Investigate and remove the `MidiManager` instance in `time-unit-piano-roll.ts`.

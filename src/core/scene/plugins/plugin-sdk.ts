@@ -64,3 +64,4 @@ export {
 export { registerFeatureRequirements };
 export type { AudioFeatureRequirement };
 export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
+export type { FeatureDataResult } from '@audio/features/sceneApi';

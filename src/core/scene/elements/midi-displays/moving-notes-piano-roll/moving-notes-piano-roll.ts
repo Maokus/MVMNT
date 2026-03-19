@@ -6,8 +6,7 @@ import { getAnimationSelectOptions } from '@animation/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';

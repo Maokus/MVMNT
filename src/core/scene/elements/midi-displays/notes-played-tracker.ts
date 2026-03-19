@@ -4,8 +4,7 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types.js
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
     const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;

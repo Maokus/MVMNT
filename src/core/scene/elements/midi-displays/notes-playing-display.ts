@@ -4,8 +4,7 @@ import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import type { SceneElementInterface } from '@core/types.js';
 
 const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
@@ -145,13 +144,13 @@ export class NotesPlayingDisplayElement extends SceneElement {
 
         const effectiveTime = Math.max(0, targetTime);
 
-        // Determine active notes at effectiveTime via timeline store selector
+        // Determine active notes at effectiveTime via plugin host API
         const trackId = props.midiTrackId;
         const active: { note: number; vel: number; channel: number }[] = [];
-        if (trackId) {
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        if (trackId && api && status === 'ok') {
             const EPS = 1e-3;
-            const state = useTimelineStore.getState();
-            const notes = selectNotesInWindow(state, {
+            const notes = api.timeline.selectNotesInWindow({
                 trackIds: [trackId],
                 startSec: effectiveTime - EPS,
                 endSec: effectiveTime + EPS,
