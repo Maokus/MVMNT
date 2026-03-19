@@ -335,7 +335,7 @@ function validateElementClass(elementCode, elementName) {
 /**
  * Build a plugin from a directory
  */
-async function buildPlugin(pluginDir) {
+async function buildPlugin(pluginDir, outPath = null) {
     console.log('='.repeat(60));
     console.log('MVMNT Plugin Builder');
     console.log('='.repeat(60));
@@ -466,12 +466,14 @@ async function buildPlugin(pluginDir) {
     // Create plugin bundle
     console.log('Creating plugin bundle...');
     const outputFileName = `${manifest.id}-${manifest.version}.mvmnt-plugin`;
-    const outputPath = path.join(projectRoot, 'dist', outputFileName);
-    
-    // Create dist directory if needed
-    const distDir = path.join(projectRoot, 'dist');
-    if (!fs.existsSync(distDir)) {
-        fs.mkdirSync(distDir, { recursive: true });
+    const outputPath = outPath
+        ? path.resolve(outPath)
+        : path.join(projectRoot, 'dist', outputFileName);
+
+    // Create output directory if needed
+    const outputDir = path.dirname(outputPath);
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
     }
     
     await createPluginBundle(bundledManifest, buildDir, outputPath);
@@ -501,7 +503,16 @@ async function buildPlugin(pluginDir) {
  * Main entry point
  */
 async function main() {
-    const args = process.argv.slice(2);
+    const rawArgs = process.argv.slice(2);
+
+    // Parse --out <path> flag
+    const outFlagIndex = rawArgs.findIndex(a => a === '--out');
+    let outPath = null;
+    const args = [...rawArgs];
+    if (outFlagIndex >= 0) {
+        outPath = rawArgs[outFlagIndex + 1] ?? null;
+        args.splice(outFlagIndex, 2);
+    }
 
     // Detect available plugins
 
@@ -566,7 +577,7 @@ async function main() {
     }
     
     try {
-        await buildPlugin(pluginDir);
+        await buildPlugin(pluginDir, outPath);
     } catch (error) {
         console.error(`\nBuild failed: ${error.message}`);
         if (error.stack) {

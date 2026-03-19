@@ -3,6 +3,7 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
+import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { satisfiesVersion } from './version-check';
 import { version as MVMNT_VERSION } from '../../../../package.json';
 
@@ -188,6 +189,7 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
 
         // Remove from storage
         await PluginBinaryStore.delete(pluginId);
+        PluginSettingsStore.removeEntry(pluginId);
 
         dispatchPluginAvailabilityEvent({
             action: 'removed',
@@ -216,6 +218,7 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
 
         const unregistered = sceneElementRegistry.unregisterPlugin(pluginId);
         usePluginStore.getState().disablePlugin(pluginId);
+        PluginSettingsStore.setEnabled(pluginId, false);
 
         dispatchPluginAvailabilityEvent({
             action: 'disabled',
@@ -236,6 +239,7 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
 export async function enablePlugin(pluginId: string): Promise<PluginLoadResult> {
     try {
         usePluginStore.getState().clearPluginError(pluginId);
+        PluginSettingsStore.setEnabled(pluginId, true);
         return await reloadPluginFromStorage(pluginId, { allowExistingPlugin: true });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -280,6 +284,12 @@ export async function loadAllPluginsFromStorage(): Promise<void> {
             if (!result.success) {
                 console.error(`[PluginLoader] Failed to reload plugin '${pluginId}':`, result.error);
                 usePluginStore.getState().setPluginError(pluginId, result.error || 'Unknown error');
+            } else {
+                const storedEnabled = PluginSettingsStore.getEnabled(pluginId);
+                if (storedEnabled === false) {
+                    sceneElementRegistry.unregisterPlugin(pluginId);
+                    usePluginStore.getState().disablePlugin(pluginId);
+                }
             }
         }
     } catch (error) {
