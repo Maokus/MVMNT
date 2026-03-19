@@ -8,6 +8,8 @@ import {
     Rectangle,
     type PropertyTransform,
     type RenderObject,
+    parseFontSelection,
+    ensureFontLoaded,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
 
@@ -59,20 +61,21 @@ export class TextDisplayElement extends SceneElement {
                         {
                             key: 'fontSize',
                             type: 'number',
-                            label: 'Font Size',
-                            default: 48,
+                            label: 'Font Size (px)',
+                            default: 36,
                             min: 8,
-                            max: 200,
+                            max: 160,
                             step: 1,
-                            runtime: { transform: asNumber, defaultValue: 48 },
+                            description: 'Font size in pixels.',
+                            runtime: { transform: asNumber, defaultValue: 36 },
                         },
                         {
                             key: 'fontFamily',
-                            type: 'string',
+                            type: 'font',
                             label: 'Font Family',
-                            default: 'Inter, sans-serif',
-                            description: 'CSS font family',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter, sans-serif' },
+                            default: 'Inter',
+                            description: 'Choose the font family (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                     ],
                 },
@@ -202,7 +205,13 @@ export class TextDisplayElement extends SceneElement {
         }
         
         // Render text
-        const font = `${props.fontSize}px ${props.fontFamily}`;
+        const fontSelection = props.fontFamily ?? 'Inter'; // may be family or family|weight
+        const { family: fontFamily, weight: weightPart } = parseFontSelection(fontSelection);
+        const fontWeight = (weightPart || '400').toString();
+        const fontSize = props.fontSize ?? 36;
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
+        const font = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+
         objects.push(
             new Text(
                 0,
