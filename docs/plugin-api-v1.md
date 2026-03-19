@@ -1,6 +1,6 @@
 # Plugin API v1
 
-_Last Updated: 5 March 2026_
+_Last Updated: 19 March 2026_
 
 This document defines the stable host API available to plugins at runtime.
 
@@ -11,7 +11,9 @@ This document defines the stable host API available to plugins at runtime.
 - Semver compatibility rule for plugins: require `^1.0.0` for v1 hosts
 - Capability model: plugins request capabilities and degrade gracefully when unavailable
 
-Use `getPluginHostApi(requiredCapabilities?)` from `@core/scene/plugins` instead of reading host internals directly.
+Use `getPluginHostApi()` from `@mvmnt/plugin-sdk` instead of reading host internals directly.
+
+Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, etc.) as private implementation details.
 
 ## Capabilities
 
@@ -22,10 +24,16 @@ Exported constants:
 - `PLUGIN_CAPABILITIES.timingConversion` → `timing.conversion`
 - `PLUGIN_CAPABILITIES.midiUtils` → `midi.utils`
 
-## Access Pattern
+`timingConversion` and `midiUtils` are always available. `timelineRead` and `audioFeaturesRead` are conditionally available depending on host resources.
+
+## Access Patterns
+
+### Status-Based (default)
+
+The default pattern returns a resolution object for explicit status handling:
 
 ```ts
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { api, status, missingCapabilities } = getPluginHostApi([
     PLUGIN_CAPABILITIES.timelineRead,
@@ -55,16 +63,81 @@ const notes = api.timeline.selectNotesInWindow({
 - `unsupported-version`
 - `missing-capabilities`
 
+### Exception-Based
+
+Pass `{ throwOnError: true }` to get the API directly and use typed exception classes for error discrimination:
+
+```ts
+import {
+    getPluginHostApi,
+    MissingCapabilityError,
+    UnsupportedVersionError,
+} from '@mvmnt/plugin-sdk';
+
+try {
+    const api = getPluginHostApi({ throwOnError: true });
+    const notes = api.timeline.selectNotesInWindow({...});
+} catch (e) {
+    if (e instanceof MissingCapabilityError) {
+        console.error(`Capability "${e.capability}" not available`);
+    } else if (e instanceof UnsupportedVersionError) {
+        console.error('Plugin API version incompatible');
+    }
+}
+```
+
+Available exception classes (all extend `PluginApiError`):
+
+- `MissingHostError` — API not installed
+- `UnsupportedVersionError` — Version mismatch
+- `MissingCapabilityError` — Required capability unavailable (`e.capability` holds the capability string)
+
+### Direct Capability Imports
+
+Import specific API domains directly. These throw `MissingCapabilityError` if the capability is unavailable:
+
+```ts
+import { timelineApi, audioApi, timingApi, utilitiesApi } from '@mvmnt/plugin-sdk';
+
+const notes = timelineApi.selectNotesInWindow({...});
+const rms = audioApi.sampleFeatureAtTime({...});
+const beats = timingApi.secondsToBeats(10);
+const name = utilitiesApi.midiNoteToName(60);
+```
+
+### Shorthand Helpers
+
+Top-level convenience functions that degrade silently (return empty/fallback values when unavailable):
+
+```ts
+import { selectNotes, sampleAudio, timeToBeats, noteName } from '@mvmnt/plugin-sdk';
+
+const notes = selectNotes(trackIds, startSec, endSec);
+const beats = timeToBeats(10);
+const label = noteName(60); // 'C4'
+```
+
+Available helpers:
+
+- `selectNotes(trackIds, startSec, endSec)` — Select notes in time window
+- `sampleAudio(trackId, feature, time, options?)` — Sample feature at a time
+- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` — Sample feature over a range
+- `timeToBeats(seconds)` — Convert seconds to beats
+- `beatsToTime(beats)` — Convert beats to seconds
+- `timeToTicks(seconds)` — Convert seconds to ticks
+- `ticksToTime(ticks)` — Convert ticks to seconds
+- `noteName(noteNumber)` — Get MIDI note name (e.g. `'C4'`)
+
 ## API Surface
 
 ### `timeline`
+
+Requires `timeline.read` capability.
 
 - `getStateSnapshot(): TimelineState | null`
 - `selectNotesInWindow({ trackIds, startSec, endSec }): TimelineNoteEvent[]`
 - `getTrackById(trackId): Track | null`
 - `getTracksByIds(trackIds): Track[]`
-
-Example:
 
 ```ts
 const state = api.timeline.getStateSnapshot();
@@ -73,10 +146,10 @@ const bpm = state?.timeline.globalBpm ?? 120;
 
 ### `audio`
 
+Requires `audio.features.read` capability.
+
 - `sampleFeatureAtTime({ element?, trackId, feature, time, samplingOptions? }): FeatureDataResult | null`
 - `sampleFeatureRange({ element?, trackId, feature, startTime, endTime, stepSec, samplingOptions? }): FeatureDataResult[]`
-
-Example:
 
 ```ts
 const rms = api.audio.sampleFeatureAtTime({
@@ -92,6 +165,8 @@ const volume = rms?.values?.[0] ?? 0;
 
 ### `timing`
 
+Requires `timing.conversion` capability (always available).
+
 - `secondsToTicks(seconds): number | null`
 - `ticksToSeconds(ticks): number | null`
 - `secondsToBeats(seconds): number | null`
@@ -99,23 +174,61 @@ const volume = rms?.values?.[0] ?? 0;
 - `beatsToTicks(beats): number`
 - `ticksToBeats(ticks): number`
 
-Example:
-
 ```ts
 const beats = api.timing.secondsToBeats(targetTime) ?? 0;
 ```
 
 ### `utilities`
 
-- `midiNoteToName(noteNumber): string`
+Requires `midi.utils` capability (always available).
 
-Example:
+- `midiNoteToName(noteNumber): string`
 
 ```ts
 const label = api.utilities.midiNoteToName(60); // C4
 ```
 
-## Compatibility Rules
+## Capability Discovery
+
+`getAvailableCapabilities()` returns a typed boolean map of all capabilities:
+
+```ts
+const { api } = getPluginHostApi();
+const available = api.getAvailableCapabilities();
+
+if (available.timelineRead) {
+    // Show timeline-dependent UI
+} else {
+    // Show fallback UI
+}
+```
+
+The map shape matches the keys of `PLUGIN_CAPABILITIES`:
+
+```ts
+{
+    timelineRead: boolean;
+    audioFeaturesRead: boolean;
+    timingConversion: boolean;
+    midiUtils: boolean;
+}
+```
+
+## Error Hook
+
+Register a single handler to observe all capability errors emitted by the direct capability imports (`timelineApi`, `audioApi`, etc.):
+
+```ts
+const { api } = getPluginHostApi();
+
+if (api) {
+    api.onError((error, capability) => {
+        console.warn(`Capability ${capability} unavailable: ${error.message}`);
+    });
+}
+```
+
+## Compatibility
 
 - Same major version (`1.x.x`) is backward-compatible for existing methods.
 - New methods/capabilities are additive in minor releases.

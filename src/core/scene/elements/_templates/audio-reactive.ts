@@ -1,10 +1,18 @@
 // Template: Audio Reactive Element
 // Reacts to audio volume/RMS to create dynamic visualizations
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
-import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
-import { registerFeatureRequirements } from '@audio/audioElementMetadata';
+import {
+    SceneElement,
+    asNumber,
+    asTrimmedString,
+    Rectangle,
+    Text,
+    getPluginHostApi,
+    PLUGIN_CAPABILITIES,
+    registerFeatureRequirements,
+    type PropertyTransform,
+    type RenderObject,
+} from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
 
 // Register audio features this element needs
 registerFeatureRequirements('audioReactive', [

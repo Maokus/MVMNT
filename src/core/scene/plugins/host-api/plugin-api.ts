@@ -25,6 +25,8 @@ export const PLUGIN_CAPABILITIES = {
 
 export type PluginHostCapability = (typeof PLUGIN_CAPABILITIES)[keyof typeof PLUGIN_CAPABILITIES];
 
+export type PluginCapabilityMap = Record<keyof typeof PLUGIN_CAPABILITIES, boolean>;
+
 export interface PluginTimelineApi {
     getStateSnapshot(): TimelineState | null;
     selectNotesInWindow(args: { trackIds: string[]; startSec: number; endSec: number }): TimelineNoteEvent[];
@@ -71,6 +73,9 @@ export interface PluginHostApi {
     audio: PluginAudioApi;
     timing: PluginTimingApi;
     utilities: PluginUtilityApi;
+    getAvailableCapabilities(): PluginCapabilityMap;
+    onError(callback: (error: Error, capability: string) => void): void;
+    emitError(error: Error, capability: string): void;
 }
 
 export interface PluginHostGlobals {
@@ -134,6 +139,8 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
     if (hasAudioFeaturesRead) {
         capabilities.push(PLUGIN_CAPABILITIES.audioFeaturesRead);
     }
+
+    const errorCallbacks: Array<(error: Error, capability: string) => void> = [];
 
     const api: PluginHostApi = {
         apiVersion: PLUGIN_API_VERSION,
@@ -225,6 +232,20 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
             midiNoteToName(noteNumber) {
                 return toSafeNoteName(noteNumber);
             },
+        },
+        getAvailableCapabilities() {
+            return {
+                timelineRead: capabilities.includes(PLUGIN_CAPABILITIES.timelineRead),
+                audioFeaturesRead: capabilities.includes(PLUGIN_CAPABILITIES.audioFeaturesRead),
+                timingConversion: capabilities.includes(PLUGIN_CAPABILITIES.timingConversion),
+                midiUtils: capabilities.includes(PLUGIN_CAPABILITIES.midiUtils),
+            };
+        },
+        onError(callback: (error: Error, capability: string) => void) {
+            errorCallbacks.push(callback);
+        },
+        emitError(error: Error, capability: string) {
+            errorCallbacks.forEach(cb => cb(error, capability));
         },
     };
 

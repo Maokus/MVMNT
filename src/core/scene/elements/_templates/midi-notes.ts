@@ -1,10 +1,17 @@
 // Template: MIDI Notes Element
 // Displays currently playing MIDI notes as colored bars
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '@core/scene/elements/base';
-import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import {
+    SceneElement,
+    asNumber,
+    asTrimmedString,
+    Rectangle,
+    Text,
+    getPluginHostApi,
+    PLUGIN_CAPABILITIES,
+    type PropertyTransform,
+    type RenderObject,
+} from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
 
 const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;

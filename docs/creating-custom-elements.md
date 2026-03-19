@@ -31,7 +31,7 @@ Key concepts:
 
 ## Public Plugin API (Required)
 
-Plugin-facing element code must use the stable host API from `@core/scene/plugins`.
+Plugin-facing element code must use the stable host API from `@mvmnt/plugin-sdk`.
 
 Do not import host internals (`@state/*`, `@selectors/*`, `@audio/features/sceneApi`) from plugin/template code.
 
@@ -76,9 +76,8 @@ Here's a complete minimal plugin that renders a colored rectangle:
 
 ```typescript
 // src/plugins/my-plugin/simple-box.ts
-import { SceneElement, asNumber, asTrimmedString } from '@core/scene/elements/base';
-import { Rectangle, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema } from '@core/types';
+import { SceneElement, asNumber, asTrimmedString, Rectangle, type RenderObject } from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class SimpleBoxElement extends SceneElement {
     constructor(id: string = 'simpleBox', config: Record<string, unknown> = {}) {
@@ -216,7 +215,7 @@ Custom elements extend the `SceneElement` base class and implement specific meth
 ### Base Class
 
 ```typescript
-import { SceneElement } from '@core/scene/elements/base';
+import { SceneElement } from '@mvmnt/plugin-sdk';
 
 export class MyElement extends SceneElement {
     constructor(id: string = 'myElement', config: Record<string, unknown> = {}) {
@@ -356,7 +355,7 @@ Elements can bind properties to various data sources for dynamic behavior.
 Example: Creating an audio-reactive element
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const REQUIRED_CAPS = [PLUGIN_CAPABILITIES.audioFeaturesRead] as const;
 
@@ -403,7 +402,7 @@ export class MyAudioElement extends SceneElement {
 Example: Responding to MIDI notes
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
     const props = this.getSchemaProps();
@@ -456,7 +455,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 Elements can read any property with type transforms:
 
 ```typescript
-import { asNumber, asBoolean, asTrimmedString } from '@core/scene/elements/base';
+import { asNumber, asBoolean, asTrimmedString } from '@mvmnt/plugin-sdk';
 
 // In getConfigSchema():
 {

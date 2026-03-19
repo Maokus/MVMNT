@@ -1,5 +1,6 @@
 import { unzipSync } from 'fflate';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
 import * as sceneElementBaseModule from '@core/scene/elements/base';
 import * as renderObjectsModule from '@core/render/render-objects';
 import * as pluginHostApiModule from '@core/scene/plugins/host-api/get-plugin-host-api';
@@ -21,16 +22,31 @@ interface LoadPluginOptions {
 }
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
-    '@core/scene/elements/base': sceneElementBaseModule,
-    '@core/scene/elements/base.js': sceneElementBaseModule,
-    '@core/render/render-objects': renderObjectsModule,
-    '@core/render/render-objects/index': renderObjectsModule,
-    '@core/render/render-objects/index.js': renderObjectsModule,
-    '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
-    '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
-    '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
-    '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
+    '@mvmnt/plugin-sdk': pluginSdkModule,
+    // '@core/scene/elements/base': sceneElementBaseModule,
+    // '@core/scene/elements/base.js': sceneElementBaseModule,
+    // '@core/render/render-objects': renderObjectsModule,
+    // '@core/render/render-objects/index': renderObjectsModule,
+    // '@core/render/render-objects/index.js': renderObjectsModule,
+    // '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
+    // '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
+    // '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
+    // '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
 };
+
+const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
+const warnedLegacyImports = new Set<string>();
+
+function warnLegacyPluginImport(id: string): void {
+    if (!LEGACY_INTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))) {
+        return;
+    }
+    if (warnedLegacyImports.has(id)) {
+        return;
+    }
+    warnedLegacyImports.add(id);
+    console.warn(`[PluginLoader] Legacy plugin import detected: '${id}'. Prefer '@mvmnt/plugin-sdk'.`);
+}
 
 function dispatchPluginAvailabilityEvent(detail: {
     action: 'installed' | 'enabled' | 'disabled' | 'removed';
@@ -342,6 +358,8 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
     const loadFn = new Function('module', 'exports', 'require', code);
 
     const mockRequire = (id: string) => {
+        warnLegacyPluginImport(id);
+
         const directModule = PLUGIN_RUNTIME_MODULES[id];
         if (directModule) {
             return directModule;

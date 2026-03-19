@@ -13,7 +13,7 @@ Plugin and template code must not import internal host modules such as:
 - `@audio/features/sceneApi`
 - other app-internal state/selectors used only by the host
 
-Use `getPluginHostApi()` and `PLUGIN_CAPABILITIES` from `@core/scene/plugins`.
+Use `getPluginHostApi()` and `PLUGIN_CAPABILITIES` from `@mvmnt/plugin-sdk`.
 
 ## Old Pattern → New Pattern
 
@@ -35,7 +35,7 @@ const notes = selectNotesInWindow(useTimelineStore.getState(), {
 New:
 
 ```ts
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 const notes = status === 'ok' && api
@@ -56,7 +56,7 @@ const sample = getFeatureData(this, trackId, 'rms', targetTime, { smoothing: 0.5
 New:
 
 ```ts
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@core/scene/plugins';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
 const sample = status === 'ok' && api
@@ -102,7 +102,7 @@ const ticks = status === 'ok' && api ? api.timing.secondsToTicks(seconds) : null
 
 ## Migration Checklist
 
-1. Replace internal state/selector imports with `@core/scene/plugins` API access.
+1. Replace internal state/selector imports with `@mvmnt/plugin-sdk` API access.
 2. Request required capabilities with `getPluginHostApi([...])`.
 3. Handle all non-`ok` statuses with user-facing fallback rendering.
 4. Keep plugin logic working without timeline/audio data when unavailable.
@@ -128,6 +128,14 @@ Template references:
 - `src/core/scene/elements/_templates/audio-reactive.ts`
 
 ## Capability/Version Mismatch Troubleshooting
+
+## Import Policy
+
+- Preferred and supported: `@mvmnt/plugin-sdk`
+- Temporary legacy compatibility: selected `@core/*`, `@audio/*`, `@utils/*` imports
+- Unsupported and blocked by plugin build validation: host internals such as `@state/*`, `@selectors/*`, `@persistence/*`, `@constants/*`, and similar aliases
+
+Legacy internal imports are still resolved at runtime today but should be migrated. A future release will remove that compatibility bridge.
 
 ### Timeline unavailable
 
