@@ -8,10 +8,10 @@
  * - timeToBeats() instead of api.timing.secondsToBeats()
  */
 
-import { getPluginHostApi, type PluginHostCapability, type FeatureDataResult } from './host-api/get-plugin-host-api';
+import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import type { AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import type { TimelineNoteEvent } from '@state/selectors/timelineSelectors';
-import type { FeatureInput } from '@audio/features/sceneApi';
+import type { FeatureInput, FeatureDataResult } from '@audio/features/sceneApi';
 
 /**
  * Select notes in a specific time window

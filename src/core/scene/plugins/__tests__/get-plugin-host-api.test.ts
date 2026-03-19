@@ -27,6 +27,14 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
         utilities: {
             midiNoteToName: () => 'C4',
         },
+        getAvailableCapabilities: () => ({
+            timelineRead: true,
+            audioFeaturesRead: true,
+            timingConversion: true,
+            midiUtils: true,
+        }),
+        onError: (_cb: (error: Error, capability: string) => void) => {},
+        emitError: (_error: Error, _capability: string) => {},
         ...overrides,
     };
 }

@@ -2,13 +2,10 @@ import { SceneElement, asNumber, asTrimmedString } from '../base';
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
-import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
-import { sampleAudioFeatureRange, type AudioFeatureRangeSample } from '@state/selectors/audioFeatureSelectors';
-import { resolveDescriptorProfileId } from '@audio/audioFeatureUtils';
+import type { AudioFeatureRangeSample } from '@state/selectors/audioFeatureSelectors';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
-import { getPluginHostApi } from '@core/scene/plugins/host-api/get-plugin-host-api';
-import { PLUGIN_CAPABILITIES } from '@core/scene/plugins/host-api/plugin-api';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -849,7 +846,6 @@ export class AudioWaveformElement extends SceneElement {
         const showPlayhead = props.showPlayhead === true;
 
         const descriptor = WAVEFORM_DESCRIPTOR;
-        const analysisProfileId = resolveDescriptorProfileId(descriptor);
 
         const objects: RenderObject[] = [];
         objects.push(new Rectangle(0, 0, width, height, props.backgroundColor));
@@ -871,45 +867,24 @@ export class AudioWaveformElement extends SceneElement {
         let endTick = 0;
 
         const range = (() => {
-            if (api && status === 'ok') {
-                const startTickRaw = api.timing.secondsToTicks(startSeconds);
-                const endTickRaw = api.timing.secondsToTicks(endSeconds);
-                if (startTickRaw === null || endTickRaw === null) {
-                    return null;
-                }
-                startTick = Math.floor(startTickRaw);
-                endTick = Math.max(startTick + 1, Math.ceil(endTickRaw));
-                const stepSec = Math.max(1 / 240, props.windowSeconds / Math.max(32, Math.round(width)));
-                const hostSamples = api.audio.sampleFeatureRange({
-                    element: this,
-                    trackId: props.audioTrackId,
-                    feature: descriptor,
-                    startTime: startSeconds,
-                    endTime: endSeconds,
-                    stepSec,
-                });
-                return buildRangeFromHostSamples(hostSamples, startTick, endTick, props.audioTrackId);
+            if (!api || status !== 'ok') return null;
+            const startTickRaw = api.timing.secondsToTicks(startSeconds);
+            const endTickRaw = api.timing.secondsToTicks(endSeconds);
+            if (startTickRaw === null || endTickRaw === null) {
+                return null;
             }
-
-            if (status !== 'ok') {
-                const timing = getSharedTimingManager();
-                startTick = Math.floor(timing.secondsToTicks(startSeconds));
-                endTick = Math.max(startTick + 1, Math.ceil(timing.secondsToTicks(endSeconds)));
-                const state = useTimelineStore.getState();
-                return (
-                    sampleAudioFeatureRange(
-                        state,
-                        props.audioTrackId,
-                        descriptor.featureKey,
-                        startTick,
-                        endTick,
-                        undefined,
-                        analysisProfileId
-                    ) ?? null
-                );
-            }
-
-            return null;
+            startTick = Math.floor(startTickRaw);
+            endTick = Math.max(startTick + 1, Math.ceil(endTickRaw));
+            const stepSec = Math.max(1 / 240, props.windowSeconds / Math.max(32, Math.round(width)));
+            const hostSamples = api.audio.sampleFeatureRange({
+                element: this,
+                trackId: props.audioTrackId,
+                feature: descriptor,
+                startTime: startSeconds,
+                endTime: endSeconds,
+                stepSec,
+            });
+            return buildRangeFromHostSamples(hostSamples, startTick, endTick, props.audioTrackId);
         })();
 
         if (!range || !range.data?.length) {
