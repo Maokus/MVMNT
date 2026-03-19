@@ -502,19 +502,23 @@ async function buildPlugin(pluginDir) {
  */
 async function main() {
     const args = process.argv.slice(2);
+
+    // Detect available plugins
+
+    const pluginsDir = path.join(projectRoot, 'src/plugins');
+
+    if (!fs.existsSync(pluginsDir)) {
+        console.error('Error: No plugins directory found. Run "npm run create-element" to create a plugin.');
+        process.exit(1);
+    }
+
+    const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .filter(dir => fs.existsSync(path.join(pluginsDir, dir.name, 'plugin.json')));
     
     // If no argument provided, list available plugins
     if (args.length === 0) {
-        const pluginsDir = path.join(projectRoot, 'src/plugins');
         
-        if (!fs.existsSync(pluginsDir)) {
-            console.error('Error: No plugins directory found. Run "npm run create-element" to create a plugin.');
-            process.exit(1);
-        }
-        
-        const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory())
-            .filter(dir => fs.existsSync(path.join(pluginsDir, dir.name, 'plugin.json')));
         
         if (pluginDirs.length === 0) {
             console.error('Error: No valid plugins found. Run "npm run create-element" to create a plugin.');
@@ -538,15 +542,26 @@ async function main() {
     }
     
     // Build specified plugin
-    let pluginDir = args[0];
+    let inputPluginDir = args[0];
+    let pluginDir;
     
     // If relative path, resolve it
-    if (!path.isAbsolute(pluginDir)) {
-        pluginDir = path.join(projectRoot, pluginDir);
+    if (!path.isAbsolute(inputPluginDir)) {
+        pluginDir = path.join(projectRoot, inputPluginDir);
+    } else {
+        pluginDir = inputPluginDir;
+    }
+
+    if (!fs.existsSync(pluginDir)) {
+        // Check if it's a plugin name in the plugins directory
+        const matchedPluginDirs = pluginDirs.filter(dir => dir.name === inputPluginDir);
+        if (matchedPluginDirs.length > 0) {
+            pluginDir = path.join(pluginsDir, matchedPluginDirs[0].name);
+        }
     }
     
     if (!fs.existsSync(pluginDir)) {
-        console.error(`Error: Plugin directory not found: ${pluginDir}`);
+        console.error(`Error: Plugin directory not found: ${inputPluginDir}`);
         process.exit(1);
     }
     

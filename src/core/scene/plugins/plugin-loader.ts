@@ -23,15 +23,15 @@ interface LoadPluginOptions {
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt/plugin-sdk': pluginSdkModule,
-    '@core/scene/elements/base': sceneElementBaseModule,
-    '@core/scene/elements/base.js': sceneElementBaseModule,
-    '@core/render/render-objects': renderObjectsModule,
-    '@core/render/render-objects/index': renderObjectsModule,
-    '@core/render/render-objects/index.js': renderObjectsModule,
-    '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
-    '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
-    '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
-    '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
+    // '@core/scene/elements/base': sceneElementBaseModule,
+    // '@core/scene/elements/base.js': sceneElementBaseModule,
+    // '@core/render/render-objects': renderObjectsModule,
+    // '@core/render/render-objects/index': renderObjectsModule,
+    // '@core/render/render-objects/index.js': renderObjectsModule,
+    // '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
+    // '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
+    // '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
+    // '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
 };
 
 const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
