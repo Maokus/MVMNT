@@ -1,7 +1,6 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getFeatureData } from '@audio/features/sceneApi';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
@@ -427,9 +426,7 @@ export class AudioSpectrumElement extends SceneElement {
                           smoothing: props.smoothing,
                       },
                   })
-                : getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, {
-                      smoothing: props.smoothing,
-                  });
+                : null;
         const rawValues = sample?.values ?? [];
         if (!rawValues.length) {
             return pushMessage('No spectrum data');

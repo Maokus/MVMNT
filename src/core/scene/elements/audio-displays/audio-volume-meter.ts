@@ -1,7 +1,6 @@
 import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getFeatureData } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '@utils/color';
@@ -206,7 +205,7 @@ export class AudioVolumeMeterElement extends SceneElement {
                       time: targetTime,
                       samplingOptions: { smoothing: props.smoothing },
                   })
-                : getFeatureData(this, props.audioTrackId, 'rms', targetTime, { smoothing: props.smoothing });
+                : null;
         const selected = selectChannelSample(result?.metadata.frame, props.channelSelector);
         const rawValue = selected?.values?.[0] ?? result?.values?.[0] ?? 0;
         const normalized = clamp01((rawValue - props.minValue) / Math.max(1e-6, props.maxValue - props.minValue));

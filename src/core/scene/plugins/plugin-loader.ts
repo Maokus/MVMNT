@@ -1,10 +1,6 @@
 import { unzipSync } from 'fflate';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
-import * as sceneElementBaseModule from '@core/scene/elements/base';
-import * as renderObjectsModule from '@core/render/render-objects';
-import * as pluginHostApiModule from '@core/scene/plugins/host-api/get-plugin-host-api';
-import * as pluginApiModule from '@core/scene/plugins/host-api/plugin-api';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { satisfiesVersion } from './version-check';
@@ -23,15 +19,6 @@ interface LoadPluginOptions {
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt/plugin-sdk': pluginSdkModule,
-    // '@core/scene/elements/base': sceneElementBaseModule,
-    // '@core/scene/elements/base.js': sceneElementBaseModule,
-    // '@core/render/render-objects': renderObjectsModule,
-    // '@core/render/render-objects/index': renderObjectsModule,
-    // '@core/render/render-objects/index.js': renderObjectsModule,
-    // '@core/scene/plugins/host-api/get-plugin-host-api': pluginHostApiModule,
-    // '@core/scene/plugins/host-api/get-plugin-host-api.js': pluginHostApiModule,
-    // '@core/scene/plugins/host-api/plugin-api': pluginApiModule,
-    // '@core/scene/plugins/host-api/plugin-api.js': pluginApiModule,
 };
 
 const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
@@ -378,6 +365,9 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
             return (globalThis as any).ReactJSXDevRuntime;
         }
         if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
+            // Legacy compatibility: attempt to resolve internal aliases via the globalThis.MVMNT
+            // namespace. This will fail in normal packaged-plugin contexts since those globals are
+            // not populated. Plugins should import exclusively from '@mvmnt/plugin-sdk'.
             const path = id.replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
                 .replace(/^@utils\//, 'MVMNT.utils.')

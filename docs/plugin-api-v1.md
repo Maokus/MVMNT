@@ -15,6 +15,25 @@ Use `getPluginHostApi()` from `@mvmnt/plugin-sdk` instead of reading host intern
 
 Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, etc.) as private implementation details.
 
+## Development Setup
+
+`@mvmnt/plugin-sdk` is **not published to npm**. It is a TypeScript path alias defined in the project's `tsconfig.json` that resolves to `src/core/scene/plugins/plugin-sdk.ts` at compile time, and to a live module injected via `PLUGIN_RUNTIME_MODULES` at runtime.
+
+**To author plugins, you must either:**
+
+- Work inside this repository (recommended for first-party elements).
+- Build your plugin against the repo as a peer and configure the same path alias in your own `tsconfig.json`:
+
+  ```json
+  {
+    "paths": {
+      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"]
+    }
+  }
+  ```
+
+Do **not** attempt to `npm install @mvmnt/plugin-sdk` — no such package exists. The bundle produced by your build tool must not include the SDK source; the host injects it at load time.
+
 ## Capabilities
 
 Exported constants:
