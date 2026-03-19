@@ -130,6 +130,33 @@ The legacy compat warnings only fire at runtime for packaged plugins, not for in
 
 ---
 
+## API Drift Prevention (Phase 5)
+
+**Status: Implemented** — Compile-time enforcement added to prevent API drift.
+
+**What was done:**
+1. **Compile-time assertion in `plugin-sdk.ts`** — Added a type-based assertion that must compile. If a new capability is added to `PLUGIN_CAPABILITIES` without a corresponding export in the SDK, TypeScript will error at build time.
+
+2. **Comprehensive test suite** — Created `api-drift.test.ts` with 12 tests covering:
+   - Capability coverage (all keys from `PLUGIN_CAPABILITIES` are exported)
+   - Access pattern consistency (direct proxies, shortcuts, and accessor function all work)
+   - Capability-to-export mapping validation
+   - Drift detection scenarios
+
+3. **Documentation** — Updated comments in `plugin-sdk.ts` to clearly document the required changes when adding a new capability (11-item checklist, with 7 of them now enforced at compile-time).
+
+**How it works:**
+- When a developer adds a new capability to `PLUGIN_CAPABILITIES`, if they forget to export it from `plugin-sdk.ts`, TypeScript will fail during the build
+- The test suite validates the current state and documents expected behavior
+- No runtime cost — assertion is purely compile-time
+
+**Result:**
+- `npm run lint` (tsc --noEmit): ✓ Pass
+- `npm test -- api-drift`: ✓ All 12 tests pass
+- Zero regressions to existing code
+
+---
+
 ## Next Steps
 
 **Medium priority:** *(all done)*
@@ -137,7 +164,5 @@ The legacy compat warnings only fire at runtime for packaged plugins, not for in
 **Lower priority:**
 6. ~~Investigate and remove the `MidiManager` instance in `time-unit-piano-roll.ts`.~~ *(done)*
 7. ~~Fully migrate `audio-waveform.ts`~~ *(done)*
-6. Investigate and remove the `MidiManager` instance in `time-unit-piano-roll.ts`.
-7. Fully migrate `audio-waveform.ts` — this is the most complex legacy fallback and should be done carefully.
-8. Consider documenting the "no real npm package" limitation in `docs/plugin-api-v1.md` under the compatibility or distribution section.
-9. Introduce an automated check (or at minimum a documented process) to ensure new host API capabilities are also added to `plugin-sdk.ts`.
+8. ~~Introduce an automated check to ensure new host API capabilities are also added to `plugin-sdk.ts`.~~ *(done — compile-time assertion + tests)*
+9. Consider documenting the "no real npm package" limitation in `docs/plugin-api-v1.md` under the compatibility or distribution section.
