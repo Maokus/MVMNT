@@ -30,6 +30,89 @@ const BUILTIN_ELEMENT_TYPES = [
     'audioVolumeMeter', 'audioWaveform', 'audioLockedOscilloscope', 'debug'
 ];
 
+const PLUGIN_PUBLIC_IMPORTS = new Set([
+    '@mvmnt/plugin-sdk',
+    'react',
+    'react-dom',
+    'react/jsx-runtime',
+    'react/jsx-dev-runtime',
+]);
+
+const LEGACY_INTERNAL_IMPORT_PREFIXES = ['@core/', '@audio/', '@utils/'];
+
+const BLOCKED_INTERNAL_IMPORT_PREFIXES = [
+    '@state/',
+    '@selectors/',
+    '@persistence/',
+    '@constants/',
+    '@types/',
+    '@app/',
+    '@workspace/',
+    '@context/',
+    '@fonts/',
+    '@assets/',
+    '@export/',
+    '@animation/',
+    '@bindings/',
+    '@math/',
+    '@pages/',
+    '@devtools/',
+    '@config/',
+];
+
+function extractModuleSpecifiers(sourceCode) {
+    const specifiers = new Set();
+    const patterns = [
+        /import\s+[^'"\n]+\s+from\s+['"]([^'"\n]+)['"]/g,
+        /import\s+['"]([^'"\n]+)['"]/g,
+        /require\(\s*['"]([^'"\n]+)['"]\s*\)/g,
+        /import\(\s*['"]([^'"\n]+)['"]\s*\)/g,
+    ];
+
+    for (const pattern of patterns) {
+        let match = pattern.exec(sourceCode);
+        while (match) {
+            specifiers.add(match[1]);
+            match = pattern.exec(sourceCode);
+        }
+    }
+
+    return [...specifiers];
+}
+
+function validateElementImports(sourceCode, elementName) {
+    const errors = [];
+    const warnings = [];
+    const moduleSpecifiers = extractModuleSpecifiers(sourceCode);
+
+    for (const specifier of moduleSpecifiers) {
+        if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) {
+            continue;
+        }
+
+        if (PLUGIN_PUBLIC_IMPORTS.has(specifier)) {
+            continue;
+        }
+
+        const blockedPrefix = BLOCKED_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
+        if (blockedPrefix) {
+            errors.push(
+                `${elementName}: Import '${specifier}' is not part of the public plugin API. Use '@mvmnt/plugin-sdk' instead.`
+            );
+            continue;
+        }
+
+        const legacyPrefix = LEGACY_INTERNAL_IMPORT_PREFIXES.find((prefix) => specifier.startsWith(prefix));
+        if (legacyPrefix) {
+            warnings.push(
+                `${elementName}: Import '${specifier}' is a legacy internal alias. Migrate to '@mvmnt/plugin-sdk'.`
+            );
+        }
+    }
+
+    return { errors, warnings };
+}
+
 /**
  * Validate plugin manifest against schema
  */
@@ -148,6 +231,7 @@ async function bundleElement(element, pluginDir, outputDir) {
             minify: true,
             sourcemap: false,
             external: [
+                '@mvmnt/plugin-sdk',
                 'react',
                 'react-dom',
                 '@core/*',
@@ -157,15 +241,6 @@ async function bundleElement(element, pluginDir, outputDir) {
                 '@types/*',
                 '@constants/*',
             ],
-            // Resolve path aliases
-            alias: {
-                '@core': path.join(projectRoot, 'src/core'),
-                '@audio': path.join(projectRoot, 'src/audio'),
-                '@utils': path.join(projectRoot, 'src/utils'),
-                '@state': path.join(projectRoot, 'src/state'),
-                '@types': path.join(projectRoot, 'src/types'),
-                '@constants': path.join(projectRoot, 'src/constants'),
-            },
         });
         
         return outputFileName;
@@ -311,6 +386,33 @@ async function buildPlugin(pluginDir) {
     }
     console.log('✓ All element classes are valid');
     console.log();
+
+    // Validate imports against public plugin API contract
+    console.log('Validating plugin imports...');
+    const importValidationErrors = [];
+    const importValidationWarnings = [];
+    for (const element of manifest.elements) {
+        const entryPath = path.join(pluginDir, element.entry);
+        const elementCode = fs.readFileSync(entryPath, 'utf8');
+        const { errors, warnings } = validateElementImports(elementCode, element.name);
+        importValidationErrors.push(...errors);
+        importValidationWarnings.push(...warnings);
+    }
+
+    if (importValidationWarnings.length > 0) {
+        console.warn('Import compatibility warnings:');
+        importValidationWarnings.forEach(warning => console.warn(`  ⚠ ${warning}`));
+        console.warn('  ⚠ Legacy aliases still work for now but will be removed in a future release.');
+    }
+
+    if (importValidationErrors.length > 0) {
+        console.error('Plugin import validation failed:');
+        importValidationErrors.forEach(error => console.error(`  ✗ ${error}`));
+        throw new Error('Plugin import validation failed');
+    }
+
+    console.log('✓ Plugin imports use the public contract');
+    console.log();
     
     // Create build directory
     const buildDir = path.join(pluginDir, '.build');
@@ -400,26 +502,30 @@ async function buildPlugin(pluginDir) {
  */
 async function main() {
     const args = process.argv.slice(2);
+
+    // Detect available plugins
+
+    const pluginsDir = path.join(projectRoot, 'src/plugins');
+
+    if (!fs.existsSync(pluginsDir)) {
+        console.error('Error: No plugins directory found. Run "npm run create-element" to create a plugin.');
+        process.exit(1);
+    }
+
+    const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .filter(dir => fs.existsSync(path.join(pluginsDir, dir.name, 'plugin.json')));
     
     // If no argument provided, list available plugins
     if (args.length === 0) {
-        const pluginsDir = path.join(projectRoot, 'src/plugins');
         
-        if (!fs.existsSync(pluginsDir)) {
-            console.error('Error: No plugins directory found. Run "npm run create-element" to create a plugin.');
-            process.exit(1);
-        }
-        
-        const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory())
-            .filter(dir => fs.existsSync(path.join(pluginsDir, dir.name, 'plugin.json')));
         
         if (pluginDirs.length === 0) {
             console.error('Error: No valid plugins found. Run "npm run create-element" to create a plugin.');
             process.exit(1);
         }
         
-        console.log('Available plugins:');
+        console.log('Detected plugins:');
         pluginDirs.forEach(dir => {
             const pluginJsonPath = path.join(pluginsDir, dir.name, 'plugin.json');
             try {
@@ -436,15 +542,26 @@ async function main() {
     }
     
     // Build specified plugin
-    let pluginDir = args[0];
+    let inputPluginDir = args[0];
+    let pluginDir;
     
     // If relative path, resolve it
-    if (!path.isAbsolute(pluginDir)) {
-        pluginDir = path.join(projectRoot, pluginDir);
+    if (!path.isAbsolute(inputPluginDir)) {
+        pluginDir = path.join(projectRoot, inputPluginDir);
+    } else {
+        pluginDir = inputPluginDir;
+    }
+
+    if (!fs.existsSync(pluginDir)) {
+        // Check if it's a plugin name in the plugins directory
+        const matchedPluginDirs = pluginDirs.filter(dir => dir.name === inputPluginDir);
+        if (matchedPluginDirs.length > 0) {
+            pluginDir = path.join(pluginsDir, matchedPluginDirs[0].name);
+        }
     }
     
     if (!fs.existsSync(pluginDir)) {
-        console.error(`Error: Plugin directory not found: ${pluginDir}`);
+        console.error(`Error: Plugin directory not found: ${inputPluginDir}`);
         process.exit(1);
     }
     

@@ -46,7 +46,7 @@ export class AnimationController {
         const totalNotes = maxNote - minNote + 1;
 
         // Calculate time window using the element's time unit settings
-        const win = this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(
+        const win = this.timeUnitPianoRoll.timingManager.getTimeUnitWindow(
             targetTime,
             this.timeUnitPianoRoll.getTimeUnitBars()
         );
@@ -217,7 +217,7 @@ export class AnimationController {
         phases: { attack: number; decay: number; release: number }
     ): VisualState | null {
         // Robust lifecycle based on time-unit window, with ADSR phases and overlap guards
-        const win = this.timeUnitPianoRoll.midiManager.timingManager.getTimeUnitWindow(
+        const win = this.timeUnitPianoRoll.timingManager.getTimeUnitWindow(
             currentTime,
             this.timeUnitPianoRoll.getTimeUnitBars()
         );

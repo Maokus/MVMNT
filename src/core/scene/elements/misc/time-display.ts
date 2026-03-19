@@ -4,7 +4,7 @@ import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { useTimelineStore } from '@state/timelineStore';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 interface BarBeatTick {
     bar: number;
@@ -21,7 +21,6 @@ interface MinSecMs {
 
 export class TimeDisplayElement extends SceneElement {
     public timingManager: TimingManager;
-    public midiManager?: any;
 
     constructor(id: string = 'timeDisplay', config: { [key: string]: any } = {}) {
         super('timeDisplay', id, config);
@@ -131,17 +130,16 @@ export class TimeDisplayElement extends SceneElement {
         const textColor = props.textColor ?? '#FFFFFF';
         const textSecondaryColor = props.textSecondaryColor ?? 'rgba(255, 255, 255, 0.9)';
 
-        // Update timing manager from global timeline store
-        try {
-            const s = useTimelineStore.getState();
-            const bpm = s.timeline.globalBpm || 120;
-            const beatsPerBar = s.timeline.beatsPerBar || 4;
-            this.timingManager.setBPM(bpm);
-            this.timingManager.setBeatsPerBar(beatsPerBar);
-            if (s.timeline.masterTempoMap && s.timeline.masterTempoMap.length > 0)
-                this.timingManager.setTempoMap(s.timeline.masterTempoMap, 'seconds');
-            else this.timingManager.setTempoMap(null);
-        } catch {}
+        // Update timing manager via plugin API (timeline.read capability)
+        const { api } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const snapshot = api?.timeline.getStateSnapshot() ?? null;
+        const bpm = snapshot?.timeline.globalBpm || 120;
+        const beatsPerBar = snapshot?.timeline.beatsPerBar || 4;
+        this.timingManager.setBPM(bpm);
+        this.timingManager.setBeatsPerBar(beatsPerBar);
+        if (snapshot?.timeline.masterTempoMap && snapshot.timeline.masterTempoMap.length > 0)
+            this.timingManager.setTempoMap(snapshot.timeline.masterTempoMap, 'seconds');
+        else this.timingManager.setTempoMap(null);
         // Don't force a specific PPQ; respect MIDI data when available
 
         // Debug logging for timing calculations

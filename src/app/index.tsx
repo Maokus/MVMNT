@@ -9,6 +9,7 @@ import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
 import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
 import { loadAllPluginsFromStorage } from '@core/scene/plugins';
+import { installPluginHostApi } from '@core/scene/plugins';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
@@ -30,6 +31,7 @@ mvmntGlobal.selectors = {
   ...(mvmntGlobal.selectors ?? {}),
   selectNotesInWindow,
 };
+installPluginHostApi({ target: globalThis as any });
 
 // Early initialization: allow overriding canonical PPQ via Vite env var VITE_CANONICAL_PPQ
 try {

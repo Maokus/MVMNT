@@ -1,5 +1,6 @@
 import { unzipSync } from 'fflate';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { satisfiesVersion } from './version-check';
@@ -14,6 +15,24 @@ export interface PluginLoadResult {
 
 interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
+}
+
+const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
+    '@mvmnt/plugin-sdk': pluginSdkModule,
+};
+
+const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
+const warnedLegacyImports = new Set<string>();
+
+function warnLegacyPluginImport(id: string): void {
+    if (!LEGACY_INTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))) {
+        return;
+    }
+    if (warnedLegacyImports.has(id)) {
+        return;
+    }
+    warnedLegacyImports.add(id);
+    console.warn(`[PluginLoader] Legacy plugin import detected: '${id}'. Prefer '@mvmnt/plugin-sdk'.`);
 }
 
 function dispatchPluginAvailabilityEvent(detail: {
@@ -326,6 +345,13 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
     const loadFn = new Function('module', 'exports', 'require', code);
 
     const mockRequire = (id: string) => {
+        warnLegacyPluginImport(id);
+
+        const directModule = PLUGIN_RUNTIME_MODULES[id];
+        if (directModule) {
+            return directModule;
+        }
+
         if (id === 'react' || id === 'React') {
             return (globalThis as any).React;
         }
@@ -339,9 +365,13 @@ function evaluateCommonJsModule(code: string, elementType: string): any {
             return (globalThis as any).ReactJSXDevRuntime;
         }
         if (id.startsWith('@core/') || id.startsWith('@audio/') || id.startsWith('@utils/')) {
+            // Legacy compatibility: attempt to resolve internal aliases via the globalThis.MVMNT
+            // namespace. This will fail in normal packaged-plugin contexts since those globals are
+            // not populated. Plugins should import exclusively from '@mvmnt/plugin-sdk'.
             const path = id.replace(/^@core\//, 'MVMNT.core.')
                 .replace(/^@audio\//, 'MVMNT.audio.')
-                .replace(/^@utils\//, 'MVMNT.utils.');
+                .replace(/^@utils\//, 'MVMNT.utils.')
+                .replace(/\//g, '.');
             const parts = path.split('.');
             let obj: any = globalThis;
             for (const part of parts) {

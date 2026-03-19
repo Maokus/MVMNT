@@ -6,9 +6,8 @@ import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@animation/note-animations';
 import { NoteBlock } from './note-block';
-import { MidiManager } from '@core/midi/midi-manager';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { TimingManager } from '@core/timing/timing-manager';
+import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 
@@ -29,15 +28,16 @@ const applyLegacyOpacity = (color: string, opacity?: number): string => {
 };
 
 export class TimeUnitPianoRollElement extends SceneElement {
-    public midiManager: MidiManager;
+    public timingManager: TimingManager;
     public animationController: AnimationController;
     // (Min BBox cache removed; layout stabilizes via includeInLayoutBounds)
+    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
 
     constructor(id: string = 'timeUnitPianoRoll', config: { [key: string]: any } = {}) {
         super('timeUnitPianoRoll', id, config);
 
-        // Initialize MIDI manager (with its own TimingManager)
-        this.midiManager = new MidiManager(this.id);
+        // Initialize per-element TimingManager for beat grid / window calculations
+        this.timingManager = new TimingManager(this.id);
 
         // Initialize animation controller
         this.animationController = new AnimationController(this);
@@ -1148,22 +1148,23 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const beatLabelOffsetY = props.beatLabelOffsetY ?? -5;
         const beatLabelOffsetX = props.beatLabelOffsetX ?? 5;
         const beatLabelOpacity = props.beatLabelOpacity ?? 1;
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
         if (beatLabelFontFamily) ensureFontLoaded(beatLabelFontFamily, beatLabelFontWeight);
 
         // midiFile handling removed; use timeline tracks only
 
-        // Update timing via midiManager from global store
+        // Update timing from global timeline snapshot
         try {
-            const state = useTimelineStore.getState();
-            const bpm = state.timeline.globalBpm || 120;
-            const beatsPerBar = state.timeline.beatsPerBar || 4;
-            this.midiManager.setBPM(bpm);
-            this.midiManager.setBeatsPerBar(beatsPerBar);
-            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
-                this.midiManager.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            const bpm = timelineState?.timeline.globalBpm || 120;
+            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
+            this.timingManager.setBPM(bpm);
+            this.timingManager.setBeatsPerBar(beatsPerBar);
+            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
+                this.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
             } else {
-                this.midiManager.timingManager.setTempoMap(null);
+                this.timingManager.setTempoMap(null);
             }
         } catch {}
 
@@ -1218,22 +1219,23 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const effectiveTrackIds = trackId ? [trackId] : [];
             if (effectiveTrackIds.length > 0) {
                 // Query two-window span (prev + current) so release animation frames still have note segments
-                const currentWin = this.midiManager.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
+                const currentWin = this.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
                 // Derive previous window start without accessing private TimingManager internals.
-                const beatsPerBar = this.midiManager.timingManager.beatsPerBar || 4;
-                const bpm = this.midiManager.timingManager.bpm || 120;
+                const beatsPerBar = this.timingManager.beatsPerBar || 4;
+                const bpm = this.timingManager.bpm || 120;
                 const secondsPerBeat = 60 / bpm;
                 const windowBeats = timeUnitBars * beatsPerBar;
                 const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end;
-                const state = useTimelineStore.getState();
-                const events = selectNotesInWindow(state, {
+                const events = status === 'ok' && api
+                    ? api.timeline.selectNotesInWindow({
                     trackIds: effectiveTrackIds,
                     startSec: queryStart,
                     endSec: queryEnd,
-                });
+                })
+                    : [];
                 sourceNotes = events.map((e) => ({
                     note: e.note,
                     channel: e.channel,
@@ -1249,7 +1251,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         // Build clamped segments across prev/current/next windows for lifecycle-based rendering
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
             sourceNotes,
-            this.midiManager.timingManager,
+            this.timingManager,
             effectiveTime,
             timeUnitBars
         );
@@ -1315,11 +1317,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add beat grid (tempo-aware)
         if (showBeatGrid) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+            const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
                 effectiveTime,
                 timeUnitBars
             );
-            const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
+            const beatsPerBarForGrid = this.timingManager.beatsPerBar || 4;
             // Only include pianoWidth if showPiano is true
             const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const beatLines = this._createBeatGridLines(
@@ -1365,11 +1367,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
         // Add beat labels (tempo-aware)
         if (showBeatLabels) {
-            const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+            const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
                 effectiveTime,
                 timeUnitBars
             );
-            const beatsPerBarForGrid = this.midiManager.timingManager.beatsPerBar || 4;
+            const beatsPerBarForGrid = this.timingManager.beatsPerBar || 4;
             // Only include pianoWidth if showPiano is true
             const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const labels = this._createBeatLabels(
@@ -1450,7 +1452,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         totalHeight: number
     ): RenderObject[] {
         const lines: RenderObject[] = [];
-        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
+        const beats = this.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
             const rel = (b.time - windowStart) / duration;
@@ -1476,8 +1478,8 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const totalHeight = (maxNote - minNote + 1) * noteHeight;
         for (let note = minNote; note <= maxNote; note++) {
             const y = totalHeight - (note - minNote + 0.5) * noteHeight;
-            const noteName = this.midiManager.getNoteName(note);
-            const label = new Text(pianoWidth - 10, y, noteName, '10px Arial', '#ffffff', 'right', 'middle');
+            const noteLabel = noteName(note);
+            const label = new Text(pianoWidth - 10, y, noteLabel, '10px Arial', '#ffffff', 'right', 'middle');
             (label as any).setIncludeInLayoutBounds?.(false);
             labels.push(label);
         }
@@ -1495,7 +1497,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         rollWidth: number
     ): RenderObject[] {
         const labels: RenderObject[] = [];
-        const beats = this.midiManager.timingManager.getBeatGridInWindow(windowStart, windowEnd);
+        const beats = this.timingManager.getBeatGridInWindow(windowStart, windowEnd);
         const duration = Math.max(1e-9, windowEnd - windowStart);
         for (const b of beats) {
             if (!b.isBarStart) continue;
@@ -1524,7 +1526,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         const playheadObjects: RenderObject[] = [];
 
         // Calculate playhead position
-        const { start: windowStart, end: windowEnd } = this.midiManager.timingManager.getTimeUnitWindow(
+        const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
             targetTime,
             this.getTimeUnitBars()
         );
@@ -1547,7 +1549,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     // (Removed min-bbox helpers)
 
-    // Note name resolution handled by MidiManager
+    // Note name resolved using noteName() from @mvmnt/plugin-sdk
 
     /**
      * Dispatch a change event to trigger re-renders
@@ -1639,7 +1641,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     getTimeUnit(): number {
         // Provide a tempo-aware duration of a bar group using default reference time
-        return this.midiManager.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
+        return this.timingManager.getTimeUnitDuration(this.getTimeUnitBars());
     }
 
     // Removed midiFile getters/setters
@@ -1676,12 +1678,4 @@ export class TimeUnitPianoRollElement extends SceneElement {
         });
     }
 
-    /**
-     * Load MIDI data directly (for programmatic use)
-     */
-    loadMIDIData(midiData: any, notes: any[]): this {
-        this.midiManager.loadMIDIData(midiData, notes);
-        this._dispatchChangeEvent();
-        return this;
-    }
 }

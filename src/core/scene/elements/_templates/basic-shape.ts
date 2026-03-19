@@ -1,8 +1,7 @@
 // Template: Basic Shape Element
 // A simple geometric shape that can be customized with color and size
-import { SceneElement, asNumber, asTrimmedString } from '@core/scene/elements/base';
-import { Rectangle, Arc, type RenderObject } from '@core/render/render-objects';
-import type { EnhancedConfigSchema } from '@core/types';
+import { SceneElement, asNumber, asTrimmedString, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class BasicShapeElement extends SceneElement {
     constructor(id: string = 'basicShape', config: Record<string, unknown> = {}) {

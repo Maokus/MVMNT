@@ -1,10 +1,10 @@
 import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-import { getFeatureData } from '@audio/features/sceneApi';
 import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -192,6 +192,7 @@ function applyGain(values: number[], gain: number): number[] {
 }
 
 export class AudioSpectrumElement extends SceneElement {
+    // Phase 3 reference pattern: intentionally consume audio data through the public plugin API.
     constructor(id: string = 'audioSpectrum', config: Record<string, unknown> = {}) {
         super('audioSpectrum', id, config);
     }
@@ -413,9 +414,19 @@ export class AudioSpectrumElement extends SceneElement {
             return pushMessage('Select an audio track');
         }
 
-        const sample = getFeatureData(this, props.audioTrackId, 'spectrogram', targetTime, {
-            smoothing: props.smoothing,
-        });
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.audioFeaturesRead]);
+        const sample =
+            api && status === 'ok'
+                ? api.audio.sampleFeatureAtTime({
+                      element: this,
+                      trackId: props.audioTrackId,
+                      feature: 'spectrogram',
+                      time: targetTime,
+                      samplingOptions: {
+                          smoothing: props.smoothing,
+                      },
+                  })
+                : null;
         const rawValues = sample?.values ?? [];
         if (!rawValues.length) {
             return pushMessage('No spectrum data');
