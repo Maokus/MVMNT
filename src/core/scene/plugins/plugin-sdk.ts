@@ -75,6 +75,33 @@ export {
     type PluginSafetyConfig,
     PluginSafetyError,
 } from '@core/scene/plugins/plugin-safety';
+export {
+    normalizeColorAlphaValue,
+    ensureEightDigitHex,
+} from '@utils/color';
+export {
+    loadGoogleFont,
+    loadGoogleFontAsync,
+    ensureFontLoaded,
+    isFontLoaded,
+    parseFontSelection,
+    type LoadFontOptions,
+} from '@fonts/font-loader';
+export type { ParsedFontSelection } from '@state/scene/fonts';
+export {
+    quantizeSettingToBeats,
+    quantizeSettingToTicks,
+    formatQuantizeLabel,
+    formatQuantizeShortLabel,
+    type QuantizeSetting,
+    type SnapQuantizeOption,
+} from '@state/timeline/quantize';
+export {
+    beatsToSeconds,
+    secondsToBeats,
+    getSecondsPerBeat,
+} from '@core/timing/tempo-utils';
+export type { TempoMapEntry } from '@core/timing/types';
 
 // ============================================================================
 // COMPILE-TIME ASSERTION: Prevent API Drift
