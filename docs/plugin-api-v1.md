@@ -11,7 +11,7 @@ This document defines the stable host API available to plugins at runtime.
 - Semver compatibility rule for plugins: require `^1.0.0` for v1 hosts
 - Capability model: plugins request capabilities and degrade gracefully when unavailable
 
-Use `getPluginHostApi(requiredCapabilities?)` from `@mvmnt/plugin-sdk` instead of reading host internals directly.
+Use `getPluginHostApi(requiredCapabilities?)` from `@mvmnt/plugin-sdk` instead of reading host internals directl.
 
 Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, etc.) as private implementation details.
 
@@ -117,7 +117,131 @@ Example:
 const label = api.utilities.midiNoteToName(60); // C4
 ```
 
-## Compatibility Rules
+## Simplified Access Patterns (v1.2+)
+
+In addition to the status-based pattern above, the SDK provides several simplified access patterns for common use cases.
+
+### Shorthand Methods (3B)
+
+Top-level convenience functions reduce nesting and improve readability:
+
+```ts
+import {
+    selectNotes,
+    sampleAudio,
+    timeToBeats,
+    noteName,
+} from '@mvmnt/plugin-sdk';
+
+// Instead of:
+const notes = api.timeline.selectNotesInWindow({ trackIds, startSec, endSec });
+// Write:
+const notes = selectNotes(trackIds, startSec, endSec);
+
+// Instead of:
+const beats = api.timing.secondsToBeats(10) ?? 0;
+// Write:
+const beats = timeToBeats(10);
+
+// Works great in templates:
+const label = noteName(60); // 'C4'
+```
+
+Available shortcuts:
+- `selectNotes(trackIds, startSec, endSec)` - Select notes in time window
+- `sampleAudio(trackId, feature, time, options?)` - Sample at a time
+- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` - Sample range
+- `timeToBeats(seconds)` - Convert seconds to beats
+- `beatsToTime(beats)` - Convert beats to seconds
+- `timeToTicks(seconds)` - Convert seconds to ticks
+- `ticksToTime(ticks)` - Convert ticks to seconds
+- `noteName(noteNumber)` - Get MIDI note name
+
+### Direct Capability Imports (3A)
+
+Import specific API domains directly for clearer dependency declaration:
+
+```ts
+import { timelineApi, audioApi, timingApi, utilitiesApi } from '@mvmnt/plugin-sdk';
+
+// These throw if the capability is unavailable:
+const notes = timelineApi.selectNotesInWindow({...});
+const rms = audioApi.sampleFeatureAtTime({...});
+const beats = timingApi.secondsToBeats(10);
+const name = utilitiesApi.midiNoteToName(60);
+```
+
+**Error handling:** These throw `MissingCapabilityError` if the capability is not available. Use try/catch for explicit error handling:
+
+```ts
+try {
+    const notes = timelineApi.selectNotesInWindow({...});
+} catch (e) {
+    if (e instanceof MissingCapabilityError) {
+        // Handle gracefully
+    }
+}
+```
+
+### Capability Discovery (8B)
+
+Check which capabilities are available before using them:
+
+```ts
+const { api } = getPluginHostApi();
+const available = api.getAvailableCapabilities();
+
+if (available.includes(PLUGIN_CAPABILITIES.timelineRead)) {
+    // Show timeline-dependent UI
+} else {
+    // Show fallback UI
+}
+```
+
+### Unified Error Handling (2C)
+
+Register a single error handler for all capability errors:
+
+```ts
+const { api } = getPluginHostApi();
+
+if (api) {
+    api.onError((error, capability) => {
+        console.warn(`Capability ${capability} unavailable: ${error.message}`);
+    });
+}
+```
+
+### Exception-Based Error Handling (2A)
+
+Use exceptions instead of status codes for more idiomatic error handling:
+
+```ts
+import {
+    getPluginHostApi,
+    MissingCapabilityError,
+    UnsupportedVersionError,
+} from '@mvmnt/plugin-sdk';
+
+try {
+    const api = getPluginHostApi({ throwOnError: true });
+    const notes = api.timeline.selectNotesInWindow({...});
+} catch (e) {
+    if (e instanceof MissingCapabilityError) {
+        console.error(`Capability "${e.capability}" not available`);
+    } else if (e instanceof UnsupportedVersionError) {
+        console.error('Plugin API version incompatible');
+    }
+}
+```
+
+Available exception classes:
+- `PluginApiError` - Base error class
+- `MissingHostError` - API not installed
+- `UnsupportedVersionError` - Version mismatch
+- `MissingCapabilityError` - Required capability unavailable
+
+
 
 - Same major version (`1.x.x`) is backward-compatible for existing methods.
 - New methods/capabilities are additive in minor releases.

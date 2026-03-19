@@ -29,12 +29,38 @@ export {
     PLUGIN_CAPABILITIES,
     type PluginHostApi,
     type PluginHostCapability,
+    type PluginCapabilityMap,
 } from '@core/scene/plugins/host-api/plugin-api';
 export {
     getPluginHostApi,
     type PluginHostApiResolution,
     type PluginHostApiStatus,
+    type GetPluginHostApiOptions,
 } from '@core/scene/plugins/host-api/get-plugin-host-api';
+export {
+    PluginApiError,
+    MissingHostError,
+    UnsupportedVersionError,
+    MissingCapabilityError,
+} from '@core/scene/plugins/plugin-errors';
+export {
+    selectNotes,
+    sampleAudio,
+    sampleAudioRange,
+    timeToBeats,
+    beatsToTime,
+    timeToTicks,
+    ticksToTime,
+    beatToTicks,
+    ticksToBeat,
+    noteName,
+} from '@core/scene/plugins/plugin-sdk-shortcuts';
+export {
+    timelineApi,
+    audioApi,
+    timingApi,
+    utilitiesApi,
+} from '@core/scene/plugins/plugin-sdk-capabilities';
 export { registerFeatureRequirements };
 export type { AudioFeatureRequirement };
 export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
