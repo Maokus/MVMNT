@@ -1,5 +1,5 @@
 // Animation controller for Moving Notes Piano Roll: static playhead, notes move.
-import { createAnimationInstance, type AnimationPhase } from '@animation/note-animations';
+import { createAnimationInstance, type AnimationPhase } from '@core/scene/elements/midi-displays/note-animations';
 type MidiLikeNote = {
     note: number;
     channel?: number;
