@@ -36,7 +36,8 @@
         "core/*"
       ],
       "@animation/*": [
-        "animation/*"
+        "animation/*",
+        "math/animation/*"
       ],
       "@bindings/*": [
         "bindings/*"
