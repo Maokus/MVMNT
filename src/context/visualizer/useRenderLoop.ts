@@ -1,6 +1,7 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
 import { getTransportCoordinator } from '@audio/transport-coordinator';
+import { beatsToSeconds } from '@core/timing/tempo-utils';
 
 interface UseRenderLoopArgs {
     visualizer: any | null;
@@ -22,7 +23,8 @@ export function useRenderLoop({
         let lastUIUpdate = 0;
         const UI_UPDATE_INTERVAL = 150;
         let lastAppliedBpm: number | null = null;
-        let lastTempoMapVersion: string | null = null;
+        // Sentinel forces one initial tempo-map sync so stale data cannot leak from prior sessions/projects.
+        let lastTempoMapVersion: string | null = '__unset__';
         let lastTickForPaused = useTimelineStore.getState().timeline.currentTick;
         let needsFrameWhileIdle = true;
 
@@ -77,9 +79,12 @@ export function useRenderLoop({
                 const pr = st.playbackRange;
                 if (pr?.endTick != null) {
                     const tmApprox = getSharedTimingManager();
-                    tmApprox.setBPM(st.timeline.globalBpm || 120);
                     const endBeats = pr.endTick / tmApprox.ticksPerQuarter;
-                    const endSec = tmApprox.beatsToSeconds(endBeats);
+                    const endSec = beatsToSeconds(
+                        st.timeline.masterTempoMap,
+                        endBeats,
+                        60 / (st.timeline.globalBpm || 120)
+                    );
                     if (vNow >= endSec) {
                         visualizer.pause?.();
                         try {
@@ -101,10 +106,17 @@ export function useRenderLoop({
             ) {
                 try {
                     const tmLoop = getSharedTimingManager();
-                    tmLoop.setBPM(state.timeline.globalBpm || 120);
-                    if (state.timeline.masterTempoMap) tmLoop.setTempoMap(state.timeline.masterTempoMap, 'seconds');
-                    const loopStartSec = tmLoop.beatsToSeconds(loopStartTick / tmLoop.ticksPerQuarter);
-                    const loopEndSec = tmLoop.beatsToSeconds(loopEndTick / tmLoop.ticksPerQuarter);
+                    const fallbackSecondsPerBeat = 60 / (state.timeline.globalBpm || 120);
+                    const loopStartSec = beatsToSeconds(
+                        state.timeline.masterTempoMap,
+                        loopStartTick / tmLoop.ticksPerQuarter,
+                        fallbackSecondsPerBeat
+                    );
+                    const loopEndSec = beatsToSeconds(
+                        state.timeline.masterTempoMap,
+                        loopEndTick / tmLoop.ticksPerQuarter,
+                        fallbackSecondsPerBeat
+                    );
                     if (vNow >= loopEndSec - 1e-6) {
                         visualizer.seek?.(loopStartSec);
                         transportCoordinator.seek(loopStartTick);

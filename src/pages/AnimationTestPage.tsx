@@ -13,6 +13,13 @@ interface PhaseConfig {
     easing: string;
 }
 
+interface PersistedPlaybackState {
+    playing: boolean;
+    loop: boolean;
+    timeMs: number;
+    savedAt: number;
+}
+
 // Repurpose the existing phase UI to represent an ADSR envelope for note animations
 const defaultPhases: PhaseConfig[] = [
     { name: 'Attack', duration: 1000, easing: 'linear' },
@@ -22,15 +29,54 @@ const defaultPhases: PhaseConfig[] = [
 ];
 
 const EASING_NAMES = Object.keys(easings);
+const ANIMATION_STORAGE_KEY = 'animation-test:selected-animation';
+const PLAYBACK_STORAGE_KEY = 'animation-test:playback-state';
+
+const readLocalStorage = <T,>(key: string): T | null => {
+    try {
+        const raw = window.localStorage.getItem(key);
+        return raw ? JSON.parse(raw) as T : null;
+    } catch {
+        return null;
+    }
+};
+
+const writeLocalStorage = (key: string, value: unknown): void => {
+    try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        // Ignore storage failures in this sandbox page.
+    }
+};
+
+const getInitialAnimationType = (): string => {
+    if (typeof window === 'undefined') return 'expand';
+    const saved = readLocalStorage<string>(ANIMATION_STORAGE_KEY);
+    return typeof saved === 'string' && saved.length > 0 ? saved : 'expand';
+};
+
+const getInitialPlaybackState = (): PersistedPlaybackState => {
+    if (typeof window === 'undefined') {
+        return { playing: false, loop: true, timeMs: 0, savedAt: 0 };
+    }
+    const saved = readLocalStorage<Partial<PersistedPlaybackState>>(PLAYBACK_STORAGE_KEY);
+    return {
+        playing: Boolean(saved?.playing),
+        loop: typeof saved?.loop === 'boolean' ? saved.loop : true,
+        timeMs: Number.isFinite(saved?.timeMs) ? Math.max(0, Number(saved?.timeMs)) : 0,
+        savedAt: Number.isFinite(saved?.savedAt) ? Math.max(0, Number(saved?.savedAt)) : performance.now(),
+    };
+};
 
 const AnimationTestPage: React.FC = () => {
+    const initialPlayback = useMemo(() => getInitialPlaybackState(), []);
     const [phases, setPhases] = useState<PhaseConfig[]>(defaultPhases);
-    const [playing, setPlaying] = useState(false);
-    const [loop, setLoop] = useState(true);
+    const [playing, setPlaying] = useState(initialPlayback.playing);
+    const [loop, setLoop] = useState(initialPlayback.loop);
     const [startTime, setStartTime] = useState<number | null>(null);
-    const [localNow, setLocalNow] = useState(0);
+    const [localNow, setLocalNow] = useState(initialPlayback.timeMs);
     const [scrubTime, setScrubTime] = useState<number | null>(null);
-    const [animationType, setAnimationType] = useState<string>('expand');
+    const [animationType, setAnimationType] = useState<string>(() => getInitialAnimationType());
     // User adjustable note block + visual params
     const [blockNote, setBlockNote] = useState(60);
     const [blockVelocity, setBlockVelocity] = useState(90);
@@ -59,6 +105,30 @@ const AnimationTestPage: React.FC = () => {
     // total duration
     const total = useMemo(() => phases.reduce((a, p) => a + p.duration, 0), [phases]);
 
+    // Restore position and active playback on initial mount.
+    useEffect(() => {
+        let resumedTime = initialPlayback.timeMs;
+        if (initialPlayback.playing) {
+            resumedTime += Math.max(0, performance.now() - initialPlayback.savedAt);
+        }
+
+        if (loop && total > 0) {
+            resumedTime %= total;
+        } else {
+            resumedTime = Math.min(Math.max(0, resumedTime), total);
+        }
+
+        const shouldPlay = initialPlayback.playing && (loop || resumedTime < total);
+        setLocalNow(resumedTime);
+        setPlaying(shouldPlay);
+        setStartTime(shouldPlay ? performance.now() - resumedTime : null);
+    }, [initialPlayback, loop, total]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        writeLocalStorage(ANIMATION_STORAGE_KEY, animationType);
+    }, [animationType]);
+
     React.useEffect(() => {
         if (!playing) return;
         let frame: number;
@@ -83,6 +153,20 @@ const AnimationTestPage: React.FC = () => {
     }, [playing, startTime, total, loop]);
 
     const effectiveTime = scrubTime != null ? scrubTime : localNow;
+
+    const playbackSaveThrottleRef = useRef(0);
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const now = performance.now();
+        if (playing && now - playbackSaveThrottleRef.current < 120) return;
+        playbackSaveThrottleRef.current = now;
+        writeLocalStorage(PLAYBACK_STORAGE_KEY, {
+            playing,
+            loop,
+            timeMs: effectiveTime,
+            savedAt: now,
+        } satisfies PersistedPlaybackState);
+    }, [playing, loop, effectiveTime]);
 
     // compute phase progress
     let acc = 0;

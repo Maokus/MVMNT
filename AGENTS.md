@@ -7,7 +7,7 @@ When you are finished, run all of the following commands to verify that all prop
 ```
 npm run test
 npm run build
-npm run lint
+npm run compile
 ```
 
 If `npm run test` fails because an optional Rollup native dependency is missing, run `npm install` and rerun `npm run test` before continuing.

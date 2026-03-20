@@ -9,10 +9,9 @@ const ef = easingFunctions;
 
 export class CytusishAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {
-        const { x, y, width, height, color, progress, phase, block } = ctx;
+        const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
         const cy = y + height / 2;
         const rng = seedrandom(block.baseNoteId);
-        const info = `${(progress * 100).toFixed(0)}%`;
         const NUM_ARCS = 5;
         const LEN_ARCS = 0.4;
 
@@ -52,6 +51,22 @@ export class CytusishAnimation extends BaseNoteAnimation {
             }
         );
 
+
+        let shockCircle = new Arc(
+            0,
+            0, 
+            height + 4, 
+            0, 
+            Math.PI*2,
+            false,
+            { 
+                fillColor: "#0000", 
+                strokeColor: color, 
+                strokeWidth: 4
+            }
+        );
+        shockCircle.opacity = 0;
+
         let innerCircle = new Arc(
             0,
             0,
@@ -85,7 +100,7 @@ export class CytusishAnimation extends BaseNoteAnimation {
             })
         );
 
-        let masterGroup = new EmptyRenderObject(x, cy).addChildren([outerCircle, innerCircle, outerArcs]);
+        let masterGroup = new EmptyRenderObject(x, cy).addChildren([outerCircle, innerCircle, outerArcs, shockCircle]);
 
 
 
@@ -106,7 +121,7 @@ export class CytusishAnimation extends BaseNoteAnimation {
                 
                 break;
             }
-            case 'decay': {
+            case "decay": {
                 objects.push(masterGroup);
                 let p0 = ef.easeOutCubic(initialAccentProgress);
                 outerCircle.scaleX = 1 - 0.2 * p0;
@@ -121,17 +136,18 @@ export class CytusishAnimation extends BaseNoteAnimation {
 
                 outerCircle.scaleX += 0.3 * p1;
                 outerCircle.scaleY -= 0.7 * p1;
-                innerCircle.scaleX -= 0.5 * p1;
+                innerCircle.scaleX -= 0.8 * p1;
                 innerCircle.scaleY += 0.5 * p1;
                 outerArcs.scaleX += 0.3 * p1;
                 outerArcs.scaleY -= 0.9 * p1;
                 masterGroup.rotation = p1 * Math.PI /2;
+                shockCircle.opacity = af.lerp(1,0,p1);
 
                 let p2 = ef.easeInCubic(secondHalfProgress);
 
-                outerCircle.y = height*2*p2;
+                outerCircle.y = height*3*p2;
                 innerCircle.y = randomFinalPos*p2;
-                outerArcs.y = height*2*p2;
+                outerArcs.y = height*3*p2;
 
 
                 outerCircle.opacity = 1 - secondHalfProgress;

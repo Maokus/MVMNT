@@ -53,7 +53,7 @@
         "preview": "vite preview",
         "test": "vitest run",
         "test:watch": "vitest --watch",
-        "lint": "npx tsc --noEmit",
+        "compile": "npx tsc --noEmit",
         "create-element": "node scripts/create-element.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
         "build-default-plugins": "node scripts/build-plugin.mjs extraspack1 --out public/default-plugins/extraspack1.mvmnt-plugin",

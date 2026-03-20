@@ -9,7 +9,7 @@ const ef = easingFunctions;
 
 export class TemplateAnimation extends BaseNoteAnimation {
     render(ctx: AnimationContext): RenderObject[] {
-        const { x, y, width, height, color, progress, phase, block } = ctx;
+        const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
         const rng = seedrandom(block.baseNoteId);
         const info = `${(progress * 100).toFixed(0)}%`;
 
