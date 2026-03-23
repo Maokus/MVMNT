@@ -118,6 +118,7 @@ export class SceneElement implements SceneElementInterface {
 
     private _macroUnsubscribe?: () => void;
     private _renderContext: PropertyBindingContext | null = null;
+    private _keyframeBoundKeys: Set<string> = new Set();
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -541,6 +542,11 @@ export class SceneElement implements SceneElementInterface {
 
         // Call the child class implementation to build the base render objects
         this._renderContext = { targetTime, sceneConfig: config };
+
+        // Invalidate cache for keyframe-bound properties each frame (values are time-dependent)
+        for (const key of this._keyframeBoundKeys) {
+            this._cacheValid.set(key, false);
+        }
         
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
         let pluginId: string | undefined;
@@ -1047,12 +1053,20 @@ export class SceneElement implements SceneElementInterface {
                 value &&
                 typeof value === 'object' &&
                 value.type &&
-                (value.type === 'constant' || value.type === 'macro')
+                (value.type === 'constant' || value.type === 'macro' || value.type === 'keyframes')
             ) {
                 // This is serialized binding data
-                this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
+                const binding = PropertyBinding.fromSerialized(value as PropertyBindingData);
+                this.bindings.set(key, binding);
+                // Track keyframe-bound keys for per-frame cache invalidation
+                if (value.type === 'keyframes') {
+                    this._keyframeBoundKeys.add(key);
+                } else {
+                    this._keyframeBoundKeys.delete(key);
+                }
             } else {
-                // Raw value OR already-instantiated binding
+                // Raw value OR already-instantiated binding — not keyframes
+                this._keyframeBoundKeys.delete(key);
                 if (value instanceof PropertyBinding) {
                     this.bindings.set(key, value);
                 } else {

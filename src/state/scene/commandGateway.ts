@@ -14,6 +14,18 @@ import {
 import { createSceneElementInputFromSchema } from './storeElementFactory';
 import { ensureMacroSync, getMacroSnapshot, replaceMacrosFromSnapshot } from './macroSyncService';
 import { emitSceneCommandTelemetry } from './sceneTelemetry';
+import type {
+    AutomationChannel,
+    AutomationInterpolation,
+    AutomationKeyframe,
+    AutomationValueType,
+} from '@automation/types';
+import {
+    createChannel,
+    insertKeyframeSorted,
+    makeChannelId,
+    removeKeyframeAtTick,
+} from '@automation/types';
 
 export type SceneCommand =
     | {
@@ -87,6 +99,50 @@ export type SceneCommand =
     | {
           type: 'importMacros';
           payload: SceneSerializedMacros;
+      }
+    | {
+          type: 'enablePropertyAutomation';
+          elementId: string;
+          propertyKey: string;
+          valueType: AutomationValueType;
+          interpolation?: AutomationInterpolation;
+          /** Optional initial keyframes (e.g. current value at tick 0). */
+          initialKeyframes?: AutomationKeyframe[];
+      }
+    | {
+          type: 'disablePropertyAutomation';
+          elementId: string;
+          propertyKey: string;
+          /** Fallback constant value to revert to. */
+          fallbackValue?: unknown;
+      }
+    | {
+          type: 'addKeyframe';
+          channelId: string;
+          keyframe: AutomationKeyframe;
+      }
+    | {
+          type: 'removeKeyframe';
+          channelId: string;
+          tick: number;
+      }
+    | {
+          type: 'updateKeyframe';
+          channelId: string;
+          tick: number;
+          /** Partial patch — only provided fields are updated. */
+          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>>;
+      }
+    | {
+          type: 'moveKeyframe';
+          channelId: string;
+          fromTick: number;
+          toTick: number;
+      }
+    | {
+          type: 'batchUpdateKeyframes';
+          channelId: string;
+          keyframes: AutomationKeyframe[];
       };
 
 export interface SceneCommandResult {
@@ -126,6 +182,9 @@ function normalizeBindingValue(value: unknown): BindingState {
         if (payload.type === 'macro' && typeof payload.macroId === 'string') {
             return { type: 'macro', macroId: payload.macroId };
         }
+        if (payload.type === 'keyframes' && typeof payload.channelId === 'string') {
+            return { type: 'keyframes', channelId: payload.channelId };
+        }
         if (payload.type === 'constant' && 'value' in payload) {
             return { type: 'constant', value: payload.value };
         }
@@ -163,6 +222,7 @@ function bindingEquals(a: BindingState | undefined, b: BindingState | undefined)
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
+    if (a.type === 'keyframes' && b.type === 'keyframes') return a.channelId === b.channelId;
     return false;
 }
 
@@ -423,6 +483,140 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
                 ],
             };
         }
+        case 'enablePropertyAutomation': {
+            const channelId = makeChannelId(command.elementId, command.propertyKey);
+            // Already automated? No-op.
+            if (state.automation.channels[channelId]) return null;
+            // Capture current binding so undo can restore it
+            const currentBinding = state.bindings.byElement[command.elementId]?.[command.propertyKey];
+            const fallbackValue = currentBinding && currentBinding.type === 'constant' ? currentBinding.value : undefined;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'disablePropertyAutomation',
+                        elementId: command.elementId,
+                        propertyKey: command.propertyKey,
+                        fallbackValue,
+                    },
+                ],
+            };
+        }
+        case 'disablePropertyAutomation': {
+            const channelId = makeChannelId(command.elementId, command.propertyKey);
+            const channel = state.automation.channels[channelId];
+            if (!channel) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'enablePropertyAutomation',
+                        elementId: command.elementId,
+                        propertyKey: command.propertyKey,
+                        valueType: channel.valueType,
+                        interpolation: channel.interpolation,
+                        initialKeyframes: channel.keyframes.map((kf) => ({ ...kf })),
+                    },
+                ],
+            };
+        }
+        case 'addKeyframe': {
+            const channel = state.automation.channels[command.channelId];
+            if (!channel) return null;
+            // Check if there's an existing keyframe at this tick that we'd be replacing
+            const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.keyframe.tick) < 0.5);
+            if (existing) {
+                // Replacing: undo restores the original keyframe
+                return {
+                    redo: [cloneCommand(command)],
+                    undo: [
+                        {
+                            type: 'addKeyframe',
+                            channelId: command.channelId,
+                            keyframe: { ...existing },
+                        },
+                    ],
+                };
+            }
+            // New keyframe: undo removes it
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'removeKeyframe',
+                        channelId: command.channelId,
+                        tick: command.keyframe.tick,
+                    },
+                ],
+            };
+        }
+        case 'removeKeyframe': {
+            const channel = state.automation.channels[command.channelId];
+            if (!channel) return null;
+            const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
+            if (!existing) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'addKeyframe',
+                        channelId: command.channelId,
+                        keyframe: { ...existing },
+                    },
+                ],
+            };
+        }
+        case 'updateKeyframe': {
+            const channel = state.automation.channels[command.channelId];
+            if (!channel) return null;
+            const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
+            if (!existing) return null;
+            const undoPatch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>> = {};
+            if ('value' in command.patch) undoPatch.value = existing.value;
+            if ('easingId' in command.patch) undoPatch.easingId = existing.easingId;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'updateKeyframe',
+                        channelId: command.channelId,
+                        tick: command.tick,
+                        patch: undoPatch,
+                    },
+                ],
+            };
+        }
+        case 'moveKeyframe': {
+            const channel = state.automation.channels[command.channelId];
+            if (!channel) return null;
+            const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.fromTick) < 0.5);
+            if (!existing) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'moveKeyframe',
+                        channelId: command.channelId,
+                        fromTick: command.toTick,
+                        toTick: command.fromTick,
+                    },
+                ],
+            };
+        }
+        case 'batchUpdateKeyframes': {
+            const channel = state.automation.channels[command.channelId];
+            if (!channel) return null;
+            return {
+                redo: [cloneCommand(command)],
+                undo: [
+                    {
+                        type: 'batchUpdateKeyframes',
+                        channelId: command.channelId,
+                        keyframes: channel.keyframes.map((kf) => ({ ...kf })),
+                    },
+                ],
+            };
+        }
         default:
             return null;
     }
@@ -525,6 +719,84 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
         case 'importMacros':
             replaceMacrosFromSnapshot(command.payload);
             break;
+        case 'enablePropertyAutomation': {
+            const channelId = makeChannelId(command.elementId, command.propertyKey);
+            const channel = createChannel(
+                command.elementId,
+                command.propertyKey,
+                command.valueType,
+                command.interpolation ?? 'eased',
+            );
+            if (command.initialKeyframes?.length) {
+                channel.keyframes = [...command.initialKeyframes];
+            }
+            store.setAutomationChannel(channel);
+            // Switch binding to keyframes
+            store.updateBindings(command.elementId, {
+                [command.propertyKey]: { type: 'keyframes', channelId },
+            });
+            break;
+        }
+        case 'disablePropertyAutomation': {
+            const channelId = makeChannelId(command.elementId, command.propertyKey);
+            // Resolve fallback: explicit value, or evaluate channel at current tick, or 0
+            let fallback: unknown = command.fallbackValue;
+            if (fallback === undefined) {
+                const channel = store.automation.channels[channelId];
+                if (channel && channel.keyframes.length > 0) {
+                    // Use the first keyframe's value as a reasonable fallback
+                    fallback = channel.keyframes[0].value;
+                } else {
+                    fallback = 0;
+                }
+            }
+            store.removeAutomationChannel(channelId);
+            store.updateBindings(command.elementId, {
+                [command.propertyKey]: { type: 'constant', value: fallback },
+            });
+            break;
+        }
+        case 'addKeyframe': {
+            const channel = store.automation.channels[command.channelId];
+            if (!channel) break;
+            const nextKeyframes = insertKeyframeSorted(channel.keyframes, command.keyframe);
+            store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            break;
+        }
+        case 'removeKeyframe': {
+            const channel = store.automation.channels[command.channelId];
+            if (!channel) break;
+            const nextKeyframes = removeKeyframeAtTick(channel.keyframes, command.tick);
+            store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            break;
+        }
+        case 'updateKeyframe': {
+            const channel = store.automation.channels[command.channelId];
+            if (!channel) break;
+            const nextKeyframes = channel.keyframes.map((kf) => {
+                if (Math.abs(kf.tick - command.tick) < 0.5) {
+                    return { ...kf, ...command.patch };
+                }
+                return kf;
+            });
+            store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            break;
+        }
+        case 'moveKeyframe': {
+            const channel = store.automation.channels[command.channelId];
+            if (!channel) break;
+            const moving = channel.keyframes.find((kf) => Math.abs(kf.tick - command.fromTick) < 0.5);
+            if (!moving) break;
+            const withoutOld = removeKeyframeAtTick(channel.keyframes, command.fromTick);
+            const movedKf: AutomationKeyframe = { ...moving, tick: command.toTick };
+            const nextKeyframes = insertKeyframeSorted(withoutOld, movedKf);
+            store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            break;
+        }
+        case 'batchUpdateKeyframes': {
+            store.updateAutomationKeyframes(command.channelId, command.keyframes);
+            break;
+        }
         default:
             break;
     }

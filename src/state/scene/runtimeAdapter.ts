@@ -3,6 +3,7 @@ import type { SceneElement } from '@core/scene/elements';
 import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
+import { automationEvaluator } from '@automation/automation-evaluator';
 import {
     useSceneStore,
     type BindingState,
@@ -292,6 +293,24 @@ export class SceneRuntimeAdapter {
         if (this.disposed) return;
 
         let mutated = false;
+
+        // Detect automation channel changes and invalidate evaluator cache
+        if (next.automation !== prev.automation) {
+            const nextChannels = next.automation.channels;
+            const prevChannels = prev.automation.channels;
+            for (const channelId of Object.keys(prevChannels)) {
+                if (nextChannels[channelId] !== prevChannels[channelId]) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            for (const channelId of Object.keys(nextChannels)) {
+                if (!(channelId in prevChannels)) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            // Bump version so render loop picks up the change
+            mutated = true;
+        }
 
         if (next.settings !== prev.settings) {
             this.settings = { ...next.settings };
