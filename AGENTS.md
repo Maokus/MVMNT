@@ -1,8 +1,8 @@
-MVMNT is a react-based web app for making midi visualizations.
+MVMNT is a React/TypeScript web app for creating MIDI-driven motion-graphics visualisations. Built with Vite, Zustand for state, and Vitest for testing.
 
 When setting up the environment, always run `npm install` (rather than `npm ci`) so npm can select binaries compatible with your platform.
 
-When you are finished, run all of the following commands to verify that all proposed changes are working correctly
+When you are finished, run all of the following commands to verify that all proposed changes are working correctly:
 
 ```
 npm run test
@@ -16,6 +16,22 @@ When asked to "implement phase x" of a plan, read through the requirements and g
 
 ## Directory Structure
 
--   `/docs` documentation files on existing, implemented code.
--   `/src` the main code
--   `/thoughts` temporary documents containing plans or research
+-   `/docs` – Documentation for implemented features. Start here for architecture overviews and API references.
+-   `/src` – Main application source:
+    -   `core/` – Runtime engine: scene element registry, rendering, timing, MIDI parsing, and the plugin host API.
+    -   `state/` – Zustand stores, selectors, command gateways, and undo infrastructure.
+    -   `workspace/` – All workspace UI components (panels, forms, modals, layout).
+    -   `persistence/` – Scene file export/import, migrations, validation.
+    -   `audio/` – Audio analysis, caching, and feature extraction.
+    -   `export/` – Video/image export pipeline.
+    -   `plugins/` – External/user-authored plugin directory (not the SDK itself).
+    -   `math/` – Math, geometry, and numeric helpers.
+    -   `utils/` – Shared utilities (logging, throttling, feature flags).
+-   `/thoughts` – Exploratory planning documents. May be outdated; cross-check with `/docs`.
+-   `/templates` – Pre-built `.mvt` scene template files.
+
+## Plugin / Scene Element System
+
+Scene elements are the visual building blocks of a scene. First-party defaults live in `src/core/scene/elements/`. Elements import from `@mvmnt/plugin-sdk` — a TypeScript path alias (not an npm package) that resolves to `src/core/scene/plugins/plugin-sdk.ts` at compile time and is injected at runtime.
+
+See `docs/plugin-api-v1.md` for the full API reference and `docs/creating-custom-elements.md` to author new elements.
