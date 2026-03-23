@@ -171,6 +171,9 @@ function bindingToConfigValue(binding: BindingState | undefined): unknown {
     if (binding.type === 'macro') {
         return { type: 'macro', macroId: binding.macroId };
     }
+    if (binding.type === 'keyframes') {
+        return { type: 'keyframes', channelId: binding.channelId };
+    }
     return { type: 'constant', value: binding.value };
 }
 

@@ -38,6 +38,9 @@
       "@animation/*": [
         "math/animation/*"
       ],
+      "@automation/*": [
+        "automation/*"
+      ],
       "@bindings/*": [
         "bindings/*"
       ],

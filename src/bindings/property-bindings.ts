@@ -9,14 +9,17 @@
 import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
 import { isTestEnvironment } from '@utils/env';
 
-export type BindingType = 'constant' | 'macro';
+export type BindingType = 'constant' | 'macro' | 'keyframes';
 
 export interface PropertyBindingContext {
     targetTime: number;
     sceneConfig: Record<string, unknown>;
 }
 
-export type PropertyBindingData = { type: 'constant'; value: any } | { type: 'macro'; macroId: string };
+export type PropertyBindingData =
+    | { type: 'constant'; value: any }
+    | { type: 'macro'; macroId: string }
+    | { type: 'keyframes'; channelId: string };
 
 /**
  * Abstract base class for property bindings
@@ -66,6 +69,14 @@ export abstract class PropertyBinding<T = any> {
                     throw new Error('Macro binding requires macroId');
                 }
                 return new MacroBinding(data.macroId);
+            case 'keyframes': {
+                if (!('channelId' in data) || !data.channelId) {
+                    throw new Error('Keyframes binding requires channelId');
+                }
+                // Lazy import to avoid circular dependency
+                const { KeyframeBinding } = require('./keyframe-binding');
+                return new KeyframeBinding(data.channelId);
+            }
             default: {
                 const unknownType = (data as { type?: string }).type ?? 'unknown';
                 throw new Error(`Unknown binding type: ${unknownType}`);

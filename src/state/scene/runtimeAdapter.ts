@@ -40,6 +40,8 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
     for (const [property, binding] of Object.entries(bindings)) {
         if (binding.type === 'macro') {
             config[property] = { type: 'macro', macroId: binding.macroId };
+        } else if (binding.type === 'keyframes') {
+            config[property] = { type: 'keyframes', channelId: binding.channelId };
         } else if (isConstantBinding(binding)) {
             config[property] = { type: 'constant', value: binding.value };
         }
@@ -51,6 +53,9 @@ function bindingsSignature(elementType: string, bindings: ElementBindings): stri
     const pairs = Object.entries(bindings).map(([property, binding]) => {
         if (binding.type === 'macro') {
             return `${property}=macro:${binding.macroId}`;
+        }
+        if (binding.type === 'keyframes') {
+            return `${property}=keyframes:${binding.channelId}`;
         }
         try {
             return `${property}=const:${serializeStable(binding.value)}`;

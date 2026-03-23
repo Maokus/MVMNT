@@ -3,6 +3,8 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
 import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
+import type { AutomationState, AutomationChannel, AutomationKeyframe, KeyframesBindingState } from '@automation/types';
+import { createEmptyAutomationState, cloneChannel, makeChannelId } from '@automation/types';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
@@ -19,7 +21,7 @@ import {
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
 
-export type BindingState = ConstantBindingState | MacroBindingState;
+export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
 export interface ConstantBindingState {
     type: 'constant';
@@ -206,6 +208,7 @@ export type SceneMutationSource =
     | 'updateMacros'
     | 'updateFonts'
     | 'clearScene'
+    | 'updateAutomation'
     | 'importScene';
 
 export interface SceneBindingsState {
@@ -226,6 +229,7 @@ export interface SceneStoreComputedExport {
     macros?: SceneSerializedMacros;
     fontAssets?: Record<string, FontAsset>;
     fontLicensingAcknowledgedAt?: number;
+    automation?: AutomationState;
 }
 
 export interface SceneSerializedElement {
@@ -253,6 +257,7 @@ export interface SceneImportPayload {
     macros?: SceneSerializedMacros | null;
     fontAssets?: Record<string, FontAsset> | null;
     fontLicensingAcknowledgedAt?: number | null;
+    automation?: AutomationState | null;
 }
 
 export interface SceneElementInput {
@@ -287,6 +292,9 @@ export interface SceneStoreActions {
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setInteractionState: (patch: Partial<SceneInteractionState>) => void;
+    setAutomationChannel: (channel: AutomationChannel) => void;
+    removeAutomationChannel: (channelId: string) => void;
+    updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
 }
 
 export interface SceneStoreState extends SceneStoreActions {
@@ -298,6 +306,7 @@ export interface SceneStoreState extends SceneStoreActions {
     fonts: SceneFontsState;
     interaction: SceneInteractionState;
     runtimeMeta: SceneRuntimeMeta;
+    automation: AutomationState;
 }
 
 const SCENE_SCHEMA_VERSION = 4;
@@ -329,6 +338,9 @@ function cloneBinding(binding: BindingState): BindingState {
     }
     if (binding.type === 'macro') {
         return { type: 'macro', macroId: binding.macroId };
+    }
+    if (binding.type === 'keyframes') {
+        return { type: 'keyframes', channelId: binding.channelId };
     }
     throw new Error(`Unsupported binding type: ${(binding as { type?: string }).type ?? 'unknown'}`);
 }
@@ -507,6 +519,7 @@ function bindingEquals(a: BindingState, b: BindingState): boolean {
     if (a.type !== b.type) return false;
     if (a.type === 'constant' && b.type === 'constant') return Object.is(a.value, b.value);
     if (a.type === 'macro' && b.type === 'macro') return a.macroId === b.macroId;
+    if (a.type === 'keyframes' && b.type === 'keyframes') return a.channelId === b.channelId;
     return false;
 }
 
@@ -582,6 +595,11 @@ export function deserializeElementBindings(raw: SceneSerializedElement): Element
             bindings[key] = { type: 'macro', macroId };
             continue;
         }
+        if (type === 'keyframes' && typeof (payload as { channelId?: unknown }).channelId === 'string') {
+            const channelId = (payload as { channelId: string }).channelId;
+            bindings[key] = { type: 'keyframes', channelId };
+            continue;
+        }
         if (type === 'audioFeature') {
             const legacyMigration = migrateLegacyAudioFeatureBinding(key, payload);
             if (legacyMigration) {
@@ -621,6 +639,8 @@ function serializeElement(
             serialized[key] = { type: 'constant', value: binding.value } satisfies PropertyBindingData;
         } else if (binding.type === 'macro') {
             serialized[key] = { type: 'macro', macroId: binding.macroId } satisfies PropertyBindingData;
+        } else if (binding.type === 'keyframes') {
+            serialized[key] = { type: 'keyframes', channelId: binding.channelId };
         }
     }
     return serialized;
@@ -838,6 +858,7 @@ const createSceneStoreState = (
     fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
     interaction: createInitialInteractionState(),
     runtimeMeta: createRuntimeMeta(),
+    automation: createEmptyAutomationState(),
 
     addElement: (input) => {
         set((state) => {
@@ -959,11 +980,21 @@ const createSceneStoreState = (
                 byMacro: rebuildMacroIndex(nextByElement),
             };
 
+            // Clone automation channels for the duplicated element
+            const nextAutomation = { ...state.automation, channels: { ...state.automation.channels } };
+            for (const channel of Object.values(state.automation.channels)) {
+                if (channel.elementId === sourceId) {
+                    const cloned = cloneChannel(channel, newId);
+                    nextAutomation.channels[cloned.id] = cloned;
+                }
+            }
+
             return {
                 ...state,
                 elements: nextElements,
                 order: nextOrder,
                 bindings: nextBindings,
+                automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'duplicateElement'),
             };
         });
@@ -981,11 +1012,20 @@ const createSceneStoreState = (
                 byMacro: rebuildMacroIndex(remainingBindings),
             };
 
+            // Remove automation channels for the deleted element
+            const nextChannels = { ...state.automation.channels };
+            for (const [channelId, channel] of Object.entries(nextChannels)) {
+                if (channel.elementId === elementId) {
+                    delete nextChannels[channelId];
+                }
+            }
+
             return {
                 ...state,
                 elements: remaining,
                 order: nextOrder,
                 bindings: nextBindings,
+                automation: { channels: nextChannels },
                 interaction: {
                     ...state.interaction,
                     selectedElementIds: state.interaction.selectedElementIds.filter((id) => id !== elementId),
@@ -1026,6 +1066,31 @@ const createSceneStoreState = (
                 byMacro: rebuildMacroIndex(nextByElement),
             };
 
+            // Rename automation channels for the element
+            const nextChannels = { ...state.automation.channels };
+            for (const [channelId, channel] of Object.entries(state.automation.channels)) {
+                if (channel.elementId === currentId) {
+                    delete nextChannels[channelId];
+                    const renamed = cloneChannel(channel, nextId);
+                    nextChannels[renamed.id] = renamed;
+                }
+            }
+            // Also update any keyframes bindings that reference the old channel IDs
+            const renamedElementBindings = nextByElement[nextId];
+            if (renamedElementBindings) {
+                for (const [key, binding] of Object.entries(renamedElementBindings)) {
+                    if (binding.type === 'keyframes') {
+                        const oldChannelId = makeChannelId(currentId, key);
+                        if (binding.channelId === oldChannelId) {
+                            renamedElementBindings[key] = {
+                                type: 'keyframes',
+                                channelId: makeChannelId(nextId, key),
+                            };
+                        }
+                    }
+                }
+            }
+
             const nextInteraction: SceneInteractionState = {
                 ...state.interaction,
                 selectedElementIds: state.interaction.selectedElementIds.map((id) => (id === currentId ? nextId : id)),
@@ -1040,6 +1105,7 @@ const createSceneStoreState = (
                 elements: nextElements,
                 order: nextOrder,
                 bindings: nextBindings,
+                automation: { channels: nextChannels },
                 interaction: nextInteraction,
                 runtimeMeta: markDirty(state, 'updateElementId'),
             };
@@ -1490,6 +1556,7 @@ const createSceneStoreState = (
             macros: { byId: {}, allIds: [], exportedAt: undefined },
             fonts: { assets: {}, order: [], totalBytes: 0, licensingAcknowledgedAt: undefined },
             interaction: createInitialInteractionState(),
+            automation: createEmptyAutomationState(),
             runtimeMeta: markDirty(state, 'clearScene'),
         }));
     },
@@ -1562,6 +1629,7 @@ const createSceneStoreState = (
                     licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
                 },
                 interaction: createInitialInteractionState(),
+                automation: migratedPayload.automation ?? createEmptyAutomationState(),
                 runtimeMeta: {
                     ...state.runtimeMeta,
                     persistentDirty: false,
@@ -1594,6 +1662,9 @@ const createSceneStoreState = (
             macros: buildMacroPayload(state.macros),
             fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,
             fontLicensingAcknowledgedAt: state.fonts.licensingAcknowledgedAt,
+            automation: Object.keys(state.automation.channels).length
+                ? { channels: { ...state.automation.channels } }
+                : undefined,
         };
     },
 
@@ -1655,6 +1726,44 @@ const createSceneStoreState = (
             return {
                 ...state,
                 interaction: next,
+            };
+        });
+    },
+
+    setAutomationChannel: (channel) => {
+        set((state) => ({
+            ...state,
+            automation: {
+                channels: { ...state.automation.channels, [channel.id]: channel },
+            },
+            runtimeMeta: markDirty(state, 'updateAutomation'),
+        }));
+    },
+
+    removeAutomationChannel: (channelId) => {
+        set((state) => {
+            const { [channelId]: _removed, ...remaining } = state.automation.channels;
+            return {
+                ...state,
+                automation: { channels: remaining },
+                runtimeMeta: markDirty(state, 'updateAutomation'),
+            };
+        });
+    },
+
+    updateAutomationKeyframes: (channelId, keyframes) => {
+        set((state) => {
+            const channel = state.automation.channels[channelId];
+            if (!channel) return state;
+            return {
+                ...state,
+                automation: {
+                    channels: {
+                        ...state.automation.channels,
+                        [channelId]: { ...channel, keyframes },
+                    },
+                },
+                runtimeMeta: markDirty(state, 'updateAutomation'),
             };
         });
     },
