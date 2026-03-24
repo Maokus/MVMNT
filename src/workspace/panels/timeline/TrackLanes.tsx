@@ -7,6 +7,7 @@ import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import type { AudioTrack } from '@audio/audioTypes';
+import AutomationLanes from './AutomationLanes';
 
 type Props = {
     trackIds: string[];
@@ -657,6 +658,11 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
                         />
                     </div>
                 ))}
+            </div>
+
+            {/* Automation dope-sheet lanes (below track rows) */}
+            <div className="absolute left-0 right-0" style={{ top: trackIds.length * rowHeight }}>
+                <AutomationLanes width={width} />
             </div>
 
             {/* Playhead overlay */}

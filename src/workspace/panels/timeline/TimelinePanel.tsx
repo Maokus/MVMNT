@@ -18,8 +18,10 @@ import TransportControls from '../TransportControls';
 import TrackList from './TrackList';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
-import { RULER_HEIGHT } from './constants';
+import { RULER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_HEADER_HEIGHT } from './constants';
 import { useVisualizer } from '@context/VisualizerContext';
+import { selectVisibleAutomationRowCount, selectAutomatedElements } from '@automation/selectors';
+import { useSceneStore } from '@state/sceneStore';
 // Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
@@ -122,6 +124,8 @@ const TimelinePanel: React.FC = () => {
     const rowHeight = useTimelineStore((s) => s.rowHeight);
     const setRowHeight = useTimelineStore((s) => s.setRowHeight);
     const trackCount = trackIds.length;
+    const automationRowCount = useSceneStore(selectVisibleAutomationRowCount);
+    const hasAutomation = useSceneStore(useCallback((s) => selectAutomatedElements(s).length > 0, []));
 
     useLayoutEffect(() => {
         const el = timelineBodyRef.current;
@@ -143,14 +147,17 @@ const TimelinePanel: React.FC = () => {
     useEffect(() => {
         if (!trackCount) return;
         if (bodyHeight <= RULER_HEIGHT) return;
-        const usable = bodyHeight - RULER_HEIGHT;
+        const automationHeight =
+            (hasAutomation ? AUTOMATION_HEADER_HEIGHT : 0) +
+            automationRowCount * AUTOMATION_ROW_HEIGHT;
+        const usable = bodyHeight - RULER_HEIGHT - automationHeight;
         if (usable <= 0) return;
         const desired = usable / trackCount;
         const clamped = Math.max(16, Math.min(160, desired));
         if (Math.abs(clamped - rowHeight) > 0.5) {
             setRowHeight(clamped);
         }
-    }, [bodyHeight, trackCount, rowHeight, setRowHeight]);
+    }, [bodyHeight, trackCount, rowHeight, setRowHeight, automationRowCount, hasAutomation]);
 
     useEffect(() => {
         const el = lanesScrollEl;

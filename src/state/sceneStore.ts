@@ -5,6 +5,7 @@ import type { PropertyBindingData } from '@bindings/property-bindings';
 import type { FontAsset } from '@state/scene/fonts';
 import type { AutomationState, AutomationChannel, AutomationKeyframe, KeyframesBindingState } from '@automation/types';
 import { createEmptyAutomationState, cloneChannel, makeChannelId } from '@automation/types';
+import { automationEvaluator } from '@automation/automation-evaluator';
 import type { AudioFeatureDescriptor } from '@audio/features/audioFeatureTypes';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { useTimelineStore } from '@state/timelineStore';
@@ -1759,6 +1760,7 @@ const createSceneStoreState = (
     },
 
     setAutomationChannel: (channel) => {
+        automationEvaluator.invalidateChannel(channel.id);
         set((state) => ({
             ...state,
             automation: {
@@ -1769,6 +1771,7 @@ const createSceneStoreState = (
     },
 
     removeAutomationChannel: (channelId) => {
+        automationEvaluator.invalidateChannel(channelId);
         set((state) => {
             const { [channelId]: _removed, ...remaining } = state.automation.channels;
             return {
@@ -1780,6 +1783,7 @@ const createSceneStoreState = (
     },
 
     updateAutomationKeyframes: (channelId, keyframes) => {
+        automationEvaluator.invalidateChannel(channelId);
         set((state) => {
             const channel = state.automation.channels[channelId];
             if (!channel) return state;
