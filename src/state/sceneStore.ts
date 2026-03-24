@@ -1236,6 +1236,8 @@ const createSceneStoreState = (
                     }
                 } else if (binding.type === 'macro') {
                     normalized = { type: 'macro', macroId: binding.macroId };
+                } else if (binding.type === 'keyframes') {
+                    normalized = { type: 'keyframes', channelId: (binding as KeyframesBindingState).channelId };
                 } else {
                     console.warn('[SceneStore] Ignoring unsupported binding type', binding);
                     continue;
