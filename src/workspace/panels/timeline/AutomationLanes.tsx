@@ -7,10 +7,36 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { useSceneStore } from '@state/sceneStore';
-import { useAutomatedElementIds, useElementChannels, useAutomationExpanded } from '@automation/hooks';
+import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, CURVE_EDITOR_HEIGHT } from './constants';
 import AutomationLaneRow from './AutomationLaneRow';
+import AutomationCurvePane from './AutomationCurvePane';
+import type { AutomationChannel } from '@automation/types';
+
+/** Single channel lane + optional curve pane. */
+const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ channel, width }) => {
+    const curveExpanded = useCurveEditorExpanded(channel.id);
+
+    return (
+        <>
+            <div
+                className="relative border-b border-neutral-800/60"
+                style={{ height: AUTOMATION_ROW_HEIGHT }}
+            >
+                <AutomationLaneRow channel={channel} width={width} />
+            </div>
+            {curveExpanded && (
+                <div
+                    className="border-b border-neutral-800/60"
+                    style={{ height: CURVE_EDITOR_HEIGHT }}
+                >
+                    <AutomationCurvePane channel={channel} width={width} />
+                </div>
+            )}
+        </>
+    );
+};
 
 /** Lanes for a single element's automation channels. */
 const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = ({ elementId, width }) => {
@@ -30,13 +56,7 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
 
             {/* Channel lane rows (when expanded) */}
             {expanded && channels.map((ch) => (
-                <div
-                    key={ch.id}
-                    className="relative border-b border-neutral-800/60"
-                    style={{ height: AUTOMATION_ROW_HEIGHT }}
-                >
-                    <AutomationLaneRow channel={ch} width={width} />
-                </div>
+                <ChannelLane key={ch.id} channel={ch} width={width} />
             ))}
         </>
     );

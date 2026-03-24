@@ -1806,3 +1806,9 @@ const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSce
 export const createSceneStore = () => createWithEqualityFn<SceneStoreState>(sceneStoreCreator);
 
 export const useSceneStore = createSceneStore();
+
+// Wire the automation evaluator's channel provider to the store so it can
+// resolve channels without relying on CommonJS require (which fails in Vite ESM).
+automationEvaluator.setChannelProvider(
+    (channelId) => useSceneStore.getState().automation.channels[channelId],
+);

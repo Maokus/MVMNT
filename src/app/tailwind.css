@@ -768,6 +768,118 @@
         fill: #ff6b6b;
     }
 
+    /* Automation timeline lanes */
+    .automation-lane-row {
+        display: block;
+        user-select: none;
+    }
+
+    /* Curve editor pane */
+    .ae-curve-pane {
+        background: rgba(0, 0, 0, 0.25);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* Easing picker */
+    .ae-easing-picker {
+        @apply flex flex-col gap-1;
+        max-height: 240px;
+        overflow-y: auto;
+    }
+
+    .ae-easing-picker-popover {
+        @apply rounded border p-2;
+        background: rgba(30, 30, 30, 0.97);
+        border-color: rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+        max-width: 260px;
+    }
+
+    .ae-easing-group {
+        @apply mb-1;
+    }
+
+    .ae-easing-group-label {
+        @apply text-[9px] uppercase tracking-wider px-1 mb-0.5;
+        color: rgba(255, 255, 255, 0.35);
+    }
+
+    .ae-easing-group-grid {
+        @apply flex flex-wrap gap-1;
+    }
+
+    .ae-easing-thumb {
+        @apply flex flex-col items-center rounded border p-0.5 cursor-pointer;
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(255, 255, 255, 0.08);
+        transition: border-color 0.15s, background 0.15s;
+    }
+
+    .ae-easing-thumb:hover {
+        border-color: rgba(96, 165, 250, 0.5);
+        background: rgba(96, 165, 250, 0.08);
+    }
+
+    .ae-easing-thumb.selected {
+        border-color: #60a5fa;
+        background: rgba(96, 165, 250, 0.15);
+    }
+
+    .ae-easing-label {
+        @apply text-[8px] leading-none mt-0.5;
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    .ae-easing-close {
+        @apply mt-1 w-full text-center text-[10px] py-1 rounded;
+        color: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.05);
+        border: none;
+        cursor: pointer;
+    }
+
+    .ae-easing-close:hover {
+        color: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Automation lane context menu */
+    .ae-context-menu {
+        @apply rounded border py-1;
+        background: rgba(30, 30, 30, 0.97);
+        border-color: rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        min-width: 160px;
+    }
+
+    .ae-context-menu-item {
+        @apply block w-full text-left px-3 py-1 text-[11px] cursor-pointer;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.75);
+        transition: background 0.1s;
+    }
+
+    .ae-context-menu-item:hover {
+        background: rgba(96, 165, 250, 0.15);
+        color: #e0e0e0;
+    }
+
+    .ae-context-menu-item.danger {
+        color: #f87171;
+    }
+
+    .ae-context-menu-item.danger:hover {
+        background: rgba(239, 68, 68, 0.15);
+    }
+
+    .ae-context-menu-divider {
+        @apply my-1;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
     .ae-property-controls {
         @apply flex items-center gap-1.5 flex-1 justify-end flex-wrap min-w-0;
     }
