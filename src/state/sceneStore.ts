@@ -309,7 +309,7 @@ export interface SceneStoreState extends SceneStoreActions {
     automation: AutomationState;
 }
 
-const SCENE_SCHEMA_VERSION = 4;
+const SCENE_SCHEMA_VERSION = 5;
 
 export const DEFAULT_SCENE_SETTINGS: SceneSettingsState = {
     fps: 60,

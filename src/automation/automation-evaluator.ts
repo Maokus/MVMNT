@@ -11,7 +11,7 @@ import type { AutomationChannel } from './types';
 /** Function that retrieves a channel from the scene store. */
 type ChannelProvider = (channelId: string) => AutomationChannel | undefined;
 
-class AutomationEvaluatorImpl {
+export class AutomationEvaluatorImpl {
     private curveCache = new Map<string, AutomationCurve>();
     private channelProvider: ChannelProvider | null = null;
 
