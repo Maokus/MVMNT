@@ -490,16 +490,25 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             // Capture current binding so undo can restore it
             const currentBinding = state.bindings.byElement[command.elementId]?.[command.propertyKey];
             const fallbackValue = currentBinding && currentBinding.type === 'constant' ? currentBinding.value : undefined;
+            const undoCommands: SceneCommand[] = [
+                {
+                    type: 'disablePropertyAutomation',
+                    elementId: command.elementId,
+                    propertyKey: command.propertyKey,
+                    fallbackValue,
+                },
+            ];
+            // If the property was macro-bound, restore the macro binding after disabling automation
+            if (currentBinding && currentBinding.type === 'macro') {
+                undoCommands.push({
+                    type: 'updateElementConfig',
+                    elementId: command.elementId,
+                    patch: { [command.propertyKey]: { type: 'macro', macroId: currentBinding.macroId } },
+                });
+            }
             return {
                 redo: [cloneCommand(command)],
-                undo: [
-                    {
-                        type: 'disablePropertyAutomation',
-                        elementId: command.elementId,
-                        propertyKey: command.propertyKey,
-                        fallbackValue,
-                    },
-                ],
+                undo: undoCommands,
             };
         }
         case 'disablePropertyAutomation': {
@@ -744,8 +753,16 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             if (fallback === undefined) {
                 const channel = store.automation.channels[channelId];
                 if (channel && channel.keyframes.length > 0) {
-                    // Use the first keyframe's value as a reasonable fallback
-                    fallback = channel.keyframes[0].value;
+                    // Evaluate at current playhead tick so value "freezes" at what user sees
+                    try {
+                        const { useTimelineStore } = require('@state/timelineStore');
+                        const currentTick = useTimelineStore.getState().timeline.currentTick;
+                        const { AutomationCurve } = require('@automation/automation-curve');
+                        const curve = new AutomationCurve(channel);
+                        fallback = curve.evaluate(currentTick);
+                    } catch {
+                        fallback = channel.keyframes[0].value;
+                    }
                 } else {
                     fallback = 0;
                 }

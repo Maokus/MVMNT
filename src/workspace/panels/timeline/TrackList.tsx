@@ -1,6 +1,7 @@
 import React from 'react';
 import { RULER_HEIGHT } from './constants';
 import TrackEditorRow from './TrackEditorRow';
+import AutomationTrackLabels from './AutomationTrackLabels';
 
 const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
     if (trackIds.length === 0) {
@@ -17,6 +18,7 @@ const TrackList: React.FC<{ trackIds: string[] }> = ({ trackIds }) => {
             {trackIds.map((id) => (
                 <TrackEditorRow key={id} trackId={id} />
             ))}
+            <AutomationTrackLabels />
         </div>
     );
 };

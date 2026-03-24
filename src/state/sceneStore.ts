@@ -174,6 +174,12 @@ export interface SceneInteractionState {
     hoveredElementId: string | null;
     editingElementId: string | null;
     clipboard: SceneClipboard | null;
+    /** Element IDs expanded in the timeline automation section. */
+    automationExpandedElements: string[];
+    /** Channel IDs with curve editor pane open. */
+    automationExpandedCurves: string[];
+    /** Multi-selected keyframes in the timeline automation lanes. */
+    automationSelectedKeyframes: Array<{ channelId: string; tick: number }>;
 }
 
 export interface SceneClipboard {
@@ -325,6 +331,9 @@ function createInitialInteractionState(): SceneInteractionState {
         hoveredElementId: null,
         editingElementId: null,
         clipboard: null,
+        automationExpandedElements: [],
+        automationExpandedCurves: [],
+        automationSelectedKeyframes: [],
     };
 }
 
@@ -1247,6 +1256,24 @@ const createSceneStoreState = (
 
             if (!changed) return state;
 
+            // Clean up orphaned automation channels when a binding transitions from keyframes
+            let nextAutomation = state.automation;
+            for (const [key, newBinding] of Object.entries(nextBindingsForElement)) {
+                const prevBinding = existing[key];
+                if (
+                    prevBinding?.type === 'keyframes' &&
+                    newBinding?.type !== 'keyframes'
+                ) {
+                    const orphanedChannelId = (prevBinding as KeyframesBindingState).channelId;
+                    if (nextAutomation.channels[orphanedChannelId]) {
+                        if (nextAutomation === state.automation) {
+                            nextAutomation = { ...state.automation, channels: { ...state.automation.channels } };
+                        }
+                        delete nextAutomation.channels[orphanedChannelId];
+                    }
+                }
+            }
+
             const nextByElement = { ...state.bindings.byElement, [elementId]: nextBindingsForElement };
             const reordered = zIndexChanged ? sortElementIdsByZIndex(state.order, nextByElement) : state.order;
 
@@ -1259,6 +1286,7 @@ const createSceneStoreState = (
                 ...state,
                 order: zIndexChanged && !ordersEqual(reordered, state.order) ? reordered : state.order,
                 bindings: nextBindings,
+                automation: nextAutomation,
                 runtimeMeta: markDirty(state, 'updateBindings'),
             };
         });
