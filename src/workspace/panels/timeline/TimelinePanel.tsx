@@ -563,24 +563,25 @@ const TimelinePanel: React.FC = () => {
                     </div>
                 </div>
                 <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
-                    <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
-                        <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                            <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        </div>
-                        <div className="flex min-h-full flex-1 flex-col">
-                            <div className="sticky top-0 z-10">
-                                <TimelineRuler />
+                    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+                        <div className="flex min-h-full">
+                            <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
                             </div>
-                            <div
-                                className="relative flex-1 overflow-x-auto overflow-y-hidden"
-                                ref={lanesScrollRef}
-                                onWheel={onRightWheel}
-                                onPointerDown={onRightPointerDown}
-                                onPointerMove={onRightPointerMove}
-                                onPointerUp={onRightPointerUp}
-                                style={{ overscrollBehaviorX: 'contain' }}
-                            >
-                                <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                            <div className="flex flex-1 flex-col">
+                                <div className="sticky top-0 z-10">
+                                    <TimelineRuler />
+                                </div>
+                                <div
+                                    className="relative flex-1"
+                                    ref={lanesScrollRef}
+                                    onWheel={onRightWheel}
+                                    onPointerDown={onRightPointerDown}
+                                    onPointerMove={onRightPointerMove}
+                                    onPointerUp={onRightPointerUp}
+                                >
+                                    <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                </div>
                             </div>
                         </div>
                     </div>

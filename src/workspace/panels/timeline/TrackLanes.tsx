@@ -634,7 +634,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             onPointerDown={onBackgroundPointerDown}
             onPointerMove={onBackgroundPointerMove}
             onPointerUp={onBackgroundPointerUp}
-            style={{ minHeight: lanesHeight, height: '100%', width: '100%' }}
+            style={{ minHeight: lanesHeight, width: '100%' }}
         >
             {/* Grid */}
             <GridLines width={width} height={effectiveHeight} startTick={dispStart} endTick={dispEnd} />
@@ -646,7 +646,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
             {/* Rows */}
             {activeTab === 'clips' && (
-                <div className="absolute inset-0">
+                <div className="relative">
                     {trackIds.map((id, idx) => (
                         <div
                             key={id}
@@ -665,7 +665,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
             {/* Automation dope-sheet lanes */}
             {activeTab === 'automation' && (
-                <div className="absolute left-0 right-0 top-0">
+                <div className="relative">
                     <AutomationLanes width={width} />
                 </div>
             )}

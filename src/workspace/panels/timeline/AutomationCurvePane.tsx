@@ -37,7 +37,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const height = CURVE_EDITOR_HEIGHT;
     const svgRef = useRef<SVGSVGElement | null>(null);
 
-    const [dragging, setDragging] = useState<{ tick: number; startY: number; baseValue: number } | null>(null);
+    const [dragging, setDragging] = useState<{
+        tick: number; startY: number; baseValue: number;
+        frozenMinVal: number; frozenMaxVal: number;
+    } | null>(null);
     const [easingPicker, setEasingPicker] = useState<{ tick: number; x: number; y: number } | null>(null);
 
     // Compute value range for vertical mapping
@@ -122,9 +125,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (e.button !== 0) return;
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-            setDragging({ tick, startY: e.clientY, baseValue: value });
+            setDragging({ tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
         },
-        [],
+        [minVal, maxVal],
     );
 
     const handlePointerMove = useCallback(
@@ -132,7 +135,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (!dragging || !svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
             const y = e.clientY - rect.top;
-            const newVal = yToValue(y);
+            // Use frozen bounds from drag start for stable pixel→value mapping
+            const t = (height - PADDING_Y - y) / (height - PADDING_Y * 2);
+            const newVal = dragging.frozenMinVal + t * (dragging.frozenMaxVal - dragging.frozenMinVal);
             dispatchSceneCommand(
                 {
                     type: 'updateKeyframe',
@@ -147,7 +152,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 },
             );
         },
-        [dragging, channel.id, yToValue],
+        [dragging, channel.id, height],
     );
 
     const handlePointerUp = useCallback(
@@ -163,7 +168,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             }
             const rect = svgRef.current.getBoundingClientRect();
             const y = e.clientY - rect.top;
-            const newVal = yToValue(y);
+            // Use frozen bounds from drag start for stable pixel→value mapping
+            const t = (height - PADDING_Y - y) / (height - PADDING_Y * 2);
+            const newVal = dragging.frozenMinVal + t * (dragging.frozenMaxVal - dragging.frozenMinVal);
             dispatchSceneCommand(
                 {
                     type: 'updateKeyframe',
@@ -179,7 +186,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             );
             setDragging(null);
         },
-        [dragging, channel.id, yToValue],
+        [dragging, channel.id, height],
     );
 
     // Click on a segment to show easing picker

@@ -117,7 +117,7 @@
     }
 
     .tracklist-container {
-        @apply h-full;
+        /* height determined by flex stretch from parent */
     }
 
     .track-list {
