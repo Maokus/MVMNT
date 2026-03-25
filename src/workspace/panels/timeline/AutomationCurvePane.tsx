@@ -9,7 +9,15 @@
  * - Click segment → open easing picker
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    useFloating,
+    autoUpdate,
+    flip,
+    shift,
+    offset,
+    FloatingPortal,
+} from '@floating-ui/react';
 import { useTickScale } from './useTickScale';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
@@ -42,7 +50,22 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         tick: number; startY: number; baseValue: number;
         frozenMinVal: number; frozenMaxVal: number;
     } | null>(null);
-    const [easingPicker, setEasingPicker] = useState<{ tick: number; x: number; y: number } | null>(null);
+    const [easingPicker, setEasingPicker] = useState<{ tick: number } | null>(null);
+
+    const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
+        open: easingPicker !== null,
+        placement: 'bottom-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
+
+    // Close easing picker on outside click
+    useEffect(() => {
+        if (!easingPicker) return;
+        const close = () => setEasingPicker(null);
+        window.addEventListener('pointerdown', close);
+        return () => window.removeEventListener('pointerdown', close);
+    }, [easingPicker]);
 
     // Compute value range for vertical mapping
     const { minVal, maxVal } = useMemo(() => {
@@ -196,15 +219,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
-            if (!svgRef.current) return;
-            const rect = svgRef.current.getBoundingClientRect();
-            setEasingPicker({
-                tick,
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
+            pickerRefs.setReference({
+                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
             });
+            setEasingPicker({ tick });
         },
-        [],
+        [pickerRefs],
     );
 
     const handleEasingSelect = useCallback(
@@ -239,6 +259,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 width={width}
                 height={height}
                 className="absolute inset-0"
+                onPointerDown={(e) => e.stopPropagation()}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
             >
@@ -272,6 +293,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         stroke="rgba(96,165,250,0.6)"
                         strokeWidth={1.5}
                         strokeLinejoin="round"
+                        pointerEvents="none"
                     />
                 )}
 
@@ -286,7 +308,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             y={0}
                             width={Math.max(1, next.x - pt.x)}
                             height={height}
-                            fill="transparent"
+                            fill="#00000000"
+                            pointerEvents="all"
                             style={{ cursor: 'pointer' }}
                             onClick={(e) => handleSegmentClick(e, pt.tick)}
                             data-seg="1"
@@ -312,14 +335,13 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
             {/* Easing picker popover */}
             {easingPicker && (
-                <div
-                    className="absolute z-50"
-                    style={{
-                        left: Math.min(easingPicker.x, width - 260),
-                        top: Math.min(easingPicker.y, height - 40),
-                    }}
-                >
-                    <div className="ae-easing-picker-popover">
+                <FloatingPortal>
+                    <div
+                        ref={pickerRefs.setFloating}
+                        className="ae-easing-picker-popover z-50"
+                        style={pickerFloatingStyles}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
                         <EasingPicker
                             currentEasingId={
                                 channel.keyframes.find(
@@ -336,7 +358,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             Close
                         </button>
                     </div>
-                </div>
+                </FloatingPortal>
             )}
         </div>
     );

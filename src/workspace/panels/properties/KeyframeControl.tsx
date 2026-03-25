@@ -65,12 +65,19 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 const valueType = resolveAutomationValueType(propertyType);
                 if (!valueType) return;
 
+                const initialKeyframes =
+                    tick > 0
+                        ? [{ tick, value: currentValue, easingId: 'linear' },]
+                        : [{ tick: 0, value: currentValue, easingId: 'linear' }];
+
+
                 dispatchSceneCommand(
                     {
                         type: 'enablePropertyAutomation',
                         elementId,
                         propertyKey,
                         valueType,
+                        initialKeyframes,
                     },
                     { source: 'keyframe-control' },
                 );
