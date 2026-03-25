@@ -7,7 +7,7 @@
  * `getValue` is a fallback that evaluates at the current timeline tick.
  */
 
-import { PropertyBinding, type PropertyBindingContext, type PropertyBindingData } from './property-bindings';
+import { PropertyBinding, registerKeyframeBindingFactory, type PropertyBindingContext, type PropertyBindingData } from './property-bindings';
 import { automationEvaluator } from '@automation/automation-evaluator';
 
 export class KeyframeBinding<T = any> extends PropertyBinding<T> {
@@ -57,3 +57,7 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
         return { type: 'keyframes', channelId: this.channelId };
     }
 }
+
+// Self-register so PropertyBinding.fromSerialized can create KeyframeBinding
+// without a circular require().
+registerKeyframeBindingFactory((channelId: string) => new KeyframeBinding(channelId));

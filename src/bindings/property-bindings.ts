@@ -16,6 +16,17 @@ export interface PropertyBindingContext {
     sceneConfig: Record<string, unknown>;
 }
 
+/**
+ * Factory slot for keyframe bindings.
+ * KeyframeBinding registers itself here on import to break the circular dependency
+ * between property-bindings.ts and keyframe-binding.ts.
+ */
+let keyframeBindingFactory: ((channelId: string) => PropertyBinding) | null = null;
+
+export function registerKeyframeBindingFactory(factory: (channelId: string) => PropertyBinding): void {
+    keyframeBindingFactory = factory;
+}
+
 export type PropertyBindingData =
     | { type: 'constant'; value: any }
     | { type: 'macro'; macroId: string }
@@ -73,9 +84,10 @@ export abstract class PropertyBinding<T = any> {
                 if (!('channelId' in data) || !data.channelId) {
                     throw new Error('Keyframes binding requires channelId');
                 }
-                // Lazy import to avoid circular dependency
-                const { KeyframeBinding } = require('./keyframe-binding');
-                return new KeyframeBinding(data.channelId);
+                if (!keyframeBindingFactory) {
+                    throw new Error('KeyframeBinding factory not registered — ensure keyframe-binding module is imported');
+                }
+                return keyframeBindingFactory(data.channelId);
             }
             default: {
                 const unknownType = (data as { type?: string }).type ?? 'unknown';

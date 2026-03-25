@@ -4,6 +4,9 @@ import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
 import { automationEvaluator } from '@automation/automation-evaluator';
+// Side-effect import: registers the KeyframeBinding factory so
+// PropertyBinding.fromSerialized can construct keyframe bindings.
+import '@bindings/keyframe-binding';
 import {
     useSceneStore,
     type BindingState,
