@@ -9,6 +9,8 @@
 
 import { PropertyBinding, registerKeyframeBindingFactory, type PropertyBindingContext, type PropertyBindingData } from './property-bindings';
 import { automationEvaluator } from '@automation/automation-evaluator';
+import { useTimelineStore } from '@state/timelineStore';
+import { getSharedTimingManager } from '@state/timelineStore';
 
 export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     private channelId: string;
@@ -21,7 +23,6 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     /** Fallback: evaluate at current timeline tick (used outside render context). */
     getValue(): T {
         try {
-            const { useTimelineStore } = require('@state/timelineStore');
             const tick = useTimelineStore.getState().timeline.currentTick;
             return automationEvaluator.evaluate(this.channelId, tick) as T;
         } catch {
@@ -32,7 +33,6 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     /** Preferred: evaluate at the render context's targetTime. */
     getValueWithContext(context: PropertyBindingContext): T {
         try {
-            const { getSharedTimingManager } = require('@state/timelineStore');
             const tm = getSharedTimingManager();
             if (tm) {
                 const tick = tm.secondsToTicks(context.targetTime);

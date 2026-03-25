@@ -538,14 +538,18 @@ export class SceneElement implements SceneElementInterface {
      * Child classes should override _buildRenderObjects instead
      */
     buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.visible) return [];
-
-        // Call the child class implementation to build the base render objects
+        // Set render context and invalidate keyframe caches BEFORE any property reads
+        // so that time-dependent bindings evaluate at the correct targetTime.
         this._renderContext = { targetTime, sceneConfig: config };
 
         // Invalidate cache for keyframe-bound properties each frame (values are time-dependent)
         for (const key of this._keyframeBoundKeys) {
             this._cacheValid.set(key, false);
+        }
+
+        if (!this.visible) {
+            this._renderContext = null;
+            return [];
         }
         
         // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
@@ -584,10 +588,11 @@ export class SceneElement implements SceneElementInterface {
             // Built-in element - no safety wrapper needed
             childRenderObjects = this._buildRenderObjects(config, targetTime);
         }
-        
-        this._renderContext = null;
 
-        if (childRenderObjects.length === 0) return [];
+        if (childRenderObjects.length === 0) {
+            this._renderContext = null;
+            return [];
+        }
 
         // Calculate the layout and visual bounding boxes and anchor point for transformation
         const layoutBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
@@ -631,6 +636,9 @@ export class SceneElement implements SceneElementInterface {
             skewX: this.elementSkewX,
             skewY: this.elementSkewY,
         };
+
+        // Clear render context after all property reads are complete
+        this._renderContext = null;
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
