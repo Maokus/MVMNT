@@ -11,6 +11,7 @@ import AutomationLanes from './AutomationLanes';
 
 type Props = {
     trackIds: string[];
+    activeTab: 'clips' | 'automation';
 };
 
 // Tick-domain snapping: snap to selected denomination when quantize !== 'off', or forceSnap for bar snapping.
@@ -422,7 +423,7 @@ const isAudioFile = (file: File) => {
     return AUDIO_FILE_REGEX.test(name);
 };
 
-const TrackLanes: React.FC<Props> = ({ trackIds }) => {
+const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [width, setWidth] = useState(0);
     const [height, setHeight] = useState(0);
@@ -520,9 +521,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
     };
 
     const rowHeight = useTimelineStore((s) => s.rowHeight);
-    const lanesHeight = trackIds.length > 0
-        ? rowHeight * Math.max(1, trackIds.length)
-        : Math.max(120, rowHeight);
+    const lanesHeight = activeTab === 'clips'
+        ? (trackIds.length > 0 ? rowHeight * Math.max(1, trackIds.length) : Math.max(120, rowHeight))
+        : 120; // automation lanes determine their own height via content flow
     const [containerHeight, setContainerHeight] = useState(0);
     useLayoutEffect(() => {
         const el = containerRef.current;
@@ -644,26 +645,30 @@ const TrackLanes: React.FC<Props> = ({ trackIds }) => {
             )}
 
             {/* Rows */}
-            <div className="absolute inset-0">
-                {trackIds.map((id, idx) => (
-                    <div
-                        key={id}
-                        className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/15' : 'bg-neutral-800/5'}`}
-                        style={{ height: rowHeight }}
-                    >
-                        {/* Horizontal separator */}
-                        <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />
-                        <TrackRowBlock trackId={id} laneWidth={width} laneHeight={rowHeight}
-                            onHoverSnapX={(x) => setHoverX(x)}
-                        />
-                    </div>
-                ))}
-            </div>
+            {activeTab === 'clips' && (
+                <div className="absolute inset-0">
+                    {trackIds.map((id, idx) => (
+                        <div
+                            key={id}
+                            className={`relative ${idx % 2 === 0 ? 'bg-neutral-800/15' : 'bg-neutral-800/5'}`}
+                            style={{ height: rowHeight }}
+                        >
+                            {/* Horizontal separator */}
+                            <div className="absolute left-0 right-0 bottom-0 border-b border-neutral-800" />
+                            <TrackRowBlock trackId={id} laneWidth={width} laneHeight={rowHeight}
+                                onHoverSnapX={(x) => setHoverX(x)}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
 
-            {/* Automation dope-sheet lanes (below track rows) */}
-            <div className="absolute left-0 right-0" style={{ top: trackIds.length * rowHeight }}>
-                <AutomationLanes width={width} />
-            </div>
+            {/* Automation dope-sheet lanes */}
+            {activeTab === 'automation' && (
+                <div className="absolute left-0 right-0 top-0">
+                    <AutomationLanes width={width} />
+                </div>
+            )}
 
             {/* Playhead overlay */}
             <div className="absolute top-0 bottom-0 w-0 border-l border-red-400 pointer-events-none" style={{ left: playheadX }} />

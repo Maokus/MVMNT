@@ -296,7 +296,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             {contextMenu && (
                 <div
                     className="ae-context-menu absolute z-50"
-                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    style={{ left: contextMenu.x, bottom: height - contextMenu.y }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <button
