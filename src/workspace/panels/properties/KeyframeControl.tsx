@@ -61,17 +61,9 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
             e.stopPropagation();
 
             if (!isAutomated) {
-                // Enable automation and seed with current value at tick 0 and current tick
+                // Enable automation with no initial keyframes
                 const valueType = resolveAutomationValueType(propertyType);
                 if (!valueType) return;
-
-                const initialKeyframes =
-                    tick > 0
-                        ? [
-                            { tick: 0, value: currentValue, easingId: 'linear' },
-                            { tick, value: currentValue, easingId: 'linear' },
-                        ]
-                        : [{ tick: 0, value: currentValue, easingId: 'linear' }];
 
                 dispatchSceneCommand(
                     {
@@ -79,7 +71,6 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                         elementId,
                         propertyKey,
                         valueType,
-                        initialKeyframes,
                     },
                     { source: 'keyframe-control' },
                 );

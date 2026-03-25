@@ -9,6 +9,14 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    useFloating,
+    autoUpdate,
+    flip,
+    shift,
+    offset,
+    FloatingPortal,
+} from '@floating-ui/react';
 import { useTickScale } from './useTickScale';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
@@ -91,6 +99,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             if (e.button !== 0) return;
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+
+            // Select the element that owns this automation channel
+            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
 
             // Select this keyframe
             if (e.shiftKey) {
@@ -191,6 +202,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const target = e.target as SVGElement;
             if (target.closest('[data-kf]')) return;
 
+            // Select the element that owns this automation channel
+            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+
             const rect = svgRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const candTick = toTick(x, width);
@@ -211,26 +225,36 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         [channel, toTick, width, snapTick],
     );
 
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const [contextMenuOpen, setContextMenuOpen] = useState(false);
+    const { refs: ctxRefs, floatingStyles: ctxFloatingStyles } = useFloating({
+        open: contextMenuOpen,
+        onOpenChange: setContextMenuOpen,
+        placement: 'bottom-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
 
     const handleContextMenu = useCallback(
         (e: React.MouseEvent<SVGSVGElement>) => {
             e.preventDefault();
             e.stopPropagation();
-            if (!svgRef.current) return;
-            const rect = svgRef.current.getBoundingClientRect();
-            setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            const x = e.clientX;
+            const y = e.clientY;
+            ctxRefs.setReference({
+                getBoundingClientRect: () => new DOMRect(x, y, 0, 0),
+            });
+            setContextMenuOpen(true);
         },
-        [],
+        [ctxRefs],
     );
 
     // Close context menu on outside click
     useEffect(() => {
-        if (!contextMenu) return;
-        const close = () => setContextMenu(null);
+        if (!contextMenuOpen) return;
+        const close = () => setContextMenuOpen(false);
         window.addEventListener('pointerdown', close);
         return () => window.removeEventListener('pointerdown', close);
-    }, [contextMenu]);
+    }, [contextMenuOpen]);
 
     const height = AUTOMATION_ROW_HEIGHT;
     const cy = height / 2;
@@ -293,77 +317,80 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             </svg>
 
             {/* Context menu */}
-            {contextMenu && (
-                <div
-                    className="ae-context-menu absolute z-50"
-                    style={{ left: contextMenu.x, bottom: height - contextMenu.y }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                >
-                    <button
-                        type="button"
-                        className="ae-context-menu-item"
-                        onClick={() => {
-                            copyChannel(channel);
-                            setContextMenu(null);
-                        }}
+            {contextMenuOpen && (
+                <FloatingPortal>
+                    <div
+                        ref={ctxRefs.setFloating}
+                        className="ae-context-menu z-50"
+                        style={ctxFloatingStyles}
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
-                        Copy channel
-                    </button>
-                    {getClipboard() && (
                         <button
                             type="button"
                             className="ae-context-menu-item"
                             onClick={() => {
-                                const clip = getClipboard();
-                                if (clip) {
-                                    dispatchSceneCommand(
-                                        {
-                                            type: 'batchUpdateKeyframes',
-                                            channelId: channel.id,
-                                            keyframes: clip.keyframes,
-                                        },
-                                        { source: 'automation-lane' },
-                                    );
-                                }
-                                setContextMenu(null);
+                                copyChannel(channel);
+                                setContextMenuOpen(false);
                             }}
                         >
-                            Paste keyframes
+                            Copy channel
                         </button>
-                    )}
-                    <div className="ae-context-menu-divider" />
-                    <button
-                        type="button"
-                        className="ae-context-menu-item"
-                        onClick={() => {
-                            dispatchSceneCommand(
-                                {
-                                    type: 'batchUpdateKeyframes',
-                                    channelId: channel.id,
-                                    keyframes: [],
-                                },
-                                { source: 'automation-lane' },
-                            );
-                            setContextMenu(null);
-                        }}
-                    >
-                        Clear keyframes
-                    </button>
-                    <button
-                        type="button"
-                        className="ae-context-menu-item danger"
-                        onClick={() => {
-                            dispatchSceneCommand({
-                                type: 'disablePropertyAutomation',
-                                elementId: channel.elementId,
-                                propertyKey: channel.propertyKey,
-                            });
-                            setContextMenu(null);
-                        }}
-                    >
-                        Delete automation
-                    </button>
-                </div>
+                        {getClipboard() && (
+                            <button
+                                type="button"
+                                className="ae-context-menu-item"
+                                onClick={() => {
+                                    const clip = getClipboard();
+                                    if (clip) {
+                                        dispatchSceneCommand(
+                                            {
+                                                type: 'batchUpdateKeyframes',
+                                                channelId: channel.id,
+                                                keyframes: clip.keyframes,
+                                            },
+                                            { source: 'automation-lane' },
+                                        );
+                                    }
+                                    setContextMenuOpen(false);
+                                }}
+                            >
+                                Paste keyframes
+                            </button>
+                        )}
+                        <div className="ae-context-menu-divider" />
+                        <button
+                            type="button"
+                            className="ae-context-menu-item"
+                            onClick={() => {
+                                dispatchSceneCommand(
+                                    {
+                                        type: 'batchUpdateKeyframes',
+                                        channelId: channel.id,
+                                        keyframes: [],
+                                    },
+                                    { source: 'automation-lane' },
+                                );
+                                setContextMenuOpen(false);
+                            }}
+                        >
+                            Clear keyframes
+                        </button>
+                        <button
+                            type="button"
+                            className="ae-context-menu-item danger"
+                            onClick={() => {
+                                dispatchSceneCommand({
+                                    type: 'disablePropertyAutomation',
+                                    elementId: channel.elementId,
+                                    propertyKey: channel.propertyKey,
+                                });
+                                setContextMenuOpen(false);
+                            }}
+                        >
+                            Delete automation
+                        </button>
+                    </div>
+                </FloatingPortal>
             )}
         </div>
     );

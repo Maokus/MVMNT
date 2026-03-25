@@ -12,6 +12,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTickScale } from './useTickScale';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { useSceneStore } from '@state/sceneStore';
 import { CURVE_EDITOR_HEIGHT } from './constants';
 import EasingPicker from './EasingPicker';
 import easings from '@animation/easing';
@@ -125,9 +126,11 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (e.button !== 0) return;
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+            // Select the element that owns this automation channel
+            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
             setDragging({ tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
         },
-        [minVal, maxVal],
+        [minVal, maxVal, channel.elementId],
     );
 
     const handlePointerMove = useCallback(
