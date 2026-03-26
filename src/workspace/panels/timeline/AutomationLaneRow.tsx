@@ -75,6 +75,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const { toX, toTick } = useTickScale();
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const ppq = CANONICAL_PPQ;
 
     const selectedKeyframes = useSceneStore(
@@ -353,6 +354,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 if (!sb.moved) {
                     // Treat as a click on background → add keyframe
                     if (svgRef.current) {
+
                         const rect = svgRef.current.getBoundingClientRect();
                         const x = e.clientX - rect.left;
                         const candTick = toTick(x, width);
@@ -503,62 +505,72 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 onContextMenu={handleContextMenu}
                 style={{ display: 'block', cursor: dragging ? 'grabbing' : 'crosshair' }}
             >
-            {/* Interpolation lines */}
-            {elements.lines.map((line, i) => (
-                <line
-                    key={`line-${i}`}
-                    x1={line.x1}
-                    y1={cy}
-                    x2={line.x2}
-                    y2={cy}
-                    stroke="rgba(96,165,250,0.35)"
-                    strokeWidth={1}
-                />
-            ))}
+                {/* Interpolation lines */}
+                {elements.lines.map((line, i) => (
+                    <line
+                        key={`line-${i}`}
+                        x1={line.x1}
+                        y1={cy}
+                        x2={line.x2}
+                        y2={cy}
+                        stroke="rgba(96,165,250,0.35)"
+                        strokeWidth={1}
+                    />
+                ))}
 
-            {/* Keyframe diamonds */}
-            {elements.diamonds.map(({ kf, x }) => {
-                const sel = isSelected(kf.tick);
-                const fill = sel ? '#60a5fa' : 'rgba(96,165,250,0.6)';
-                const stroke = sel ? '#93bbfc' : 'rgba(96,165,250,0.8)';
-                return (
-                    <g
-                        key={kf.tick}
-                        data-kf="1"
-                        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-                        onPointerDown={(e) => handleKfPointerDown(e, kf)}
-                    >
-                        <path
-                            d={`M${x} ${cy - DIAMOND_SIZE} L${x + DIAMOND_SIZE} ${cy} L${x} ${cy + DIAMOND_SIZE} L${x - DIAMOND_SIZE} ${cy} Z`}
-                            fill={fill}
-                            stroke={stroke}
-                            strokeWidth={1}
-                        />
-                        {/* Larger hit area */}
-                        <rect
-                            x={x - DIAMOND_SIZE - 2}
-                            y={cy - DIAMOND_SIZE - 2}
-                            width={DIAMOND_SIZE * 2 + 4}
-                            height={DIAMOND_SIZE * 2 + 4}
-                            fill="transparent"
-                        />
-                    </g>
-                );
-            })}
+                {/* Keyframe diamonds */}
+                {elements.diamonds.map(({ kf, x }) => {
+                    const sel = isSelected(kf.tick);
+                    const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
+                    const fill = sel ? '#60a5fa' : 'rgba(96,165,250,0.6)';
+                    const stroke = sel ? '#93bbfc' : 'rgba(96,165,250,0.8)';
+                    return (
+                        <g
+                            key={kf.tick}
+                            data-kf="1"
+                            style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+                            onPointerDown={(e) => handleKfPointerDown(e, kf)}
+                        >
+                            <path
+                                d={`M${x} ${cy - DIAMOND_SIZE} L${x + DIAMOND_SIZE} ${cy} L${x} ${cy + DIAMOND_SIZE} L${x - DIAMOND_SIZE} ${cy} Z`}
+                                fill={fill}
+                                stroke={stroke}
+                                strokeWidth={1}
+                            />
+                            {atPlayhead && (
+                                <circle
+                                    cx={x}
+                                    cy={cy}
+                                    r={2.5}
+                                    fill="#f87171"
+                                    style={{ pointerEvents: 'none' }}
+                                />
+                            )}
+                            {/* Larger hit area */}
+                            <rect
+                                x={x - DIAMOND_SIZE - 2}
+                                y={cy - DIAMOND_SIZE - 2}
+                                width={DIAMOND_SIZE * 2 + 4}
+                                height={DIAMOND_SIZE * 2 + 4}
+                                fill="transparent"
+                            />
+                        </g>
+                    );
+                })}
 
-            {/* Selection box */}
-            {selBoxRect && (
-                <rect
-                    x={selBoxRect.x}
-                    y={1}
-                    width={selBoxRect.width}
-                    height={height - 2}
-                    fill="rgba(96,165,250,0.08)"
-                    stroke="rgba(96,165,250,0.45)"
-                    strokeWidth={1}
-                    style={{ pointerEvents: 'none' }}
-                />
-            )}
+                {/* Selection box */}
+                {selBoxRect && (
+                    <rect
+                        x={selBoxRect.x}
+                        y={1}
+                        width={selBoxRect.width}
+                        height={height - 2}
+                        fill="rgba(96,165,250,0.08)"
+                        stroke="rgba(96,165,250,0.45)"
+                        strokeWidth={1}
+                        style={{ pointerEvents: 'none' }}
+                    />
+                )}
             </svg>
 
             {/* Context menu */}

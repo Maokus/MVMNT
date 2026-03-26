@@ -7,7 +7,7 @@ import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/form/inputs/FormInput';
 import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
-import { makeChannelId } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
@@ -127,13 +127,26 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         nextValues[property.key] = normalizeConstantValue(property.key, property.default);
                     }
                 } else if (binding?.type === 'keyframes') {
-                    // Evaluate automation at current tick for display
+                    // Evaluate automation at current tick for display.
+                    // Read directly from automationChannels (hook-captured, always current) first.
+                    // This avoids stale evaluator-curve-cache results when a keyframe was just
+                    // added/modified at the current tick — the exact-match path bypasses the cache.
                     const chId = makeChannelId(elementId, property.key);
-                    const evaluated = automationEvaluator.evaluate(chId, currentTick);
-                    nextValues[property.key] = normalizeConstantValue(
-                        property.key,
-                        evaluated ?? property.default,
-                    );
+                    const channel = automationChannels[chId];
+                    if (channel) {
+                        const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
+                        if (kfAtTick !== null) {
+                            nextValues[property.key] = normalizeConstantValue(property.key, kfAtTick.value);
+                        } else {
+                            const evaluated = automationEvaluator.evaluate(chId, currentTick);
+                            nextValues[property.key] = normalizeConstantValue(
+                                property.key,
+                                evaluated ?? property.default,
+                            );
+                        }
+                    } else {
+                        nextValues[property.key] = normalizeConstantValue(property.key, property.default);
+                    }
                 } else if (binding?.type === 'constant') {
                     nextValues[property.key] = normalizeConstantValue(property.key, binding.value ?? property.default);
                 } else {
