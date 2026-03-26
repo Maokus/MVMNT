@@ -274,13 +274,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
                         {
-                            key: 'noteGlowColor',
-                            type: 'color',
-                            label: 'Note Glow Color',
-                            default: 'rgba(255,255,255,0.5)',
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
                             key: 'noteGlowBlur',
                             type: 'number',
                             label: 'Note Glow Blur (px)',
@@ -331,7 +324,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                                 noteColor: '#FF6B6BE6',
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
-                                noteGlowColor: 'rgba(56,189,248,0.7)',
                             },
                         },
                         {
@@ -1053,7 +1045,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 },
                 defaultValue: 0,
             },
-            noteGlowColor: { transform: asTrimmedString, defaultValue: 'rgba(255,255,255,0.5)' },
             noteGlowBlur: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
