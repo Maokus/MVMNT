@@ -203,6 +203,7 @@ export class SceneElementRegistry {
 
     private registerDefaultElements() {
         this.registerElementFromClass('background', elements.BackgroundElement);
+        this.registerElementFromClass('basicShapes', elements.BasicShapesElement);
         this.registerElementFromClass('image', elements.ImageElement);
         this.registerElementFromClass('progressDisplay', elements.ProgressDisplayElement);
         this.registerElementFromClass('textOverlay', elements.TextOverlayElement);

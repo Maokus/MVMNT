@@ -11,6 +11,7 @@ export {
     type PropertyTransform,
 } from './base';
 export { BackgroundElement } from './misc/background';
+export { BasicShapesElement } from './misc/basic-shapes';
 export { ImageElement } from './misc/image';
 export { ProgressDisplayElement } from './misc/progress-display';
 export { TextOverlayElement } from './misc/text-overlay';

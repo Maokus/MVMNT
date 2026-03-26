@@ -352,23 +352,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 } catch { /* ignore */ }
 
                 if (!sb.moved) {
-                    // Treat as a click on background → add keyframe
-                    if (svgRef.current) {
-
-                        const rect = svgRef.current.getBoundingClientRect();
-                        const x = e.clientX - rect.left;
-                        const candTick = toTick(x, width);
-                        const snapped = snapTick(candTick, e.altKey);
-                        const interpolatedValue = interpolateAtTick(channel, snapped);
-                        dispatchSceneCommand(
-                            {
-                                type: 'addKeyframe',
-                                channelId: channel.id,
-                                keyframe: { tick: snapped, value: interpolatedValue, easingId: 'linear' },
-                            },
-                            { source: 'automation-lane' },
-                        );
-                    }
+                    // Single click on background — no action (use double-click to add a keyframe)
                 } else {
                     // Select all keyframes whose x position falls within the box
                     const minX = Math.min(sb.startX, sb.endX);
@@ -430,6 +414,31 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             setSelBox({ startX: svgX, endX: svgX, moved: false });
         },
         [channel.elementId, setSelBox],
+    );
+
+    // -----------------------------------------------------------------------
+    // Double-click on background → add keyframe
+    // -----------------------------------------------------------------------
+    const handleDoubleClick = useCallback(
+        (e: React.MouseEvent<SVGSVGElement>) => {
+            const target = e.target as SVGElement;
+            if (target.closest('[data-kf]')) return;
+            if (!svgRef.current) return;
+            const rect = svgRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const candTick = toTick(x, width);
+            const snapped = snapTick(candTick, e.altKey);
+            const interpolatedValue = interpolateAtTick(channel, snapped);
+            dispatchSceneCommand(
+                {
+                    type: 'addKeyframe',
+                    channelId: channel.id,
+                    keyframe: { tick: snapped, value: interpolatedValue, easingId: 'linear' },
+                },
+                { source: 'automation-lane' },
+            );
+        },
+        [channel, toTick, width, snapTick],
     );
 
     // -----------------------------------------------------------------------
@@ -502,6 +511,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerCancel}
+                onDoubleClick={handleDoubleClick}
                 onContextMenu={handleContextMenu}
                 style={{ display: 'block', cursor: dragging ? 'grabbing' : 'crosshair' }}
             >

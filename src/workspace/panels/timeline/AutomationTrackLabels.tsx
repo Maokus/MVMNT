@@ -145,7 +145,7 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
                 title={expanded ? 'Collapse automation channels' : 'Expand automation channels'}
             >
                 {expanded ? <FaChevronDown className="text-[9px]" /> : <FaChevronRight className="text-[9px]" />}
-                <span className="text-[11px] font-medium truncate">{element.type}</span>
+                <span className="text-[11px] font-medium truncate">{elementId}</span>
                 <span className="text-[10px] text-neutral-500 truncate">({channels.length})</span>
             </div>
 
