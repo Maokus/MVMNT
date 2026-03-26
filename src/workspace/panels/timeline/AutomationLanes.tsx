@@ -132,6 +132,45 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 return;
             }
 
+            // Duplicate selected keyframes immediately after the selection (tiles on repeat)
+            if (e.key === 'd' && (e.metaKey || e.ctrlKey)) {
+                const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                if (selected.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+
+                selected.sort((a, b) => a.tick - b.tick);
+                const minTick = selected[0].tick;
+                const maxTick = selected[selected.length - 1].tick;
+                const lastKeyframe = selected[selected.length - 1];
+                const span = maxTick - minTick;
+                if (span === 0) return; // single tick — no meaningful tile
+
+                const state = useSceneStore.getState();
+                const mergeKey = `duplicate-kf-${Date.now()}`;
+                const newSelected: Array<{ channelId: string; tick: number }> = [];
+
+                for (const { channelId, tick } of selected) {
+                    const ch = state.automation.channels[channelId];
+                    if (!ch) continue;
+                    const kf = ch.keyframes.find((k) => Math.abs(k.tick - tick) < 0.5);
+                    if (!kf) continue;
+                    const newTick = tick + span;
+
+                    dispatchSceneCommand(
+                        { type: 'addKeyframe', channelId, keyframe: { ...kf, tick: newTick } },
+                        { source: 'automation-lane', mergeKey },
+                    );
+                    newSelected.push({ channelId, tick: newTick });
+                }
+
+                // Shift selection to duplicated block — next Cmd+D tiles another copy
+                useSceneStore.setState((s) => ({
+                    interaction: { ...s.interaction, automationSelectedKeyframes: newSelected },
+                }));
+                return;
+            }
+
             // Paste selected keyframes (offset to playhead)
             if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
                 const clip = getKeyframeSelClipboard();
