@@ -1,7 +1,7 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
 import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
-import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
+import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
@@ -802,7 +802,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             const noteCornerRadius = props.noteCornerRadius;
             const noteStrokeColor = props.noteStrokeColor;
             const noteStrokeWidth = props.noteStrokeWidth;
-            const noteGlowColor = props.noteGlowColor;
             const noteGlowBlur = props.noteGlowBlur;
             const noteGlowOpacity = props.noteGlowOpacity;
             (animatedRenderObjects as any[]).forEach((obj) => {
@@ -811,18 +810,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     obj.setCornerRadius(noteCornerRadius);
                 if (noteStrokeWidth > 0 && typeof obj.setStroke === 'function')
                     obj.setStroke(noteStrokeColor, noteStrokeWidth);
-                if (noteGlowBlur > 0 && typeof obj.setShadow === 'function') {
-                    let glowColorOut = noteGlowColor;
-                    if (noteGlowColor.startsWith('#') && noteGlowOpacity < 1) {
-                        const r = parseInt(noteGlowColor.substr(1, 2), 16);
-                        const g = parseInt(noteGlowColor.substr(3, 2), 16);
-                        const b = parseInt(noteGlowColor.substr(5, 2), 16);
-                        glowColorOut = `rgba(${r},${g},${b},${noteGlowOpacity})`;
-                    }
-                    obj.setShadow(glowColorOut, noteGlowBlur, 0, 0);
-                }
             });
-            renderObjects.push(...animatedRenderObjects);
+            if (noteGlowBlur > 0) {
+                // GlowLayer renders notes twice: once normally, once blurred+screened.
+                // The halo colour derives from each note's own fill colour — on dark
+                // backgrounds, screen blending creates a natural per-note radiance effect.
+                const glowLayer = new GlowLayer({ glowBlur: noteGlowBlur, glowOpacity: noteGlowOpacity });
+                glowLayer.addChildren(animatedRenderObjects);
+                renderObjects.push(glowLayer);
+            } else {
+                renderObjects.push(...animatedRenderObjects);
+            }
         }
 
         // Add a non-drawing rectangle to establish layout bounds for the content area

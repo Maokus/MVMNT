@@ -25,6 +25,8 @@ export {
     Poly,
     BezierPath,
     Arc,
+    GlowLayer,
+    CompositeLayer,
 } from '@core/render/render-objects';
 export {
     PLUGIN_API_VERSION,

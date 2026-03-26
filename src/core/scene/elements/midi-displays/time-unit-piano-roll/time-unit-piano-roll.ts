@@ -2,7 +2,7 @@
 import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
-import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects';
+import { Line, Text, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
 import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { NoteBlock } from './note-block';
@@ -1275,7 +1275,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
             const noteCornerRadius = props.noteCornerRadius ?? 0;
             const noteStrokeColor = props.noteStrokeColor ?? undefined;
             const noteStrokeWidth = props.noteStrokeWidth ?? 0;
-            const noteGlowColor = props.noteGlowColor ?? 'rgba(255,255,255,0.5)';
             const noteGlowBlur = props.noteGlowBlur ?? 0;
             const noteGlowOpacity = props.noteGlowOpacity ?? 0.5;
             (animatedRenderObjects as any[]).forEach((obj) => {
@@ -1288,20 +1287,18 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 if (noteStrokeWidth > 0 && typeof obj.setStroke === 'function') {
                     obj.setStroke(noteStrokeColor, noteStrokeWidth);
                 }
-                if (noteGlowBlur > 0 && typeof obj.setShadow === 'function') {
-                    // If hex color convert to rgba with glow opacity
-                    let glowColorOut = noteGlowColor;
-                    if (noteGlowColor.startsWith('#') && noteGlowOpacity < 1) {
-                        const r = parseInt(noteGlowColor.substr(1, 2), 16);
-                        const g = parseInt(noteGlowColor.substr(3, 2), 16);
-                        const b = parseInt(noteGlowColor.substr(5, 2), 16);
-                        glowColorOut = `rgba(${r},${g},${b},${noteGlowOpacity})`;
-                    }
-                    obj.setShadow(glowColorOut, noteGlowBlur, 0, 0);
-                }
             });
             debugLog(`[_buildRenderObjects] Created ${animatedRenderObjects.length} animated note blocks`);
-            renderObjects.push(...animatedRenderObjects);
+            if (noteGlowBlur > 0) {
+                // GlowLayer renders notes twice: once normally, once blurred+screened.
+                // The halo colour derives from each note's own fill colour — on dark
+                // backgrounds, screen blending creates a natural per-note radiance effect.
+                const glowLayer = new GlowLayer({ glowBlur: noteGlowBlur, glowOpacity: noteGlowOpacity });
+                glowLayer.addChildren(animatedRenderObjects);
+                renderObjects.push(glowLayer);
+            } else {
+                renderObjects.push(...animatedRenderObjects);
+            }
         }
 
         // Add grid lines
