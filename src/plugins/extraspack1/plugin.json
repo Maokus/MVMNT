@@ -2,7 +2,7 @@
   "id": "extraspack1",
   "name": "Extras Pack 1",
   "version": "1.0.0",
-  "mvmntVersion": "^0.14.0",
+  "mvmntVersion": "^0.15.0",
   "description": "Custom plugin providing Collision Midi Display",
   "author": "Your Name",
   "elements": [

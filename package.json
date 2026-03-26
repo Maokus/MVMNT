@@ -56,7 +56,6 @@
         "compile": "npx tsc --noEmit",
         "create-element": "node scripts/create-element.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
-        "build-default-plugins": "node scripts/build-plugin.mjs extraspack1 --out public/default-plugins/extraspack1.mvmnt-plugin",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional"
     },

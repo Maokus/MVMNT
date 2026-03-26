@@ -27,8 +27,8 @@ When asked to "implement phase x" of a plan, read through the requirements and g
     -   `plugins/` – External/user-authored plugin directory (not the SDK itself).
     -   `math/` – Math, geometry, and numeric helpers.
     -   `utils/` – Shared utilities (logging, throttling, feature flags).
+    -   `templates/` – Pre-built `.mvt` scene template files.
 -   `/thoughts` – Exploratory planning documents. May be outdated; cross-check with `/docs`.
--   `/templates` – Pre-built `.mvt` scene template files.
 
 ## Plugin / Scene Element System
 

@@ -16,6 +16,7 @@ export interface PluginLoadResult {
 
 interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
+    skipVersionCheck?: boolean;
 }
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
@@ -79,7 +80,7 @@ export async function loadPlugin(
         }
 
         // Check version compatibility
-        if (!satisfiesVersion(MVMNT_VERSION, manifest.mvmntVersion)) {
+        if (!options.skipVersionCheck && !satisfiesVersion(MVMNT_VERSION, manifest.mvmntVersion)) {
             return {
                 success: false,
                 error: `Plugin requires MVMNT version ${manifest.mvmntVersion}, but current version is ${MVMNT_VERSION}`,
@@ -262,6 +263,7 @@ export async function reloadPluginFromStorage(
 
         return await loadPlugin(bundleData, {
             allowExistingPlugin: options.allowExistingPlugin,
+            skipVersionCheck: true, // Version was already checked at install time
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);

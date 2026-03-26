@@ -6,13 +6,15 @@ interface DefaultPluginDescriptor {
     id: string;
     assetPath: string;
     defaultEnabled: boolean;
+    skipVersionCheck?: boolean;
 }
 
 const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
     {
         id: 'extraspack1',
-        assetPath: '/default-plugins/extraspack1.mvmnt-plugin',
+        assetPath: '/default-plugins/extraspack1-1.0.0.mvmnt-plugin',
         defaultEnabled: false,
+        skipVersionCheck: true,
     },
 ];
 
@@ -54,7 +56,7 @@ export async function installDefaultPlugins(): Promise<void> {
                 PluginSettingsStore.setEnabled(descriptor.id, descriptor.defaultEnabled);
             }
 
-            const result = await loadPlugin(buffer);
+            const result = await loadPlugin(buffer, { skipVersionCheck: descriptor.skipVersionCheck });
             if (!result.success) {
                 console.warn(`[DefaultPlugins] Failed to install ${descriptor.id}:`, result.error);
                 continue;
