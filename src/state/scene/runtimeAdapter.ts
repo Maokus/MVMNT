@@ -3,6 +3,10 @@ import type { SceneElement } from '@core/scene/elements';
 import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
+import { automationEvaluator } from '@automation/automation-evaluator';
+// Side-effect import: registers the KeyframeBinding factory so
+// PropertyBinding.fromSerialized can construct keyframe bindings.
+import '@bindings/keyframe-binding';
 import {
     useSceneStore,
     type BindingState,
@@ -40,6 +44,8 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
     for (const [property, binding] of Object.entries(bindings)) {
         if (binding.type === 'macro') {
             config[property] = { type: 'macro', macroId: binding.macroId };
+        } else if (binding.type === 'keyframes') {
+            config[property] = { type: 'keyframes', channelId: binding.channelId };
         } else if (isConstantBinding(binding)) {
             config[property] = { type: 'constant', value: binding.value };
         }
@@ -51,6 +57,9 @@ function bindingsSignature(elementType: string, bindings: ElementBindings): stri
     const pairs = Object.entries(bindings).map(([property, binding]) => {
         if (binding.type === 'macro') {
             return `${property}=macro:${binding.macroId}`;
+        }
+        if (binding.type === 'keyframes') {
+            return `${property}=keyframes:${binding.channelId}`;
         }
         try {
             return `${property}=const:${serializeStable(binding.value)}`;
@@ -287,6 +296,24 @@ export class SceneRuntimeAdapter {
         if (this.disposed) return;
 
         let mutated = false;
+
+        // Detect automation channel changes and invalidate evaluator cache
+        if (next.automation !== prev.automation) {
+            const nextChannels = next.automation.channels;
+            const prevChannels = prev.automation.channels;
+            for (const channelId of Object.keys(prevChannels)) {
+                if (nextChannels[channelId] !== prevChannels[channelId]) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            for (const channelId of Object.keys(nextChannels)) {
+                if (!(channelId in prevChannels)) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            // Bump version so render loop picks up the change
+            mutated = true;
+        }
 
         if (next.settings !== prev.settings) {
             this.settings = { ...next.settings };

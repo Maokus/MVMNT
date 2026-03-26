@@ -23,7 +23,7 @@ export interface PersistentDocumentV1 {
     midiCache: any;
     audioFeatureCaches?: Record<string, any>;
     audioFeatureCacheStatus?: Record<string, any>;
-    scene: { elements: any[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number };
+    scene: { elements: any[]; sceneSettings?: any; macros?: any; fontAssets?: any; fontLicensingAcknowledgedAt?: number; automation?: any };
     metadata?: Partial<SceneMetadataState>;
 }
 
@@ -50,6 +50,7 @@ export const DocumentGateway = {
         let macros: any = undefined;
         let fontAssets: any = undefined;
         let fontLicensingAcknowledgedAt: number | undefined;
+        let automation: any = undefined;
 
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
@@ -67,6 +68,9 @@ export const DocumentGateway = {
             }
             if (typeof snapshot.fontLicensingAcknowledgedAt === 'number') {
                 fontLicensingAcknowledgedAt = snapshot.fontLicensingAcknowledgedAt;
+            }
+            if (snapshot.automation) {
+                automation = snapshot.automation;
             }
         } catch {}
 
@@ -102,6 +106,7 @@ export const DocumentGateway = {
                 macros,
                 fontAssets,
                 fontLicensingAcknowledgedAt,
+                automation,
             },
             metadata,
         };
@@ -163,6 +168,7 @@ export const DocumentGateway = {
             macros: doc.scene?.macros,
             fontAssets: doc.scene?.fontAssets,
             fontLicensingAcknowledgedAt: doc.scene?.fontLicensingAcknowledgedAt,
+            automation: doc.scene?.automation,
         };
 
         const sceneData = migrateSceneAudioSystemV5(rawSceneData);

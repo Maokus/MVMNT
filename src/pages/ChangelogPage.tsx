@@ -19,6 +19,13 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
+                    <ChangelogEntry version="0.15.0" date="26-3-26" notes={[
+                        'Implemented automation system',
+                        'Implemented custom element system and api',
+                        'DevEx quality of life scripts',
+                        'Sold one of my kidneys to claude code (worth it)'
+                    ]} />
+
                     <ChangelogEntry version="0.14.0" date="20-1-26" notes={[
                         'Implemented audio feature extraction and analysis',
                         'Added audio elements (volume meter, oscilloscope, spectrum analyzer)',

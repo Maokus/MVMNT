@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import PropertyGroupPanel from '../PropertyGroupPanel';
 import type { PropertyDefinition, PropertyGroup } from '@core/types';
 
-const assignListenerMock = vi.fn(() => () => {});
+const assignListenerMock = vi.fn(() => () => { });
 
 vi.mock('@context/MacroContext', () => ({
     useMacros: () => ({
@@ -25,7 +25,7 @@ describe('PropertyGroupPanel', () => {
     beforeEach(() => {
         assignListenerMock.mockClear();
         consoleErrorSpy = vi.spyOn(console, 'error');
-        consoleErrorSpy.mockImplementation(() => {});
+        consoleErrorSpy.mockImplementation(() => { });
     });
 
     afterEach(() => {
@@ -52,6 +52,7 @@ describe('PropertyGroupPanel', () => {
                 properties={group.properties}
                 values={{}}
                 macroAssignments={{}}
+                elementId="test-element"
                 onValueChange={vi.fn()}
                 onMacroAssignment={vi.fn()}
                 onCollapseToggle={vi.fn()}
