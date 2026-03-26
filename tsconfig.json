@@ -35,9 +35,6 @@
       "@core/*": [
         "core/*"
       ],
-      "@animation/*": [
-        "math/animation/*"
-      ],
       "@automation/*": [
         "automation/*"
       ],
