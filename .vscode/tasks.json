@@ -21,9 +21,9 @@
 			}
 		},
 		{
-			"label": "Run NPM lint",
+			"label": "Run NPM compile",
 			"type": "shell",
-			"command": "npm run lint",
+			"command": "npm run compile",
 			"group": "build",
 			"isBackground": false,
 			"problemMatcher": [],

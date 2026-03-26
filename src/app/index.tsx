@@ -10,6 +10,7 @@ import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFea
 import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
 import { loadAllPluginsFromStorage } from '@core/scene/plugins';
 import { installPluginHostApi } from '@core/scene/plugins';
+import { installDefaultPlugins } from '@core/scene/plugins/default-plugins';
 import { useTimelineStore } from '@state/timelineStore';
 import { selectNotesInWindow } from '@selectors/timelineSelectors';
 if (import.meta.env.DEV) {
@@ -62,6 +63,11 @@ loadDevPlugins().catch((error) => {
 // Load runtime plugins from storage (Phase 3)
 loadAllPluginsFromStorage().catch((error) => {
   console.error('[App] Failed to load plugins from storage:', error);
+});
+
+// Install bundled default plugins on first run
+installDefaultPlugins().catch((error) => {
+  console.error('[App] Failed to install default plugins:', error);
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);

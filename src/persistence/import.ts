@@ -642,7 +642,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
 
     let hydrationWarnings: string[] = [];
     const fontWarnings: string[] = [];
-    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4) && envelope.assets) {
+    if ((envelope.schemaVersion === 2 || envelope.schemaVersion === 4 || envelope.schemaVersion === 5) && envelope.assets) {
         hydrationWarnings = await hydrateAudioAssets(envelope, audioPayloads, waveformPayloads);
     }
 

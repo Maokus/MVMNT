@@ -1,8 +1,8 @@
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import * as af from '@animation/anim-math'; //Anim functions
-import easingFunctions from '@animation/easing';
+import * as af from '@math/animation/anim-math'; //Anim functions
+import easingFunctions from '@math/animation/easing';
 
 const ef = easingFunctions;
 

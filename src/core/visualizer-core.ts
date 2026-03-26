@@ -678,6 +678,8 @@ export class MIDIVisualizerCore {
         for (const [key, binding] of Object.entries(bindings)) {
             if (binding.type === 'macro') {
                 config[key] = { type: 'macro', macroId: binding.macroId };
+            } else if (binding.type === 'keyframes') {
+                config[key] = { type: 'keyframes', channelId: binding.channelId };
             } else {
                 config[key] = binding.value;
             }

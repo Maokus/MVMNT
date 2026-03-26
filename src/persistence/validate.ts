@@ -62,7 +62,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     const root: any = data;
     const schemaVersion = root.schemaVersion;
-    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
+    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4 && schemaVersion !== 5) {
         errors.push(err('ERR_SCHEMA_VERSION', 'Unsupported schemaVersion', 'schemaVersion'));
     }
     if (root.format !== 'mvmnt.scene') {
@@ -188,7 +188,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         }
     }
 
-    if (schemaVersion === 2 || schemaVersion === 4) {
+    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {

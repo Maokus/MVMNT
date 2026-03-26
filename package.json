@@ -1,6 +1,6 @@
 {
     "name": "midi-social-visualizer-react",
-    "version": "0.14.0",
+    "version": "0.15.0",
     "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "private": true,
     "type": "module",
@@ -53,7 +53,7 @@
         "preview": "vite preview",
         "test": "vitest run",
         "test:watch": "vitest --watch",
-        "lint": "npx tsc --noEmit",
+        "compile": "npx tsc --noEmit",
         "create-element": "node scripts/create-element.mjs",
         "build-plugin": "node scripts/build-plugin.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",

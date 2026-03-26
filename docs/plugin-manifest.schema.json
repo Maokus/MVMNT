@@ -4,7 +4,7 @@
   "title": "MVMNT Plugin Manifest",
   "description": "Schema for MVMNT custom element plugin manifests",
   "type": "object",
-  "required": ["id", "name", "version", "mvmntVersion", "elements"],
+  "required": ["id", "name", "version", "apiVersion", "elements"],
   "properties": {
     "id": {
       "type": "string",
@@ -22,9 +22,14 @@
       "description": "Plugin version (semantic versioning)",
       "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$"
     },
+    "apiVersion": {
+      "type": "string",
+      "description": "Compatible MVMNT plugin API version range (semver range, e.g., ^1.0.0, >=1.0.0 <2.0.0)",
+      "minLength": 1
+    },
     "mvmntVersion": {
       "type": "string",
-      "description": "Compatible MVMNT version range (semver range, e.g., ^1.0.0, >=1.2.0 <2.0.0)",
+      "description": "Deprecated. Use 'apiVersion' instead. Accepted for backwards compatibility.",
       "minLength": 1
     },
     "description": {

@@ -190,6 +190,8 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
 
     const tView = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
+    const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
+    const masterTempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
     // Tick-based setters
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const setPlaybackRangeTicks = useTimelineStore((s) => s.setPlaybackRangeTicks);
@@ -213,7 +215,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             const clamped = Math.min(Math.max(visualizer.currentTime, startSec), endSec);
             visualizer.seek?.(clamped);
         }
-    }, [visualizer, playbackRange?.startTick, playbackRange?.endTick]);
+    }, [visualizer, playbackRange?.startTick, playbackRange?.endTick, globalBpm, masterTempoMap]);
 
     // Initialize playbackRange once from current view so it's decoupled from pan/zoom until user changes it
     useEffect(() => {

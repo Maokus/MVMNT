@@ -1,0 +1,173 @@
+/**
+ * AutomationLanes — right-column container for automation dope-sheet rows.
+ *
+ * Renders below track lane rows in the right column, mirroring
+ * the structure of AutomationTrackLabels in the left column.
+ */
+
+import React, { useCallback, useEffect } from 'react';
+import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
+import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
+import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, CURVE_EDITOR_HEIGHT } from './constants';
+import AutomationLaneRow from './AutomationLaneRow';
+import AutomationCurvePane from './AutomationCurvePane';
+import type { AutomationChannel } from '@automation/types';
+
+/** Single channel lane + optional curve pane. */
+const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ channel, width }) => {
+    const curveExpanded = useCurveEditorExpanded(channel.id);
+
+    return (
+        <>
+            <div
+                className="relative border-b border-neutral-800/60"
+                style={{ height: AUTOMATION_ROW_HEIGHT }}
+            >
+                <AutomationLaneRow channel={channel} width={width} />
+            </div>
+            {curveExpanded && (
+                <div
+                    className="border-b border-neutral-800/60"
+                    style={{ height: CURVE_EDITOR_HEIGHT }}
+                >
+                    <AutomationCurvePane channel={channel} width={width} />
+                </div>
+            )}
+        </>
+    );
+};
+
+/** Lanes for a single element's automation channels. */
+const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = ({ elementId, width }) => {
+    const expanded = useAutomationExpanded(elementId);
+    const channels = useElementChannels(elementId);
+    const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
+
+    if (!element || channels.length === 0) return null;
+
+    return (
+        <>
+            {/* Element header spacer (mirrors left-column header height) */}
+            <div
+                className="border-b border-neutral-800"
+                style={{ height: AUTOMATION_HEADER_HEIGHT }}
+            />
+
+            {/* Channel lane rows (when expanded) */}
+            {expanded && channels.map((ch) => (
+                <ChannelLane key={ch.id} channel={ch} width={width} />
+            ))}
+        </>
+    );
+};
+
+interface AutomationLanesProps {
+    width: number;
+}
+
+const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
+    const automatedIds = useAutomatedElementIds();
+
+    // Delete key removes selected keyframes
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const active = document.activeElement as HTMLElement | null;
+            if (active) {
+                const tag = active.tagName;
+                if (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA') return;
+            }
+
+            // Copy selected keyframes
+            if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
+                const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                if (selected.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                // Group by channelId
+                const byChannel = new Map<string, number[]>();
+                for (const { channelId, tick } of selected) {
+                    if (!byChannel.has(channelId)) byChannel.set(channelId, []);
+                    byChannel.get(channelId)!.push(tick);
+                }
+                const state = useSceneStore.getState();
+                const entries: Array<{ channelId: string; keyframes: { tick: number; value: unknown; easingId: string }[] }> = [];
+                for (const [channelId, ticks] of byChannel) {
+                    const ch = state.automation.channels[channelId];
+                    if (!ch) continue;
+                    const kfs = ch.keyframes.filter((kf) =>
+                        ticks.some((t) => Math.abs(kf.tick - t) < 0.5),
+                    );
+                    if (kfs.length > 0) entries.push({ channelId, keyframes: kfs });
+                }
+                copySelectedKeyframes(entries);
+                return;
+            }
+
+            // Paste selected keyframes (offset to playhead)
+            if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
+                const clip = getKeyframeSelClipboard();
+                if (!clip) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const currentTick = useTimelineStore.getState().timeline.currentTick ?? 0;
+                const tickOffset = currentTick - clip.minTick;
+                for (const entry of clip.entries) {
+                    for (const kf of entry.keyframes) {
+                        const newTick = Math.max(0, Math.round(kf.tick + tickOffset));
+                        dispatchSceneCommand(
+                            {
+                                type: 'addKeyframe',
+                                channelId: entry.channelId,
+                                keyframe: { ...kf, tick: newTick },
+                            },
+                            { source: 'automation-lane' },
+                        );
+                    }
+                }
+                return;
+            }
+
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const selected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            if (selected.length === 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            for (const kf of selected) {
+                dispatchSceneCommand(
+                    { type: 'removeKeyframe', channelId: kf.channelId, tick: kf.tick },
+                    { source: 'automation-lane' },
+                );
+            }
+            useSceneStore.setState((state) => ({
+                interaction: {
+                    ...state.interaction,
+                    automationSelectedKeyframes: [],
+                },
+            }));
+        };
+        window.addEventListener('keydown', handler, { capture: true });
+        return () => window.removeEventListener('keydown', handler, { capture: true } as any);
+    }, []);
+
+    if (automatedIds.length === 0) return null;
+
+    return (
+        <div className="automation-lanes border-t border-neutral-700">
+            {/* Section header spacer (mirrors left-column "AUTOMATION" header) */}
+            <div
+                className="border-b border-neutral-800"
+                style={{ height: AUTOMATION_HEADER_HEIGHT }}
+            />
+
+            {/* Element lane groups */}
+            {automatedIds.map((id) => (
+                <ElementAutomationLanes key={id} elementId={id} width={width} />
+            ))}
+        </div>
+    );
+};
+
+export default AutomationLanes;

@@ -28,7 +28,16 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
         return grouped;
     }, [types]);
 
-    const sortedCategories = useMemo(() => Object.keys(categories).sort((a, b) => a.localeCompare(b)), [categories]);
+    const sortedCategories = useMemo(() => {
+        const isPluginCategory = (cat: string) =>
+            (categories[cat] ?? []).some((t: any) => t.pluginId != null);
+        return Object.keys(categories).sort((a, b) => {
+            const aPlugin = isPluginCategory(a);
+            const bPlugin = isPluginCategory(b);
+            if (aPlugin !== bPlugin) return aPlugin ? 1 : -1;
+            return a.localeCompare(b);
+        });
+    }, [categories]);
     const categoryEntries = useMemo(
         () => sortedCategories.map((category) => ({
             category,
@@ -113,11 +122,10 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             key={category}
                             onMouseEnter={(event) => handleCategoryEnter(category, event)}
                             onFocus={(event) => handleCategoryFocus(category, event)}
-                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
-                                openCategory === category
+                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${openCategory === category
                                     ? 'bg-neutral-800/80 text-white'
                                     : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
-                            }`}
+                                }`}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
                             <span className="font-medium">{formattedCategoryName(category)}</span>

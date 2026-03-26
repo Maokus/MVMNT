@@ -223,15 +223,6 @@ const ScenePluginsTab: React.FC = () => {
                 )}
             </section>
 
-            <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
-                <h4 className="m-0 text-[12px] font-semibold text-white">Safety Controls</h4>
-                <ul className="mt-2 space-y-1 text-[11px] text-neutral-300">
-                    <li>Plugins are time-limited per render call.</li>
-                    <li>Render object counts are capped per element.</li>
-                    <li>Plugins auto-disable on errors and can be re-enabled.</li>
-                    <li>Only compatible MVMNT versions are allowed.</li>
-                </ul>
-            </section>
         </div>
     );
 };

@@ -8,7 +8,33 @@ import * as audioSelectors from '@state/selectors/audioFeatureSelectors';
 import * as timelineStore from '@state/timelineStore';
 import * as analysisIntents from '@audio/features/analysisIntents';
 import * as sceneApi from '@audio/features/sceneApi';
+import * as pluginSdk from '@mvmnt/plugin-sdk';
 import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegistry';
+
+function makePluginApiResult(overrides: {
+    sampleFeatureAtTime?: (args: unknown) => unknown;
+    sampleFeatureRange?: (args: unknown) => unknown[];
+    secondsToTicks?: (s: number) => number | null;
+} = {}) {
+    return {
+        api: {
+            audio: {
+                sampleFeatureAtTime: overrides.sampleFeatureAtTime ?? (() => null),
+                sampleFeatureRange: overrides.sampleFeatureRange ?? (() => []),
+            },
+            timing: {
+                secondsToTicks: overrides.secondsToTicks ?? (() => null),
+                ticksToSeconds: () => null,
+                secondsToBeats: () => null,
+                beatsToSeconds: () => null,
+                beatsToTicks: () => 0,
+                ticksToBeats: () => 0,
+            },
+        } as any,
+        status: 'ok' as const,
+        missingCapabilities: [],
+    };
+}
 
 describe('simplified audio scene elements', () => {
     beforeEach(() => {
@@ -43,25 +69,35 @@ describe('simplified audio scene elements', () => {
     });
 
     it('scales the volume meter fill with the sampled RMS value', () => {
-        vi.spyOn(featureUtils, 'sampleFeatureFrame')
-            .mockReturnValueOnce({
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 1,
-                format: 'float32' as const,
-                channels: 1,
-                values: [0.25],
-                channelValues: [[0.25]],
-            } as any)
-            .mockReturnValueOnce({
-                frameIndex: 1,
-                fractionalIndex: 0,
-                hopTicks: 1,
-                format: 'float32' as const,
-                channels: 1,
-                values: [0.75],
-                channelValues: [[0.75]],
-            } as any);
+        vi.spyOn(pluginSdk, 'getPluginHostApi')
+            .mockReturnValueOnce(makePluginApiResult({
+                sampleFeatureAtTime: () => ({
+                    values: [0.25],
+                    metadata: {
+                        descriptor: { featureKey: 'rms' },
+                        frame: {
+                            channels: 1, values: [0.25], channelValues: [[0.25]],
+                            channelAliases: null, channelLayout: null,
+                            frameIndex: 0, fractionalIndex: 0, hopTicks: 1, format: 'float32',
+                        },
+                        channels: 1, channelAliases: null, channelLayout: null,
+                    },
+                }),
+            }))
+            .mockReturnValueOnce(makePluginApiResult({
+                sampleFeatureAtTime: () => ({
+                    values: [0.75],
+                    metadata: {
+                        descriptor: { featureKey: 'rms' },
+                        frame: {
+                            channels: 1, values: [0.75], channelValues: [[0.75]],
+                            channelAliases: null, channelLayout: null,
+                            frameIndex: 1, fractionalIndex: 0, hopTicks: 1, format: 'float32',
+                        },
+                        channels: 1, channelAliases: null, channelLayout: null,
+                    },
+                }),
+            }));
 
         const element = new AudioVolumeMeterElement('meter', {
             audioTrackId: 'track-1',
@@ -88,16 +124,24 @@ describe('simplified audio scene elements', () => {
     });
 
     it('respects channel selector aliases for the volume meter', () => {
-        vi.spyOn(featureUtils, 'sampleFeatureFrame').mockReturnValue({
-            frameIndex: 0,
-            fractionalIndex: 0,
-            hopTicks: 1,
-            format: 'float32' as const,
-            channels: 2,
-            values: [0.1, 0.9],
-            channelValues: [[0.1], [0.9]],
-            channelAliases: ['Left', 'Right'],
-        } as any);
+        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+            makePluginApiResult({
+                sampleFeatureAtTime: () => ({
+                    values: [0.1, 0.9],
+                    metadata: {
+                        descriptor: { featureKey: 'rms' },
+                        frame: {
+                            channels: 2, values: [0.1, 0.9],
+                            channelValues: [[0.1], [0.9]],
+                            channelAliases: ['Left', 'Right'],
+                            channelLayout: null,
+                            frameIndex: 0, fractionalIndex: 0, hopTicks: 1, format: 'float32',
+                        },
+                        channels: 2, channelAliases: ['Left', 'Right'], channelLayout: null,
+                    },
+                }),
+            })
+        );
 
         const element = new AudioVolumeMeterElement('meter', {
             audioTrackId: 'track-1',
@@ -118,20 +162,20 @@ describe('simplified audio scene elements', () => {
     });
 
     it('builds a waveform polyline from sampled range data', () => {
-        vi.spyOn(audioSelectors, 'sampleAudioFeatureRange').mockReturnValue({
-            frameCount: 4,
-            channels: 1,
-            format: 'float32',
-            data: new Float32Array([-1, -0.5, 0.5, 1]),
-            frameTicks: new Float64Array([0, 1, 2, 3]),
-            frameSeconds: new Float64Array([0, 0.01, 0.02, 0.03]),
-            hopTicks: 1,
-            windowStartTick: 0,
-            windowEndTick: 3,
-            trackStartTick: 0,
-            trackEndTick: 3,
-            sourceId: 'track-1',
-        } as any);
+        const waveformSamples = [-1, -0.5, 0.5, 1].map((v) => ({
+            values: [v],
+            metadata: {
+                channels: 1,
+                frame: { channels: 1, channelValues: [[v]], format: 'float32' as const },
+            },
+        }));
+
+        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+            makePluginApiResult({
+                secondsToTicks: (s: number) => s * 480,
+                sampleFeatureRange: () => waveformSamples,
+            })
+        );
 
         const element = new AudioWaveformElement('osc', {
             audioTrackId: 'track-1',

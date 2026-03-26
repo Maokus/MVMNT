@@ -2,7 +2,7 @@
 import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
-import { getAnimationSelectOptions } from '@animation/note-animations';
+import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';

@@ -196,6 +196,7 @@ export class SceneElementRegistry {
                 name: schema?.name || type,
                 description: schema?.description || `${type} element`,
                 category: schema?.category || 'general',
+                pluginId: this.pluginTypes.get(type) ?? null,
             };
         });
     }

@@ -51,6 +51,7 @@ interface SceneExportEnvelopeBase {
         elements: any[];
         sceneSettings?: any;
         macros?: any;
+        automation?: any;
     };
     timeline: {
         timeline: any;
@@ -84,7 +85,11 @@ export interface SceneExportEnvelopeV4 extends SceneExportEnvelopeBase {
     schemaVersion: 4;
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4;
+export interface SceneExportEnvelopeV5 extends SceneExportEnvelopeBase {
+    schemaVersion: 5;
+}
+
+export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -110,7 +115,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV4;
+    envelope: SceneExportEnvelopeV5;
     json: string;
     blob?: Blob;
 }
@@ -118,7 +123,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV4;
+    envelope: SceneExportEnvelopeV5;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -876,7 +881,7 @@ export async function exportScene(
         };
     }
 
-    const assetsSection: SceneExportEnvelopeV4['assets'] = {
+    const assetsSection: SceneExportEnvelopeV5['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
         audio: { byId: collectResult.audioById },
@@ -891,8 +896,8 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV4 = {
-        schemaVersion: 4,
+    const envelope: SceneExportEnvelopeV5 = {
+        schemaVersion: 5,
         format: 'mvmnt.scene',
         metadata,
         plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,

@@ -3,8 +3,9 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
+import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { satisfiesVersion } from './version-check';
-import { version as MVMNT_VERSION } from '../../../../package.json';
+import { PLUGIN_API_VERSION } from './api-version';
 
 export interface PluginLoadResult {
     success: boolean;
@@ -15,6 +16,7 @@ export interface PluginLoadResult {
 
 interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
+    skipVersionCheck?: boolean;
 }
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
@@ -78,11 +80,20 @@ export async function loadPlugin(
         }
 
         // Check version compatibility
-        if (!satisfiesVersion(MVMNT_VERSION, manifest.mvmntVersion)) {
-            return {
-                success: false,
-                error: `Plugin requires MVMNT version ${manifest.mvmntVersion}, but current version is ${MVMNT_VERSION}`,
-            };
+        if (!options.skipVersionCheck) {
+            const versionRange = manifest.apiVersion ?? manifest.mvmntVersion;
+            if (manifest.mvmntVersion && !manifest.apiVersion) {
+                console.warn(
+                    `[PluginLoader] Plugin '${manifest.id}' uses deprecated 'mvmntVersion'. ` +
+                    `Update its manifest to use 'apiVersion' instead.`
+                );
+            }
+            if (!satisfiesVersion(PLUGIN_API_VERSION, versionRange!)) {
+                return {
+                    success: false,
+                    error: `Plugin requires API version ${versionRange}, but current API version is ${PLUGIN_API_VERSION}`,
+                };
+            }
         }
 
         // Check if plugin is already loaded
@@ -188,6 +199,7 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
 
         // Remove from storage
         await PluginBinaryStore.delete(pluginId);
+        PluginSettingsStore.removeEntry(pluginId);
 
         dispatchPluginAvailabilityEvent({
             action: 'removed',
@@ -216,6 +228,7 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
 
         const unregistered = sceneElementRegistry.unregisterPlugin(pluginId);
         usePluginStore.getState().disablePlugin(pluginId);
+        PluginSettingsStore.setEnabled(pluginId, false);
 
         dispatchPluginAvailabilityEvent({
             action: 'disabled',
@@ -236,6 +249,7 @@ export async function disablePlugin(pluginId: string): Promise<{ success: boolea
 export async function enablePlugin(pluginId: string): Promise<PluginLoadResult> {
     try {
         usePluginStore.getState().clearPluginError(pluginId);
+        PluginSettingsStore.setEnabled(pluginId, true);
         return await reloadPluginFromStorage(pluginId, { allowExistingPlugin: true });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -258,6 +272,7 @@ export async function reloadPluginFromStorage(
 
         return await loadPlugin(bundleData, {
             allowExistingPlugin: options.allowExistingPlugin,
+            skipVersionCheck: true, // Version was already checked at install time
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -280,6 +295,12 @@ export async function loadAllPluginsFromStorage(): Promise<void> {
             if (!result.success) {
                 console.error(`[PluginLoader] Failed to reload plugin '${pluginId}':`, result.error);
                 usePluginStore.getState().setPluginError(pluginId, result.error || 'Unknown error');
+            } else {
+                const storedEnabled = PluginSettingsStore.getEnabled(pluginId);
+                if (storedEnabled === false) {
+                    sceneElementRegistry.unregisterPlugin(pluginId);
+                    usePluginStore.getState().disablePlugin(pluginId);
+                }
             }
         }
     } catch (error) {
@@ -295,11 +316,15 @@ function validateManifest(manifest: any): string | null {
         return 'Invalid manifest: not an object';
     }
 
-    const required = ['id', 'name', 'version', 'mvmntVersion', 'elements'];
+    const required = ['id', 'name', 'version', 'elements'];
     for (const field of required) {
         if (!manifest[field]) {
             return `Invalid manifest: missing required field '${field}'`;
         }
+    }
+
+    if (!manifest.apiVersion && !manifest.mvmntVersion) {
+        return `Invalid manifest: missing required field 'apiVersion'`;
     }
 
     if (!Array.isArray(manifest.elements) || manifest.elements.length === 0) {

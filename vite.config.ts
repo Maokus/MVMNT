@@ -28,9 +28,6 @@ export default defineConfig(({ mode }) => ({
     define: {
         'process.env': {}, // lightweight shim
     },
-    alias: {
-        '@': path.resolve(__dirname, 'src'), // optional shortcut
-    },
     test: {
         environment: 'jsdom',
         setupFiles: ['./src/setupTests.ts'],

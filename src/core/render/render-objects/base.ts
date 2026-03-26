@@ -124,6 +124,13 @@ export abstract class RenderObject {
         if (child && !this.children.includes(child)) this.children.push(child as RenderObject);
         return this;
     }
+    /** Add multiple children at once (skips null/undefined and dedupes) */
+    addChildren(childrenToAdd: Array<(RenderObject & { [key: string]: any }) | null | undefined>): this {
+        for (const c of childrenToAdd) {
+            if (c && !this.children.includes(c)) this.children.push(c as RenderObject);
+        }
+        return this;
+    }
     removeChild(child: RenderObject | { [key: string]: any }): this {
         const index = this.children.indexOf(child as RenderObject);
         if (index !== -1) this.children.splice(index, 1);

@@ -4,6 +4,7 @@ import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInpu
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
+import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 
 const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
 
@@ -49,6 +50,7 @@ interface PropertyGroupPanelProps {
     properties: PropertyDefinition[];
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
+    elementId: string;
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
@@ -59,6 +61,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     properties,
     values,
     macroAssignments,
+    elementId,
     onValueChange,
     onMacroAssignment,
     onCollapseToggle,
@@ -420,14 +423,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     <span className="ae-property-name" title={property.description}>
                         {property.label}
                     </span>
-                    {/*hasAnimationIcon && (
-                        <span
-                            className={`ae-animation-icon ${isAssignedToMacro ? 'active' : ''}`}
-                            title={isAssignedToMacro ? 'Bound to macro' : 'Click to bind to macro'}
-                        >
-                            ⏱
-                        </span>
-                    )*/}
+                    {isAutomatableType(property.type) && (
+                        <KeyframeControl
+                            elementId={elementId}
+                            propertyKey={property.key}
+                            propertyType={property.type}
+                            currentValue={values[property.key]}
+                        />
+                    )}
                 </div>
 
                 <div className="ae-property-controls">

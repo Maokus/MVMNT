@@ -4,7 +4,7 @@ import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { Line, Text, RenderObject, Rectangle } from '@core/render/render-objects';
 import { AnimationController } from './animation-controller';
-import { getAnimationSelectOptions } from '@animation/note-animations';
+import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { NoteBlock } from './note-block';
 import { TimingManager } from '@core/timing/timing-manager';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
