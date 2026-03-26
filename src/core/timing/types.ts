@@ -4,3 +4,16 @@
 // or bpm can be provided; tempo takes precedence if both are present.
 // Optional curve determines interpolation style (step by default, linear ramp when 'linear').
 export type TempoMapEntry = { time: number; tempo?: number; bpm?: number; curve?: 'step' | 'linear' };
+
+// TimelineNoteEvent: a resolved MIDI note event in timeline (absolute) seconds.
+// Defined here as a neutral shared location so it can be re-exported from the
+// plugin SDK without leaking internal state-layer import paths.
+export type TimelineNoteEvent = {
+    trackId: string;
+    note: number;
+    channel: number;
+    startTime: number; // in timeline seconds
+    endTime: number;
+    duration: number;
+    velocity?: number;
+};

@@ -2,6 +2,9 @@ import type { TimelineState, TimelineTrack } from '../timelineStore';
 import { beatsToSeconds as convertBeatsToSeconds } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { offsetTicksToBeats } from '@core/timing/offset-utils';
+import type { TimelineNoteEvent } from '@core/timing/types';
+
+export type { TimelineNoteEvent };
 
 // Helpers: derive seconds offset from beats if needed using timeline context
 const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
@@ -30,16 +33,6 @@ export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
     return offsetTicksToBeats(t.offsetTicks || 0);
-};
-
-export type TimelineNoteEvent = {
-    trackId: string;
-    note: number;
-    channel: number;
-    startTime: number; // in timeline seconds
-    endTime: number;
-    duration: number;
-    velocity?: number;
 };
 
 export const selectMidiTracks = (s: TimelineState): TimelineTrack[] =>

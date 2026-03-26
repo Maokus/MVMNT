@@ -31,4 +31,9 @@ export class TemplateAnimation extends BaseNoteAnimation {
     }
 }
 
+// To create a new animation from this template:
+//   1. Copy this file to a new name (e.g. my-animation.ts) in this directory.
+//   2. Uncomment the registerAnimation() call below (and fill in name/label).
+//   3. index.ts auto-imports all *.ts files in this directory except template.ts,
+//      so your new file will be bundled and registered automatically.
 // registerAnimation({ name: 'template', label: 'Template', class: TemplateAnimation });

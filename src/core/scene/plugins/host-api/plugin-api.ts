@@ -3,8 +3,8 @@ import {
     selectNotesInWindow as selectNotesInWindowSelector,
     selectTrackById as selectTrackByIdSelector,
     selectTracksByIds as selectTracksByIdsSelector,
-    type TimelineNoteEvent,
 } from '@state/selectors/timelineSelectors';
+import type { TimelineNoteEvent } from '@core/timing/types';
 import {
     getFeatureData as getFeatureDataFromScene,
     type FeatureDataResult,

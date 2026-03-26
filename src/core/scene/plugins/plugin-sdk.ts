@@ -1,5 +1,6 @@
 import { registerFeatureRequirements, type AudioFeatureRequirement } from '@audio/audioElementMetadata';
 import type { PluginCapabilityMap } from '@core/scene/plugins/host-api/plugin-api';
+import { timelineApi, audioApi, timingApi, utilitiesApi } from '@core/scene/plugins/plugin-sdk-capabilities';
 
 // Public plugin SDK exports. Keep this file intentionally narrow and stable.
 export {
@@ -61,12 +62,12 @@ export {
     audioApi,
     timingApi,
     utilitiesApi,
-} from '@core/scene/plugins/plugin-sdk-capabilities';
+};
 export { registerFeatureRequirements };
 export type { AudioFeatureRequirement };
 export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 export type { FeatureDataResult, FeatureInput } from '@audio/features/sceneApi';
-export type { TimelineNoteEvent } from '@state/selectors/timelineSelectors';
+export type { TimelineNoteEvent, TempoMapEntry } from '@core/timing/types';
 export {
     withRenderSafety,
     limitRenderObjects,
@@ -101,36 +102,25 @@ export {
     secondsToBeats,
     getSecondsPerBeat,
 } from '@core/timing/tempo-utils';
-export type { TempoMapEntry } from '@core/timing/types';
 
 // ============================================================================
 // COMPILE-TIME ASSERTION: Prevent API Drift
 // ============================================================================
 /**
- * Validates that all PLUGIN_CAPABILITIES keys have a corresponding export in this file.
+ * Maps every PLUGIN_CAPABILITIES key to its exported API proxy.
+ * TypeScript will error here if a new capability is added to plugin-api.ts
+ * but not exported from this file and listed in this map.
  *
- * Capability-to-export mapping:
- *   timelineRead        → timelineApi (plugin-sdk-capabilities)
- *   audioFeaturesRead   → audioApi (plugin-sdk-capabilities)
- *   timingConversion    → timingApi (plugin-sdk-capabilities)
- *   midiUtils           → utilitiesApi (plugin-sdk-capabilities)
- *
- * When adding a new capability to PLUGIN_CAPABILITIES in plugin-api.ts:
+ * When adding a new capability:
  * 1. Add it to plugin-sdk-capabilities.ts (createCapabilityProxy call)
  * 2. Export it from this file
- * 3. Update the mapping comment above
- *
- * TypeScript will fail to compile if the mapping is incomplete.
+ * 3. Add the key → export mapping below
  */
-type _AssertCapabilityExports = Record<keyof PluginCapabilityMap, unknown>;
-type _CheckExportedCapabilities = _AssertCapabilityExports & {
-    timelineRead: unknown;
-    audioFeaturesRead: unknown;
-    timingConversion: unknown;
-    midiUtils: unknown;
-};
-
-// This type assertion forces TypeScript to verify that all PluginCapabilityMap
-// keys are covered. If new capabilities are added without being exported, this
-// will fail with a TypeScript error.
-const _verifyCapabilityExports: _CheckExportedCapabilities = {} as any;
+type _CapabilityExportMap = Record<keyof PluginCapabilityMap, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _verifyCapabilityExports = {
+    timelineRead: timelineApi,
+    audioFeaturesRead: audioApi,
+    timingConversion: timingApi,
+    midiUtils: utilitiesApi,
+} satisfies _CapabilityExportMap;

@@ -10,7 +10,7 @@
 
 import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import type { AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
-import type { TimelineNoteEvent } from '@state/selectors/timelineSelectors';
+import type { TimelineNoteEvent } from '@core/timing/types';
 import type { FeatureInput, FeatureDataResult } from '@audio/features/sceneApi';
 
 /**
