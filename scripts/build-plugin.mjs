@@ -52,7 +52,6 @@ const BLOCKED_INTERNAL_IMPORT_PREFIXES = [
     '@fonts/',
     '@assets/',
     '@export/',
-    '@animation/',
     '@bindings/',
     '@math/',
     '@pages/',

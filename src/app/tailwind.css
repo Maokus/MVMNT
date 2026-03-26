@@ -94,7 +94,7 @@
     }
 
     .timeline-ruler {
-        @apply flex mt-1.5 h-[18px];
+        @apply flex h-[18px];
         gap: 0;
     }
 

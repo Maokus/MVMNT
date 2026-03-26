@@ -23,7 +23,7 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
 import { CURVE_EDITOR_HEIGHT } from './constants';
 import EasingPicker from './EasingPicker';
-import easings from '@animation/easing';
+import easings from '@math/animation/easing';
 import type { AutomationChannel } from '@automation/types';
 
 interface AutomationCurvePaneProps {

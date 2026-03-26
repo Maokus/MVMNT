@@ -1,6 +1,6 @@
 import { BaseNoteAnimation, type AnimationContext } from './base';
 import { registerAnimation } from './registry';
-import easingFunctions from '@animation/easing';
+import easingFunctions from '@math/animation/easing';
 import { Rectangle, RenderObject } from '@core/render/render-objects';
 
 export class ExpandAnimation extends BaseNoteAnimation {

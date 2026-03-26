@@ -1,9 +1,9 @@
 import { RenderObject, EmptyRenderObject, Poly, Rectangle, Text } from '@core/render/render-objects';
-import easingFunctions from '@animation/easing.js';
+import easingFunctions from '@math/animation/easing.js';
 import { BaseNoteAnimation, type AnimationContext } from './base.js';
 import { registerAnimation } from './registry.js';
 import seedrandom from 'seedrandom';
-import * as af from '@animation/anim-math.js';
+import * as af from '@math/animation/anim-math.js';
 
 export class ExplodeAnimation extends BaseNoteAnimation {
     constructor() {

@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
-import easings from '@animation/easing';
+import easings from '@math/animation/easing';
 
 interface EasingPickerProps {
     currentEasingId: string;

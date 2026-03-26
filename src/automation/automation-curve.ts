@@ -14,7 +14,7 @@
 
 import type { AutomationChannel, AutomationKeyframe, AutomationInterpolation, AutomationValueType } from './types';
 import { lerpColor } from './color-interpolation';
-import easings from '@animation/easing';
+import easings from '@math/animation/easing';
 
 type EasingFn = (t: number) => number;
 

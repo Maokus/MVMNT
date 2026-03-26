@@ -36,11 +36,10 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                 <span className="text-[11px] truncate">{propertyKey}</span>
                 <div className="flex items-center gap-1">
                     <button
-                        className={`flex items-center justify-center w-4 h-4 rounded ${
-                            curveExpanded
+                        className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
                                 ? 'text-blue-400 bg-blue-900/30'
                                 : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                        }`}
+                            }`}
                         title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -49,18 +48,6 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     >
                         <FaChartLine className="text-[8px]" />
                     </button>
-                    {channel && (
-                        <button
-                            className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-300 hover:bg-neutral-700/40"
-                            title="Copy channel keyframes"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                copyChannel(channel);
-                            }}
-                        >
-                            <span className="text-[8px] font-bold">C</span>
-                        </button>
-                    )}
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
                         title={`Remove automation: ${propertyKey}`}

@@ -634,7 +634,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             onPointerDown={onBackgroundPointerDown}
             onPointerMove={onBackgroundPointerMove}
             onPointerUp={onBackgroundPointerUp}
-            style={{ minHeight: lanesHeight, width: '100%' }}
+            style={{ minHeight: lanesHeight, width: '100%', transform: "translateY(-1px)" }}
         >
             {/* Grid */}
             <GridLines width={width} height={effectiveHeight} startTick={dispStart} endTick={dispEnd} />

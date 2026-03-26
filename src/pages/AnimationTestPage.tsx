@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import easings from '@animation/easing';
+import easings from '@math/animation/easing';
 import { ModularRenderer } from '@core/render/modular-renderer';
 import { createAnimationInstance, getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import type { AnimationPhase } from '@core/scene/elements/midi-displays/note-animations';
