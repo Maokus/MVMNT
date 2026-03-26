@@ -5,7 +5,7 @@ import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { satisfiesVersion } from './version-check';
-import { version as MVMNT_VERSION } from '../../../../package.json';
+import { PLUGIN_API_VERSION } from './api-version';
 
 export interface PluginLoadResult {
     success: boolean;
@@ -80,11 +80,20 @@ export async function loadPlugin(
         }
 
         // Check version compatibility
-        if (!options.skipVersionCheck && !satisfiesVersion(MVMNT_VERSION, manifest.mvmntVersion)) {
-            return {
-                success: false,
-                error: `Plugin requires MVMNT version ${manifest.mvmntVersion}, but current version is ${MVMNT_VERSION}`,
-            };
+        if (!options.skipVersionCheck) {
+            const versionRange = manifest.apiVersion ?? manifest.mvmntVersion;
+            if (manifest.mvmntVersion && !manifest.apiVersion) {
+                console.warn(
+                    `[PluginLoader] Plugin '${manifest.id}' uses deprecated 'mvmntVersion'. ` +
+                    `Update its manifest to use 'apiVersion' instead.`
+                );
+            }
+            if (!satisfiesVersion(PLUGIN_API_VERSION, versionRange!)) {
+                return {
+                    success: false,
+                    error: `Plugin requires API version ${versionRange}, but current API version is ${PLUGIN_API_VERSION}`,
+                };
+            }
         }
 
         // Check if plugin is already loaded
@@ -307,11 +316,15 @@ function validateManifest(manifest: any): string | null {
         return 'Invalid manifest: not an object';
     }
 
-    const required = ['id', 'name', 'version', 'mvmntVersion', 'elements'];
+    const required = ['id', 'name', 'version', 'elements'];
     for (const field of required) {
         if (!manifest[field]) {
             return `Invalid manifest: missing required field '${field}'`;
         }
+    }
+
+    if (!manifest.apiVersion && !manifest.mvmntVersion) {
+        return `Invalid manifest: missing required field 'apiVersion'`;
     }
 
     if (!Array.isArray(manifest.elements) || manifest.elements.length === 0) {

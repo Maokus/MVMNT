@@ -135,8 +135,10 @@ function validateManifest(manifest, pluginDir) {
         errors.push('Invalid "version": must follow semantic versioning (e.g., 1.0.0)');
     }
     
-    if (!manifest.mvmntVersion || typeof manifest.mvmntVersion !== 'string') {
-        errors.push('Missing or invalid "mvmntVersion" field');
+    if (!manifest.apiVersion && !manifest.mvmntVersion) {
+        errors.push('Missing or invalid "apiVersion" field');
+    } else if (manifest.mvmntVersion && !manifest.apiVersion) {
+        console.warn('[build-plugin] "mvmntVersion" is deprecated. Rename it to "apiVersion" in your plugin.json.');
     }
     
     if (!manifest.elements || !Array.isArray(manifest.elements) || manifest.elements.length === 0) {

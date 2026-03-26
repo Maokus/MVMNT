@@ -20,7 +20,9 @@ interface PluginManifest {
     id: string;
     name: string;
     version: string;
-    mvmntVersion: string;
+    apiVersion: string;
+    /** @deprecated Use `apiVersion` instead. */
+    mvmntVersion?: string;
     description?: string;
     author?: string;
     elements: PluginElementDefinition[];
@@ -76,7 +78,7 @@ function validateManifest(manifest: any): manifest is PluginManifest {
         return false;
     }
     
-    if (typeof manifest.mvmntVersion !== 'string') {
+    if (typeof manifest.apiVersion !== 'string' && typeof manifest.mvmntVersion !== 'string') {
         return false;
     }
     

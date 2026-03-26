@@ -173,7 +173,7 @@ function generatePluginJson(pluginId, pluginName, elementType, elementName, elem
         id: pluginId,
         name: pluginName,
         version: '1.0.0',
-        mvmntVersion: '^0.14.0',
+        apiVersion: '^1.0.0',
         description: `Custom plugin providing ${elementName}`,
         author: 'Your Name',
         elements: [

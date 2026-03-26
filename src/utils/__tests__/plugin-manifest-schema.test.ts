@@ -7,7 +7,7 @@ const sampleManifest = {
 	id: 'com.example.myplugin',
 	name: 'My Plugin',
 	version: '1.0.0',
-	mvmntVersion: '^1.0.0',
+	apiVersion: '^1.0.0',
 	description: 'A sample plugin for testing',
 	author: 'Test Author',
 	elements: [
@@ -42,7 +42,7 @@ describe('plugin manifest schema', () => {
 		expect(schema.required).toContain('id');
 		expect(schema.required).toContain('name');
 		expect(schema.required).toContain('version');
-		expect(schema.required).toContain('mvmntVersion');
+		expect(schema.required).toContain('apiVersion');
 		expect(schema.required).toContain('elements');
 	});
 
@@ -76,8 +76,8 @@ describe('plugin manifest schema', () => {
 			expect(typeof sampleManifest.version).toBe('string');
 			expect(sampleManifest.version).toMatch(/^\d+\.\d+\.\d+/);
 
-			expect(sampleManifest.mvmntVersion).toBeDefined();
-			expect(typeof sampleManifest.mvmntVersion).toBe('string');
+			expect(sampleManifest.apiVersion).toBeDefined();
+			expect(typeof sampleManifest.apiVersion).toBe('string');
 
 			expect(sampleManifest.elements).toBeDefined();
 			expect(Array.isArray(sampleManifest.elements)).toBe(true);
