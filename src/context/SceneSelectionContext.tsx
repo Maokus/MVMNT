@@ -10,7 +10,7 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface SceneSelectionState {
@@ -227,11 +227,14 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                 const chId = makeChannelId(elementId, key);
                 if (automationChannels[chId]) {
                     automatedKeys.push(key);
+                    const channel = automationChannels[chId];
+                    const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
+                    const easingId = existingKf?.easingId ?? 'linear';
                     dispatchSceneCommand(
                         {
                             type: 'addKeyframe',
                             channelId: chId,
-                            keyframe: { tick: currentTick, value, easingId: 'linear' },
+                            keyframe: { tick: currentTick, value, easingId },
                         },
                         {
                             source: 'SceneSelectionContext.updateElementConfig',

@@ -49,8 +49,11 @@ function ensureDragCommandOptions(meta: any, elementId: string): DragCommandOpti
     const mode = typeof meta.mode === 'string' && meta.mode.length > 0 ? meta.mode : 'drag';
     const base: DragCommandOptionsBase = {
         mergeKey: `${mode}:${sessionId}`,
-        canMergeWith: (other) =>
-            other.command.type === 'updateElementConfig' && other.command.elementId === elementId,
+        canMergeWith: (other) => {
+            if (other.command.type === 'updateElementConfig') return other.command.elementId === elementId;
+            if (other.command.type === 'addKeyframe') return other.command.channelId.startsWith(`${elementId}.`);
+            return false;
+        },
     };
     meta.dragCommandOptionsBase = base;
     return base;
