@@ -11,7 +11,8 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, CURVE_EDITOR_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { useCurveHeight } from './curveHeightContext';
 import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
 import type { AutomationChannel } from '@automation/types';
@@ -19,6 +20,7 @@ import type { AutomationChannel } from '@automation/types';
 /** Single channel lane + optional curve pane. */
 const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ channel, width }) => {
     const curveExpanded = useCurveEditorExpanded(channel.id);
+    const curveHeight = useCurveHeight(channel.id);
 
     return (
         <>
@@ -31,7 +33,7 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
             {curveExpanded && (
                 <div
                     className="border-b border-neutral-800/60"
-                    style={{ height: CURVE_EDITOR_HEIGHT }}
+                    style={{ height: curveHeight }}
                 >
                     <AutomationCurvePane channel={channel} width={width} />
                 </div>
@@ -71,13 +73,37 @@ interface AutomationLanesProps {
 const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     const automatedIds = useAutomatedElementIds();
 
-    // Delete key removes selected keyframes
+    // Keyboard shortcuts: copy/paste/delete keyframes, j/k navigate prev/next keyframe
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             const active = document.activeElement as HTMLElement | null;
             if (active) {
                 const tag = active.tagName;
                 if (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA') return;
+            }
+
+            // J = previous keyframe globally, K = next keyframe globally
+            if (e.key === 'j' || e.key === 'k') {
+                const sceneState = useSceneStore.getState();
+                const allTicks = Object.values(sceneState.automation.channels)
+                    .flatMap((ch) => ch.keyframes.map((kf) => kf.tick));
+                if (allTicks.length === 0) return;
+                const unique = [...new Set(allTicks)].sort((a, b) => a - b);
+                const currentTick = useTimelineStore.getState().timeline.currentTick;
+                if (e.key === 'j') {
+                    const prev = [...unique].reverse().find((t) => t < currentTick - 0.5);
+                    if (prev !== undefined) {
+                        e.preventDefault();
+                        useTimelineStore.getState().seekTick(prev);
+                    }
+                } else {
+                    const next = unique.find((t) => t > currentTick + 0.5);
+                    if (next !== undefined) {
+                        e.preventDefault();
+                        useTimelineStore.getState().seekTick(next);
+                    }
+                }
+                return;
             }
 
             // Copy selected keyframes

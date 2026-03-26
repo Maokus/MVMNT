@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
-import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine } from 'react-icons/fa';
+import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
-import { copyChannel } from '@automation/clipboard';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, CURVE_EDITOR_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { useCurveHeight } from './curveHeightContext';
 
 /** Channel row label with curve toggle and remove button. */
 const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: string }> = ({
@@ -14,6 +15,9 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
 }) => {
     const curveExpanded = useCurveEditorExpanded(channelId);
     const channel = useSceneStore(useCallback((s) => s.automation.channels[channelId], [channelId]));
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const seekTick = useTimelineStore((s) => s.seekTick);
+    const curveHeight = useCurveHeight(channelId);
 
     const toggleCurve = useCallback(() => {
         useSceneStore.setState((state) => {
@@ -27,6 +31,20 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
         });
     }, [channelId, curveExpanded]);
 
+    const goPrevKeyframe = useCallback(() => {
+        if (!channel) return;
+        const ticks = channel.keyframes.map((kf) => kf.tick).sort((a, b) => a - b);
+        const prev = [...ticks].reverse().find((t) => t < currentTick - 0.5);
+        if (prev !== undefined) seekTick(prev);
+    }, [channel, currentTick, seekTick]);
+
+    const goNextKeyframe = useCallback(() => {
+        if (!channel) return;
+        const ticks = channel.keyframes.map((kf) => kf.tick).sort((a, b) => a - b);
+        const next = ticks.find((t) => t > currentTick + 0.5);
+        if (next !== undefined) seekTick(next);
+    }, [channel, currentTick, seekTick]);
+
     return (
         <>
             <div
@@ -36,9 +54,29 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                 <span className="text-[11px] truncate">{propertyKey}</span>
                 <div className="flex items-center gap-1">
                     <button
+                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                        title="Previous keyframe (J)"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            goPrevKeyframe();
+                        }}
+                    >
+                        <FaAngleLeft className="text-[8px]" />
+                    </button>
+                    <button
+                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                        title="Next keyframe (K)"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            goNextKeyframe();
+                        }}
+                    >
+                        <FaAngleRight className="text-[8px]" />
+                    </button>
+                    <button
                         className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
-                                ? 'text-blue-400 bg-blue-900/30'
-                                : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
+                            ? 'text-blue-400 bg-blue-900/30'
+                            : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
                             }`}
                         title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
                         onClick={(e) => {
@@ -64,11 +102,11 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     </button>
                 </div>
             </div>
-            {/* Curve editor spacer in left column */}
+            {/* Curve editor spacer in left column — height synced with right-column curve pane */}
             {curveExpanded && (
                 <div
                     className="border-b border-neutral-800/60 bg-neutral-900/30 flex items-center px-6"
-                    style={{ height: CURVE_EDITOR_HEIGHT }}
+                    style={{ height: curveHeight }}
                 >
                     <span className="text-[9px] text-neutral-500">Curve</span>
                 </div>

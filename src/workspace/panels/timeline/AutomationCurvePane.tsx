@@ -7,6 +7,7 @@
  * - Control points at each keyframe (tick→x, value→y)
  * - Drag control point vertically → updateKeyframe { value }
  * - Click segment → open easing picker
+ * - Drag resize handle at bottom to change pane height
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,10 +22,10 @@ import {
 import { useTickScale } from './useTickScale';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
-import { CURVE_EDITOR_HEIGHT } from './constants';
 import EasingPicker from './EasingPicker';
 import easings from '@math/animation/easing';
 import type { AutomationChannel } from '@automation/types';
+import { useCurveHeight, useCurveHeightSetter } from './curveHeightContext';
 
 interface AutomationCurvePaneProps {
     channel: AutomationChannel;
@@ -43,8 +44,10 @@ function resolveEasing(id: string): EasingFn {
 
 const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, width }) => {
     const { toX } = useTickScale();
-    const height = CURVE_EDITOR_HEIGHT;
+    const height = useCurveHeight(channel.id);
+    const setHeight = useCurveHeightSetter();
     const svgRef = useRef<SVGSVGElement | null>(null);
+    const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
     const [dragging, setDragging] = useState<{
         tick: number; startY: number; baseValue: number;
@@ -252,6 +255,35 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         });
     }, [minVal, maxVal, valueToY]);
 
+    // Resize handle pointer events
+    const handleResizeDown = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            e.preventDefault();
+            e.stopPropagation();
+            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+            resizeDragRef.current = { startY: e.clientY, startHeight: height };
+        },
+        [height],
+    );
+
+    const handleResizeMove = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            if (!resizeDragRef.current) return;
+            const { startY, startHeight } = resizeDragRef.current;
+            setHeight(channel.id, startHeight + (e.clientY - startY));
+        },
+        [channel.id, setHeight],
+    );
+
+    const handleResizeUp = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            if (!resizeDragRef.current) return;
+            try { (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+            resizeDragRef.current = null;
+        },
+        [],
+    );
+
     return (
         <div className="ae-curve-pane relative" style={{ height, width }}>
             <svg
@@ -332,6 +364,16 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     />
                 ))}
             </svg>
+
+            {/* Resize handle */}
+            <div
+                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize flex items-center justify-center hover:bg-blue-500/20 group"
+                onPointerDown={handleResizeDown}
+                onPointerMove={handleResizeMove}
+                onPointerUp={handleResizeUp}
+            >
+                <div className="w-8 h-0.5 rounded bg-neutral-600 group-hover:bg-blue-400/60" />
+            </div>
 
             {/* Easing picker popover */}
             {easingPicker && (

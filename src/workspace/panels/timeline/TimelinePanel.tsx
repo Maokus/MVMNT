@@ -39,6 +39,7 @@ import {
     type SnapQuantizeOption,
 } from '@state/timeline/quantize';
 import { MidiImportModeModal } from './MidiImportModeModal';
+import { CurveHeightProvider } from './curveHeightContext';
 
 const MIDI_FILE_REGEX = /\.mid(i)?$/i;
 const AUDIO_FILE_REGEX = /\.(wav|mp3|ogg|flac|m4a|aac|aiff|aif|caf|opus|wma)$/i;
@@ -563,28 +564,30 @@ const TimelinePanel: React.FC = () => {
                     </div>
                 </div>
                 <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
-                    <div className="h-full w-full overflow-y-auto overflow-x-hidden">
-                        <div className="flex min-h-full">
-                            <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                                <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
-                            </div>
-                            <div className="flex flex-1 flex-col">
-                                <div className="sticky top-0 z-10">
-                                    <TimelineRuler />
+                    <CurveHeightProvider>
+                        <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+                            <div className="flex min-h-full">
+                                <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                    <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
                                 </div>
-                                <div
-                                    className="relative flex-1"
-                                    ref={lanesScrollRef}
-                                    onWheel={onRightWheel}
-                                    onPointerDown={onRightPointerDown}
-                                    onPointerMove={onRightPointerMove}
-                                    onPointerUp={onRightPointerUp}
-                                >
-                                    <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                <div className="flex flex-1 flex-col">
+                                    <div className="sticky top-0 z-10">
+                                        <TimelineRuler />
+                                    </div>
+                                    <div
+                                        className="relative flex-1"
+                                        ref={lanesScrollRef}
+                                        onWheel={onRightWheel}
+                                        onPointerDown={onRightPointerDown}
+                                        onPointerMove={onRightPointerMove}
+                                        onPointerUp={onRightPointerUp}
+                                    >
+                                        <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </CurveHeightProvider>
                 </div>
                 {isDragActive && (
                     <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">
