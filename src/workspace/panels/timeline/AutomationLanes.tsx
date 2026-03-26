@@ -142,13 +142,23 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
                 selected.sort((a, b) => a.tick - b.tick);
                 const minTick = selected[0].tick;
                 const maxTick = selected[selected.length - 1].tick;
-                const lastKeyframe = selected[selected.length - 1];
                 const span = maxTick - minTick;
                 if (span === 0) return; // single tick — no meaningful tile
 
                 const state = useSceneStore.getState();
                 const mergeKey = `duplicate-kf-${Date.now()}`;
                 const newSelected: Array<{ channelId: string; tick: number }> = [];
+
+                // The first new keyframe lands at minTick + span = maxTick, which would override
+                // any selected keyframe already there. Move those back by one tick first.
+                for (const { channelId, tick } of selected) {
+                    if (Math.abs(tick - maxTick) < 0.5) {
+                        dispatchSceneCommand(
+                            { type: 'moveKeyframe', channelId, fromTick: tick, toTick: tick - 1 },
+                            { source: 'automation-lane', mergeKey },
+                        );
+                    }
+                }
 
                 for (const { channelId, tick } of selected) {
                     const ch = state.automation.channels[channelId];
