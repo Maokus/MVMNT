@@ -1219,7 +1219,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
-                const queryEnd = currentWin.end;
+                const queryEnd = currentWin.end+props.attackDuration;
                 const events = status === 'ok' && api
                     ? api.timeline.selectNotesInWindow({
                     trackIds: effectiveTrackIds,

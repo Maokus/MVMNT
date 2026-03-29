@@ -22,6 +22,10 @@ const ChangelogPage: React.FC = () => {
                     <ChangelogEntry version="0.15.0" date="26-3-26" notes={[
                         'Implemented automation system',
                         'Implemented custom element system and api',
+                        'Extended renderobject system to support blend modes, filters, and layers',
+                        'Improved glow logic',
+                        'Allowed pre-time unit attack animations in TUPR',
+                        'Add basic shapes element',
                         'DevEx quality of life scripts',
                         'Sold one of my kidneys to claude code (worth it)'
                     ]} />

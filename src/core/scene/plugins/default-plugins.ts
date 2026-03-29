@@ -12,7 +12,7 @@ interface DefaultPluginDescriptor {
 const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
     {
         id: 'extraspack1',
-        assetPath: '/default-plugins/extraspack1-1.0.0.mvmnt-plugin',
+        assetPath: 'default-plugins/extraspack1-1.0.0.mvmnt-plugin',
         defaultEnabled: false,
         skipVersionCheck: false,
     },
