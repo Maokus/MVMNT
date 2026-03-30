@@ -15,6 +15,9 @@ import {
     timingApi,
     utilitiesApi,
     selectNotes,
+    selectAllNotes,
+    selectDistinctNotes,
+    getMidiTracks,
     sampleAudio,
     sampleAudioRange,
     timeToBeats,
@@ -119,11 +122,16 @@ describe('API Drift Prevention', () => {
         it('should have shorthand helpers for timeline operations', () => {
             // selectNotes is a convenience wrapper for api.timeline.selectNotesInWindow
             expect(typeof selectNotes).toBe('function');
-            // Function signature check
             const sig = selectNotes.toString();
             expect(sig).toContain('trackIds');
             expect(sig).toContain('startSec');
             expect(sig).toContain('endSec');
+            // selectAllNotes queries all MIDI tracks in a window
+            expect(typeof selectAllNotes).toBe('function');
+            // selectDistinctNotes returns unique note numbers
+            expect(typeof selectDistinctNotes).toBe('function');
+            // getMidiTracks returns all MIDI tracks
+            expect(typeof getMidiTracks).toBe('function');
         });
 
         it('should have shorthand helpers for audio operations', () => {

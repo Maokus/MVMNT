@@ -49,6 +49,9 @@ export {
 } from '@core/scene/plugins/plugin-errors';
 export {
     selectNotes,
+    selectAllNotes,
+    selectDistinctNotes,
+    getMidiTracks,
     sampleAudio,
     sampleAudioRange,
     timeToBeats,

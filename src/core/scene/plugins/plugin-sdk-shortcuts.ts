@@ -30,6 +30,47 @@ export function selectNotes(
 }
 
 /**
+ * Select notes from ALL MIDI tracks in a time window
+ * @returns Array of notes sorted by startTime, or empty array if timeline API unavailable
+ */
+export function selectAllNotes(startSec: number, endSec: number): TimelineNoteEvent[] {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return [];
+    }
+    return api.timeline.selectAllNotesInWindow({ startSec, endSec });
+}
+
+/**
+ * Get all distinct MIDI note numbers (0–127) used in the given window, sorted ascending.
+ * Omit all args to get every distinct note across all tracks and all time.
+ * @returns Sorted array of unique note numbers, e.g. [36, 60, 64, 67]
+ */
+export function selectDistinctNotes(args?: {
+    trackIds?: string[];
+    startSec?: number;
+    endSec?: number;
+}): number[] {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return [];
+    }
+    return api.timeline.selectDistinctNoteNumbers(args);
+}
+
+/**
+ * Get all MIDI tracks on the timeline
+ * @returns Array of MIDI tracks, or empty array if timeline API unavailable
+ */
+export function getMidiTracks() {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return [];
+    }
+    return api.timeline.getMidiTracks();
+}
+
+/**
  * Sample an audio feature at a specific time
  * @returns Feature data, or null if audio API unavailable
  */

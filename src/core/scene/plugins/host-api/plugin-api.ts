@@ -3,6 +3,7 @@ import {
     selectNotesInWindow as selectNotesInWindowSelector,
     selectTrackById as selectTrackByIdSelector,
     selectTracksByIds as selectTracksByIdsSelector,
+    selectMidiTracks as selectMidiTracksSelector,
 } from '@state/selectors/timelineSelectors';
 import type { TimelineNoteEvent } from '@core/timing/types';
 import {
@@ -29,9 +30,16 @@ export type PluginCapabilityMap = Record<keyof typeof PLUGIN_CAPABILITIES, boole
 
 export interface PluginTimelineApi {
     getStateSnapshot(): TimelineState | null;
+    /** Notes from specific tracks within a time window. */
     selectNotesInWindow(args: { trackIds: string[]; startSec: number; endSec: number }): TimelineNoteEvent[];
+    /** Notes from ALL MIDI tracks within a time window. Equivalent to selectNotesInWindow with every track. */
+    selectAllNotesInWindow(args: { startSec: number; endSec: number }): TimelineNoteEvent[];
+    /** Sorted array of unique MIDI note numbers (0–127) from the given tracks/window. Omit args to query all tracks, all time. */
+    selectDistinctNoteNumbers(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): number[];
     getTrackById(trackId: string | null | undefined): TimelineState['tracks'][string] | null;
     getTracksByIds(trackIds: string[]): Array<TimelineState['tracks'][string]>;
+    /** All MIDI tracks on the timeline. */
+    getMidiTracks(): Array<TimelineState['tracks'][string]>;
 }
 
 export interface PluginAudioApi {
@@ -94,6 +102,7 @@ export interface CreatePluginHostApiDeps {
     selectNotesInWindow?: typeof selectNotesInWindowSelector | null;
     selectTrackById?: typeof selectTrackByIdSelector | null;
     selectTracksByIds?: typeof selectTracksByIdsSelector | null;
+    selectMidiTracks?: typeof selectMidiTracksSelector | null;
     getFeatureData?: typeof getFeatureDataFromScene | null;
 }
 
@@ -121,6 +130,7 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
     const selectNotesInWindow = deps.selectNotesInWindow === undefined ? selectNotesInWindowSelector : deps.selectNotesInWindow;
     const selectTrackById = deps.selectTrackById === undefined ? selectTrackByIdSelector : deps.selectTrackById;
     const selectTracksByIds = deps.selectTracksByIds === undefined ? selectTracksByIdsSelector : deps.selectTracksByIds;
+    const selectMidiTracks = deps.selectMidiTracks === undefined ? selectMidiTracksSelector : deps.selectMidiTracks;
     const getFeatureData = deps.getFeatureData === undefined ? getFeatureDataFromScene : deps.getFeatureData;
 
     const hasTimelineRead = Boolean(
@@ -128,7 +138,8 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
             typeof timelineStore.getState === 'function' &&
             typeof selectNotesInWindow === 'function' &&
             typeof selectTrackById === 'function' &&
-            typeof selectTracksByIds === 'function'
+            typeof selectTracksByIds === 'function' &&
+            typeof selectMidiTracks === 'function'
     );
     const hasAudioFeaturesRead = typeof getFeatureData === 'function';
 
@@ -158,6 +169,27 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 }
                 return selectNotesInWindow(timelineStore.getState(), args);
             },
+            selectAllNotesInWindow(args) {
+                if (!hasTimelineRead || !timelineStore || !selectNotesInWindow || !selectMidiTracks) {
+                    return [];
+                }
+                const state = timelineStore.getState();
+                const trackIds = selectMidiTracks(state).map(t => t.id);
+                return selectNotesInWindow(state, { trackIds, startSec: args.startSec, endSec: args.endSec });
+            },
+            selectDistinctNoteNumbers(args) {
+                if (!hasTimelineRead || !timelineStore || !selectNotesInWindow || !selectMidiTracks) {
+                    return [];
+                }
+                const state = timelineStore.getState();
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const startSec = args?.startSec ?? -Infinity;
+                const endSec = args?.endSec ?? Infinity;
+                const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
+                const seen = new Set<number>();
+                for (const e of events) seen.add(e.note);
+                return Array.from(seen).sort((a, b) => a - b);
+            },
             getTrackById(trackId) {
                 if (!hasTimelineRead || !timelineStore || !selectTrackById) {
                     return null;
@@ -169,6 +201,12 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return [];
                 }
                 return selectTracksByIds(timelineStore.getState(), trackIds);
+            },
+            getMidiTracks() {
+                if (!hasTimelineRead || !timelineStore || !selectMidiTracks) {
+                    return [];
+                }
+                return selectMidiTracks(timelineStore.getState());
             },
         },
         audio: {

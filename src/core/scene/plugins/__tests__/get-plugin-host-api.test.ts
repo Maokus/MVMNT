@@ -9,8 +9,11 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
         timeline: {
             getStateSnapshot: () => null,
             selectNotesInWindow: () => [],
+            selectAllNotesInWindow: () => [],
+            selectDistinctNoteNumbers: () => [],
             getTrackById: () => null,
             getTracksByIds: () => [],
+            getMidiTracks: () => [],
         },
         audio: {
             sampleFeatureAtTime: () => null,
