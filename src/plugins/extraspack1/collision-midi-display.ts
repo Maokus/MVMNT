@@ -199,6 +199,23 @@ export class CollisionMidiDisplayElement extends SceneElement {
         // Rest position: circle sits `gap` above the square (above = negative y)
         const restOffsetY = -(noteSize + gap);
 
+        // Stable bounding rectangle — sized to the maximum extents, always the same shape
+        const fontSize = Math.max(8, Math.round(noteSize * 0.3));
+        const boundsPad = 8;
+        const boundsTop = restOffsetY - circleRadius - boundsPad;
+        const boundsBottom = radius + 5 + fontSize + boundsPad;
+        const boundsRect = new Rectangle(
+            originX - boundsPad,
+            boundsTop,
+            totalWidth + boundsPad * 2,
+            boundsBottom - boundsTop,
+            null,
+            "transparent",
+            1,
+        );
+        boundsRect.cornerRadius = 4;
+        objects.push(boundsRect);
+
         for (let col = 0; col < distinctPitches.length; col++) {
             const pitch = distinctPitches[col];
             const cx = originX + col * slotWidth + radius;
@@ -284,7 +301,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
             // --- Note name label ---
             if (showNoteNames) {
                 const noteName = api.utilities.midiNoteToName(pitch);
-                const fontSize = Math.max(8, Math.round(noteSize * 0.3));
                 const label = new Text(
                     cx,
                     radius + 5,
