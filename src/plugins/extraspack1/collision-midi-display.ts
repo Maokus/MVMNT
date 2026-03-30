@@ -15,10 +15,6 @@ import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-
 const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
     asTrimmedString(value, element) ?? null;
 
-function easeInCubic(t: number): number {
-    return t * t * t;
-}
-
 function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
 }
@@ -29,6 +25,11 @@ function lerp(a: number, b: number, t: number): number {
 
 function clamp(v: number, lo: number, hi: number): number {
     return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** Returns a value in [0, 1]: 0 at x=0 and x=1 (note strike), 1 at x=0.5 (rest). */
+function archCurve(x: number): number {
+    return -(Math.pow((x - 0.5) * 2, 4)) + 1;
 }
 
 export class CollisionMidiDisplayElement extends SceneElement {
@@ -138,26 +139,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
                     collapsed: true,
                     properties: [
                         {
-                            key: 'lookaheadSec',
-                            type: 'number',
-                            label: 'Lookahead (s)',
-                            default: 2.0,
-                            min: 0.1,
-                            max: 10.0,
-                            step: 0.1,
-                            runtime: { transform: asNumber, defaultValue: 2.0 },
-                        },
-                        {
-                            key: 'anticipationSec',
-                            type: 'number',
-                            label: 'Anticipation (s)',
-                            default: 0.5,
-                            min: 0.05,
-                            max: 2.0,
-                            step: 0.05,
-                            runtime: { transform: asNumber, defaultValue: 0.5 },
-                        },
-                        {
                             key: 'bounceDuration',
                             type: 'number',
                             label: 'Bounce Duration (s)',
@@ -199,8 +180,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
             return objects;
         }
 
-        const { noteSize, gap, spacing, squareColor, circleColor, showNoteNames, lookaheadSec, anticipationSec, bounceDuration } =
-            props;
+        const { noteSize, gap, spacing, squareColor, circleColor, showNoteNames, bounceDuration } = props;
 
         // All distinct pitches in the track — drives the permanent column layout
         const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] });
@@ -209,14 +189,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
             objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
             return objects;
         }
-
-        // Query the current window only for animation state
-        const lookbehindSec = bounceDuration + 0.05;
-        const notes = api.timeline.selectNotesInWindow({
-            trackIds: [props.midiTrackId],
-            startSec: targetTime - lookbehindSec,
-            endSec: targetTime + lookaheadSec,
-        });
 
         const radius = noteSize / 2;
         const circleRadius = radius * 0.7;
@@ -231,57 +203,60 @@ export class CollisionMidiDisplayElement extends SceneElement {
             const pitch = distinctPitches[col];
             const cx = originX + col * slotWidth + radius;
 
-            // Collect all notes for this pitch in the window, sorted by startTime
-            const pitchNotes = notes
-                .filter((n) => n.note === pitch)
-                .sort((a, b) => a.startTime - b.startTime);
+            // All notes for this pitch across the full timeline, sorted by startTime
+            const pitchNotes = api.timeline.selectNotesByPitch(pitch, { trackIds: [props.midiTrackId] });
 
-            // Compute circle vertical offset and opacities
+            // Find the surrounding notes: last one that has started, and next one coming up
+            let prevNote = null;
+            let nextNote = null;
+            for (const n of pitchNotes) {
+                if (n.startTime <= targetTime) prevNote = n;
+                else if (nextNote === null) { nextNote = n; break; }
+            }
+
             let circleOffsetY: number;
             let circleAlpha: number;
             let squareAlpha = 1.0;
             let squareScale = 1.0;
 
-            if (pitchNotes.length === 0) {
-                // Outside lookahead/lookbehind — show neutral rest state
+            if (prevNote === null && nextNote === null) {
+                // Shouldn't happen since distinctPitches is non-empty, but guard anyway
                 circleOffsetY = restOffsetY;
                 circleAlpha = 0.2;
                 squareAlpha = 0.5;
-            } else {
-                // Find the most relevant note: closest startTime to targetTime
-                let bestNote = pitchNotes[0];
-                for (const n of pitchNotes) {
-                    if (Math.abs(n.startTime - targetTime) < Math.abs(bestNote.startTime - targetTime)) {
-                        bestNote = n;
-                    }
-                }
+            } else if (prevNote === null && nextNote !== null) {
+                // Before the first note for this pitch — resting
+                const attackDuration = 1.5;
+                const x = clamp((nextNote.startTime - targetTime) / attackDuration, 0, 1);
+                circleOffsetY = restOffsetY * archCurve(x);
+                circleAlpha = 0.4;
+                squareAlpha = 0.7;
+            } else if (nextNote === null && prevNote !== null) {
+                // After the last note — half-arch decay back to rest over ~1.5s then hold
+                const decayDuration = 1.5;
+                const x = clamp((targetTime - prevNote.startTime) / (decayDuration * 2), 0, 0.5);
+                circleOffsetY = restOffsetY * archCurve(x);
+                circleAlpha = lerp(1.0, 0.3, x / 0.5);
+                squareAlpha = lerp(1.0, 0.5, x / 0.5);
+            } else if (nextNote !== null && prevNote !== null) {
+                // Between two notes — continuous arch
+                const period = nextNote.startTime - prevNote.startTime;
+                const x = clamp(period > 0 ? (targetTime - prevNote.startTime) / period : 0, 0, 1);
+                circleOffsetY = restOffsetY * archCurve(x);
+                circleAlpha = 1.0;
+            } else  {
+                // Shouldn't happen, but just in case
+                circleOffsetY = restOffsetY;
+                circleAlpha = 0.4;
+                squareAlpha = 0.7;
+            }
 
-                const timeToStart = bestNote.startTime - targetTime;
-
-                if (timeToStart < 0 && timeToStart > -bounceDuration) {
-                    // Just struck — circle bounces back from 0 toward rest
-                    const t = clamp(-timeToStart / bounceDuration, 0, 1);
-                    circleOffsetY = lerp(0, restOffsetY * 0.65, easeOutCubic(t));
-                    circleAlpha = 1.0;
-                    // Square reacts: brief scale-pop
-                    squareScale = lerp(1.12, 1.0, easeOutCubic(t));
-                    squareAlpha = lerp(1.0, 0.85, t);
-                } else if (timeToStart >= 0 && timeToStart <= anticipationSec) {
-                    // Approaching — circle moves from rest toward the square
-                    const t = clamp(1.0 - timeToStart / anticipationSec, 0, 1);
-                    circleOffsetY = lerp(restOffsetY, 0, easeInCubic(t));
-                    circleAlpha = lerp(0.5, 1.0, t);
-                } else {
-                    // Resting — either past the bounce or too far ahead
-                    circleOffsetY = restOffsetY;
-                    if (timeToStart > 0) {
-                        // Upcoming but outside anticipation window: fade by distance
-                        circleAlpha = lerp(0.15, 0.5, clamp(1.0 - timeToStart / lookaheadSec, 0, 1));
-                    } else {
-                        // Past note: dim
-                        circleAlpha = 0.3;
-                    }
-                }
+            // Square pop on strike — time-based, independent of note spacing
+            const timeSinceHit = prevNote !== null ? targetTime - prevNote.startTime : Infinity;
+            if (timeSinceHit >= 0 && timeSinceHit < bounceDuration) {
+                const t = clamp(timeSinceHit / bounceDuration, 0, 1);
+                squareScale = lerp(1.12, 1.0, easeOutCubic(t));
+                squareAlpha = lerp(1.0, 0.85, t);
             }
 
             // --- Square ---
@@ -301,7 +276,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
             // --- Circle ---
             const arc = new Arc(cx, circleOffsetY, circleRadius, 0, Math.PI * 2, false, {
                 fillColor: circleColor,
-                strokeColor: "transparent",
+                strokeColor: 'transparent',
             });
             arc.setGlobalAlpha(circleAlpha);
             objects.push(arc);
