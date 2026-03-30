@@ -17,7 +17,11 @@ import {
     selectNotes,
     selectAllNotes,
     selectDistinctNotes,
+    selectNotesByPitch,
+    getNoteRange,
+    getTimelineDuration,
     getMidiTracks,
+    groupNotesByPitch,
     sampleAudio,
     sampleAudioRange,
     timeToBeats,
@@ -130,8 +134,24 @@ describe('API Drift Prevention', () => {
             expect(typeof selectAllNotes).toBe('function');
             // selectDistinctNotes returns unique note numbers
             expect(typeof selectDistinctNotes).toBe('function');
+            // selectNotesByPitch filters events by a single pitch
+            expect(typeof selectNotesByPitch).toBe('function');
+            // getNoteRange returns the pitch range of a note set
+            expect(typeof getNoteRange).toBe('function');
+            // getTimelineDuration returns scene length in seconds
+            expect(typeof getTimelineDuration).toBe('function');
             // getMidiTracks returns all MIDI tracks
             expect(typeof getMidiTracks).toBe('function');
+            // groupNotesByPitch is a pure utility (no host API call)
+            expect(typeof groupNotesByPitch).toBe('function');
+            const grouped = groupNotesByPitch([
+                { note: 60, channel: 0, trackId: 't1', startTime: 0, endTime: 1, duration: 1 },
+                { note: 64, channel: 0, trackId: 't1', startTime: 0, endTime: 1, duration: 1 },
+                { note: 60, channel: 0, trackId: 't1', startTime: 2, endTime: 3, duration: 1 },
+            ]);
+            expect(grouped.get(60)).toHaveLength(2);
+            expect(grouped.get(64)).toHaveLength(1);
+            expect([...grouped.keys()]).toEqual([60, 64]);
         });
 
         it('should have shorthand helpers for audio operations', () => {

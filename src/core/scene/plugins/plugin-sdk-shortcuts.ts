@@ -71,6 +71,68 @@ export function getMidiTracks() {
 }
 
 /**
+ * Get all events for a single MIDI note number.
+ * Omit trackIds/window to search all tracks across all time.
+ * @returns Matching note events, or empty array if timeline API unavailable
+ */
+export function selectNotesByPitch(
+    note: number,
+    args?: { trackIds?: string[]; startSec?: number; endSec?: number }
+): TimelineNoteEvent[] {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return [];
+    }
+    return api.timeline.selectNotesByPitch(note, args);
+}
+
+/**
+ * Get the min and max MIDI note numbers used in the given tracks/window.
+ * Omit all args to check across all tracks and all time.
+ * @returns { min, max } pitch range, or null if there are no notes
+ */
+export function getNoteRange(
+    args?: { trackIds?: string[]; startSec?: number; endSec?: number }
+): { min: number; max: number } | null {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return null;
+    }
+    return api.timeline.getNoteRange(args);
+}
+
+/**
+ * Total scene duration in seconds (playback range end, or timeline view end as fallback).
+ * @returns Duration in seconds, or 0 if timeline API unavailable
+ */
+export function getTimelineDuration(): number {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return 0;
+    }
+    return api.timeline.getTimelineDuration();
+}
+
+/**
+ * Group an array of note events by MIDI note number.
+ * Pure utility — does not call the host API.
+ * @returns Map from note number to events, sorted by note number ascending
+ */
+export function groupNotesByPitch(notes: TimelineNoteEvent[]): Map<number, TimelineNoteEvent[]> {
+    const map = new Map<number, TimelineNoteEvent[]>();
+    for (const event of notes) {
+        let bucket = map.get(event.note);
+        if (!bucket) {
+            bucket = [];
+            map.set(event.note, bucket);
+        }
+        bucket.push(event);
+    }
+    // Return entries in ascending pitch order
+    return new Map([...map.entries()].sort((a, b) => a[0] - b[0]));
+}
+
+/**
  * Sample an audio feature at a specific time
  * @returns Feature data, or null if audio API unavailable
  */

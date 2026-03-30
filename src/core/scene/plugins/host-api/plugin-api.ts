@@ -36,6 +36,12 @@ export interface PluginTimelineApi {
     selectAllNotesInWindow(args: { startSec: number; endSec: number }): TimelineNoteEvent[];
     /** Sorted array of unique MIDI note numbers (0–127) from the given tracks/window. Omit args to query all tracks, all time. */
     selectDistinctNoteNumbers(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): number[];
+    /** All events for a single MIDI note number. Omit trackIds/window to query all tracks and all time. */
+    selectNotesByPitch(note: number, args?: { trackIds?: string[]; startSec?: number; endSec?: number }): TimelineNoteEvent[];
+    /** Min/max MIDI note numbers used in the given tracks/window. Returns null if there are no notes. */
+    getNoteRange(args?: { trackIds?: string[]; startSec?: number; endSec?: number }): { min: number; max: number } | null;
+    /** Total scene duration in seconds, derived from the playback range end (or timeline view end as fallback). */
+    getTimelineDuration(): number;
     getTrackById(trackId: string | null | undefined): TimelineState['tracks'][string] | null;
     getTracksByIds(trackIds: string[]): Array<TimelineState['tracks'][string]>;
     /** All MIDI tracks on the timeline. */
@@ -189,6 +195,41 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                 const seen = new Set<number>();
                 for (const e of events) seen.add(e.note);
                 return Array.from(seen).sort((a, b) => a - b);
+            },
+            selectNotesByPitch(note, args) {
+                if (!hasTimelineRead || !timelineStore || !selectNotesInWindow || !selectMidiTracks) {
+                    return [];
+                }
+                const state = timelineStore.getState();
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const startSec = args?.startSec ?? -Infinity;
+                const endSec = args?.endSec ?? Infinity;
+                const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
+                return events.filter(e => e.note === note);
+            },
+            getNoteRange(args) {
+                if (!hasTimelineRead || !timelineStore || !selectNotesInWindow || !selectMidiTracks) {
+                    return null;
+                }
+                const state = timelineStore.getState();
+                const trackIds = args?.trackIds ?? selectMidiTracks(state).map(t => t.id);
+                const startSec = args?.startSec ?? -Infinity;
+                const endSec = args?.endSec ?? Infinity;
+                const events = selectNotesInWindow(state, { trackIds, startSec, endSec });
+                if (events.length === 0) return null;
+                let min = 127, max = 0;
+                for (const e of events) {
+                    if (e.note < min) min = e.note;
+                    if (e.note > max) max = e.note;
+                }
+                return { min, max };
+            },
+            getTimelineDuration() {
+                if (!hasTimelineRead || !timelineStore) return 0;
+                const state = timelineStore.getState();
+                const endTick = state.playbackRange?.endTick ?? state.timelineView.endTick;
+                const context = createTimingContext(state.timeline);
+                return ticksToSeconds(context, endTick) ?? 0;
             },
             getTrackById(trackId) {
                 if (!hasTimelineRead || !timelineStore || !selectTrackById) {
