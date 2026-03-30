@@ -202,7 +202,15 @@ export class CollisionMidiDisplayElement extends SceneElement {
         const { noteSize, gap, spacing, squareColor, circleColor, showNoteNames, lookaheadSec, anticipationSec, bounceDuration } =
             props;
 
-        // Query notes slightly behind (to see recent strikes) and ahead (for approach animation)
+        // All distinct pitches in the track — drives the permanent column layout
+        const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] });
+
+        if (distinctPitches.length === 0) {
+            objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
+            return objects;
+        }
+
+        // Query the current window only for animation state
         const lookbehindSec = bounceDuration + 0.05;
         const notes = api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
@@ -210,25 +218,17 @@ export class CollisionMidiDisplayElement extends SceneElement {
             endSec: targetTime + lookaheadSec,
         });
 
-        if (notes.length === 0) {
-            objects.push(new Text(0, 0, 'No notes in range', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
-            return objects;
-        }
-
-        // Unique pitches in this window, sorted low-to-high
-        const uniquePitches = [...new Set(notes.map((n) => n.note))].sort((a, b) => a - b);
-
         const radius = noteSize / 2;
         const circleRadius = radius * 0.7;
         const slotWidth = noteSize + spacing;
-        const totalWidth = uniquePitches.length * slotWidth - spacing;
+        const totalWidth = distinctPitches.length * slotWidth - spacing;
         const originX = -totalWidth / 2;
 
         // Rest position: circle sits `gap` above the square (above = negative y)
         const restOffsetY = -(noteSize + gap);
 
-        for (let col = 0; col < uniquePitches.length; col++) {
-            const pitch = uniquePitches[col];
+        for (let col = 0; col < distinctPitches.length; col++) {
+            const pitch = distinctPitches[col];
             const cx = originX + col * slotWidth + radius;
 
             // Collect all notes for this pitch in the window, sorted by startTime
@@ -236,44 +236,51 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 .filter((n) => n.note === pitch)
                 .sort((a, b) => a.startTime - b.startTime);
 
-            // Find the most relevant note: closest startTime to targetTime
-            let bestNote = pitchNotes[0];
-            for (const n of pitchNotes) {
-                if (Math.abs(n.startTime - targetTime) < Math.abs(bestNote.startTime - targetTime)) {
-                    bestNote = n;
-                }
-            }
-
-            const timeToStart = bestNote.startTime - targetTime;
-
             // Compute circle vertical offset and opacities
             let circleOffsetY: number;
             let circleAlpha: number;
             let squareAlpha = 1.0;
             let squareScale = 1.0;
 
-            if (timeToStart < 0 && timeToStart > -bounceDuration) {
-                // Just struck — circle bounces back from 0 toward rest
-                const t = clamp(-timeToStart / bounceDuration, 0, 1);
-                circleOffsetY = lerp(0, restOffsetY * 0.65, easeOutCubic(t));
-                circleAlpha = 1.0;
-                // Square reacts: brief scale-pop
-                squareScale = lerp(1.12, 1.0, easeOutCubic(t));
-                squareAlpha = lerp(1.0, 0.85, t);
-            } else if (timeToStart >= 0 && timeToStart <= anticipationSec) {
-                // Approaching — circle moves from rest toward the square
-                const t = clamp(1.0 - timeToStart / anticipationSec, 0, 1);
-                circleOffsetY = lerp(restOffsetY, 0, easeInCubic(t));
-                circleAlpha = lerp(0.5, 1.0, t);
-            } else {
-                // Resting — either past the bounce or too far ahead
+            if (pitchNotes.length === 0) {
+                // Outside lookahead/lookbehind — show neutral rest state
                 circleOffsetY = restOffsetY;
-                if (timeToStart > 0) {
-                    // Upcoming but outside anticipation window: fade by distance
-                    circleAlpha = lerp(0.15, 0.5, clamp(1.0 - timeToStart / lookaheadSec, 0, 1));
+                circleAlpha = 0.2;
+                squareAlpha = 0.5;
+            } else {
+                // Find the most relevant note: closest startTime to targetTime
+                let bestNote = pitchNotes[0];
+                for (const n of pitchNotes) {
+                    if (Math.abs(n.startTime - targetTime) < Math.abs(bestNote.startTime - targetTime)) {
+                        bestNote = n;
+                    }
+                }
+
+                const timeToStart = bestNote.startTime - targetTime;
+
+                if (timeToStart < 0 && timeToStart > -bounceDuration) {
+                    // Just struck — circle bounces back from 0 toward rest
+                    const t = clamp(-timeToStart / bounceDuration, 0, 1);
+                    circleOffsetY = lerp(0, restOffsetY * 0.65, easeOutCubic(t));
+                    circleAlpha = 1.0;
+                    // Square reacts: brief scale-pop
+                    squareScale = lerp(1.12, 1.0, easeOutCubic(t));
+                    squareAlpha = lerp(1.0, 0.85, t);
+                } else if (timeToStart >= 0 && timeToStart <= anticipationSec) {
+                    // Approaching — circle moves from rest toward the square
+                    const t = clamp(1.0 - timeToStart / anticipationSec, 0, 1);
+                    circleOffsetY = lerp(restOffsetY, 0, easeInCubic(t));
+                    circleAlpha = lerp(0.5, 1.0, t);
                 } else {
-                    // Past note: dim
-                    circleAlpha = 0.3;
+                    // Resting — either past the bounce or too far ahead
+                    circleOffsetY = restOffsetY;
+                    if (timeToStart > 0) {
+                        // Upcoming but outside anticipation window: fade by distance
+                        circleAlpha = lerp(0.15, 0.5, clamp(1.0 - timeToStart / lookaheadSec, 0, 1));
+                    } else {
+                        // Past note: dim
+                        circleAlpha = 0.3;
+                    }
                 }
             }
 
@@ -294,7 +301,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
             // --- Circle ---
             const arc = new Arc(cx, circleOffsetY, circleRadius, 0, Math.PI * 2, false, {
                 fillColor: circleColor,
-                strokeColor: null,
+                strokeColor: "transparent",
             });
             arc.setGlobalAlpha(circleAlpha);
             objects.push(arc);
