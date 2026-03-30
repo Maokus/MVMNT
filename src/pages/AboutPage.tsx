@@ -52,10 +52,11 @@ const AboutPage: React.FC = () => {
                     </div>
                     <br />
                     <h2>Motivation</h2>
-                    <p>MVMNT aims to fill the void of powerful, general-purpose tools for visualising MIDI data. </p>
+                    <p>MVMNT aims to fill the void of powerful, general-purpose tools for visualising MIDI data.
+                        It aims to be user-friendly for beginners while also providing a flexible platform for advanced users.</p>
                     <br />
                     <h2>Contributing / Feedback</h2>
-                    <p>Ideas, PRs, and bug reports welcome. Join the Discord or open an issue. Response time may vary—this is a passion project.</p>
+                    <p>Ideas and bug reports welcome. Join the Discord or open an issue. Response time may vary, this is a passion project.</p>
                     <p>This project does incur some costs to maintain and develop, so if you find it useful, consider supporting it through the kofi :) </p>
 
                     <div className="flex flex-wrap gap-3 mt-5">

@@ -21,13 +21,32 @@ const ChangelogPage: React.FC = () => {
 
                     <ChangelogEntry version="0.15.0" date="26-3-26" notes={[
                         'Implemented automation system',
+                        [
+                            'Eased automation curves',
+                            'Cmd/ctrl D to make repeated animations',
+                        ],
                         'Implemented custom element system and api',
-                        'Extended renderobject system to support blend modes, filters, and layers',
-                        'Improved glow logic',
-                        'Allowed pre-time unit attack animations in TUPR',
-                        'Add basic shapes element',
-                        'DevEx quality of life scripts',
-                        'Sold one of my kidneys to claude code (worth it)'
+                        [
+                            'Builtin pack of custom elements',
+                            'Embed plugins into save files',
+                            'DevEx quality of life scripts',
+                        ],
+                        'Extended renderobject system',
+                        [
+                            'Support blend modes, filters and layers',
+                            'Improve glow logic',
+                        ],
+                        'Improvements/new content',
+                        [
+                            'Add basic shapes element',
+                            'More note animations for TUPR/MNPR',
+
+                        ],
+                        'Bugfixes',
+                        [
+                            'Allowed pre-time unit attack animations in TUPR',
+                        ],
+                        'Sold a kidney to claude code (worth it)'
                     ]} />
 
                     <ChangelogEntry version="0.14.0" date="20-1-26" notes={[
@@ -101,14 +120,20 @@ const ChangelogPage: React.FC = () => {
     );
 };
 
-const ChangelogEntry: React.FC<{ version: string; date: string; notes: string[]; }> = ({ version, date, notes }) => (
+const ChangelogEntry: React.FC<{ version: string; date: string; notes: (string | string[])[]; }> = ({ version, date, notes }) => (
     <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
         <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-lg font-semibold text-white">v{version}</h2>
             <span className="text-xs text-neutral-500 font-mono">{date}</span>
         </div>
         <ul className="list-disc list-inside space-y-1 text-sm text-neutral-300">
-            {notes.map(n => <li key={n}>{n}</li>)}
+            {notes.map((n, i) =>
+                Array.isArray(n)
+                    ? <ul key={i} className="list-disc list-inside space-y-1 ml-5 mt-1">
+                        {n.map(sub => <li key={sub}>{sub}</li>)}
+                    </ul>
+                    : <li key={n}>{n}</li>
+            )}
         </ul>
     </section>
 );
