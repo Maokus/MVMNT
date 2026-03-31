@@ -532,8 +532,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 {elements.diamonds.map(({ kf, x }) => {
                     const sel = isSelected(kf.tick);
                     const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
-                    const fill = sel ? '#60a5fa' : 'rgba(96,165,250,0.6)';
-                    const stroke = sel ? '#93bbfc' : 'rgba(96,165,250,0.8)';
+                    const dSize = sel ? DIAMOND_SIZE + 2 : DIAMOND_SIZE;
+                    const fill = sel ? '#ffffff' : 'rgba(96,165,250,0.6)';
+                    const stroke = sel ? '#60a5fa' : 'rgba(96,165,250,0.5)';
+                    const strokeWidth = sel ? 2 : 1;
                     return (
                         <g
                             key={kf.tick}
@@ -542,10 +544,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             onPointerDown={(e) => handleKfPointerDown(e, kf)}
                         >
                             <path
-                                d={`M${x} ${cy - DIAMOND_SIZE} L${x + DIAMOND_SIZE} ${cy} L${x} ${cy + DIAMOND_SIZE} L${x - DIAMOND_SIZE} ${cy} Z`}
+                                d={`M${x} ${cy - dSize} L${x + dSize} ${cy} L${x} ${cy + dSize} L${x - dSize} ${cy} Z`}
                                 fill={fill}
                                 stroke={stroke}
-                                strokeWidth={1}
+                                strokeWidth={strokeWidth}
                             />
                             {atPlayhead && (
                                 <circle
@@ -558,10 +560,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             )}
                             {/* Larger hit area */}
                             <rect
-                                x={x - DIAMOND_SIZE - 2}
-                                y={cy - DIAMOND_SIZE - 2}
-                                width={DIAMOND_SIZE * 2 + 4}
-                                height={DIAMOND_SIZE * 2 + 4}
+                                x={x - dSize - 2}
+                                y={cy - dSize - 2}
+                                width={dSize * 2 + 4}
+                                height={dSize * 2 + 4}
                                 fill="transparent"
                             />
                         </g>
