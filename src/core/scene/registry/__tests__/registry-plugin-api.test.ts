@@ -189,7 +189,10 @@ describe('SceneElementRegistry - Built-in type drift detection', () => {
     it('registry built-in types match scripts/built-in-element-types.mjs', async () => {
         // Dynamically import the shared list used by the build script.
         // If this test fails, the build-script list and registry have drifted.
-        const { BUILTIN_ELEMENT_TYPES } = await import('../../../../../scripts/built-in-element-types.mjs');
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore – no type declarations for the build-only .mjs module
+        const mod = await import('../../../../../scripts/built-in-element-types.mjs');
+        const BUILTIN_ELEMENT_TYPES = mod.BUILTIN_ELEMENT_TYPES as string[];
 
         const registryTypes = [...sceneElementRegistry.getBuiltInTypes()].sort();
         const scriptTypes = [...BUILTIN_ELEMENT_TYPES].sort();
