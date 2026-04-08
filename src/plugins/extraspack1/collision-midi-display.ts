@@ -64,6 +64,28 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             description: 'MIDI track to use as the note source',
                             runtime: { transform: normalizeMidiTrackId, defaultValue: null },
                         },
+                        {
+                            key: 'minNote',
+                            type: 'number',
+                            label: 'Min Note',
+                            default: 0,
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            description: 'Only display notes at or above this MIDI note number',
+                            runtime: { transform: asNumber, defaultValue: 0 },
+                        },
+                        {
+                            key: 'maxNote',
+                            type: 'number',
+                            label: 'Max Note',
+                            default: 127,
+                            min: 0,
+                            max: 127,
+                            step: 1,
+                            description: 'Only display notes at or below this MIDI note number',
+                            runtime: { transform: asNumber, defaultValue: 127 },
+                        },
                     ],
                 },
                 {
@@ -110,6 +132,14 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             runtime: { transform: asTrimmedString, defaultValue: '#334155FF' },
                         },
                         {
+                            key: 'squareActiveColor',
+                            type: 'colorAlpha',
+                            label: 'Square Active Color',
+                            default: '#6366F1FF',
+                            description: 'Color the square takes on while the note is being held',
+                            runtime: { transform: asTrimmedString, defaultValue: '#6366F1FF' },
+                        },
+                        {
                             key: 'circleColor',
                             type: 'colorAlpha',
                             label: 'Circle Color',
@@ -129,6 +159,14 @@ export class CollisionMidiDisplayElement extends SceneElement {
                                 },
                                 defaultValue: true,
                             },
+                        },
+                        {
+                            key: 'labelFont',
+                            type: 'string',
+                            label: 'Note Label Font',
+                            default: 'Inter, sans-serif',
+                            description: 'Font family for the note name labels',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter, sans-serif' },
                         },
                     ],
                 },
@@ -180,10 +218,11 @@ export class CollisionMidiDisplayElement extends SceneElement {
             return objects;
         }
 
-        const { noteSize, gap, spacing, squareColor, circleColor, showNoteNames, bounceDuration } = props;
+        const { noteSize, gap, spacing, squareColor, squareActiveColor, circleColor, showNoteNames, labelFont, bounceDuration, minNote, maxNote } = props;
 
         // All distinct pitches in the track — drives the permanent column layout
-        const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] });
+        const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
+            .filter(p => p >= minNote && p <= maxNote);
 
         if (distinctPitches.length === 0) {
             objects.push(new Text(0, 0, 'No notes in track', '12px Inter, sans-serif', '#64748b', 'left', 'top'));
@@ -276,6 +315,9 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 squareAlpha = lerp(1.0, 0.85, t);
             }
 
+            const isNoteActive = prevNote !== null && targetTime >= prevNote.startTime && targetTime <= prevNote.endTime;
+            const effectiveSquareColor = isNoteActive ? squareActiveColor : squareColor;
+
             // --- Square ---
             let sqX = cx - radius;
             let sqY = -radius;
@@ -286,7 +328,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 sqX -= offset;
                 sqY -= offset;
             }
-            const sq = new Rectangle(sqX, sqY, sqSize, sqSize, squareColor);
+            const sq = new Rectangle(sqX, sqY, sqSize, sqSize, effectiveSquareColor);
             sq.setGlobalAlpha(squareAlpha);
             objects.push(sq);
 
@@ -305,7 +347,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
                     cx,
                     radius + 5,
                     noteName,
-                    `${fontSize}px Inter, sans-serif`,
+                    `${fontSize}px ${labelFont}`,
                     '#94a3b8',
                     'center',
                     'top',
