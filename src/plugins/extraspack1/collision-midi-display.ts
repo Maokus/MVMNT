@@ -7,6 +7,8 @@ import {
     Text,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
+    parseFontSelection,
+    ensureFontLoaded,
     type PropertyTransform,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -64,6 +66,24 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             description: 'MIDI track to use as the note source',
                             runtime: { transform: normalizeMidiTrackId, defaultValue: null },
                         },
+                    ],
+                },
+                {
+                    id: 'appearance',
+                    label: 'Appearance',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
+                        {
+                            key: 'noteSize',
+                            type: 'number',
+                            label: 'Note Size',
+                            default: 40,
+                            min: 10,
+                            max: 120,
+                            step: 1,
+                            runtime: { transform: asNumber, defaultValue: 40 },
+                        },
                         {
                             key: 'minNote',
                             type: 'number',
@@ -85,24 +105,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             step: 1,
                             description: 'Only display notes at or below this MIDI note number',
                             runtime: { transform: asNumber, defaultValue: 127 },
-                        },
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'noteSize',
-                            type: 'number',
-                            label: 'Note Size',
-                            default: 40,
-                            min: 10,
-                            max: 120,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 40 },
                         },
                         {
                             key: 'gap',
@@ -161,12 +163,31 @@ export class CollisionMidiDisplayElement extends SceneElement {
                             },
                         },
                         {
-                            key: 'labelFont',
-                            type: 'string',
+                            key: 'labelFontFamily',
+                            type: 'font',
                             label: 'Note Label Font',
-                            default: 'Inter, sans-serif',
-                            description: 'Font family for the note name labels',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter, sans-serif' },
+                            default: 'Inter',
+                            description: 'Font family for note name labels (Google Fonts supported).',
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
+                        },
+                        {
+                            key: 'labelFontSize',
+                            type: 'number',
+                            label: 'Note Label Font Size',
+                            default: 0,
+                            min: 0,
+                            max: 96,
+                            step: 1,
+                            description: '0 = auto (scales with note size)',
+                            runtime: { transform: asNumber, defaultValue: 0 },
+                        },
+                    ],
+                    presets: [
+                        {
+                            id: 'debugLarge',
+                            label: 'Debug Large',
+                            description: 'Large notes with a narrow pitch range — easier to read while debugging MIDI data',
+                            values: { noteSize: 80, minNote: 60, maxNote: 68 },
                         },
                     ],
                 },
@@ -218,9 +239,22 @@ export class CollisionMidiDisplayElement extends SceneElement {
             return objects;
         }
 
-        const { noteSize, gap, spacing, squareColor, squareActiveColor, circleColor, showNoteNames, labelFont, bounceDuration, minNote, maxNote } = props;
+        const {
+            noteSize, gap, spacing,
+            squareColor, squareActiveColor, circleColor,
+            showNoteNames, labelFontFamily, labelFontSize,
+            bounceDuration, minNote, maxNote,
+        } = props;
 
-        // All distinct pitches in the track — drives the permanent column layout
+        // Font pipeline — supports Google Fonts and custom assets via Family|weight token format
+        const { family: fontFamily, weight: weightPart } = parseFontSelection(labelFontFamily ?? 'Inter');
+        const fontWeight = (weightPart || '400').toString();
+        const autoFontSize = Math.max(8, Math.round(noteSize * 0.3));
+        const fontSize = labelFontSize > 0 ? labelFontSize : autoFontSize;
+        if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
+        const labelFontString = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+
+        // All distinct pitches in the track — filtered to the configured note range
         const distinctPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
             .filter(p => p >= minNote && p <= maxNote);
 
@@ -239,7 +273,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
         const restOffsetY = -(noteSize + gap);
 
         // Stable bounding rectangle — sized to the maximum extents, always the same shape
-        const fontSize = Math.max(8, Math.round(noteSize * 0.3));
         const boundsPad = 8;
         const boundsTop = restOffsetY - circleRadius - boundsPad;
         const boundsBottom = radius + 5 + fontSize + boundsPad;
@@ -300,7 +333,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 const x = clamp(period > 0 ? (targetTime - prevNote.startTime) / period : 0, 0, 1);
                 circleOffsetY = restOffsetY * archCurve(x);
                 circleAlpha = 1.0;
-            } else  {
+            } else {
                 // Shouldn't happen, but just in case
                 circleOffsetY = restOffsetY;
                 circleAlpha = 0.4;
@@ -343,15 +376,7 @@ export class CollisionMidiDisplayElement extends SceneElement {
             // --- Note name label ---
             if (showNoteNames) {
                 const noteName = api.utilities.midiNoteToName(pitch);
-                const label = new Text(
-                    cx,
-                    radius + 5,
-                    noteName,
-                    `${fontSize}px ${labelFont}`,
-                    '#94a3b8',
-                    'center',
-                    'top',
-                );
+                const label = new Text(cx, radius + 5, noteName, labelFontString, '#94a3b8', 'center', 'top');
                 objects.push(label);
             }
         }
