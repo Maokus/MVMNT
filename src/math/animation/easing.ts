@@ -37,6 +37,7 @@ const bounceOut: EasingFunction = function (x) {
 
 const easingFunctions: EasingDictionary = {
     linear: (x) => x,
+    hold: (x) => x >= 1 ? 1 : 0,
     easeInQuad: function (x) {
         return x * x;
     },

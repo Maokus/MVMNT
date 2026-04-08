@@ -15,7 +15,7 @@ interface EasingPickerProps {
 
 /** Easing families for grouping. */
 const EASING_GROUPS: Array<{ label: string; ids: string[] }> = [
-    { label: 'Linear', ids: ['linear'] },
+    { label: 'Step', ids: ['hold', 'linear'] },
     { label: 'Quad', ids: ['easeInQuad', 'easeOutQuad', 'easeInOutQuad'] },
     { label: 'Cubic', ids: ['easeInCubic', 'easeOutCubic', 'easeInOutCubic'] },
     { label: 'Quart', ids: ['easeInQuart', 'easeOutQuart', 'easeInOutQuart'] },
