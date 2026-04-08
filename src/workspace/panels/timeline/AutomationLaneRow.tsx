@@ -65,6 +65,8 @@ interface SelBoxState {
     endX: number;
     /** True once the cursor has moved beyond the drag threshold. */
     moved: boolean;
+    /** Whether shift was held when the drag started. */
+    shiftKey: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -364,14 +366,23 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         .map((kf) => ({ channelId: channel.id, tick: kf.tick }));
 
                     useSceneStore.setState((state) => {
-                        // Preserve selections from other channels; replace this channel's selection
-                        const others = state.interaction.automationSelectedKeyframes.filter(
-                            (k) => k.channelId !== channel.id,
-                        );
+                        if (sb.shiftKey) {
+                            // Shift held — add to existing selection, replacing this channel's slice
+                            const others = state.interaction.automationSelectedKeyframes.filter(
+                                (k) => k.channelId !== channel.id,
+                            );
+                            return {
+                                interaction: {
+                                    ...state.interaction,
+                                    automationSelectedKeyframes: [...others, ...enclosed],
+                                },
+                            };
+                        }
+                        // No shift — replace entire selection with just the enclosed keyframes
                         return {
                             interaction: {
                                 ...state.interaction,
-                                automationSelectedKeyframes: [...others, ...enclosed],
+                                automationSelectedKeyframes: enclosed,
                             },
                         };
                     });
@@ -408,10 +419,17 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             // Select the element that owns this automation channel
             useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
 
+            // Clicking on empty background clears keyframe selection unless shift is held
+            if (!e.shiftKey) {
+                useSceneStore.setState((state) => ({
+                    interaction: { ...state.interaction, automationSelectedKeyframes: [] },
+                }));
+            }
+
             if (!svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
             const svgX = e.clientX - rect.left;
-            setSelBox({ startX: svgX, endX: svgX, moved: false });
+            setSelBox({ startX: svgX, endX: svgX, moved: false, shiftKey: e.shiftKey });
         },
         [channel.elementId, setSelBox],
     );

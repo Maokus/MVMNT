@@ -30,6 +30,7 @@ const ChangelogPage: React.FC = () => {
                             'Builtin pack of custom elements',
                             'Embed plugins into save files',
                             'DevEx quality of life scripts',
+                            'Support midi cc in midi ingestion and expose via api'
                         ],
                         'Extended renderobject system',
                         [
