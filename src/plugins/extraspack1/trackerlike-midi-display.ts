@@ -1,10 +1,7 @@
-// Template: MIDI Notes Element
-// Displays currently playing MIDI notes as colored bars
 import {
     SceneElement,
     asNumber,
     asTrimmedString,
-    Rectangle,
     Text,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
@@ -25,11 +22,11 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
         const base = super.getConfigSchema();
         const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
         const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        
+
         return {
             ...base,
             name: 'Trackerlike Midi Display',
-            description: 'A midi display that uses text to display notes',
+            description: 'A tracker-style MIDI display showing notes per beat in monospace text',
             category: 'extraspack1',
             groups: [
                 ...basicGroups,
@@ -45,69 +42,57 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
                             label: 'MIDI Track',
                             default: null,
                             allowedTrackTypes: ['midi'],
-                            description: 'A midi display that uses text to display notes',
+                            description: 'The MIDI track to display notes from',
                             runtime: { transform: normalizeMidiTrackId, defaultValue: null },
                         },
                     ],
                 },
                 {
-                    id: 'notesAppearance',
-                    label: 'Appearance',
+                    id: 'trackerAppearance',
+                    label: 'Tracker',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
                         {
-                            key: 'noteWidth',
+                            key: 'rowCount',
                             type: 'number',
-                            label: 'Note Width',
-                            default: 40,
-                            min: 10,
-                            max: 200,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 40 },
-                        },
-                        {
-                            key: 'noteHeight',
-                            type: 'number',
-                            label: 'Note Height',
-                            default: 100,
-                            min: 20,
-                            max: 500,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'noteSpacing',
-                            type: 'number',
-                            label: 'Note Spacing',
+                            label: 'Rows (beats per page)',
                             default: 8,
-                            min: 0,
-                            max: 50,
+                            min: 1,
+                            max: 32,
                             step: 1,
                             runtime: { transform: asNumber, defaultValue: 8 },
                         },
                         {
-                            key: 'noteColor',
+                            key: 'fontSize',
+                            type: 'number',
+                            label: 'Font Size',
+                            default: 16,
+                            min: 8,
+                            max: 64,
+                            step: 1,
+                            runtime: { transform: asNumber, defaultValue: 16 },
+                        },
+                        {
+                            key: 'textColor',
                             type: 'colorAlpha',
-                            label: 'Note Color',
+                            label: 'Text Color',
+                            default: '#e2e8f0FF',
+                            runtime: { transform: asTrimmedString, defaultValue: '#e2e8f0FF' },
+                        },
+                        {
+                            key: 'activeColor',
+                            type: 'colorAlpha',
+                            label: 'Active Row Color',
                             default: '#10B981FF',
                             runtime: { transform: asTrimmedString, defaultValue: '#10B981FF' },
                         },
                         {
-                            key: 'showNoteNames',
-                            type: 'boolean',
-                            label: 'Show Note Names',
-                            default: true,
-                            runtime: {
-                                transform: (value) => {
-                                    if (typeof value === 'boolean') return value;
-                                    if (typeof value === 'string') {
-                                        return value.toLowerCase() === 'true';
-                                    }
-                                    return true;
-                                },
-                                defaultValue: true
-                            },
+                            key: 'headerColor',
+                            type: 'colorAlpha',
+                            label: 'Header Color',
+                            default: '#94a3b8FF',
+                            runtime: { transform: asTrimmedString, defaultValue: '#94a3b8FF' },
                         },
                     ],
                 },
@@ -118,102 +103,79 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        
+
         if (!props.visible) return [];
-        
+
         const objects: RenderObject[] = [];
-        
+
         if (!props.midiTrackId) {
-            // Show message when no track selected
-            objects.push(
-                new Text(
-                    0, 0,
-                    'Select a MIDI track',
-                    '14px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                )
-            );
+            objects.push(new Text(0, 0, 'Select a MIDI track', '14px monospace', '#94a3b8', 'left', 'top'));
             return objects;
         }
-        
-        // Get MIDI data at current time from public host plugin API
-        const EPS = 1e-3; // Small epsilon to get notes at current time
-        const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+
+        const { api, status, missingCapabilities } = getPluginHostApi([
+            PLUGIN_CAPABILITIES.timelineRead,
+            PLUGIN_CAPABILITIES.timingConversion,
+        ]);
 
         if (!api || status !== 'ok') {
-            const message = status === 'unsupported-version'
-                ? 'Plugin API version unsupported'
-                : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                    ? 'Timeline API unavailable (requires timeline.read)'
-                    : 'Plugin host API unavailable';
-            objects.push(
-                new Text(
-                    0, 0,
-                    message,
-                    '12px Inter, sans-serif',
-                    '#64748b',
-                    'left',
-                    'top'
-                )
-            );
+            const message =
+                status === 'unsupported-version'
+                    ? 'Plugin API version unsupported'
+                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                      ? 'Timeline API unavailable'
+                      : 'Plugin host API unavailable';
+            objects.push(new Text(0, 0, message, '12px monospace', '#64748b', 'left', 'top'));
             return objects;
         }
 
-        const activeNotes = api.timeline.selectNotesInWindow({
-            trackIds: [props.midiTrackId],
-            startSec: targetTime - EPS,
-            endSec: targetTime + EPS,
-        });
-        
-        if (activeNotes.length === 0) {
-            // Show message when no notes playing
-            objects.push(
-                new Text(
-                    0, 0,
-                    'No notes playing',
-                    '12px Inter, sans-serif',
-                    '#64748b',
-                    'left',
-                    'top'
-                )
+        const rowCount = props.rowCount;
+        const fontSize = props.fontSize;
+        const lineHeight = Math.round(fontSize * 1.6);
+        const font = `${fontSize}px monospace`;
+
+        // Convert current time to beats (0-indexed)
+        const currentBeats = api.timing.secondsToBeats(targetTime) ?? 0;
+        const currentBeatFloor = Math.floor(Math.max(0, currentBeats));
+
+        // Page: which group of rowCount beats are we in
+        const pageStart = Math.floor(currentBeatFloor / rowCount) * rowCount;
+        const activeRowIndex = currentBeatFloor - pageStart; // 0-indexed row within this page
+
+        // Header: track name
+        const track = api.timeline.getTrackById(props.midiTrackId);
+        const trackLabel = track?.name ?? '?';
+        objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, props.headerColor, 'left', 'top'));
+
+        // Beat rows
+        for (let i = 0; i < rowCount; i++) {
+            const beat = pageStart + i; // 0-indexed absolute beat
+            const isActive = i === activeRowIndex;
+
+            // Time window for this beat
+            const beatStartSec = api.timing.beatsToSeconds(beat) ?? beat;
+            const beatEndSec = api.timing.beatsToSeconds(beat + 1) ?? (beat + 1);
+
+            // Get notes that START within this beat's window
+            const candidates = api.timeline.selectNotesInWindow({
+                trackIds: [props.midiTrackId],
+                startSec: beatStartSec,
+                endSec: beatEndSec,
+            });
+            const firstNote = candidates.find(
+                (n) => n.startTime >= beatStartSec && n.startTime < beatEndSec,
             );
-            return objects;
+
+            const noteName = firstNote ? api.utilities.midiNoteToName(firstNote.note).padEnd(3) : '-- ';
+            const cursor = isActive ? '>' : ' ';
+            const beatNum = String(i + 1).padStart(2);
+            const line = `${cursor}${beatNum} ${noteName}`;
+
+            const color = isActive ? props.activeColor : props.textColor;
+            const y = lineHeight * (i + 1);
+            objects.push(new Text(0, y, line, font, color, 'left', 'top'));
         }
-        
-        // Render each active note
-        activeNotes.forEach((noteData, index: number) => {
-            const x = index * (props.noteWidth + props.noteSpacing);
-            
-            // Draw note bar
-            objects.push(
-                new Rectangle(
-                    x,
-                    0,
-                    props.noteWidth,
-                    props.noteHeight,
-                    props.noteColor
-                )
-            );
-            
-            // Draw note name if enabled
-            if (props.showNoteNames) {
-                const noteName = api.utilities.midiNoteToName(noteData.note);
-                objects.push(
-                    new Text(
-                        x + props.noteWidth / 2,
-                        props.noteHeight / 2,
-                        noteName,
-                        '14px Inter, sans-serif',
-                        '#ffffff',
-                        'center',
-                        'middle'
-                    )
-                );
-            }
-        });
-        
+
         return objects;
     }
 }
