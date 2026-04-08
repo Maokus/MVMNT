@@ -48,21 +48,65 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
                     ],
                 },
                 {
-                    id: 'trackerAppearance',
-                    label: 'Tracker',
+                    id: 'trackerLayout',
+                    label: 'Layout',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
                         {
-                            key: 'rowCount',
+                            key: 'division',
                             type: 'number',
-                            label: 'Rows (beats per page)',
-                            default: 8,
+                            label: 'Division (rows per beat)',
+                            default: 1,
                             min: 1,
                             max: 32,
                             step: 1,
+                            description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.',
+                            runtime: { transform: asNumber, defaultValue: 1 },
+                        },
+                        {
+                            key: 'rowCount',
+                            type: 'number',
+                            label: 'Rows per page',
+                            default: 8,
+                            min: 1,
+                            max: 64,
+                            step: 1,
                             runtime: { transform: asNumber, defaultValue: 8 },
                         },
+                        {
+                            key: 'columns',
+                            type: 'number',
+                            label: 'Note columns',
+                            default: 1,
+                            min: 1,
+                            max: 8,
+                            step: 1,
+                            description: 'How many simultaneous notes to show per row',
+                            runtime: { transform: asNumber, defaultValue: 1 },
+                        },
+                        {
+                            key: 'showTrackName',
+                            type: 'boolean',
+                            label: 'Show Track Name',
+                            default: true,
+                            runtime: {
+                                transform: (value) => {
+                                    if (typeof value === 'boolean') return value;
+                                    if (typeof value === 'string') return value.toLowerCase() === 'true';
+                                    return true;
+                                },
+                                defaultValue: true,
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 'trackerAppearance',
+                    label: 'Appearance',
+                    variant: 'basic',
+                    collapsed: false,
+                    properties: [
                         {
                             key: 'fontSize',
                             type: 'number',
@@ -129,50 +173,62 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
             return objects;
         }
 
+        const division = Math.max(1, Math.round(props.division));
         const rowCount = props.rowCount;
+        const columns = Math.max(1, Math.round(props.columns));
         const fontSize = props.fontSize;
         const lineHeight = Math.round(fontSize * 1.6);
         const font = `${fontSize}px monospace`;
 
-        // Convert current time to beats (0-indexed)
+        // Current position in subbeats (beats * division)
         const currentBeats = api.timing.secondsToBeats(targetTime) ?? 0;
-        const currentBeatFloor = Math.floor(Math.max(0, currentBeats));
+        const currentSubbeat = Math.floor(Math.max(0, currentBeats) * division);
 
-        // Page: which group of rowCount beats are we in
-        const pageStart = Math.floor(currentBeatFloor / rowCount) * rowCount;
-        const activeRowIndex = currentBeatFloor - pageStart; // 0-indexed row within this page
+        // Page: which group of rowCount subbeats are we in
+        const pageStart = Math.floor(currentSubbeat / rowCount) * rowCount;
+        const activeRowIndex = currentSubbeat - pageStart; // 0-indexed row within this page
 
-        // Header: track name
-        const track = api.timeline.getTrackById(props.midiTrackId);
-        const trackLabel = track?.name ?? '?';
-        objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, props.headerColor, 'left', 'top'));
+        let yOffset = 0;
 
-        // Beat rows
+        // Header row
+        if (props.showTrackName) {
+            const track = api.timeline.getTrackById(props.midiTrackId);
+            const trackLabel = track?.name ?? '?';
+            objects.push(new Text(0, 0, ` T> ${trackLabel}`, font, props.headerColor, 'left', 'top'));
+            yOffset = lineHeight;
+        }
+
+        // Subbeat rows
         for (let i = 0; i < rowCount; i++) {
-            const beat = pageStart + i; // 0-indexed absolute beat
+            const subbeat = pageStart + i; // 0-indexed absolute subbeat
             const isActive = i === activeRowIndex;
 
-            // Time window for this beat
-            const beatStartSec = api.timing.beatsToSeconds(beat) ?? beat;
-            const beatEndSec = api.timing.beatsToSeconds(beat + 1) ?? (beat + 1);
+            // Time window for this subbeat (1/division of a beat wide)
+            const subbeatStartSec = api.timing.beatsToSeconds(subbeat / division) ?? subbeat / division;
+            const subbeatEndSec = api.timing.beatsToSeconds((subbeat + 1) / division) ?? (subbeat + 1) / division;
 
-            // Get notes that START within this beat's window
+            // Get notes that START within this subbeat's window, up to `columns` of them
             const candidates = api.timeline.selectNotesInWindow({
                 trackIds: [props.midiTrackId],
-                startSec: beatStartSec,
-                endSec: beatEndSec,
+                startSec: subbeatStartSec,
+                endSec: subbeatEndSec,
             });
-            const firstNote = candidates.find(
-                (n) => n.startTime >= beatStartSec && n.startTime < beatEndSec,
-            );
+            const starting = candidates
+                .filter((n) => n.startTime >= subbeatStartSec && n.startTime < subbeatEndSec)
+                .slice(0, columns);
 
-            const noteName = firstNote ? api.utilities.midiNoteToName(firstNote.note).padEnd(3) : '-- ';
+            // Build note columns: each is 4 chars wide ("C3  ", "C#3 ", "-- ")
+            const noteCells = Array.from({ length: columns }, (_, col) => {
+                const note = starting[col];
+                return note ? api.utilities.midiNoteToName(note.note).padEnd(4) : '--  ';
+            });
+
             const cursor = isActive ? '>' : ' ';
-            const beatNum = String(i + 1).padStart(2);
-            const line = `${cursor}${beatNum} ${noteName}`;
+            const rowNum = String(i + 1).padStart(2);
+            const line = `${cursor}${rowNum} ${noteCells.join(' ')}`;
 
             const color = isActive ? props.activeColor : props.textColor;
-            const y = lineHeight * (i + 1);
+            const y = yOffset + lineHeight * i;
             objects.push(new Text(0, y, line, font, color, 'left', 'top'));
         }
 
