@@ -54,6 +54,21 @@ export class UnsupportedVersionError extends PluginApiError {
 }
 
 /**
+ * Thrown when a plugin install would downgrade an already-installed version
+ */
+export class PluginDowngradeError extends PluginApiError {
+    constructor(pluginId: string, installedVersion: string, incomingVersion: string) {
+        super(
+            `Cannot install plugin '${pluginId}' v${incomingVersion}: ` +
+            `installed version v${installedVersion} is newer. ` +
+            `Use upgradePlugin() to upgrade, or pass allowDowngrade: true to force.`
+        );
+        this.name = 'PluginDowngradeError';
+        Object.setPrototypeOf(this, PluginDowngradeError.prototype);
+    }
+}
+
+/**
  * Thrown when a required capability is not available
  */
 export class MissingCapabilityError extends PluginApiError {

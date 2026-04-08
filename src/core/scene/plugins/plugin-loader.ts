@@ -10,13 +10,19 @@ import { PLUGIN_API_VERSION } from './api-version';
 export interface PluginLoadResult {
     success: boolean;
     pluginId?: string;
+    /** Manifest is populated even on failure once the bundle has been parsed. */
+    manifest?: PluginManifest;
     error?: string;
     registeredTypes?: string[];
+    /** Element types that failed to register (collision or code error), but did not abort the load. */
+    skippedElements?: string[];
 }
 
 interface LoadPluginOptions {
     allowExistingPlugin?: boolean;
     skipVersionCheck?: boolean;
+    /** Allow installing a bundle whose version is older than the currently installed one. */
+    allowDowngrade?: boolean;
 }
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
@@ -91,6 +97,8 @@ export async function loadPlugin(
             if (!satisfiesVersion(PLUGIN_API_VERSION, versionRange!)) {
                 return {
                     success: false,
+                    manifest,
+                    pluginId: manifest.id,
                     error: `Plugin requires API version ${versionRange}, but current API version is ${PLUGIN_API_VERSION}`,
                 };
             }
@@ -101,8 +109,25 @@ export async function loadPlugin(
         if (existingPlugin && !options.allowExistingPlugin) {
             return {
                 success: false,
+                manifest,
+                pluginId: manifest.id,
                 error: `Plugin '${manifest.id}' is already loaded`,
             };
+        }
+
+        // Downgrade guard: reject if the incoming bundle is older than what's installed
+        if (existingPlugin && !options.allowDowngrade) {
+            if (!satisfiesVersion(manifest.version, `>=${existingPlugin.manifest.version}`)) {
+                return {
+                    success: false,
+                    manifest,
+                    pluginId: manifest.id,
+                    error:
+                        `Cannot install plugin '${manifest.id}' v${manifest.version}: ` +
+                        `installed version v${existingPlugin.manifest.version} is newer. ` +
+                        `Use upgradePlugin() to upgrade.`,
+                };
+            }
         }
 
         // Store the bundle for future use
@@ -111,6 +136,7 @@ export async function loadPlugin(
         // Load and register each element
         const registeredTypes: string[] = [];
         const loadErrors: string[] = [];
+        const skippedElements: string[] = [];
 
         for (const elementManifest of manifest.elements) {
             try {
@@ -118,6 +144,7 @@ export async function loadPlugin(
                 const entryData = files[elementManifest.entry];
                 if (!entryData) {
                     loadErrors.push(`Missing entry file '${elementManifest.entry}' for element '${elementManifest.type}'`);
+                    skippedElements.push(elementManifest.type);
                     continue;
                 }
 
@@ -141,6 +168,7 @@ export async function loadPlugin(
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 loadErrors.push(`Failed to load element '${elementManifest.type}': ${errorMsg}`);
+                skippedElements.push(elementManifest.type);
             }
         }
 
@@ -148,6 +176,8 @@ export async function loadPlugin(
         if (registeredTypes.length === 0) {
             return {
                 success: false,
+                manifest,
+                pluginId: manifest.id,
                 error: `No elements could be loaded. Errors: ${loadErrors.join('; ')}`,
             };
         }
@@ -163,7 +193,9 @@ export async function loadPlugin(
         const result: PluginLoadResult = {
             success: true,
             pluginId: manifest.id,
+            manifest,
             registeredTypes,
+            skippedElements: skippedElements.length > 0 ? skippedElements : undefined,
         };
         dispatchPluginAvailabilityEvent({
             action: existingPlugin ? 'enabled' : 'installed',
@@ -258,6 +290,57 @@ export async function enablePlugin(pluginId: string): Promise<PluginLoadResult> 
 }
 
 /**
+ * Upgrade an installed plugin to a newer version from a bundle.
+ *
+ * - If the plugin is not yet installed, behaves like a normal install.
+ * - If the incoming version is not strictly newer than the installed version, returns an error.
+ * - Unloads the running plugin before installing the new bundle, so on failure the plugin
+ *   will not be present until re-installed manually.
+ */
+export async function upgradePlugin(bundleData: ArrayBuffer): Promise<PluginLoadResult> {
+    try {
+        const uint8Data = new Uint8Array(bundleData);
+        const files = unzipSync(uint8Data);
+
+        const manifestData = files['manifest.json'];
+        if (!manifestData) {
+            return { success: false, error: 'Missing manifest.json in plugin bundle' };
+        }
+
+        const manifestText = new TextDecoder().decode(manifestData);
+        const manifest: PluginManifest = JSON.parse(manifestText);
+
+        const validationError = validateManifest(manifest);
+        if (validationError) {
+            return { success: false, manifest, error: validationError };
+        }
+
+        const existingPlugin = usePluginStore.getState().plugins[manifest.id];
+        if (existingPlugin) {
+            const isNewer = satisfiesVersion(manifest.version, `>${existingPlugin.manifest.version}`);
+            if (!isNewer) {
+                return {
+                    success: false,
+                    manifest,
+                    pluginId: manifest.id,
+                    error:
+                        `Cannot upgrade '${manifest.id}': ` +
+                        `incoming version v${manifest.version} is not newer than ` +
+                        `installed v${existingPlugin.manifest.version}`,
+                };
+            }
+            // Unload the old version before installing the new one
+            await unloadPlugin(manifest.id);
+        }
+
+        return await loadPlugin(bundleData);
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: `Failed to upgrade plugin: ${errorMsg}` };
+    }
+}
+
+/**
  * Reload a plugin from storage (used on app startup)
  */
 export async function reloadPluginFromStorage(
@@ -272,7 +355,7 @@ export async function reloadPluginFromStorage(
 
         return await loadPlugin(bundleData, {
             allowExistingPlugin: options.allowExistingPlugin,
-            skipVersionCheck: true, // Version was already checked at install time
+            // Version is re-checked on startup to catch host API major bumps between sessions.
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -294,7 +377,13 @@ export async function loadAllPluginsFromStorage(): Promise<void> {
 
             if (!result.success) {
                 console.error(`[PluginLoader] Failed to reload plugin '${pluginId}':`, result.error);
-                usePluginStore.getState().setPluginError(pluginId, result.error || 'Unknown error');
+                if (result.manifest) {
+                    // Manifest parsed but load failed (e.g. API version incompatible after host update).
+                    // Register in store as disabled-with-error so the UI can surface it.
+                    usePluginStore.getState().registerFailedPlugin(result.manifest, result.error ?? 'Failed to load');
+                } else {
+                    usePluginStore.getState().setPluginError(pluginId, result.error || 'Unknown error');
+                }
             } else {
                 const storedEnabled = PluginSettingsStore.getEnabled(pluginId);
                 if (storedEnabled === false) {

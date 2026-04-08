@@ -171,6 +171,14 @@ export class SceneElementRegistry {
         return unregistered;
     }
 
+    /**
+     * Get all built-in element type strings.
+     * Used for drift detection — tests assert this matches scripts/built-in-element-types.mjs.
+     */
+    getBuiltInTypes(): readonly string[] {
+        return Array.from(this.builtInTypes);
+    }
+
     createElement(type: string, config: any = {}) {
         const factory = this.factories.get(type);
         if (!factory) {

@@ -15,6 +15,8 @@
 
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import { debugLog } from '@utils/debug-log';
+import { satisfiesVersion } from './version-check';
+import { PLUGIN_API_VERSION } from './api-version';
 
 interface PluginManifest {
     id: string;
@@ -166,9 +168,14 @@ async function loadElement(
             };
         }
         
-        // Register the element with the registry
-        sceneElementRegistry.registerElementFromClass(element.type, ElementClass);
-        
+        // Register the element via the custom element path so pluginId is tracked
+        // and conflicts with built-in types are caught correctly
+        sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
+            pluginId,
+            overrideCategory: element.category,
+            capabilities: element.capabilities,
+        });
+
         debugLog(`[DevPluginLoader] Registered element: ${element.type} from plugin ${pluginId}`);
         
         return { success: true };
@@ -187,11 +194,27 @@ async function loadElement(
  */
 async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     const manifest = await loadPluginManifest(pluginPath);
-    
+
     if (!manifest) {
         return null;
     }
-    
+
+    // Check version compatibility so dev-mode failures mirror production
+    const versionRange = manifest.apiVersion ?? manifest.mvmntVersion;
+    if (versionRange && !satisfiesVersion(PLUGIN_API_VERSION, versionRange)) {
+        console.error(
+            `[DevPluginLoader] Plugin '${manifest.id}' requires API version ${versionRange}, ` +
+            `but current API version is ${PLUGIN_API_VERSION}. Plugin will not be loaded.`
+        );
+        return {
+            success: false,
+            pluginId: manifest.id,
+            pluginName: manifest.name,
+            elementsLoaded: 0,
+            errors: [`Requires API version ${versionRange}, host provides ${PLUGIN_API_VERSION}`],
+        };
+    }
+
     console.log(`[DevPluginLoader] Loading plugin: ${manifest.name} (${manifest.id})`);
     
     const errors: string[] = [];

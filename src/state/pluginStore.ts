@@ -53,6 +53,11 @@ export interface PluginStoreActions {
     setPluginError: (pluginId: string, error: string) => void;
     clearPluginError: (pluginId: string) => void;
     setLoading: (pluginId: string, loading: boolean) => void;
+    /**
+     * Register a plugin that failed to load (e.g. version incompatibility at startup).
+     * Creates a store entry with enabled=false so the UI can surface the error.
+     */
+    registerFailedPlugin: (manifest: PluginManifest, error: string) => void;
     reset: () => void;
 }
 
@@ -164,4 +169,18 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     },
 
     reset: () => set(initialState),
+
+    registerFailedPlugin: (manifest: PluginManifest, error: string) => {
+        set((state) => ({
+            plugins: {
+                ...state.plugins,
+                [manifest.id]: {
+                    manifest,
+                    enabled: false,
+                    loadedAt: Date.now(),
+                    error,
+                },
+            },
+        }));
+    },
 }));

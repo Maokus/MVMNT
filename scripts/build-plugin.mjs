@@ -17,18 +17,11 @@ import { build } from 'esbuild';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import * as fflate from 'fflate';
+import { BUILTIN_ELEMENT_TYPES } from './built-in-element-types.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-
-// Built-in element types that cannot be overridden
-const BUILTIN_ELEMENT_TYPES = [
-    'background', 'image', 'progressDisplay', 'textOverlay', 'timeDisplay',
-    'timeUnitPianoRoll', 'movingNotesPianoRoll', 'notesPlayedTracker',
-    'notesPlayingDisplay', 'chordEstimateDisplay', 'audioSpectrum',
-    'audioVolumeMeter', 'audioWaveform', 'audioLockedOscilloscope', 'debug'
-];
 
 const PLUGIN_PUBLIC_IMPORTS = new Set([
     '@mvmnt/plugin-sdk',
