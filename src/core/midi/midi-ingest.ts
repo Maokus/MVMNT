@@ -1,11 +1,12 @@
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import type { NoteRaw, TempoMapEntry } from '@state/timelineTypes';
+import type { NoteRaw, CCEventRaw, TempoMapEntry } from '@state/timelineTypes';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { parseMIDIFileToData } from './midi-library';
 
 export function buildNotesFromMIDI(midiData: MIDIData): {
     midiData: MIDIData;
     notesRaw: NoteRaw[];
+    ccRaw: CCEventRaw[];
     ticksPerQuarter: number; // always CANONICAL_PPQ after normalization
     tempoMap?: TempoMapEntry[];
 } {
@@ -73,7 +74,22 @@ export function buildNotesFromMIDI(midiData: MIDIData): {
     const tempoMap = (midiData as any).tempoMap as { time: number; tempo: number }[] | undefined;
     const tempoMapEntries: TempoMapEntry[] | undefined = tempoMap?.map((t) => ({ time: t.time, tempo: t.tempo }));
 
-    return { midiData, notesRaw: notes, ticksPerQuarter: CANONICAL_PPQ, tempoMap: tempoMapEntries };
+    // Extract CC events from the parser output
+    const ccRaw: CCEventRaw[] = [];
+    const ccSource = midiData.ccEvents ?? midiData.events;
+    for (const ev of ccSource) {
+        if (ev.type === 'controlChange') {
+            const rawTick = ev.tick ?? 0;
+            ccRaw.push({
+                channel: ev.channel || 0,
+                controller: ev.note!, // parser stores controller number in `note`
+                value: ev.velocity!, // parser stores CC value in `velocity`
+                tick: Math.round(rawTick * scale),
+            });
+        }
+    }
+
+    return { midiData, notesRaw: notes, ccRaw, ticksPerQuarter: CANONICAL_PPQ, tempoMap: tempoMapEntries };
 }
 
 export async function parseAndNormalize(input: File | MIDIData) {

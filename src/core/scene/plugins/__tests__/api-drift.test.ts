@@ -22,6 +22,8 @@ import {
     getTimelineDuration,
     getMidiTracks,
     groupNotesByPitch,
+    selectCC,
+    getSustainState,
     sampleAudio,
     sampleAudioRange,
     timeToBeats,
@@ -33,6 +35,7 @@ import {
     noteName,
     getPluginHostApi,
 } from '../plugin-sdk';
+import type { TimelineCCEvent } from '../plugin-sdk';
 
 describe('API Drift Prevention', () => {
     describe('PLUGIN_CAPABILITIES coverage', () => {
@@ -174,6 +177,26 @@ describe('API Drift Prevention', () => {
         it('should have shorthand helper for utility operations', () => {
             // noteName maps to api.utilities.midiNoteToName
             expect(typeof noteName).toBe('function');
+        });
+
+        it('should have shorthand helpers for CC operations', () => {
+            // selectCC is a convenience wrapper for api.timeline.selectCCInWindow
+            expect(typeof selectCC).toBe('function');
+            // getSustainState wraps api.timeline.getSustainStateAtTime
+            expect(typeof getSustainState).toBe('function');
+        });
+
+        it('should export TimelineCCEvent type', () => {
+            // Verify the type is usable (compile-time check; runtime just ensure import is valid)
+            const dummy: TimelineCCEvent = {
+                trackId: 't1',
+                channel: 0,
+                controller: 64,
+                value: 127,
+                timeSec: 1.0,
+            };
+            expect(dummy.controller).toBe(64);
+            expect(dummy.value).toBe(127);
         });
     });
 

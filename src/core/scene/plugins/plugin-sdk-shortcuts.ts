@@ -11,6 +11,7 @@
 import { getPluginHostApi } from './host-api/get-plugin-host-api';
 import type { AudioSamplingOptions } from '@audio/features/audioFeatureTypes';
 import type { TimelineNoteEvent } from '@core/timing/types';
+import type { TimelineCCEvent } from '@core/timing/types';
 import type { FeatureInput, FeatureDataResult } from '@audio/features/sceneApi';
 
 /**
@@ -264,4 +265,36 @@ export function noteName(noteNumber: number): string {
         return 'C-1';
     }
     return api.utilities.midiNoteToName(noteNumber);
+}
+
+/**
+ * Select CC events in a time window, optionally filtered by controller number
+ * @returns Array of CC events, or empty array if timeline API unavailable
+ */
+export function selectCC(args: {
+    trackIds?: string[];
+    controller?: number;
+    startSec: number;
+    endSec: number;
+}): TimelineCCEvent[] {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return [];
+    }
+    return api.timeline.selectCCInWindow(args);
+}
+
+/**
+ * Check if sustain pedal (CC 64) is held at the given time
+ * @returns true if pedal is down, false otherwise or if timeline API unavailable
+ */
+export function getSustainState(args: {
+    trackIds?: string[];
+    timeSec: number;
+}): boolean {
+    const { api } = getPluginHostApi();
+    if (!api) {
+        return false;
+    }
+    return api.timeline.getSustainStateAtTime(args);
 }

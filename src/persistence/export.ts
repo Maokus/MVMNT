@@ -443,6 +443,10 @@ function sanitizeMidiCacheEntry(entry: any): Record<string, any> {
         normalized.notesRaw = [];
     }
 
+    if (!Array.isArray(normalized.ccRaw)) {
+        normalized.ccRaw = [];
+    }
+
     if (Array.isArray(normalized.tempoMap)) {
         normalized.tempoMap = normalized.tempoMap
             .map((item: any) => {

@@ -19,7 +19,7 @@ import {
     resolveFeatureTrackFromCache,
     sanitizeAnalysisProfileId,
 } from '@audio/features/featureTrackIdentity';
-import type { TempoMapEntry, NoteRaw } from '@state/timelineTypes';
+import type { TempoMapEntry, NoteRaw, CCEventRaw } from '@state/timelineTypes';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
     createTimingContext,
@@ -102,7 +102,7 @@ export type TimelineState = {
     playbackRangeUserDefined: boolean;
     midiCache: Record<
         string,
-        { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     >;
     audioCache: Record<string, AudioCacheEntry>;
     audioFeatureCaches: Record<string, AudioFeatureCache>;
@@ -154,7 +154,7 @@ export type TimelineState = {
     setRowHeight: (h: number) => void;
     ingestMidiToCache: (
         id: string,
-        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw?: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) => void;
     ingestAudioToCache: (
         id: string,
@@ -848,7 +848,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     ingestMidiToCache(
         id: string,
-        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
+        data: { midiData: MIDIData; notesRaw: NoteRaw[]; ccRaw?: CCEventRaw[]; ticksPerQuarter: number; tempoMap?: TempoMapEntry[] }
     ) {
         // Update cache; convert beat-based canonical timing to seconds according to current tempo context
         set((s: TimelineState) => {
@@ -861,7 +861,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 }
                 return n;
             });
-            return { midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes } } } as TimelineState;
+            return { midiCache: { ...s.midiCache, [id]: { ...data, notesRaw: notes, ccRaw: data.ccRaw ?? [] } } } as TimelineState;
         });
         // Now that notes are available, attempt auto adjust (if not user-defined)
         try {

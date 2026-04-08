@@ -2,7 +2,7 @@ import type { AudioTrack, AudioCacheEntry } from '@audio/audioTypes';
 import type { AudioFeatureCache, AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import type { MIDIData } from '@core/types';
 import type { TimelineState, TimelineTrack } from '../timelineStore';
-import type { NoteRaw, TempoMapEntry } from '../timelineTypes';
+import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
 import { autoAdjustSceneRangeIfNeeded } from './timelineShared';
 
 export type TimelineTrackLike = TimelineTrack | AudioTrack;
@@ -10,6 +10,7 @@ export type TimelineTrackLike = TimelineTrack | AudioTrack;
 export interface TimelineMidiCacheEntry {
     midiData: MIDIData;
     notesRaw: NoteRaw[];
+    ccRaw: CCEventRaw[];
     ticksPerQuarter: number;
     tempoMap?: TempoMapEntry[];
 }

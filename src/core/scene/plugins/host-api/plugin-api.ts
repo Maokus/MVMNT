@@ -4,8 +4,11 @@ import {
     selectTrackById as selectTrackByIdSelector,
     selectTracksByIds as selectTracksByIdsSelector,
     selectMidiTracks as selectMidiTracksSelector,
+    selectCCInWindow as selectCCInWindowSelector,
+    selectSustainStateAtTime as selectSustainStateAtTimeSelector,
 } from '@state/selectors/timelineSelectors';
 import type { TimelineNoteEvent } from '@core/timing/types';
+import type { TimelineCCEvent } from '@core/timing/types';
 import {
     getFeatureData as getFeatureDataFromScene,
     type FeatureDataResult,
@@ -46,6 +49,15 @@ export interface PluginTimelineApi {
     getTracksByIds(trackIds: string[]): Array<TimelineState['tracks'][string]>;
     /** All MIDI tracks on the timeline. */
     getMidiTracks(): Array<TimelineState['tracks'][string]>;
+    /** Returns CC events in the given time window, optionally filtered by controller number. */
+    selectCCInWindow(args: {
+        trackIds?: string[];
+        controller?: number;
+        startSec: number;
+        endSec: number;
+    }): TimelineCCEvent[];
+    /** Returns true if sustain pedal (CC 64) is held at the given time. */
+    getSustainStateAtTime(args: { trackIds?: string[]; timeSec: number }): boolean;
 }
 
 export interface PluginAudioApi {
@@ -248,6 +260,18 @@ export function createPluginHostApi(deps: CreatePluginHostApiDeps = {}): CreateP
                     return [];
                 }
                 return selectMidiTracks(timelineStore.getState());
+            },
+            selectCCInWindow(args) {
+                if (!hasTimelineRead || !timelineStore) {
+                    return [];
+                }
+                return selectCCInWindowSelector(timelineStore.getState(), args);
+            },
+            getSustainStateAtTime(args) {
+                if (!hasTimelineRead || !timelineStore) {
+                    return false;
+                }
+                return selectSustainStateAtTimeSelector(timelineStore.getState(), args);
             },
         },
         audio: {

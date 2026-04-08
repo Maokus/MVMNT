@@ -17,6 +17,8 @@ function makeApi(overrides: Partial<PluginHostApi> = {}): PluginHostApi {
             getTrackById: () => null,
             getTracksByIds: () => [],
             getMidiTracks: () => [],
+            selectCCInWindow: () => [],
+            getSustainStateAtTime: () => false,
         },
         audio: {
             sampleFeatureAtTime: () => null,

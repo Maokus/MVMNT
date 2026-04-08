@@ -17,3 +17,12 @@ export type TimelineNoteEvent = {
     duration: number;
     velocity?: number;
 };
+
+/** A single MIDI Control Change message, stored in seconds-domain time. */
+export interface TimelineCCEvent {
+    trackId: string;
+    channel: number;
+    controller: number; // 0–127, e.g. 64 = sustain pedal
+    value: number; // 0–127
+    timeSec: number; // absolute timeline seconds
+}

@@ -56,6 +56,8 @@ export {
     getTimelineDuration,
     getMidiTracks,
     groupNotesByPitch,
+    selectCC,
+    getSustainState,
     sampleAudio,
     sampleAudioRange,
     timeToBeats,
@@ -76,7 +78,7 @@ export { registerFeatureRequirements };
 export type { AudioFeatureRequirement };
 export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 export type { FeatureDataResult, FeatureInput } from '@audio/features/sceneApi';
-export type { TimelineNoteEvent, TempoMapEntry } from '@core/timing/types';
+export type { TimelineNoteEvent, TimelineCCEvent, TempoMapEntry } from '@core/timing/types';
 export {
     withRenderSafety,
     limitRenderObjects,
