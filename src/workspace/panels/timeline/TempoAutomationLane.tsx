@@ -1,0 +1,369 @@
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { useTimelineStore } from '@state/timelineStore';
+import { useTickScale } from './useTickScale';
+import { AUTOMATION_HEADER_HEIGHT } from './constants';
+import TempoKeyframeLabel from './TempoKeyframeLabel';
+import type { TempoKeyframe } from '@core/timing/types';
+
+const DIAMOND_SIZE = 7;
+const PADDING_Y = 12;
+const BPM_CLAMP_MIN = 20;
+const BPM_CLAMP_MAX = 400;
+const BPM_PADDING = 20;
+
+interface DragState {
+    kfIndex: number;
+    startClientX: number;
+    startClientY: number;
+    startTick: number;
+    startBpm: number;
+    axis: 'none' | 'horizontal' | 'vertical';
+}
+
+interface TempoAutomationLaneProps {
+    width: number;
+    height: number;
+}
+
+const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height }) => {
+    const tempoAutomation = useTimelineStore((s) => s.timeline.tempoAutomation);
+    const addTempoKeyframe = useTimelineStore((s) => s.addTempoKeyframe);
+    const removeTempoKeyframe = useTimelineStore((s) => s.removeTempoKeyframe);
+    const moveTempoKeyframe = useTimelineStore((s) => s.moveTempoKeyframe);
+    const updateTempoKeyframeBpm = useTimelineStore((s) => s.updateTempoKeyframeBpm);
+    const { toX, toTick } = useTickScale();
+
+    const keyframes = tempoAutomation?.keyframes ?? [];
+    const [selectedTick, setSelectedTick] = useState<number | null>(null);
+    const [dragState, setDragState] = useState<DragState | null>(null);
+    const [draftPos, setDraftPos] = useState<{ tick: number; bpm: number } | null>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    // Context menu
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tick: number } | null>(null);
+
+    // BPM axis range (auto-fit)
+    const { bpmMin, bpmMax } = useMemo(() => {
+        if (keyframes.length === 0) return { bpmMin: 100, bpmMax: 140 };
+        const bpms = keyframes.map((kf) => kf.bpm);
+        const rawMin = Math.min(...bpms);
+        const rawMax = Math.max(...bpms);
+        return {
+            bpmMin: Math.max(BPM_CLAMP_MIN, rawMin - BPM_PADDING),
+            bpmMax: Math.min(BPM_CLAMP_MAX, rawMax + BPM_PADDING),
+        };
+    }, [keyframes]);
+
+    const bpmRange = Math.max(1, bpmMax - bpmMin);
+
+    const bpmToY = useCallback(
+        (bpm: number) => {
+            const t = (bpm - bpmMin) / bpmRange;
+            return height - PADDING_Y - t * (height - 2 * PADDING_Y);
+        },
+        [bpmMin, bpmRange, height],
+    );
+
+    const yToBpm = useCallback(
+        (y: number) => {
+            const t = (height - PADDING_Y - y) / (height - 2 * PADDING_Y);
+            return bpmMin + t * bpmRange;
+        },
+        [bpmMin, bpmRange, height],
+    );
+
+    // Build stepped curve path
+    const curvePath = useMemo(() => {
+        if (keyframes.length === 0) return '';
+        const segments: string[] = [];
+        for (let i = 0; i < keyframes.length; i++) {
+            const kf = keyframes[i];
+            const x = toX(kf.tick, width);
+            const y = bpmToY(kf.bpm);
+            if (i === 0) {
+                // Start from left edge at first BPM
+                segments.push(`M 0 ${y}`);
+                segments.push(`L ${x} ${y}`);
+            }
+            // Vertical transition to this BPM
+            if (i > 0) {
+                segments.push(`L ${x} ${bpmToY(keyframes[i - 1].bpm)}`);
+                segments.push(`L ${x} ${y}`);
+            }
+            // Horizontal hold line to next keyframe or right edge
+            const nextX = i < keyframes.length - 1 ? toX(keyframes[i + 1].tick, width) : width;
+            segments.push(`L ${nextX} ${y}`);
+        }
+        return segments.join(' ');
+    }, [keyframes, toX, width, bpmToY]);
+
+    // BPM gridlines
+    const gridLines = useMemo(() => {
+        const lines: number[] = [];
+        const step = bpmRange > 200 ? 40 : bpmRange > 100 ? 20 : 10;
+        const start = Math.ceil(bpmMin / step) * step;
+        for (let bpm = start; bpm <= bpmMax; bpm += step) {
+            lines.push(bpm);
+        }
+        return lines;
+    }, [bpmMin, bpmMax, bpmRange]);
+
+    // Get the keyframes to render (applying draft position if dragging)
+    const renderKeyframes = useMemo((): TempoKeyframe[] => {
+        if (!dragState || !draftPos) return keyframes;
+        return keyframes.map((kf, i) =>
+            i === dragState.kfIndex ? { tick: draftPos.tick, bpm: draftPos.bpm } : kf,
+        );
+    }, [keyframes, dragState, draftPos]);
+
+    // Double-click to add
+    const handleDoubleClick = useCallback(
+        (e: React.MouseEvent) => {
+            if ((e.target as HTMLElement).closest('[data-kf]')) return;
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+            const tick = toTick(localX, width);
+            const bpm = Math.max(1, Math.min(999, Math.round(yToBpm(localY))));
+            addTempoKeyframe(tick, bpm);
+        },
+        [toTick, width, yToBpm, addTempoKeyframe],
+    );
+
+    // Diamond pointer down (drag start)
+    const handleDiamondPointerDown = useCallback(
+        (e: React.PointerEvent, kfIndex: number) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const target = e.currentTarget as SVGElement;
+            target.setPointerCapture(e.pointerId);
+            const kf = keyframes[kfIndex];
+            setSelectedTick(kf.tick);
+            setDragState({
+                kfIndex,
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                startTick: kf.tick,
+                startBpm: kf.bpm,
+                axis: 'none',
+            });
+            setDraftPos({ tick: kf.tick, bpm: kf.bpm });
+        },
+        [keyframes],
+    );
+
+    const handlePointerMove = useCallback(
+        (e: React.PointerEvent) => {
+            if (!dragState || !svgRef.current) return;
+            const dx = e.clientX - dragState.startClientX;
+            const dy = e.clientY - dragState.startClientY;
+
+            // Determine axis lock after threshold
+            let axis = dragState.axis;
+            if (axis === 'none' && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+                axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+                setDragState((prev) => prev ? { ...prev, axis } : prev);
+            }
+
+            const rect = svgRef.current.getBoundingClientRect();
+            let newTick = dragState.startTick;
+            let newBpm = dragState.startBpm;
+
+            if (axis === 'horizontal' || axis === 'none') {
+                const localX = e.clientX - rect.left;
+                newTick = Math.max(0, toTick(localX, width));
+            }
+            if (axis === 'vertical' || axis === 'none') {
+                const localY = e.clientY - rect.top;
+                newBpm = Math.max(1, Math.min(999, Math.round(yToBpm(localY))));
+            }
+
+            setDraftPos({ tick: newTick, bpm: newBpm });
+        },
+        [dragState, toTick, width, yToBpm],
+    );
+
+    const handlePointerUp = useCallback(
+        (_e: React.PointerEvent) => {
+            if (!dragState || !draftPos) {
+                setDragState(null);
+                setDraftPos(null);
+                return;
+            }
+
+            const kf = keyframes[dragState.kfIndex];
+            if (kf) {
+                // Commit the drag
+                if (draftPos.tick !== kf.tick) {
+                    moveTempoKeyframe(kf.tick, draftPos.tick);
+                }
+                if (draftPos.bpm !== kf.bpm) {
+                    // After move, the keyframe is at draftPos.tick
+                    updateTempoKeyframeBpm(draftPos.tick, draftPos.bpm);
+                }
+            }
+
+            setDragState(null);
+            setDraftPos(null);
+        },
+        [dragState, draftPos, keyframes, moveTempoKeyframe, updateTempoKeyframeBpm],
+    );
+
+    // Context menu
+    const handleContextMenu = useCallback(
+        (e: React.MouseEvent, tick: number) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setContextMenu({ x: e.clientX, y: e.clientY, tick });
+            setSelectedTick(tick);
+        },
+        [],
+    );
+
+    const handleDeleteKeyframe = useCallback(() => {
+        if (contextMenu) {
+            removeTempoKeyframe(contextMenu.tick);
+            setContextMenu(null);
+            setSelectedTick(null);
+        }
+    }, [contextMenu, removeTempoKeyframe]);
+
+    // Background click to deselect
+    const handleBackgroundClick = useCallback(() => {
+        setSelectedTick(null);
+        setContextMenu(null);
+    }, []);
+
+    // Keyboard delete
+    const handleKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTick !== null) {
+                e.preventDefault();
+                removeTempoKeyframe(selectedTick);
+                setSelectedTick(null);
+            }
+        },
+        [selectedTick, removeTempoKeyframe],
+    );
+
+    if (keyframes.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-full text-neutral-600 text-[11px]">
+                No tempo keyframes
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative w-full h-full" tabIndex={0} onKeyDown={handleKeyDown}>
+            {/* Header spacer (mirrors left-column header) */}
+            <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
+
+            <svg
+                ref={svgRef}
+                width={width}
+                height={height}
+                className="block"
+                onDoubleClick={handleDoubleClick}
+                onClick={handleBackgroundClick}
+                onPointerMove={dragState ? handlePointerMove : undefined}
+                onPointerUp={dragState ? handlePointerUp : undefined}
+            >
+                {/* BPM gridlines */}
+                {gridLines.map((bpm) => {
+                    const y = bpmToY(bpm);
+                    return (
+                        <g key={bpm}>
+                            <line
+                                x1={0} y1={y} x2={width} y2={y}
+                                stroke="rgba(255,255,255,0.06)" strokeWidth={1}
+                            />
+                            <text x={4} y={y - 2} className="fill-neutral-600 text-[8px] select-none">
+                                {bpm}
+                            </text>
+                        </g>
+                    );
+                })}
+
+                {/* Stepped curve */}
+                {curvePath && (
+                    <path
+                        d={curvePath}
+                        fill="none"
+                        stroke="rgba(251,191,36,0.5)"
+                        strokeWidth={1.5}
+                    />
+                )}
+
+                {/* Fill under the curve */}
+                {curvePath && (
+                    <path
+                        d={`${curvePath} L ${width} ${height} L 0 ${height} Z`}
+                        fill="rgba(251,191,36,0.06)"
+                    />
+                )}
+
+                {/* Keyframe diamonds */}
+                {renderKeyframes.map((kf, i) => {
+                    const x = toX(kf.tick, width);
+                    const y = bpmToY(kf.bpm);
+                    const isSelected = selectedTick !== null && Math.abs(kf.tick - selectedTick) <= 1;
+                    const dSize = isSelected ? DIAMOND_SIZE + 2 : DIAMOND_SIZE;
+
+                    return (
+                        <g key={`${kf.tick}-${i}`} data-kf>
+                            {/* Hit area */}
+                            <rect
+                                x={x - dSize - 2}
+                                y={y - dSize - 2}
+                                width={(dSize + 2) * 2}
+                                height={(dSize + 2) * 2}
+                                fill="transparent"
+                                className="cursor-grab"
+                                onPointerDown={(e) => handleDiamondPointerDown(e, i)}
+                                onContextMenu={(e) => handleContextMenu(e, kf.tick)}
+                            />
+                            {/* Diamond shape */}
+                            <path
+                                d={`M${x} ${y - dSize} L${x + dSize} ${y} L${x} ${y + dSize} L${x - dSize} ${y} Z`}
+                                fill={isSelected ? '#fbbf24' : 'rgba(251,191,36,0.6)'}
+                                stroke={isSelected ? '#f59e0b' : 'rgba(251,191,36,0.4)'}
+                                strokeWidth={isSelected ? 2 : 1}
+                                className="pointer-events-none"
+                            />
+                            {/* BPM label */}
+                            <TempoKeyframeLabel
+                                tick={kf.tick}
+                                bpm={kf.bpm}
+                                x={x}
+                                y={y}
+                                selected={isSelected}
+                            />
+                        </g>
+                    );
+                })}
+            </svg>
+
+            {/* Context menu */}
+            {contextMenu && (
+                <>
+                    <div className="fixed inset-0 z-[9990]" onClick={() => setContextMenu(null)} />
+                    <div
+                        className="fixed z-[9991] min-w-[120px] rounded border border-neutral-700 bg-neutral-900/95 py-1 shadow-xl text-[12px]"
+                        style={{ left: contextMenu.x, top: contextMenu.y }}
+                    >
+                        <button
+                            className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-red-900/40 hover:text-red-300"
+                            onClick={handleDeleteKeyframe}
+                        >
+                            Delete keyframe
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+export default TempoAutomationLane;

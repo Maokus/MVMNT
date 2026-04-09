@@ -2,6 +2,7 @@ import type { SceneCommand, SceneCommandOptions, SceneCommandResult } from '@sta
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchTimelineCommandDescriptor, useTimelineStore } from '@state/timelineStore';
+import type { TempoKeyframe } from '@core/timing/types';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { exportScene, importScene } from '@persistence/index';
 import type { ImportSceneResult } from '@persistence/index';
@@ -68,6 +69,19 @@ const timelineTools = {
     s2bars,
     bars2s,
     getTimingState,
+    setTempoKeyframes: (keyframes: TempoKeyframe[]) => {
+        const api = useTimelineStore.getState();
+        if (!api.timeline.tempoAutomation?.enabled) {
+            api.enableTempoAutomation();
+        }
+        api.batchSetTempoKeyframes(keyframes);
+    },
+    enableTempoAutomation: () => {
+        useTimelineStore.getState().enableTempoAutomation();
+    },
+    disableTempoAutomation: () => {
+        useTimelineStore.getState().disableTempoAutomation();
+    },
 };
 
 const undoTools = {

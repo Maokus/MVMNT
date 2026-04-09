@@ -20,6 +20,9 @@ import {
     sanitizeAnalysisProfileId,
 } from '@audio/features/featureTrackIdentity';
 import type { TempoMapEntry, NoteRaw, CCEventRaw } from '@state/timelineTypes';
+import type { TempoKeyframe } from '@core/timing/types';
+import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantize';
 import {
     createTimingContext,
@@ -81,6 +84,10 @@ export type TimelineState = {
         globalBpm: number; // fallback bpm for conversions when map is empty
         beatsPerBar: number; // global meter (constant for now)
         playheadAuthority?: 'tick' | 'seconds' | 'clock' | 'user'; // last domain that authored the playhead
+        tempoAutomation?: {
+            enabled: boolean;
+            keyframes: TempoKeyframe[];
+        };
     };
     tracks: Record<string, TimelineTrack | AudioTrack>;
     tracksOrder: string[];
@@ -189,6 +196,15 @@ export type TimelineState = {
     }) => void;
     recordTempoAlignedDiagnostics: (sourceId: string, diagnostics: TempoAlignedAdapterDiagnostics) => void;
     clearTempoAlignedDiagnostics: (sourceId?: string) => void;
+    // Tempo automation actions
+    enableTempoAutomation: () => void;
+    disableTempoAutomation: () => void;
+    addTempoKeyframe: (tick: number, bpm: number) => void;
+    removeTempoKeyframe: (tick: number) => void;
+    moveTempoKeyframe: (fromTick: number, toTick: number) => void;
+    updateTempoKeyframeBpm: (tick: number, bpm: number) => void;
+    batchSetTempoKeyframes: (keyframes: TempoKeyframe[]) => void;
+    commitTempoKeyframeDrag: (fromTick: number, toTick: number) => void;
 };
 
 function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
@@ -419,6 +435,10 @@ function createInitialTimelineSlice(): Pick<
             globalBpm: 120,
             beatsPerBar: 4,
             playheadAuthority: 'tick',
+            tempoAutomation: {
+                enabled: false,
+                keyframes: [],
+            },
         },
         tracks: {},
         tracksOrder: [],
@@ -447,6 +467,16 @@ function createInitialTimelineSlice(): Pick<
         },
         tempoAlignedDiagnostics: {},
     };
+}
+
+const TEMPO_KF_TICK_TOLERANCE = 1;
+
+function _applyTempoAutomation(get: () => TimelineState): void {
+    const state = get();
+    const ta = state.timeline.tempoAutomation;
+    if (!ta || !ta.enabled) return;
+    const derivedMap = resolveTempoKeyframes(ta.keyframes, state.timeline.globalBpm, CANONICAL_PPQ);
+    state.setMasterTempoMap(derivedMap);
 }
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
@@ -1328,6 +1358,131 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         const maxH = 160;
         const v = Math.max(minH, Math.min(maxH, Math.floor(h)));
         set(() => ({ rowHeight: v }));
+    },
+
+    // ── Tempo automation actions ──
+
+    enableTempoAutomation() {
+        const currentBpm = get().timeline.globalBpm || 120;
+        set((s: TimelineState) => ({
+            timeline: {
+                ...s.timeline,
+                tempoAutomation: {
+                    enabled: true,
+                    keyframes: [{ tick: 0, bpm: currentBpm }],
+                },
+            },
+        } as any));
+        _applyTempoAutomation(get);
+    },
+
+    disableTempoAutomation() {
+        set((s: TimelineState) => ({
+            timeline: {
+                ...s.timeline,
+                tempoAutomation: {
+                    enabled: false,
+                    keyframes: [],
+                },
+            },
+        } as any));
+        get().setMasterTempoMap(undefined);
+    },
+
+    addTempoKeyframe(tick: number, bpm: number) {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const existing = ta.keyframes.findIndex(
+                (kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE,
+            );
+            let next: TempoKeyframe[];
+            if (existing >= 0) {
+                next = [...ta.keyframes];
+                next[existing] = { tick, bpm };
+            } else {
+                next = [...ta.keyframes, { tick, bpm }].sort((a, b) => a.tick - b.tick);
+            }
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, keyframes: next },
+                },
+            } as any;
+        });
+        _applyTempoAutomation(get);
+    },
+
+    removeTempoKeyframe(tick: number) {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const next = ta.keyframes.filter(
+                (kf) => Math.abs(kf.tick - tick) > TEMPO_KF_TICK_TOLERANCE,
+            );
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, keyframes: next },
+                },
+            } as any;
+        });
+        _applyTempoAutomation(get);
+    },
+
+    moveTempoKeyframe(fromTick: number, toTick: number) {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const idx = ta.keyframes.findIndex(
+                (kf) => Math.abs(kf.tick - fromTick) <= TEMPO_KF_TICK_TOLERANCE,
+            );
+            if (idx < 0) return s;
+            const next = [...ta.keyframes];
+            next[idx] = { ...next[idx], tick: toTick };
+            next.sort((a, b) => a.tick - b.tick);
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, keyframes: next },
+                },
+            } as any;
+        });
+        _applyTempoAutomation(get);
+    },
+
+    updateTempoKeyframeBpm(tick: number, bpm: number) {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            const idx = ta.keyframes.findIndex(
+                (kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE,
+            );
+            if (idx < 0) return s;
+            const next = [...ta.keyframes];
+            next[idx] = { ...next[idx], bpm };
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, keyframes: next },
+                },
+            } as any;
+        });
+        _applyTempoAutomation(get);
+    },
+
+    batchSetTempoKeyframes(keyframes: TempoKeyframe[]) {
+        const sorted = [...keyframes].sort((a, b) => a.tick - b.tick);
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, keyframes: sorted },
+                },
+            } as any;
+        });
+        _applyTempoAutomation(get);
+    },
+
+    commitTempoKeyframeDrag(fromTick: number, toTick: number) {
+        get().moveTempoKeyframe(fromTick, toTick);
     },
 });
 
