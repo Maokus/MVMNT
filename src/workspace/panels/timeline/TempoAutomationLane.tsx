@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from './constants';
@@ -38,6 +38,11 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const [dragState, setDragState] = useState<DragState | null>(null);
     const [draftPos, setDraftPos] = useState<{ tick: number; bpm: number } | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
+    // Live refs so global pointerup handler always sees latest drag state
+    const dragStateRef = useRef<DragState | null>(null);
+    const draftPosRef = useRef<{ tick: number; bpm: number } | null>(null);
+    dragStateRef.current = dragState;
+    draftPosRef.current = draftPos;
 
     // Context menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tick: number } | null>(null);
@@ -204,6 +209,9 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 }
             }
 
+            // Null refs immediately so the global window pointerup handler won't double-commit
+            dragStateRef.current = null;
+            draftPosRef.current = null;
             setDragState(null);
             setDraftPos(null);
         },
@@ -247,6 +255,28 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         [selectedTick, removeTempoKeyframe],
     );
 
+    // Global safety net: commit the drag if pointer is released outside the SVG/window
+    const isDragging = dragState !== null;
+    useEffect(() => {
+        if (!isDragging) return;
+        const handleWindowPointerUp = () => {
+            const ds = dragStateRef.current;
+            const dp = draftPosRef.current;
+            // If refs are null, React's synthetic onPointerUp already handled this
+            if (!ds || !dp) return;
+            const kf = keyframes[ds.kfIndex];
+            if (kf) {
+                if (dp.tick !== kf.tick) moveTempoKeyframe(kf.tick, dp.tick);
+                if (dp.bpm !== kf.bpm) updateTempoKeyframeBpm(dp.tick, dp.bpm);
+            }
+            setDragState(null);
+            setDraftPos(null);
+        };
+        window.addEventListener('pointerup', handleWindowPointerUp);
+        return () => window.removeEventListener('pointerup', handleWindowPointerUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDragging]);
+
     return (
         <div
             className="relative w-full h-full"
@@ -264,8 +294,9 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 className="block"
                 onDoubleClick={handleDoubleClick}
                 onClick={handleBackgroundClick}
-                onPointerMove={dragState ? handlePointerMove : undefined}
-                onPointerUp={dragState ? handlePointerUp : undefined}
+                onPointerMove={isDragging ? handlePointerMove : undefined}
+                onPointerUp={isDragging ? handlePointerUp : undefined}
+                onPointerCancel={isDragging ? () => { setDragState(null); setDraftPos(null); } : undefined}
             >
                 {/* BPM gridlines */}
                 {gridLines.map((bpm) => {

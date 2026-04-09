@@ -156,6 +156,17 @@ export class TransportCoordinator {
         this.state.lastDerivedTick = tick;
         this.clock.setTick(tick);
         if (this.state.mode === 'playing' && this.state.source === 'audio') {
+            // Reset audio time anchor so elapsed calculation stays correct after seek
+            let ctx = this.cfg.getAudioContext?.();
+            if (!ctx) {
+                try {
+                    const eng = this.cfg.audioEngine ?? getAudioEngine();
+                    if (eng.isReady()) ctx = eng.getContext();
+                } catch {}
+            }
+            if (ctx) {
+                this.state.playbackStartAudioTime = ctx.currentTime;
+            }
             try {
                 (this.cfg.audioEngine ?? getAudioEngine()).seek(tick);
             } catch {}
@@ -179,9 +190,7 @@ export class TransportCoordinator {
                 const elapsed = ctx.currentTime - this.state.playbackStartAudioTime;
                 if (elapsed >= 0) {
                     // Use precise float accumulation (no premature floor) then only truncate for emission comparison
-                    const secondsPerBeat = this.tm.getSecondsPerBeat(elapsed);
-                    const beats = elapsed / secondsPerBeat;
-                    const ticksDelta = beats * this.tm.ticksPerQuarter;
+                    const ticksDelta = this.tm.secondsToTicks(elapsed);
                     const candidate = this.state.startTick + ticksDelta;
                     // Truncate only for integer canonical tick; retain fractional error internally by not mutating startTick.
                     const nextTick = Math.max(0, candidate | 0); // bitwise trunc faster & consistent

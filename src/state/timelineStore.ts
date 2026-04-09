@@ -1366,7 +1366,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     enableTempoAutomation() {
         const currentBpm = get().timeline.globalBpm || 120;
-        const hadTempoMap = (get().timeline.masterTempoMap?.length ?? 0) > 0;
         set((s: TimelineState) => ({
             timeline: {
                 ...s.timeline,
@@ -1376,11 +1375,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 },
             },
         } as any));
-        // If there was no masterTempoMap before, the derived map (single entry at globalBpm)
-        // is functionally identical to the current timing — skip to avoid spurious reanalysis.
-        if (hadTempoMap) {
-            _applyTempoAutomation(get);
-        }
+        _applyTempoAutomation(get);
     },
 
     disableTempoAutomation() {

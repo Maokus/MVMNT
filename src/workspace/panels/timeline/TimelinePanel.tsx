@@ -736,6 +736,19 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
     const setBeatsPerBar = useTimelineStore((s) => s.setBeatsPerBar);
     const tempoAutomationEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
+    // When tempo automation is enabled, derive the instantaneous BPM at the playhead
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const displayBpm = useMemo(() => {
+        if (!tempoAutomationEnabled) return globalBpm;
+        try {
+            const tm = sharedTimingManager;
+            if (!tm) return globalBpm;
+            const sec = tm.ticksToSeconds(currentTick);
+            const spb = tm.getSecondsPerBeat(sec);
+            if (spb > 0) return Math.round(60 / spb * 10) / 10;
+        } catch {}
+        return globalBpm;
+    }, [tempoAutomationEnabled, currentTick, globalBpm]);
     const [menuOpen, setMenuOpen] = useState(false);
     const {
         refs: menuRefs,
@@ -775,7 +788,10 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     // Local editable buffers so typing isn't instantly overwritten by store updates
     const [localTempo, setLocalTempo] = useState<string>('');
     const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
-    useEffect(() => { setLocalTempo(String(Number.isFinite(globalBpm) ? globalBpm : 120)); }, [globalBpm]);
+    useEffect(() => {
+        const v = tempoAutomationEnabled ? displayBpm : globalBpm;
+        setLocalTempo(String(Number.isFinite(v) ? v : 120));
+    }, [globalBpm, tempoAutomationEnabled, displayBpm]);
     useEffect(() => { setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4)); }, [beatsPerBar]);
     const commitTempo = () => {
         const v = parseFloat(localTempo);
