@@ -39,7 +39,17 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   }, []);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setMainFile(e.target.files?.[0] ?? null);
+    const file = e.target.files?.[0] ?? null;
+    setMainFile(file);
+
+    // Auto-detect type from file extension
+    if (file) {
+      if (file.name.endsWith('.mvmnt-plugin')) {
+        setType('plugin');
+      } else if (file.name.endsWith('.mvt')) {
+        setType('preset');
+      }
+    }
   }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
