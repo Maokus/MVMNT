@@ -9,14 +9,28 @@
 import { getMacroById, updateMacroValue } from '@state/scene/macroSyncService';
 import { isTestEnvironment } from '@utils/env';
 
-export type BindingType = 'constant' | 'macro';
+export type BindingType = 'constant' | 'macro' | 'keyframes';
 
 export interface PropertyBindingContext {
     targetTime: number;
     sceneConfig: Record<string, unknown>;
 }
 
-export type PropertyBindingData = { type: 'constant'; value: any } | { type: 'macro'; macroId: string };
+/**
+ * Factory slot for keyframe bindings.
+ * KeyframeBinding registers itself here on import to break the circular dependency
+ * between property-bindings.ts and keyframe-binding.ts.
+ */
+let keyframeBindingFactory: ((channelId: string) => PropertyBinding) | null = null;
+
+export function registerKeyframeBindingFactory(factory: (channelId: string) => PropertyBinding): void {
+    keyframeBindingFactory = factory;
+}
+
+export type PropertyBindingData =
+    | { type: 'constant'; value: any }
+    | { type: 'macro'; macroId: string }
+    | { type: 'keyframes'; channelId: string };
 
 /**
  * Abstract base class for property bindings
@@ -66,6 +80,15 @@ export abstract class PropertyBinding<T = any> {
                     throw new Error('Macro binding requires macroId');
                 }
                 return new MacroBinding(data.macroId);
+            case 'keyframes': {
+                if (!('channelId' in data) || !data.channelId) {
+                    throw new Error('Keyframes binding requires channelId');
+                }
+                if (!keyframeBindingFactory) {
+                    throw new Error('KeyframeBinding factory not registered — ensure keyframe-binding module is imported');
+                }
+                return keyframeBindingFactory(data.channelId);
+            }
             default: {
                 const unknownType = (data as { type?: string }).type ?? 'unknown';
                 throw new Error(`Unknown binding type: ${unknownType}`);

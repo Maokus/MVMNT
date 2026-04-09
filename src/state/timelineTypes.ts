@@ -16,3 +16,11 @@ export interface NoteRaw {
     // Real-time seconds removed from canonical type. Derive via selectors when needed.
     // startTime?: number; endTime?: number; duration?: number;
 }
+
+/** Raw CC event stored in ticks, before seconds conversion. */
+export interface CCEventRaw {
+    channel: number;
+    controller: number;
+    value: number;
+    tick: number;
+}

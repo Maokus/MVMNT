@@ -1,7 +1,12 @@
 import { sceneElementRegistry, type SceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import type { SceneElement } from '@core/scene/elements';
+import { MissingPluginElement } from '@core/scene/elements/misc/missing-plugin';
 import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
+import { automationEvaluator } from '@automation/automation-evaluator';
+// Side-effect import: registers the KeyframeBinding factory so
+// PropertyBinding.fromSerialized can construct keyframe bindings.
+import '@bindings/keyframe-binding';
 import {
     useSceneStore,
     type BindingState,
@@ -39,6 +44,8 @@ function buildConfigPayload(record: SceneElementRecord, bindings: ElementBinding
     for (const [property, binding] of Object.entries(bindings)) {
         if (binding.type === 'macro') {
             config[property] = { type: 'macro', macroId: binding.macroId };
+        } else if (binding.type === 'keyframes') {
+            config[property] = { type: 'keyframes', channelId: binding.channelId };
         } else if (isConstantBinding(binding)) {
             config[property] = { type: 'constant', value: binding.value };
         }
@@ -50,6 +57,9 @@ function bindingsSignature(elementType: string, bindings: ElementBindings): stri
     const pairs = Object.entries(bindings).map(([property, binding]) => {
         if (binding.type === 'macro') {
             return `${property}=macro:${binding.macroId}`;
+        }
+        if (binding.type === 'keyframes') {
+            return `${property}=keyframes:${binding.channelId}`;
         }
         try {
             return `${property}=const:${serializeStable(binding.value)}`;
@@ -72,6 +82,8 @@ export class SceneRuntimeAdapter {
     private unsubscribe?: () => void;
     private disposed = false;
     private readonly handleFontLoaded: (event: Event) => void;
+    private readonly handlePluginInstalled: (event: Event) => void;
+    private readonly handlePluginAvailabilityChanged: (event: Event) => void;
 
     constructor(options?: SceneRuntimeAdapterOptions) {
         this.store = options?.store ?? useSceneStore;
@@ -81,6 +93,32 @@ export class SceneRuntimeAdapter {
                 try {
                     entry.element.markBoundsDirty?.();
                 } catch {}
+            }
+        };
+        this.handlePluginInstalled = (event: Event) => {
+            const detail = (event as CustomEvent)?.detail as { registeredTypes?: string[] } | undefined;
+            const types = Array.isArray(detail?.registeredTypes) ? detail.registeredTypes : [];
+            if (types.length) {
+                this.refreshElementsForTypes(types);
+            }
+        };
+        this.handlePluginAvailabilityChanged = (event: Event) => {
+            const detail = (event as CustomEvent)?.detail as
+                | { registeredTypes?: string[]; unregisteredTypes?: string[] }
+                | undefined;
+            const types = new Set<string>();
+            if (Array.isArray(detail?.registeredTypes)) {
+                for (const type of detail.registeredTypes) {
+                    if (type) types.add(type);
+                }
+            }
+            if (Array.isArray(detail?.unregisteredTypes)) {
+                for (const type of detail.unregisteredTypes) {
+                    if (type) types.add(type);
+                }
+            }
+            if (types.size > 0) {
+                this.refreshElementsForTypes(Array.from(types));
             }
         };
 
@@ -93,6 +131,8 @@ export class SceneRuntimeAdapter {
         });
         if (typeof window !== 'undefined') {
             window.addEventListener('font-loaded', this.handleFontLoaded as EventListener);
+            window.addEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
+            window.addEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
         }
     }
 
@@ -100,6 +140,8 @@ export class SceneRuntimeAdapter {
         if (this.disposed) return;
         if (typeof window !== 'undefined') {
             window.removeEventListener('font-loaded', this.handleFontLoaded as EventListener);
+            window.removeEventListener('mvmnt-plugin-installed', this.handlePluginInstalled as EventListener);
+            window.removeEventListener('mvmnt-plugin-availability-changed', this.handlePluginAvailabilityChanged as EventListener);
         }
         this.unsubscribe?.();
         this.cache.forEach((entry) => {
@@ -198,8 +240,15 @@ export class SceneRuntimeAdapter {
             const config = buildConfigPayload(record, bindings);
             const element = this.registry.createElement(record.type, config) as SceneElement | null;
             if (!element) {
-                console.warn(`[SceneRuntimeAdapter] failed to create element '${record.id}' of type '${record.type}'`);
-                return null;
+                const placeholder = new MissingPluginElement(record.id, {
+                    ...config,
+                    missingType: record.type,
+                });
+                return {
+                    element: placeholder,
+                    signature: bindingsSignature(record.type, bindings),
+                    version: 1,
+                };
             }
             return {
                 element,
@@ -212,10 +261,59 @@ export class SceneRuntimeAdapter {
         }
     }
 
+    private refreshElementsForTypes(types: string[]) {
+        if (this.disposed) return;
+        const typeSet = new Set(types);
+        const state = this.store.getState();
+        let mutated = false;
+        for (const id of state.order) {
+            const record = state.elements[id];
+            if (!record || !typeSet.has(record.type)) continue;
+            const bindings = state.bindings.byElement[id] ?? {};
+            const entry = this.cache.get(id);
+            if (entry) {
+                try {
+                    entry.element.dispose?.();
+                } catch {}
+            }
+            const created = this.instantiateElement(record, bindings);
+            if (created) {
+                this.cache.set(id, created);
+                mutated = true;
+            }
+        }
+        if (mutated) {
+            this.adapterVersion += 1;
+            try {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('mvmnt-scene-runtime-updated'));
+                }
+            } catch {}
+        }
+    }
+
     private handleStateChange(next: SceneStoreState, prev: SceneStoreState) {
         if (this.disposed) return;
 
         let mutated = false;
+
+        // Detect automation channel changes and invalidate evaluator cache
+        if (next.automation !== prev.automation) {
+            const nextChannels = next.automation.channels;
+            const prevChannels = prev.automation.channels;
+            for (const channelId of Object.keys(prevChannels)) {
+                if (nextChannels[channelId] !== prevChannels[channelId]) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            for (const channelId of Object.keys(nextChannels)) {
+                if (!(channelId in prevChannels)) {
+                    automationEvaluator.invalidateChannel(channelId);
+                }
+            }
+            // Bump version so render loop picks up the change
+            mutated = true;
+        }
 
         if (next.settings !== prev.settings) {
             this.settings = { ...next.settings };

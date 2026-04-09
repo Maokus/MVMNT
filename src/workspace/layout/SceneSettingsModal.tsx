@@ -6,6 +6,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import SceneFontManager from './SceneFontManager';
 import SceneAnalysisCachesTab from './SceneAnalysisCachesTab';
+import ScenePluginsTab from './ScenePluginsTab';
 
 interface SceneSettingsModalProps {
     onClose: () => void;
@@ -135,13 +136,14 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'debug' | 'metadata' | 'plugins'>('general');
 
     const tabs: Array<{ id: typeof activeTab; label: string }> = useMemo(
         () => [
             { id: 'general', label: 'General' },
             { id: 'caches', label: 'Caches' },
             { id: 'fonts', label: 'Fonts' },
+            { id: 'plugins', label: 'Plugins' },
             { id: 'debug', label: 'Debug' },
             { id: 'metadata', label: 'Metadata' },
         ],
@@ -173,11 +175,10 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             key={tab.id}
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
-                            className={`rounded px-3 py-1 text-[12px] transition-colors ${
-                                activeTab === tab.id
+                            className={`rounded px-3 py-1 text-[12px] transition-colors ${activeTab === tab.id
                                     ? 'bg-sky-600/20 text-sky-200'
                                     : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
-                            }`}
+                                }`}
                         >
                             {tab.label}
                         </button>
@@ -292,6 +293,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             <SceneFontManager />
                         </div>
                     )}
+                    {activeTab === 'plugins' && <ScenePluginsTab />}
                     {activeTab === 'debug' && (
                         <div className="flex flex-col gap-3">
                             <h3 className="m-0 text-[13px] font-semibold text-white">Debug</h3>

@@ -18,8 +18,10 @@ import TransportControls from '../TransportControls';
 import TrackList from './TrackList';
 import TrackLanes from './TrackLanes';
 import TimelineRuler from './TimelineRuler';
-import { RULER_HEIGHT } from './constants';
+import { RULER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_HEADER_HEIGHT } from './constants';
 import { useVisualizer } from '@context/VisualizerContext';
+import { selectVisibleAutomationRowCount, selectAutomatedElements } from '@automation/selectors';
+import { useSceneStore } from '@state/sceneStore';
 // Seconds shown are derived from tick on the fly (legacy seconds selectors removed).
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { TimingManager } from '@core/timing';
@@ -37,6 +39,7 @@ import {
     type SnapQuantizeOption,
 } from '@state/timeline/quantize';
 import { MidiImportModeModal } from './MidiImportModeModal';
+import { CurveHeightProvider } from './curveHeightContext';
 
 const MIDI_FILE_REGEX = /\.mid(i)?$/i;
 const AUDIO_FILE_REGEX = /\.(wav|mp3|ogg|flac|m4a|aac|aiff|aif|caf|opus|wma)$/i;
@@ -77,6 +80,7 @@ const TimelinePanel: React.FC = () => {
     const multiTrackResolverRef = useRef<((choice: MultiTrackChoice) => void) | null>(null);
     const dragCounterRef = useRef(0);
     const [isDragActive, setIsDragActive] = useState(false);
+    const [activeTab, setActiveTab] = useState<'clips' | 'automation'>('clips');
 
     const requestImportMode = useCallback(
         (info: MultiTrackDecisionState) =>
@@ -122,6 +126,8 @@ const TimelinePanel: React.FC = () => {
     const rowHeight = useTimelineStore((s) => s.rowHeight);
     const setRowHeight = useTimelineStore((s) => s.setRowHeight);
     const trackCount = trackIds.length;
+    const automationRowCount = useSceneStore(selectVisibleAutomationRowCount);
+    const hasAutomation = useSceneStore(useCallback((s) => selectAutomatedElements(s).length > 0, []));
 
     useLayoutEffect(() => {
         const el = timelineBodyRef.current;
@@ -141,16 +147,18 @@ const TimelinePanel: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!trackCount) return;
         if (bodyHeight <= RULER_HEIGHT) return;
-        const usable = bodyHeight - RULER_HEIGHT;
-        if (usable <= 0) return;
-        const desired = usable / trackCount;
-        const clamped = Math.max(16, Math.min(160, desired));
-        if (Math.abs(clamped - rowHeight) > 0.5) {
-            setRowHeight(clamped);
+        if (activeTab === 'clips') {
+            if (!trackCount) return;
+            const usable = bodyHeight - RULER_HEIGHT;
+            if (usable <= 0) return;
+            const desired = usable / trackCount;
+            const clamped = Math.max(16, Math.min(160, desired));
+            if (Math.abs(clamped - rowHeight) > 0.5) {
+                setRowHeight(clamped);
+            }
         }
-    }, [bodyHeight, trackCount, rowHeight, setRowHeight]);
+    }, [bodyHeight, trackCount, rowHeight, setRowHeight, automationRowCount, hasAutomation, activeTab]);
 
     useEffect(() => {
         const el = lanesScrollEl;
@@ -556,29 +564,30 @@ const TimelinePanel: React.FC = () => {
                     </div>
                 </div>
                 <div ref={timelineBodyRef} className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
-                    <div className="flex h-full w-full overflow-hidden">
-                        <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
-                            <div className="tracklist-container w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                                <TrackList trackIds={trackIds} />
-                            </div>
-                            <div className="flex min-h-full flex-1 flex-col">
-                                <div className="sticky top-0 z-10">
-                                    <TimelineRuler />
+                    <CurveHeightProvider>
+                        <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+                            <div className="flex min-h-full">
+                                <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                    <TrackList trackIds={trackIds} activeTab={activeTab} setActiveTab={setActiveTab} />
                                 </div>
-                                <div
-                                    className="relative flex-1 overflow-x-auto"
-                                    ref={lanesScrollRef}
-                                    onWheel={onRightWheel}
-                                    onPointerDown={onRightPointerDown}
-                                    onPointerMove={onRightPointerMove}
-                                    onPointerUp={onRightPointerUp}
-                                    style={{ overscrollBehaviorX: 'contain', overflowY: 'visible' }}
-                                >
-                                    <TrackLanes trackIds={trackIds} />
+                                <div className="flex flex-1 flex-col">
+                                    <div className="sticky top-0 z-10">
+                                        <TimelineRuler />
+                                    </div>
+                                    <div
+                                        className="relative flex-1"
+                                        ref={lanesScrollRef}
+                                        onWheel={onRightWheel}
+                                        onPointerDown={onRightPointerDown}
+                                        onPointerMove={onRightPointerMove}
+                                        onPointerUp={onRightPointerUp}
+                                    >
+                                        <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </CurveHeightProvider>
                 </div>
                 {isDragActive && (
                     <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">

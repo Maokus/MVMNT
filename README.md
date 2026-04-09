@@ -42,7 +42,7 @@ Before opening a pull request, verify your changes with the full test suite:
 ```bash
 npm run test
 npm run build
-npm run lint
+npm run compile
 ```
 
 If `npm run test` fails because of missing optional binaries, rerun `npm install` and execute the tests again.

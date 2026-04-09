@@ -92,7 +92,7 @@ describe('AudioWaveform integration in TrackLanes', () => {
     });
 
     it('renders a canvas for audio track waveform', () => {
-        const { container } = render(<TrackLanes trackIds={['audio1']} />);
+        const { container } = render(<TrackLanes trackIds={['audio1']} activeTab="clips" />);
         const canvas = container.querySelector('canvas[data-track="audio1"]');
         expect(canvas).toBeTruthy();
     });

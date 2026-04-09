@@ -1,6 +1,6 @@
 {
-    "name": "midi-social-visualizer-react",
-    "version": "0.14.0",
+    "name": "mvmnt",
+    "version": "0.15.0",
     "description": "A React-based Music Visualization application for creating social media videos from MIDI files",
     "private": true,
     "type": "module",
@@ -47,12 +47,16 @@
     },
     "scripts": {
         "dev": "vite",
+        "previewprod": "npm run build -- --base /; npx serve build -s -l 5001",
         "start": "vite",
         "build": "vite build",
+        "build:beta": "vite build --mode beta",
         "preview": "vite preview",
         "test": "vitest run",
         "test:watch": "vitest --watch",
-        "lint": "npx tsc --noEmit",
+        "compile": "npx tsc --noEmit",
+        "create-element": "node scripts/create-element.mjs",
+        "build-plugin": "node scripts/build-plugin.mjs",
         "orphan": "bash -c 'set -a && source .env && npx tsx \"$@\"' --",
         "linuxlock": "npm_config_platform=linux npm_config_arch=x64 npm_config_libc=glibc   npm install --package-lock-only --include=optional"
     },

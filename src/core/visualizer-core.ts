@@ -29,6 +29,7 @@ export class MIDIVisualizerCore {
     private _pendingRenderRAF: number | null = null;
     private _pendingVisUpdate = false;
     private _handleImageLoaded: any;
+    private _handleSceneRuntimeUpdated: (() => void) | null = null;
     private _imageLoadDebounceTimeout: any;
     private _pendingImageLoads: Set<string> | null = null;
     private _interactionState: any = {
@@ -55,6 +56,12 @@ export class MIDIVisualizerCore {
         } catch (error) {
             console.warn('[MIDIVisualizerCore] failed to initialize SceneRuntimeAdapter, falling back', error);
             this.runtimeAdapter = null;
+        }
+        this._handleSceneRuntimeUpdated = () => {
+            this.invalidateRender();
+        };
+        if (typeof window !== 'undefined') {
+            window.addEventListener('mvmnt-scene-runtime-updated', this._handleSceneRuntimeUpdated as EventListener);
         }
         (window as any).vis = this; // debug helper
     }
@@ -671,6 +678,8 @@ export class MIDIVisualizerCore {
         for (const [key, binding] of Object.entries(bindings)) {
             if (binding.type === 'macro') {
                 config[key] = { type: 'macro', macroId: binding.macroId };
+            } else if (binding.type === 'keyframes') {
+                config[key] = { type: 'keyframes', channelId: binding.channelId };
             } else {
                 config[key] = binding.value;
             }
@@ -689,6 +698,10 @@ export class MIDIVisualizerCore {
     }
     cleanup() {
         if (this._handleImageLoaded) document.removeEventListener('imageLoaded', this._handleImageLoaded);
+        if (this._handleSceneRuntimeUpdated && typeof window !== 'undefined') {
+            window.removeEventListener('mvmnt-scene-runtime-updated', this._handleSceneRuntimeUpdated as EventListener);
+            this._handleSceneRuntimeUpdated = null;
+        }
         if (this._imageLoadDebounceTimeout) {
             clearTimeout(this._imageLoadDebounceTimeout);
             this._imageLoadDebounceTimeout = null;

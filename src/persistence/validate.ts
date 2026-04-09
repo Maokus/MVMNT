@@ -16,6 +16,7 @@ export type ValidationErrorCode =
     | 'ERR_METADATA_ID'
     | 'ERR_METADATA_NAME'
     | 'ERR_METADATA_AUTHOR'
+    | 'ERR_PLUGINS_SHAPE'
     | 'ERR_SCENE_MISSING'
     | 'ERR_SCENE_ELEMENTS_TYPE'
     | 'ERR_DUP_ELEMENT_ID'
@@ -61,7 +62,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
     }
     const root: any = data;
     const schemaVersion = root.schemaVersion;
-    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
+    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4 && schemaVersion !== 5) {
         errors.push(err('ERR_SCHEMA_VERSION', 'Unsupported schemaVersion', 'schemaVersion'));
     }
     if (root.format !== 'mvmnt.scene') {
@@ -100,6 +101,31 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
                         }
                         seen.add(el.id);
                     }
+                }
+            }
+        }
+    }
+    if (root.plugins !== undefined) {
+        if (!Array.isArray(root.plugins)) {
+            errors.push(err('ERR_PLUGINS_SHAPE', 'plugins must be array when present', 'plugins'));
+        } else {
+            for (let i = 0; i < root.plugins.length; i++) {
+                const entry = root.plugins[i];
+                if (!entry || typeof entry !== 'object') {
+                    errors.push(err('ERR_PLUGINS_SHAPE', 'Invalid plugin dependency entry', `plugins[${i}]`));
+                    break;
+                }
+                if (typeof entry.pluginId !== 'string' || typeof entry.version !== 'string') {
+                    errors.push(
+                        err('ERR_PLUGINS_SHAPE', 'Plugin dependency requires pluginId and version', `plugins[${i}]`)
+                    );
+                    break;
+                }
+                if (entry.elementTypesUsed && !Array.isArray(entry.elementTypesUsed)) {
+                    errors.push(
+                        err('ERR_PLUGINS_SHAPE', 'elementTypesUsed must be array', `plugins[${i}].elementTypesUsed`)
+                    );
+                    break;
                 }
             }
         }
@@ -162,7 +188,7 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         }
     }
 
-    if (schemaVersion === 2 || schemaVersion === 4) {
+    if (schemaVersion === 2 || schemaVersion === 4 || schemaVersion === 5) {
         if (!root.assets || typeof root.assets !== 'object') {
             errors.push(err('ERR_ASSETS_MISSING', 'Missing assets block', 'assets'));
         } else {

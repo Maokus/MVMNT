@@ -35,8 +35,8 @@
       "@core/*": [
         "core/*"
       ],
-      "@animation/*": [
-        "animation/*"
+      "@automation/*": [
+        "automation/*"
       ],
       "@bindings/*": [
         "bindings/*"
@@ -79,6 +79,9 @@
       ],
       "@assets/*": [
         "assets/*"
+      ],
+      "@mvmnt/plugin-sdk": [
+        "core/scene/plugins/plugin-sdk"
       ]
     }
   },

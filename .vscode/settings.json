@@ -14,5 +14,11 @@
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
     "python-envs.pythonProjects": [],
-    "typescript.tsdk": "node_modules/typescript/lib"
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "chat.tools.terminal.autoApprove": {
+        "/^npx tsc --noEmit 2>&1 \\| head -30$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }

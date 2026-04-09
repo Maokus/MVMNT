@@ -1,0 +1,37 @@
+.about-body {}
+
+.about-body h2 {
+    @apply text-xl font-semibold mb-3 text-white;
+}
+
+.about-body p {
+    @apply text-neutral-300;
+}
+
+.about-body ol {
+    @apply list-decimal list-inside space-y-2 text-sm text-neutral-300;
+}
+
+.about-body br {
+    @apply my-2;
+}
+
+.acknowledgements-boxes {
+    @apply grid gap-8 md:grid-cols-3 lg:grid-cols-3;
+}
+
+.acknowledgements-boxes section {
+    @apply p-6 rounded-xl bg-neutral-900/70 border border-neutral-800 lg:col-span-1;
+}
+
+.acknowledgements-boxes section h3 {
+    @apply text-lg font-semibold mb-3 text-white;
+}
+
+.acknowledgements-boxes section ul {
+    @apply space-y-2 text-sm text-neutral-300;
+}
+
+.acknowledgements-boxes section ul li a {
+    @apply text-blue-400 hover:underline;
+}

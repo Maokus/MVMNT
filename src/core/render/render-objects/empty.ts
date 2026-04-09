@@ -55,6 +55,8 @@ export class EmptyRenderObject extends RenderObject {
             ctx.translate(-this.anchorOffsetX, -this.anchorOffsetY);
         }
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
+        if (this.blendMode) ctx.globalCompositeOperation = this.blendMode;
+        if (this.filter) ctx.filter = this.filter;
         for (const child of this.getChildren()) child.render(ctx, config, currentTime);
         if (config.showAnchorPoints && this.anchorVisualizationData) {
             this.renderAnchorVisualization(

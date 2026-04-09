@@ -11,8 +11,12 @@ import { collectFontAssets } from './font-asset-export';
 import pkg from '../../package.json';
 import { zipSync, strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { usePluginStore } from '@state/pluginStore';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import { PluginBinaryStore } from './plugin-binary-store';
 import { isTestEnvironment } from '@utils/env';
 import iconDataUrl from '@assets/Icon.icns?inline';
+import { sha256Hex } from '@utils/hash/sha256';
 import {
     serializeAudioFeatureCache,
     type SerializedAudioFeatureCache,
@@ -31,13 +35,23 @@ export interface SceneMetadata {
     author?: string;
 }
 
+export interface ScenePluginDependency {
+    pluginId: string;
+    version: string;
+    hash?: string;
+    elementTypesUsed: string[];
+    embedded: boolean;
+}
+
 interface SceneExportEnvelopeBase {
     format: 'mvmnt.scene';
     metadata: SceneMetadata;
+    plugins?: ScenePluginDependency[];
     scene: {
         elements: any[];
         sceneSettings?: any;
         macros?: any;
+        automation?: any;
     };
     timeline: {
         timeline: any;
@@ -71,7 +85,11 @@ export interface SceneExportEnvelopeV4 extends SceneExportEnvelopeBase {
     schemaVersion: 4;
 }
 
-export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4;
+export interface SceneExportEnvelopeV5 extends SceneExportEnvelopeBase {
+    schemaVersion: 5;
+}
+
+export type SceneExportEnvelope = SceneExportEnvelopeV2 | SceneExportEnvelopeV4 | SceneExportEnvelopeV5;
 
 interface AudioFeatureCacheAssetReference {
     assetId: string;
@@ -86,6 +104,7 @@ export interface ExportSceneOptions {
     inlineWarnBytes?: number;
     maxInlineAssetBytes?: number;
     onProgress?: (value: number, label?: string) => void;
+    embedPlugins?: boolean;
 }
 
 interface ExportResultBase {
@@ -96,7 +115,7 @@ interface ExportResultBase {
 export interface ExportSceneResultInline extends ExportResultBase {
     ok: true;
     mode: 'inline-json';
-    envelope: SceneExportEnvelopeV4;
+    envelope: SceneExportEnvelopeV5;
     json: string;
     blob?: Blob;
 }
@@ -104,7 +123,7 @@ export interface ExportSceneResultInline extends ExportResultBase {
 export interface ExportSceneResultZip extends ExportResultBase {
     ok: true;
     mode: 'zip-package';
-    envelope: SceneExportEnvelopeV4;
+    envelope: SceneExportEnvelopeV5;
     zip: Uint8Array<ArrayBuffer>;
     blob?: Blob;
 }
@@ -177,6 +196,98 @@ function base64ToUint8Array(base64: string): Uint8Array {
         }
     }
     return new Uint8Array(bytes);
+}
+
+async function collectPluginDependencies(
+    elements: Array<{ type?: string }> | undefined,
+    options: { embedPlugins: boolean; storage: AssetStorageMode }
+): Promise<{
+    dependencies: ScenePluginDependency[];
+    pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>;
+    warnings: string[];
+}> {
+    const warnings: string[] = [];
+    const dependencies: ScenePluginDependency[] = [];
+    const pluginAssets = new Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>();
+
+    const usedTypes = new Set<string>();
+    for (const el of elements ?? []) {
+        if (el && typeof el.type === 'string') {
+            usedTypes.add(el.type);
+        }
+    }
+
+    if (usedTypes.size === 0) {
+        return { dependencies, pluginAssets, warnings };
+    }
+
+    const pluginState = usePluginStore.getState();
+    const manifestById = new Map<string, (typeof pluginState.plugins)[string]['manifest']>();
+    const typeToPluginId = new Map<string, string>();
+    for (const plugin of Object.values(pluginState.plugins)) {
+        manifestById.set(plugin.manifest.id, plugin.manifest);
+        for (const element of plugin.manifest.elements ?? []) {
+            if (element?.type) {
+                typeToPluginId.set(element.type, plugin.manifest.id);
+            }
+        }
+    }
+
+    const dependencyMap = new Map<string, { elementTypesUsed: Set<string> }>();
+    for (const type of usedTypes) {
+        const pluginId = sceneElementRegistry.getPluginId(type) ?? typeToPluginId.get(type);
+        if (!pluginId) {
+            continue;
+        }
+        const entry = dependencyMap.get(pluginId) ?? { elementTypesUsed: new Set<string>() };
+        entry.elementTypesUsed.add(type);
+        dependencyMap.set(pluginId, entry);
+    }
+
+    for (const [pluginId, entry] of dependencyMap.entries()) {
+        const manifest = manifestById.get(pluginId);
+        if (!manifest) {
+            warnings.push(`Plugin metadata missing for ${pluginId}; dependency recorded without version.`);
+        }
+
+        let hash: string | undefined;
+        let embedded = false;
+        let bundleBytes: Uint8Array | null = null;
+        try {
+            const bundle = await PluginBinaryStore.get(pluginId);
+            if (bundle) {
+                bundleBytes = new Uint8Array(bundle);
+                hash = await sha256Hex(bundleBytes);
+            }
+        } catch {
+            /* ignore hash failures */
+        }
+
+        if (options.embedPlugins && options.storage === 'zip-package') {
+            if (bundleBytes) {
+                embedded = true;
+                pluginAssets.set(pluginId, {
+                    bytes: bundleBytes,
+                    filename: `${pluginId}.mvmnt-plugin`,
+                    mimeType: 'application/octet-stream',
+                });
+            } else {
+                warnings.push(`Plugin bundle missing for ${pluginId}; embedding skipped.`);
+            }
+        } else if (options.embedPlugins && options.storage !== 'zip-package') {
+            warnings.push('Plugin embedding is only supported for packaged .mvt exports.');
+        }
+
+        dependencies.push({
+            pluginId,
+            version: manifest?.version ?? 'unknown',
+            hash,
+            elementTypesUsed: Array.from(entry.elementTypesUsed).sort(),
+            embedded,
+        });
+    }
+
+    return { dependencies, pluginAssets, warnings };
 }
 
 function decodeDataUrl(dataUrl: string | undefined): Uint8Array | null {
@@ -332,6 +443,10 @@ function sanitizeMidiCacheEntry(entry: any): Record<string, any> {
         normalized.notesRaw = [];
     }
 
+    if (!Array.isArray(normalized.ccRaw)) {
+        normalized.ccRaw = [];
+    }
+
     if (Array.isArray(normalized.tempoMap)) {
         normalized.tempoMap = normalized.tempoMap
             .map((item: any) => {
@@ -462,7 +577,8 @@ function buildZip(
     midiAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     fontAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
     waveformAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
-    audioFeatureAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
+    audioFeatureAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>,
+    pluginAssets: Map<string, { bytes: Uint8Array; filename: string; mimeType: string }>
 ): Uint8Array<ArrayBuffer> {
     const files: Record<string, Uint8Array> = {};
     const docJson = serializeStable(envelope);
@@ -515,6 +631,11 @@ function buildZip(
         const assetId = parts[0];
         const derivedName = parts.slice(1).join('/') || payload.filename || AUDIO_FEATURE_ASSET_FILENAME;
         const path = `assets/audio-features/${assetId}/${derivedName}`;
+        files[path] = payload.bytes;
+    }
+    for (const [pluginId, payload] of pluginAssets.entries()) {
+        const filename = payload.filename || `${pluginId}.mvmnt-plugin`;
+        const path = `plugins/${filename}`;
         files[path] = payload.bytes;
     }
     return zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>;
@@ -745,6 +866,12 @@ export async function exportScene(
         warnings.push(`Font binaries missing for: ${fontResult.missing.join(', ')}`);
     }
 
+    const pluginResult = await collectPluginDependencies(doc.scene?.elements, {
+        embedPlugins: options.embedPlugins === true,
+        storage,
+    });
+    warnings.push(...pluginResult.warnings);
+
     if (storage === 'inline-json' && collectResult.inlineRejected) {
         const limitMb = ((options.maxInlineBytes ?? DEFAULT_MAX_INLINE_BYTES) / (1024 * 1024)).toFixed(1);
         return {
@@ -758,7 +885,7 @@ export async function exportScene(
         };
     }
 
-    const assetsSection: SceneExportEnvelopeV4['assets'] = {
+    const assetsSection: SceneExportEnvelopeV5['assets'] = {
         storage,
         createdWith: `mvmnt/${pkg.version ?? 'dev'}`,
         audio: { byId: collectResult.audioById },
@@ -773,10 +900,11 @@ export async function exportScene(
     const midiAssets = prepareMidiAssets(doc.midiCache, storage);
     const featureAssets = prepareAudioFeatureCaches(doc.audioFeatureCaches, storage);
 
-    const envelope: SceneExportEnvelopeV4 = {
-        schemaVersion: 4,
+    const envelope: SceneExportEnvelopeV5 = {
+        schemaVersion: 5,
         format: 'mvmnt.scene',
         metadata,
+        plugins: pluginResult.dependencies.length ? pluginResult.dependencies : undefined,
         scene: { ...doc.scene },
         timeline: {
             timeline: doc.timeline,
@@ -817,7 +945,8 @@ export async function exportScene(
         midiAssets.assetPayloads,
         fontResult.assetPayloads,
         collectResult.waveformAssetPayloads,
-        featureAssets.assetPayloads
+        featureAssets.assetPayloads,
+        pluginResult.pluginAssets
     );
     return {
         ok: true,

@@ -219,30 +219,6 @@ export class Text extends RenderObject {
         return numberMatch ? parseFloat(numberMatch[1]) : 16;
     }
 
-    static createTitle(x: number, y: number, text: string, config: RenderConfig): Text {
-        const fontSize = Math.max((config.canvas?.height ?? 0) * 0.09, 24);
-        const fontWeight = config.titleFontWeight || config.fontWeight || '400';
-        const font = `${fontWeight} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
-        return new Text(x, y, text, font, config.textColor || '#FFFFFF', 'left', 'top');
-    }
-    static createSubtitle(x: number, y: number, text: string, config: RenderConfig): Text {
-        const fontSize = Math.max((config.canvas?.height ?? 0) * 0.036, 16);
-        const fontWeight = config.artistFontWeight || config.fontWeight || '400';
-        const font = `${fontWeight} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
-        return new Text(x, y, text, font, config.textSecondaryColor || '#CCCCCC', 'left', 'top');
-    }
-    static createCounter(x: number, y: number, text: string, config: RenderConfig): Text {
-        const fontSize = Math.max((config.canvas?.height ?? 0) * 0.03, 14);
-        const fontWeight = config.fontWeight || '400';
-        const font = `${fontWeight} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
-        return new Text(x, y, text, font, config.textTertiaryColor || '#999999', 'right', 'top');
-    }
-    static createTimeDisplay(x: number, y: number, text: string, config: RenderConfig): Text {
-        const fontSize = Math.max((config.canvas?.height ?? 0) * 0.035, 16);
-        const fontWeight = config.fontWeight || '400';
-        const font = `${fontWeight} ${fontSize}px ${config.fontFamily || 'Arial'}, sans-serif`;
-        return new Text(x, y, text, font, config.textSecondaryColor || '#CCCCCC', 'right', 'bottom');
-    }
     static #getMeasureContext(): CanvasRenderingContext2D | null {
         if (typeof Text.__measureCtx !== 'undefined') return Text.__measureCtx ?? null;
         let ctx: CanvasRenderingContext2D | null = null;

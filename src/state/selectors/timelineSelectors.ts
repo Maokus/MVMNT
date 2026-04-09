@@ -2,6 +2,10 @@ import type { TimelineState, TimelineTrack } from '../timelineStore';
 import { beatsToSeconds as convertBeatsToSeconds } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { offsetTicksToBeats } from '@core/timing/offset-utils';
+import type { TimelineNoteEvent, TimelineCCEvent } from '@core/timing/types';
+
+export type { TimelineNoteEvent };
+export type { TimelineCCEvent };
 
 // Helpers: derive seconds offset from beats if needed using timeline context
 const _beatsToSecondsApprox = (s: TimelineState, beats: number): number => {
@@ -30,16 +34,6 @@ export const getTrackOffsetBeats = (s: TimelineState, id: string): number => {
     const t = s.tracks[id];
     if (!t) return 0;
     return offsetTicksToBeats(t.offsetTicks || 0);
-};
-
-export type TimelineNoteEvent = {
-    trackId: string;
-    note: number;
-    channel: number;
-    startTime: number; // in timeline seconds
-    endTime: number;
-    duration: number;
-    velocity?: number;
 };
 
 export const selectMidiTracks = (s: TimelineState): TimelineTrack[] =>
@@ -126,6 +120,63 @@ export const selectNotesForTrackSeconds = (s: TimelineState, trackId: string): T
 
 // Simple memoized variant: caches last inputs and result using shallow identity checks
 let _lastArgs: { trackIdsKey: string; startSec: number; endSec: number } | null = null;
+
+// Heavy selector: windowed CC events across tracks, mapped into timeline time domain
+export const selectCCInWindow = (
+    s: TimelineState,
+    args: { trackIds?: string[]; controller?: number; startSec: number; endSec: number }
+): TimelineCCEvent[] => {
+    const { startSec, endSec } = args;
+    const spbFallback = 60 / (s.timeline.globalBpm || 120);
+    const res: TimelineCCEvent[] = [];
+    const trackIds = args.trackIds ?? Object.keys(s.tracks).filter((id) => s.tracks[id]?.type === 'midi');
+    if (trackIds.length === 0) return [];
+    for (const tid of trackIds) {
+        const track = s.tracks[tid];
+        if (!track || track.type !== 'midi' || !track.enabled || track.mute) continue;
+        const cacheKey = track.midiSourceId ?? tid;
+        const cache = s.midiCache[cacheKey];
+        if (!cache) continue;
+        const ccRaw = cache.ccRaw ?? [];
+        if (ccRaw.length === 0) continue;
+        const offsetSec = getTrackOffsetSeconds(s, track);
+        for (const cc of ccRaw) {
+            if (args.controller !== undefined && cc.controller !== args.controller) continue;
+            const beat = cc.tick / CANONICAL_PPQ;
+            const ccTimeSec = convertBeatsToSeconds(s.timeline.masterTempoMap, beat, spbFallback) + offsetSec;
+            if (ccTimeSec < startSec || ccTimeSec > endSec) continue;
+            res.push({
+                trackId: tid,
+                channel: cc.channel,
+                controller: cc.controller,
+                value: cc.value,
+                timeSec: ccTimeSec,
+            });
+        }
+    }
+    res.sort((a, b) => a.timeSec - b.timeSec);
+    return res;
+};
+
+// Returns true if sustain pedal (CC 64) is held at the given time
+export const selectSustainStateAtTime = (
+    s: TimelineState,
+    args: { trackIds?: string[]; timeSec: number }
+): boolean => {
+    // Get all CC 64 events up to and including the target time
+    const events = selectCCInWindow(s, {
+        trackIds: args.trackIds,
+        controller: 64,
+        startSec: -Infinity,
+        endSec: args.timeSec,
+    });
+    if (events.length === 0) return false;
+    // Last event determines current state; value >= 64 = pedal down
+    const last = events[events.length - 1];
+    return last.value >= 64;
+};
+
+// Simple memoized variant for notes: caches last inputs and result using shallow identity checks
 let _lastDepsKey: string | null = null;
 let _lastResult: TimelineNoteEvent[] = [];
 

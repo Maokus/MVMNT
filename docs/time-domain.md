@@ -130,7 +130,7 @@ Removed functions / fields (BREAKING):
 ## Quick Usage Examples
 
 ```ts
-import { useCurrentTick } from '@/state/selectors/timeDerived';
+import { useCurrentTick } from '@state/selectors/timeDerived';
 const tick = useCurrentTick();
 const seconds = useCurrentSeconds();
 ```

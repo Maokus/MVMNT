@@ -31,6 +31,10 @@ export abstract class RenderObject {
      * - undefined: include this object; respect each child's own includeInLayoutBounds
      */
     includeInLayoutBounds: boolean | undefined;
+    /** Optional Canvas 2D composite operation applied within this object's save/restore scope. */
+    blendMode: GlobalCompositeOperation | null;
+    /** Optional CSS filter string (e.g. 'blur(8px)') applied within this object's save/restore scope. */
+    filter: string | null;
 
     constructor(
         x = 0,
@@ -52,6 +56,8 @@ export abstract class RenderObject {
         this.children = []; // Array of child render objects
         // Default undefined => include self, respect children
         this.includeInLayoutBounds = options?.includeInLayoutBounds;
+        this.blendMode = null;
+        this.filter = null;
     }
 
     /** Main render method that handles transformations and delegates to _renderSelf */
@@ -77,6 +83,9 @@ export abstract class RenderObject {
         }
 
         if (this.opacity !== 1) ctx.globalAlpha *= this.opacity;
+
+        if (this.blendMode) ctx.globalCompositeOperation = this.blendMode;
+        if (this.filter) ctx.filter = this.filter;
 
         this._renderSelf(ctx, config, currentTime);
 
@@ -120,8 +129,25 @@ export abstract class RenderObject {
         this.includeInLayoutBounds = include;
         return this;
     }
+    /** Set the Canvas 2D composite operation for this object's render scope. */
+    setBlendMode(mode: GlobalCompositeOperation | null): this {
+        this.blendMode = mode;
+        return this;
+    }
+    /** Set a CSS filter (e.g. 'blur(8px)') applied to this object's render scope. */
+    setFilter(filter: string | null): this {
+        this.filter = filter;
+        return this;
+    }
     addChild(child: (RenderObject & { [key: string]: any }) | null | undefined): this {
         if (child && !this.children.includes(child)) this.children.push(child as RenderObject);
+        return this;
+    }
+    /** Add multiple children at once (skips null/undefined and dedupes) */
+    addChildren(childrenToAdd: Array<(RenderObject & { [key: string]: any }) | null | undefined>): this {
+        for (const c of childrenToAdd) {
+            if (c && !this.children.includes(c)) this.children.push(c as RenderObject);
+        }
         return this;
     }
     removeChild(child: RenderObject | { [key: string]: any }): this {

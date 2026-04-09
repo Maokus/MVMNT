@@ -10,6 +10,8 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
+import { makeChannelId, findKeyframeAtTick } from '@automation/types';
+import { useTimelineStore } from '@state/timelineStore';
 
 interface SceneSelectionState {
     selectedElementId: string | null;
@@ -213,12 +215,47 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const updateElementConfig = useCallback(
         (elementId: string, changes: { [key: string]: any }, options?: Omit<SceneCommandOptions, 'source'>) => {
             if (!elementId) return;
-            const ok = runSceneCommand(
-                { type: 'updateElementConfig', elementId, patch: changes },
-                'SceneSelectionContext.updateElementConfig',
-                options,
-            );
-            if (!ok) return;
+
+            // For each property being changed, check if it has automation.
+            // If so, dispatch addKeyframe instead of overwriting the binding.
+            const automationChannels = useSceneStore.getState().automation.channels;
+            const currentTick = useTimelineStore.getState().timeline.currentTick;
+            const automatedKeys: string[] = [];
+            const nonAutomatedChanges: Record<string, any> = {};
+
+            for (const [key, value] of Object.entries(changes)) {
+                const chId = makeChannelId(elementId, key);
+                if (automationChannels[chId]) {
+                    automatedKeys.push(key);
+                    const channel = automationChannels[chId];
+                    const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
+                    const easingId = existingKf?.easingId ?? 'linear';
+                    dispatchSceneCommand(
+                        {
+                            type: 'addKeyframe',
+                            channelId: chId,
+                            keyframe: { tick: currentTick, value, easingId },
+                        },
+                        {
+                            source: 'SceneSelectionContext.updateElementConfig',
+                            ...(options ?? {}),
+                        },
+                    );
+                } else {
+                    nonAutomatedChanges[key] = value;
+                }
+            }
+
+            // Dispatch updateElementConfig only for non-automated properties
+            if (Object.keys(nonAutomatedChanges).length > 0) {
+                const ok = runSceneCommand(
+                    { type: 'updateElementConfig', elementId, patch: nonAutomatedChanges },
+                    'SceneSelectionContext.updateElementConfig',
+                    options,
+                );
+                if (!ok) return;
+            }
+
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             setPropertyPanelRefresh((prev) => prev + 1);
         },

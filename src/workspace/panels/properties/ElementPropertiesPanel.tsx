@@ -6,6 +6,11 @@ import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/form/inputs/FormInput';
 import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
+import { useCurrentTick } from '@automation/hooks';
+import { makeChannelId, findKeyframeAtTick } from '@automation/types';
+import { useSceneStore } from '@state/sceneStore';
+import { dispatchSceneCommand } from '@state/scene/commandGateway';
+import { automationEvaluator } from '@automation/automation-evaluator';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -77,6 +82,8 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const { assignListener, macros: macroList } = useMacros();
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
+    const currentTick = useCurrentTick();
+    const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
@@ -119,6 +126,27 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     } else {
                         nextValues[property.key] = normalizeConstantValue(property.key, property.default);
                     }
+                } else if (binding?.type === 'keyframes') {
+                    // Evaluate automation at current tick for display.
+                    // Read directly from automationChannels (hook-captured, always current) first.
+                    // This avoids stale evaluator-curve-cache results when a keyframe was just
+                    // added/modified at the current tick — the exact-match path bypasses the cache.
+                    const chId = makeChannelId(elementId, property.key);
+                    const channel = automationChannels[chId];
+                    if (channel) {
+                        const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
+                        if (kfAtTick !== null) {
+                            nextValues[property.key] = normalizeConstantValue(property.key, kfAtTick.value);
+                        } else {
+                            const evaluated = automationEvaluator.evaluate(chId, currentTick);
+                            nextValues[property.key] = normalizeConstantValue(
+                                property.key,
+                                evaluated ?? property.default,
+                            );
+                        }
+                    } else {
+                        nextValues[property.key] = normalizeConstantValue(property.key, property.default);
+                    }
                 } else if (binding?.type === 'constant') {
                     nextValues[property.key] = normalizeConstantValue(property.key, binding.value ?? property.default);
                 } else {
@@ -151,6 +179,8 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         elementId,
         elementType,
         refreshToken,
+        currentTick,
+        automationChannels,
     ]);
 
     const propertyPassesVisibility = useCallback(
@@ -227,6 +257,32 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 [key]: value,
                 ...(linked ?? {}),
             }));
+
+            // If property is automated, dispatch addKeyframe at current tick instead of config change
+            const chId = makeChannelId(elementId, key);
+            const automationChannelsNow = useSceneStore.getState().automation.channels;
+            if (automationChannelsNow[chId]) {
+                let kfValue = value;
+                if (isAngleProperty(key) && typeof value === 'number') {
+                    kfValue = value * DEG_TO_RAD;
+                }
+                const session = meta?.mergeSession;
+                const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
+                if (session) {
+                    cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
+                    cmdOptions.transient = !session.finalize;
+                }
+                dispatchSceneCommand(
+                    {
+                        type: 'addKeyframe',
+                        channelId: chId,
+                        keyframe: { tick: currentTick, value: kfValue, easingId: 'linear' },
+                    },
+                    cmdOptions,
+                );
+                return;
+            }
+
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
                 const session = meta?.mergeSession;
@@ -258,7 +314,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 onConfigChange(elementId, patch, options);
             }
         },
-        [elementId, onConfigChange],
+        [elementId, onConfigChange, currentTick],
     );
 
     const handleMacroAssignment = useCallback(
@@ -492,6 +548,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         properties={properties}
                         values={propertyValues}
                         macroAssignments={macroAssignments}
+                        elementId={elementId}
                         onValueChange={handleValueChange}
                         onMacroAssignment={handleMacroAssignment}
                         onCollapseToggle={handleCollapseToggle}

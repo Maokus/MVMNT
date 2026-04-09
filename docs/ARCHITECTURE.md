@@ -4,7 +4,7 @@
 
 Logical domains keep responsibilities isolated:
 
--   **animation/** – Stateless animation primitives for piano rolls
+-   **automation/** – Keyframe automation system: data model, curve evaluator, evaluator cache, React hooks, and clipboard. See [docs/automation/overview.md](automation/overview.md).
 -   **core/** – Runtime engine logic (scene runtime adapter, rendering, timing, playback clock, resource management).
 -   **state/** – Zustand stores, selectors, and middleware. Hosts the canonical timeline and scene stores plus command/undo infrastructure.
 -   **workspace/** – Components for the main workspace ui

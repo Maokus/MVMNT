@@ -16,6 +16,7 @@ import { getFeatureSubscriptionController } from '@audio/features/featureSubscri
 import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
+import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -117,6 +118,7 @@ export class SceneElement implements SceneElementInterface {
 
     private _macroUnsubscribe?: () => void;
     private _renderContext: PropertyBindingContext | null = null;
+    private _keyframeBoundKeys: Set<string> = new Set();
 
     constructor(type: string, id: string | null = null, config: { [key: string]: any } = {}) {
         this.type = type;
@@ -536,14 +538,61 @@ export class SceneElement implements SceneElementInterface {
      * Child classes should override _buildRenderObjects instead
      */
     buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        if (!this.visible) return [];
-
-        // Call the child class implementation to build the base render objects
+        // Set render context and invalidate keyframe caches BEFORE any property reads
+        // so that time-dependent bindings evaluate at the correct targetTime.
         this._renderContext = { targetTime, sceneConfig: config };
-        const childRenderObjects = this._buildRenderObjects(config, targetTime);
-        this._renderContext = null;
 
-        if (childRenderObjects.length === 0) return [];
+        // Invalidate cache for keyframe-bound properties each frame (values are time-dependent)
+        for (const key of this._keyframeBoundKeys) {
+            this._cacheValid.set(key, false);
+        }
+
+        if (!this.visible) {
+            this._renderContext = null;
+            return [];
+        }
+        
+        // Apply safety controls for plugin elements (lazy import to avoid circular dependency)
+        let pluginId: string | undefined;
+        try {
+            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
+            pluginId = sceneElementRegistry.getPluginId(this.type);
+        } catch {
+            // If registry not available (e.g., during initialization), skip safety checks
+            pluginId = undefined;
+        }
+        
+        let childRenderObjects: RenderObject[];
+        
+        if (pluginId) {
+            // This is a plugin element - apply safety controls
+            const result = withRenderSafety(
+                () => this._buildRenderObjects(config, targetTime),
+                DEFAULT_SAFETY_CONFIG,
+                { pluginId, elementType: this.type }
+            );
+            
+            if (result === null) {
+                // Render failed or timed out
+                this._renderContext = null;
+                return [];
+            }
+            
+            // Limit render object count
+            childRenderObjects = limitRenderObjects(
+                result,
+                DEFAULT_SAFETY_CONFIG,
+                { pluginId, elementType: this.type }
+            );
+        } else {
+            // Built-in element - no safety wrapper needed
+            childRenderObjects = this._buildRenderObjects(config, targetTime);
+        }
+
+        if (childRenderObjects.length === 0) {
+            this._renderContext = null;
+            return [];
+        }
 
         // Calculate the layout and visual bounding boxes and anchor point for transformation
         const layoutBounds = this._getCachedSceneElementBounds(childRenderObjects, targetTime, 'layout');
@@ -587,6 +636,9 @@ export class SceneElement implements SceneElementInterface {
             skewX: this.elementSkewX,
             skewY: this.elementSkewY,
         };
+
+        // Clear render context after all property reads are complete
+        this._renderContext = null;
 
         // Add anchor point visualization if enabled
         if (config.showAnchorPoints) {
@@ -1009,12 +1061,20 @@ export class SceneElement implements SceneElementInterface {
                 value &&
                 typeof value === 'object' &&
                 value.type &&
-                (value.type === 'constant' || value.type === 'macro')
+                (value.type === 'constant' || value.type === 'macro' || value.type === 'keyframes')
             ) {
                 // This is serialized binding data
-                this.bindings.set(key, PropertyBinding.fromSerialized(value as PropertyBindingData));
+                const binding = PropertyBinding.fromSerialized(value as PropertyBindingData);
+                this.bindings.set(key, binding);
+                // Track keyframe-bound keys for per-frame cache invalidation
+                if (value.type === 'keyframes') {
+                    this._keyframeBoundKeys.add(key);
+                } else {
+                    this._keyframeBoundKeys.delete(key);
+                }
             } else {
-                // Raw value OR already-instantiated binding
+                // Raw value OR already-instantiated binding — not keyframes
+                this._keyframeBoundKeys.delete(key);
                 if (value instanceof PropertyBinding) {
                     this.bindings.set(key, value);
                 } else {

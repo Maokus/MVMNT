@@ -1,13 +1,12 @@
 // MovingNotesPianoRoll scene element: static playhead, notes move across.
 import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
-import { Line, EmptyRenderObject, RenderObject, Rectangle } from '@core/render/render-objects';
-import { getAnimationSelectOptions } from '@animation/note-animations';
+import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
+import { getAnimationSelectOptions } from '@core/scene/elements/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { MovingNotesAnimationController } from './animation-controller';
-import { useTimelineStore } from '@state/timelineStore';
-import { selectNotesInWindow } from '@selectors/timelineSelectors';
+import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
@@ -28,7 +27,7 @@ const applyLegacyOpacity = (color: string, opacity?: number): string => {
 export class MovingNotesPianoRollElement extends SceneElement {
     public animationController: MovingNotesAnimationController;
     private timingManager: TimingManager;
-    // TimelineService removed; use store selectors for MIDI retrieval
+    // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
 
     constructor(id: string = 'movingNotesPianoRoll', config: { [key: string]: any } = {}) {
         super('movingNotesPianoRoll', id, config);
@@ -262,13 +261,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         },
                         {
-                            key: 'noteGlowColor',
-                            type: 'color',
-                            label: 'Note Glow Color',
-                            default: 'rgba(255,255,255,0.5)',
-                            visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
                             key: 'noteGlowBlur',
                             type: 'number',
                             label: 'Note Glow Blur (px)',
@@ -319,7 +311,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                                 noteColor: '#FF6B6BE6',
                                 noteGlowOpacity: 0.7,
                                 noteGlowBlur: 12,
-                                noteGlowColor: 'rgba(56,189,248,0.7)',
                             },
                         },
                         {
@@ -675,7 +666,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                 },
                 defaultValue: 0,
             },
-            noteGlowColor: { transform: asTrimmedString, defaultValue: 'rgba(255,255,255,0.5)' },
             noteGlowBlur: {
                 transform: (value, element) => {
                     const numeric = asNumber(value, element);
@@ -715,17 +705,18 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor;
         const pianoRightBorderWidth = props.pianoRightBorderWidth;
         const effectivePianoWidth = showPiano ? pianoWidth : 0; // mirror TimeUnit roll layout behavior
+        const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
+        const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
 
-        // Update local timing manager from global store for view window duration calculations
+        // Update local timing manager from global timeline snapshot for view window duration calculations
         try {
-            const state = useTimelineStore.getState();
-            const bpm = state.timeline.globalBpm || 120;
-            const beatsPerBar = state.timeline.beatsPerBar || 4;
+            const bpm = timelineState?.timeline.globalBpm || 120;
+            const beatsPerBar = timelineState?.timeline.beatsPerBar || 4;
             this.timingManager.setBPM(bpm);
             this.timingManager.setBeatsPerBar(beatsPerBar);
             // If a master tempo map exists, apply to timing manager for accurate windows
-            if (state.timeline.masterTempoMap && state.timeline.masterTempoMap.length > 0) {
-                this.timingManager.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            if (timelineState?.timeline.masterTempoMap && timelineState.timeline.masterTempoMap.length > 0) {
+                this.timingManager.setTempoMap(timelineState.timeline.masterTempoMap, 'seconds');
             } else {
                 this.timingManager.setTempoMap(null);
             }
@@ -764,11 +755,10 @@ export class MovingNotesPianoRollElement extends SceneElement {
         const windowStart = effectiveTime - duration * playheadPosition;
         const windowEnd = windowStart + duration;
 
-        // Fetch notes for this window from timeline store
-        const state = useTimelineStore.getState();
+        // Fetch notes for this window from public plugin host API
         const rawNotes =
-            props.midiTrackId
-                ? selectNotesInWindow(state, {
+            props.midiTrackId && status === 'ok' && api
+                ? api.timeline.selectNotesInWindow({
                       trackIds: [props.midiTrackId],
                       startSec: windowStart,
                       endSec: windowEnd,
@@ -803,7 +793,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
             const noteCornerRadius = props.noteCornerRadius;
             const noteStrokeColor = props.noteStrokeColor;
             const noteStrokeWidth = props.noteStrokeWidth;
-            const noteGlowColor = props.noteGlowColor;
             const noteGlowBlur = props.noteGlowBlur;
             const noteGlowOpacity = props.noteGlowOpacity;
             (animatedRenderObjects as any[]).forEach((obj) => {
@@ -812,18 +801,17 @@ export class MovingNotesPianoRollElement extends SceneElement {
                     obj.setCornerRadius(noteCornerRadius);
                 if (noteStrokeWidth > 0 && typeof obj.setStroke === 'function')
                     obj.setStroke(noteStrokeColor, noteStrokeWidth);
-                if (noteGlowBlur > 0 && typeof obj.setShadow === 'function') {
-                    let glowColorOut = noteGlowColor;
-                    if (noteGlowColor.startsWith('#') && noteGlowOpacity < 1) {
-                        const r = parseInt(noteGlowColor.substr(1, 2), 16);
-                        const g = parseInt(noteGlowColor.substr(3, 2), 16);
-                        const b = parseInt(noteGlowColor.substr(5, 2), 16);
-                        glowColorOut = `rgba(${r},${g},${b},${noteGlowOpacity})`;
-                    }
-                    obj.setShadow(glowColorOut, noteGlowBlur, 0, 0);
-                }
             });
-            renderObjects.push(...animatedRenderObjects);
+            if (noteGlowBlur > 0) {
+                // GlowLayer renders notes twice: once normally, once blurred+screened.
+                // The halo colour derives from each note's own fill colour — on dark
+                // backgrounds, screen blending creates a natural per-note radiance effect.
+                const glowLayer = new GlowLayer({ glowBlur: noteGlowBlur, glowOpacity: noteGlowOpacity });
+                glowLayer.addChildren(animatedRenderObjects);
+                renderObjects.push(glowLayer);
+            } else {
+                renderObjects.push(...animatedRenderObjects);
+            }
         }
 
         // Add a non-drawing rectangle to establish layout bounds for the content area

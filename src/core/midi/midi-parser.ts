@@ -503,6 +503,9 @@ export class MIDIParser {
         // Filter for playable events (note on/off)
         const noteEvents = allEvents.filter((event) => event.type === 'noteOn' || event.type === 'noteOff');
 
+        // Extract CC events separately
+        const rawCCEvents = allEvents.filter((event) => event.type === 'controlChange');
+
         // Find the earliest note event to trim empty space at the beginning
         let earliestNoteTime = 0;
         if (noteEvents.length > 0) {
@@ -582,6 +585,13 @@ export class MIDIParser {
         // Calculate total duration based on the end of the final note
         const duration = this.computeDurationFromEvents(playableEvents);
 
+        // Convert CC events with same tick→seconds mapping and trim
+        const ccEvents: MIDIEvent[] = rawCCEvents.map((event) => ({
+            ...event,
+            time: Math.max(0, ticksToSeconds(event.time) - earliestSeconds),
+            tick: event.time - earliestNoteTime,
+        }));
+
         // Build tempo map (in seconds) from collected tempoEvents
         let tempoMapSec: Array<{ time: number; tempo: number }> | undefined = undefined;
         if (segments.length > 0) {
@@ -630,6 +640,7 @@ export class MIDIParser {
 
         return {
             events: playableEvents,
+            ccEvents,
             duration,
             tempo: this.tempo,
             ticksPerQuarter: this.ticksPerQuarter,

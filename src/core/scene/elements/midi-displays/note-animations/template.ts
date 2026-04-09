@@ -1,0 +1,40 @@
+import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
+import { BaseNoteAnimation, type AnimationContext } from './base';
+import { registerAnimation } from './registry';
+import * as af from '@math/animation/anim-math';
+import easingFunctions from '@math/animation/easing';
+import seedrandom from 'seedrandom';
+
+const ef = easingFunctions;
+
+export class TemplateAnimation extends BaseNoteAnimation {
+    render(ctx: AnimationContext): RenderObject[] {
+        const { x, y, width, height, color, progress, phase, block, currentTime } = ctx;
+        const rng = seedrandom(block.baseNoteId);
+        const info = `${(progress * 100).toFixed(0)}%`;
+
+        switch (phase) {
+            case 'attack': {
+                return [new Text(x, y, `attack ${info}`)];
+            }
+            case 'decay': {
+                return [new Text(x, y, `decay ${info}`)];
+            }
+            case 'sustain':
+                return [new Text(x, y, `sustain ${info}`)];
+            case 'release': {
+                return [new Text(x, y, `release ${info}`)];
+            }
+            default:
+                return [];
+        }
+    }
+}
+
+// To create a new animation from this template:
+//   1. Copy this file to a new name (e.g. my-animation.ts) in this directory.
+//   2. Change the class name and the content of render() to implement your animation.
+//   3. Uncomment the registerAnimation() call below (and fill in name/label).
+//   4. index.ts auto-imports all *.ts files in this directory except template.ts,
+//      so your new file will be bundled and registered automatically.
+// registerAnimation({ name: 'template', label: 'Template', class: TemplateAnimation });

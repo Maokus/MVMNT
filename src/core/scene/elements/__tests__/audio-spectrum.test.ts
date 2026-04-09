@@ -1,29 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioSpectrumElement } from '@core/scene/elements/audio-displays/audio-spectrum';
 import { Rectangle, Text } from '@core/render/render-objects';
-import * as sceneApi from '@audio/features/sceneApi';
+import * as pluginSdk from '@mvmnt/plugin-sdk';
 
-function createSample(values: number[]) {
+function makePluginApiResult(sampleFeatureAtTime: (args: unknown) => unknown) {
     return {
-        values,
-        metadata: {
-            descriptor: { featureKey: 'spectrogram' },
-            frame: {
-                values,
-                channelValues: [values.map((value) => value)],
-                channels: 1,
-                channelAliases: null,
-                channelLayout: null,
-                frameIndex: 0,
-                fractionalIndex: 0,
-                hopTicks: 1,
-                format: 'float32',
+        api: {
+            audio: {
+                sampleFeatureAtTime,
+                sampleFeatureRange: () => [],
             },
-            channels: 1,
-            channelAliases: null,
-            channelLayout: null,
-        },
-    } as const;
+            timing: {
+                secondsToTicks: () => null,
+                ticksToSeconds: () => null,
+                secondsToBeats: () => null,
+                beatsToSeconds: () => null,
+                beatsToTicks: () => 0,
+                ticksToBeats: () => 0,
+            },
+        } as any,
+        status: 'ok' as const,
+        missingCapabilities: [],
+    };
 }
 
 describe('audio-spectrum element', () => {
@@ -40,7 +38,29 @@ describe('audio-spectrum element', () => {
     });
 
     it('renders the configured number of spectrum bars using sampled data', () => {
-        vi.spyOn(sceneApi, 'getFeatureData').mockReturnValue(createSample([-80, -60, -40, -20]) as any);
+        const values = [-80, -60, -40, -20];
+        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+            makePluginApiResult(() => ({
+                values,
+                metadata: {
+                    descriptor: { featureKey: 'spectrogram' },
+                    frame: {
+                        values,
+                        channelValues: [values],
+                        channels: 1,
+                        channelAliases: null,
+                        channelLayout: null,
+                        frameIndex: 0,
+                        fractionalIndex: 0,
+                        hopTicks: 1,
+                        format: 'float32',
+                    },
+                    channels: 1,
+                    channelAliases: null,
+                    channelLayout: null,
+                },
+            }))
+        );
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',
@@ -63,10 +83,30 @@ describe('audio-spectrum element', () => {
         expect(bars.every((bar) => bar.height >= 0 && bar.height <= 100)).toBe(true);
     });
 
-    it('passes the smoothing value to getFeatureData', () => {
-        const getFeatureSpy = vi
-            .spyOn(sceneApi, 'getFeatureData')
-            .mockReturnValue(createSample(new Array(8).fill(-40)) as any);
+    it('passes the smoothing value to sampleFeatureAtTime', () => {
+        const sampleFeatureAtTimeSpy = vi.fn().mockReturnValue({
+            values: new Array(8).fill(-40),
+            metadata: {
+                descriptor: { featureKey: 'spectrogram' },
+                frame: {
+                    values: new Array(8).fill(-40),
+                    channelValues: [new Array(8).fill(-40)],
+                    channels: 1,
+                    channelAliases: null,
+                    channelLayout: null,
+                    frameIndex: 0,
+                    fractionalIndex: 0,
+                    hopTicks: 1,
+                    format: 'float32',
+                },
+                channels: 1,
+                channelAliases: null,
+                channelLayout: null,
+            },
+        });
+        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+            makePluginApiResult(sampleFeatureAtTimeSpy)
+        );
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',
@@ -80,11 +120,20 @@ describe('audio-spectrum element', () => {
 
         element.buildRenderObjects({}, 2);
 
-        expect(getFeatureSpy).toHaveBeenCalledWith(element, 'track-1', 'spectrogram', 2, { smoothing: 12 });
+        expect(sampleFeatureAtTimeSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                trackId: 'track-1',
+                feature: 'spectrogram',
+                time: 2,
+                samplingOptions: { smoothing: 12 },
+            })
+        );
     });
 
     it('shows a placeholder message when no data is available', () => {
-        vi.spyOn(sceneApi, 'getFeatureData').mockReturnValue(undefined as any);
+        vi.spyOn(pluginSdk, 'getPluginHostApi').mockReturnValue(
+            makePluginApiResult(() => null)
+        );
 
         const element = new AudioSpectrumElement('spectrum', {
             audioTrackId: 'track-1',

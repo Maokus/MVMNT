@@ -29,6 +29,7 @@ export interface MIDITimeSignature {
 
 export interface MIDIData {
     events: MIDIEvent[];
+    ccEvents?: MIDIEvent[]; // Control Change events (with time/tick already converted)
     duration: number;
     tempo: number;
     ticksPerQuarter: number;
