@@ -1,4 +1,5 @@
 import { unzipSync } from 'fflate';
+import { parseModule } from 'meriyah';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
@@ -31,6 +32,83 @@ const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
 
 const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
 const warnedLegacyImports = new Set<string>();
+
+// ---------------------------------------------------------------------------
+// Asset registry
+// ---------------------------------------------------------------------------
+// Stores per-plugin bundled asset bytes, keyed by path relative to assets/ dir.
+const pluginAssetRegistry = new Map<string, Map<string, Uint8Array>>();
+// Blob URLs created for assets — revoked when the plugin is fully unloaded.
+const pluginBlobUrls = new Map<string, string[]>();
+
+function registerPluginAssets(pluginId: string, files: Record<string, Uint8Array>): void {
+    const assetMap = new Map<string, Uint8Array>();
+    for (const [filePath, data] of Object.entries(files)) {
+        if (filePath.startsWith('assets/')) {
+            assetMap.set(filePath.slice('assets/'.length), data);
+        }
+    }
+    if (assetMap.size > 0) {
+        pluginAssetRegistry.set(pluginId, assetMap);
+    }
+}
+
+function revokePluginAssets(pluginId: string): void {
+    const urls = pluginBlobUrls.get(pluginId);
+    if (urls) {
+        for (const url of urls) {
+            URL.revokeObjectURL(url);
+        }
+    }
+    pluginBlobUrls.delete(pluginId);
+    pluginAssetRegistry.delete(pluginId);
+}
+
+function loadBundledAssetForPlugin(pluginId: string, assetPath: string): Promise<string> {
+    const pluginAssets = pluginAssetRegistry.get(pluginId);
+    if (!pluginAssets) {
+        return Promise.reject(new Error(`[PluginLoader] No assets registered for plugin '${pluginId}'`));
+    }
+    const data = pluginAssets.get(assetPath);
+    if (!data) {
+        const available = [...pluginAssets.keys()].join(', ') || 'none';
+        return Promise.reject(
+            new Error(`[PluginLoader] Asset '${assetPath}' not found in plugin '${pluginId}'. Available: ${available}`)
+        );
+    }
+    const mime = guessMimeType(assetPath);
+    // Copy into a plain ArrayBuffer (fflate returns Uint8Array<ArrayBufferLike>).
+    const blob = new Blob([new Uint8Array(data)], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const urls = pluginBlobUrls.get(pluginId) ?? [];
+    urls.push(url);
+    pluginBlobUrls.set(pluginId, urls);
+    return Promise.resolve(url);
+}
+
+function guessMimeType(assetPath: string): string {
+    const ext = assetPath.split('.').pop()?.toLowerCase() ?? '';
+    const mimeMap: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        ogg: 'audio/ogg',
+        mp4: 'video/mp4',
+        webm: 'video/webm',
+        json: 'application/json',
+        woff: 'font/woff',
+        woff2: 'font/woff2',
+        ttf: 'font/ttf',
+        otf: 'font/otf',
+    };
+    return mimeMap[ext] ?? 'application/octet-stream';
+}
+// ---------------------------------------------------------------------------
 
 function warnLegacyPluginImport(id: string): void {
     if (!LEGACY_INTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))) {
@@ -133,6 +211,9 @@ export async function loadPlugin(
         // Store the bundle for future use
         await PluginBinaryStore.put(manifest.id, bundleData);
 
+        // Register bundled assets so elements can load them via loadBundledAsset()
+        registerPluginAssets(manifest.id, files as Record<string, Uint8Array>);
+
         // Load and register each element
         const registeredTypes: string[] = [];
         const loadErrors: string[] = [];
@@ -151,7 +232,7 @@ export async function loadPlugin(
                 const code = new TextDecoder().decode(entryData);
 
                 // Load the element class dynamically
-                const ElementClass = await loadElementFromCode(code, elementManifest.type);
+                const ElementClass = await loadElementFromCode(code, elementManifest.type, manifest.id);
 
                 // Register the element
                 sceneElementRegistry.registerCustomElement(
@@ -232,6 +313,9 @@ export async function unloadPlugin(pluginId: string): Promise<{ success: boolean
         // Remove from storage
         await PluginBinaryStore.delete(pluginId);
         PluginSettingsStore.removeEntry(pluginId);
+
+        // Revoke any blob URLs created for bundled assets
+        revokePluginAssets(pluginId);
 
         dispatchPluginAvailabilityEvent({
             action: 'removed',
@@ -369,7 +453,7 @@ export async function reloadPluginFromStorage(
 export async function loadAllPluginsFromStorage(): Promise<void> {
     try {
         const pluginIds = await PluginBinaryStore.listIds();
-        
+
         for (const pluginId of pluginIds) {
             usePluginStore.getState().setLoading(pluginId, true);
             const result = await reloadPluginFromStorage(pluginId);
@@ -436,15 +520,15 @@ function validateManifest(manifest: any): string | null {
 /**
  * Dynamically load an element class from bundled code
  */
-async function loadElementFromCode(code: string, elementType: string): Promise<any> {
+async function loadElementFromCode(code: string, elementType: string, pluginId: string): Promise<any> {
     try {
-        return evaluateCommonJsModule(code, elementType);
+        return evaluateCommonJsModule(code, elementType, pluginId);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/import declarations may only appear/.test(message) || /Unexpected token 'export'/.test(message)) {
             try {
                 const transformed = transformEsModuleToCommonJs(code);
-                return evaluateCommonJsModule(transformed, elementType);
+                return evaluateCommonJsModule(transformed, elementType, pluginId);
             } catch (fallbackError) {
                 const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
                 throw new Error(`Failed to load element code: ${fallbackMessage}`);
@@ -454,12 +538,20 @@ async function loadElementFromCode(code: string, elementType: string): Promise<a
     }
 }
 
-function evaluateCommonJsModule(code: string, elementType: string): any {
+function evaluateCommonJsModule(code: string, elementType: string, pluginId: string): any {
     const module: any = { exports: {} };
     const loadFn = new Function('module', 'exports', 'require', code);
 
     const mockRequire = (id: string) => {
         warnLegacyPluginImport(id);
+
+        if (id === '@mvmnt/plugin-sdk') {
+            // Inject a per-plugin loadBundledAsset bound to this plugin's asset registry.
+            return {
+                ...pluginSdkModule,
+                loadBundledAsset: (path: string) => loadBundledAssetForPlugin(pluginId, path),
+            };
+        }
 
         const directModule = PLUGIN_RUNTIME_MODULES[id];
         if (directModule) {
@@ -541,78 +633,132 @@ function normalizeElementType(elementType: string): string {
         .join('');
 }
 
+/**
+ * Transform ES module syntax to CommonJS using an AST-based approach (meriyah).
+ * Only invoked as a fallback when the primary CJS eval detects ESM syntax errors.
+ */
 function transformEsModuleToCommonJs(code: string): string {
-    let transformed = code;
+    const ast = parseModule(code, { ranges: true } as any);
+
+    // Collect patches: [start, end, replacement]. Applied in reverse position order.
+    const patches: Array<[number, number, string]> = [];
     let importIndex = 0;
 
-    transformed = transformed.replace(/^\s*import\s+type\s+[^;]+;?/gm, '');
+    const getRange = (node: any): [number, number] => node.range ?? [node.start, node.end];
 
-    transformed = transformed.replace(/^\s*import\s+['"]([^'"]+)['"];?/gm, 'require("$1");');
+    for (const node of (ast as any).body) {
+        const [start, end] = getRange(node);
 
-    transformed = transformed.replace(/^\s*import\s+([^;]+?)\s+from\s+['"]([^'"]+)['"];?/gm, (_match, clause, specifier) => {
-        const requireVar = `__mvmnt_import_${importIndex++}`;
-        const lines: string[] = [`const ${requireVar} = require("${specifier}");`];
+        if (node.type === 'ImportDeclaration') {
+            // Skip type-only imports (TypeScript) — they have no runtime value
+            if (node.importKind === 'type') continue;
 
-        const trimmedClause = String(clause).trim();
-        let defaultPart: string | null = null;
-        let namedPart: string | null = null;
-        let namespacePart: string | null = null;
+            const src = node.source.value as string;
 
-        if (trimmedClause.includes(',')) {
-            const [first, rest] = trimmedClause.split(',', 2).map((value: string) => value.trim());
-            defaultPart = first || null;
-            if (rest.startsWith('{')) {
-                namedPart = rest;
-            } else if (rest.startsWith('*')) {
-                namespacePart = rest;
-            }
-        } else if (trimmedClause.startsWith('{')) {
-            namedPart = trimmedClause;
-        } else if (trimmedClause.startsWith('*')) {
-            namespacePart = trimmedClause;
-        } else if (trimmedClause.length > 0) {
-            defaultPart = trimmedClause;
-        }
+            if (node.specifiers.length === 0) {
+                // import 'side-effect'
+                patches.push([start, end, `require("${src}");`]);
+            } else {
+                const v = `__mvmnt_import_${importIndex++}`;
+                const lines: string[] = [`const ${v} = require("${src}");`];
 
-        if (defaultPart) {
-            lines.push(`const ${defaultPart} = ${requireVar};`);
-        }
-
-        if (namespacePart) {
-            const match = namespacePart.match(/\*\s+as\s+(\w+)/);
-            if (match) {
-                lines.push(`const ${match[1]} = ${requireVar};`);
-            }
-        }
-
-        if (namedPart) {
-            const normalized = namedPart.replace(/\{([\s\S]*)\}/, '$1').trim();
-            const mapped = normalized.replace(/\s+as\s+/g, ': ');
-            lines.push(`const { ${mapped} } = ${requireVar};`);
-        }
-
-        return lines.join('\n');
-    });
-
-    transformed = transformed.replace(/^\s*export\s+default\s+/gm, 'module.exports.default = ');
-
-    transformed = transformed.replace(/^\s*export\s+\{([^}]+)\};?/gm, (_match, specifiers) => {
-        const assignments = String(specifiers)
-            .split(',')
-            .map((raw) => raw.trim())
-            .filter(Boolean)
-            .map((spec) => {
-                const [original, alias] = spec.split(/\s+as\s+/).map((value) => value.trim());
-                const exportName = alias || original;
-                if (exportName === 'default') {
-                    return `module.exports.default = ${original};`;
+                for (const spec of node.specifiers) {
+                    if (spec.type === 'ImportDefaultSpecifier') {
+                        lines.push(`const ${spec.local.name} = ${v}.default !== undefined ? ${v}.default : ${v};`);
+                    } else if (spec.type === 'ImportNamespaceSpecifier') {
+                        lines.push(`const ${spec.local.name} = ${v};`);
+                    } else {
+                        // ImportSpecifier: import { foo as bar }
+                        const imported = (spec.imported as any).name as string;
+                        const local = spec.local.name as string;
+                        lines.push(
+                            imported === local
+                                ? `const { ${imported} } = ${v};`
+                                : `const { ${imported}: ${local} } = ${v};`
+                        );
+                    }
                 }
-                return `exports.${exportName} = ${original};`;
-            });
-        return assignments.join('\n');
-    });
 
-    transformed = transformed.replace(/^\s*export\s+(const|let|var|function|class)\s+/gm, '$1 ');
+                patches.push([start, end, lines.join('\n')]);
+            }
+        } else if (node.type === 'ExportDefaultDeclaration') {
+            const decl = node.declaration as any;
+            if ((decl.type === 'ClassDeclaration' || decl.type === 'FunctionDeclaration') && decl.id) {
+                // Named class/function: keep the declaration, append exports assignment after.
+                patches.push([start, start + 'export default '.length, '']);
+                patches.push([end, end, `\nmodule.exports.default = ${decl.id.name as string};`]);
+            } else {
+                // Anonymous or expression: inline assignment.
+                patches.push([start, start + 'export default '.length, 'module.exports.default = ']);
+            }
+        } else if (node.type === 'ExportNamedDeclaration') {
+            const decl = (node as any).declaration;
+            const specs = (node as any).specifiers as any[];
+            const srcVal = (node as any).source?.value as string | undefined;
 
-    return transformed;
+            if (decl) {
+                // export const/let/var X, export function X, export class X
+                const names: string[] = [];
+                if (decl.type === 'VariableDeclaration') {
+                    for (const d of decl.declarations) {
+                        if (d.id.type === 'Identifier') names.push(d.id.name as string);
+                    }
+                } else if (
+                    (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') &&
+                    decl.id
+                ) {
+                    names.push(decl.id.name as string);
+                }
+                // Remove 'export ' prefix; append exports assignments after the declaration.
+                patches.push([start, start + 'export '.length, '']);
+                if (names.length > 0) {
+                    patches.push([end, end, '\n' + names.map((n) => `exports.${n} = ${n};`).join('\n')]);
+                }
+            } else if (specs.length > 0) {
+                if (srcVal) {
+                    // export { a, b } from 'source'
+                    const v = `__mvmnt_import_${importIndex++}`;
+                    const lines = [`const ${v} = require("${srcVal}");`];
+                    for (const s of specs) {
+                        const exp = (s.exported as any).name as string;
+                        const loc = (s.local as any).name as string;
+                        lines.push(
+                            exp === 'default'
+                                ? `module.exports.default = ${v}.${loc};`
+                                : `exports.${exp} = ${v}.${loc};`
+                        );
+                    }
+                    patches.push([start, end, lines.join('\n')]);
+                } else {
+                    // export { a, b as c }
+                    const assignments = specs.map((s: any) => {
+                        const exp = (s.exported as any).name as string;
+                        const loc = (s.local as any).name as string;
+                        return exp === 'default'
+                            ? `module.exports.default = ${loc};`
+                            : `exports.${exp} = ${loc};`;
+                    });
+                    patches.push([start, end, assignments.join('\n')]);
+                }
+            }
+        } else if (node.type === 'ExportAllDeclaration') {
+            // export * from 'source' / export * as ns from 'source'
+            const srcVal = (node as any).source.value as string;
+            const exported = (node as any).exported;
+            const v = `__mvmnt_import_${importIndex++}`;
+            if (exported) {
+                patches.push([start, end, `const ${v} = require("${srcVal}");\nexports.${(exported as any).name as string} = ${v};`]);
+            } else {
+                patches.push([start, end, `Object.assign(exports, require("${srcVal}"));`]);
+            }
+        }
+    }
+
+    // Apply patches in reverse position order so earlier positions remain valid.
+    patches.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    let result = code;
+    for (const [s, e, text] of patches) {
+        result = result.slice(0, s) + text + result.slice(e);
+    }
+    return result;
 }
