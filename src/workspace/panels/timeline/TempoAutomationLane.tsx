@@ -248,7 +248,12 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     );
 
     return (
-        <div className="relative w-full h-full" tabIndex={0} onKeyDown={handleKeyDown}>
+        <div
+            className="relative w-full h-full"
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            onPointerDown={(e) => e.stopPropagation()}
+        >
             {/* Header spacer (mirrors left-column header) */}
             <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
 
