@@ -27,16 +27,18 @@ const ChangelogPage: React.FC = () => {
                         ],
                         'Implemented custom element system and api',
                         [
-                            'Builtin pack of custom elements',
+                            'Added builtin pack of custom elements',
                             'Embed plugins into save files',
                             'DevEx quality of life scripts',
-                            'Support midi cc in midi ingestion and expose via api'
+                            'Support midi cc in midi ingestion and expose via api',
+                            'Improve version conflict management'
                         ],
                         'Extended renderobject system',
                         [
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
                         ],
+                        'Added tempo automation',
                         'Improvements/new content',
                         [
                             'Add basic shapes element',

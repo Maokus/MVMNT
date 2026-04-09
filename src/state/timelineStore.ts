@@ -87,6 +87,7 @@ export type TimelineState = {
         tempoAutomation?: {
             enabled: boolean;
             keyframes: TempoKeyframe[];
+            laneVisible?: boolean;
         };
     };
     tracks: Record<string, TimelineTrack | AudioTrack>;
@@ -205,6 +206,7 @@ export type TimelineState = {
     updateTempoKeyframeBpm: (tick: number, bpm: number) => void;
     batchSetTempoKeyframes: (keyframes: TempoKeyframe[]) => void;
     commitTempoKeyframeDrag: (fromTick: number, toTick: number) => void;
+    setTempoLaneVisible: (visible: boolean) => void;
 };
 
 function computeFeatureCacheSourceHash(cache: AudioFeatureCache): string {
@@ -1483,6 +1485,18 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     commitTempoKeyframeDrag(fromTick: number, toTick: number) {
         get().moveTempoKeyframe(fromTick, toTick);
+    },
+
+    setTempoLaneVisible(visible: boolean) {
+        set((s: TimelineState) => {
+            const ta = s.timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
+            return {
+                timeline: {
+                    ...s.timeline,
+                    tempoAutomation: { ...ta, laneVisible: visible },
+                },
+            } as any;
+        });
     },
 });
 

@@ -247,14 +247,6 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         [selectedTick, removeTempoKeyframe],
     );
 
-    if (keyframes.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-full text-neutral-600 text-[11px]">
-                No tempo keyframes
-            </div>
-        );
-    }
-
     return (
         <div className="relative w-full h-full" tabIndex={0} onKeyDown={handleKeyDown}>
             {/* Header spacer (mirrors left-column header) */}
@@ -285,6 +277,20 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         </g>
                     );
                 })}
+
+                {/* Empty state hint */}
+                {keyframes.length === 0 && (
+                    <text
+                        x={width / 2}
+                        y={height / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="fill-neutral-600 text-[11px] select-none pointer-events-none"
+                        fontSize={11}
+                    >
+                        Double-click to add a tempo keyframe
+                    </text>
+                )}
 
                 {/* Stepped curve */}
                 {curvePath && (

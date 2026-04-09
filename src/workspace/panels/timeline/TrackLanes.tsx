@@ -439,6 +439,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
     const tracksMap = useTimelineStore((s) => s.tracks);
     const midiCache = useTimelineStore((s) => s.midiCache);
     const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
+    const tempoLaneVisible = useTimelineStore((s) => s.timeline.tempoAutomation?.laneVisible !== false);
 
     // Resize observer to keep width/height up to date
     useEffect(() => {
@@ -678,7 +679,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                 <div className="relative border-t border-neutral-700">
                     {/* Header spacer mirroring TempoLaneHeader's header row */}
                     <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
-                    {tempoEnabled && (
+                    {tempoEnabled && tempoLaneVisible && (
                         <div style={{ height: TEMPO_LANE_HEIGHT }}>
                             <TempoAutomationLane width={width} height={TEMPO_LANE_HEIGHT} />
                         </div>
