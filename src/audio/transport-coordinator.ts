@@ -189,9 +189,10 @@ export class TransportCoordinator {
             } else {
                 const elapsed = ctx.currentTime - this.state.playbackStartAudioTime;
                 if (elapsed >= 0) {
-                    // Use precise float accumulation (no premature floor) then only truncate for emission comparison
-                    const ticksDelta = this.tm.secondsToTicks(elapsed);
-                    const candidate = this.state.startTick + ticksDelta;
+                    // Convert startTick to absolute seconds, add elapsed, then convert back to absolute ticks.
+                    // This ensures the tempo map segments are traversed correctly regardless of start position.
+                    const startSec = this.tm.ticksToSeconds(this.state.startTick);
+                    const candidate = this.tm.secondsToTicks(startSec + elapsed);
                     // Truncate only for integer canonical tick; retain fractional error internally by not mutating startTick.
                     const nextTick = Math.max(0, candidate | 0); // bitwise trunc faster & consistent
                     if (nextTick !== this.state.lastDerivedTick) {
