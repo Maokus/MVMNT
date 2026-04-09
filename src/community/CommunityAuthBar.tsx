@@ -34,7 +34,15 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
         if (error) throw error;
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (error.message.toLowerCase().includes('rate limit')) {
+            throw new Error('Too many signup attempts. Wait a few minutes and try again, or check your email for a confirmation link already sent.');
+          }
+          if (error.status === 400) {
+            throw new Error('This email may already be registered. Try signing in instead, or check your inbox for a confirmation email.');
+          }
+          throw error;
+        }
         setSignupSuccess(true);
       }
       setEmail('');

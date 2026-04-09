@@ -20,6 +20,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ item, onClick }) => {
           alt={item.title}
           className="h-full w-full object-cover transition group-hover:scale-105"
           loading="lazy"
+          crossOrigin="anonymous"
         />
         <span className="absolute top-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-300">
           {item.type}

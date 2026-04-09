@@ -51,6 +51,18 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
   return (data ?? []) as CommunityItem[];
 }
 
+function sanitizeFileName(name: string): string {
+  // Keep extension intact, only sanitize the base name
+  const lastDotIndex = name.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    // No extension
+    return name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '');
+  }
+  const baseName = name.substring(0, lastDotIndex);
+  const ext = name.substring(lastDotIndex);
+  return baseName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '') + ext;
+}
+
 export async function uploadItem(
   userId: string,
   type: 'preset' | 'plugin',
@@ -60,8 +72,8 @@ export async function uploadItem(
   mainFile: File,
 ) {
   const itemId = crypto.randomUUID();
-  const thumbPath = `${userId}/${itemId}/thumb-${thumbnailFile.name}`;
-  const filePath = `${userId}/${itemId}/${mainFile.name}`;
+  const thumbPath = `${userId}/${itemId}/thumb-${sanitizeFileName(thumbnailFile.name)}`;
+  const filePath = `${userId}/${itemId}/${sanitizeFileName(mainFile.name)}`;
 
   const { error: thumbErr } = await supabase.storage
     .from('community-thumbnails')
@@ -96,12 +108,8 @@ export async function downloadItem(item: CommunityItem, userId: string | null) {
 
   await supabase.rpc('increment_download_count', { item_id_input: item.id });
 
-  const { data, error } = await supabase.storage
-    .from('community-files')
-    .createSignedUrl(item.file_path, 60);
-  if (error) throw error;
-
-  return data.signedUrl;
+  const { data } = supabase.storage.from('community-files').getPublicUrl(item.file_path);
+  return data.publicUrl;
 }
 
 export async function rateItem(itemId: string, userId: string, rating: number) {

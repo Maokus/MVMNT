@@ -94,6 +94,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
             src={getThumbnailUrl(item.thumbnail_path)}
             alt={item.title}
             className="h-full w-full object-cover"
+            crossOrigin="anonymous"
           />
           <button
             onClick={onClose}

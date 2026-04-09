@@ -3,7 +3,7 @@
   "name": "Extras Pack 1",
   "version": "1.0.0",
   "apiVersion": "^1.0.0",
-  "description": "Custom plugin providing 2 elements",
+  "description": "Custom plugin providing 3 elements",
   "author": "Your Name",
   "elements": [
     {
@@ -16,9 +16,16 @@
     {
       "type": "trackerlike-midi-display",
       "name": "Trackerlike Midi Display",
-      "category": "extraspack1",
+      "category": "Extras Pack 1",
       "description": "A midi display that uses text to display notes",
       "entry": "trackerlike-midi-display.ts"
+    },
+    {
+      "type": "popcat-midi-display",
+      "name": "Popcat Midi Display",
+      "category": "Extras Pack 1",
+      "description": "popcat",
+      "entry": "popcat-midi-display.ts"
     }
   ]
 }
