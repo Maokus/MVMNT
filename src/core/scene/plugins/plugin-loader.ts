@@ -41,6 +41,19 @@ const pluginAssetRegistry = new Map<string, Map<string, Uint8Array>>();
 // Blob URLs created for assets — revoked when the plugin is fully unloaded.
 const pluginBlobUrls = new Map<string, string[]>();
 
+// Dev-mode asset base paths (populated by dev-plugin-loader when using native Vite imports).
+// Maps pluginId → base URL path (e.g. '/src/plugins/extraspack1/assets').
+const devAssetBasePaths = new Map<string, string>();
+
+/**
+ * Register a plugin's asset directory for dev-mode loading.
+ * Called by dev-plugin-loader.ts when the element is loaded via native Vite import()
+ * rather than through the normal ZIP bundle path.
+ */
+export function registerDevPluginAssets(pluginId: string, assetBasePath: string): void {
+    devAssetBasePaths.set(pluginId, assetBasePath);
+}
+
 function registerPluginAssets(pluginId: string, files: Record<string, Uint8Array>): void {
     const assetMap = new Map<string, Uint8Array>();
     for (const [filePath, data] of Object.entries(files)) {
@@ -64,7 +77,13 @@ function revokePluginAssets(pluginId: string): void {
     pluginAssetRegistry.delete(pluginId);
 }
 
-function loadBundledAssetForPlugin(pluginId: string, assetPath: string): Promise<string> {
+export function loadBundledAssetForPlugin(pluginId: string, assetPath: string): Promise<string> {
+    // Dev mode: serve directly from the Vite dev server URL (no blob conversion needed).
+    const devBasePath = devAssetBasePaths.get(pluginId);
+    if (devBasePath) {
+        return Promise.resolve(`${devBasePath}/${assetPath}`);
+    }
+
     const pluginAssets = pluginAssetRegistry.get(pluginId);
     if (!pluginAssets) {
         return Promise.reject(new Error(`[PluginLoader] No assets registered for plugin '${pluginId}'`));

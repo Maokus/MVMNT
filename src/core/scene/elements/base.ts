@@ -208,6 +208,33 @@ export class SceneElement implements SceneElementInterface {
     }
 
     /**
+     * Load a bundled asset from this plugin's assets/ directory.
+     * Works in both dev mode (via the Vite dev server) and production (via the ZIP bundle).
+     * Returns a URL string that can be used as an <img> src or similar.
+     */
+    protected loadBundledAsset(assetPath: string): Promise<string> {
+        let pluginId: string | undefined;
+        try {
+            // Avoid a static import to prevent circular dependency with plugin-loader.
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
+            pluginId = sceneElementRegistry.getPluginId(this.type);
+        } catch {
+            pluginId = undefined;
+        }
+        if (!pluginId) {
+            return Promise.reject(new Error(`[SceneElement] loadBundledAsset() is only available in plugin elements`));
+        }
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { loadBundledAssetForPlugin } = require('@core/scene/plugins/plugin-loader');
+            return (loadBundledAssetForPlugin as (id: string, path: string) => Promise<string>)(pluginId, assetPath);
+        } catch (err) {
+            return Promise.reject(err instanceof Error ? err : new Error(String(err)));
+        }
+    }
+
+    /**
      * Dispose element resources and detach listeners
      */
     dispose(): void {

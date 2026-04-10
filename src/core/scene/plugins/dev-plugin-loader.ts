@@ -17,6 +17,7 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 import { debugLog } from '@utils/debug-log';
 import { satisfiesVersion } from './version-check';
 import { PLUGIN_API_VERSION } from './api-version';
+import { registerDevPluginAssets } from './plugin-loader';
 
 interface PluginManifest {
     id: string;
@@ -216,7 +217,10 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     }
 
     console.log(`[DevPluginLoader] Loading plugin: ${manifest.name} (${manifest.id})`);
-    
+
+    // Register the plugin's asset directory so loadBundledAsset() works in dev mode.
+    registerDevPluginAssets(manifest.id, `${pluginPath}/assets`);
+
     const errors: string[] = [];
     let elementsLoaded = 0;
     

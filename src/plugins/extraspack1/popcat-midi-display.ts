@@ -4,7 +4,6 @@ import {
     Text,
     asNumber,
     asTrimmedString,
-    loadBundledAsset,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type PropertyTransform,
@@ -30,7 +29,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
         this._assetsLoading = true;
 
         const loadImg = (path: string): Promise<HTMLImageElement> =>
-            loadBundledAsset(path).then(
+            this.loadBundledAsset(path).then(
                 (url) =>
                     new Promise((resolve, reject) => {
                         const img = new window.Image();
@@ -40,10 +39,14 @@ export class PopcatMidiDisplayElement extends SceneElement {
                     })
             );
 
-        Promise.all([loadImg('popcat1.tiff'), loadImg('popcat2.tiff')]).then(([img1, img2]) => {
+        Promise.all([loadImg('popcat1.png'), loadImg('popcat2.png')]).then(([img1, img2]) => {
             this._popcat1 = img1;
             this._popcat2 = img2;
             this._assetsLoaded = true;
+            this._assetsLoading = false;
+        }).catch((err) => {
+            console.error('[PopcatMidiDisplay] Failed to load assets:', err);
+            this._assetsLoading = false;
         });
     }
 
