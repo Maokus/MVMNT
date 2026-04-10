@@ -1,26 +1,26 @@
 import React, { useCallback, useState, useRef } from 'react';
-import { FaXmark, FaUpload } from 'react-icons/fa6';
+import { FaXmark, FaFloppyDisk } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import { uploadItem, parsePluginManifest } from './communityApi';
+import type { CommunityItem } from './communityApi';
+import { updateItem, parsePluginManifest, getThumbnailUrl } from './communityApi';
 
-interface CommunityUploadModalProps {
+interface CommunityEditModalProps {
+  item: CommunityItem;
   user: User;
   onClose: () => void;
-  onUploaded: () => void;
+  onSaved: () => void;
 }
 
-const ACCEPTED_FILE_TYPES = '.mvt,.mvmnt-plugin';
-
-const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClose, onUploaded }) => {
-  const [type, setType] = useState<'template' | 'plugin'>('template');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onClose, onSaved }) => {
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? '');
+  const [version, setVersion] = useState(item.version ?? '');
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [mainFile, setMainFile] = useState<File | null>(null);
-  const [pluginUid, setPluginUid] = useState<string | null>(null);
-  const [pluginVersion, setPluginVersion] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [detectedUid, setDetectedUid] = useState<string | null>(item.plugin_uid);
+  const [detectedVersion, setDetectedVersion] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,44 +43,40 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setMainFile(file);
-    setPluginUid(null);
-    setPluginVersion(null);
+    setDetectedUid(item.plugin_uid);
+    setDetectedVersion(null);
 
-    if (file) {
-      if (file.name.endsWith('.mvmnt-plugin')) {
-        setType('plugin');
-        const parsed = await parsePluginManifest(file);
-        if (parsed) {
-          setPluginUid(parsed.id);
-          setPluginVersion(parsed.version);
-        }
-      } else if (file.name.endsWith('.mvt')) {
-        setType('template');
+    if (file && item.type === 'plugin') {
+      const parsed = await parsePluginManifest(file);
+      if (parsed) {
+        setDetectedUid(parsed.id);
+        setDetectedVersion(parsed.version);
+        setVersion(parsed.version);
       }
     }
-  }, []);
+  }, [item.plugin_uid, item.type]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!thumbnailFile || !mainFile) return;
-
+    setSaving(true);
     setError(null);
-    setUploading(true);
-
     try {
-      await uploadItem(
-        user.id, type, title, description, thumbnailFile, mainFile,
-        pluginUid ?? undefined,
-        pluginVersion ?? undefined,
-      );
-      onUploaded();
+      await updateItem(item.id, user.id, {
+        title,
+        description,
+        thumbnailFile: thumbnailFile ?? undefined,
+        mainFile: mainFile ?? undefined,
+        pluginUid: detectedUid ?? undefined,
+        version: item.type === 'plugin' && version.trim() ? version.trim() : undefined,
+      });
+      onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Upload failed');
+      setError(err.message ?? 'Save failed');
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
-  }, [user.id, type, title, description, thumbnailFile, mainFile, pluginUid, pluginVersion, onUploaded, onClose]);
+  }, [item.id, item.type, user.id, title, description, version, thumbnailFile, mainFile, detectedUid, onSaved, onClose]);
 
   const inputClass = "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none";
 
@@ -92,7 +88,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Upload to Community</h2>
+          <h2 className="text-lg font-semibold text-white">Edit item</h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 text-neutral-400 hover:text-white hover:bg-white/10"
@@ -103,30 +99,6 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Type */}
-          <div className="flex gap-4">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="radio"
-                name="type"
-                checked={type === 'template'}
-                onChange={() => setType('template')}
-                className="accent-indigo-500"
-              />
-              <span className="text-sm">Template</span>
-            </label>
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="radio"
-                name="type"
-                checked={type === 'plugin'}
-                onChange={() => setType('plugin')}
-                className="accent-indigo-500"
-              />
-              <span className="text-sm">Plugin</span>
-            </label>
-          </div>
-
           {/* Title */}
           <input
             type="text"
@@ -148,15 +120,31 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
             className={inputClass + ' resize-none'}
           />
 
+          {/* Version (plugins only) */}
+          {item.type === 'plugin' && (
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Version</label>
+              <input
+                type="text"
+                placeholder="e.g. 1.2.0"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                className={inputClass}
+              />
+              {detectedVersion && (
+                <p className="mt-1 text-xs text-neutral-500">Detected from manifest: {detectedVersion}</p>
+              )}
+            </div>
+          )}
+
           {/* Thumbnail */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1">Thumbnail image</label>
+            <label className="block text-xs text-neutral-400 mb-1">Thumbnail (leave blank to keep current)</label>
             <input
               ref={thumbInputRef}
               type="file"
               accept="image/*"
               onChange={handleThumbnailChange}
-              required
               className="hidden"
             />
             <button
@@ -164,22 +152,25 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
               onClick={() => thumbInputRef.current?.click()}
               className="rounded border border-dashed border-neutral-600 bg-neutral-800/50 px-3 py-2 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 w-full text-left"
             >
-              {thumbnailFile ? thumbnailFile.name : 'Choose image...'}
+              {thumbnailFile ? thumbnailFile.name : 'Replace thumbnail...'}
             </button>
-            {thumbnailPreview && (
-              <img src={thumbnailPreview} alt="Preview" className="mt-2 max-h-32 rounded border border-neutral-700 object-contain" />
+            {thumbnailPreview ? (
+              <img src={thumbnailPreview} alt="New thumbnail" className="mt-2 max-h-32 rounded border border-neutral-700 object-contain" />
+            ) : (
+              <img src={getThumbnailUrl(item.thumbnail_path)} alt="Current thumbnail" className="mt-2 max-h-32 rounded border border-neutral-700 object-contain opacity-50" />
             )}
           </div>
 
           {/* File */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1">File (.mvt or .mvmnt-plugin)</label>
+            <label className="block text-xs text-neutral-400 mb-1">
+              {item.type === 'plugin' ? 'Plugin file (leave blank to keep current)' : 'Template file (leave blank to keep current)'}
+            </label>
             <input
               ref={fileInputRef}
               type="file"
-              accept={ACCEPTED_FILE_TYPES}
+              accept={item.type === 'plugin' ? '.mvmnt-plugin' : '.mvt'}
               onChange={handleFileChange}
-              required
               className="hidden"
             />
             <button
@@ -187,20 +178,14 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
               onClick={() => fileInputRef.current?.click()}
               className="rounded border border-dashed border-neutral-600 bg-neutral-800/50 px-3 py-2 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-300 w-full text-left"
             >
-              {mainFile ? `${mainFile.name} (${(mainFile.size / 1024 / 1024).toFixed(1)} MB)` : 'Choose file...'}
+              {mainFile
+                ? `${mainFile.name} (${(mainFile.size / 1024 / 1024).toFixed(1)} MB)`
+                : 'Replace file...'}
             </button>
-            {type === 'plugin' && pluginUid && (
+            {item.type === 'plugin' && detectedUid && (
               <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
-                <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-neutral-300">{pluginUid}</span>
-                {pluginVersion && (
-                  <span className="rounded bg-indigo-900/50 border border-indigo-700/50 px-2 py-0.5 text-indigo-300">
-                    v{pluginVersion}
-                  </span>
-                )}
+                <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-neutral-300">{detectedUid}</span>
               </div>
-            )}
-            {type === 'plugin' && mainFile && !pluginUid && (
-              <p className="mt-1 text-xs text-yellow-500">Could not read manifest — plugin_uid won't be set.</p>
             )}
           </div>
 
@@ -216,10 +201,10 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
             </button>
             <button
               type="submit"
-              disabled={uploading || !thumbnailFile || !mainFile || !title.trim()}
+              disabled={saving || !title.trim()}
               className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
             >
-              <FaUpload className="text-[11px]" /> {uploading ? 'Uploading...' : 'Upload'}
+              <FaFloppyDisk className="text-[11px]" /> {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
@@ -228,4 +213,4 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   );
 };
 
-export default CommunityUploadModal;
+export default CommunityEditModal;

@@ -7,6 +7,7 @@ import CommunityAuthBar from './CommunityAuthBar';
 import CommunityGrid from './CommunityGrid';
 import CommunityDetailModal from './CommunityDetailModal';
 import CommunityUploadModal from './CommunityUploadModal';
+import CommunityEditModal from './CommunityEditModal';
 import { fetchItems, type CommunityItem, type SortBy, type FilterType } from './communityApi';
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
@@ -30,6 +31,7 @@ const CommunityPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<CommunityItem | null>(null);
+  const [editItem, setEditItem] = useState<CommunityItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   // Get initial session
@@ -154,6 +156,21 @@ const CommunityPage: React.FC = () => {
             user={user}
             onClose={() => setSelectedItem(null)}
             onItemChanged={handleItemChanged}
+            onEdit={user?.id === selectedItem.user_id ? () => setEditItem(selectedItem) : undefined}
+          />
+        )}
+
+        {/* Edit Modal */}
+        {editItem && user && (
+          <CommunityEditModal
+            item={editItem}
+            user={user}
+            onClose={() => setEditItem(null)}
+            onSaved={() => {
+              setEditItem(null);
+              setSelectedItem(null);
+              handleItemChanged();
+            }}
           />
         )}
 

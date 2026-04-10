@@ -1,17 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt } from 'react-icons/fa6';
+import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt, FaPen, FaArrowsRotate } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem } from './communityApi';
-import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem } from './communityApi';
-import { loadPlugin } from '@core/scene/plugins';
+import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem, semverGt } from './communityApi';
+import { loadPlugin, upgradePlugin, unloadPlugin } from '@core/scene/plugins';
 import { writeStoredImportPayload } from '../utils/importPayloadStorage';
+import { usePluginStore } from '../state/pluginStore';
 
 interface CommunityDetailModalProps {
   item: CommunityItem;
   user: User | null;
   onClose: () => void;
   onItemChanged: () => void;
+  onEdit?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -20,13 +22,21 @@ function formatBytes(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user, onClose, onItemChanged }) => {
+const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
+  item, user, onClose, onItemChanged, onEdit,
+}) => {
   const navigate = useNavigate();
+  const plugins = usePluginStore((s) => s.plugins);
+
+  const installedPlugin = item.plugin_uid ? plugins[item.plugin_uid] : null;
+  const isInstalled = !!installedPlugin;
+  const hasUpdate = isInstalled && item.version != null
+    && semverGt(item.version, installedPlugin!.manifest.version);
+
   const [userRating, setUserRating] = useState<number | null>(null);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [actioning, setActioning] = useState(false);
-  const [installed, setInstalled] = useState(false);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,8 +94,8 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
       const url = await downloadItem(item, user?.id ?? null);
       const response = await fetch(url);
       const buffer = await response.arrayBuffer();
-      await loadPlugin(buffer);
-      setInstalled(true);
+      const result = await loadPlugin(buffer);
+      if (!result.success) throw new Error(result.error ?? 'Installation failed');
       onItemChanged();
     } catch (err: any) {
       setError(err.message ?? 'Installation failed');
@@ -93,6 +103,38 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
       setActioning(false);
     }
   }, [item, user, onItemChanged]);
+
+  const handleUpdate = useCallback(async () => {
+    setActioning(true);
+    setError(null);
+    try {
+      const url = await downloadItem(item, user?.id ?? null);
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const result = await upgradePlugin(buffer);
+      if (!result.success) throw new Error(result.error ?? 'Update failed');
+      onItemChanged();
+    } catch (err: any) {
+      setError(err.message ?? 'Update failed');
+    } finally {
+      setActioning(false);
+    }
+  }, [item, user, onItemChanged]);
+
+  const handleUninstall = useCallback(async () => {
+    if (!item.plugin_uid) return;
+    setActioning(true);
+    setError(null);
+    try {
+      const result = await unloadPlugin(item.plugin_uid);
+      if (!result.success) throw new Error(result.error ?? 'Uninstall failed');
+      onItemChanged();
+    } catch (err: any) {
+      setError(err.message ?? 'Uninstall failed');
+    } finally {
+      setActioning(false);
+    }
+  }, [item.plugin_uid, onItemChanged]);
 
   const handleRate = useCallback(async (rating: number) => {
     if (!user) return;
@@ -149,12 +191,24 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
           <span className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-300">
             {item.type}
           </span>
+          {isInstalled && (
+            <span className="absolute bottom-2 right-2 rounded bg-green-900/80 border border-green-600/50 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+              {hasUpdate ? 'Update available' : 'Installed'}
+            </span>
+          )}
         </div>
 
         <div className="p-5 space-y-4">
           {/* Title & meta */}
           <div>
-            <h2 className="text-lg font-semibold text-white">{item.title}</h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg font-semibold text-white">{item.title}</h2>
+              {item.version && (
+                <span className="shrink-0 rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[11px] font-mono text-neutral-400">
+                  v{item.version}
+                </span>
+              )}
+            </div>
             {item.description && <p className="mt-1 text-neutral-400 text-[13px]">{item.description}</p>}
           </div>
 
@@ -203,13 +257,23 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
             {isOwner && (
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-              >
-                <FaTrash className="text-[10px]" /> {deleting ? 'Deleting...' : 'Delete'}
-              </button>
+              <>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-[13px] font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  <FaTrash className="text-[10px]" /> {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+                {onEdit && (
+                  <button
+                    onClick={onEdit}
+                    className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
+                  >
+                    <FaPen className="text-[10px]" /> Edit
+                  </button>
+                )}
+              </>
             )}
             <button
               onClick={handleDownload}
@@ -227,13 +291,31 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
                 <FaArrowRight className="text-[11px]" /> {actioning ? 'Opening...' : 'Open in Workspace'}
               </button>
             )}
-            {item.type === 'plugin' && (
+            {item.type === 'plugin' && !isInstalled && (
               <button
                 onClick={handleInstall}
-                disabled={actioning || installed}
+                disabled={actioning}
                 className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
               >
-                <FaBolt className="text-[11px]" /> {actioning ? 'Installing...' : installed ? 'Installed!' : 'Install'}
+                <FaBolt className="text-[11px]" /> {actioning ? 'Installing...' : 'Install'}
+              </button>
+            )}
+            {item.type === 'plugin' && isInstalled && hasUpdate && (
+              <button
+                onClick={handleUpdate}
+                disabled={actioning}
+                className="inline-flex items-center gap-1.5 rounded bg-amber-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-amber-500 disabled:opacity-50"
+              >
+                <FaArrowsRotate className="text-[11px]" /> {actioning ? 'Updating...' : 'Update'}
+              </button>
+            )}
+            {item.type === 'plugin' && isInstalled && (
+              <button
+                onClick={handleUninstall}
+                disabled={actioning}
+                className="inline-flex items-center gap-1.5 rounded border border-red-700/50 px-4 py-1.5 text-[13px] font-semibold text-red-400 shadow-sm transition-colors hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {actioning ? 'Uninstalling...' : 'Uninstall'}
               </button>
             )}
           </div>

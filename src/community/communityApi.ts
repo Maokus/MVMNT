@@ -1,3 +1,4 @@
+import { unzipSync } from 'fflate';
 import { supabase } from '../lib/supabase';
 
 export interface CommunityItem {
@@ -13,6 +14,9 @@ export interface CommunityItem {
   average_rating: number;
   ratings_count: number;
   created_at: string;
+  updated_at: string;
+  plugin_uid: string | null;
+  version: string | null;
 }
 
 export type SortBy = 'newest' | 'top_rated' | 'most_downloaded';
@@ -52,15 +56,30 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
 }
 
 function sanitizeFileName(name: string): string {
-  // Keep extension intact, only sanitize the base name
   const lastDotIndex = name.lastIndexOf('.');
   if (lastDotIndex === -1) {
-    // No extension
     return name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '');
   }
   const baseName = name.substring(0, lastDotIndex);
   const ext = name.substring(lastDotIndex);
   return baseName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '') + ext;
+}
+
+/** Parse a .mvmnt-plugin ZIP and extract manifest id + version. Returns null on failure. */
+export async function parsePluginManifest(file: File): Promise<{ id: string; version: string } | null> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const unzipped = unzipSync(new Uint8Array(buffer));
+    const manifestBytes = unzipped['manifest.json'];
+    if (!manifestBytes) return null;
+    const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
+    if (typeof manifest.id === 'string' && typeof manifest.version === 'string') {
+      return { id: manifest.id, version: manifest.version };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export async function uploadItem(
@@ -70,6 +89,8 @@ export async function uploadItem(
   description: string,
   thumbnailFile: File,
   mainFile: File,
+  pluginUid?: string,
+  pluginVersion?: string,
 ) {
   const itemId = crypto.randomUUID();
   const thumbPath = `${userId}/${itemId}/thumb-${sanitizeFileName(thumbnailFile.name)}`;
@@ -94,10 +115,71 @@ export async function uploadItem(
     thumbnail_path: thumbPath,
     file_path: filePath,
     file_size_bytes: mainFile.size,
+    plugin_uid: pluginUid ?? null,
+    version: pluginVersion ?? null,
   });
   if (insertErr) throw insertErr;
 
   return itemId;
+}
+
+export interface UpdateItemPayload {
+  title?: string;
+  description?: string;
+  thumbnailFile?: File;
+  mainFile?: File;
+  pluginUid?: string;
+  version?: string;
+}
+
+export async function updateItem(itemId: string, userId: string, payload: UpdateItemPayload) {
+  // Fetch current paths for potential replacement
+  const { data: current, error: fetchErr } = await supabase
+    .from('community_items')
+    .select('thumbnail_path, file_path')
+    .eq('id', itemId)
+    .eq('user_id', userId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const updates: Record<string, unknown> = {};
+
+  if (payload.title !== undefined) updates.title = payload.title;
+  if (payload.description !== undefined) updates.description = payload.description || null;
+  if (payload.pluginUid !== undefined) updates.plugin_uid = payload.pluginUid;
+  if (payload.version !== undefined) updates.version = payload.version;
+
+  if (payload.thumbnailFile) {
+    // Remove old thumbnail and upload new one
+    await supabase.storage.from('community-thumbnails').remove([current.thumbnail_path]);
+    const newThumbPath = current.thumbnail_path.substring(0, current.thumbnail_path.lastIndexOf('/') + 1)
+      + 'thumb-' + sanitizeFileName(payload.thumbnailFile.name);
+    const { error: thumbErr } = await supabase.storage
+      .from('community-thumbnails')
+      .upload(newThumbPath, payload.thumbnailFile, { upsert: true });
+    if (thumbErr) throw thumbErr;
+    updates.thumbnail_path = newThumbPath;
+  }
+
+  if (payload.mainFile) {
+    // Remove old file and upload new one
+    await supabase.storage.from('community-files').remove([current.file_path]);
+    const newFilePath = current.file_path.substring(0, current.file_path.lastIndexOf('/') + 1)
+      + sanitizeFileName(payload.mainFile.name);
+    const { error: fileErr } = await supabase.storage
+      .from('community-files')
+      .upload(newFilePath, payload.mainFile, { upsert: true });
+    if (fileErr) throw fileErr;
+    updates.file_path = newFilePath;
+    updates.file_size_bytes = payload.mainFile.size;
+  }
+
+  const { error: updateErr } = await supabase
+    .from('community_items')
+    .update(updates)
+    .eq('id', itemId)
+    .eq('user_id', userId);
+  if (updateErr) throw updateErr;
 }
 
 export async function downloadItem(item: CommunityItem, userId: string | null) {
@@ -137,7 +219,6 @@ export async function getUserRating(itemId: string, userId: string): Promise<num
 }
 
 export async function deleteItem(itemId: string, userId: string) {
-  // Remove storage files first
   const { data: item } = await supabase
     .from('community_items')
     .select('thumbnail_path, file_path')
@@ -161,4 +242,14 @@ export async function deleteItem(itemId: string, userId: string) {
 export function getThumbnailUrl(path: string): string {
   const { data } = supabase.storage.from('community-thumbnails').getPublicUrl(path);
   return data.publicUrl;
+}
+
+/** Compare two semver strings. Returns true if a > b. */
+export function semverGt(a: string, b: string): boolean {
+  const parse = (v: string) => v.replace(/^[^0-9]*/, '').split('.').map(Number);
+  const [aMaj, aMin, aPatch] = parse(a);
+  const [bMaj, bMin, bPatch] = parse(b);
+  if (aMaj !== bMaj) return aMaj > bMaj;
+  if (aMin !== bMin) return aMin > bMin;
+  return (aPatch ?? 0) > (bPatch ?? 0);
 }
