@@ -1,11 +1,10 @@
-// Template: MIDI Notes Element
-// Displays currently playing MIDI notes as colored bars
 import {
     SceneElement,
+    Image,
+    Text,
     asNumber,
     asTrimmedString,
-    Rectangle,
-    Text,
+    loadBundledAsset,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type PropertyTransform,
@@ -17,19 +16,46 @@ const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterfa
     asTrimmedString(value, element) ?? null;
 
 export class PopcatMidiDisplayElement extends SceneElement {
+    private _popcat1: HTMLImageElement | null = null;
+    private _popcat2: HTMLImageElement | null = null;
+    private _assetsLoaded = false;
+    private _assetsLoading = false;
+
     constructor(id: string = 'popcat-midi-display', config: Record<string, unknown> = {}) {
         super('popcat-midi-display', id, config);
+    }
+
+    private _loadAssets(): void {
+        if (this._assetsLoaded || this._assetsLoading) return;
+        this._assetsLoading = true;
+
+        const loadImg = (path: string): Promise<HTMLImageElement> =>
+            loadBundledAsset(path).then(
+                (url) =>
+                    new Promise((resolve, reject) => {
+                        const img = new window.Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = reject;
+                        img.src = url;
+                    })
+            );
+
+        Promise.all([loadImg('popcat1.tiff'), loadImg('popcat2.tiff')]).then(([img1, img2]) => {
+            this._popcat1 = img1;
+            this._popcat2 = img2;
+            this._assetsLoaded = true;
+        });
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
         const base = super.getConfigSchema();
         const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
         const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        
+
         return {
             ...base,
             name: 'Popcat Midi Display',
-            description: 'popcat',
+            description: 'Displays popcat reacting to MIDI notes',
             category: 'extraspack1',
             groups: [
                 ...basicGroups,
@@ -45,69 +71,36 @@ export class PopcatMidiDisplayElement extends SceneElement {
                             label: 'MIDI Track',
                             default: null,
                             allowedTrackTypes: ['midi'],
-                            description: 'popcat',
+                            description: 'MIDI track to monitor for notes',
                             runtime: { transform: normalizeMidiTrackId, defaultValue: null },
                         },
                     ],
                 },
                 {
-                    id: 'notesAppearance',
-                    label: 'Appearance',
+                    id: 'imageSize',
+                    label: 'Image Size',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
                         {
-                            key: 'noteWidth',
+                            key: 'imageWidth',
                             type: 'number',
-                            label: 'Note Width',
-                            default: 40,
-                            min: 10,
-                            max: 200,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 40 },
-                        },
-                        {
-                            key: 'noteHeight',
-                            type: 'number',
-                            label: 'Note Height',
-                            default: 100,
+                            label: 'Width',
+                            default: 200,
                             min: 20,
-                            max: 500,
+                            max: 800,
                             step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
+                            runtime: { transform: asNumber, defaultValue: 200 },
                         },
                         {
-                            key: 'noteSpacing',
+                            key: 'imageHeight',
                             type: 'number',
-                            label: 'Note Spacing',
-                            default: 8,
-                            min: 0,
-                            max: 50,
+                            label: 'Height',
+                            default: 200,
+                            min: 20,
+                            max: 800,
                             step: 1,
-                            runtime: { transform: asNumber, defaultValue: 8 },
-                        },
-                        {
-                            key: 'noteColor',
-                            type: 'colorAlpha',
-                            label: 'Note Color',
-                            default: '#10B981FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#10B981FF' },
-                        },
-                        {
-                            key: 'showNoteNames',
-                            type: 'boolean',
-                            label: 'Show Note Names',
-                            default: true,
-                            runtime: {
-                                transform: (value) => {
-                                    if (typeof value === 'boolean') return value;
-                                    if (typeof value === 'string') {
-                                        return value.toLowerCase() === 'true';
-                                    }
-                                    return true;
-                                },
-                                defaultValue: true
-                            },
+                            runtime: { transform: asNumber, defaultValue: 200 },
                         },
                     ],
                 },
@@ -118,102 +111,42 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        
+
         if (!props.visible) return [];
-        
-        const objects: RenderObject[] = [];
-        
+
+        this._loadAssets();
+
         if (!props.midiTrackId) {
-            // Show message when no track selected
-            objects.push(
-                new Text(
-                    0, 0,
-                    'Select a MIDI track',
-                    '14px Inter, sans-serif',
-                    '#94a3b8',
-                    'left',
-                    'top'
-                )
-            );
-            return objects;
+            return [new Text(0, 0, 'Select a MIDI track', '14px Inter, sans-serif', '#94a3b8', 'left', 'top')];
         }
-        
-        // Get MIDI data at current time from public host plugin API
-        const EPS = 1e-3; // Small epsilon to get notes at current time
+
         const { api, status, missingCapabilities } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
 
         if (!api || status !== 'ok') {
-            const message = status === 'unsupported-version'
-                ? 'Plugin API version unsupported'
-                : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
-                    ? 'Timeline API unavailable (requires timeline.read)'
-                    : 'Plugin host API unavailable';
-            objects.push(
-                new Text(
-                    0, 0,
-                    message,
-                    '12px Inter, sans-serif',
-                    '#64748b',
-                    'left',
-                    'top'
-                )
-            );
-            return objects;
+            const message =
+                status === 'unsupported-version'
+                    ? 'Plugin API version unsupported'
+                    : missingCapabilities.includes(PLUGIN_CAPABILITIES.timelineRead)
+                      ? 'Timeline API unavailable'
+                      : 'Plugin host API unavailable';
+            return [new Text(0, 0, message, '12px Inter, sans-serif', '#64748b', 'left', 'top')];
         }
 
+        const EPS = 1e-3;
         const activeNotes = api.timeline.selectNotesInWindow({
             trackIds: [props.midiTrackId],
             startSec: targetTime - EPS,
             endSec: targetTime + EPS,
         });
-        
-        if (activeNotes.length === 0) {
-            // Show message when no notes playing
-            objects.push(
-                new Text(
-                    0, 0,
-                    'No notes playing',
-                    '12px Inter, sans-serif',
-                    '#64748b',
-                    'left',
-                    'top'
-                )
-            );
-            return objects;
-        }
-        
-        // Render each active note
-        activeNotes.forEach((noteData, index: number) => {
-            const x = index * (props.noteWidth + props.noteSpacing);
-            
-            // Draw note bar
-            objects.push(
-                new Rectangle(
-                    x,
-                    0,
-                    props.noteWidth,
-                    props.noteHeight,
-                    props.noteColor
-                )
-            );
-            
-            // Draw note name if enabled
-            if (props.showNoteNames) {
-                const noteName = api.utilities.midiNoteToName(noteData.note);
-                objects.push(
-                    new Text(
-                        x + props.noteWidth / 2,
-                        props.noteHeight / 2,
-                        noteName,
-                        '14px Inter, sans-serif',
-                        '#ffffff',
-                        'center',
-                        'middle'
-                    )
-                );
-            }
-        });
-        
-        return objects;
+
+        const isPlaying = activeNotes.length > 0;
+        const img = isPlaying ? this._popcat1 : this._popcat2;
+
+        return [
+            new Image(0, 0, props.imageWidth, props.imageHeight, img, 1, {
+                fitMode: 'contain',
+                preserveAspectRatio: true,
+            }),
+        ];
     }
 }

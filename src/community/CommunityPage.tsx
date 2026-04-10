@@ -17,7 +17,7 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
 
 const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'preset', label: 'Presets' },
+  { value: 'template', label: 'Templates' },
   { value: 'plugin', label: 'Plugins' },
 ];
 
@@ -83,7 +83,7 @@ const CommunityPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight text-white">Community</h1>
-            <p className="mt-2 text-neutral-400 text-sm">Browse and share presets & plugins</p>
+            <p className="mt-2 text-neutral-400 text-sm">Browse and share templates & plugins</p>
           </div>
           <div className="flex flex-col items-end gap-3">
             <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">

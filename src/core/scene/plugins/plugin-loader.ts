@@ -95,6 +95,8 @@ function guessMimeType(assetPath: string): string {
         gif: 'image/gif',
         webp: 'image/webp',
         svg: 'image/svg+xml',
+        tiff: 'image/tiff',
+        tif: 'image/tiff',
         mp3: 'audio/mpeg',
         wav: 'audio/wav',
         ogg: 'audio/ogg',

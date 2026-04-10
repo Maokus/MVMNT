@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { FaDownload, FaStar, FaTrash, FaXmark } from 'react-icons/fa6';
+import { useNavigate } from 'react-router-dom';
+import { FaDownload, FaStar, FaTrash, FaXmark, FaArrowRight, FaBolt } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem } from './communityApi';
 import { getThumbnailUrl, downloadItem, rateItem, getUserRating, deleteItem } from './communityApi';
+import { loadPlugin } from '@core/scene/plugins';
+import { writeStoredImportPayload } from '../utils/importPayloadStorage';
 
 interface CommunityDetailModalProps {
   item: CommunityItem;
@@ -18,9 +21,12 @@ function formatBytes(bytes: number): string {
 }
 
 const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user, onClose, onItemChanged }) => {
+  const navigate = useNavigate();
   const [userRating, setUserRating] = useState<number | null>(null);
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [actioning, setActioning] = useState(false);
+  const [installed, setInstalled] = useState(false);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +54,40 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
       setError(err.message ?? 'Download failed');
     } finally {
       setDownloading(false);
+    }
+  }, [item, user, onItemChanged]);
+
+  const handleOpenInWorkspace = useCallback(async () => {
+    setActioning(true);
+    setError(null);
+    try {
+      const url = await downloadItem(item, user?.id ?? null);
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      writeStoredImportPayload(buffer);
+      onItemChanged();
+      navigate('/workspace', { state: { importScene: true } });
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to open in workspace');
+    } finally {
+      setActioning(false);
+    }
+  }, [item, user, onItemChanged, navigate]);
+
+  const handleInstall = useCallback(async () => {
+    setActioning(true);
+    setError(null);
+    try {
+      const url = await downloadItem(item, user?.id ?? null);
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      await loadPlugin(buffer);
+      setInstalled(true);
+      onItemChanged();
+    } catch (err: any) {
+      setError(err.message ?? 'Installation failed');
+    } finally {
+      setActioning(false);
     }
   }, [item, user, onItemChanged]);
 
@@ -171,10 +211,28 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
             <button
               onClick={handleDownload}
               disabled={downloading}
-              className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded border border-neutral-600 px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10 disabled:opacity-50"
             >
               <FaDownload className="text-[11px]" /> {downloading ? 'Preparing...' : 'Download'}
             </button>
+            {item.type === 'template' && (
+              <button
+                onClick={handleOpenInWorkspace}
+                disabled={actioning}
+                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              >
+                <FaArrowRight className="text-[11px]" /> {actioning ? 'Opening...' : 'Open in Workspace'}
+              </button>
+            )}
+            {item.type === 'plugin' && (
+              <button
+                onClick={handleInstall}
+                disabled={actioning || installed}
+                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              >
+                <FaBolt className="text-[11px]" /> {actioning ? 'Installing...' : installed ? 'Installed!' : 'Install'}
+              </button>
+            )}
           </div>
         </div>
       </div>

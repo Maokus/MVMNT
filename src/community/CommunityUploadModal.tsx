@@ -12,7 +12,7 @@ interface CommunityUploadModalProps {
 const ACCEPTED_FILE_TYPES = '.mvt,.mvmnt-plugin';
 
 const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClose, onUploaded }) => {
-  const [type, setType] = useState<'preset' | 'plugin'>('preset');
+  const [type, setType] = useState<'template' | 'plugin'>('template');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -47,7 +47,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
       if (file.name.endsWith('.mvmnt-plugin')) {
         setType('plugin');
       } else if (file.name.endsWith('.mvt')) {
-        setType('preset');
+        setType('template');
       }
     }
   }, []);
@@ -97,11 +97,11 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
               <input
                 type="radio"
                 name="type"
-                checked={type === 'preset'}
-                onChange={() => setType('preset')}
+                checked={type === 'template'}
+                onChange={() => setType('template')}
                 className="accent-indigo-500"
               />
-              <span className="text-sm">Preset</span>
+              <span className="text-sm">Template</span>
             </label>
             <label className="inline-flex items-center gap-1.5 cursor-pointer">
               <input

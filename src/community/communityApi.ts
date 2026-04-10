@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 export interface CommunityItem {
   id: string;
   user_id: string;
-  type: 'preset' | 'plugin';
+  type: 'template' | 'plugin';
   title: string;
   description: string | null;
   thumbnail_path: string;
@@ -16,7 +16,7 @@ export interface CommunityItem {
 }
 
 export type SortBy = 'newest' | 'top_rated' | 'most_downloaded';
-export type FilterType = 'all' | 'preset' | 'plugin';
+export type FilterType = 'all' | 'template' | 'plugin';
 
 const PAGE_SIZE = 24;
 
@@ -65,7 +65,7 @@ function sanitizeFileName(name: string): string {
 
 export async function uploadItem(
   userId: string,
-  type: 'preset' | 'plugin',
+  type: 'template' | 'plugin',
   title: string,
   description: string,
   thumbnailFile: File,
