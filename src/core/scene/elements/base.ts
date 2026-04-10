@@ -17,6 +17,7 @@ import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
+import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -213,25 +214,7 @@ export class SceneElement implements SceneElementInterface {
      * Returns a URL string that can be used as an <img> src or similar.
      */
     protected loadBundledAsset(assetPath: string): Promise<string> {
-        let pluginId: string | undefined;
-        try {
-            // Avoid a static import to prevent circular dependency with plugin-loader.
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { sceneElementRegistry } = require('@core/scene/registry/scene-element-registry');
-            pluginId = sceneElementRegistry.getPluginId(this.type);
-        } catch {
-            pluginId = undefined;
-        }
-        if (!pluginId) {
-            return Promise.reject(new Error(`[SceneElement] loadBundledAsset() is only available in plugin elements`));
-        }
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { loadBundledAssetForPlugin } = require('@core/scene/plugins/plugin-loader');
-            return (loadBundledAssetForPlugin as (id: string, path: string) => Promise<string>)(pluginId, assetPath);
-        } catch (err) {
-            return Promise.reject(err instanceof Error ? err : new Error(String(err)));
-        }
+        return loadBundledAssetForElement(this.type, assetPath);
     }
 
     /**
