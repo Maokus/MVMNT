@@ -63,6 +63,9 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({ item, user,
     try {
       const url = await downloadItem(item, user?.id ?? null);
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+      }
       const buffer = await response.arrayBuffer();
       writeStoredImportPayload(buffer);
       onItemChanged();

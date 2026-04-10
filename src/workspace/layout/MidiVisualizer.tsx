@@ -359,7 +359,9 @@ const TemplateInitializer: React.FC = () => {
                         try {
                             const result = await importScene(payload);
                             if (!result.ok) {
-                                console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
+                                const msg = result.errors.map((e) => e.message).join('\n');
+                                console.warn('[Import] Failed:', msg);
+                                alert('Failed to load scene: ' + msg);
                             } else {
                                 const metadataStore = useSceneMetadataStore.getState();
                                 const currentAuthor = metadataStore.metadata?.author?.trim();
@@ -371,10 +373,13 @@ const TemplateInitializer: React.FC = () => {
                                 didChange = true;
                             }
                         } catch (e) {
-                            console.error('Failed to import scene payload from HomePage', e);
+                            console.error('Failed to import scene payload', e);
+                            alert('Failed to load scene: ' + (e instanceof Error ? e.message : String(e)));
                         }
                         clearStoredImportPayload();
                     }
+                    // Always clear the importScene navigation state to prevent getting stuck
+                    navigate('/workspace', { replace: true });
                 } else if (shouldLoadTemplate) {
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
@@ -403,7 +408,9 @@ const TemplateInitializer: React.FC = () => {
                 }
                 if (didChange) {
                     visualizer.invalidateRender?.();
-                    navigate('/workspace', { replace: true });
+                    if (!shouldImport) {
+                        navigate('/workspace', { replace: true });
+                    }
                 }
             } catch (e) {
                 console.error('Template initialization error', e);
