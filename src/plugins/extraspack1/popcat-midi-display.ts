@@ -473,9 +473,9 @@ export class PopcatMidiDisplayElement extends SceneElement {
                     this._catWasPlaying.set(pitch, isActive);
 
                     const catAnimStart = this._catAnimStartTime.get(pitch) ?? -Infinity;
-                    const { x: ax, y: ay, w: aw, h: ah } = this._applyAnimation(
-                        playAnimation, catAnimStart, now, baseWidth, baseHeight
-                    );
+                    const { x: ax, y: ay, w: aw, h: ah } = isActive
+                        ? this._applyAnimation(playAnimation, catAnimStart, now, baseWidth, baseHeight)
+                        : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
                     const slotCenterX = rowOriginX + col * slotWidth + baseWidth / 2;
                     const imgX = slotCenterX - baseWidth / 2 + ax;
@@ -520,9 +520,9 @@ export class PopcatMidiDisplayElement extends SceneElement {
             }
             this._wasPlaying = isPlaying;
 
-            const { x: imgX, y: imgY, w: imgW, h: imgH } = this._applyAnimation(
-                playAnimation, this._animStartTime, now, baseWidth, baseHeight
-            );
+            const { x: imgX, y: imgY, w: imgW, h: imgH } = isPlaying
+                ? this._applyAnimation(playAnimation, this._animStartTime, now, baseWidth, baseHeight)
+                : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
             const img = isPlaying ? activeImg : idleImg;
 
