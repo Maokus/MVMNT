@@ -135,13 +135,14 @@ export class AVExporter {
             onProgress(0, 'Preparing export...');
 
             const tm = getSharedTimingManager();
-            const ticksPerSecond = (tm.bpm * tm.ticksPerQuarter) / 60; // fallback formula if tm doesn't expose bpm property names
+            const ticksPerSecond = (tm.bpm * tm.ticksPerQuarter) / 60; // kept for reproducibility hash
+            const t2s = (ticks: number) => tm.ticksToSeconds(ticks);
             const snapshot = deterministicTiming ? createExportTimingSnapshot(tm) : undefined;
 
             // Prepare audio mix
             let mixBlob: Blob | null = null; // separate WAV fallback / download
             let mixPeak: number | null = null;
-            let mixDuration = (endTick - startTick) / ticksPerSecond;
+            let mixDuration = t2s(endTick) - t2s(startTick);
             // Keep reference to raw mixed AudioBuffer so we can feed it into mediabunny directly
             let mixedAudioBuffer: AudioBuffer | null = null;
             const desiredMixChannels = (typeof audioChannels === 'number' ? audioChannels : 2) === 1 ? 1 : 2;
@@ -158,6 +159,7 @@ export class AVExporter {
                     startTick,
                     endTick,
                     ticksPerSecond,
+                    ticksToSeconds: t2s,
                     sampleRate: desiredMixSampleRate,
                     channels: desiredMixChannels,
                 });
@@ -179,8 +181,8 @@ export class AVExporter {
                 console.log('[AVExporter] Mixed audio buffer', mixRes.buffer, 'duration', mixDuration, 'peak', mixPeak);
             }
 
-            // Derive nominal timeline duration from ticks (single-tempo approximation)
-            const nominalDurationSeconds = (endTick - startTick) / ticksPerSecond;
+            // Derive nominal timeline duration from tempo-aware conversion
+            const nominalDurationSeconds = t2s(endTick) - t2s(startTick);
             // If we have an audio mix and its measured duration differs (tempo changes, stretch, trailing silence trimmed)
             // prefer the actual audio duration so A/V lengths match. A mismatch leads to container timestamps that cause
             // the player to resample (pitch shift) or truncate/pad.
@@ -346,7 +348,7 @@ export class AVExporter {
             }
 
             onProgress(10, 'Rendering frames...');
-            const exportStartSeconds = startTick / ticksPerSecond;
+            const exportStartSeconds = t2s(startTick);
             for (let i = 0; i < totalFrames; i++) {
                 const renderTime = clock.timeForFrame(i) + exportStartSeconds; // absolute scene time
                 this.visualizer.renderAtTime(renderTime);

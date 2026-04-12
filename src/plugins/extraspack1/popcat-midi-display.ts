@@ -364,6 +364,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
             const slotWidth = baseWidth + catSpacing;
             const totalWidth = distinctPitches.length * slotWidth - catSpacing;
             const originX = -totalWidth / 2;
+            const padding = 20;
 
             const activeNoteSet = new Set(
                 api.timeline
@@ -373,7 +374,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
             const objects: RenderObject[] = [
                 // Invisible bounding rect so the element has stable layout bounds
-                new Rectangle(originX, -baseHeight / 2, totalWidth, baseHeight, null, 'transparent', 1),
+                new Rectangle(originX - padding, -baseHeight / 2 - padding, totalWidth + 2 * padding, baseHeight + 2 * padding, null, 'transparent', 1),
             ];
 
             for (let col = 0; col < distinctPitches.length; col++) {
@@ -406,39 +407,39 @@ export class PopcatMidiDisplayElement extends SceneElement {
             }
 
             return objects;
+        } else {
+            // ── Single cat ────────────────────────────────────────────────────────
+            const noteSelect = props.noteSelect as number;
+
+            let activeNotes = api.timeline.selectNotesInWindow({
+                trackIds: [props.midiTrackId],
+                startSec: targetTime - EPS,
+                endSec: targetTime + EPS,
+            });
+
+            if (noteSelect !== 0) {
+                activeNotes = activeNotes.filter((n) => n.note === noteSelect);
+            }
+
+            const isPlaying = activeNotes.length > 0;
+
+            if (isPlaying && !this._wasPlaying) {
+                this._animStartTime = now;
+            }
+            this._wasPlaying = isPlaying;
+
+            const { x: imgX, y: imgY, w: imgW, h: imgH } = this._applyAnimation(
+                playAnimation, this._animStartTime, now, baseWidth, baseHeight
+            );
+
+            const img = isPlaying ? activeImg : idleImg;
+
+            return [
+                new Image(imgX, imgY, imgW, imgH, img, 1, {
+                    fitMode: 'contain',
+                    preserveAspectRatio: true,
+                }),
+            ];
         }
-
-        // ── Single cat ────────────────────────────────────────────────────────
-        const noteSelect = props.noteSelect as number;
-
-        let activeNotes = api.timeline.selectNotesInWindow({
-            trackIds: [props.midiTrackId],
-            startSec: targetTime - EPS,
-            endSec: targetTime + EPS,
-        });
-
-        if (noteSelect !== 0) {
-            activeNotes = activeNotes.filter((n) => n.note === noteSelect);
-        }
-
-        const isPlaying = activeNotes.length > 0;
-
-        if (isPlaying && !this._wasPlaying) {
-            this._animStartTime = now;
-        }
-        this._wasPlaying = isPlaying;
-
-        const { x: imgX, y: imgY, w: imgW, h: imgH } = this._applyAnimation(
-            playAnimation, this._animStartTime, now, baseWidth, baseHeight
-        );
-
-        const img = isPlaying ? activeImg : idleImg;
-
-        return [
-            new Image(imgX, imgY, imgW, imgH, img, 1, {
-                fitMode: 'contain',
-                preserveAspectRatio: true,
-            }),
-        ];
     }
 }

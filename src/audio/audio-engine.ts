@@ -34,7 +34,8 @@
 // - No attempt (yet) to keep phase continuity across seeks; acceptable for discrete clip playback use cases.
 // - refresh() currently minimal; future granular scheduling will populate lookahead logic here.
 
-import { useTimelineStore } from '@state/timelineStore';
+import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
+import { createTimingContext, ticksToSeconds as timingTicksToSeconds } from '@state/timelineTime';
 import type { AudioTrack } from '@audio/audioTypes';
 
 interface ActiveTrackNode {
@@ -215,8 +216,16 @@ export class AudioEngine {
         if (!this.ctx) return;
         const ctx = this.ctx;
         const s = useTimelineStore.getState();
-        const tm = { bpm: s.timeline.globalBpm, ppq: 960 }; // currently fixed PPQ
-        const ticksPerSecond = (tm.bpm * tm.ppq) / 60;
+        // Tempo-map-aware conversions:
+        // - tmgr: converts timeline tick positions to absolute seconds (for scheduling delays)
+        // - timingCtx: converts buffer-space ticks to buffer seconds (for offset/duration in source.start())
+        //   Buffer-space ticks were created via secondsToTicks(ctx, buffer.duration) from time=0,
+        //   so using the same timingCtx for the roundtrip is self-consistent.
+        const tmgr = getSharedTimingManager();
+        const timingCtx = createTimingContext(
+            { globalBpm: s.timeline.globalBpm, beatsPerBar: s.timeline.beatsPerBar, masterTempoMap: s.timeline.masterTempoMap },
+            tmgr.ticksPerQuarter
+        );
         const audible = this.getAudibleTracks();
         audible.forEach((track) => {
             const cacheKey = track.audioSourceId || track.id;
@@ -226,7 +235,6 @@ export class AudioEngine {
             const regionStart = track.regionStartTick ?? 0;
             const regionEnd = track.regionEndTick ?? cache.durationTicks;
             if (regionEnd <= regionStart) return;
-            // Revised scheduling logic:
             // Timeline alignment:
             //   - Track base placement (tick where buffer tick 0 would align) = track.offsetTicks
             //   - Trimmed region audible start on timeline = track.offsetTicks + regionStart
@@ -238,26 +246,21 @@ export class AudioEngine {
 
             let whenTime = ctx.currentTime; // default immediate
             let playbackBufferOffsetTicks = regionStart; // buffer tick position we start from
-            let playedDurationTicks: number; // how many ticks of buffer we will play
 
             if (playFromTick < earliestAudibleTick) {
-                // Future start: delay until earliestAudibleTick
-                const delayTicks = earliestAudibleTick - playFromTick;
-                const delaySeconds = delayTicks / ticksPerSecond;
+                // Future start: delay until earliestAudibleTick (timeline positions -> use tmgr)
+                const delaySeconds = tmgr.ticksToSeconds(earliestAudibleTick) - tmgr.ticksToSeconds(playFromTick);
                 whenTime = ctx.currentTime + delaySeconds;
                 playbackBufferOffsetTicks = regionStart; // start of region inside buffer
-                playedDurationTicks = regionDurationTicks; // whole region (subject to buffer length clamp later)
             } else {
                 // Inside region: compute offset inside trimmed region
                 const ticksIntoRegion = playFromTick - earliestAudibleTick; // 0 <= ... < regionDurationTicks (guarded by earlier return)
                 playbackBufferOffsetTicks = regionStart + ticksIntoRegion;
-                playedDurationTicks = regionDurationTicks - ticksIntoRegion;
             }
 
-            const offsetSeconds = (playbackBufferOffsetTicks - regionStart) / ticksPerSecond; // relative offset within region used for gain ramp comment
-            const bufferRegionStartSeconds = regionStart / ticksPerSecond;
-            const playbackBufferOffsetSeconds = playbackBufferOffsetTicks / ticksPerSecond;
-            const durationSeconds = playedDurationTicks / ticksPerSecond;
+            // Buffer-space conversions: regionStart/End/Offset ticks -> buffer seconds via timingCtx
+            const playbackBufferOffsetSeconds = timingTicksToSeconds(timingCtx, playbackBufferOffsetTicks);
+            const durationSeconds = timingTicksToSeconds(timingCtx, regionEnd) - playbackBufferOffsetSeconds;
 
             const source = ctx.createBufferSource();
             source.buffer = buffer;
