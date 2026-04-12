@@ -9,10 +9,15 @@ interface CommunityAuthBarProps {
 
 const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange }) => {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  // sign-in uses a single "username or email" field
+  const [loginInput, setLoginInput] = useState('');
+  // sign-up uses separate fields
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -25,26 +30,33 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
     e.preventDefault();
     setError(null);
     setLoading(true);
-
-    // Supabase Auth uses email internally; we derive a synthetic email from the username.
-    // Email confirmation must be disabled in the Supabase Auth settings for this to work.
-    const syntheticEmail = `${username.toLowerCase()}@mvmnt.local`;
+    setSignupSuccess(false);
 
     try {
       if (mode === 'signin') {
-        const { error } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password });
+        // Resolve login input: treat as email if it contains @, otherwise look up by username
+        let resolvedEmail = loginInput.trim();
+        if (!resolvedEmail.includes('@')) {
+          const { data, error: rpcErr } = await supabase.rpc('get_email_by_username', {
+            p_username: resolvedEmail,
+          });
+          if (rpcErr) throw rpcErr;
+          if (!data) throw new Error('No account found with that username.');
+          resolvedEmail = data as string;
+        }
+        const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password });
         if (error) {
           if (error.message.toLowerCase().includes('invalid login')) {
-            throw new Error('Incorrect username or password.');
+            throw new Error('Incorrect username, email, or password.');
           }
           throw error;
         }
       } else {
         if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-          throw new Error('Username must be 3–20 characters and contain only letters, numbers, or underscores.');
+          throw new Error('Username must be 3–20 characters: letters, numbers, and underscores only.');
         }
         const { error } = await supabase.auth.signUp({
-          email: syntheticEmail,
+          email,
           password,
           options: { data: { username } },
         });
@@ -53,12 +65,15 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
             throw new Error('Too many signup attempts. Please wait a few minutes and try again.');
           }
           if (error.status === 400 || error.message.toLowerCase().includes('already registered')) {
-            throw new Error('Username already taken. Please choose a different one.');
+            throw new Error('An account with that email already exists. Try signing in instead.');
           }
           throw error;
         }
+        setSignupSuccess(true);
       }
+      setLoginInput('');
       setUsername('');
+      setEmail('');
       setPassword('');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');
@@ -89,14 +104,35 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
   return (
     <div className="flex flex-col gap-2">
       <form onSubmit={handleSubmit} className="flex items-center gap-2 flex-wrap">
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-          className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-36"
-        />
+        {mode === 'signin' ? (
+          <input
+            type="text"
+            placeholder="Username or email"
+            value={loginInput}
+            onChange={(e) => setLoginInput(e.target.value)}
+            required
+            className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-44"
+          />
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-32"
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-44"
+            />
+          </>
+        )}
         <input
           type="password"
           placeholder="Password"
@@ -104,7 +140,7 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-40"
+          className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-36"
         />
         <button
           type="submit"
@@ -115,13 +151,14 @@ const CommunityAuthBar: React.FC<CommunityAuthBarProps> = ({ user, onAuthChange 
         </button>
         <button
           type="button"
-          onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); }}
+          onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setSignupSuccess(false); }}
           className="text-xs text-neutral-400 hover:text-neutral-200 underline"
         >
           {mode === 'signin' ? 'Create account' : 'Already have an account?'}
         </button>
       </form>
       {error && <p className="text-xs text-red-400">{error}</p>}
+      {signupSuccess && <p className="text-xs text-green-400">Check your email to confirm your account.</p>}
     </div>
   );
 };
