@@ -19,11 +19,22 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
-                    <ChangelogEntry version="0.15.0" date="26-3-26" notes={[
+                    <ChangelogEntry version="0.15.0" date="11-4-26" notes={[
                         'Implemented automation system',
                         [
                             'Eased automation curves',
                             'Cmd/ctrl D to make repeated animations',
+                            'Added tempo automation',
+                        ],
+                        'Added community tab',
+                        [
+                            'Browse and share templates and plugins',
+                            'Install plugins and open templates directly from the community tab'
+                        ],
+                        'Misc Improvements/new content',
+                        [
+                            'Add basic shapes element',
+                            'More note animations for TUPR/MNPR',
                         ],
                         'Implemented custom element system and api',
                         [
@@ -38,18 +49,10 @@ const ChangelogPage: React.FC = () => {
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
                         ],
-                        'Added tempo automation',
-                        'Improvements/new content',
-                        [
-                            'Add basic shapes element',
-                            'More note animations for TUPR/MNPR',
-
-                        ],
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
                         ],
-                        'Sold a kidney to claude code (worth it)'
                     ]} />
 
                     <ChangelogEntry version="0.14.0" date="20-1-26" notes={[

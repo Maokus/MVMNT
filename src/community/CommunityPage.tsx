@@ -95,6 +95,14 @@ const CommunityPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Experimental notice */}
+        <div className="mb-6 rounded-lg border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">
+          <span className="font-semibold">Experimental feature.</span>{' '}
+          The community hub runs on very limited server resources, which may cause long loading times and patchy availability.
+          If you'd like to see the backend resources upgraded, consider{' '}
+          <Link to="/contribute" className="underline hover:text-yellow-100">contributing</Link>.
+        </div>
+
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <select
