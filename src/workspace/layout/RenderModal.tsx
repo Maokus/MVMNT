@@ -62,7 +62,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         videoCodec: exportSettings.videoCodec || (initialContainer === 'webm' ? 'vp9' : 'h264'),
         videoBitrateSetting: initialVideoBitrateSetting,
         videoBitrate: exportSettings.videoBitrate || 0,
-        audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'pcm-s16'),
+        audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'mp3'),
         audioBitrate: exportSettings.audioBitrate || 192000,
         audioSampleRate: exportSettings.audioSampleRate || 'auto',
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
@@ -143,7 +143,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (!autoAudioCodecSelection && currentAvailable) return;
         const priority = form.container === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
-            : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
+            : ['mp3', 'pcm-s16', 'opus', 'vorbis', 'flac'];
         const preferred = priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0];
         if (preferred && preferred !== form.audioCodec) {
             updateForm({ audioCodec: preferred });
@@ -330,8 +330,8 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
     const resolveDefaultAudioCodec = useCallback((container: VideoContainer) => {
         const priority = container === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
-            : ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
-        return priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0] || (container === 'webm' ? 'opus' : 'pcm-s16');
+            : ['mp3', 'pcm-s16', 'opus', 'vorbis', 'flac'];
+        return priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0] || (container === 'webm' ? 'opus' : 'mp3');
     }, [audioCodecs]);
 
     const handleFormatChange = useCallback((nextFormat: ExportFormat) => {
