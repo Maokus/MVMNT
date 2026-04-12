@@ -37,6 +37,9 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ item, onClick }) => {
             <FaStar className="text-[10px] text-yellow-500" />
             {item.average_rating > 0 ? Number(item.average_rating).toFixed(1) : '-'}
           </span>
+          {item.uploader_username && (
+            <span className="ml-auto truncate text-neutral-500">by {item.uploader_username}</span>
+          )}
         </div>
       </div>
     </button>

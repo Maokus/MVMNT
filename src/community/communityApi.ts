@@ -17,6 +17,7 @@ export interface CommunityItem {
   updated_at: string;
   plugin_uid: string | null;
   version: string | null;
+  uploader_username: string | null;
 }
 
 export type SortBy = 'newest' | 'top_rated' | 'most_downloaded';
@@ -52,7 +53,24 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as CommunityItem[];
+
+  const items = (data ?? []) as Omit<CommunityItem, 'uploader_username'>[];
+
+  // Batch fetch usernames for all uploaders
+  const userIds = [...new Set(items.map((i) => i.user_id))];
+  let usernameMap: Record<string, string> = {};
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .in('id', userIds);
+    usernameMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.username]));
+  }
+
+  return items.map((item) => ({
+    ...item,
+    uploader_username: usernameMap[item.user_id] ?? null,
+  })) as CommunityItem[];
 }
 
 function sanitizeFileName(name: string): string {

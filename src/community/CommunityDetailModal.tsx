@@ -209,6 +209,9 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                 </span>
               )}
             </div>
+            {item.uploader_username && (
+              <p className="mt-0.5 text-xs text-neutral-500">by {item.uploader_username}</p>
+            )}
             {item.description && <p className="mt-1 text-neutral-400 text-[13px]">{item.description}</p>}
           </div>
 
