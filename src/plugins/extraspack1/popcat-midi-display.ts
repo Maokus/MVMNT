@@ -49,14 +49,6 @@ export class PopcatMidiDisplayElement extends SceneElement {
     private _currentIdleSource: string | File | null = null;
     private _currentActiveSource: string | File | null = null;
 
-    // Single-cat animation state
-    private _wasPlaying = false;
-    private _animStartTime = -Infinity;
-
-    // Per-pitch animation state for many-cats mode
-    private _catWasPlaying = new Map<number, boolean>();
-    private _catAnimStartTime = new Map<number, number>();
-
     constructor(id: string = 'popcat-midi-display', config: Record<string, unknown> = {}) {
         super('popcat-midi-display', id, config);
     }
@@ -100,13 +92,11 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
     private _applyAnimation(
         playAnimation: 'jump' | 'bump' | 'none',
-        animStart: number,
-        now: number,
+        elapsedMs: number,
         baseWidth: number,
         baseHeight: number
     ): { x: number; y: number; w: number; h: number } {
-        const elapsed = now - animStart;
-        const progress = Math.min(elapsed / ANIM_DURATION_MS, 1);
+        const progress = Math.min(elapsedMs / ANIM_DURATION_MS, 1);
         const animValue = 1 - Math.pow(progress, 3);
 
         if (playAnimation === 'jump') {
@@ -299,7 +289,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
                                 { value: 'bump', label: 'Bump' },
                             ],
                             description: 'Animation triggered when a note starts playing',
-                            runtime: { transform: normalizePlayAnimation, defaultValue: 'none' as const },
+                            runtime: { transform: normalizePlayAnimation, defaultValue: 'jump' as const },
                         },
                     ],
                 },
@@ -389,7 +379,6 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const baseHeight = props.imageHeight as number;
         const idleImg = this._currentIdleSource ? this._idleImg : (this._assetsLoaded ? this._popcat2 : null);
         const activeImg = this._currentActiveSource ? this._activeImg : (this._assetsLoaded ? this._popcat1 : null);
-        const now = performance.now();
 
         // ── Many cats: grid layout, one cat per distinct pitch ──────────────────
         if (manyCats) {
@@ -437,11 +426,22 @@ export class PopcatMidiDisplayElement extends SceneElement {
             const totalHeight = numRows * slotHeight - ySpacing;
             const padding = 20;
 
-            const activeNoteSet = new Set(
-                api.timeline
-                    .selectNotesInWindow({ trackIds: [props.midiTrackId], startSec: targetTime - EPS, endSec: targetTime + EPS })
-                    .map((n) => n.note)
-            );
+            const activeNoteStartMap = new Map<number, number>(); // pitch → startTime (scene seconds)
+            // Query a wider window to catch notes that are currently playing.
+            // We'll filter to only notes that actually overlap targetTime.
+            const lookbackWindow = 10; // seconds — look back up to 10s for long note durations
+            const notes = api.timeline.selectNotesInWindow({
+                trackIds: [props.midiTrackId],
+                startSec: targetTime - lookbackWindow,
+                endSec: targetTime + 0.1
+            });
+            for (const n of notes) {
+                // Only include notes that are actually playing at targetTime
+                if (n.startTime <= targetTime && targetTime < n.endTime) {
+                    const prev = activeNoteStartMap.get(n.note);
+                    if (prev === undefined || n.startTime > prev) activeNoteStartMap.set(n.note, n.startTime);
+                }
+            }
 
             const objects: RenderObject[] = [
                 new Rectangle(
@@ -464,17 +464,12 @@ export class PopcatMidiDisplayElement extends SceneElement {
 
                 for (let col = 0; col < count; col++) {
                     const pitch = catsToShow[catIndex++];
-                    const isActive = activeNoteSet.has(pitch);
+                    const noteStart = activeNoteStartMap.get(pitch);
+                    const isActive = noteStart !== undefined;
+                    const elapsedMs = isActive ? Math.max(0, (targetTime - noteStart!) * 1000) : 0;
 
-                    const catWas = this._catWasPlaying.get(pitch) ?? false;
-                    if (isActive && !catWas) {
-                        this._catAnimStartTime.set(pitch, now);
-                    }
-                    this._catWasPlaying.set(pitch, isActive);
-
-                    const catAnimStart = this._catAnimStartTime.get(pitch) ?? -Infinity;
                     const { x: ax, y: ay, w: aw, h: ah } = isActive
-                        ? this._applyAnimation(playAnimation, catAnimStart, now, baseWidth, baseHeight)
+                        ? this._applyAnimation(playAnimation, elapsedMs, baseWidth, baseHeight)
                         : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
                     const slotCenterX = rowOriginX + col * slotWidth + baseWidth / 2;
@@ -486,8 +481,22 @@ export class PopcatMidiDisplayElement extends SceneElement {
                         new Image(imgX, imgY, aw, ah, img, 1, {
                             fitMode: 'contain',
                             preserveAspectRatio: true,
+                            includeInLayoutBounds: false,
                         })
                     );
+
+                    /* debug "output"
+                    objects.push(
+                        new Text(
+                        imgX, 
+                        imgY, 
+                        `T:${targetTime.toFixed(2)} S:${(noteStart ?? 0).toFixed(2)} E:${elapsedMs.toFixed(0)}`, 
+                        '10px Inter, sans-serif', 
+                        '#ff00ff', 
+                        'center', 
+                        'top')
+                    );
+                    */
 
                     if (noteLabels && labelFontString) {
                         const noteName = api.utilities.midiNoteToName(pitch);
@@ -503,33 +512,33 @@ export class PopcatMidiDisplayElement extends SceneElement {
             // ── Single cat ────────────────────────────────────────────────────────
             const noteSelect = props.noteSelect as number;
 
+            // Query a wider window to catch notes that are currently playing
+            const lookbackWindow = 10; // seconds — look back up to 10s for long note durations
             let activeNotes = api.timeline.selectNotesInWindow({
                 trackIds: [props.midiTrackId],
-                startSec: targetTime - EPS,
-                endSec: targetTime + EPS,
-            });
+                startSec: targetTime - lookbackWindow,
+                endSec: targetTime + 0.1,
+            }).filter((n) => n.startTime <= targetTime && targetTime < n.endTime);
 
             if (noteSelect !== 0) {
                 activeNotes = activeNotes.filter((n) => n.note === noteSelect);
             }
 
             const isPlaying = activeNotes.length > 0;
-
-            if (isPlaying && !this._wasPlaying) {
-                this._animStartTime = now;
-            }
-            this._wasPlaying = isPlaying;
+            const elapsedMs = isPlaying ? Math.max(0, (targetTime - activeNotes[0].startTime) * 1000) : 0;
 
             const { x: imgX, y: imgY, w: imgW, h: imgH } = isPlaying
-                ? this._applyAnimation(playAnimation, this._animStartTime, now, baseWidth, baseHeight)
+                ? this._applyAnimation(playAnimation, elapsedMs, baseWidth, baseHeight)
                 : { x: 0, y: 0, w: baseWidth, h: baseHeight };
 
             const img = isPlaying ? activeImg : idleImg;
 
             return [
+                new Rectangle(0, 0, baseWidth, baseHeight, null, 'transparent', 1),
                 new Image(imgX, imgY, imgW, imgH, img, 1, {
                     fitMode: 'contain',
                     preserveAspectRatio: true,
+                    includeInLayoutBounds: false,
                 }),
             ];
         }
