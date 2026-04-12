@@ -125,13 +125,16 @@ export class NoteBlock extends NoteEvent {
         timeUnitBars: number
     ): NoteBlock[] {
         const current = timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
-        const prevStart = timingManager._beatsToSeconds(
-            timingManager._secondsToBeats(current.start) - timeUnitBars * (timingManager.beatsPerBar || 4)
-        );
+        // Use getTimeUnitWindow directly to avoid the _secondsToBeats/_beatsToSeconds round-trip.
+        // The round-trip accumulates floating-point error from cumulativeBeats when a tempo map is
+        // active, causing prev/next boundaries to drift slightly from true bar positions.
+        // A 1ms seek offset is safely within any bar at any tempo (slowest: ~12s/bar at 20 BPM).
+        const SEEK_EPS = 1e-3;
+        const prevWindow = timingManager.getTimeUnitWindow(current.start - SEEK_EPS, timeUnitBars);
+        const prevStart = prevWindow.start;
         const prev = { start: prevStart, end: current.start };
-        const nextEnd = timingManager._beatsToSeconds(
-            timingManager._secondsToBeats(current.end) + timeUnitBars * (timingManager.beatsPerBar || 4)
-        );
+        const nextWindow = timingManager.getTimeUnitWindow(current.end + SEEK_EPS, timeUnitBars);
+        const nextEnd = nextWindow.end;
         const next = { start: current.end, end: nextEnd };
 
         const minTime = prev.start;
