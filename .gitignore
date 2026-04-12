@@ -34,5 +34,7 @@ yarn-error.log*
 /dist/*
 
 # development files
-/devscripts
+/devscripts/deployed_versions.txt
+/devscripts/todo.txt
+/devscripts/.env.deploy
 output.txt
