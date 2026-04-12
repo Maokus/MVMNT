@@ -8,6 +8,8 @@ import {
     asTrimmedString,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
+    parseFontSelection,
+    ensureFontLoaded,
     type PropertyTransform,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
@@ -157,9 +159,9 @@ export class PopcatMidiDisplayElement extends SceneElement {
                             key: 'manyCats',
                             type: 'boolean',
                             label: 'Many Cats',
-                            default: false,
+                            default: true,
                             description:
-                                'Display a row of cats, one per distinct note in the track',
+                                'Display a grid of cats, one per distinct note in the track',
                             runtime: { transform: asBoolean, defaultValue: false },
                         },
                         {
@@ -175,40 +177,82 @@ export class PopcatMidiDisplayElement extends SceneElement {
                             runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
-                            key: 'minNote',
+                            key: 'offset',
                             type: 'number',
-                            label: 'Min Note',
+                            label: 'Offset',
                             default: 0,
                             min: 0,
                             max: 127,
                             step: 1,
-                            description: 'Minimum MIDI note number to display (inclusive)',
+                            description: 'Skip this many of the lowest notes before placing cats (0 = start from the lowest note)',
                             visibleWhen: [{ key: 'manyCats', truthy: true }],
                             runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
-                            key: 'maxNote',
+                            key: 'numCats',
                             type: 'number',
-                            label: 'Max Note',
-                            default: 127,
-                            min: 0,
-                            max: 127,
+                            label: 'Num Cats',
+                            default: 128,
+                            min: 1,
+                            max: 128,
                             step: 1,
-                            description: 'Maximum MIDI note number to display (inclusive)',
+                            description: 'Maximum number of cats to display',
                             visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 127 },
+                            runtime: { transform: asNumber, defaultValue: 12 },
                         },
                         {
-                            key: 'catSpacing',
+                            key: 'numRows',
                             type: 'number',
-                            label: 'Cat Spacing',
+                            label: 'Num Rows',
+                            default: 3,
+                            min: 1,
+                            max: 16,
+                            step: 1,
+                            description: 'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
+                            visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            runtime: { transform: asNumber, defaultValue: 1 },
+                        },
+                        {
+                            key: 'xSpacing',
+                            type: 'number',
+                            label: 'X Spacing',
                             default: 8,
                             min: 0,
-                            max: 120,
+                            max: 200,
                             step: 1,
-                            description: 'Gap in pixels between each cat in the row',
+                            description: 'Horizontal gap in pixels between cats',
                             visibleWhen: [{ key: 'manyCats', truthy: true }],
                             runtime: { transform: asNumber, defaultValue: 8 },
+                        },
+                        {
+                            key: 'ySpacing',
+                            type: 'number',
+                            label: 'Y Spacing',
+                            default: 8,
+                            min: 0,
+                            max: 200,
+                            step: 1,
+                            description: 'Vertical gap in pixels between rows',
+                            visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            runtime: { transform: asNumber, defaultValue: 8 },
+                        },
+                        {
+                            key: 'noteLabels',
+                            type: 'boolean',
+                            label: 'Note Labels',
+                            default: false,
+                            description: 'Show MIDI note names below each cat',
+                            visibleWhen: [{ key: 'manyCats', truthy: true }],
+                            runtime: { transform: asBoolean, defaultValue: false },
+                        },
+                        {
+                            key: 'labelFontFamily',
+                            type: 'font',
+                            label: 'Label Font',
+                            default: 'Inter',
+                            description: 'Font family for note name labels (Google Fonts supported).',
+                            visibleWhen: [{ key: 'manyCats', truthy: true }, { key: 'noteLabels', truthy: true }],
+                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
                         },
                     ],
                 },
@@ -248,7 +292,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
                             key: 'playAnimation',
                             type: 'select',
                             label: 'Play Animation',
-                            default: 'none',
+                            default: 'jump',
                             options: [
                                 { value: 'none', label: 'None' },
                                 { value: 'jump', label: 'Jump' },
@@ -347,23 +391,50 @@ export class PopcatMidiDisplayElement extends SceneElement {
         const activeImg = this._currentActiveSource ? this._activeImg : (this._assetsLoaded ? this._popcat1 : null);
         const now = performance.now();
 
-        // ── Many cats: one cat per distinct pitch in the note range ──────────
+        // ── Many cats: grid layout, one cat per distinct pitch ──────────────────
         if (manyCats) {
-            const minNote = props.minNote as number;
-            const maxNote = props.maxNote as number;
-            const catSpacing = props.catSpacing as number;
+            const offset = props.offset as number;
+            const numCats = props.numCats as number;
+            const numRows = Math.max(1, props.numRows as number);
+            const xSpacing = props.xSpacing as number;
+            const ySpacing = props.ySpacing as number;
+            const noteLabels = props.noteLabels as boolean;
+            const labelFontFamilyRaw = (props.labelFontFamily as string | null) ?? 'Inter';
 
-            const distinctPitches = api.timeline
-                .selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] })
-                .filter((p) => p >= minNote && p <= maxNote);
+            // Font setup for labels
+            let labelFontString = '';
+            if (noteLabels) {
+                const { family: fontFamily, weight: weightPart } = parseFontSelection(labelFontFamilyRaw);
+                const fontWeight = (weightPart || '400').toString();
+                const fontSize = Math.max(8, Math.round(baseWidth * 0.15));
+                if (fontFamily) ensureFontLoaded(fontFamily, fontWeight);
+                labelFontString = `${fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+            }
 
-            if (distinctPitches.length === 0) {
+            const allPitches = api.timeline.selectDistinctNoteNumbers({ trackIds: [props.midiTrackId] });
+
+            // Apply offset and numCats limit
+            const totalCats = Math.min(numCats, Math.max(0, allPitches.length - offset));
+            const catsToShow = allPitches.slice(offset, offset + totalCats);
+
+            if (catsToShow.length === 0) {
                 return [new Text(0, 0, 'No notes in range', '12px Inter, sans-serif', '#64748b', 'left', 'top')];
             }
 
-            const slotWidth = baseWidth + catSpacing;
-            const totalWidth = distinctPitches.length * slotWidth - catSpacing;
-            const originX = -totalWidth / 2;
+            // Distribute cats evenly across rows, bottom rows get extras
+            // Row 0 = bottom, row numRows-1 = top
+            const rowCounts: number[] = [];
+            const base = Math.floor(catsToShow.length / numRows);
+            const extra = catsToShow.length % numRows;
+            for (let r = 0; r < numRows; r++) {
+                rowCounts.push(base + (r < extra ? 1 : 0));
+            }
+
+            const slotWidth = baseWidth + xSpacing;
+            const slotHeight = baseHeight + ySpacing;
+            const maxCatsInARow = Math.max(...rowCounts);
+            const totalWidth = maxCatsInARow * slotWidth - xSpacing;
+            const totalHeight = numRows * slotHeight - ySpacing;
             const padding = 20;
 
             const activeNoteSet = new Set(
@@ -373,37 +444,58 @@ export class PopcatMidiDisplayElement extends SceneElement {
             );
 
             const objects: RenderObject[] = [
-                // Invisible bounding rect so the element has stable layout bounds
-                new Rectangle(originX - padding, -baseHeight / 2 - padding, totalWidth + 2 * padding, baseHeight + 2 * padding, null, 'transparent', 1),
+                new Rectangle(
+                    -totalWidth / 2 - padding,
+                    -totalHeight / 2 - padding,
+                    totalWidth + 2 * padding,
+                    totalHeight + 2 * padding,
+                    null, 'transparent', 1
+                ),
             ];
 
-            for (let col = 0; col < distinctPitches.length; col++) {
-                const pitch = distinctPitches[col];
-                const slotCenterX = originX + col * slotWidth + baseWidth / 2;
+            let catIndex = 0;
+            for (let row = 0; row < numRows; row++) {
+                const count = rowCounts[row];
+                // Center each row horizontally
+                const rowWidth = count * slotWidth - xSpacing;
+                const rowOriginX = -rowWidth / 2;
+                // Row 0 = bottom: highest y in screen coords (y increases downward)
+                const rowCenterY = ((numRows - 1) / 2 - row) * slotHeight;
 
-                const isActive = activeNoteSet.has(pitch);
+                for (let col = 0; col < count; col++) {
+                    const pitch = catsToShow[catIndex++];
+                    const isActive = activeNoteSet.has(pitch);
 
-                const catWas = this._catWasPlaying.get(pitch) ?? false;
-                if (isActive && !catWas) {
-                    this._catAnimStartTime.set(pitch, now);
+                    const catWas = this._catWasPlaying.get(pitch) ?? false;
+                    if (isActive && !catWas) {
+                        this._catAnimStartTime.set(pitch, now);
+                    }
+                    this._catWasPlaying.set(pitch, isActive);
+
+                    const catAnimStart = this._catAnimStartTime.get(pitch) ?? -Infinity;
+                    const { x: ax, y: ay, w: aw, h: ah } = this._applyAnimation(
+                        playAnimation, catAnimStart, now, baseWidth, baseHeight
+                    );
+
+                    const slotCenterX = rowOriginX + col * slotWidth + baseWidth / 2;
+                    const imgX = slotCenterX - baseWidth / 2 + ax;
+                    const imgY = rowCenterY - baseHeight / 2 + ay;
+                    const img = isActive ? activeImg : idleImg;
+
+                    objects.push(
+                        new Image(imgX, imgY, aw, ah, img, 1, {
+                            fitMode: 'contain',
+                            preserveAspectRatio: true,
+                        })
+                    );
+
+                    if (noteLabels && labelFontString) {
+                        const noteName = api.utilities.midiNoteToName(pitch);
+                        const labelX = slotCenterX;
+                        const labelY = rowCenterY + baseHeight / 2 + 4;
+                        objects.push(new Text(labelX, labelY, noteName, labelFontString, '#94a3b8', 'center', 'top'));
+                    }
                 }
-                this._catWasPlaying.set(pitch, isActive);
-
-                const catAnimStart = this._catAnimStartTime.get(pitch) ?? -Infinity;
-                const { x: ax, y: ay, w: aw, h: ah } = this._applyAnimation(
-                    playAnimation, catAnimStart, now, baseWidth, baseHeight
-                );
-
-                const imgX = slotCenterX - baseWidth / 2 + ax;
-                const imgY = -baseHeight / 2 + ay;
-                const img = isActive ? activeImg : idleImg;
-
-                objects.push(
-                    new Image(imgX, imgY, aw, ah, img, 1, {
-                        fitMode: 'contain',
-                        preserveAspectRatio: true,
-                    })
-                );
             }
 
             return objects;
