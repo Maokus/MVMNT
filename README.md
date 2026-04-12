@@ -7,6 +7,7 @@ MVMNT (pronounced _movement_) is a React-powered MIDI visualization studio for p
 ## Table of Contents
 
 -   [Quick Start](#quick-start)
+-   [Making Plugins](#making-plugins)
 -   [Development Workflow](#development-workflow)
 -   [Scene Files](#scene-files)
 -   [Extending MVMNT](#extending-mvmnt)
@@ -26,6 +27,16 @@ npm run dev
 
 The development server runs on Vite with hot module replacement. If optional Rollup native dependencies fail to compile on your platform, rerun `npm install` so npm can choose a compatible fallback build.
 
+## Making Plugins
+
+MVMNT's scene elements are fully pluggable. You can write, build, and distribute your own elements — things like custom MIDI visualisers, audio-reactive shapes, or generative art — using the same API that the built-in elements use.
+
+Plugins are TypeScript classes that extend `SceneElement`. They declare their configurable properties and implement a `_buildRenderObjects()` method that draws on the canvas each frame. The `@mvmnt/plugin-sdk` module provides everything you need: the base class, render primitives, and access to the timeline, audio features, and timing data via a stable host API.
+
+**To get started:** Read the [Plugin Development Quickstart](docs/plugin-quickstart.md).
+
+For a full reference see [Creating Custom Elements](docs/creating-custom-elements.md) and the [Plugin API v1 Reference](docs/plugin-api-v1.md).
+
 ## Development Workflow
 
 Before opening a pull request, verify your changes with the full test suite:
@@ -42,7 +53,16 @@ If `npm run test` fails because of missing optional binaries, rerun `npm install
 
 ### Custom Scene Elements
 
+Custom elements are the primary extension point for MVMNT. Write a TypeScript class, describe its properties, implement a render method, and MVMNT will integrate it into the scene editor and rendering pipeline alongside the built-in elements.
 
+The public API lives in `@mvmnt/plugin-sdk`. Elements are distributed as `.mvmnt-plugin` bundles (ZIP archives), which users import through the Settings panel.
+
+| Document | Purpose |
+|---|---|
+| [Plugin Development Quickstart](docs/plugin-quickstart.md) | Start here — build and test a working element in under 15 minutes |
+| [Creating Custom Elements](docs/creating-custom-elements.md) | Full guide: properties, render objects, audio/MIDI bindings, packaging |
+| [Plugin API v1 Reference](docs/plugin-api-v1.md) | Complete `@mvmnt/plugin-sdk` API surface |
+| [Runtime Plugin Loading](docs/runtime-plugin-loading.md) | How `.mvmnt-plugin` bundles are loaded and managed |
 
 ### Custom Piano Roll Animations
 

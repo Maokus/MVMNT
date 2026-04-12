@@ -1,6 +1,6 @@
 # Creating Custom Elements
 
-_Last Updated: 10 February 2026_
+_Last Updated: 12 April 2026_
 
 This guide explains how to create custom scene elements for MVMNT using the plugin system.
 
@@ -155,7 +155,7 @@ export class SimpleBoxElement extends SceneElement {
   "id": "com.example.my-plugin",
   "name": "My Plugin",
   "version": "1.0.0",
-  "mvmntVersion": "^0.14.0",
+  "apiVersion": "^1.0.0",
   "description": "Example custom elements",
   "author": "Your Name",
   "elements": [
@@ -181,7 +181,7 @@ See [plugin-manifest.schema.json](plugin-manifest.schema.json) for the complete 
 - `id`: Unique plugin identifier (reverse domain notation recommended)
 - `name`: Human-readable plugin name  
 - `version`: Semantic version (e.g., `1.0.0`)
-- `mvmntVersion`: Compatible MVMNT version range (e.g., `^1.0.0`)
+- `apiVersion`: Compatible Plugin API version range (e.g., `^1.0.0`)
 - `elements`: Array of element definitions
 
 ### Optional Fields
@@ -294,6 +294,35 @@ static override getConfigSchema(): EnhancedConfigSchema {
 - `colorAlpha`: Color picker with alpha
 - `select`: Dropdown with options
 - `timelineTrackRef`: Reference to timeline track
+- `file`: File picker — add `accept` to filter by MIME type (e.g. `accept: 'image/*'`)
+- `font`: Font selector (returns a font selection object; use `parseFontSelection` and `ensureFontLoaded` from the SDK)
+
+**Conditional Visibility (`visibleWhen`):**
+
+A property can be conditionally hidden based on the value of another property using `visibleWhen`:
+
+```typescript
+{
+    key: 'overlayText',
+    type: 'string',
+    label: 'Overlay Text',
+    default: 'Hello',
+    runtime: { transform: asTrimmedString, defaultValue: 'Hello' },
+    // Only show when 'showOverlay' is truthy
+    visibleWhen: [{ key: 'showOverlay', truthy: true }],
+},
+{
+    key: 'borderWidth',
+    type: 'number',
+    label: 'Border Width',
+    default: 2,
+    runtime: { transform: asNumber, defaultValue: 2 },
+    // Only show when 'mode' is NOT 'minimal'
+    visibleWhen: [{ key: 'mode', falsy: true, value: 'minimal' }],
+},
+```
+
+Each entry in `visibleWhen` is an AND condition. Use `truthy: true` to show when the referenced property is true/non-empty, `falsy: true` to show when it is false/empty, or supply `value` to compare against a specific value.
 
 ### Render Methods
 
@@ -637,7 +666,7 @@ The `.mvmnt-plugin` format is a ZIP archive containing:
 The build process enforces several validation rules:
 
 **Manifest Validation:**
-- Required fields must be present (`id`, `name`, `version`, `mvmntVersion`, `elements`)
+- Required fields must be present (`id`, `name`, `version`, `apiVersion`, `elements`)
 - Plugin ID must be lowercase alphanumeric with dots/hyphens, minimum 3 characters
 - Version must follow semantic versioning (`1.0.0`, `2.1.3-beta`, etc.)
 - Each element must have `type`, `name`, `category`, and `entry` fields
@@ -670,14 +699,9 @@ The build process uses esbuild with the following configuration:
 
 ### Distributing Your Plugin
 
-_(Phase 3 - Runtime loading)_
+Users install plugins through the **Settings panel → Plugins → Import**. They drag in the `.mvmnt-plugin` file; MVMNT validates the manifest, loads the element classes, and registers everything without an app restart. Plugins are persisted to IndexedDB and reloaded automatically on next launch.
 
-Once Phase 3 is implemented, users will be able to:
-1. Import `.mvmnt-plugin` files through the Settings panel
-2. Enable/disable plugins without app restart
-3. Share plugins as single files
-
-For now, plugins can only be used during development by placing them in `src/plugins/`.
+See [Runtime Plugin Loading](runtime-plugin-loading.md) for the full loading, versioning, and persistence details.
 
 ## Best Practices
 
@@ -839,8 +863,10 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
 
 ## Related Documentation
 
+- [Plugin Development Quickstart](plugin-quickstart.md)
 - [Plugin API v1](plugin-api-v1.md)
 - [Plugin API Migration Guide](plugin-api-migration-guide.md)
+- [Runtime Plugin Loading](runtime-plugin-loading.md)
 - [Plugin Manifest Schema](plugin-manifest.schema.json)
 - [Architecture Overview](ARCHITECTURE.md)
 - Scene System Documentation _(coming soon)_
