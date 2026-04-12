@@ -61,7 +61,9 @@ const HomePage: React.FC = () => {
                         </Link>
 
                         <Link to="/about" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">About</Link>
+                        <Link to="/contribute" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Contribute</Link>
                         <Link to="/changelog" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Changelog</Link>
+                        <Link to="/community" className="px-5 py-2.5 rounded bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">Community</Link>
                     </div>
                 </div>
             </div>
@@ -107,7 +109,7 @@ const DonationNotice: React.FC = () => {
                         <div className="font-medium">Welcome!!</div>
                         <div className="text-neutral-300 mt-1">I develop and host this project at my own expense. If you enjoy the app, please consider donating!</div>
                         <div className="mt-2 flex gap-2">
-                            <a href="https://ko-fi.com/maokus" target="_blank" rel="noopener noreferrer" className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded">Donate</a>
+                            <Link to="/contribute" className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded">Donate</Link>
                             <button onClick={handleDismiss} className="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 rounded">Dismiss</button>
                         </div>
                     </div>

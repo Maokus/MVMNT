@@ -17,6 +17,7 @@ import { getFeatureRequirements } from '../../../audio/audioElementMetadata';
 import { debugLog } from '@utils/debug-log';
 import { isTestEnvironment } from '@utils/env';
 import { withRenderSafety, limitRenderObjects, DEFAULT_SAFETY_CONFIG } from '@core/scene/plugins/plugin-safety';
+import { loadBundledAssetForElement } from '@core/scene/plugins/bundled-asset-registry';
 
 export type PropertyTransform<TValue, TElement = SceneElement> = (
     value: unknown,
@@ -205,6 +206,15 @@ export class SceneElement implements SceneElementInterface {
      */
     protected onDestroy(): void {
         clearFeatureData(this);
+    }
+
+    /**
+     * Load a bundled asset from this plugin's assets/ directory.
+     * Works in both dev mode (via the Vite dev server) and production (via the ZIP bundle).
+     * Returns a URL string that can be used as an <img> src or similar.
+     */
+    protected loadBundledAsset(assetPath: string): Promise<string> {
+        return loadBundledAssetForElement(this.type, assetPath);
     }
 
     /**

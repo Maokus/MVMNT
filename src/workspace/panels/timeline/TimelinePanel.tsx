@@ -39,6 +39,9 @@ import {
     type SnapQuantizeOption,
 } from '@state/timeline/quantize';
 import { MidiImportModeModal } from './MidiImportModeModal';
+import { MidiTempoImportModal, type TempoImportChoice } from './MidiTempoImportModal';
+import { midiTempoMapToKeyframes } from '@core/timing/midi-tempo-to-keyframes';
+import { CANONICAL_PPQ as TIMING_PPQ } from '@core/timing/ppq';
 import { CurveHeightProvider } from './curveHeightContext';
 
 const MIDI_FILE_REGEX = /\.mid(i)?$/i;
@@ -78,6 +81,8 @@ const TimelinePanel: React.FC = () => {
     const audioFileRef = useRef<HTMLInputElement | null>(null);
     const [multiTrackPrompt, setMultiTrackPrompt] = useState<MultiTrackDecisionState | null>(null);
     const multiTrackResolverRef = useRef<((choice: MultiTrackChoice) => void) | null>(null);
+    const [tempoImportPrompt, setTempoImportPrompt] = useState<{ count: number; hasExisting: boolean } | null>(null);
+    const tempoImportResolverRef = useRef<((choice: TempoImportChoice) => void) | null>(null);
     const dragCounterRef = useRef(0);
     const [isDragActive, setIsDragActive] = useState(false);
     const [activeTab, setActiveTab] = useState<'clips' | 'automation'>('clips');
@@ -98,11 +103,31 @@ const TimelinePanel: React.FC = () => {
         if (resolver) resolver(choice);
     }, []);
 
+    const requestTempoImport = useCallback(
+        (count: number, hasExisting: boolean) =>
+            new Promise<TempoImportChoice>((resolve) => {
+                tempoImportResolverRef.current = resolve;
+                setTempoImportPrompt({ count, hasExisting });
+            }),
+        [],
+    );
+
+    const resolveTempoImport = useCallback((choice: TempoImportChoice) => {
+        const resolver = tempoImportResolverRef.current;
+        tempoImportResolverRef.current = null;
+        setTempoImportPrompt(null);
+        if (resolver) resolver(choice);
+    }, []);
+
     useEffect(() => {
         return () => {
             if (multiTrackResolverRef.current) {
                 multiTrackResolverRef.current('cancel');
                 multiTrackResolverRef.current = null;
+            }
+            if (tempoImportResolverRef.current) {
+                tempoImportResolverRef.current('skip');
+                tempoImportResolverRef.current = null;
             }
         };
     }, []);
@@ -200,6 +225,34 @@ const TimelinePanel: React.FC = () => {
                 alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
                 return false;
             }
+
+            // Check for tempo changes in the MIDI file
+            const midiTempoMap = (midiData as any).tempoMap as Array<{ time: number; tempo: number }> | undefined;
+            if (midiTempoMap && midiTempoMap.length > 1) {
+                try {
+                    const tempoEntries = midiTempoMap.map((t) => ({ time: t.time, tempo: t.tempo }));
+                    const converted = midiTempoMapToKeyframes(tempoEntries, TIMING_PPQ);
+                    const existingTa = useTimelineStore.getState().timeline.tempoAutomation;
+                    const hasExisting = !!(existingTa?.enabled && existingTa.keyframes.length > 0);
+                    const tempoChoice = await requestTempoImport(converted.length, hasExisting);
+                    if (tempoChoice === 'replace') {
+                        const api = useTimelineStore.getState();
+                        if (!api.timeline.tempoAutomation?.enabled) api.enableTempoAutomation();
+                        api.batchSetTempoKeyframes(converted);
+                    } else if (tempoChoice === 'merge' && hasExisting) {
+                        const api = useTimelineStore.getState();
+                        const existing = api.timeline.tempoAutomation?.keyframes ?? [];
+                        // Merge: existing keyframes take precedence at same tick
+                        const existingTicks = new Set(existing.map((kf) => kf.tick));
+                        const merged = [...existing, ...converted.filter((kf) => !existingTicks.has(kf.tick))];
+                        merged.sort((a, b) => a.tick - b.tick);
+                        api.batchSetTempoKeyframes(merged);
+                    }
+                } catch (err) {
+                    console.error('Failed to process MIDI tempo map', err);
+                }
+            }
+
             const details = midiData.trackDetails ?? [];
             const playableTracks = details.length ? details : [];
             if (playableTracks.length <= 1) {
@@ -233,7 +286,7 @@ const TimelinePanel: React.FC = () => {
             }
             return true;
         },
-        [addMidiTrack, requestImportMode],
+        [addMidiTrack, requestImportMode, requestTempoImport],
     );
 
     const handleAddFile = useCallback(
@@ -603,6 +656,12 @@ const TimelinePanel: React.FC = () => {
                 onImportSingle={() => resolveImportMode('single')}
                 onImportSplit={() => resolveImportMode('split')}
             />
+            <MidiTempoImportModal
+                open={!!tempoImportPrompt}
+                tempoChangeCount={tempoImportPrompt?.count ?? 0}
+                hasExistingKeyframes={tempoImportPrompt?.hasExisting ?? false}
+                onChoice={resolveTempoImport}
+            />
         </>
     );
 };
@@ -676,6 +735,20 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
     const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
     const setBeatsPerBar = useTimelineStore((s) => s.setBeatsPerBar);
+    const tempoAutomationEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
+    // When tempo automation is enabled, derive the instantaneous BPM at the playhead
+    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const displayBpm = useMemo(() => {
+        if (!tempoAutomationEnabled) return globalBpm;
+        try {
+            const tm = sharedTimingManager;
+            if (!tm) return globalBpm;
+            const sec = tm.ticksToSeconds(currentTick);
+            const spb = tm.getSecondsPerBeat(sec);
+            if (spb > 0) return Math.round(60 / spb * 10) / 10;
+        } catch {}
+        return globalBpm;
+    }, [tempoAutomationEnabled, currentTick, globalBpm]);
     const [menuOpen, setMenuOpen] = useState(false);
     const {
         refs: menuRefs,
@@ -715,7 +788,10 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     // Local editable buffers so typing isn't instantly overwritten by store updates
     const [localTempo, setLocalTempo] = useState<string>('');
     const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
-    useEffect(() => { setLocalTempo(String(Number.isFinite(globalBpm) ? globalBpm : 120)); }, [globalBpm]);
+    useEffect(() => {
+        const v = tempoAutomationEnabled ? displayBpm : globalBpm;
+        setLocalTempo(String(Number.isFinite(v) ? v : 120));
+    }, [globalBpm, tempoAutomationEnabled, displayBpm]);
     useEffect(() => { setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4)); }, [beatsPerBar]);
     const commitTempo = () => {
         const v = parseFloat(localTempo);
@@ -734,19 +810,20 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
         <div className="flex items-center gap-3 text-[12px] relative">
             {/* Inline tempo + meter controls (migrated from GlobalPropertiesPanel) */}
             <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 text-neutral-300" title="Global tempo (BPM)">
+                <label className="flex items-center gap-1 text-neutral-300" title={tempoAutomationEnabled ? 'Tempo is automated — edit keyframes in the tempo lane' : 'Global tempo (BPM)'}>
                     <span>BPM</span>
                     <input
                         aria-label="Global tempo (BPM)"
-                        className="number-input w-[70px]"
+                        className={`number-input w-[70px] ${tempoAutomationEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                         type="number"
                         min={1}
                         max={400}
                         step={0.1}
                         value={localTempo}
-                        onChange={(e) => setLocalTempo(e.target.value)}
-                        onBlur={commitTempo}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
+                        onChange={(e) => !tempoAutomationEnabled && setLocalTempo(e.target.value)}
+                        onBlur={() => !tempoAutomationEnabled && commitTempo()}
+                        onKeyDown={(e) => { if (!tempoAutomationEnabled && e.key === 'Enter') { commitTempo(); (e.currentTarget as any).blur?.(); } }}
+                        disabled={tempoAutomationEnabled}
                     />
                 </label>
                 <label className="flex items-center gap-1 text-neutral-300" title="Beats per bar (meter numerator)">

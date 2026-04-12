@@ -26,3 +26,12 @@ export interface TimelineCCEvent {
     value: number; // 0–127
     timeSec: number; // absolute timeline seconds
 }
+
+/**
+ * A single tick-domain tempo keyframe for hold-only tempo automation.
+ * The BPM value takes effect at `tick` and holds until the next keyframe.
+ */
+export interface TempoKeyframe {
+    tick: number;   // absolute tick position
+    bpm: number;    // tempo starting at this tick (hold interpolation)
+}

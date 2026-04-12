@@ -58,15 +58,16 @@ export function useRenderLoop({
                 let tempoMapVersion: string | null = null;
                 const map = state.timeline.masterTempoMap;
                 if (map && map.length) {
-                    const first = map[0];
-                    const last = map[map.length - 1];
-                    tempoMapVersion = `${map.length}:${first?.time ?? 0}:${last?.time ?? 0}:${first?.bpm ?? ''}:${last?.bpm ?? ''}`;
+                    tempoMapVersion = map.map(e => `${e.time}:${e.bpm}`).join(',');
                 }
+                let bpmChanged = false;
                 if (lastAppliedBpm !== bpm) {
                     tmCfg.setBPM(bpm);
                     lastAppliedBpm = bpm;
+                    bpmChanged = true;
                 }
-                if (tempoMapVersion !== lastTempoMapVersion) {
+                if (tempoMapVersion !== lastTempoMapVersion || bpmChanged) {
+                    // setBPM wipes _tempoSegments; always re-apply tempo map in that case
                     if (map && map.length) tmCfg.setTempoMap(map, 'seconds');
                     else tmCfg.setTempoMap(undefined, 'seconds');
                     lastTempoMapVersion = tempoMapVersion;
@@ -195,12 +196,13 @@ export function useRenderLoop({
 
         raf = requestAnimationFrame(loop);
 
-        type SubState = { tick: number; playing: boolean; bpm: number; tempoMapLen: number };
+        type SubState = { tick: number; playing: boolean; bpm: number; tempoMapLen: number; tempoMapRef: unknown };
         let prevSub: SubState = {
             tick: useTimelineStore.getState().timeline.currentTick,
             playing: useTimelineStore.getState().transport.isPlaying,
             bpm: useTimelineStore.getState().timeline.globalBpm,
             tempoMapLen: useTimelineStore.getState().timeline.masterTempoMap?.length || 0,
+            tempoMapRef: useTimelineStore.getState().timeline.masterTempoMap,
         };
         const unsub = useTimelineStore.subscribe((s) => {
             const nextState: SubState = {
@@ -208,13 +210,14 @@ export function useRenderLoop({
                 playing: s.transport.isPlaying,
                 bpm: s.timeline.globalBpm,
                 tempoMapLen: s.timeline.masterTempoMap?.length || 0,
+                tempoMapRef: s.timeline.masterTempoMap,
             };
             const p = prevSub;
             if (nextState.playing && !p.playing) wakeLoop();
             else if (!nextState.playing && p.playing) wakeLoop();
             else if (nextState.tick !== p.tick) wakeLoop();
             else if (nextState.bpm !== p.bpm) wakeLoop();
-            else if (nextState.tempoMapLen !== p.tempoMapLen) wakeLoop();
+            else if (nextState.tempoMapRef !== p.tempoMapRef) wakeLoop();
             prevSub = nextState;
         });
         const visInvalidate = () => wakeLoop();

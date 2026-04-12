@@ -201,7 +201,7 @@ function addElementToPlugin(pluginJsonPath, elementType, elementName, elementDes
     pluginJson.elements.push({
         type: elementType,
         name: elementName,
-        category: pluginJson.id, // Use plugin ID as category
+        category: pluginJson.name, // Use plugin ID as category
         description: elementDescription,
         entry: entryFile
     });

@@ -1,4 +1,6 @@
 import { useTimelineStore, sharedTimingManager } from '@state/timelineStore';
+import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { serializeStable } from './stable-stringify';
 import { useSceneStore } from '@state/sceneStore';
 import { getMacroSnapshot, replaceMacrosFromSnapshot } from '@state/scene/macroSyncService';
@@ -156,6 +158,23 @@ export const DocumentGateway = {
             }
             if (typeof tl.beatsPerBar === 'number' && tl.beatsPerBar > 0) {
                 sharedTimingManager.setBeatsPerBar(tl.beatsPerBar);
+            }
+        } catch {
+            /* non-fatal */
+        }
+
+        // If tempo automation is enabled in the restored document, re-derive
+        // masterTempoMap from keyframes (keyframes are the source of truth).
+        try {
+            const restored = useTimelineStore.getState().timeline;
+            if (restored.tempoAutomation?.enabled &&
+                restored.tempoAutomation.keyframes.length > 0) {
+                const derivedMap = resolveTempoKeyframes(
+                    restored.tempoAutomation.keyframes,
+                    restored.globalBpm,
+                    CANONICAL_PPQ,
+                );
+                useTimelineStore.getState().setMasterTempoMap(derivedMap);
             }
         } catch {
             /* non-fatal */

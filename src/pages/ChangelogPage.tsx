@@ -19,35 +19,40 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
 
-                    <ChangelogEntry version="0.15.0" date="26-3-26" notes={[
+                    <ChangelogEntry version="0.15.0" date="11-4-26" notes={[
                         'Implemented automation system',
                         [
                             'Eased automation curves',
                             'Cmd/ctrl D to make repeated animations',
+                            'Added tempo automation',
+                        ],
+                        'Added community tab',
+                        [
+                            'Browse and share templates and plugins',
+                            'Install plugins and open templates directly from the community tab'
+                        ],
+                        'Misc Improvements/new content',
+                        [
+                            'Add basic shapes element',
+                            'More note animations for TUPR/MNPR',
                         ],
                         'Implemented custom element system and api',
                         [
-                            'Builtin pack of custom elements',
+                            'Added builtin pack of custom elements',
                             'Embed plugins into save files',
                             'DevEx quality of life scripts',
-                            'Support midi cc in midi ingestion and expose via api'
+                            'Support midi cc in midi ingestion and expose via api',
+                            'Improve version conflict management'
                         ],
                         'Extended renderobject system',
                         [
                             'Support blend modes, filters and layers',
                             'Improve glow logic',
                         ],
-                        'Improvements/new content',
-                        [
-                            'Add basic shapes element',
-                            'More note animations for TUPR/MNPR',
-
-                        ],
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
                         ],
-                        'Sold a kidney to claude code (worth it)'
                     ]} />
 
                     <ChangelogEntry version="0.14.0" date="20-1-26" notes={[

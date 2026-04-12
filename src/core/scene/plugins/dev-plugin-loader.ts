@@ -17,6 +17,7 @@ import { sceneElementRegistry } from '@core/scene/registry/scene-element-registr
 import { debugLog } from '@utils/debug-log';
 import { satisfiesVersion } from './version-check';
 import { PLUGIN_API_VERSION } from './api-version';
+import { registerElementAssetLoader } from './bundled-asset-registry';
 
 interface PluginManifest {
     id: string;
@@ -176,6 +177,11 @@ async function loadElement(
             capabilities: element.capabilities,
         });
 
+        // Wire loadBundledAsset() to the Vite dev-server asset path for this element type.
+        registerElementAssetLoader(element.type, (assetPath) =>
+            Promise.resolve(`${pluginPath}/assets/${assetPath}`)
+        );
+
         debugLog(`[DevPluginLoader] Registered element: ${element.type} from plugin ${pluginId}`);
         
         return { success: true };
@@ -216,7 +222,7 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     }
 
     console.log(`[DevPluginLoader] Loading plugin: ${manifest.name} (${manifest.id})`);
-    
+
     const errors: string[] = [];
     let elementsLoaded = 0;
     

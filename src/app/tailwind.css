@@ -1092,17 +1092,13 @@
         }
 
         .preview-panel {
-            @apply flex-1 border-r-0 border-b border-border;
+            @apply border-r-0 border-b border-border;
         }
 
         /* side-panels responsive rules removed (now inlined) */
         .scene-name-display,
         .scene-name-input {
             @apply max-w-[250px];
-        }
-
-        #canvas {
-            @apply w-[300px] h-[300px];
         }
     }
 
@@ -1124,11 +1120,6 @@
         .scene-name-display,
         .scene-name-input {
             @apply max-w-[200px];
-        }
-
-        /* side-panels responsive rules removed (now inlined) */
-        #canvas {
-            @apply w-[250px] h-[250px];
         }
     }
 }

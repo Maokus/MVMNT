@@ -8,6 +8,8 @@ const AnimationTestPage = lazy(() => import('@pages/AnimationTestPage'));
 const AboutPage = lazy(() => import('@pages/AboutPage'));
 const ChangelogPage = lazy(() => import('@pages/ChangelogPage'));
 const HomePage = lazy(() => import('@pages/HomePage'));
+const CommunityPage = lazy(() => import('../community/CommunityPage'));
+const ContributePage = lazy(() => import('@pages/ContributePage'));
 
 const DeveloperOverlayLazy = lazy(() =>
   import('@workspace/dev/DeveloperOverlay').then((module) => ({
@@ -172,6 +174,8 @@ export function App() {
           <Route path="/animation-test" element={<AnimationTestPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
+          <Route path="/community" element={<CommunityPage />} />
+          <Route path="/contribute" element={<ContributePage />} />
         </Routes>
       </Suspense>
       <Suspense fallback={null}>

@@ -1,5 +1,6 @@
 export {
     loadPlugin,
+    upgradePlugin,
     unloadPlugin,
     disablePlugin,
     enablePlugin,

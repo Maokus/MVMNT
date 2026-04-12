@@ -66,3 +66,36 @@ export function beatsToTicks(context: TimelineTimingContext, beats: number): num
 export function ticksToBeats(context: TimelineTimingContext, ticks: number): number {
     return ticks / context.ticksPerQuarter;
 }
+
+/**
+ * Compute how many ticks a given duration (in seconds) spans when starting
+ * at `atTick` on the timeline (tempo-map-aware).
+ *
+ * With a flat tempo this equals the plain `secondsToTicks` result.
+ * With a tempo map the answer depends on the tempo(s) active during the
+ * window [atTick, atTick + …].
+ */
+export function secondsToTicksAt(
+    context: TimelineTimingContext,
+    durationSeconds: number,
+    atTick: number,
+): number {
+    const startSeconds = ticksToSeconds(context, atTick);
+    const endSeconds = startSeconds + durationSeconds;
+    const endTicks = secondsToTicks(context, endSeconds);
+    return endTicks - atTick;
+}
+
+/**
+ * Inverse of `secondsToTicksAt`: convert a tick span back to seconds
+ * at a specific timeline position.
+ */
+export function ticksToSecondsAt(
+    context: TimelineTimingContext,
+    durationTicks: number,
+    atTick: number,
+): number {
+    const startSeconds = ticksToSeconds(context, atTick);
+    const endSeconds = ticksToSeconds(context, atTick + durationTicks);
+    return endSeconds - startSeconds;
+}

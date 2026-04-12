@@ -64,7 +64,7 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         endTime: 0,
         includeAudio: true,
         videoCodec: 'h264',
-        audioCodec: 'pcm-s16',
+        audioCodec: 'mp3',
         videoBitrateMode: 'auto',
         qualityPreset: 'high',
         audioBitrate: 192_000,

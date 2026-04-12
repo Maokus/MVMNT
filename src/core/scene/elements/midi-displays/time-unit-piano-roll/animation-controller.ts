@@ -108,8 +108,11 @@ export class AnimationController {
 
             const startTimeInWindow = drawStart - relWindowStart;
             const endTimeInWindow = drawEnd - relWindowStart;
-            const x = pianoWidth + (startTimeInWindow / relWindowDuration) * rollWidth;
-            const width = Math.max(2, ((endTimeInWindow - startTimeInWindow) / relWindowDuration) * rollWidth);
+            // Clamp to [0, 1] to prevent floating-point drift from rendering notes outside the roll boundary.
+            const startRatio = Math.max(0, Math.min(1, startTimeInWindow / relWindowDuration));
+            const endRatio = Math.max(0, Math.min(1, endTimeInWindow / relWindowDuration));
+            const x = pianoWidth + startRatio * rollWidth;
+            const width = Math.max(2, (endRatio - startRatio) * rollWidth);
 
             // Create note render objects using animation system
             const noteRenderObjects = this._createAnimatedNoteRenderObjects(

@@ -42,6 +42,7 @@ const MidiVisualizerInner: React.FC = () => {
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsCollapsed, setSidePanelsCollapsed] = useState(false);
     const [timelineCollapsed, setTimelineCollapsed] = useState(false);
+    const [isCompact, setIsCompact] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1200);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
     const [showRenderModal, setShowRenderModal] = useState(false);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +108,7 @@ const MidiVisualizerInner: React.FC = () => {
         const handleResize = () => {
             const bounds = getTimelineBounds();
             setTimelineHeight((prev) => clampNumber(prev, bounds.min, bounds.max));
+            setIsCompact(window.innerWidth < 1200);
             const container = workspaceRef.current;
             if (!container) return;
             const width = container.getBoundingClientRect().width;
@@ -203,25 +205,30 @@ const MidiVisualizerInner: React.FC = () => {
             <SceneSelectionProvider>
                 <>
                     <div className="main-workspace" ref={workspaceRef}>
-                        <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
+                        <div className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}>
                             <PreviewPanel />
                         </div>
-                        <div
-                            className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
-                            style={{ width: SIDE_HANDLE_WIDTH }}
-                            onPointerDown={handleSideResizeDown}
-                            onPointerMove={handleSideResizeMove}
-                            onPointerUp={handleSideResizeUp}
-                            onPointerCancel={handleSideResizeUp}
-                            role="separator"
-                            aria-orientation="vertical"
-                            aria-label="Resize side panels"
-                            aria-expanded={!sidePanelsCollapsed}
-                        >
-                            <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
-                        </div>
+                        {!isCompact && (
+                            <div
+                                className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                                style={{ width: SIDE_HANDLE_WIDTH }}
+                                onPointerDown={handleSideResizeDown}
+                                onPointerMove={handleSideResizeMove}
+                                onPointerUp={handleSideResizeUp}
+                                onPointerCancel={handleSideResizeUp}
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label="Resize side panels"
+                                aria-expanded={!sidePanelsCollapsed}
+                            >
+                                <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                            </div>
+                        )}
                         {!sidePanelsCollapsed && (
-                            <div className="h-full flex-none" style={{ width: `${Math.round(sidePanelWidth)}px` }}>
+                            <div
+                                className={isCompact ? 'flex-1 min-h-[160px] w-full overflow-hidden' : 'h-full flex-none'}
+                                style={isCompact ? undefined : { width: `${Math.round(sidePanelWidth)}px` }}
+                            >
                                 <SidePanels />
                             </div>
                         )}
@@ -359,7 +366,9 @@ const TemplateInitializer: React.FC = () => {
                         try {
                             const result = await importScene(payload);
                             if (!result.ok) {
-                                console.warn('[HomePage Import] Failed:', result.errors.map((e) => e.message).join('\n'));
+                                const msg = result.errors.map((e) => e.message).join('\n');
+                                console.warn('[Import] Failed:', msg);
+                                alert('Failed to load scene: ' + msg);
                             } else {
                                 const metadataStore = useSceneMetadataStore.getState();
                                 const currentAuthor = metadataStore.metadata?.author?.trim();
@@ -371,10 +380,13 @@ const TemplateInitializer: React.FC = () => {
                                 didChange = true;
                             }
                         } catch (e) {
-                            console.error('Failed to import scene payload from HomePage', e);
+                            console.error('Failed to import scene payload', e);
+                            alert('Failed to load scene: ' + (e instanceof Error ? e.message : String(e)));
                         }
                         clearStoredImportPayload();
                     }
+                    // Always clear the importScene navigation state to prevent getting stuck
+                    navigate('/workspace', { replace: true });
                 } else if (shouldLoadTemplate) {
                     const tpl = state.template as string;
                     dispatchSceneCommand({ type: 'clearScene', clearMacros: true }, { source: 'TemplateInitializer.template' });
@@ -403,7 +415,9 @@ const TemplateInitializer: React.FC = () => {
                 }
                 if (didChange) {
                     visualizer.invalidateRender?.();
-                    navigate('/workspace', { replace: true });
+                    if (!shouldImport) {
+                        navigate('/workspace', { replace: true });
+                    }
                 }
             } catch (e) {
                 console.error('Template initialization error', e);

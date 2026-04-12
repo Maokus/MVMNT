@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { TemplateDefinition, TemplateMetadata } from './types';
 
 interface TemplateBrowserModalProps {
@@ -118,6 +119,12 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
                             })}
                         </div>
                     )}
+                </div>
+                <div className="border-t border-neutral-800 px-4 py-2.5 text-xs text-neutral-500">
+                    Looking for more?{' '}
+                    <Link to="/community" className="text-indigo-400 hover:text-indigo-300 underline">
+                        Browse the Community hub
+                    </Link>
                 </div>
             </div>
         </div>

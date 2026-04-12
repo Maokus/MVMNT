@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTimelineStore } from '@state/timelineStore';
 import { RULER_HEIGHT } from './constants';
 import TrackEditorRow from './TrackEditorRow';
 import AutomationTrackLabels from './AutomationTrackLabels';
+import TempoLaneHeader from './TempoLaneHeader';
 
 interface TrackListProps {
     trackIds: string[];
@@ -10,14 +12,14 @@ interface TrackListProps {
 }
 
 const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab }) => {
+    const tempoEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
     const tabButton = (tab: 'clips' | 'automation', label: string) => (
         <button
             type="button"
-            className={`px-2 py-0.5 text-[10px] font-medium rounded ${
-                activeTab === tab
+            className={`px-2 py-0.5 text-[10px] font-medium rounded ${activeTab === tab
                     ? 'bg-blue-600/70 text-white'
                     : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/60'
-            }`}
+                }`}
             onClick={() => setActiveTab(tab)}
         >
             {label}
@@ -48,6 +50,7 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
                 <TrackEditorRow key={id} trackId={id} />
             ))}
             {activeTab === 'automation' && <AutomationTrackLabels />}
+            {activeTab === 'automation' && <TempoLaneHeader />}
         </div>
     );
 };

@@ -9,6 +9,7 @@ import reportWebVitals from './reportWebVitals';
 import { registerBuiltInAudioFeatureCalculators } from '@audio/features/audioFeatureAnalysis';
 import { loadDevPlugins } from '@core/scene/plugins/dev-plugin-loader';
 import { loadAllPluginsFromStorage } from '@core/scene/plugins';
+import { startDevPluginWatcher } from '@core/scene/plugins/dev-plugin-watcher';
 import { installPluginHostApi } from '@core/scene/plugins';
 import { installDefaultPlugins } from '@core/scene/plugins/default-plugins';
 import { useTimelineStore } from '@state/timelineStore';
@@ -59,6 +60,9 @@ registerBuiltInAudioFeatureCalculators();
 loadDevPlugins().catch((error) => {
   console.error('[App] Failed to load dev plugins:', error);
 });
+
+// Hot-reload support: connect to `npm run dev-plugin` server if running
+startDevPluginWatcher();
 
 // Load runtime plugins from storage (Phase 3)
 loadAllPluginsFromStorage().catch((error) => {

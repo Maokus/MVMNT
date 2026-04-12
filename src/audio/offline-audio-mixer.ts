@@ -33,7 +33,8 @@ export interface OfflineMixParams {
     audioCache: Record<string, AudioCacheEntry>;
     startTick: number; // inclusive export range start
     endTick: number; // exclusive export range end
-    ticksPerSecond: number; // derived from tempo & PPQ snapshot
+    ticksPerSecond: number; // derived from tempo & PPQ snapshot (flat-rate fallback)
+    ticksToSeconds?: (ticks: number) => number; // tempo-map-aware conversion (preferred over ticksPerSecond)
     sampleRate?: number; // default 48000
     channels?: number; // 1 or 2 (default 2)
     normalize?: boolean; // optional peak normalization to -1 dBFS headroom
@@ -50,8 +51,9 @@ export interface OfflineMixResult {
 export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixResult> {
     const sampleRate = params.sampleRate ?? 48000;
     const channels = params.channels ?? 2;
-    const rangeTicks = Math.max(0, params.endTick - params.startTick);
-    const durationSeconds = rangeTicks / params.ticksPerSecond;
+    // Tempo-map-aware conversion; falls back to flat rate when not provided
+    const t2s = params.ticksToSeconds ?? ((ticks: number) => ticks / params.ticksPerSecond);
+    const durationSeconds = t2s(params.endTick) - t2s(params.startTick);
     const frameCount = Math.max(1, Math.ceil(durationSeconds * sampleRate));
 
     const audibleTracks = collectAudibleTracks(params);
@@ -85,15 +87,19 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         if (intersectEnd <= intersectStart) continue; // no overlap
 
         const overlapTicks = intersectEnd - intersectStart;
-        const overlapSecs = overlapTicks / params.ticksPerSecond;
-        const writeStartTickOffset = intersectStart - exportStart; // ticks offset into export buffer
-        const writeStartFrame = Math.floor((writeStartTickOffset / params.ticksPerSecond) * sampleRate);
+        const overlapSecs = t2s(intersectEnd) - t2s(intersectStart);
+        const writeStartSeconds = t2s(intersectStart) - t2s(exportStart);
+        const writeStartFrame = Math.floor(writeStartSeconds * sampleRate);
 
         // Source buffer offset (seconds) within the underlying AudioBuffer
+        // intersectStart - track.offsetTicks gives the tick within the buffer's timeline
+        // regionStartTick is the trim start; sourceStartWithinTrackTicks is relative to regionStart
         const sourceStartWithinTrackTicks = intersectStart - track.offsetTicks - regionStartTick; // ticks from regionStart
         if (sourceStartWithinTrackTicks < 0) continue; // shouldn't happen
-        const sourceStartSeconds =
-            sourceStartWithinTrackTicks / params.ticksPerSecond + regionStartTick / params.ticksPerSecond;
+        // durationTicks (and therefore regionStart/End) are position-aware: convert
+        // buffer-local ticks to seconds relative to the clip's timeline position.
+        const bufferTickPos = regionStartTick + sourceStartWithinTrackTicks;
+        const sourceStartSeconds = t2s(track.offsetTicks + bufferTickPos) - t2s(track.offsetTicks);
         const sourceStartFrame = Math.floor(sourceStartSeconds * buffer.sampleRate);
 
         const srcChannels = buffer.numberOfChannels;

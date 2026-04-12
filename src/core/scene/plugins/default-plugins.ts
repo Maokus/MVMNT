@@ -1,9 +1,11 @@
+import { unzipSync } from 'fflate';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { PluginSettingsStore } from '@persistence/plugin-settings-store';
 import { loadPlugin, disablePlugin } from './plugin-loader';
 
 interface DefaultPluginDescriptor {
     id: string;
+    version: string;
     assetPath: string;
     defaultEnabled: boolean;
     skipVersionCheck?: boolean;
@@ -12,11 +14,26 @@ interface DefaultPluginDescriptor {
 const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
     {
         id: 'extraspack1',
-        assetPath: 'default-plugins/extraspack1-1.0.0.mvmnt-plugin',
+        version: '1.0.1',
+        assetPath: 'default-plugins/extraspack1-1.0.1.mvmnt-plugin',
         defaultEnabled: false,
         skipVersionCheck: false,
     },
 ];
+
+async function getInstalledVersion(id: string): Promise<string | null> {
+    try {
+        const buffer = await PluginBinaryStore.get(id);
+        if (!buffer) return null;
+        const files = unzipSync(new Uint8Array(buffer));
+        const manifestData = files['manifest.json'];
+        if (!manifestData) return null;
+        const manifest = JSON.parse(new TextDecoder().decode(manifestData));
+        return manifest.version ?? null;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Install bundled default plugins on first run.
@@ -36,8 +53,16 @@ export async function installDefaultPlugins(): Promise<void> {
     }
 
     for (const descriptor of DEFAULT_PLUGINS) {
-        if (installedIds.includes(descriptor.id)) {
-            continue;
+        const alreadyInstalled = installedIds.includes(descriptor.id);
+
+        if (alreadyInstalled) {
+            const installedVersion = await getInstalledVersion(descriptor.id);
+            if (installedVersion === descriptor.version) {
+                continue;
+            }
+            console.log(
+                `[DefaultPlugins] Updating '${descriptor.id}' from v${installedVersion ?? 'unknown'} to v${descriptor.version}`
+            );
         }
 
         try {
@@ -56,7 +81,10 @@ export async function installDefaultPlugins(): Promise<void> {
                 PluginSettingsStore.setEnabled(descriptor.id, descriptor.defaultEnabled);
             }
 
-            const result = await loadPlugin(buffer, { skipVersionCheck: descriptor.skipVersionCheck });
+            const result = await loadPlugin(buffer, {
+                skipVersionCheck: descriptor.skipVersionCheck,
+                allowExistingPlugin: alreadyInstalled,
+            });
             if (!result.success) {
                 console.warn(`[DefaultPlugins] Failed to install ${descriptor.id}:`, result.error);
                 continue;
