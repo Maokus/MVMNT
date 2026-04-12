@@ -676,6 +676,29 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                 /* noop */
             }
             // Notes no longer store seconds; conversions happen in selectors.
+            // Recompute audioCache durationTicks so clip widths reflect the new tempo map.
+            try {
+                const timing = createTimingContext(
+                    {
+                        globalBpm: s.timeline.globalBpm,
+                        beatsPerBar: s.timeline.beatsPerBar,
+                        masterTempoMap: map,
+                    },
+                    getSharedTimingManager().ticksPerQuarter
+                );
+                const updatedAudio: Record<string, AudioCacheEntry> = {} as any;
+                for (const [id, entry] of Object.entries(next.audioCache)) {
+                    if (!entry || !entry.audioBuffer) {
+                        updatedAudio[id] = entry as any;
+                        continue;
+                    }
+                    const newDurationTicks = Math.round(timingSecondsToTicks(timing, entry.audioBuffer.duration));
+                    updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
+                }
+                next.audioCache = updatedAudio;
+            } catch {
+                /* noop */
+            }
             return next;
         });
     },
