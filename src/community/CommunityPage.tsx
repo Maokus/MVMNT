@@ -121,8 +121,8 @@ const CommunityPage: React.FC = () => {
                 key={o.value}
                 onClick={() => setFilterType(o.value)}
                 className={`px-3 py-1.5 text-xs font-medium transition ${filterType === o.value
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200'
                   }`}
               >
                 {o.label}
