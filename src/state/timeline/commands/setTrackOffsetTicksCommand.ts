@@ -2,7 +2,11 @@ import type { TimelineCommand } from '../commandTypes';
 import type { TimelineCommandContext, TimelineCommandExecuteResult } from '../commandTypes';
 import {
     autoAdjustSceneRangeIfNeeded,
+    createTimelineTimingContext,
 } from '../timelineShared';
+import {
+    secondsToTicksAt,
+} from '../../timelineTime';
 import {
     type TimelineCommandPatch,
     type TimelinePatchAction,
@@ -38,12 +42,26 @@ export function createSetTrackOffsetTicksCommand(
                 };
             }
             const previousOffset = (track as any).offsetTicks ?? 0;
-            context.setState((current) => ({
-                tracks: {
-                    ...current.tracks,
-                    [payload.trackId]: { ...current.tracks[payload.trackId], offsetTicks: payload.offsetTicks },
-                },
-            }));
+            context.setState((current) => {
+                const next: any = {
+                    tracks: {
+                        ...current.tracks,
+                        [payload.trackId]: { ...current.tracks[payload.trackId], offsetTicks: payload.offsetTicks },
+                    },
+                };
+                // Recompute durationTicks for audio tracks so clip width reflects tempo at the new position
+                const cacheKey = (track as any).audioSourceId || payload.trackId;
+                const cacheEntry = current.audioCache[cacheKey];
+                if ((track as any).type === 'audio' && cacheEntry?.audioBuffer) {
+                    const ctx = createTimelineTimingContext(current);
+                    const newDurationTicks = Math.round(secondsToTicksAt(ctx, cacheEntry.audioBuffer.duration, payload.offsetTicks));
+                    next.audioCache = {
+                        ...current.audioCache,
+                        [cacheKey]: { ...cacheEntry, durationTicks: newDurationTicks },
+                    };
+                }
+                return next;
+            });
             autoAdjustSceneRangeIfNeeded(context.getState, context.setState);
             const patch: TimelineCommandPatch = {
                 redo: [

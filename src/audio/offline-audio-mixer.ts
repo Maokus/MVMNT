@@ -96,7 +96,10 @@ export async function offlineMix(params: OfflineMixParams): Promise<OfflineMixRe
         // regionStartTick is the trim start; sourceStartWithinTrackTicks is relative to regionStart
         const sourceStartWithinTrackTicks = intersectStart - track.offsetTicks - regionStartTick; // ticks from regionStart
         if (sourceStartWithinTrackTicks < 0) continue; // shouldn't happen
-        const sourceStartSeconds = t2s(sourceStartWithinTrackTicks + regionStartTick);
+        // durationTicks (and therefore regionStart/End) are position-aware: convert
+        // buffer-local ticks to seconds relative to the clip's timeline position.
+        const bufferTickPos = regionStartTick + sourceStartWithinTrackTicks;
+        const sourceStartSeconds = t2s(track.offsetTicks + bufferTickPos) - t2s(track.offsetTicks);
         const sourceStartFrame = Math.floor(sourceStartSeconds * buffer.sampleRate);
 
         const srcChannels = buffer.numberOfChannels;

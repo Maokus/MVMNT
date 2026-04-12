@@ -27,6 +27,7 @@ import { quantizeSettingToBeats, type QuantizeSetting } from './timeline/quantiz
 import {
     createTimingContext,
     secondsToTicks as timingSecondsToTicks,
+    secondsToTicksAt as timingSecondsToTicksAt,
     ticksToSeconds as timingTicksToSeconds,
     secondsToBeatsContext,
     beatsToSecondsContext,
@@ -692,7 +693,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         updatedAudio[id] = entry as any;
                         continue;
                     }
-                    const newDurationTicks = Math.round(timingSecondsToTicks(timing, entry.audioBuffer.duration));
+                    const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
+                    const newDurationTicks = Math.round(timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks));
                     updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
                 }
                 next.audioCache = updatedAudio;
@@ -742,7 +744,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                         updatedAudio[id] = entry as any;
                         continue;
                     }
-                    const newDurationTicks = Math.round(timingSecondsToTicks(timing, entry.audioBuffer.duration));
+                    const offsetTicks = (next.tracks[id] as any)?.offsetTicks ?? 0;
+                    const newDurationTicks = Math.round(timingSecondsToTicksAt(timing, entry.audioBuffer.duration, offsetTicks));
                     updatedAudio[id] = { ...entry, durationTicks: newDurationTicks } as any;
                 }
                 next.audioCache = updatedAudio;
@@ -931,10 +934,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         options?: { originalFile?: AudioCacheOriginalFile; waveform?: AudioCacheWaveform; skipAutoAnalysis?: boolean }
     ) {
         cancelActiveAudioFeatureJob(id);
-        // Compute duration in ticks using shared timing manager
+        // Compute duration in ticks using shared timing manager (position-aware for tempo maps)
         try {
             const state = get();
-            const durationTicks = Math.round(timingSecondsToTicks(createTimelineTimingContext(state), buffer.duration));
+            const ctx = createTimelineTimingContext(state);
+            const offsetTicks = (state.tracks[id] as any)?.offsetTicks ?? 0;
+            const durationTicks = Math.round(timingSecondsToTicksAt(ctx, buffer.duration, offsetTicks));
             set((s: TimelineState) => {
                 const updates: Partial<TimelineState> = {
                     audioCache: {

@@ -35,7 +35,7 @@
 // - refresh() currently minimal; future granular scheduling will populate lookahead logic here.
 
 import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
-import { createTimingContext, ticksToSeconds as timingTicksToSeconds } from '@state/timelineTime';
+import { createTimingContext, ticksToSecondsAt } from '@state/timelineTime';
 import type { AudioTrack } from '@audio/audioTypes';
 
 interface ActiveTrackNode {
@@ -219,8 +219,8 @@ export class AudioEngine {
         // Tempo-map-aware conversions:
         // - tmgr: converts timeline tick positions to absolute seconds (for scheduling delays)
         // - timingCtx: converts buffer-space ticks to buffer seconds (for offset/duration in source.start())
-        //   Buffer-space ticks were created via secondsToTicks(ctx, buffer.duration) from time=0,
-        //   so using the same timingCtx for the roundtrip is self-consistent.
+        //   durationTicks is computed position-aware via secondsToTicksAt(ctx, duration, offsetTicks),
+        //   so ticksToSecondsAt rounds them back at the same position.
         const tmgr = getSharedTimingManager();
         const timingCtx = createTimingContext(
             { globalBpm: s.timeline.globalBpm, beatsPerBar: s.timeline.beatsPerBar, masterTempoMap: s.timeline.masterTempoMap },
@@ -258,9 +258,12 @@ export class AudioEngine {
                 playbackBufferOffsetTicks = regionStart + ticksIntoRegion;
             }
 
-            // Buffer-space conversions: regionStart/End/Offset ticks -> buffer seconds via timingCtx
-            const playbackBufferOffsetSeconds = timingTicksToSeconds(timingCtx, playbackBufferOffsetTicks);
-            const durationSeconds = timingTicksToSeconds(timingCtx, regionEnd) - playbackBufferOffsetSeconds;
+            // Buffer-space conversions: regionStart/End/Offset ticks -> buffer seconds
+            // durationTicks is computed at the clip's offsetTicks position, so use
+            // ticksToSecondsAt to convert buffer-local ticks back to seconds at that position.
+            const clipOffsetTicks = track.offsetTicks || 0;
+            const playbackBufferOffsetSeconds = ticksToSecondsAt(timingCtx, playbackBufferOffsetTicks, clipOffsetTicks);
+            const durationSeconds = ticksToSecondsAt(timingCtx, regionEnd, clipOffsetTicks) - playbackBufferOffsetSeconds;
 
             const source = ctx.createBufferSource();
             source.buffer = buffer;
