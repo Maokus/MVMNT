@@ -1,6 +1,6 @@
 # Development Scripts
 
-Build, deployment, and utility scripts for MVMNT.
+Hi these are my deployment scripts. If you're not me you probably don't need to read these at all. If you are me it means I lost my laptop im sorry for your loss hope u can figure out how to set it back up lol
 
 ## Deployment Scripts
 
