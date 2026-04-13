@@ -1,8 +1,9 @@
 // Text overlay element for displaying a single line of text with property bindings
-import { SceneElement, asNumber, asTrimmedString } from '../base';
+import { SceneElement } from '../base';
 import { RenderObject, Text } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 export class TextOverlayElement extends SceneElement {
     constructor(id: string = 'textOverlay', config: { [key: string]: any } = {}) {
@@ -10,87 +11,59 @@ export class TextOverlayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Text',
             description: 'Single line text display',
             category: 'Misc',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'textContent',
-                    label: 'Content',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Edit the copy that appears on screen.',
-                    properties: [
-                        {
-                            key: 'text',
-                            type: 'string',
-                            label: 'Text Content',
-                            default: 'Sample Text',
-                            description: 'The text content to display.',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Sample Text' },
-                        },
-                    ],
-                    presets: [
-                        { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
-                        { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
-                    ],
-                },
-                {
-                    id: 'typography',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Control font styling for the text element.',
-                    properties: [
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            description: 'Choose the font family (Google Fonts supported).',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 36,
-                            min: 8,
-                            max: 160,
-                            step: 1,
-                            description: 'Font size in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 36 },
-                        },
-                        {
-                            key: 'color',
-                            type: 'color',
-                            label: 'Text Color',
-                            default: '#ffffff',
-                            description: 'Color used when rendering the text.',
-                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'headline',
-                            label: 'Headline',
-                            values: { fontFamily: 'Inter|700', fontSize: 48, color: '#ffffff' },
-                        },
-                        {
-                            id: 'subtitle',
-                            label: 'Subtitle',
-                            values: { fontFamily: 'Inter|500', fontSize: 28, color: '#94a3b8' },
-                        },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'textContent',
+                label: 'Content',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Edit the copy that appears on screen.',
+                properties: [
+                    prop.string('text', 'Text Content', 'Sample Text', {
+                        description: 'The text content to display.',
+                    }),
+                ],
+                presets: [
+                    { id: 'titleCard', label: 'Title Card', values: { text: 'Title Goes Here' } },
+                    { id: 'callToAction', label: 'Call To Action', values: { text: 'Subscribe for more' } },
+                ],
+            },
+            {
+                id: 'typography',
+                label: 'Typography',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Control font styling for the text element.',
+                properties: [
+                    prop.font('fontFamily', 'Font Family', 'Inter', {
+                        description: 'Choose the font family (Google Fonts supported).',
+                    }),
+                    prop.number('fontSize', 'Font Size (px)', 36, {
+                        min: 8, max: 160, step: 1,
+                        description: 'Font size in pixels.',
+                    }),
+                    prop.color('color', 'Text Color', '#ffffff', {
+                        description: 'Color used when rendering the text.',
+                    }),
+                ],
+                presets: [
+                    {
+                        id: 'headline',
+                        label: 'Headline',
+                        values: { fontFamily: 'Inter|700', fontSize: 48, color: '#ffffff' },
+                    },
+                    {
+                        id: 'subtitle',
+                        label: 'Subtitle',
+                        values: { fontFamily: 'Inter|500', fontSize: 28, color: '#94a3b8' },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

@@ -10,6 +10,7 @@ import { TimingManager } from '@core/timing/timing-manager';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
@@ -46,9 +47,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         const channelColorDefaults = [
             '#ff6b6b',
             '#4ecdc4',
@@ -119,12 +117,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
             ],
         }));
 
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Time Unit Piano Roll',
             description: 'Piano roll visualization split into time-aligned windows.',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
+        }, [
                 {
                     id: 'midiSource',
                     label: 'MIDI Source',
@@ -872,9 +869,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
                 },
-                ...baseAdvancedGroups,
-            ],
-        };
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

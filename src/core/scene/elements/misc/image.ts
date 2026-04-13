@@ -4,6 +4,7 @@ import { Image, AnimatedGif, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
 import type { SceneElementInterface } from '@core/types.js';
 import { imageLoader, LoadedGIF } from '@core/resources/image-loader';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const normalizeFitMode: PropertyTransform<'contain' | 'cover' | 'fill' | 'none', SceneElementInterface> = (
     value,
@@ -55,15 +56,11 @@ export class ImageElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Image',
             description: 'Display an image with transformations',
             category: 'Misc',
-            groups: [
-                ...baseBasicGroups,
+        }, [
                 {
                     id: 'imageSource',
                     label: 'Image Source',
@@ -164,9 +161,7 @@ export class ImageElement extends SceneElement {
                         },
                     ],
                 },
-                ...baseAdvancedGroups,
-            ],
-        };
+        ]);
     }
 
     private _isGifSource(src: string | File | null): boolean {

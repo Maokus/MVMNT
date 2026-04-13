@@ -1,6 +1,7 @@
 // Chord Estimate Display: estimates current chord using a Pardo–Birmingham-inspired method
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
+import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { EnhancedConfigSchema, type SceneElementInterface } from '@core/types.js';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { Rectangle, RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
@@ -21,16 +22,6 @@ const clampWindowFuturePercent: PropertyTransform<number, SceneElementInterface>
 const clampSmoothingMs: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
     return numeric === undefined ? undefined : Math.max(0, numeric);
-};
-
-const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
-    asTrimmedString(value, element) ?? null;
-
-const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
-    if (!normalized) return undefined;
-    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
-    return allowed.includes(normalized) ? normalized : undefined;
 };
 
 type ChordEstimateRuntimeProps = {
@@ -65,262 +56,165 @@ export class ChordEstimateDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Chord Estimate Display',
             description:
                 'Estimates the current chord (Pardo–Birmingham-inspired) and displays it as text (timeline-backed)',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'chordSource',
-                    label: 'Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Choose the MIDI track and analysis window for detection.',
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            runtime: { transform: normalizeMidiTrackId, defaultValue: null },
+        }, [
+            {
+                id: 'chordSource',
+                label: 'Source',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Choose the MIDI track and analysis window for detection.',
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track'),
+                    {
+                        key: 'windowSeconds',
+                        type: 'number',
+                        label: 'Analysis Window (s)',
+                        default: 0.1,
+                        min: 0.05,
+                        max: 4,
+                        step: 0.05,
+                        runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
+                    },
+                    {
+                        key: 'windowFuturePercent',
+                        type: 'number',
+                        label: 'Future Window (%)',
+                        default: 0,
+                        min: 0,
+                        max: 100,
+                        step: 5,
+                        runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
+                    },
+                ],
+            },
+            {
+                id: 'estimation',
+                label: 'Estimation',
+                variant: 'advanced',
+                collapsed: true,
+                description: 'Refine which chord qualities are considered during detection.',
+                properties: [
+                    prop.boolean('includeTriads', 'Allow Triads (maj/min)', true),
+                    prop.boolean('includeDiminished', 'Allow Diminished', true),
+                    prop.boolean('includeAugmented', 'Allow Augmented', false),
+                    prop.boolean('includeSevenths', 'Allow 7ths', true),
+                    prop.boolean('preferBassRoot', 'Prefer Root in Bass', true),
+                    prop.boolean('showInversion', 'Show Inversion (slash)', true),
+                    {
+                        key: 'smoothingMs',
+                        type: 'number',
+                        label: 'Hold Chord (ms)',
+                        default: 100,
+                        min: 0,
+                        max: 1000,
+                        step: 10,
+                        runtime: { transform: clampSmoothingMs, defaultValue: 1 },
+                    },
+                ],
+                presets: [
+                    {
+                        id: 'bandDefault',
+                        label: 'Band Default',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: true,
+                            includeAugmented: false,
+                            includeSevenths: true,
+                            preferBassRoot: true,
+                            showInversion: true,
+                            smoothingMs: 160,
                         },
-                        {
-                            key: 'windowSeconds',
-                            type: 'number',
-                            label: 'Analysis Window (s)',
-                            default: 0.1,
-                            min: 0.05,
-                            max: 4,
-                            step: 0.05,
-                            runtime: { transform: clampWindowSeconds, defaultValue: 0.1 },
+                    },
+                    {
+                        id: 'jazzExtended',
+                        label: 'Jazz Extended',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: true,
+                            includeAugmented: true,
+                            includeSevenths: true,
+                            preferBassRoot: false,
+                            showInversion: true,
+                            smoothingMs: 240,
                         },
-                        {
-                            key: 'windowFuturePercent',
-                            type: 'number',
-                            label: 'Future Window (%)',
-                            default: 0,
-                            min: 0,
-                            max: 100,
-                            step: 5,
-                            runtime: { transform: clampWindowFuturePercent, defaultValue: 0 },
+                    },
+                    {
+                        id: 'simpleTriads',
+                        label: 'Simple Triads',
+                        values: {
+                            includeTriads: true,
+                            includeDiminished: false,
+                            includeAugmented: false,
+                            includeSevenths: false,
+                            preferBassRoot: true,
+                            showInversion: false,
+                            smoothingMs: 120,
                         },
-                    ],
-                },
-                {
-                    id: 'estimation',
-                    label: 'Estimation',
-                    variant: 'advanced',
-                    collapsed: true,
-                    description: 'Refine which chord qualities are considered during detection.',
-                    properties: [
-                        {
-                            key: 'includeTriads',
-                            type: 'boolean',
-                            label: 'Allow Triads (maj/min)',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'includeDiminished',
-                            type: 'boolean',
-                            label: 'Allow Diminished',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'includeAugmented',
-                            type: 'boolean',
-                            label: 'Allow Augmented',
-                            default: false,
-                            runtime: { transform: asBoolean, defaultValue: false },
-                        },
-                        {
-                            key: 'includeSevenths',
-                            type: 'boolean',
-                            label: 'Allow 7ths',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'preferBassRoot',
-                            type: 'boolean',
-                            label: 'Prefer Root in Bass',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'showInversion',
-                            type: 'boolean',
-                            label: 'Show Inversion (slash)',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'smoothingMs',
-                            type: 'number',
-                            label: 'Hold Chord (ms)',
-                            default: 100,
-                            min: 0,
-                            max: 1000,
-                            step: 10,
-                            runtime: { transform: clampSmoothingMs, defaultValue: 1 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'bandDefault',
-                            label: 'Band Default',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: true,
-                                includeAugmented: false,
-                                includeSevenths: true,
-                                preferBassRoot: true,
-                                showInversion: true,
-                                smoothingMs: 160,
-                            },
-                        },
-                        {
-                            id: 'jazzExtended',
-                            label: 'Jazz Extended',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: true,
-                                includeAugmented: true,
-                                includeSevenths: true,
-                                preferBassRoot: false,
-                                showInversion: true,
-                                smoothingMs: 240,
-                            },
-                        },
-                        {
-                            id: 'simpleTriads',
-                            label: 'Simple Triads',
-                            values: {
-                                includeTriads: true,
-                                includeDiminished: false,
-                                includeAugmented: false,
-                                includeSevenths: false,
-                                preferBassRoot: true,
-                                showInversion: false,
-                                smoothingMs: 120,
-                            },
-                        },
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Adjust how chords and details are rendered.',
-                    properties: [
-                        {
-                            key: 'textJustification',
-                            type: 'select',
-                            label: 'Text Alignment',
-                            default: 'left',
-                            options: [
-                                { value: 'left', label: 'Left' },
-                                { value: 'right', label: 'Right' },
-                            ],
-                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
-                        },
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Label Font Size (px)',
-                            default: 48,
-                            min: 6,
-                            max: 150,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 48 },
-                        },
-                        {
-                            key: 'chordFontSize',
-                            type: 'number',
-                            label: 'Chord Font Size (px)',
-                            default: 48,
-                            min: 6,
-                            max: 150,
-                            step: 1,
-                            runtime: { transform: asNumber },
-                        },
-                        {
-                            key: 'detailsFontSize',
-                            type: 'number',
-                            label: 'Details Font Size (px)',
-                            default: 24,
-                            min: 6,
-                            max: 150,
-                            step: 1,
-                            runtime: { transform: asNumber },
-                        },
-                        {
-                            key: 'color',
-                            type: 'color',
-                            label: 'Text Color',
-                            default: '#ffffff',
-                            runtime: { transform: asTrimmedString, defaultValue: '#ffffff' },
-                        },
-                        {
-                            key: 'lineSpacing',
-                            type: 'number',
-                            label: 'Line Spacing (px)',
-                            default: 6,
-                            min: 0,
-                            max: 60,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 6 },
-                        },
-                        {
-                            key: 'showActiveNotes',
-                            type: 'boolean',
-                            label: 'Show Active Notes',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'showChroma',
-                            type: 'boolean',
-                            label: 'Show Chroma Chart',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'darkStage',
-                            label: 'Dark Stage',
-                            values: { fontFamily: 'Inter|600', chordFontSize: 54, color: '#f8fafc', lineSpacing: 8 },
-                        },
-                        {
-                            id: 'glassOverlay',
-                            label: 'Glass Overlay',
-                            values: { fontFamily: 'Inter|400', chordFontSize: 42, color: '#cbd5f5', lineSpacing: 4 },
-                        },
-                        {
-                            id: 'boldBroadcast',
-                            label: 'Broadcast Bold',
-                            values: { fontFamily: 'Inter|700', chordFontSize: 60, color: '#f97316', lineSpacing: 10 },
-                        },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+                    },
+                ],
+            },
+            {
+                id: 'appearance',
+                label: 'Typography',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Adjust how chords and details are rendered.',
+                properties: [
+                    prop.select('textJustification', 'Text Alignment', 'left', [
+                        { value: 'left', label: 'Left' },
+                        { value: 'right', label: 'Right' },
+                    ]),
+                    prop.font('fontFamily', 'Font Family', 'Inter'),
+                    prop.number('fontSize', 'Label Font Size (px)', 48, { min: 6, max: 150, step: 1 }),
+                    {
+                        key: 'chordFontSize',
+                        type: 'number',
+                        label: 'Chord Font Size (px)',
+                        default: 48,
+                        min: 6,
+                        max: 150,
+                        step: 1,
+                        runtime: { transform: asNumber },
+                    },
+                    {
+                        key: 'detailsFontSize',
+                        type: 'number',
+                        label: 'Details Font Size (px)',
+                        default: 24,
+                        min: 6,
+                        max: 150,
+                        step: 1,
+                        runtime: { transform: asNumber },
+                    },
+                    prop.color('color', 'Text Color', '#ffffff'),
+                    prop.number('lineSpacing', 'Line Spacing (px)', 6, { min: 0, max: 60, step: 1 }),
+                    prop.boolean('showActiveNotes', 'Show Active Notes', true),
+                    prop.boolean('showChroma', 'Show Chroma Chart', true),
+                ],
+                presets: [
+                    {
+                        id: 'darkStage',
+                        label: 'Dark Stage',
+                        values: { fontFamily: 'Inter|600', chordFontSize: 54, color: '#f8fafc', lineSpacing: 8 },
+                    },
+                    {
+                        id: 'glassOverlay',
+                        label: 'Glass Overlay',
+                        values: { fontFamily: 'Inter|400', chordFontSize: 42, color: '#cbd5f5', lineSpacing: 4 },
+                    },
+                    {
+                        id: 'boldBroadcast',
+                        label: 'Broadcast Bold',
+                        values: { fontFamily: 'Inter|700', chordFontSize: 60, color: '#f97316', lineSpacing: 10 },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

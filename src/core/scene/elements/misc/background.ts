@@ -1,7 +1,8 @@
 // Background element for rendering the main background with property bindings
-import { SceneElement, asTrimmedString } from '../base';
+import { SceneElement } from '../base';
 import { Rectangle, RenderObject } from '@core/render/render-objects';
 import { EnhancedConfigSchema } from '@core/types.js';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 export class BackgroundElement extends SceneElement {
     constructor(id: string = 'background', config: { [key: string]: any } = {}) {
@@ -25,40 +26,29 @@ export class BackgroundElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Background',
             description: 'Solid background color for the visualization',
             category: 'Misc',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'backgroundAppearance',
-                    label: 'Background',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Set the backdrop tone for the entire scene.',
-                    properties: [
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background Color',
-                            default: '#1a1a1aff',
-                            description: 'Color fill applied behind every element.',
-                            runtime: { transform: asTrimmedString, defaultValue: '#1a1a1aff' },
-                        },
-                    ],
-                    presets: [
-                        { id: 'deepStage', label: 'Deep Stage', values: { backgroundColor: '#0f172a' } },
-                        { id: 'warmGlow', label: 'Warm Glow', values: { backgroundColor: '#f59e0b' } },
-                        { id: 'graphPaper', label: 'Graph Paper', values: { backgroundColor: '#111827' } },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'backgroundAppearance',
+                label: 'Background',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Set the backdrop tone for the entire scene.',
+                properties: [
+                    prop.colorAlpha('backgroundColor', 'Background Color', '#1a1a1aff', {
+                        description: 'Color fill applied behind every element.',
+                    }),
+                ],
+                presets: [
+                    { id: 'deepStage', label: 'Deep Stage', values: { backgroundColor: '#0f172a' } },
+                    { id: 'warmGlow', label: 'Warm Glow', values: { backgroundColor: '#f59e0b' } },
+                    { id: 'graphPaper', label: 'Graph Paper', values: { backgroundColor: '#111827' } },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

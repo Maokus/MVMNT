@@ -8,6 +8,7 @@ import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
 import { TimingManager } from '@core/timing';
+import { insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
 
@@ -36,9 +37,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         const channelColorDefaults = [
             '#ff6b6b',
             '#4ecdc4',
@@ -109,12 +107,11 @@ export class MovingNotesPianoRollElement extends SceneElement {
             ],
         }));
 
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Moving Notes Piano Roll',
             description: 'Notes move past a static playhead',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
+        }, [
                 {
                     id: 'midiSource',
                     label: 'MIDI Source',
@@ -572,9 +569,7 @@ export class MovingNotesPianoRollElement extends SceneElement {
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
                 },
-                ...baseAdvancedGroups,
-            ],
-        };
+        ]);
     }
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
         const props = this.getSchemaProps({

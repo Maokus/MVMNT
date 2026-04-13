@@ -1,4 +1,4 @@
-import { SceneElement, asNumber, asTrimmedString } from '../base';
+import { SceneElement, asNumber } from '../base';
 import { Arc, Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
@@ -6,6 +6,7 @@ import type { AudioFeatureRangeSample } from '@state/selectors/audioFeatureSelec
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'waveform' });
 
@@ -543,274 +544,239 @@ export class AudioWaveformElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Audio Waveform',
             description: 'Simple waveform preview for debugging audio features.',
             category: 'Audio Displays',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'oscilloscopeBasics',
-                    label: 'Oscilloscope',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        }, [
+            {
+                id: 'oscilloscopeBasics',
+                label: 'Oscilloscope',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.audioTrack('audioTrackId', 'Audio Track'),
+                    {
+                        key: 'windowSeconds',
+                        type: 'number',
+                        label: 'Window (seconds)',
+                        default: 0.12,
+                        min: 0.01,
+                        max: 100,
+                        step: 0.01,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0.01, 100);
                             },
+                            defaultValue: 0.12,
                         },
-                        {
-                            key: 'windowSeconds',
-                            type: 'number',
-                            label: 'Window (seconds)',
-                            default: 0.12,
-                            min: 0.01,
-                            max: 100,
-                            step: 0.01,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.01, 100);
-                                },
-                                defaultValue: 0.12,
+                    },
+                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
+                    prop.number('height', 'Height (px)', 140, { min: 20, max: 800, step: 1 }),
+                    {
+                        key: 'side',
+                        type: 'select',
+                        label: 'Side',
+                        default: DEFAULT_WAVEFORM_SIDE,
+                        options: [
+                            { label: 'Both', value: 'both' },
+                            { label: 'Side A', value: 'sideA' },
+                            { label: 'Side B', value: 'sideB' },
+                        ],
+                        runtime: {
+                            transform: (value) => normalizeWaveformSide(value, DEFAULT_WAVEFORM_SIDE),
+                            defaultValue: DEFAULT_WAVEFORM_SIDE,
+                        },
+                    },
+                    {
+                        key: 'primaryChannel',
+                        type: 'select',
+                        label: 'Primary Channel',
+                        default: DEFAULT_PRIMARY_CHANNEL,
+                        options: [
+                            { label: 'Left', value: 'left' },
+                            { label: 'Right', value: 'right' },
+                            { label: 'Mid (L+R)', value: 'mid' },
+                            { label: 'Side (L-R)', value: 'side' },
+                        ],
+                        runtime: {
+                            transform: (value) => normalizeWaveformChannel(value, DEFAULT_PRIMARY_CHANNEL),
+                            defaultValue: DEFAULT_PRIMARY_CHANNEL,
+                        },
+                    },
+                    {
+                        key: 'secondaryChannel',
+                        type: 'select',
+                        label: 'Secondary Channel',
+                        default: DEFAULT_SECONDARY_CHANNEL,
+                        options: [
+                            { label: 'Left', value: 'left' },
+                            { label: 'Right', value: 'right' },
+                            { label: 'Mid (L+R)', value: 'mid' },
+                            { label: 'Side (L-R)', value: 'side' },
+                        ],
+                        runtime: {
+                            transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
+                            defaultValue: DEFAULT_SECONDARY_CHANNEL,
+                        },
+                    },
+                    {
+                        key: 'primaryColor',
+                        type: 'colorAlpha',
+                        label: 'Primary Color',
+                        default: DEFAULT_PRIMARY_LINE_COLOR,
+                        runtime: {
+                            transform: (value, element) => {
+                                const legacyColor =
+                                    element instanceof AudioWaveformElement
+                                        ? element.readLegacyLineColor()
+                                        : undefined;
+                                const fallback = legacyColor ?? DEFAULT_PRIMARY_LINE_COLOR;
+                                const candidate = value ?? legacyColor;
+                                return normalizeColorAlphaValue(candidate ?? fallback, fallback);
                             },
+                            defaultValue: DEFAULT_PRIMARY_LINE_COLOR,
                         },
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 420,
-                            min: 40,
-                            max: 1600,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 420 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 140,
-                            min: 20,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 140 },
-                        },
-                        {
-                            key: 'side',
-                            type: 'select',
-                            label: 'Side',
-                            default: DEFAULT_WAVEFORM_SIDE,
-                            options: [
-                                { label: 'Both', value: 'both' },
-                                { label: 'Side A', value: 'sideA' },
-                                { label: 'Side B', value: 'sideB' },
-                            ],
-                            runtime: {
-                                transform: (value) => normalizeWaveformSide(value, DEFAULT_WAVEFORM_SIDE),
-                                defaultValue: DEFAULT_WAVEFORM_SIDE,
+                    },
+                    {
+                        key: 'secondaryColor',
+                        type: 'colorAlpha',
+                        label: 'Secondary Color',
+                        default: DEFAULT_SECONDARY_LINE_COLOR,
+                        runtime: {
+                            transform: (value, element) => {
+                                const legacyColor =
+                                    element instanceof AudioWaveformElement
+                                        ? element.readLegacyLineColor()
+                                        : undefined;
+                                const fallback = legacyColor ?? DEFAULT_SECONDARY_LINE_COLOR;
+                                const candidate = value ?? legacyColor;
+                                return normalizeColorAlphaValue(candidate ?? fallback, fallback);
                             },
+                            defaultValue: DEFAULT_SECONDARY_LINE_COLOR,
                         },
-                        {
-                            key: 'primaryChannel',
-                            type: 'select',
-                            label: 'Primary Channel',
-                            default: DEFAULT_PRIMARY_CHANNEL,
-                            options: [
-                                { label: 'Left', value: 'left' },
-                                { label: 'Right', value: 'right' },
-                                { label: 'Mid (L+R)', value: 'mid' },
-                                { label: 'Side (L-R)', value: 'side' },
-                            ],
-                            runtime: {
-                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_PRIMARY_CHANNEL),
-                                defaultValue: DEFAULT_PRIMARY_CHANNEL,
+                    },
+                    {
+                        key: 'lineWidth',
+                        type: 'number',
+                        label: 'Line Width (px)',
+                        default: 2,
+                        min: 1,
+                        max: 6,
+                        step: 0.5,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
                             },
+                            defaultValue: 2,
                         },
-                        {
-                            key: 'secondaryChannel',
-                            type: 'select',
-                            label: 'Secondary Channel',
-                            default: DEFAULT_SECONDARY_CHANNEL,
-                            options: [
-                                { label: 'Left', value: 'left' },
-                                { label: 'Right', value: 'right' },
-                                { label: 'Mid (L+R)', value: 'mid' },
-                                { label: 'Side (L-R)', value: 'side' },
-                            ],
-                            runtime: {
-                                transform: (value) => normalizeWaveformChannel(value, DEFAULT_SECONDARY_CHANNEL),
-                                defaultValue: DEFAULT_SECONDARY_CHANNEL,
+                    },
+                    {
+                        key: 'gain',
+                        type: 'number',
+                        label: 'Gain',
+                        default: 1,
+                        min: 0,
+                        max: 10,
+                        step: 0.1,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0, 10);
                             },
+                            defaultValue: 1,
                         },
-                        {
-                            key: 'primaryColor',
-                            type: 'colorAlpha',
-                            label: 'Primary Color',
-                            default: DEFAULT_PRIMARY_LINE_COLOR,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const legacyColor =
-                                        element instanceof AudioWaveformElement
-                                            ? element.readLegacyLineColor()
-                                            : undefined;
-                                    const fallback = legacyColor ?? DEFAULT_PRIMARY_LINE_COLOR;
-                                    const candidate = value ?? legacyColor;
-                                    return normalizeColorAlphaValue(candidate ?? fallback, fallback);
-                                },
-                                defaultValue: DEFAULT_PRIMARY_LINE_COLOR,
+                    },
+                    {
+                        key: 'density',
+                        type: 'number',
+                        label: 'Density',
+                        default: 1,
+                        min: 0.1,
+                        max: 1,
+                        step: 0.05,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0.1, 1);
                             },
+                            defaultValue: 1,
                         },
-                        {
-                            key: 'secondaryColor',
-                            type: 'colorAlpha',
-                            label: 'Secondary Color',
-                            default: DEFAULT_SECONDARY_LINE_COLOR,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const legacyColor =
-                                        element instanceof AudioWaveformElement
-                                            ? element.readLegacyLineColor()
-                                            : undefined;
-                                    const fallback = legacyColor ?? DEFAULT_SECONDARY_LINE_COLOR;
-                                    const candidate = value ?? legacyColor;
-                                    return normalizeColorAlphaValue(candidate ?? fallback, fallback);
-                                },
-                                defaultValue: DEFAULT_SECONDARY_LINE_COLOR,
+                    },
+                    {
+                        key: 'startOffset',
+                        type: 'number',
+                        label: 'Start Offset',
+                        default: 0.5,
+                        min: 0,
+                        max: 1,
+                        step: 0.01,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0, 1);
                             },
+                            defaultValue: 0.5,
                         },
-                        {
-                            key: 'lineWidth',
-                            type: 'number',
-                            label: 'Line Width (px)',
-                            default: 2,
-                            min: 1,
-                            max: 6,
-                            step: 0.5,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                                },
-                                defaultValue: 2,
+                    },
+                    {
+                        key: 'showPlayhead',
+                        type: 'boolean',
+                        label: 'Show Playhead',
+                        default: false,
+                        runtime: {
+                            transform: (value) => (typeof value === 'boolean' ? value : undefined),
+                            defaultValue: false,
+                        },
+                    },
+                    {
+                        key: 'backgroundColor',
+                        type: 'colorAlpha',
+                        label: 'Background',
+                        default: DEFAULT_BACKGROUND_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                            defaultValue: DEFAULT_BACKGROUND_COLOR,
+                        },
+                    },
+                    {
+                        key: 'display',
+                        type: 'select',
+                        label: 'Display',
+                        default: DEFAULT_DISPLAY_MODE,
+                        options: [
+                            { label: 'Bars', value: 'bar' },
+                            { label: 'Line', value: 'line' },
+                            { label: 'Dots', value: 'dot' },
+                        ],
+                        runtime: {
+                            transform: (value) => normalizeWaveformDisplay(value, DEFAULT_DISPLAY_MODE),
+                            defaultValue: DEFAULT_DISPLAY_MODE,
+                        },
+                    },
+                    {
+                        key: 'damp',
+                        type: 'number',
+                        label: 'Damp',
+                        default: 0,
+                        min: 0,
+                        max: 64,
+                        step: 1,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                if (numeric === undefined) return undefined;
+                                const clamped = clamp(numeric, 0, 64);
+                                return Math.round(clamped);
                             },
+                            defaultValue: 0,
                         },
-                        {
-                            key: 'gain',
-                            type: 'number',
-                            label: 'Gain',
-                            default: 1,
-                            min: 0,
-                            max: 10,
-                            step: 0.1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0, 10);
-                                },
-                                defaultValue: 1,
-                            },
-                        },
-                        {
-                            key: 'density',
-                            type: 'number',
-                            label: 'Density',
-                            default: 1,
-                            min: 0.1,
-                            max: 1,
-                            step: 0.05,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.1, 1);
-                                },
-                                defaultValue: 1,
-                            },
-                        },
-                        {
-                            key: 'startOffset',
-                            type: 'number',
-                            label: 'Start Offset',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0, 1);
-                                },
-                                defaultValue: 0.5,
-                            },
-                        },
-                        {
-                            key: 'showPlayhead',
-                            type: 'boolean',
-                            label: 'Show Playhead',
-                            default: false,
-                            runtime: {
-                                transform: (value) => (typeof value === 'boolean' ? value : undefined),
-                                defaultValue: false,
-                            },
-                        },
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background',
-                            default: DEFAULT_BACKGROUND_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                                defaultValue: DEFAULT_BACKGROUND_COLOR,
-                            },
-                        },
-                        {
-                            key: 'display',
-                            type: 'select',
-                            label: 'Display',
-                            default: DEFAULT_DISPLAY_MODE,
-                            options: [
-                                { label: 'Bars', value: 'bar' },
-                                { label: 'Line', value: 'line' },
-                                { label: 'Dots', value: 'dot' },
-                            ],
-                            runtime: {
-                                transform: (value) => normalizeWaveformDisplay(value, DEFAULT_DISPLAY_MODE),
-                                defaultValue: DEFAULT_DISPLAY_MODE,
-                            },
-                        },
-                        {
-                            key: 'damp',
-                            type: 'number',
-                            label: 'Damp',
-                            default: 0,
-                            min: 0,
-                            max: 64,
-                            step: 1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    if (numeric === undefined) return undefined;
-                                    const clamped = clamp(numeric, 0, 64);
-                                    return Math.round(clamped);
-                                },
-                                defaultValue: 0,
-                            },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+                    },
+                ],
+            },
+        ]);
     }
 
     private readLegacyLineColor(): string | undefined {
