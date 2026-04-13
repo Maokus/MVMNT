@@ -238,36 +238,32 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...(linked ?? {}),
             }));
 
-            // Keyframe dispatch — behaviour depends on auto-keying mode
-            const chId = makeChannelId(elementId, key);
-            const automationChannelsNow = useSceneStore.getState().automation.channels;
-
+            // Auto-keying ON, property not yet automated: create the channel with an initial keyframe.
+            // SceneSelectionContext.updateElementConfig handles the "channel already exists" case.
             if (autoKeying) {
-                // Auto-keying ON: every property change records a keyframe at the current tick
-                const session = meta?.mergeSession;
-                const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
-                if (session) {
-                    cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
-                    cmdOptions.transient = !session.finalize;
-                }
-                const kf = { tick: currentTick, value: value, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const };
-                if (automationChannelsNow[chId]) {
-                    dispatchSceneCommand({ type: 'addKeyframe', channelId: chId, keyframe: kf }, cmdOptions);
-                } else {
+                const chId = makeChannelId(elementId, key);
+                if (!useSceneStore.getState().automation.channels[chId]) {
                     const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
                     if (valueType) {
+                        const session = meta?.mergeSession;
+                        const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
+                        if (session) {
+                            cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
+                            cmdOptions.transient = !session.finalize;
+                        }
                         dispatchSceneCommand(
-                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [kf] },
+                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [{ tick: currentTick, value, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }] },
                             cmdOptions,
                         );
+                        return;
                     }
                 }
-                return;
+                // Channel exists: fall through to onConfigChange, which will dispatch addKeyframe
             }
 
-            // Auto-keying OFF: if an automation channel exists, updating config has no effect during
-            // playback/scrubbing (KeyframeBinding takes precedence), so the value "reverts" on scrub.
-            // We intentionally fall through to onConfigChange in all cases.
+            // Auto-keying OFF: falls through to onConfigChange unconditionally.
+            // SceneSelectionContext.updateElementConfig will dispatch updateElementConfig for all keys,
+            // so any keyframed property's rendered value will revert to the keyframed value on scrub.
 
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;

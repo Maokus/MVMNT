@@ -216,16 +216,17 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (elementId: string, changes: { [key: string]: any }, options?: Omit<SceneCommandOptions, 'source'>) => {
             if (!elementId) return;
 
-            // For each property being changed, check if it has automation.
+            // For each property being changed, check if it has automation AND autoKeying is on.
             // If so, dispatch addKeyframe instead of overwriting the binding.
             const automationChannels = useSceneStore.getState().automation.channels;
             const currentTick = useTimelineStore.getState().timeline.currentTick;
+            const autoKeying = useTimelineStore.getState().transport.autoKeying;
             const automatedKeys: string[] = [];
             const nonAutomatedChanges: Record<string, any> = {};
 
             for (const [key, value] of Object.entries(changes)) {
                 const chId = makeChannelId(elementId, key);
-                if (automationChannels[chId]) {
+                if (autoKeying && automationChannels[chId]) {
                     automatedKeys.push(key);
                     const channel = automationChannels[chId];
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
