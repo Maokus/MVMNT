@@ -509,9 +509,13 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
     useEffect(() => {
         if (!contextMenuOpen) return;
-        const close = () => setContextMenuOpen(false);
-        window.addEventListener('pointerdown', close);
-        return () => window.removeEventListener('pointerdown', close);
+        const close = (e: PointerEvent) => {
+            const el = ctxRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setContextMenuOpen(false);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
     }, [contextMenuOpen]);
 
     // -----------------------------------------------------------------------

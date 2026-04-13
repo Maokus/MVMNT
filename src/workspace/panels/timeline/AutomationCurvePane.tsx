@@ -41,6 +41,7 @@ interface AutomationCurvePaneProps {
 const PADDING_Y = 8;
 const POINT_RADIUS = 5;
 const HANDLE_RADIUS = 3.5;
+const HANDLE_HIT_RADIUS = 8;
 const SAMPLE_COUNT = 80;
 
 type EasingFn = (t: number) => number;
@@ -68,6 +69,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     const [interpolationPicker, setInterpolationPicker] = useState<{ tick: number } | null>(null);
 
+    const [hoveredHandle, setHoveredHandle] = useState<{ tick: number; side: 'left' | 'right' } | null>(null);
+
+    const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
+
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
         open: interpolationPicker !== null,
         placement: 'bottom-start',
@@ -75,13 +80,36 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         whileElementsMounted: autoUpdate,
     });
 
+    const { refs: kfMenuRefs, floatingStyles: kfMenuFloatingStyles } = useFloating({
+        open: kfHandleMenu !== null,
+        placement: 'right-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
+
     // Close picker on outside click
     useEffect(() => {
         if (!interpolationPicker) return;
-        const close = () => setInterpolationPicker(null);
-        window.addEventListener('pointerdown', close);
-        return () => window.removeEventListener('pointerdown', close);
+        const close = (e: PointerEvent) => {
+            const el = pickerRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setInterpolationPicker(null);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
     }, [interpolationPicker]);
+
+    // Close handle-type menu on outside click
+    useEffect(() => {
+        if (!kfHandleMenu) return;
+        const close = (e: PointerEvent) => {
+            const el = kfMenuRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setKfHandleMenu(null);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
+    }, [kfHandleMenu]);
 
     // Compute value range for vertical mapping
     const { minVal, maxVal } = useMemo(() => {
@@ -531,21 +559,31 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 })}
 
                 {/* Bezier handle arms and circles */}
-                {handleVisuals.map((hv) => (
+                {handleVisuals.map((hv) => {
+                    const isHoverLeft = hoveredHandle?.tick === hv.tick && hoveredHandle?.side === 'left';
+                    const isHoverRight = hoveredHandle?.tick === hv.tick && hoveredHandle?.side === 'right';
+                    return (
                     <g key={`handle-${hv.tick}`}>
                         {hv.showLeft && (
                             <>
                                 <line
                                     x1={hv.kfX} y1={hv.kfY} x2={hv.leftX} y2={hv.leftY}
-                                    stroke="rgba(250,204,21,0.5)" strokeWidth={1}
+                                    stroke={isHoverLeft ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
                                     pointerEvents="none"
                                 />
                                 <circle
                                     cx={hv.leftX} cy={hv.leftY} r={HANDLE_RADIUS}
-                                    fill={hv.leftIsAuto ? 'transparent' : '#facc15'}
-                                    stroke="#facc15" strokeWidth={1.5}
+                                    fill={isHoverLeft ? '#fde047' : (hv.leftIsAuto ? 'transparent' : '#facc15')}
+                                    stroke={isHoverLeft ? '#fef08a' : '#facc15'} strokeWidth={isHoverLeft ? 2 : 1.5}
+                                    pointerEvents="none"
+                                />
+                                <circle
+                                    cx={hv.leftX} cy={hv.leftY} r={HANDLE_HIT_RADIUS}
+                                    fill="transparent"
                                     style={{ cursor: 'grab' }}
                                     onPointerDown={(e) => handleHandleDown(e, hv.tick, 'left')}
+                                    onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'left' })}
+                                    onPointerLeave={() => setHoveredHandle(null)}
                                 />
                             </>
                         )}
@@ -553,20 +591,28 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             <>
                                 <line
                                     x1={hv.kfX} y1={hv.kfY} x2={hv.rightX} y2={hv.rightY}
-                                    stroke="rgba(250,204,21,0.5)" strokeWidth={1}
+                                    stroke={isHoverRight ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
                                     pointerEvents="none"
                                 />
                                 <circle
                                     cx={hv.rightX} cy={hv.rightY} r={HANDLE_RADIUS}
-                                    fill={hv.rightIsAuto ? 'transparent' : '#facc15'}
-                                    stroke="#facc15" strokeWidth={1.5}
+                                    fill={isHoverRight ? '#fde047' : (hv.rightIsAuto ? 'transparent' : '#facc15')}
+                                    stroke={isHoverRight ? '#fef08a' : '#facc15'} strokeWidth={isHoverRight ? 2 : 1.5}
+                                    pointerEvents="none"
+                                />
+                                <circle
+                                    cx={hv.rightX} cy={hv.rightY} r={HANDLE_HIT_RADIUS}
+                                    fill="transparent"
                                     style={{ cursor: 'grab' }}
                                     onPointerDown={(e) => handleHandleDown(e, hv.tick, 'right')}
+                                    onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'right' })}
+                                    onPointerLeave={() => setHoveredHandle(null)}
                                 />
                             </>
                         )}
                     </g>
-                ))}
+                    );
+                })}
 
                 {/* Control points */}
                 {points.map((pt) => (
@@ -580,6 +626,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         strokeWidth={1.5}
                         style={{ cursor: 'ns-resize' }}
                         onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            kfMenuRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                            setKfHandleMenu({ tick: pt.tick });
+                        }}
                     />
                 ))}
             </svg>
@@ -617,6 +669,79 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     </div>
                 </FloatingPortal>
             )}
+            {/* Handle type menu (right-click on keyframe) */}
+            {kfHandleMenu && (() => {
+                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - kfHandleMenu.tick) < 0.5);
+                const kf = kfIdx >= 0 ? channel.keyframes[kfIdx] : null;
+                if (!kf) return null;
+                const hasLeft = kfIdx > 0;
+                const hasRight = kfIdx < channel.keyframes.length - 1;
+                const currentLeft = kf.leftHandleType ?? 'auto_clamped';
+                const currentRight = kf.rightHandleType ?? 'auto_clamped';
+                const handleTypes: Array<{ type: HandleType; label: string }> = [
+                    { type: 'auto_clamped', label: 'Auto (Clamped)' },
+                    { type: 'auto', label: 'Auto' },
+                    { type: 'free', label: 'Free' },
+                    { type: 'aligned', label: 'Aligned' },
+                    { type: 'vector', label: 'Vector' },
+                ];
+                const setHandleType = (side: 'left' | 'right', type: HandleType) => {
+                    const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
+                    dispatchSceneCommand(
+                        { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
+                        { source: 'curve-editor' },
+                    );
+                    setKfHandleMenu(null);
+                };
+                return (
+                    <FloatingPortal>
+                        <div
+                            ref={kfMenuRefs.setFloating}
+                            className="ae-context-menu z-50"
+                            style={kfMenuFloatingStyles}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        >
+                            {hasLeft && (
+                                <>
+                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
+                                        Left Handle
+                                    </div>
+                                    {handleTypes.map(({ type, label }) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            className="ae-context-menu-item"
+                                            style={currentLeft === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
+                                            onClick={() => setHandleType('left', type)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                            {hasLeft && hasRight && <div className="ae-context-menu-divider" />}
+                            {hasRight && (
+                                <>
+                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
+                                        Right Handle
+                                    </div>
+                                    {handleTypes.map(({ type, label }) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            className="ae-context-menu-item"
+                                            style={currentRight === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
+                                            onClick={() => setHandleType('right', type)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    </FloatingPortal>
+                );
+            })()}
         </div>
     );
 };
