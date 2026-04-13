@@ -6,8 +6,6 @@ import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 
-const ANGLE_PROPERTIES = new Set(['elementRotation', 'elementSkewX', 'elementSkewY']);
-
 type SupportedFormInputType =
     | 'text'
     | 'number'
@@ -131,9 +129,6 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         switch (macroType) {
             case 'number':
                 if (typeof value !== 'number') value = typeof value === 'string' ? parseFloat(value) || 0 : 0;
-                if (ANGLE_PROPERTIES.has(prop.key) && typeof value === 'number') {
-                    value = value * (Math.PI / 180);
-                }
                 break;
             case 'select':
                 if (prop.options) options.selectOptions = prop.options;

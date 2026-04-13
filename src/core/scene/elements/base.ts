@@ -280,13 +280,6 @@ export class SceneElement implements SceneElementInterface {
             context && typeof binding.getValueWithContext === 'function'
                 ? binding.getValueWithContext(context)
                 : binding.getValue();
-        // Normalize angle properties to radians for internal use
-        if ((key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') && value != null) {
-            // If bound to a macro, assume macro stores degrees and convert to radians here
-            if ((binding as any).type === 'macro' && typeof value === 'number') {
-                value = ((value as unknown as number) * (Math.PI / 180)) as any;
-            }
-        }
 
         // Cache the value
         this._cachedValues.set(key, value);
@@ -944,34 +937,34 @@ export class SceneElement implements SceneElementInterface {
                         {
                             key: 'elementRotation',
                             type: 'number',
-                            label: 'Rotation (°)',
+                            label: 'Rotation',
                             default: 0,
-                            min: -360,
-                            max: 360,
-                            step: 1,
-                            description: 'Element rotation angle in degrees.',
+                            min: -Math.PI * 2,
+                            max: Math.PI * 2,
+                            step: 0.01,
+                            description: 'Element rotation in radians.',
                             runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewX',
                             type: 'number',
-                            label: 'Skew X (°)',
+                            label: 'Skew X',
                             default: 0,
-                            min: -45,
-                            max: 45,
-                            step: 1,
-                            description: 'Horizontal skew angle in degrees.',
+                            min: -Math.PI / 4,
+                            max: Math.PI / 4,
+                            step: 0.01,
+                            description: 'Horizontal skew in radians.',
                             runtime: { transform: asNumber, defaultValue: 0 },
                         },
                         {
                             key: 'elementSkewY',
                             type: 'number',
-                            label: 'Skew Y (°)',
+                            label: 'Skew Y',
                             default: 0,
-                            min: -45,
-                            max: 45,
-                            step: 1,
-                            description: 'Vertical skew angle in degrees.',
+                            min: -Math.PI / 4,
+                            max: Math.PI / 4,
+                            step: 0.01,
+                            description: 'Vertical skew in radians.',
                             runtime: { transform: asNumber, defaultValue: 0 },
                         },
                     ],
@@ -1014,17 +1007,7 @@ export class SceneElement implements SceneElementInterface {
 
         // Add all bound properties with their current values
         this.bindings.forEach((binding, key) => {
-            let val: any = binding.getValue();
-            // Present angle-like properties in degrees for UI display when they are constants
-            if (
-                (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
-                typeof val === 'number'
-            ) {
-                if (binding.type === 'constant') {
-                    val = val * (180 / Math.PI);
-                }
-                // If macro-bound, assume macro value is already in degrees
-            }
+            const val: any = binding.getValue();
             config[key] = val;
         });
 
@@ -1097,15 +1080,7 @@ export class SceneElement implements SceneElementInterface {
                         return v;
                     };
                     const raw = unwrap(value);
-                    // For angle-like properties, interpret raw inputs as degrees from UI and convert to radians
-                    if (
-                        (key === 'elementRotation' || key === 'elementSkewX' || key === 'elementSkewY') &&
-                        typeof raw === 'number'
-                    ) {
-                        this.bindings.set(key, new ConstantBinding(raw * (Math.PI / 180)));
-                    } else {
-                        this.bindings.set(key, new ConstantBinding(raw));
-                    }
+                    this.bindings.set(key, new ConstantBinding(raw));
                 }
             }
 
@@ -1193,8 +1168,7 @@ export class SceneElement implements SceneElementInterface {
     }
 
     setElementRotation(rotation: number): this {
-        // Convert degrees to radians
-        this.setProperty('elementRotation', rotation * (Math.PI / 180));
+        this.setProperty('elementRotation', rotation);
         return this;
     }
 
@@ -1220,14 +1194,12 @@ export class SceneElement implements SceneElementInterface {
     }
 
     setElementSkewX(skewX: number): this {
-        // Convert degrees to radians
-        this.setProperty('elementSkewX', skewX * (Math.PI / 180));
+        this.setProperty('elementSkewX', skewX);
         return this;
     }
 
     setElementSkewY(skewY: number): this {
-        // Convert degrees to radians
-        this.setProperty('elementSkewY', skewY * (Math.PI / 180));
+        this.setProperty('elementSkewY', skewY);
         return this;
     }
 

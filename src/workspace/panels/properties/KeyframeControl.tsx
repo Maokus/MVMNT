@@ -67,7 +67,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
 
                 const initialKeyframes =
                     tick > 0
-                        ? [{ tick, value: currentValue, easingId: 'linear' },]
+                        ? [{ tick, value: currentValue, easingId: 'linear' }]
                         : [{ tick: 0, value: currentValue, easingId: 'linear' }];
 
 
