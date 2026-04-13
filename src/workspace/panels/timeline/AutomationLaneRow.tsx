@@ -6,7 +6,16 @@
  * - Drag empty space → draw selection box, select enclosed keyframes
  * - Click diamond → select keyframe (shift-click to multi-select)
  * - Drag diamond → move keyframe(s) — delta-based, all selected kfs move together
+ * - Right-click diamond → handle-type menu (same as curve pane)
+ * - Click segment line → interpolation picker
  * - Delete key → remove selected keyframes
+ *
+ * Each keyframe diamond is split into two halves whose shapes reflect the
+ * interpolation type of the adjacent segments:
+ *   diamond   → linear or sharp end of an easing curve
+ *   square    → constant (stepped)
+ *   hourglass → bezier or soft end of an easing curve
+ *   circle    → bezier with auto / auto-clamped handles
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,7 +34,9 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import { copyChannel, getClipboard } from '@automation/clipboard';
-import type { AutomationChannel, AutomationKeyframe } from '@automation/types';
+import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation, HandleType } from '@automation/types';
+import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
+import InterpolationPicker from './InterpolationPicker';
 import { AUTOMATION_ROW_HEIGHT } from './constants';
 
 interface AutomationLaneRowProps {
@@ -36,6 +47,79 @@ interface AutomationLaneRowProps {
 const DIAMOND_SIZE = 7;
 /** Minimum pixel movement before a background drag is treated as a selection box. */
 const SEL_DRAG_THRESHOLD = 4;
+
+// ---------------------------------------------------------------------------
+// Keyframe half-shape types
+// ---------------------------------------------------------------------------
+
+type KfHalfShape = 'diamond' | 'square' | 'hourglass' | 'circle';
+
+const DYNAMIC_EASING_MODES = new Set(['back', 'bounce', 'elastic']);
+
+/**
+ * Determine the visual shape for one half of a keyframe icon.
+ *
+ * @param segInterp  The SegmentInterpolation of the segment adjacent to this half.
+ * @param handleType The bezier handle type relevant to this half (left or right).
+ * @param side       'right' = this keyframe is the outgoing/source of the segment.
+ *                   'left'  = this keyframe is the incoming/destination of the segment.
+ */
+function getKfHalfShape(
+    segInterp: SegmentInterpolation | undefined | null,
+    handleType: HandleType | undefined,
+    side: 'left' | 'right',
+): KfHalfShape {
+    if (!segInterp) return 'diamond';
+    const { mode } = segInterp;
+    if (mode === 'constant') return 'square';
+    if (mode === 'linear') return 'diamond';
+    if (mode === 'bezier') {
+        const ht = handleType ?? 'auto_clamped';
+        return ht === 'auto' || ht === 'auto_clamped' ? 'circle' : 'hourglass';
+    }
+    // Semantic easing — resolve 'auto' direction
+    const resolvedDir =
+        segInterp.direction === 'auto'
+            ? DYNAMIC_EASING_MODES.has(mode)
+                ? 'ease_out'
+                : 'ease_in_out'
+            : segInterp.direction;
+
+    if (resolvedDir === 'ease_in_out') return 'hourglass';
+    if (resolvedDir === 'ease_in') {
+        // Source (right half) = soft start → hourglass; destination (left half) = sharp end → diamond
+        return side === 'right' ? 'hourglass' : 'diamond';
+    }
+    // ease_out: source = sharp start → diamond; destination = soft end → hourglass
+    return side === 'right' ? 'diamond' : 'hourglass';
+}
+
+/**
+ * Build an SVG path string for one half of a keyframe icon at position (x, cy).
+ * The two halves together form the full icon when joined at x.
+ */
+function halfShapePath(
+    side: 'left' | 'right',
+    shape: KfHalfShape,
+    x: number,
+    cy: number,
+    size: number,
+): string {
+    const l = x - size, r = x + size, t = cy - size, b = cy + size;
+    if (side === 'right') {
+        if (shape === 'diamond')   return `M${x},${t} L${r},${cy} L${x},${b} Z`;
+        if (shape === 'square')    return `M${x},${t} L${r},${t} L${r},${b} L${x},${b} Z`;
+        if (shape === 'hourglass') return `M${r},${t} L${x},${cy} L${r},${b} Z`;
+        // circle: right semicircle
+        return `M${x},${t} A${size},${size} 0 0,1 ${x},${b} Z`;
+    }
+    // left
+    if (shape === 'diamond')   return `M${x},${t} L${l},${cy} L${x},${b} Z`;
+    if (shape === 'square')    return `M${x},${t} L${l},${t} L${l},${b} L${x},${b} Z`;
+    if (shape === 'hourglass') return `M${l},${t} L${x},${cy} L${l},${b} Z`;
+    // circle: left semicircle
+    return `M${x},${t} A${size},${size} 0 0,0 ${x},${b} Z`;
+}
 
 // ---------------------------------------------------------------------------
 // Drag state types
@@ -130,22 +214,41 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         [selectedKeyframes],
     );
 
-    // Diamonds and interpolation lines
+    // Diamonds (with half-shapes) and segment hit areas
     const elements = useMemo(() => {
-        const diamonds: Array<{ kf: AutomationKeyframe; x: number }> = [];
-        const lines: Array<{ x1: number; x2: number }> = [];
+        const kfs = channel.keyframes;
+        const diamonds: Array<{
+            kf: AutomationKeyframe;
+            x: number;
+            leftShape: KfHalfShape;
+            rightShape: KfHalfShape;
+        }> = [];
+        const segments: Array<{ x1: number; x2: number; tick: number }> = [];
 
-        for (let i = 0; i < channel.keyframes.length; i++) {
-            const kf = channel.keyframes[i];
+        for (let i = 0; i < kfs.length; i++) {
+            const kf = kfs[i];
             const x = toX(kf.tick, width);
-            diamonds.push({ kf, x });
+            const prevKf = i > 0 ? kfs[i - 1] : null;
+            const nextKf = i < kfs.length - 1 ? kfs[i + 1] : null;
+
+            // Left half: shape determined by the PREVIOUS segment's interpolation
+            const leftShape = prevKf
+                ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
+                : 'diamond';
+
+            // Right half: shape determined by THIS keyframe's outgoing segment
+            const rightShape = nextKf
+                ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
+                : 'diamond';
+
+            diamonds.push({ kf, x, leftShape, rightShape });
 
             if (i > 0) {
-                const prevX = toX(channel.keyframes[i - 1].tick, width);
-                lines.push({ x1: prevX, x2: x });
+                const prevX = toX(kfs[i - 1].tick, width);
+                segments.push({ x1: prevX, x2: x, tick: kfs[i - 1].tick });
             }
         }
-        return { diamonds, lines };
+        return { diamonds, segments };
     }, [channel.keyframes, toX, width]);
 
     // -----------------------------------------------------------------------
@@ -415,8 +518,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
     // Cancel acts like pointerup for cleanup purposes
     const handlePointerCancel = useCallback(
-        (e: React.PointerEvent<SVGSVGElement>) => {
-            // Just clean up state — don't commit any finalisation
+        (_e: React.PointerEvent<SVGSVGElement>) => {
             setDragging(null);
             setSelBox(null);
         },
@@ -429,9 +531,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleSvgPointerDown = useCallback(
         (e: React.PointerEvent<SVGSVGElement>) => {
             if (e.button !== 0) return;
-            // Let diamond handlers handle their own events
+            // Let diamond and segment handlers handle their own events
             const target = e.target as SVGElement;
             if (target.closest('[data-kf]')) return;
+            if (target.closest('[data-seg]')) return;
 
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
@@ -461,6 +564,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         (e: React.MouseEvent<SVGSVGElement>) => {
             const target = e.target as SVGElement;
             if (target.closest('[data-kf]')) return;
+            if (target.closest('[data-seg]')) return;
             if (!svgRef.current) return;
             const rect = svgRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -502,7 +606,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     }, [dragging !== null || selBox !== null, setDragging, setSelBox]);
 
     // -----------------------------------------------------------------------
-    // Context menu
+    // Channel context menu (background right-click)
     // -----------------------------------------------------------------------
     const [contextMenuOpen, setContextMenuOpen] = useState(false);
     const { refs: ctxRefs, floatingStyles: ctxFloatingStyles } = useFloating({
@@ -539,6 +643,97 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     }, [contextMenuOpen]);
 
     // -----------------------------------------------------------------------
+    // Interpolation picker (segment click)
+    // -----------------------------------------------------------------------
+    const [interpolationPicker, setInterpolationPicker] = useState<{ tick: number } | null>(null);
+
+    const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
+        open: interpolationPicker !== null,
+        placement: 'bottom-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
+
+    useEffect(() => {
+        if (!interpolationPicker) return;
+        const close = (e: PointerEvent) => {
+            const el = pickerRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setInterpolationPicker(null);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
+    }, [interpolationPicker]);
+
+    const handleSegmentClick = useCallback(
+        (e: React.MouseEvent, tick: number) => {
+            e.stopPropagation();
+            pickerRefs.setReference({
+                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
+            });
+            setInterpolationPicker({ tick });
+        },
+        [pickerRefs],
+    );
+
+    const handleInterpolationSelect = useCallback(
+        (interpolation: SegmentInterpolation) => {
+            if (!interpolationPicker) return;
+            dispatchSceneCommand(
+                {
+                    type: 'updateKeyframe',
+                    channelId: channel.id,
+                    tick: interpolationPicker.tick,
+                    patch: { segmentInterpolation: interpolation },
+                },
+                { source: 'automation-lane' },
+            );
+        },
+        [interpolationPicker, channel.id],
+    );
+
+    const pickerCurrent = useMemo((): SegmentInterpolation => {
+        if (!interpolationPicker) return DEFAULT_SEGMENT_INTERPOLATION;
+        const kf = channel.keyframes.find((k) => Math.abs(k.tick - interpolationPicker.tick) < 0.5);
+        return kf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
+    }, [interpolationPicker, channel.keyframes]);
+
+    // -----------------------------------------------------------------------
+    // Handle-type menu (right-click on keyframe)
+    // -----------------------------------------------------------------------
+    const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
+
+    const { refs: kfMenuRefs, floatingStyles: kfMenuFloatingStyles } = useFloating({
+        open: kfHandleMenu !== null,
+        placement: 'right-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
+
+    useEffect(() => {
+        if (!kfHandleMenu) return;
+        const close = (e: PointerEvent) => {
+            const el = kfMenuRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setKfHandleMenu(null);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
+    }, [kfHandleMenu]);
+
+    const handleKfContextMenu = useCallback(
+        (e: React.MouseEvent, kf: AutomationKeyframe) => {
+            e.preventDefault();
+            e.stopPropagation(); // prevent channel context menu from opening
+            kfMenuRefs.setReference({
+                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
+            });
+            setKfHandleMenu({ tick: kf.tick });
+        },
+        [kfMenuRefs],
+    );
+
+    // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
     const height = AUTOMATION_ROW_HEIGHT;
@@ -566,20 +761,46 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 style={{ display: 'block', cursor: dragging ? 'grabbing' : 'crosshair' }}
             >
                 {/* Interpolation lines */}
-                {elements.lines.map((line, i) => (
+                {elements.segments.map((seg, i) => (
                     <line
                         key={`line-${i}`}
-                        x1={line.x1}
+                        x1={seg.x1}
                         y1={cy}
-                        x2={line.x2}
+                        x2={seg.x2}
                         y2={cy}
                         stroke="rgba(96,165,250,0.35)"
                         strokeWidth={1}
+                        style={{ pointerEvents: 'none' }}
                     />
                 ))}
 
-                {/* Keyframe diamonds */}
-                {elements.diamonds.map(({ kf, x }) => {
+                {/* Segment hit areas — transparent tall rects for click/context-menu */}
+                {elements.segments.map((seg, i) => (
+                    <rect
+                        key={`seg-${i}`}
+                        data-seg="1"
+                        x={seg.x1}
+                        y={0}
+                        width={Math.max(1, seg.x2 - seg.x1)}
+                        height={height}
+                        fill="transparent"
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => handleSegmentClick(e, seg.tick)}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Right-click on segment also opens the interpolation picker
+                            pickerRefs.setReference({
+                                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
+                            });
+                            setInterpolationPicker({ tick: seg.tick });
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    />
+                ))}
+
+                {/* Keyframe icons — split into two half-shapes */}
+                {elements.diamonds.map(({ kf, x, leftShape, rightShape }) => {
                     const sel = isSelected(kf.tick);
                     const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
                     const dSize = sel ? DIAMOND_SIZE + 2 : DIAMOND_SIZE;
@@ -592,12 +813,21 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             data-kf="1"
                             style={{ cursor: dragging ? 'grabbing' : 'grab' }}
                             onPointerDown={(e) => handleKfPointerDown(e, kf)}
+                            onContextMenu={(e) => handleKfContextMenu(e, kf)}
                         >
                             <path
-                                d={`M${x} ${cy - dSize} L${x + dSize} ${cy} L${x} ${cy + dSize} L${x - dSize} ${cy} Z`}
+                                d={halfShapePath('left', leftShape, x, cy, dSize)}
                                 fill={fill}
                                 stroke={stroke}
                                 strokeWidth={strokeWidth}
+                                strokeLinejoin="round"
+                            />
+                            <path
+                                d={halfShapePath('right', rightShape, x, cy, dSize)}
+                                fill={fill}
+                                stroke={stroke}
+                                strokeWidth={strokeWidth}
+                                strokeLinejoin="round"
                             />
                             {atPlayhead && (
                                 <circle
@@ -635,7 +865,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 )}
             </svg>
 
-            {/* Context menu */}
+            {/* Channel context menu (background right-click) */}
             {contextMenuOpen && (
                 <FloatingPortal>
                     <div
@@ -711,6 +941,106 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     </div>
                 </FloatingPortal>
             )}
+
+            {/* Interpolation picker popover (segment click) */}
+            {interpolationPicker && (
+                <FloatingPortal>
+                    <div
+                        ref={pickerRefs.setFloating}
+                        className="ae-easing-picker-popover z-50"
+                        style={pickerFloatingStyles}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
+                        <InterpolationPicker
+                            current={pickerCurrent}
+                            onSelect={handleInterpolationSelect}
+                        />
+                        <button
+                            type="button"
+                            className="ae-easing-close"
+                            onClick={() => setInterpolationPicker(null)}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </FloatingPortal>
+            )}
+
+            {/* Handle-type menu (keyframe right-click) */}
+            {kfHandleMenu && (() => {
+                const kfIdx = channel.keyframes.findIndex(
+                    (k) => Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
+                );
+                const kf = kfIdx >= 0 ? channel.keyframes[kfIdx] : null;
+                if (!kf) return null;
+                const hasLeft = kfIdx > 0;
+                const hasRight = kfIdx < channel.keyframes.length - 1;
+                const currentLeft = kf.leftHandleType ?? 'auto_clamped';
+                const currentRight = kf.rightHandleType ?? 'auto_clamped';
+                const handleTypes: Array<{ type: HandleType; label: string }> = [
+                    { type: 'auto_clamped', label: 'Auto (Clamped)' },
+                    { type: 'auto',         label: 'Auto' },
+                    { type: 'free',         label: 'Free' },
+                    { type: 'aligned',      label: 'Aligned' },
+                    { type: 'vector',       label: 'Vector' },
+                ];
+                const applyHandleType = (side: 'left' | 'right', type: HandleType) => {
+                    const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
+                    dispatchSceneCommand(
+                        { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
+                        { source: 'automation-lane' },
+                    );
+                    setKfHandleMenu(null);
+                };
+                return (
+                    <FloatingPortal>
+                        <div
+                            ref={kfMenuRefs.setFloating}
+                            className="ae-context-menu z-50"
+                            style={kfMenuFloatingStyles}
+                            onPointerDown={(e) => e.stopPropagation()}
+                        >
+                            {hasLeft && (
+                                <>
+                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
+                                        Left Handle
+                                    </div>
+                                    {handleTypes.map(({ type, label }) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            className="ae-context-menu-item"
+                                            style={currentLeft === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
+                                            onClick={() => applyHandleType('left', type)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                            {hasLeft && hasRight && <div className="ae-context-menu-divider" />}
+                            {hasRight && (
+                                <>
+                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
+                                        Right Handle
+                                    </div>
+                                    {handleTypes.map(({ type, label }) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            className="ae-context-menu-item"
+                                            style={currentRight === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
+                                            onClick={() => applyHandleType('right', type)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    </FloatingPortal>
+                );
+            })()}
         </div>
     );
 };
