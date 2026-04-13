@@ -1,4 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopup';
+import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
@@ -35,6 +37,46 @@ const SIDE_COLLAPSE_THRESHOLD = 120;
 const TIMELINE_MIN_HEIGHT = 160;
 const TIMELINE_HANDLE_HEIGHT = 8;
 const TIMELINE_COLLAPSE_THRESHOLD = 120;
+
+// Controller for the "i" key → insert keyframe popup. Must live inside SceneSelectionProvider.
+const InsertKeyframeController: React.FC = () => {
+    const { selectedElement, selectedElementSchema } = useSceneSelection();
+    const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
+    const mousePos = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            mousePos.current = { x: e.clientX, y: e.clientY };
+        };
+        window.addEventListener('mousemove', onMove);
+        return () => window.removeEventListener('mousemove', onMove);
+    }, []);
+
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'i') return;
+            const target = e.target as HTMLElement | null;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+            if (!selectedElement || !selectedElementSchema) return;
+            e.preventDefault();
+            setPopupPos({ x: mousePos.current.x, y: mousePos.current.y });
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [selectedElement, selectedElementSchema]);
+
+    if (!popupPos || !selectedElement || !selectedElementSchema) return null;
+
+    return (
+        <InsertKeyframePopup
+            position={popupPos}
+            elementId={selectedElement.id}
+            bindings={selectedElement.bindings}
+            schema={selectedElementSchema}
+            onClose={() => setPopupPos(null)}
+        />
+    );
+};
 
 // Inner component that consumes context so provider mount is clean
 const MidiVisualizerInner: React.FC = () => {
@@ -204,6 +246,7 @@ const MidiVisualizerInner: React.FC = () => {
             />
             <SceneSelectionProvider>
                 <>
+                    <InsertKeyframeController />
                     <div className="main-workspace" ref={workspaceRef}>
                         <div className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}>
                             <PreviewPanel />
@@ -236,6 +279,7 @@ const MidiVisualizerInner: React.FC = () => {
                     <div
                         className={`relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
                         style={{ height: TIMELINE_HANDLE_HEIGHT }}
+                        data-preserve-selection="true"
                         onPointerDown={handleTimelineResizeDown}
                         onPointerMove={handleTimelineResizeMove}
                         onPointerUp={handleTimelineResizeUp}
@@ -248,7 +292,7 @@ const MidiVisualizerInner: React.FC = () => {
                         <div className="absolute left-1/2 top-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
                     </div>
                     {!timelineCollapsed && (
-                        <div className="timeline-container" style={{ height: `${Math.round(timelineHeight)}px` }}>
+                        <div className="timeline-container" data-preserve-selection="true" style={{ height: `${Math.round(timelineHeight)}px` }}>
                             <TimelinePanel />
                         </div>
                     )}
