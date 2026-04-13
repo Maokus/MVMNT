@@ -510,6 +510,26 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     />
                 )}
 
+                {/* Clickable segment hit areas */}
+                {points.map((pt, i) => {
+                    if (i >= points.length - 1) return null;
+                    const next = points[i + 1];
+                    return (
+                        <rect
+                            key={`seg-${pt.tick}`}
+                            x={pt.x}
+                            y={0}
+                            width={Math.max(1, next.x - pt.x)}
+                            height={height}
+                            fill="#00000000"
+                            pointerEvents="all"
+                            style={{ cursor: 'pointer' }}
+                            onClick={(e) => handleSegmentClick(e, pt.tick)}
+                            data-seg="1"
+                        />
+                    );
+                })}
+
                 {/* Bezier handle arms and circles */}
                 {handleVisuals.map((hv) => (
                     <g key={`handle-${hv.tick}`}>
@@ -547,26 +567,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         )}
                     </g>
                 ))}
-
-                {/* Clickable segment hit areas */}
-                {points.map((pt, i) => {
-                    if (i >= points.length - 1) return null;
-                    const next = points[i + 1];
-                    return (
-                        <rect
-                            key={`seg-${pt.tick}`}
-                            x={pt.x}
-                            y={0}
-                            width={Math.max(1, next.x - pt.x)}
-                            height={height}
-                            fill="#00000000"
-                            pointerEvents="all"
-                            style={{ cursor: 'pointer' }}
-                            onClick={(e) => handleSegmentClick(e, pt.tick)}
-                            data-seg="1"
-                        />
-                    );
-                })}
 
                 {/* Control points */}
                 {points.map((pt) => (
