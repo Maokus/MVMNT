@@ -226,15 +226,33 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 const targetSVGX = svgX - drag.offsetX;
                 const candTick = toTick(targetSVGX, width);
                 const snapped = snapTick(candTick, e.altKey);
-                const delta = snapped - drag.baseTick;
 
-                if (snapped !== drag.kfTick) {
+                // Collision avoidance: if the snapped destination is occupied by a different
+                // keyframe, bump by ±1 tick (direction of travel) until a free slot is found.
+                const currentKeyframes =
+                    useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
+                const isOccupiedByOther = (t: number) =>
+                    currentKeyframes.some(
+                        (kf) => Math.abs(kf.tick - t) < 0.5
+                            && Math.abs(kf.tick - drag.kfTick) >= 0.5,
+                    );
+                let resolvedSnap = snapped;
+                if (isOccupiedByOther(resolvedSnap)) {
+                    const dir = snapped >= drag.kfTick ? 1 : -1;
+                    let candidate = snapped + dir;
+                    while (candidate >= 0 && isOccupiedByOther(candidate)) candidate += dir;
+                    resolvedSnap = Math.max(0, candidate);
+                }
+
+                const delta = resolvedSnap - drag.baseTick;
+
+                if (resolvedSnap !== drag.kfTick) {
                     dispatchSceneCommand(
                         {
                             type: 'moveKeyframe',
                             channelId: channel.id,
                             fromTick: drag.kfTick,
-                            toTick: snapped,
+                            toTick: resolvedSnap,
                         },
                         {
                             source: 'automation-lane',
@@ -269,7 +287,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
 
                     // Update selection ticks in store so visual highlights track correctly
                     const newSelection = [
-                        { channelId: channel.id, tick: snapped },
+                        { channelId: channel.id, tick: resolvedSnap },
                         ...updatedPeers.map((p) => ({ channelId: p.channelId, tick: p.curTick })),
                     ];
                     useSceneStore.setState((state) => ({
@@ -279,7 +297,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         },
                     }));
 
-                    setDragging({ ...drag, kfTick: snapped, peers: updatedPeers });
+                    setDragging({ ...drag, kfTick: resolvedSnap, peers: updatedPeers });
                 }
                 return;
             }

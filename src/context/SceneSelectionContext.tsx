@@ -230,11 +230,23 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                     const channel = automationChannels[chId];
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const easingId = existingKf?.easingId ?? 'linear';
+                    const segmentInterpolation = existingKf?.segmentInterpolation
+                        ?? channel.defaultInterpolation
+                        ?? { mode: 'bezier' as const, direction: 'auto' as const };
+                    const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
+                    const rightHandleType = existingKf?.rightHandleType ?? ('auto_clamped' as const);
                     dispatchSceneCommand(
                         {
                             type: 'addKeyframe',
                             channelId: chId,
-                            keyframe: { tick: currentTick, value, easingId },
+                            keyframe: {
+                                tick: currentTick,
+                                value,
+                                easingId,
+                                segmentInterpolation: { ...segmentInterpolation },
+                                leftHandleType,
+                                rightHandleType,
+                            },
                         },
                         {
                             source: 'SceneSelectionContext.updateElementConfig',
