@@ -1,6 +1,6 @@
 // Template: Basic Shape Element
 // A simple geometric shape that can be customized with color and size
-import { SceneElement, asNumber, asTrimmedString, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
+import { SceneElement, prop, insertElementGroups, Rectangle, Arc, type RenderObject } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class BasicShapeElement extends SceneElement {
@@ -9,86 +9,43 @@ export class BasicShapeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Basic Shape',
             description: 'A customizable geometric shape',
             category: 'Custom',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'shapeAppearance',
-                    label: 'Shape',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Configure the shape appearance',
-                    properties: [
-                        {
-                            key: 'shapeType',
-                            type: 'select',
-                            label: 'Shape Type',
-                            default: 'circle',
-                            options: [
-                                { label: 'Circle', value: 'circle' },
-                                { label: 'Rectangle', value: 'rectangle' },
-                            ],
-                            runtime: {
-                                transform: (value, element) => {
-                                    const normalized = asTrimmedString(value, element)?.toLowerCase();
-                                    return normalized === 'rectangle' ? 'rectangle' : 'circle';
-                                },
-                                defaultValue: 'circle'
-                            },
-                        },
-                        {
-                            key: 'shapeSize',
-                            type: 'number',
-                            label: 'Size',
-                            default: 100,
-                            min: 10,
-                            max: 500,
-                            step: 1,
-                            description: 'Size of the shape (radius for circle, width/height for rectangle)',
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
-                        {
-                            key: 'shapeColor',
-                            type: 'colorAlpha',
-                            label: 'Color',
-                            default: '#3B82F6FF',
-                            description: 'Fill color of the shape',
-                            runtime: { transform: asTrimmedString, defaultValue: '#3B82F6FF' },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'smallBlue',
-                            label: 'Small Blue',
-                            values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6FF' }
-                        },
-                        {
-                            id: 'largeRed',
-                            label: 'Large Red',
-                            values: { shapeType: 'rectangle', shapeSize: 150, shapeColor: '#EF4444FF' }
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'shapeAppearance',
+                label: 'Shape',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Configure the shape appearance',
+                properties: [
+                    prop.select('shapeType', 'Shape Type', 'circle', [
+                        { label: 'Circle', value: 'circle' },
+                        { label: 'Rectangle', value: 'rectangle' },
+                    ]),
+                    prop.number('shapeSize', 'Size', 100, {
+                        min: 10, max: 500, step: 1,
+                        description: 'Size of the shape (radius for circle, width/height for rectangle)',
+                    }),
+                    prop.colorAlpha('shapeColor', 'Color', '#3B82F6FF', { description: 'Fill color of the shape' }),
+                ],
+                presets: [
+                    { id: 'smallBlue', label: 'Small Blue', values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6FF' } },
+                    { id: 'largeRed', label: 'Large Red', values: { shapeType: 'rectangle', shapeSize: 150, shapeColor: '#EF4444FF' } },
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, _targetTime: number): RenderObject[] {
         const props = this.getSchemaProps();
-        
+
         if (!props.visible) return [];
-        
+
         const objects: RenderObject[] = [];
-        
+
         if (props.shapeType === 'circle') {
             // Use Arc to draw a circle (full 360 degrees)
             objects.push(new Arc(0, 0, props.shapeSize, 0, Math.PI * 2));
@@ -103,7 +60,7 @@ export class BasicShapeElement extends SceneElement {
                 )
             );
         }
-        
+
         return objects;
     }
 }
