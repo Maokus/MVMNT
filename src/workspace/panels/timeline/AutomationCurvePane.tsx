@@ -30,7 +30,7 @@ import { resolveParametricEasing } from '@math/animation/easing-parametric';
 import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
 import { computeAutoHandles, DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import easings from '@math/animation/easing';
-import type { AutomationChannel, AutomationKeyframe, BezierHandle, SegmentInterpolation, HandleType } from '@automation/types';
+import type { AutomationChannel, SegmentInterpolation, HandleType } from '@automation/types';
 import { useCurveHeight, useCurveHeightSetter } from './curveHeightContext';
 
 interface AutomationCurvePaneProps {
@@ -50,6 +50,31 @@ function resolveLegacyEasing(id: string): EasingFn {
     return fn ?? easings.linear;
 }
 
+/** Build the updateKeyframe patch for a handle drag frame, applying aligned mirroring if needed. */
+function buildHandlePatch(
+    dt: number, dv: number,
+    side: 'left' | 'right',
+    origType: HandleType,
+    frozenOppLength: number,
+): Record<string, unknown> {
+    const effectiveType = origType === 'aligned' ? 'aligned' : 'free';
+    const patch: Record<string, unknown> = side === 'left'
+        ? { leftHandle: { dt, dv }, leftHandleType: effectiveType }
+        : { rightHandle: { dt, dv }, rightHandleType: effectiveType };
+
+    if (origType === 'aligned') {
+        const dist = Math.sqrt(dt * dt + dv * dv);
+        if (dist > 0) {
+            const scale = frozenOppLength / dist;
+            const oppKey     = side === 'left' ? 'rightHandle'     : 'leftHandle';
+            const oppTypeKey = side === 'left' ? 'rightHandleType' : 'leftHandleType';
+            patch[oppKey]     = { dt: -dt * scale, dv: -dv * scale };
+            patch[oppTypeKey] = 'aligned';
+        }
+    }
+    return patch;
+}
+
 const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, width }) => {
     const { toX, toTick } = useTickScale();
     const height = useCurveHeight(channel.id);
@@ -65,6 +90,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const [handleDrag, setHandleDrag] = useState<{
         tick: number; side: 'left' | 'right';
         frozenMinVal: number; frozenMaxVal: number;
+        origType: HandleType;     // type of the dragged handle at drag-start
+        frozenOppLength: number;  // effective length of opposite handle at drag-start (for aligned)
     } | null>(null);
 
     const [interpolationPicker, setInterpolationPicker] = useState<{ tick: number } | null>(null);
@@ -186,11 +213,17 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         const prevPrev = i > 0 ? kfs[i - 1] : null;
                         const computed = computeAutoHandles(prevPrev, a, b, prevHandleType === 'auto' ? 'auto' : 'auto_clamped');
                         rHandle = computed.right;
+                    } else if (prevHandleType === 'vector') {
+                        const span = b.tick - a.tick;
+                        rHandle = { dt: span / 3, dv: (bVal - aVal) / 3 };
                     }
                     if (!lHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
                         const nextNext = i + 2 < kfs.length ? kfs[i + 2] : null;
                         const computed = computeAutoHandles(a, b, nextNext, nextHandleType === 'auto' ? 'auto' : 'auto_clamped');
                         lHandle = computed.left;
+                    } else if (nextHandleType === 'vector') {
+                        const span = b.tick - a.tick;
+                        lHandle = { dt: -span / 3, dv: -(bVal - aVal) / 3 };
                     }
 
                     for (let s = 0; s <= segSamples; s++) {
@@ -279,13 +312,27 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             let leftHandle = kf.leftHandle;
             let rightHandle = kf.rightHandle;
 
-            // Auto-compute if needed
-            if ((showLeft && (!leftHandle || leftIsAuto)) || (showRight && (!rightHandle || rightIsAuto))) {
-                const prev = i > 0 ? kfs[i - 1] : null;
-                const next = i < kfs.length - 1 ? kfs[i + 1] : null;
-                const computed = computeAutoHandles(prev, kf, next, leftIsAuto && rightIsAuto ? (leftType === 'auto' ? 'auto' : 'auto_clamped') : 'auto_clamped');
-                if (!leftHandle || leftIsAuto) leftHandle = computed.left;
-                if (!rightHandle || rightIsAuto) rightHandle = computed.right;
+            const prev = i > 0 ? kfs[i - 1] : null;
+            const next = i < kfs.length - 1 ? kfs[i + 1] : null;
+
+            // Compute left handle position
+            if (showLeft) {
+                if (!leftHandle || leftIsAuto) {
+                    const computed = computeAutoHandles(prev, kf, next, leftType === 'auto' ? 'auto' : 'auto_clamped');
+                    leftHandle = computed.left;
+                } else if (leftType === 'vector' && prev) {
+                    leftHandle = { dt: (prev.tick - kf.tick) / 3, dv: ((typeof prev.value === 'number' ? prev.value : 0) - val) / 3 };
+                }
+            }
+
+            // Compute right handle position
+            if (showRight) {
+                if (!rightHandle || rightIsAuto) {
+                    const computed = computeAutoHandles(prev, kf, next, rightType === 'auto' ? 'auto' : 'auto_clamped');
+                    rightHandle = computed.right;
+                } else if (rightType === 'vector' && next) {
+                    rightHandle = { dt: (next.tick - kf.tick) / 3, dv: ((typeof next.value === 'number' ? next.value : 0) - val) / 3 };
+                }
             }
 
             const lh = leftHandle ?? { dt: 0, dv: 0 };
@@ -343,34 +390,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 const handleVal = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal);
                 const dt = handleTick - kf.tick;
                 const dv = handleVal - kfVal;
-                const handle: BezierHandle = { dt, dv };
 
-                const patch: Record<string, unknown> = {};
-                if (handleDrag.side === 'left') {
-                    patch.leftHandle = handle;
-                    patch.leftHandleType = 'free';
-                } else {
-                    patch.rightHandle = handle;
-                    patch.rightHandleType = 'free';
-                }
-
-                // For aligned handles, mirror the opposite side
-                const handleType = handleDrag.side === 'left'
-                    ? (kf.leftHandleType ?? 'auto_clamped')
-                    : (kf.rightHandleType ?? 'auto_clamped');
-                if (handleType === 'aligned') {
-                    const dist = Math.sqrt(dt * dt + dv * dv);
-                    if (dist > 0) {
-                        const oppositeKey = handleDrag.side === 'left' ? 'rightHandle' : 'leftHandle';
-                        const oppositeTypeKey = handleDrag.side === 'left' ? 'rightHandleType' : 'leftHandleType';
-                        const currentOpposite = handleDrag.side === 'left' ? kf.rightHandle : kf.leftHandle;
-                        const oppDist = currentOpposite ? Math.sqrt(currentOpposite.dt * currentOpposite.dt + currentOpposite.dv * currentOpposite.dv) : dist;
-                        const scale = oppDist / dist;
-                        patch[oppositeKey] = { dt: -dt * scale, dv: -dv * scale };
-                        patch[oppositeTypeKey] = 'aligned';
-                    }
-                }
-
+                const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
                 dispatchSceneCommand(
                     { type: 'updateKeyframe', channelId: channel.id, tick: handleDrag.tick, patch: patch as any },
                     { source: 'curve-editor', mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`, transient: true },
@@ -398,7 +419,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             }
             if (handleDrag) {
                 try { (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-                // Finalize handle drag (commit the last transient update)
                 if (svgRef.current) {
                     const rect = svgRef.current.getBoundingClientRect();
                     const mouseX = e.clientX - rect.left;
@@ -406,12 +426,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     const kf = channel.keyframes.find((k) => Math.abs(k.tick - handleDrag.tick) < 0.5);
                     if (kf) {
                         const kfVal = typeof kf.value === 'number' ? kf.value : 0;
-                        const handleTick = toTick(mouseX, width);
-                        const handleVal = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal);
-                        const handle: BezierHandle = { dt: handleTick - kf.tick, dv: handleVal - kfVal };
-                        const patch: Record<string, unknown> = handleDrag.side === 'left'
-                            ? { leftHandle: handle, leftHandleType: 'free' }
-                            : { rightHandle: handle, rightHandleType: 'free' };
+                        const dt = toTick(mouseX, width) - kf.tick;
+                        const dv = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal) - kfVal;
+                        const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
                         dispatchSceneCommand(
                             { type: 'updateKeyframe', channelId: channel.id, tick: handleDrag.tick, patch: patch as any },
                             { source: 'curve-editor', mergeKey: `handle-drag:${channel.id}:${handleDrag.tick}:${handleDrag.side}`, transient: false },
@@ -430,9 +447,34 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             if (e.button !== 0) return;
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-            setHandleDrag({ tick, side, frozenMinVal: minVal, frozenMaxVal: maxVal });
+
+            const kf = channel.keyframes.find((k) => Math.abs(k.tick - tick) < 0.5);
+            const origType: HandleType = kf
+                ? (side === 'left' ? (kf.leftHandleType ?? 'auto_clamped') : (kf.rightHandleType ?? 'auto_clamped'))
+                : 'auto_clamped';
+
+            // Freeze opposite handle length for aligned mode (stable across the full drag)
+            let frozenOppLength = 0;
+            if (origType === 'aligned' && kf) {
+                const kfIdx = channel.keyframes.indexOf(kf);
+                const prev = kfIdx > 0 ? channel.keyframes[kfIdx - 1] : null;
+                const next = kfIdx < channel.keyframes.length - 1 ? channel.keyframes[kfIdx + 1] : null;
+                const oppHandle = side === 'left' ? kf.rightHandle : kf.leftHandle;
+                const oppType = side === 'left' ? (kf.rightHandleType ?? 'auto_clamped') : (kf.leftHandleType ?? 'auto_clamped');
+                let oppDt: number, oppDv: number;
+                if (oppHandle && !(oppType === 'auto' || oppType === 'auto_clamped')) {
+                    oppDt = oppHandle.dt; oppDv = oppHandle.dv;
+                } else {
+                    const computed = computeAutoHandles(prev, kf, next, oppType === 'auto' ? 'auto' : 'auto_clamped');
+                    const eff = side === 'left' ? computed.right : computed.left;
+                    oppDt = eff.dt; oppDv = eff.dv;
+                }
+                frozenOppLength = Math.sqrt(oppDt * oppDt + oppDv * oppDv);
+            }
+
+            setHandleDrag({ tick, side, frozenMinVal: minVal, frozenMaxVal: maxVal, origType, frozenOppLength });
         },
-        [minVal, maxVal],
+        [minVal, maxVal, channel],
     );
 
     // --- Segment click → interpolation picker ---
@@ -553,6 +595,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             pointerEvents="all"
                             style={{ cursor: 'pointer' }}
                             onClick={(e) => handleSegmentClick(e, pt.tick)}
+                            onContextMenu={(e) => e.preventDefault()}
                             data-seg="1"
                         />
                     );
