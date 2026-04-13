@@ -56,7 +56,7 @@ const HomePage: React.FC = () => {
                     <p><span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">MVMNT</span><span>v{((import.meta as any).env?.VITE_VERSION)}</span></p>
                     <p className="mt-4 text-neutral-400 text-lg max-w-2xl">Open-source, flexible MIDI visualization & rendering workspace.</p>
                     <div className="mt-6 flex flex-wrap gap-4">
-                        <Link to="/easymode" className="tracking-[0.2rem] px-5 py-2.5 rounded text-sm font-medium transition bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400">
+                        <Link to="/workspace" className="tracking-[0.2rem] px-5 py-2.5 rounded text-sm font-medium transition bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400">
                             ENTER
                         </Link>
 

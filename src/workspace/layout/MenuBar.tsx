@@ -96,18 +96,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             }}
                             title="Show onboarding / help"
                         >help</button>
-                        <Link
-                            to="/easymode"
-                            style={{
-                                textDecoration: 'none',
-                                color: '#ffffff',
-                                padding: '4px 8px',
-                                borderRadius: 4,
-                                border: '1px solid rgba(191, 191, 191, 0.6)',
-                                fontWeight: 600,
-                            }}
-                            title="Open simplified Easy mode"
-                        >Open Easy Mode</Link>
                     </nav>
                 </div>
 
