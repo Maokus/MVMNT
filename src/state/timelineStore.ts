@@ -101,6 +101,7 @@ export type TimelineState = {
         loopEndTick?: number; // canonical loop end
         rate: number; // playback rate factor (inactive until wired to visualizer/worker)
         quantize: QuantizeSetting; // snap denomination for transport interactions
+        autoKeying: boolean; // when true, property changes automatically create keyframes
     };
     selection: { selectedTrackIds: string[] };
     // UI view window in ticks
@@ -152,6 +153,7 @@ export type TimelineState = {
     scrubTick: (tick: number) => void;
     setRate: (rate: number) => void;
     setQuantize: (q: QuantizeSetting) => void;
+    setAutoKeying: (v: boolean) => void;
     setLoopEnabled: (enabled: boolean) => void;
     setLoopRangeTicks: (startTick?: number, endTick?: number) => void;
     toggleLoop: () => void;
@@ -455,6 +457,7 @@ function createInitialTimelineSlice(): Pick<
             rate: 1.0,
             // Quantize enabled by default (bar snapping)
             quantize: 'bar',
+            autoKeying: false,
             loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
         },
@@ -860,6 +863,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         const allowed: QuantizeSetting[] = ['off', 'bar', 'quarter', 'eighth', 'sixteenth'];
         const next = allowed.includes(q) ? q : 'off';
         set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
+    },
+
+    setAutoKeying(v: boolean) {
+        set((s: TimelineState) => ({ transport: { ...s.transport, autoKeying: v } }));
     },
 
     setLoopEnabled(enabled: boolean) {

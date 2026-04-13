@@ -238,7 +238,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     );
                 let resolvedSnap = snapped;
                 if (isOccupiedByOther(resolvedSnap)) {
-                    const dir = snapped >= drag.kfTick ? 1 : -1;
+                    // Use mouse position (candTick) relative to snap point for stable direction.
+                    // Comparing against drag.kfTick caused jitter because kfTick updates each frame.
+                    const dir = candTick >= snapped ? 1 : -1;
                     let candidate = snapped + dir;
                     while (candidate >= 0 && isOccupiedByOther(candidate)) candidate += dir;
                     resolvedSnap = Math.max(0, candidate);

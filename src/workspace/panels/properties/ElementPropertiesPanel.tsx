@@ -9,8 +9,10 @@ import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
 import { makeChannelId, findKeyframeAtTick } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
+import { resolveAutomationValueType } from './KeyframeControl';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -59,6 +61,16 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
     const currentTick = useCurrentTick();
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
+    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
+
+    // Fast property-type lookup used by auto-keying logic
+    const propertyTypeMap = useMemo(() => {
+        const map = new Map<string, string>();
+        enhancedSchema?.groups.forEach((group) => {
+            group.properties.forEach((prop) => map.set(prop.key, prop.type));
+        });
+        return map;
+    }, [enhancedSchema]);
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
@@ -226,26 +238,36 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...(linked ?? {}),
             }));
 
-            // If property is automated, dispatch addKeyframe at current tick instead of config change
+            // Keyframe dispatch — behaviour depends on auto-keying mode
             const chId = makeChannelId(elementId, key);
             const automationChannelsNow = useSceneStore.getState().automation.channels;
-            if (automationChannelsNow[chId]) {
+
+            if (autoKeying) {
+                // Auto-keying ON: every property change records a keyframe at the current tick
                 const session = meta?.mergeSession;
                 const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
                 if (session) {
                     cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
                     cmdOptions.transient = !session.finalize;
                 }
-                dispatchSceneCommand(
-                    {
-                        type: 'addKeyframe',
-                        channelId: chId,
-                        keyframe: { tick: currentTick, value: value, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
-                    },
-                    cmdOptions,
-                );
+                const kf = { tick: currentTick, value: value, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const };
+                if (automationChannelsNow[chId]) {
+                    dispatchSceneCommand({ type: 'addKeyframe', channelId: chId, keyframe: kf }, cmdOptions);
+                } else {
+                    const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
+                    if (valueType) {
+                        dispatchSceneCommand(
+                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [kf] },
+                            cmdOptions,
+                        );
+                    }
+                }
                 return;
             }
+
+            // Auto-keying OFF: if an automation channel exists, updating config has no effect during
+            // playback/scrubbing (KeyframeBinding takes precedence), so the value "reverts" on scrub.
+            // We intentionally fall through to onConfigChange in all cases.
 
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
@@ -270,7 +292,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 onConfigChange(elementId, patch, options);
             }
         },
-        [elementId, onConfigChange, currentTick],
+        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap],
     );
 
     const handleMacroAssignment = useCallback(

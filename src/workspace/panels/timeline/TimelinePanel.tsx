@@ -29,7 +29,7 @@ import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import { FaPlus, FaEllipsisV, FaUndo, FaMagnet } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaUndo, FaMagnet, FaKey } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 import {
     formatQuantizeLabel,
@@ -717,6 +717,8 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
     const playbackRange = useTimelineStore((s) => s.playbackRange);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
+    const setAutoKeying = useTimelineStore((s) => s.setAutoKeying);
     const lastNonOffQuantizeRef = useRef<QuantizeSetting>('bar');
     useEffect(() => {
         if (quantize !== 'off') {
@@ -746,7 +748,7 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
             const sec = tm.ticksToSeconds(currentTick);
             const spb = tm.getSecondsPerBeat(sec);
             if (spb > 0) return Math.round(60 / spb * 10) / 10;
-        } catch {}
+        } catch { }
         return globalBpm;
     }, [tempoAutomationEnabled, currentTick, globalBpm]);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -882,6 +884,18 @@ const HeaderRightControls: React.FC<{ follow?: boolean; setFollow?: (v: boolean)
                     }`}
             >
                 <FaMagnet />
+            </button>
+            {/* Auto-keying toggle */}
+            <button
+                aria-label={autoKeying ? 'Disable auto-keying' : 'Enable auto-keying'}
+                title={autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'}
+                onClick={() => setAutoKeying(!autoKeying)}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${autoKeying
+                    ? 'bg-red-600/70 text-white border-red-400/70'
+                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                    }`}
+            >
+                <FaKey />
             </button>
             {/* Ellipsis menu trigger */}
             <button
