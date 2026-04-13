@@ -52,6 +52,7 @@ const ChangelogPage: React.FC = () => {
                         'Bugfixes',
                         [
                             'Allowed pre-time unit attack animations in TUPR',
+                            'Changed all angle measurement units to radians (this might break some files)'
                         ],
                     ]} />
 

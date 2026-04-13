@@ -10,12 +10,13 @@ const ScenePluginsTab: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
 
     const handleImportClick = () => {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -26,6 +27,14 @@ const ScenePluginsTab: React.FC = () => {
             return;
         }
 
+        setImportError(null);
+        setPendingFile(file);
+    };
+
+    const handleConfirmImport = async () => {
+        if (!pendingFile) return;
+        const file = pendingFile;
+        setPendingFile(null);
         setImporting(true);
         setImportError(null);
 
@@ -102,6 +111,31 @@ const ScenePluginsTab: React.FC = () => {
                 >
                     {importing ? 'Importing...' : 'Select Plugin File'}
                 </button>
+
+                {pendingFile && (
+                    <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 p-3 space-y-2">
+                        <p className="text-[12px] font-medium text-amber-200">Install "{pendingFile.name}"?</p>
+                        <p className="text-[12px] text-amber-300/80 leading-relaxed">
+                            This plugin will run code on your computer. Only install plugins from authors you trust.
+                        </p>
+                        <div className="flex gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setPendingFile(null)}
+                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmImport}
+                                className="rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500"
+                            >
+                                Install
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {importError && (
                     <div className="mt-3 rounded border border-rose-500/50 bg-rose-900/30 p-3 text-rose-200">
