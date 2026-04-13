@@ -303,6 +303,10 @@ export interface SceneStoreActions {
     setAutomationChannel: (channel: AutomationChannel) => void;
     removeAutomationChannel: (channelId: string) => void;
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
+    /** Set a transient per-property override (Blender-style delink when auto key is off). */
+    setPropertyOverride: (channelId: string, value: unknown) => void;
+    /** Clear all transient property overrides (called when playhead moves or playback starts). */
+    clearAllPropertyOverrides: () => void;
 }
 
 export interface SceneStoreState extends SceneStoreActions {
@@ -315,6 +319,9 @@ export interface SceneStoreState extends SceneStoreActions {
     interaction: SceneInteractionState;
     runtimeMeta: SceneRuntimeMeta;
     automation: AutomationState;
+    /** Transient per-channel value overrides. Populated when auto key is off and user changes
+     *  a keyframed property. Cleared when the playhead moves. Does not affect saved state. */
+    propertyOverrides: Record<string, unknown>;
 }
 
 const SCENE_SCHEMA_VERSION = 5;
@@ -870,6 +877,7 @@ const createSceneStoreState = (
     interaction: createInitialInteractionState(),
     runtimeMeta: createRuntimeMeta(),
     automation: createEmptyAutomationState(),
+    propertyOverrides: {},
 
     addElement: (input) => {
         set((state) => {
@@ -1802,6 +1810,20 @@ const createSceneStoreState = (
             };
         });
     },
+
+    setPropertyOverride: (channelId, value) => {
+        set((state) => ({
+            ...state,
+            propertyOverrides: { ...state.propertyOverrides, [channelId]: value },
+        }));
+    },
+
+    clearAllPropertyOverrides: () => {
+        set((state) => {
+            if (Object.keys(state.propertyOverrides).length === 0) return state;
+            return { ...state, propertyOverrides: {} };
+        });
+    },
 });
 
 const sceneStoreCreator: StateCreator<SceneStoreState> = (set, get) => createSceneStoreState(set, get);
@@ -1815,3 +1837,16 @@ export const useSceneStore = createSceneStore();
 automationEvaluator.setChannelProvider(
     (channelId) => useSceneStore.getState().automation.channels[channelId],
 );
+
+// Clear transient property overrides when the playhead moves so keyframed values
+// take over again (Blender-style delink: manually changed values persist only until scrub/play).
+{
+    let _lastOverrideClearTick: number | null = null;
+    useTimelineStore.subscribe((state) => {
+        const tick = state.timeline.currentTick;
+        if (tick !== _lastOverrideClearTick) {
+            _lastOverrideClearTick = tick;
+            useSceneStore.getState().clearAllPropertyOverrides();
+        }
+    });
+}
