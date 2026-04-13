@@ -75,10 +75,6 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
         setActiveIndex(0);
     }, [search]);
 
-    // Focus search input on mount
-    useEffect(() => {
-        searchRef.current?.focus();
-    }, []);
 
     // Scroll active item into view
     useEffect(() => {
@@ -184,7 +180,9 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         onKeyDown={handleKeyDown}
+                        onFocus={(e) => e.currentTarget.select()}
                         placeholder="Search property…"
+                        autoFocus
                         className="w-full bg-neutral-800 border border-neutral-600 rounded px-2 py-1 text-[13px] text-neutral-200 placeholder-neutral-500 outline-none focus:border-sky-500 transition-colors"
                     />
                 </div>
