@@ -92,6 +92,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         frozenMinVal: number; frozenMaxVal: number;
         origType: HandleType;     // type of the dragged handle at drag-start
         frozenOppLength: number;  // effective length of opposite handle at drag-start (for aligned)
+        startMouseX: number;      // client X at drag-start (for shift-axis-snap)
+        startMouseY: number;      // client Y at drag-start
     } | null>(null);
 
     const [interpolationPicker, setInterpolationPicker] = useState<{ tick: number } | null>(null);
@@ -138,15 +140,55 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => window.removeEventListener('pointerdown', close, true);
     }, [kfHandleMenu]);
 
-    // Compute value range for vertical mapping
+    // Compute value range for vertical mapping — includes handle positions so
+    // handles never appear clipped beyond the curve pane height.
     const { minVal, maxVal } = useMemo(() => {
         if (channel.valueType === 'boolean' || channel.valueType === 'color') {
             return { minVal: 0, maxVal: 1 };
         }
-        const vals = channel.keyframes.map((kf) =>
-            typeof kf.value === 'number' ? kf.value : 0,
-        );
+        const kfs = channel.keyframes;
+        const vals = kfs.map((kf) => typeof kf.value === 'number' ? kf.value : 0);
         if (vals.length === 0) return { minVal: 0, maxVal: 1 };
+
+        // Include effective handle absolute values so they stay visible
+        for (let i = 0; i < kfs.length; i++) {
+            const kf = kfs[i];
+            const val = typeof kf.value === 'number' ? kf.value : 0;
+            const prev = i > 0 ? kfs[i - 1] : null;
+            const next = i < kfs.length - 1 ? kfs[i + 1] : null;
+            const showLeft  = i > 0 && kfs[i - 1].segmentInterpolation?.mode === 'bezier';
+            const showRight = i < kfs.length - 1 && kf.segmentInterpolation?.mode === 'bezier';
+
+            if (showLeft) {
+                const leftType = kf.leftHandleType ?? 'auto_clamped';
+                const leftIsAuto = leftType === 'auto' || leftType === 'auto_clamped';
+                let dv: number;
+                if (!kf.leftHandle || leftIsAuto) {
+                    const c = computeAutoHandles(prev, kf, next, leftType === 'auto' ? 'auto' : 'auto_clamped');
+                    dv = c.left.dv;
+                } else if (leftType === 'vector' && prev) {
+                    dv = ((typeof prev.value === 'number' ? prev.value : 0) - val) / 3;
+                } else {
+                    dv = kf.leftHandle.dv;
+                }
+                vals.push(val + dv);
+            }
+            if (showRight) {
+                const rightType = kf.rightHandleType ?? 'auto_clamped';
+                const rightIsAuto = rightType === 'auto' || rightType === 'auto_clamped';
+                let dv: number;
+                if (!kf.rightHandle || rightIsAuto) {
+                    const c = computeAutoHandles(prev, kf, next, rightType === 'auto' ? 'auto' : 'auto_clamped');
+                    dv = c.right.dv;
+                } else if (rightType === 'vector' && next) {
+                    dv = ((typeof next.value === 'number' ? next.value : 0) - val) / 3;
+                } else {
+                    dv = kf.rightHandle.dv;
+                }
+                vals.push(val + dv);
+            }
+        }
+
         let mn = Math.min(...vals);
         let mx = Math.max(...vals);
         if (mn === mx) {
@@ -386,10 +428,30 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 const kf = channel.keyframes.find((k) => Math.abs(k.tick - handleDrag.tick) < 0.5);
                 if (!kf) return;
                 const kfVal = typeof kf.value === 'number' ? kf.value : 0;
-                const handleTick = toTick(mouseX, width);
-                const handleVal = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal);
-                const dt = handleTick - kf.tick;
-                const dv = handleVal - kfVal;
+                let handleTick = toTick(mouseX, width);
+                let handleVal = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal);
+                let dt = handleTick - kf.tick;
+                let dv = handleVal - kfVal;
+
+                // Shift+drag: snap to horizontal or vertical relative to the keyframe
+                if (e.shiftKey) {
+                    const kfX = toX(kf.tick, width);
+                    const kfY = valueToY(kfVal);
+                    const startX = handleDrag.startMouseX - rect.left;
+                    const startY = handleDrag.startMouseY - rect.top;
+                    // Use the absolute pixel offset from the keyframe to pick the dominant axis
+                    const pixelDx = Math.abs(mouseX - kfX);
+                    const pixelDy = Math.abs(mouseY - kfY);
+                    // Prefer the axis with the larger displacement; use start direction to break ties
+                    const snapHorizontal = pixelDy === 0
+                        ? Math.abs(startX - kfX) >= Math.abs(startY - kfY)
+                        : pixelDx >= pixelDy;
+                    if (snapHorizontal) {
+                        dv = 0;
+                    } else {
+                        dt = 0;
+                    }
+                }
 
                 const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
                 dispatchSceneCommand(
@@ -398,7 +460,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 );
             }
         },
-        [dragging, handleDrag, channel, height, toTick, width, yToValue],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY],
     );
 
     const handlePointerUp = useCallback(
@@ -426,8 +488,22 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     const kf = channel.keyframes.find((k) => Math.abs(k.tick - handleDrag.tick) < 0.5);
                     if (kf) {
                         const kfVal = typeof kf.value === 'number' ? kf.value : 0;
-                        const dt = toTick(mouseX, width) - kf.tick;
-                        const dv = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal) - kfVal;
+                        let dt = toTick(mouseX, width) - kf.tick;
+                        let dv = yToValue(mouseY, handleDrag.frozenMinVal, handleDrag.frozenMaxVal) - kfVal;
+
+                        if (e.shiftKey) {
+                            const kfX = toX(kf.tick, width);
+                            const kfY = valueToY(kfVal);
+                            const pixelDx = Math.abs(mouseX - kfX);
+                            const pixelDy = Math.abs(mouseY - kfY);
+                            const startX = handleDrag.startMouseX - rect.left;
+                            const startY = handleDrag.startMouseY - rect.top;
+                            const snapHorizontal = pixelDy === 0
+                                ? Math.abs(startX - kfX) >= Math.abs(startY - kfY)
+                                : pixelDx >= pixelDy;
+                            if (snapHorizontal) { dv = 0; } else { dt = 0; }
+                        }
+
                         const patch = buildHandlePatch(dt, dv, handleDrag.side, handleDrag.origType, handleDrag.frozenOppLength);
                         dispatchSceneCommand(
                             { type: 'updateKeyframe', channelId: channel.id, tick: handleDrag.tick, patch: patch as any },
@@ -438,7 +514,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 setHandleDrag(null);
             }
         },
-        [dragging, handleDrag, channel, height, toTick, width, yToValue],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY],
     );
 
     // --- Handle drag start ---
@@ -472,7 +548,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 frozenOppLength = Math.sqrt(oppDt * oppDt + oppDv * oppDv);
             }
 
-            setHandleDrag({ tick, side, frozenMinVal: minVal, frozenMaxVal: maxVal, origType, frozenOppLength });
+            setHandleDrag({ tick, side, frozenMinVal: minVal, frozenMaxVal: maxVal, origType, frozenOppLength, startMouseX: e.clientX, startMouseY: e.clientY });
         },
         [minVal, maxVal, channel],
     );
