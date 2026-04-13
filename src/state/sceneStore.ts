@@ -21,6 +21,7 @@ import {
     stripDescriptorSmoothing,
 } from '@persistence/migrations/removeSmoothingFromDescriptor';
 import { migrateSceneAudioSystemV5 } from '@persistence/migrations/audioSystemV5';
+import { migrateAutomationState } from '@automation/migration';
 
 export type BindingState = ConstantBindingState | MacroBindingState | KeyframesBindingState;
 
@@ -1660,7 +1661,7 @@ const createSceneStoreState = (
                     licensingAcknowledgedAt: fontLicensingAcknowledgedAt,
                 },
                 interaction: createInitialInteractionState(),
-                automation: migratedPayload.automation ?? createEmptyAutomationState(),
+                automation: migrateAutomationState(migratedPayload.automation ?? createEmptyAutomationState()),
                 runtimeMeta: {
                     ...state.runtimeMeta,
                     persistentDirty: false,

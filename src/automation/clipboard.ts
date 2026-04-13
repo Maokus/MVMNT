@@ -4,6 +4,7 @@
  */
 
 import type { AutomationChannel, AutomationKeyframe } from './types';
+import { cloneKeyframe } from './types';
 
 interface AutomationClipboardState {
     keyframes: AutomationKeyframe[];
@@ -16,7 +17,7 @@ let clipboard: AutomationClipboardState | null = null;
 /** Copy a channel's keyframes to clipboard. */
 export function copyChannel(channel: AutomationChannel): void {
     clipboard = {
-        keyframes: channel.keyframes.map((kf) => ({ ...kf })),
+        keyframes: channel.keyframes.map(cloneKeyframe),
         valueType: channel.valueType,
         interpolation: channel.interpolation,
     };
@@ -54,7 +55,7 @@ export function copySelectedKeyframes(
     keyframeSelClipboard = {
         entries: entries.map((e) => ({
             channelId: e.channelId,
-            keyframes: e.keyframes.map((kf) => ({ ...kf })),
+            keyframes: e.keyframes.map(cloneKeyframe),
         })),
         minTick,
     };

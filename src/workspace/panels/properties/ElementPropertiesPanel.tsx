@@ -240,7 +240,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     {
                         type: 'addKeyframe',
                         channelId: chId,
-                        keyframe: { tick: currentTick, value: value, easingId: 'linear' },
+                        keyframe: { tick: currentTick, value: value, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
                     },
                     cmdOptions,
                 );

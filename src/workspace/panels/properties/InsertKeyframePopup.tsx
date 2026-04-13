@@ -114,7 +114,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         elementId,
                         propertyKey: prop.key,
                         valueType,
-                        initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear' }],
+                        initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }],
                     },
                     { source: 'insert-keyframe-popup' },
                 );
@@ -123,7 +123,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                     {
                         type: 'addKeyframe',
                         channelId,
-                        keyframe: { tick, value: currentValue, easingId: 'linear' },
+                        keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
                     },
                     { source: 'insert-keyframe-popup' },
                 );

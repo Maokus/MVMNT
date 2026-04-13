@@ -67,8 +67,8 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
 
                 const initialKeyframes =
                     tick > 0
-                        ? [{ tick, value: currentValue, easingId: 'linear' }]
-                        : [{ tick: 0, value: currentValue, easingId: 'linear' }];
+                        ? [{ tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }]
+                        : [{ tick: 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }];
 
 
                 dispatchSceneCommand(
@@ -97,7 +97,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     {
                         type: 'addKeyframe',
                         channelId: channelId!,
-                        keyframe: { tick, value: currentValue, easingId: 'linear' },
+                        keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
                     },
                     { source: 'keyframe-control' },
                 );

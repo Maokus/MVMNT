@@ -1,24 +1,38 @@
 /**
  * AutomationCurve — evaluates an automation channel at a given tick.
  *
- * Supports three interpolation modes:
- *   - linear: lerp between keyframes
- *   - stepped: hold previous keyframe value until next
- *   - eased: lerp with per-keyframe easing function applied to t
+ * Hybrid interpolation model:
+ *   Each segment between two keyframes has its own interpolation mode via
+ *   the outgoing keyframe's `segmentInterpolation` field:
+ *     - constant: hold the left keyframe's value (stepped)
+ *     - linear:   lerp between keyframes
+ *     - bezier:   cubic bezier evaluation using keyframe handles
+ *     - semantic:  easing function with direction and optional parameters
+ *
+ *   When `segmentInterpolation` is absent (legacy data), falls back to
+ *   the channel-level `interpolation` mode and per-keyframe `easingId`.
+ *
+ * Handle behavior:
+ *   Handle data is always preserved on keyframes regardless of interpolation mode.
+ *   Only bezier mode reads handle data for evaluation. Switching from bezier to
+ *   a semantic mode and back restores the previous curve shape.
  *
  * Value types:
- *   - number: direct interpolation
- *   - color: per-component RGB(A) interpolation
+ *   - number:  direct interpolation
+ *   - color:   per-component RGB(A) interpolation
  *   - boolean: always stepped, regardless of channel interpolation mode
  */
 
 import type { AutomationChannel, AutomationKeyframe, AutomationInterpolation, AutomationValueType } from './types';
 import { lerpColor } from './color-interpolation';
+import { computeAutoHandles } from './interpolation-defaults';
+import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
+import { resolveParametricEasing } from '@math/animation/easing-parametric';
 import easings from '@math/animation/easing';
 
 type EasingFn = (t: number) => number;
 
-/** Resolve an easing function by its ID. Falls back to linear if unknown. */
+/** Resolve a legacy easing function by its ID. Falls back to linear if unknown. */
 function resolveEasing(easingId: string): EasingFn {
     const fn = (easings as Record<string, EasingFn | undefined>)[easingId];
     return fn ?? easings.linear;
@@ -77,29 +91,137 @@ export class AutomationCurve {
         // Boolean values are always stepped
         if (this.valueType === 'boolean') return prev.value;
 
-        // Stepped interpolation: hold previous value
-        if (this.interpolation === 'stepped') return prev.value;
-
         // Compute local t within the segment
         const span = next.tick - prev.tick;
         if (span <= 0) return next.value;
-        const localT = (tick - prev.tick) / span;
+        const localT = Math.max(0, Math.min(1, (tick - prev.tick) / span));
+
+        // --- New hybrid interpolation path ---
+        if (prev.segmentInterpolation) {
+            return this.evaluateSegment(prevIdx, localT, prev, next);
+        }
+
+        // --- Legacy fallback ---
+        return this.evaluateLegacy(localT, prev, next);
+    }
+
+    /**
+     * Evaluate a segment using the new hybrid interpolation model.
+     * Dispatches by the segment's interpolation mode.
+     */
+    private evaluateSegment(
+        prevIdx: number,
+        localT: number,
+        prev: AutomationKeyframe,
+        next: AutomationKeyframe,
+    ): unknown {
+        const interp = prev.segmentInterpolation!;
+        const { mode, direction, params } = interp;
+
+        // Constant (stepped): hold previous value
+        if (mode === 'constant') return prev.value;
+
+        // Linear: raw lerp, no easing
+        if (mode === 'linear') {
+            return this.interpolateValue(localT, prev, next);
+        }
+
+        // Bezier: cubic bezier evaluation using handles
+        if (mode === 'bezier') {
+            return this.evaluateBezierSegment(prevIdx, localT, prev, next);
+        }
+
+        // Semantic preset: resolve easing function, apply to t, then lerp
+        const easingFn = resolveParametricEasing(mode, direction, params);
+        if (easingFn) {
+            const easedT = easingFn(localT);
+            return this.interpolateValue(easedT, prev, next);
+        }
+
+        // Fallback to linear
+        return this.interpolateValue(localT, prev, next);
+    }
+
+    /**
+     * Evaluate a bezier-mode segment using cubic bezier curves and keyframe handles.
+     */
+    private evaluateBezierSegment(
+        prevIdx: number,
+        localT: number,
+        prev: AutomationKeyframe,
+        next: AutomationKeyframe,
+    ): unknown {
+        const kfs = this.keyframes;
+
+        // Resolve handles — use explicit handles if present, or auto-compute
+        const prevHandleType = prev.rightHandleType ?? 'auto_clamped';
+        const nextHandleType = next.leftHandleType ?? 'auto_clamped';
+
+        let prevRightHandle = prev.rightHandle;
+        let nextLeftHandle = next.leftHandle;
+
+        // Auto-compute handles when needed
+        if (!prevRightHandle || prevHandleType === 'auto' || prevHandleType === 'auto_clamped') {
+            const prevPrev = prevIdx > 0 ? kfs[prevIdx - 1] : null;
+            const computed = computeAutoHandles(prevPrev, prev, next, prevHandleType === 'auto' ? 'auto' : 'auto_clamped');
+            prevRightHandle = computed.right;
+        }
+
+        if (!nextLeftHandle || nextHandleType === 'auto' || nextHandleType === 'auto_clamped') {
+            const nextNext = prevIdx + 2 < kfs.length ? kfs[prevIdx + 2] : null;
+            const computed = computeAutoHandles(prev, next, nextNext, nextHandleType === 'auto' ? 'auto' : 'auto_clamped');
+            nextLeftHandle = computed.left;
+        }
+
+        // For color values: bezier-interpolate each RGB(A) component independently
+        if (this.valueType === 'color') {
+            // Use simple eased interpolation for color bezier (the handle shape
+            // is applied to t, then component-wise lerp — simpler than per-component bezier)
+            const prevVal = typeof prev.value === 'number' ? prev.value : 0;
+            const nextVal = typeof next.value === 'number' ? next.value : 0;
+            const span = next.tick - prev.tick;
+            if (span <= 0) return next.value;
+
+            // Evaluate bezier for the t-mapping only
+            const bezierT = evaluateSegmentBezier(
+                localT, prev.tick, 0, prevRightHandle, next.tick, 1, nextLeftHandle,
+            );
+            return lerpColor(prev.value as string, next.value as string, Math.max(0, Math.min(1, bezierT)));
+        }
+
+        // Numeric: full bezier evaluation
+        const prevVal = typeof prev.value === 'number' ? prev.value : 0;
+        const nextVal = typeof next.value === 'number' ? next.value : 0;
+
+        return evaluateSegmentBezier(
+            localT, prev.tick, prevVal, prevRightHandle, next.tick, nextVal, nextLeftHandle,
+        );
+    }
+
+    /** Legacy evaluation path: channel-level interpolation mode + per-keyframe easingId. */
+    private evaluateLegacy(localT: number, prev: AutomationKeyframe, next: AutomationKeyframe): unknown {
+        // Stepped interpolation: hold previous value
+        if (this.interpolation === 'stepped') return prev.value;
 
         // Apply easing
         const easedT =
             this.interpolation === 'eased'
-                ? resolveEasing(prev.easingId)(Math.max(0, Math.min(1, localT)))
-                : Math.max(0, Math.min(1, localT));
+                ? resolveEasing(prev.easingId)(localT)
+                : localT;
 
-        // Interpolate based on value type
+        return this.interpolateValue(easedT, prev, next);
+    }
+
+    /** Interpolate between two keyframe values at a given t. */
+    private interpolateValue(t: number, prev: AutomationKeyframe, next: AutomationKeyframe): unknown {
         if (this.valueType === 'color') {
-            return lerpColor(prev.value as string, next.value as string, easedT);
+            return lerpColor(prev.value as string, next.value as string, t);
         }
 
         // Numeric interpolation
         const a = prev.value as number;
         const b = next.value as number;
-        return a + (b - a) * easedT;
+        return a + (b - a) * t;
     }
 
     /** Check if a keyframe exists at exactly the given tick (within tolerance). */

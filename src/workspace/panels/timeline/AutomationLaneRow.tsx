@@ -447,11 +447,19 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const candTick = toTick(x, width);
             const snapped = snapTick(candTick, e.altKey);
             const interpolatedValue = interpolateAtTick(channel, snapped);
+            const defaultInterp = channel.defaultInterpolation ?? { mode: 'bezier' as const, direction: 'auto' as const };
             dispatchSceneCommand(
                 {
                     type: 'addKeyframe',
                     channelId: channel.id,
-                    keyframe: { tick: snapped, value: interpolatedValue, easingId: 'linear' },
+                    keyframe: {
+                        tick: snapped,
+                        value: interpolatedValue,
+                        easingId: 'linear',
+                        segmentInterpolation: { ...defaultInterp },
+                        leftHandleType: 'auto_clamped',
+                        rightHandleType: 'auto_clamped',
+                    },
                 },
                 { source: 'automation-lane' },
             );

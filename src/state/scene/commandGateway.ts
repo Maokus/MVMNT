@@ -131,7 +131,7 @@ export type SceneCommand =
           channelId: string;
           tick: number;
           /** Partial patch — only provided fields are updated. */
-          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>>;
+          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId' | 'segmentInterpolation' | 'leftHandle' | 'rightHandle' | 'leftHandleType' | 'rightHandleType'>>;
       }
     | {
           type: 'moveKeyframe';
@@ -580,9 +580,14 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!channel) return null;
             const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
             if (!existing) return null;
-            const undoPatch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>> = {};
+            const undoPatch: typeof command.patch = {};
             if ('value' in command.patch) undoPatch.value = existing.value;
             if ('easingId' in command.patch) undoPatch.easingId = existing.easingId;
+            if ('segmentInterpolation' in command.patch) undoPatch.segmentInterpolation = existing.segmentInterpolation;
+            if ('leftHandle' in command.patch) undoPatch.leftHandle = existing.leftHandle;
+            if ('rightHandle' in command.patch) undoPatch.rightHandle = existing.rightHandle;
+            if ('leftHandleType' in command.patch) undoPatch.leftHandleType = existing.leftHandleType;
+            if ('rightHandleType' in command.patch) undoPatch.rightHandleType = existing.rightHandleType;
             return {
                 redo: [cloneCommand(command)],
                 undo: [
