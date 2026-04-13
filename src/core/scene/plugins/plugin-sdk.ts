@@ -76,7 +76,16 @@ export {
 };
 export { registerFeatureRequirements };
 export type { AudioFeatureRequirement };
-export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
+export type {
+    EnhancedConfigSchema,
+    SceneElementInterface,
+    PropertyDefinition,
+    PropertyRuntimeConfig,
+    PropertyGroup,
+    PropertyGroupPreset,
+    PropertyVisibilityCondition,
+} from '@core/types';
+export { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 export type { FeatureDataResult, FeatureInput } from '@audio/features/sceneApi';
 export type { TimelineNoteEvent, TimelineCCEvent, TempoMapEntry } from '@core/timing/types';
 export {
