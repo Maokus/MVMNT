@@ -614,7 +614,6 @@ const TimelinePanel: React.FC = () => {
     useEffect(() => {
         if (!rightPaneEl) return;
         const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
             const state = useTimelineStore.getState();
             const { startTick, endTick } = state.timelineView;
             const range = Math.max(1, endTick - startTick);
@@ -622,20 +621,22 @@ const TimelinePanel: React.FC = () => {
             const width = Math.max(1, rect.width);
 
             if (e.ctrlKey || e.metaKey) {
-                // Cmd/Ctrl + scroll → zoom around cursor
+                // Cmd/Ctrl + scroll → zoom around cursor; always consume
+                e.preventDefault();
                 const cursorFrac = (e.clientX - rect.left) / width;
                 const pivotTick = startTick + cursorFrac * range;
                 const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
                 const { newStart, newEnd } = zoomAround(startTick, endTick, pivotTick, factor);
                 state.setTimelineViewTicks(newStart, newEnd);
-            } else {
-                // Two-finger scroll → pan (use larger axis; trackpad sends deltaY for vertical swipe)
-                const delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-                const shift = Math.round((delta / width) * range);
+            } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                // Horizontal scroll dominates → pan the timeline; consume to prevent browser navigation
+                e.preventDefault();
+                const shift = Math.round((e.deltaX / width) * range);
                 if (shift !== 0) {
                     state.setTimelineViewTicks(startTick + shift, endTick + shift);
                 }
             }
+            // Vertical-dominant scroll → do not preventDefault; let the container scroll normally
         };
         rightPaneEl.addEventListener('wheel', handleWheel, { passive: false });
         return () => rightPaneEl.removeEventListener('wheel', handleWheel);
