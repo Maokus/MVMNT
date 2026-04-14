@@ -774,6 +774,31 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     { source: 'automation-lane' },
                 );
             }
+            // Apply to selected segments in other channels
+            if (isSelectedSeg) {
+                const otherChannelIds = [...new Set(
+                    allSelected.filter((k) => k.channelId !== channel.id).map((k) => k.channelId),
+                )];
+                for (const otherChannelId of otherChannelIds) {
+                    const otherTickSet = new Set(
+                        allSelected.filter((k) => k.channelId === otherChannelId).map((k) => k.tick),
+                    );
+                    const otherKfs = useSceneStore.getState().automation.channels[otherChannelId]?.keyframes ?? [];
+                    for (let i = 0; i < otherKfs.length - 1; i++) {
+                        if (otherTickSet.has(otherKfs[i].tick) && otherTickSet.has(otherKfs[i + 1].tick)) {
+                            dispatchSceneCommand(
+                                {
+                                    type: 'updateKeyframe',
+                                    channelId: otherChannelId,
+                                    tick: otherKfs[i].tick,
+                                    patch: { segmentInterpolation: interpolation },
+                                },
+                                { source: 'automation-lane' },
+                            );
+                        }
+                    }
+                }
+            }
         },
         [interpolationPicker, channel.id],
     );
