@@ -222,6 +222,20 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         [selectedKeyframes],
     );
 
+    // Set of outgoing-keyframe ticks for segments where both endpoints are selected.
+    // A segment is selected when the user has selected two consecutive keyframes.
+    const selectedSegmentTicks = useMemo(() => {
+        const selectedTickSet = new Set(selectedKeyframes.map((k) => k.tick));
+        const result = new Set<number>();
+        const kfs = channel.keyframes;
+        for (let i = 0; i < kfs.length - 1; i++) {
+            if (selectedTickSet.has(kfs[i].tick) && selectedTickSet.has(kfs[i + 1].tick)) {
+                result.add(kfs[i].tick);
+            }
+        }
+        return result;
+    }, [selectedKeyframes, channel.keyframes]);
+
     // Diamonds (with half-shapes) and segment hit areas
     const elements = useMemo(() => {
         const kfs = channel.keyframes;
@@ -688,17 +702,34 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            dispatchSceneCommand(
-                {
-                    type: 'updateKeyframe',
-                    channelId: channel.id,
-                    tick: interpolationPicker.tick,
-                    patch: { segmentInterpolation: interpolation },
-                },
-                { source: 'automation-lane' },
-            );
+            // If the clicked segment is selected and multiple segments are selected,
+            // apply the easing change to all selected segments simultaneously.
+            const isSelectedSeg = selectedSegmentTicks.has(interpolationPicker.tick);
+            if (isSelectedSeg && selectedSegmentTicks.size > 1) {
+                selectedSegmentTicks.forEach((tick) => {
+                    dispatchSceneCommand(
+                        {
+                            type: 'updateKeyframe',
+                            channelId: channel.id,
+                            tick,
+                            patch: { segmentInterpolation: interpolation },
+                        },
+                        { source: 'automation-lane' },
+                    );
+                });
+            } else {
+                dispatchSceneCommand(
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: interpolationPicker.tick,
+                        patch: { segmentInterpolation: interpolation },
+                    },
+                    { source: 'automation-lane' },
+                );
+            }
         },
-        [interpolationPicker, channel.id],
+        [interpolationPicker, channel.id, selectedSegmentTicks],
     );
 
     const pickerCurrent = useMemo((): SegmentInterpolation => {
@@ -772,6 +803,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 {/* Interpolation lines */}
                 {elements.segments.map((seg, i) => {
                     const hovered = hoveredSegIndex === i;
+                    const selected = selectedSegmentTicks.has(seg.tick);
                     return (
                         <line
                             key={`line-${i}`}
@@ -779,9 +811,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             y1={cy}
                             x2={seg.x2}
                             y2={cy}
-                            stroke={hovered ? 'rgba(147,197,253,0.9)' : 'rgba(96,165,250,0.35)'}
-                            strokeWidth={hovered ? 2 : 1}
-                            style={{ pointerEvents: 'none', filter: hovered ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined }}
+                            stroke={
+                                selected && hovered ? 'rgba(255,255,255,0.95)' :
+                                selected ? 'rgba(147,197,253,0.9)' :
+                                hovered ? 'rgba(147,197,253,0.9)' :
+                                'rgba(96,165,250,0.35)'
+                            }
+                            strokeWidth={selected || hovered ? 2 : 1}
+                            style={{ pointerEvents: 'none', filter: (selected || hovered) ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined }}
                         />
                     );
                 })}
