@@ -95,30 +95,38 @@ function getKfHalfShape(
 }
 
 /**
- * Build an SVG path string for one half of a keyframe icon at position (x, cy).
- * The two halves together form the full icon when joined at x.
+ * Build a unified SVG path string for a keyframe icon at position (x, cy).
+ * Traces the left half downward from (x,t) to (x,b), then the right half
+ * upward back to (x,t), forming a single closed path.
  */
-function halfShapePath(
-    side: 'left' | 'right',
-    shape: KfHalfShape,
+function shapePath(
+    leftShape: KfHalfShape,
+    rightShape: KfHalfShape,
     x: number,
     cy: number,
     size: number,
 ): string {
     const l = x - size, r = x + size, t = cy - size, b = cy + size;
-    if (side === 'right') {
-        if (shape === 'diamond')   return `M${x},${t} L${r},${cy} L${x},${b} Z`;
-        if (shape === 'square')    return `M${x},${t} L${r},${t} L${r},${b} L${x},${b} Z`;
-        if (shape === 'hourglass') return `M${r},${t} L${x},${cy} L${r},${b} Z`;
-        // circle: right semicircle
-        return `M${x},${t} A${size},${size} 0 0,1 ${x},${b} Z`;
+
+    // Left half: segments from (x,t) down to (x,b)
+    let leftSeg: string;
+    switch (leftShape) {
+        case 'diamond': leftSeg = `L${l},${cy} L${x},${b}`; break;
+        case 'hourglass': leftSeg = `L${l},${t} L${x},${cy} L${l},${b} L${x},${b}`; break;
+        case 'square': leftSeg = `L${l},${t} L${l},${b} L${x},${b}`; break;
+        default: leftSeg = `A ${size} ${size} 0 0 1 ${x} ${t}`; break; // circle
     }
-    // left
-    if (shape === 'diamond')   return `M${x},${t} L${l},${cy} L${x},${b} Z`;
-    if (shape === 'square')    return `M${x},${t} L${l},${t} L${l},${b} L${x},${b} Z`;
-    if (shape === 'hourglass') return `M${l},${t} L${x},${cy} L${l},${b} Z`;
-    // circle: left semicircle
-    return `M${x},${t} A${size},${size} 0 0,0 ${x},${b} Z`;
+
+    // Right half: segments from (x,b) back up to (x,t)
+    let rightSeg: string;
+    switch (rightShape) {
+        case 'diamond': rightSeg = `L${r},${cy} L${x},${t}`; break;
+        case 'hourglass': rightSeg = `L${r},${b} L${x},${cy} L${r},${t} L${x},${t}`; break;
+        case 'square': rightSeg = `L${r},${b} L${r},${t} L${x},${t}`; break;
+        default: rightSeg = `A ${size} ${size} 0 0 1 ${x} ${b}`; break; // circle
+    }
+
+    return `M${x},${t} ${leftSeg} ${rightSeg} Z`;
 }
 
 // ---------------------------------------------------------------------------
@@ -799,7 +807,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     />
                 ))}
 
-                {/* Keyframe icons — split into two half-shapes */}
+                {/* Keyframe icons */}
                 {elements.diamonds.map(({ kf, x, leftShape, rightShape }) => {
                     const sel = isSelected(kf.tick);
                     const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
@@ -816,14 +824,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             onContextMenu={(e) => handleKfContextMenu(e, kf)}
                         >
                             <path
-                                d={halfShapePath('left', leftShape, x, cy, dSize)}
-                                fill={fill}
-                                stroke={stroke}
-                                strokeWidth={strokeWidth}
-                                strokeLinejoin="round"
-                            />
-                            <path
-                                d={halfShapePath('right', rightShape, x, cy, dSize)}
+                                d={shapePath(leftShape, rightShape, x, cy, dSize)}
                                 fill={fill}
                                 stroke={stroke}
                                 strokeWidth={strokeWidth}
@@ -979,10 +980,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 const currentRight = kf.rightHandleType ?? 'auto_clamped';
                 const handleTypes: Array<{ type: HandleType; label: string }> = [
                     { type: 'auto_clamped', label: 'Auto (Clamped)' },
-                    { type: 'auto',         label: 'Auto' },
-                    { type: 'free',         label: 'Free' },
-                    { type: 'aligned',      label: 'Aligned' },
-                    { type: 'vector',       label: 'Vector' },
+                    { type: 'auto', label: 'Auto' },
+                    { type: 'free', label: 'Free' },
+                    { type: 'aligned', label: 'Aligned' },
+                    { type: 'vector', label: 'Vector' },
                 ];
                 const applyHandleType = (side: 'left' | 'right', type: HandleType) => {
                     const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
