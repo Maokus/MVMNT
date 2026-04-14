@@ -691,39 +691,42 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
-
+            useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+            const kfs = channel.keyframes;
+            const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
+            if (idx < 0 || idx >= kfs.length - 1) return;
+            const leftTick = kfs[idx].tick;
+            const rightTick = kfs[idx + 1].tick;
             if (e.shiftKey) {
-                // Shift+click: add both adjacent keyframes to selection, don't open picker
-                useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
-                const kfs = channel.keyframes;
-                const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
-                if (idx >= 0 && idx < kfs.length - 1) {
-                    const leftTick = kfs[idx].tick;
-                    const rightTick = kfs[idx + 1].tick;
-                    useSceneStore.setState((state) => {
-                        const existing = state.interaction.automationSelectedKeyframes;
-                        const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
-                        const hasRight = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - rightTick) < 0.5);
-                        const toAdd: Array<{ channelId: string; tick: number }> = [];
-                        if (!hasLeft) toAdd.push({ channelId: channel.id, tick: leftTick });
-                        if (!hasRight) toAdd.push({ channelId: channel.id, tick: rightTick });
-                        return {
-                            interaction: {
-                                ...state.interaction,
-                                automationSelectedKeyframes: [...existing, ...toAdd],
-                            },
-                        };
-                    });
-                }
-                return;
+                // Shift+click: add both adjacent keyframes to existing selection
+                useSceneStore.setState((state) => {
+                    const existing = state.interaction.automationSelectedKeyframes;
+                    const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
+                    const hasRight = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - rightTick) < 0.5);
+                    const toAdd: Array<{ channelId: string; tick: number }> = [];
+                    if (!hasLeft) toAdd.push({ channelId: channel.id, tick: leftTick });
+                    if (!hasRight) toAdd.push({ channelId: channel.id, tick: rightTick });
+                    return {
+                        interaction: {
+                            ...state.interaction,
+                            automationSelectedKeyframes: [...existing, ...toAdd],
+                        },
+                    };
+                });
+            } else {
+                // Plain click: replace selection with this segment's two keyframes
+                useSceneStore.setState((state) => ({
+                    interaction: {
+                        ...state.interaction,
+                        automationSelectedKeyframes: [
+                            { channelId: channel.id, tick: leftTick },
+                            { channelId: channel.id, tick: rightTick },
+                        ],
+                    },
+                }));
             }
-
-            pickerRefs.setReference({
-                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
-            });
-            setInterpolationPicker({ tick });
         },
-        [pickerRefs, channel.id, channel.elementId, channel.keyframes],
+        [channel.id, channel.elementId, channel.keyframes],
     );
 
     const handleInterpolationSelect = useCallback(
@@ -1101,10 +1104,23 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 ];
                 const applyHandleType = (side: 'left' | 'right', type: HandleType) => {
                     const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
-                    dispatchSceneCommand(
-                        { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
-                        { source: 'automation-lane' },
+                    const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                    const isSelectedKf = allSelected.some(
+                        (k) => k.channelId === channel.id && Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
                     );
+                    if (isSelectedKf && allSelected.length > 1) {
+                        allSelected.forEach(({ channelId, tick }) => {
+                            dispatchSceneCommand(
+                                { type: 'updateKeyframe', channelId, tick, patch },
+                                { source: 'automation-lane' },
+                            );
+                        });
+                    } else {
+                        dispatchSceneCommand(
+                            { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
+                            { source: 'automation-lane' },
+                        );
+                    }
                     setKfHandleMenu(null);
                 };
                 return (

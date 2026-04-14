@@ -557,12 +557,34 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
-            pickerRefs.setReference({
-                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
-            });
-            setInterpolationPicker({ tick });
+            const kfs = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
+            const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
+            if (idx < 0 || idx >= kfs.length - 1) return;
+            const leftTick = kfs[idx].tick;
+            const rightTick = kfs[idx + 1].tick;
+            if (e.shiftKey) {
+                useSceneStore.setState((state) => {
+                    const existing = state.interaction.automationSelectedKeyframes;
+                    const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
+                    const hasRight = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - rightTick) < 0.5);
+                    const toAdd: Array<{ channelId: string; tick: number }> = [];
+                    if (!hasLeft) toAdd.push({ channelId: channel.id, tick: leftTick });
+                    if (!hasRight) toAdd.push({ channelId: channel.id, tick: rightTick });
+                    return { interaction: { ...state.interaction, automationSelectedKeyframes: [...existing, ...toAdd] } };
+                });
+            } else {
+                useSceneStore.setState((state) => ({
+                    interaction: {
+                        ...state.interaction,
+                        automationSelectedKeyframes: [
+                            { channelId: channel.id, tick: leftTick },
+                            { channelId: channel.id, tick: rightTick },
+                        ],
+                    },
+                }));
+            }
         },
-        [pickerRefs],
+        [channel.id],
     );
 
     const handleInterpolationSelect = useCallback(
@@ -730,7 +752,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             pointerEvents="all"
                             style={{ cursor: 'pointer' }}
                             onClick={(e) => handleSegmentClick(e, pt.tick)}
-                            onContextMenu={(e) => e.preventDefault()}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                pickerRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                                setInterpolationPicker({ tick: pt.tick });
+                            }}
                             data-seg="1"
                         />
                     );
@@ -865,10 +892,23 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 ];
                 const setHandleType = (side: 'left' | 'right', type: HandleType) => {
                     const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
-                    dispatchSceneCommand(
-                        { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
-                        { source: 'curve-editor' },
+                    const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+                    const isSelectedKf = allSelected.some(
+                        (k) => k.channelId === channel.id && Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
                     );
+                    if (isSelectedKf && allSelected.length > 1) {
+                        allSelected.forEach(({ channelId, tick }) => {
+                            dispatchSceneCommand(
+                                { type: 'updateKeyframe', channelId, tick, patch },
+                                { source: 'curve-editor' },
+                            );
+                        });
+                    } else {
+                        dispatchSceneCommand(
+                            { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
+                            { source: 'curve-editor' },
+                        );
+                    }
                     setKfHandleMenu(null);
                 };
                 return (
