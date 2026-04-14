@@ -4,7 +4,7 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from './constants';
 import { useCurveHeight } from './curveHeightContext';
 
 /** Channel row label with curve toggle and remove button. */
@@ -196,7 +196,7 @@ const AutomationTrackLabels: React.FC = () => {
             </div>
 
             {/* Search bar */}
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-neutral-800 bg-neutral-900/40">
+            <div className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40" style={{ height: AUTOMATION_SEARCH_HEIGHT }}>
                 <FaSearch className="text-[9px] text-neutral-500 shrink-0" />
                 <input
                     type="text"

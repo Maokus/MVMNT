@@ -11,7 +11,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from './constants';
 import { useCurveHeight } from './curveHeightContext';
 import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
@@ -245,6 +245,11 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             <div
                 className="border-b border-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
+            />
+            {/* Search bar spacer (mirrors left-column search input row) */}
+            <div
+                className="border-b border-neutral-800"
+                style={{ height: AUTOMATION_SEARCH_HEIGHT }}
             />
 
             {/* Element lane groups */}

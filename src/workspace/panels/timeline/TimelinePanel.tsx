@@ -29,7 +29,7 @@ import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import { FaPlus, FaEllipsisV, FaMagnet, FaKey, FaExpand, FaObjectGroup, FaCrosshairs } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaMagnet, FaCircle, FaExpand, FaObjectGroup, FaCrosshairs } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 import {
     formatQuantizeLabel,
@@ -1194,7 +1194,7 @@ const HeaderRightControls: React.FC<{
                     : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
                     }`}
             >
-                <FaKey />
+                <FaCircle className="text-[8px]" />
             </button>
             {/* Ellipsis menu trigger */}
             <button
