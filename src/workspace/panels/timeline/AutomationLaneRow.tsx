@@ -114,7 +114,7 @@ function shapePath(
         case 'diamond': leftSeg = `L${l},${cy} L${x},${b}`; break;
         case 'hourglass': leftSeg = `L${l},${t} L${x},${cy} L${l},${b} L${x},${b}`; break;
         case 'square': leftSeg = `L${l},${t} L${l},${b} L${x},${b}`; break;
-        default: leftSeg = `A ${size} ${size} 0 0 1 ${x} ${t}`; break; // circle
+        default: leftSeg = `A${size},${size} 0 0,0 ${x},${b}`; break; // circle: left semicircle (x,t)→(x,b)
     }
 
     // Right half: segments from (x,b) back up to (x,t)
@@ -123,7 +123,7 @@ function shapePath(
         case 'diamond': rightSeg = `L${r},${cy} L${x},${t}`; break;
         case 'hourglass': rightSeg = `L${r},${b} L${x},${cy} L${r},${t} L${x},${t}`; break;
         case 'square': rightSeg = `L${r},${b} L${r},${t} L${x},${t}`; break;
-        default: rightSeg = `A ${size} ${size} 0 0 1 ${x} ${b}`; break; // circle
+        default: rightSeg = `A${size},${size} 0 0,0 ${x},${t}`; break; // circle: right semicircle (x,b)→(x,t)
     }
 
     return `M${x},${t} ${leftSeg} ${rightSeg} Z`;
