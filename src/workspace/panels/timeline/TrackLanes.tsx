@@ -560,6 +560,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
     const onBackgroundPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
         if (e.button !== 0) return; // left click only for marquee
+        if (activeTab !== 'clips') return; // marquee is clips-view only
         if (!containerRef.current) return;
         // Ignore clicks that start on a clip (so clip dragging works)
         const target = e.target as HTMLElement;
@@ -690,8 +691,8 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             {/* Playhead overlay */}
             <div className="absolute top-0 bottom-0 w-0 border-l border-red-400 pointer-events-none" style={{ left: playheadX }} />
 
-            {/* Marquee selection overlay */}
-            {marquee && (
+            {/* Marquee selection overlay — clips view only */}
+            {activeTab === 'clips' && marquee && (
                 <div
                     className="absolute top-0 bottom-0 bg-blue-400/10 border-x border-blue-400 pointer-events-none"
                     style={{ left: Math.min(marquee.x1, marquee.x2), width: Math.abs(marquee.x2 - marquee.x1) }}

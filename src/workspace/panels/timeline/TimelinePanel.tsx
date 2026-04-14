@@ -504,6 +504,9 @@ const TimelinePanel: React.FC = () => {
     const isPlaying = useTimelineStore((s) => s.transport.isPlaying);
     // Derived seconds still used for display-only follow heuristics optional; canonical follow in ticks
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    // Auto Keying
+    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
+    const setAutoKeying = useTimelineStore((s) => s.setAutoKeying);
     // Auto-follow enabled by default per new UX spec
     const [follow, setFollow] = useState(true);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
@@ -840,6 +843,7 @@ const TimelinePanel: React.FC = () => {
         }
     }, [currentTick, follow, isPlaying, view.startTick, view.endTick, setTimelineViewTicks]);
 
+
     return (
         <>
             <div
@@ -883,8 +887,20 @@ const TimelinePanel: React.FC = () => {
                         </div>
                         <TimeIndicator />
                     </div>
-                    {/* Center: transport buttons only */}
+                    {/* Center */}
                     <div className="flex items-center justify-center justify-self-center">
+                        {/* Auto-keying toggle */}
+                        <button
+                            aria-label={autoKeying ? 'Disable auto-keying' : 'Enable auto-keying'}
+                            title={autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'}
+                            onClick={() => setAutoKeying(!autoKeying)}
+                            className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors mr-2 ${autoKeying
+                                ? 'bg-red-600/70 text-white border-red-400/70'
+                                : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                                }`}
+                        >
+                            <FaCircle className="text-[12px]" />
+                        </button>
                         <TransportControls />
                     </div>
                     {/* Right: timeline view controls with overflow menu */}
@@ -1004,8 +1020,6 @@ const HeaderRightControls: React.FC<{
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
-    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
-    const setAutoKeying = useTimelineStore((s) => s.setAutoKeying);
     const lastNonOffQuantizeRef = useRef<QuantizeSetting>('bar');
     useEffect(() => {
         if (quantize !== 'off') {
@@ -1184,18 +1198,6 @@ const HeaderRightControls: React.FC<{
                     }`}
             >
                 <FaMagnet />
-            </button>
-            {/* Auto-keying toggle */}
-            <button
-                aria-label={autoKeying ? 'Disable auto-keying' : 'Enable auto-keying'}
-                title={autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'}
-                onClick={() => setAutoKeying(!autoKeying)}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${autoKeying
-                    ? 'bg-red-600/70 text-white border-red-400/70'
-                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
-                    }`}
-            >
-                <FaCircle className="text-[8px]" />
             </button>
             {/* Ellipsis menu trigger */}
             <button

@@ -45,8 +45,6 @@ interface AutomationLaneRowProps {
 }
 
 const DIAMOND_SIZE = 7;
-/** Minimum pixel movement before a background drag is treated as a selection box. */
-const SEL_DRAG_THRESHOLD = 4;
 
 // ---------------------------------------------------------------------------
 // Keyframe half-shape types
@@ -152,15 +150,6 @@ interface DragState {
     peers: PeerKf[];
 }
 
-interface SelBoxState {
-    startX: number;
-    endX: number;
-    /** True once the cursor has moved beyond the drag threshold. */
-    moved: boolean;
-    /** Whether shift was held when the drag started. */
-    shiftKey: boolean;
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -190,13 +179,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const setDragging = useCallback((next: DragState | null) => {
         draggingRef.current = next;
         _setDragging(next);
-    }, []);
-
-    const [selBox, _setSelBox] = useState<SelBoxState | null>(null);
-    const selBoxRef = useRef<SelBoxState | null>(null);
-    const setSelBox = useCallback((next: SelBoxState | null) => {
-        selBoxRef.current = next;
-        _setSelBox(next);
     }, []);
 
     const svgRef = useRef<SVGSVGElement | null>(null);
@@ -428,15 +410,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 }
                 return;
             }
-
-            // Selection box update
-            const sb = selBoxRef.current;
-            if (sb) {
-                const moved = sb.moved || Math.abs(svgX - sb.startX) > SEL_DRAG_THRESHOLD;
-                const next: SelBoxState = { ...sb, endX: svgX, moved };
-                selBoxRef.current = next;
-                _setSelBox(next);
-            }
         },
         // Only stable values in deps — dynamic state accessed via refs
         [channel.id, toTick, width, snapTick, setDragging],
@@ -490,93 +463,34 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 setDragging(null);
                 return;
             }
-
-            // Selection box finalise
-            const sb = selBoxRef.current;
-            if (sb) {
-                try {
-                    (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
-                } catch { /* ignore */ }
-
-                if (!sb.moved) {
-                    // Single click on background — no action (use double-click to add a keyframe)
-                } else {
-                    // Select all keyframes whose x position falls within the box
-                    const minX = Math.min(sb.startX, sb.endX);
-                    const maxX = Math.max(sb.startX, sb.endX);
-                    const minTick = toTick(minX, width);
-                    const maxTick = toTick(maxX, width);
-                    const enclosed = channel.keyframes
-                        .filter((kf) => kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5)
-                        .map((kf) => ({ channelId: channel.id, tick: kf.tick }));
-
-                    useSceneStore.setState((state) => {
-                        if (sb.shiftKey) {
-                            // Shift held — add to existing selection, replacing this channel's slice
-                            const others = state.interaction.automationSelectedKeyframes.filter(
-                                (k) => k.channelId !== channel.id,
-                            );
-                            return {
-                                interaction: {
-                                    ...state.interaction,
-                                    automationSelectedKeyframes: [...others, ...enclosed],
-                                },
-                            };
-                        }
-                        // No shift — replace entire selection with just the enclosed keyframes
-                        return {
-                            interaction: {
-                                ...state.interaction,
-                                automationSelectedKeyframes: enclosed,
-                            },
-                        };
-                    });
-                }
-                setSelBox(null);
-            }
         },
-        [channel, toTick, width, snapTick, setDragging, setSelBox],
+        [channel.id, setDragging],
     );
 
     // Cancel acts like pointerup for cleanup purposes
     const handlePointerCancel = useCallback(
         (_e: React.PointerEvent<SVGSVGElement>) => {
             setDragging(null);
-            setSelBox(null);
         },
-        [setDragging, setSelBox],
+        [setDragging],
     );
 
     // -----------------------------------------------------------------------
-    // Background pointer-down — starts a selection box drag
+    // Background pointer-down — selects this element; cross-lane selection box
+    // is handled by AutomationLanes (parent). Keyframe/segment handlers call
+    // stopPropagation so they do NOT reach here.
     // -----------------------------------------------------------------------
     const handleSvgPointerDown = useCallback(
         (e: React.PointerEvent<SVGSVGElement>) => {
             if (e.button !== 0) return;
-            // Let diamond and segment handlers handle their own events
             const target = e.target as SVGElement;
             if (target.closest('[data-kf]')) return;
             if (target.closest('[data-seg]')) return;
 
-            e.stopPropagation();
-            (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
-
             // Select the element that owns this automation channel
             useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
-
-            // Clicking on empty background clears keyframe selection unless shift is held
-            if (!e.shiftKey) {
-                useSceneStore.setState((state) => ({
-                    interaction: { ...state.interaction, automationSelectedKeyframes: [] },
-                }));
-            }
-
-            if (!svgRef.current) return;
-            const rect = svgRef.current.getBoundingClientRect();
-            const svgX = e.clientX - rect.left;
-            setSelBox({ startX: svgX, endX: svgX, moved: false, shiftKey: e.shiftKey });
         },
-        [channel.elementId, setSelBox],
+        [channel.elementId],
     );
 
     // -----------------------------------------------------------------------
@@ -618,14 +532,13 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // browser cancelled capture silently), clear drag state so it doesn't stick.
     // -----------------------------------------------------------------------
     useEffect(() => {
-        if (!dragging && !selBox) return;
+        if (!dragging) return;
         const cleanup = () => {
             if (draggingRef.current) setDragging(null);
-            if (selBoxRef.current) setSelBox(null);
         };
         window.addEventListener('pointercancel', cleanup);
         return () => window.removeEventListener('pointercancel', cleanup);
-    }, [dragging !== null || selBox !== null, setDragging, setSelBox]);
+    }, [dragging !== null, setDragging]);
 
     // -----------------------------------------------------------------------
     // Channel context menu (background right-click)
@@ -853,12 +766,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const height = AUTOMATION_ROW_HEIGHT;
     const cy = height / 2;
 
-    // Selection box visual
-    const selBoxRect = selBox && selBox.moved ? {
-        x: Math.min(selBox.startX, selBox.endX),
-        width: Math.abs(selBox.endX - selBox.startX),
-    } : null;
-
     return (
         <div className="relative" style={{ width, height }}>
             <svg
@@ -967,20 +874,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         </g>
                     );
                 })}
-
-                {/* Selection box */}
-                {selBoxRect && (
-                    <rect
-                        x={selBoxRect.x}
-                        y={1}
-                        width={selBoxRect.width}
-                        height={height - 2}
-                        fill="rgba(96,165,250,0.08)"
-                        stroke="rgba(96,165,250,0.45)"
-                        strokeWidth={1}
-                        style={{ pointerEvents: 'none' }}
-                    />
-                )}
             </svg>
 
             {/* Channel context menu (background right-click) */}

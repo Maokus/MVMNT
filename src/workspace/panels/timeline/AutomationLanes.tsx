@@ -5,9 +5,10 @@
  * the structure of AutomationTrackLabels in the left column.
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { useTickScale } from './useTickScale';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { copySelectedKeyframes, getKeyframeSelClipboard } from '@automation/clipboard';
@@ -17,13 +18,25 @@ import AutomationLaneRow from './AutomationLaneRow';
 import AutomationCurvePane from './AutomationCurvePane';
 import type { AutomationChannel } from '@automation/types';
 
+/** Minimum pixel movement before a drag is treated as a selection box. */
+const SEL_DRAG_THRESHOLD = 4;
+
+interface CrossLaneSelBox {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    moved: boolean;
+    shiftKey: boolean;
+}
+
 /** Single channel lane + optional curve pane. */
 const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ channel, width }) => {
     const curveExpanded = useCurveEditorExpanded(channel.id);
     const curveHeight = useCurveHeight(channel.id);
 
     return (
-        <>
+        <div data-channel-id={channel.id}>
             <div
                 className="relative border-b border-neutral-800/60"
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
@@ -38,7 +51,7 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
                     <AutomationCurvePane channel={channel} width={width} />
                 </div>
             )}
-        </>
+        </div>
     );
 };
 
@@ -82,6 +95,90 @@ interface AutomationLanesProps {
 
 const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     const automatedIds = useAutomatedElementIds();
+    const { toTick } = useTickScale();
+
+    // Cross-lane box select
+    const containerRef = useRef<HTMLDivElement>(null);
+    const selBoxRef = useRef<CrossLaneSelBox | null>(null);
+    const [selBox, _setSelBox] = useState<CrossLaneSelBox | null>(null);
+    const setSelBox = useCallback((next: CrossLaneSelBox | null) => {
+        selBoxRef.current = next;
+        _setSelBox(next);
+    }, []);
+
+    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (!e.shiftKey) {
+            useSceneStore.setState((state) => ({
+                interaction: { ...state.interaction, automationSelectedKeyframes: [] },
+            }));
+        }
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        setSelBox({ startX: x, startY: y, endX: x, endY: y, moved: false, shiftKey: e.shiftKey });
+    }, [setSelBox]);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const sb = selBoxRef.current;
+        if (!sb || !containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const endX = e.clientX - rect.left;
+        const endY = e.clientY - rect.top;
+        const moved = sb.moved
+            || Math.abs(endX - sb.startX) > SEL_DRAG_THRESHOLD
+            || Math.abs(endY - sb.startY) > SEL_DRAG_THRESHOLD;
+        const next = { ...sb, endX, endY, moved };
+        selBoxRef.current = next;
+        _setSelBox(next);
+    }, []);
+
+    const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const sb = selBoxRef.current;
+        if (!sb) return;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        if (sb.moved && containerRef.current) {
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const minX = Math.min(sb.startX, sb.endX);
+            const maxX = Math.max(sb.startX, sb.endX);
+            const minAbsY = containerRect.top + Math.min(sb.startY, sb.endY);
+            const maxAbsY = containerRect.top + Math.max(sb.startY, sb.endY);
+            const minTick = toTick(minX, width);
+            const maxTick = toTick(maxX, width);
+            const laneEls = containerRef.current.querySelectorAll<HTMLElement>('[data-channel-id]');
+            const enclosed: Array<{ channelId: string; tick: number }> = [];
+            const channels = useSceneStore.getState().automation.channels;
+            for (const el of laneEls) {
+                const elRect = el.getBoundingClientRect();
+                if (elRect.bottom < minAbsY || elRect.top > maxAbsY) continue;
+                const channelId = el.dataset.channelId!;
+                const ch = channels[channelId];
+                if (!ch) continue;
+                for (const kf of ch.keyframes) {
+                    if (kf.tick >= minTick - 0.5 && kf.tick <= maxTick + 0.5) {
+                        enclosed.push({ channelId, tick: kf.tick });
+                    }
+                }
+            }
+            useSceneStore.setState((state) => {
+                if (sb.shiftKey) {
+                    const selectedChannelIds = new Set(enclosed.map((k) => k.channelId));
+                    const others = state.interaction.automationSelectedKeyframes.filter(
+                        (k) => !selectedChannelIds.has(k.channelId),
+                    );
+                    return { interaction: { ...state.interaction, automationSelectedKeyframes: [...others, ...enclosed] } };
+                }
+                return { interaction: { ...state.interaction, automationSelectedKeyframes: enclosed } };
+            });
+        }
+        setSelBox(null);
+    }, [toTick, width, setSelBox]);
+
+    const handlePointerCancel = useCallback(() => {
+        setSelBox(null);
+    }, [setSelBox]);
 
     // Keyboard shortcuts: copy/paste/delete keyframes, j/k navigate prev/next keyframe
     useEffect(() => {
@@ -239,8 +336,22 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
 
     if (automatedIds.length === 0) return null;
 
+    const selBoxRect = selBox && selBox.moved ? {
+        x: Math.min(selBox.startX, selBox.endX),
+        y: Math.min(selBox.startY, selBox.endY),
+        width: Math.abs(selBox.endX - selBox.startX),
+        height: Math.abs(selBox.endY - selBox.startY),
+    } : null;
+
     return (
-        <div className="automation-lanes border-t border-neutral-700">
+        <div
+            ref={containerRef}
+            className="automation-lanes relative border-t border-neutral-700"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+        >
             {/* Section header spacer (mirrors left-column "AUTOMATION" header) */}
             <div
                 className="border-b border-neutral-800"
@@ -256,6 +367,14 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             {automatedIds.map((id) => (
                 <ElementAutomationLanes key={id} elementId={id} width={width} />
             ))}
+
+            {/* Cross-lane selection box overlay */}
+            {selBoxRect && (
+                <div
+                    className="absolute bg-blue-400/10 border border-blue-400 pointer-events-none"
+                    style={{ left: selBoxRect.x, top: selBoxRect.y, width: selBoxRect.width, height: selBoxRect.height, zIndex: 10 }}
+                />
+            )}
         </div>
     );
 };
