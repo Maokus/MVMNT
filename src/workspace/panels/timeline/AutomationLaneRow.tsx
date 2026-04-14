@@ -691,22 +691,60 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
+
+            if (e.shiftKey) {
+                // Shift+click: add both adjacent keyframes to selection, don't open picker
+                useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+                const kfs = channel.keyframes;
+                const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
+                if (idx >= 0 && idx < kfs.length - 1) {
+                    const leftTick = kfs[idx].tick;
+                    const rightTick = kfs[idx + 1].tick;
+                    useSceneStore.setState((state) => {
+                        const existing = state.interaction.automationSelectedKeyframes;
+                        const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
+                        const hasRight = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - rightTick) < 0.5);
+                        const toAdd: Array<{ channelId: string; tick: number }> = [];
+                        if (!hasLeft) toAdd.push({ channelId: channel.id, tick: leftTick });
+                        if (!hasRight) toAdd.push({ channelId: channel.id, tick: rightTick });
+                        return {
+                            interaction: {
+                                ...state.interaction,
+                                automationSelectedKeyframes: [...existing, ...toAdd],
+                            },
+                        };
+                    });
+                }
+                return;
+            }
+
             pickerRefs.setReference({
                 getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
             });
             setInterpolationPicker({ tick });
         },
-        [pickerRefs],
+        [pickerRefs, channel.id, channel.elementId, channel.keyframes],
     );
 
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            // If the clicked segment is selected and multiple segments are selected,
-            // apply the easing change to all selected segments simultaneously.
-            const isSelectedSeg = selectedSegmentTicks.has(interpolationPicker.tick);
-            if (isSelectedSeg && selectedSegmentTicks.size > 1) {
-                selectedSegmentTicks.forEach((tick) => {
+            // Read fresh selection from store to avoid stale-closure issues through
+            // the InterpolationPicker → handleModeSelect → onSelect callback chain.
+            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const channelTickSet = new Set(
+                allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
+            );
+            const kfs = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
+            const selectedSegs = new Set<number>();
+            for (let i = 0; i < kfs.length - 1; i++) {
+                if (channelTickSet.has(kfs[i].tick) && channelTickSet.has(kfs[i + 1].tick)) {
+                    selectedSegs.add(kfs[i].tick);
+                }
+            }
+            const isSelectedSeg = selectedSegs.has(interpolationPicker.tick);
+            if (isSelectedSeg && selectedSegs.size > 1) {
+                selectedSegs.forEach((tick) => {
                     dispatchSceneCommand(
                         {
                             type: 'updateKeyframe',
@@ -729,7 +767,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 );
             }
         },
-        [interpolationPicker, channel.id, selectedSegmentTicks],
+        [interpolationPicker, channel.id],
     );
 
     const pickerCurrent = useMemo((): SegmentInterpolation => {
