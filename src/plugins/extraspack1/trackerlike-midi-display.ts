@@ -1,17 +1,13 @@
 import {
     SceneElement,
-    asNumber,
-    asTrimmedString,
     Text,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
-    type PropertyTransform,
+    prop,
+    insertElementGroups,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
-
-const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
-    asTrimmedString(value, element) ?? null;
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class TrackerlikeMidiDisplayElement extends SceneElement {
     constructor(id: string = 'trackerlike-midi-display', config: Record<string, unknown> = {}) {
@@ -19,130 +15,45 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Trackerlike Midi Display',
             description: 'A tracker-style MIDI display showing notes per beat in monospace text',
             category: 'extraspack1',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            allowedTrackTypes: ['midi'],
-                            description: 'The MIDI track to display notes from',
-                            runtime: { transform: normalizeMidiTrackId, defaultValue: null },
-                        },
-                    ],
-                },
-                {
-                    id: 'trackerLayout',
-                    label: 'Layout',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'division',
-                            type: 'number',
-                            label: 'Division (rows per beat)',
-                            default: 1,
-                            min: 1,
-                            max: 32,
-                            step: 1,
-                            description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'rowCount',
-                            type: 'number',
-                            label: 'Rows per page',
-                            default: 8,
-                            min: 1,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 8 },
-                        },
-                        {
-                            key: 'columns',
-                            type: 'number',
-                            label: 'Note columns',
-                            default: 1,
-                            min: 1,
-                            max: 8,
-                            step: 1,
-                            description: 'How many simultaneous notes to show per row',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'showTrackName',
-                            type: 'boolean',
-                            label: 'Show Track Name',
-                            default: true,
-                            runtime: {
-                                transform: (value) => {
-                                    if (typeof value === 'boolean') return value;
-                                    if (typeof value === 'string') return value.toLowerCase() === 'true';
-                                    return true;
-                                },
-                                defaultValue: true,
-                            },
-                        },
-                    ],
-                },
-                {
-                    id: 'trackerAppearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size',
-                            default: 16,
-                            min: 8,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 16 },
-                        },
-                        {
-                            key: 'textColor',
-                            type: 'colorAlpha',
-                            label: 'Text Color',
-                            default: '#e2e8f0FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#e2e8f0FF' },
-                        },
-                        {
-                            key: 'activeColor',
-                            type: 'colorAlpha',
-                            label: 'Active Row Color',
-                            default: '#10B981FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#10B981FF' },
-                        },
-                        {
-                            key: 'headerColor',
-                            type: 'colorAlpha',
-                            label: 'Header Color',
-                            default: '#94a3b8FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#94a3b8FF' },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'midiSource',
+                label: 'MIDI Source',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'The MIDI track to display notes from' }),
+                ],
+            },
+            {
+                id: 'trackerLayout',
+                label: 'Layout',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.number('division', 'Division (rows per beat)', 1, { min: 1, max: 32, step: 1, description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.' }),
+                    prop.number('rowCount', 'Rows per page', 8, { min: 1, max: 64, step: 1 }),
+                    prop.number('columns', 'Note columns', 1, { min: 1, max: 8, step: 1, description: 'How many simultaneous notes to show per row' }),
+                    prop.boolean('showTrackName', 'Show Track Name', true),
+                ],
+            },
+            {
+                id: 'trackerAppearance',
+                label: 'Appearance',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.number('fontSize', 'Font Size', 16, { min: 8, max: 64, step: 1 }),
+                    prop.colorAlpha('textColor', 'Text Color', '#e2e8f0FF'),
+                    prop.colorAlpha('activeColor', 'Active Row Color', '#10B981FF'),
+                    prop.colorAlpha('headerColor', 'Header Color', '#94a3b8FF'),
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

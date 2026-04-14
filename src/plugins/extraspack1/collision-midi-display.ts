@@ -1,7 +1,5 @@
 import {
     SceneElement,
-    asNumber,
-    asTrimmedString,
     Rectangle,
     Arc,
     Text,
@@ -9,13 +7,11 @@ import {
     PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
-    type PropertyTransform,
+    prop,
+    insertElementGroups,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
-
-const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
-    asTrimmedString(value, element) ?? null;
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
@@ -40,178 +36,57 @@ export class CollisionMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Collision Midi Display',
             description: 'MIDI display which shows notes as the collision of shapes',
             category: 'extraspack1',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            allowedTrackTypes: ['midi'],
-                            description: 'MIDI track to use as the note source',
-                            runtime: { transform: normalizeMidiTrackId, defaultValue: null },
-                        },
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Appearance',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'noteSize',
-                            type: 'number',
-                            label: 'Note Size',
-                            default: 40,
-                            min: 10,
-                            max: 120,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 40 },
-                        },
-                        {
-                            key: 'minNote',
-                            type: 'number',
-                            label: 'Min Note',
-                            default: 0,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description: 'Only display notes at or above this MIDI note number',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'maxNote',
-                            type: 'number',
-                            label: 'Max Note',
-                            default: 127,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description: 'Only display notes at or below this MIDI note number',
-                            runtime: { transform: asNumber, defaultValue: 127 },
-                        },
-                        {
-                            key: 'gap',
-                            type: 'number',
-                            label: 'Gap',
-                            default: 16,
-                            min: 4,
-                            max: 80,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 16 },
-                        },
-                        {
-                            key: 'spacing',
-                            type: 'number',
-                            label: 'Spacing',
-                            default: 12,
-                            min: 0,
-                            max: 60,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 12 },
-                        },
-                        {
-                            key: 'squareColor',
-                            type: 'colorAlpha',
-                            label: 'Square Color',
-                            default: '#334155FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#334155FF' },
-                        },
-                        {
-                            key: 'squareActiveColor',
-                            type: 'colorAlpha',
-                            label: 'Square Active Color',
-                            default: '#6366F1FF',
-                            description: 'Color the square takes on while the note is being held',
-                            runtime: { transform: asTrimmedString, defaultValue: '#6366F1FF' },
-                        },
-                        {
-                            key: 'circleColor',
-                            type: 'colorAlpha',
-                            label: 'Circle Color',
-                            default: '#10B981FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#10B981FF' },
-                        },
-                        {
-                            key: 'showNoteNames',
-                            type: 'boolean',
-                            label: 'Show Note Names',
-                            default: true,
-                            runtime: {
-                                transform: (value) => {
-                                    if (typeof value === 'boolean') return value;
-                                    if (typeof value === 'string') return value.toLowerCase() === 'true';
-                                    return true;
-                                },
-                                defaultValue: true,
-                            },
-                        },
-                        {
-                            key: 'labelFontFamily',
-                            type: 'font',
-                            label: 'Note Label Font',
-                            default: 'Inter',
-                            description: 'Font family for note name labels (Google Fonts supported).',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'labelFontSize',
-                            type: 'number',
-                            label: 'Note Label Font Size',
-                            default: 0,
-                            min: 0,
-                            max: 96,
-                            step: 1,
-                            description: '0 = auto (scales with note size)',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'debugLarge',
-                            label: 'Debug Large',
-                            description: 'Large notes with a narrow pitch range — easier to read while debugging MIDI data',
-                            values: { noteSize: 80, minNote: 60, maxNote: 68 },
-                        },
-                    ],
-                },
-                {
-                    id: 'timing',
-                    label: 'Timing',
-                    variant: 'basic',
-                    collapsed: true,
-                    properties: [
-                        {
-                            key: 'bounceDuration',
-                            type: 'number',
-                            label: 'Bounce Duration (s)',
-                            default: 0.12,
-                            min: 0.02,
-                            max: 0.5,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 0.12 },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'midiSource',
+                label: 'MIDI Source',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to use as the note source' }),
+                ],
+            },
+            {
+                id: 'appearance',
+                label: 'Appearance',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.number('noteSize', 'Note Size', 40, { min: 10, max: 120, step: 1 }),
+                    prop.number('minNote', 'Min Note', 0, { min: 0, max: 127, step: 1, description: 'Only display notes at or above this MIDI note number' }),
+                    prop.number('maxNote', 'Max Note', 127, { min: 0, max: 127, step: 1, description: 'Only display notes at or below this MIDI note number' }),
+                    prop.number('gap', 'Gap', 16, { min: 4, max: 80, step: 1 }),
+                    prop.number('spacing', 'Spacing', 12, { min: 0, max: 60, step: 1 }),
+                    prop.colorAlpha('squareColor', 'Square Color', '#334155FF'),
+                    prop.colorAlpha('squareActiveColor', 'Square Active Color', '#6366F1FF', { description: 'Color the square takes on while the note is being held' }),
+                    prop.colorAlpha('circleColor', 'Circle Color', '#10B981FF'),
+                    prop.boolean('showNoteNames', 'Show Note Names', true),
+                    prop.font('labelFontFamily', 'Note Label Font', 'Inter', { description: 'Font family for note name labels (Google Fonts supported).' }),
+                    prop.number('labelFontSize', 'Note Label Font Size', 0, { min: 0, max: 96, step: 1, description: '0 = auto (scales with note size)' }),
+                ],
+                presets: [
+                    {
+                        id: 'debugLarge',
+                        label: 'Debug Large',
+                        description: 'Large notes with a narrow pitch range — easier to read while debugging MIDI data',
+                        values: { noteSize: 80, minNote: 60, maxNote: 68 },
+                    },
+                ],
+            },
+            {
+                id: 'timing',
+                label: 'Timing',
+                variant: 'basic',
+                collapsed: true,
+                properties: [
+                    prop.number('bounceDuration', 'Bounce Duration (s)', 0.12, { min: 0.02, max: 0.5, step: 0.01 }),
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

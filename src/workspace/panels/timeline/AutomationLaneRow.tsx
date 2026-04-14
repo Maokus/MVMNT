@@ -743,6 +743,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 }
             }
             const isSelectedSeg = selectedSegs.has(interpolationPicker.tick);
+            console.debug('[AutomationLaneRow] handleInterpolationSelect', {
+                pickerTick: interpolationPicker.tick,
+                channelId: channel.id,
+                allSelectedTicks: allSelected.map(k => `${k.channelId}@${k.tick}`),
+                channelTickSet: [...channelTickSet],
+                selectedSegs: [...selectedSegs],
+                isSelectedSeg,
+            });
             if (isSelectedSeg && selectedSegs.size > 1) {
                 selectedSegs.forEach((tick) => {
                     dispatchSceneCommand(

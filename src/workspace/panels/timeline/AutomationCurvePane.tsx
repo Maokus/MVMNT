@@ -568,15 +568,49 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            dispatchSceneCommand(
-                {
-                    type: 'updateKeyframe',
-                    channelId: channel.id,
-                    tick: interpolationPicker.tick,
-                    patch: { segmentInterpolation: interpolation },
-                },
-                { source: 'curve-editor' },
+            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const channelTickSet = new Set(
+                allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
             );
+            const kfs = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
+            const selectedSegs = new Set<number>();
+            for (let i = 0; i < kfs.length - 1; i++) {
+                if (channelTickSet.has(kfs[i].tick) && channelTickSet.has(kfs[i + 1].tick)) {
+                    selectedSegs.add(kfs[i].tick);
+                }
+            }
+            const isSelectedSeg = selectedSegs.has(interpolationPicker.tick);
+            console.debug('[AutomationCurvePane] handleInterpolationSelect', {
+                pickerTick: interpolationPicker.tick,
+                channelId: channel.id,
+                allSelectedTicks: allSelected.map(k => `${k.channelId}@${k.tick}`),
+                channelTickSet: [...channelTickSet],
+                selectedSegs: [...selectedSegs],
+                isSelectedSeg,
+            });
+            if (isSelectedSeg && selectedSegs.size > 1) {
+                selectedSegs.forEach((tick) => {
+                    dispatchSceneCommand(
+                        {
+                            type: 'updateKeyframe',
+                            channelId: channel.id,
+                            tick,
+                            patch: { segmentInterpolation: interpolation },
+                        },
+                        { source: 'curve-editor' },
+                    );
+                });
+            } else {
+                dispatchSceneCommand(
+                    {
+                        type: 'updateKeyframe',
+                        channelId: channel.id,
+                        tick: interpolationPicker.tick,
+                        patch: { segmentInterpolation: interpolation },
+                    },
+                    { source: 'curve-editor' },
+                );
+            }
         },
         [interpolationPicker, channel.id],
     );
