@@ -1,6 +1,6 @@
 # Plugin API v1
 
-_Last Updated: 19 March 2026_
+_Last Updated: 14 April 2026_
 
 This document defines the stable host API available to plugins at runtime.
 
@@ -138,14 +138,25 @@ const label = noteName(60); // 'C4'
 
 Available helpers:
 
-- `selectNotes(trackIds, startSec, endSec)` — Select notes in time window
-- `sampleAudio(trackId, feature, time, options?)` — Sample feature at a time
-- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` — Sample feature over a range
-- `timeToBeats(seconds)` — Convert seconds to beats
-- `beatsToTime(beats)` — Convert beats to seconds
-- `timeToTicks(seconds)` — Convert seconds to ticks
-- `ticksToTime(ticks)` — Convert ticks to seconds
-- `noteName(noteNumber)` — Get MIDI note name (e.g. `'C4'`)
+- `selectNotes(trackIds, startSec, endSec)` — notes from specific tracks in a window
+- `selectAllNotes(startSec, endSec)` — notes from all tracks in a window
+- `selectDistinctNotes(args?)` — sorted unique note numbers
+- `selectNotesByPitch(note, args?)` — all events for a single pitch
+- `getNoteRange(args?)` — `{ min, max }` pitch range, or null
+- `getTimelineDuration()` — scene duration in seconds
+- `getMidiTracks()` — all MIDI tracks
+- `groupNotesByPitch(notes)` — pure utility; groups a note array into a `Map<number, TimelineNoteEvent[]>` sorted by pitch
+- `selectCC(args)` — CC events in a window: `{ trackIds?, controller?, startSec, endSec }`
+- `getSustainState(args)` — sustain pedal state at a time: `{ trackIds?, timeSec }`
+- `sampleAudio(trackId, feature, time, options?)` — sample feature at a time
+- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` — sample feature over a range
+- `timeToBeats(seconds)` — convert seconds to beats
+- `beatsToTime(beats)` — convert beats to seconds
+- `timeToTicks(seconds)` — convert seconds to ticks
+- `ticksToTime(ticks)` — convert ticks to seconds
+- `beatToTicks(beats)` — convert beats to ticks
+- `ticksToBeat(ticks)` — convert ticks to beats
+- `noteName(noteNumber)` — get MIDI note name (e.g. `'C4'`)
 
 ## API Surface
 
@@ -153,10 +164,18 @@ Available helpers:
 
 Requires `timeline.read` capability.
 
-- `getStateSnapshot(): TimelineState | null`
-- `selectNotesInWindow({ trackIds, startSec, endSec }): TimelineNoteEvent[]`
+- `getStateSnapshot(): TimelineState | null` — raw timeline store state snapshot
+- `selectNotesInWindow({ trackIds, startSec, endSec }): TimelineNoteEvent[]` — notes from specific tracks in a time window
+- `selectAllNotesInWindow({ startSec, endSec }): TimelineNoteEvent[]` — notes from all MIDI tracks in a time window
+- `selectDistinctNoteNumbers(args?): number[]` — sorted unique MIDI note numbers; omit args for all tracks/time
+- `selectNotesByPitch(note, args?): TimelineNoteEvent[]` — all events for a single pitch; omit args for all tracks/time
+- `getNoteRange(args?): { min: number; max: number } | null` — min/max pitch in the given window; null if no notes
+- `getTimelineDuration(): number` — scene duration in seconds
 - `getTrackById(trackId): Track | null`
 - `getTracksByIds(trackIds): Track[]`
+- `getMidiTracks(): Track[]` — all MIDI tracks
+- `selectCCInWindow({ trackIds?, controller?, startSec, endSec }): TimelineCCEvent[]` — MIDI CC events in a window, optionally filtered by controller number
+- `getSustainStateAtTime({ trackIds?, timeSec }): boolean` — whether sustain pedal (CC 64) is held
 
 ```ts
 const state = api.timeline.getStateSnapshot();
@@ -206,6 +225,43 @@ Requires `midi.utils` capability (always available).
 ```ts
 const label = api.utilities.midiNoteToName(60); // C4
 ```
+
+## SDK Utilities
+
+These helpers are exported from `@mvmnt/plugin-sdk` and do not require a capability access call.
+
+### Property factories (`prop`, `insertElementGroups`)
+
+See [Creating Custom Elements — Property Factory Helpers](creating-custom-elements.md#configuration-schema) for the full reference. Summary:
+
+```ts
+import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+```
+
+`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `insertElementGroups` places your property groups between the base element's basic and advanced groups without boilerplate.
+
+### Asset loading (`loadBundledAsset`)
+
+```ts
+import { loadBundledAsset } from '@mvmnt/plugin-sdk';
+
+const url = await loadBundledAsset('assets/logo.png');
+// url is a blob: URL valid for the lifetime of the plugin
+```
+
+In production bundles, `loadBundledAsset('path')` resolves a path from the plugin's `assets/` directory to a blob URL. In Vite dev mode, import assets directly instead:
+
+```ts
+import logoUrl from './assets/logo.png?url';
+```
+
+### Types
+
+- `TimelineNoteEvent` — MIDI note event `{ note, startSec, endSec, velocity, trackId, … }`
+- `TimelineCCEvent` — MIDI CC event `{ controller, value, timeSec, trackId, … }`
+- `TempoMapEntry` — tempo map entry used in timing calculations
+- `FeatureInput` — union of audio feature names (e.g. `'rms'`, `'spectrum'`, `'waveform'`)
+- `FeatureDataResult` — returned by `sampleFeatureAtTime`
 
 ## Capability Discovery
 

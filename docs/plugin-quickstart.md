@@ -165,7 +165,7 @@ See [Plugin API v1](plugin-api-v1.md) for the full API surface, and [Creating Cu
 When you're ready to share:
 
 ```bash
-npm run build-plugin -- --plugin my-plugin
+npm run build-plugin src/plugins/my-plugin
 ```
 
 This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file users can import via the Settings panel.
