@@ -1,5 +1,10 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopup';
+import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
+import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
+import { makeChannelId } from '@automation/types';
+import { automationEvaluator } from '@automation/automation-evaluator';
+import { useTimelineStore } from '@state/timelineStore';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from './MenuBar';
@@ -59,6 +64,54 @@ const InsertKeyframeController: React.FC = () => {
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
             if (!selectedElement || !selectedElementSchema) return;
             e.preventDefault();
+
+            const hovered = hoveredPropertyRef.current;
+            if (hovered && hovered.elementId === selectedElement.id) {
+                const { propertyKey, propertyType } = hovered;
+                const valueType = resolveAutomationValueType(propertyType);
+                if (valueType) {
+                    const channelId = makeChannelId(selectedElement.id, propertyKey);
+                    const sceneState = useSceneStore.getState();
+                    const tick = useTimelineStore.getState().timeline.currentTick;
+                    const isAutomated = !!sceneState.automation.channels[channelId];
+
+                    let currentValue: unknown;
+                    if (isAutomated) {
+                        const override = sceneState.propertyOverrides[channelId];
+                        currentValue = override !== undefined ? override : automationEvaluator.evaluate(channelId, tick);
+                    } else {
+                        const binding = selectedElement.bindings[propertyKey];
+                        currentValue = binding?.type === 'constant' ? (binding as any).value : undefined;
+                    }
+
+                    if (!isAutomated) {
+                        dispatchSceneCommand(
+                            {
+                                type: 'enablePropertyAutomation',
+                                elementId: selectedElement.id,
+                                propertyKey,
+                                valueType,
+                                initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }],
+                            },
+                            { source: 'keyframe-hotkey' },
+                        );
+                    } else {
+                        dispatchSceneCommand(
+                            {
+                                type: 'addKeyframe',
+                                channelId,
+                                keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
+                            },
+                            { source: 'keyframe-hotkey' },
+                        );
+                        if (sceneState.propertyOverrides[channelId] !== undefined) {
+                            sceneState.clearPropertyOverride(channelId);
+                        }
+                    }
+                    return;
+                }
+            }
+
             setPopupPos({ x: mousePos.current.x, y: mousePos.current.y });
         };
         document.addEventListener('keydown', onKeyDown);

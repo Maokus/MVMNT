@@ -5,6 +5,7 @@ import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInpu
 import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
+import { hoveredPropertyRef } from './hoveredPropertyRef';
 
 type SupportedFormInputType =
     | 'text'
@@ -416,6 +417,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         }
                         : undefined
                 }
+                onMouseEnter={isAutomatableType(property.type) ? () => {
+                    hoveredPropertyRef.current = { elementId, propertyKey: property.key, propertyType: property.type };
+                } : undefined}
+                onMouseLeave={isAutomatableType(property.type) ? () => {
+                    if (hoveredPropertyRef.current?.propertyKey === property.key) {
+                        hoveredPropertyRef.current = null;
+                    }
+                } : undefined}
             >
                 <div className="ae-property-label">
                     <span className="ae-property-name" title={property.description}>
