@@ -47,8 +47,18 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
     const expanded = useAutomationExpanded(elementId);
     const channels = useElementChannels(elementId);
     const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
+    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
 
     if (!element || channels.length === 0) return null;
+
+    const lowerQuery = searchQuery.toLowerCase().trim();
+    const visibleChannels = lowerQuery
+        ? channels.filter((ch) => ch.propertyKey.toLowerCase().includes(lowerQuery))
+        : channels;
+
+    if (lowerQuery && visibleChannels.length === 0) return null;
+
+    const isExpanded = lowerQuery ? true : expanded;
 
     return (
         <>
@@ -59,7 +69,7 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
             />
 
             {/* Channel lane rows (when expanded) */}
-            {expanded && channels.map((ch) => (
+            {isExpanded && visibleChannels.map((ch) => (
                 <ChannelLane key={ch.id} channel={ch} width={width} />
             ))}
         </>

@@ -653,8 +653,12 @@ const TimelinePanel: React.FC = () => {
     const zoomToSelection = useCallback(() => {
         const state = useTimelineStore.getState();
         const selectedIds = state.selection.selectedTrackIds;
-        if (!selectedIds.length) return;
+        const selectedKeyframes = useSceneStore.getState().interaction.automationSelectedKeyframes;
+
+        if (!selectedIds.length && !selectedKeyframes.length) return;
+
         let minTick = Infinity, maxTick = -Infinity;
+
         for (const id of selectedIds) {
             const track = state.tracks[id] as any;
             if (!track) continue;
@@ -673,6 +677,12 @@ const TimelinePanel: React.FC = () => {
                 }
             }
         }
+
+        for (const { tick } of selectedKeyframes) {
+            minTick = Math.min(minTick, tick);
+            maxTick = Math.max(maxTick, tick);
+        }
+
         if (!isFinite(minTick) || !isFinite(maxTick)) return;
         const padding = Math.max(CANONICAL_PPQ, (maxTick - minTick) * 0.1);
         setTimelineViewTicks(Math.round(minTick - padding), Math.round(maxTick + padding));

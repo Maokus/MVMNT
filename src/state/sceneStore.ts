@@ -182,6 +182,8 @@ export interface SceneInteractionState {
     automationExpandedCurves: string[];
     /** Multi-selected keyframes in the timeline automation lanes. */
     automationSelectedKeyframes: Array<{ channelId: string; tick: number }>;
+    /** Current search query for filtering automation properties. */
+    automationSearchQuery: string;
 }
 
 export interface SceneClipboard {
@@ -345,6 +347,7 @@ function createInitialInteractionState(): SceneInteractionState {
         automationExpandedElements: [],
         automationExpandedCurves: [],
         automationSelectedKeyframes: [],
+        automationSearchQuery: '',
     };
 }
 
