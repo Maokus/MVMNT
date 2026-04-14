@@ -75,6 +75,23 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
 
+    const delinkedKeys = useMemo(() => {
+        const keys = new Set<string>();
+        if (!enhancedSchema) return keys;
+        enhancedSchema.groups.forEach((group) => {
+            group.properties.forEach((property) => {
+                const binding = bindingsMemo[property.key];
+                if (binding?.type === 'keyframes') {
+                    const chId = makeChannelId(elementId, property.key);
+                    if (propertyOverrides[chId] !== undefined) {
+                        keys.add(property.key);
+                    }
+                }
+            });
+        });
+        return keys;
+    }, [enhancedSchema, bindingsMemo, propertyOverrides, elementId]);
+
     const handleMacroStoreUpdate = useCallback(() => {
         setMacroListenerKey((prev) => prev + 1);
     }, []);
@@ -519,6 +536,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         values={propertyValues}
                         macroAssignments={macroAssignments}
                         elementId={elementId}
+                        delinkedKeys={delinkedKeys}
                         onValueChange={handleValueChange}
                         onMacroAssignment={handleMacroAssignment}
                         onCollapseToggle={handleCollapseToggle}

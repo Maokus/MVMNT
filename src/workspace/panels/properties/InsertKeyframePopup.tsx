@@ -46,6 +46,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     const listRef = useRef<HTMLDivElement>(null);
     const tick = useCurrentTick();
     const automationChannels = useSceneStore((state) => state.automation.channels);
+    const propertyOverrides = useSceneStore((state) => state.propertyOverrides);
 
     const allProperties = useMemo<AutomatableProperty[]>(() => {
         const result: AutomatableProperty[] = [];
@@ -88,6 +89,9 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             const channelId = makeChannelId(elementId, prop.key);
             const isAutomated = !!automationChannels[channelId];
             if (isAutomated) {
+                // Prefer override (delinked value) over curve evaluation
+                const override = propertyOverrides[channelId];
+                if (override !== undefined) return override;
                 return automationEvaluator.evaluate(channelId, tick);
             }
             const binding = bindings[prop.key];
@@ -96,7 +100,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             }
             return undefined;
         },
-        [elementId, bindings, automationChannels, tick],
+        [elementId, bindings, automationChannels, propertyOverrides, tick],
     );
 
     const handleSelect = useCallback(
@@ -127,10 +131,14 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                     },
                     { source: 'insert-keyframe-popup' },
                 );
+                // If property was delinked, clear the override to relink to automation
+                if (propertyOverrides[channelId] !== undefined) {
+                    useSceneStore.getState().clearPropertyOverride(channelId);
+                }
             }
             onClose();
         },
-        [elementId, tick, automationChannels, getCurrentValue, onClose],
+        [elementId, tick, automationChannels, propertyOverrides, getCurrentValue, onClose],
     );
 
     const handleKeyDown = useCallback(

@@ -49,6 +49,7 @@ interface PropertyGroupPanelProps {
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
     elementId: string;
+    delinkedKeys?: Set<string>;
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
@@ -60,6 +61,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     values,
     macroAssignments,
     elementId,
+    delinkedKeys,
     onValueChange,
     onMacroAssignment,
     onCollapseToggle,
@@ -400,11 +402,12 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const inputType = resolvedInputType;
         const hasAnimationIcon = canAssignMacro(property.type);
+        const isDelinked = delinkedKeys?.has(property.key) ?? false;
 
         return (
             <div
                 key={property.key}
-                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}`}
+                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
                 style={
                     nested
                         ? {
@@ -424,6 +427,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                             propertyKey={property.key}
                             propertyType={property.type}
                             currentValue={values[property.key]}
+                            isDelinked={isDelinked}
                         />
                     )}
                 </div>

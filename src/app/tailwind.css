@@ -706,6 +706,19 @@
         @apply bg-white/5;
     }
 
+    .ae-property-delinked {
+        background-color: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .ae-property-delinked:hover {
+        background-color: rgba(245, 158, 11, 0.13);
+    }
+
+    .ae-property-delinked .ae-property-name {
+        color: #f59e0b;
+    }
+
     .ae-property-label {
         @apply flex items-center gap-1 shrink-0 min-w-0;
     }

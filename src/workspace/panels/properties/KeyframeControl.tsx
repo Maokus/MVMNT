@@ -12,12 +12,14 @@ import { useCurrentTick, useAutomationChannel, useKeyframeAtTick } from '@automa
 import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene/commandGateway';
 import { makeChannelId } from '@automation/types';
 import type { AutomationValueType } from '@automation/types';
+import { useSceneStore } from '@state/sceneStore';
 
 interface KeyframeControlProps {
     elementId: string;
     propertyKey: string;
     propertyType: string;
     currentValue: unknown;
+    isDelinked?: boolean;
 }
 
 const AUTOMATABLE_TYPES = new Set(['number', 'range', 'boolean', 'color', 'colorAlpha']);
@@ -47,6 +49,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
     propertyKey,
     propertyType,
     currentValue,
+    isDelinked = false,
 }) => {
     const tick = useCurrentTick();
     const channel = useAutomationChannel(elementId, propertyKey);
@@ -101,9 +104,13 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                     },
                     { source: 'keyframe-control' },
                 );
+                // If property was delinked, clear the override to relink to automation
+                if (isDelinked) {
+                    useSceneStore.getState().clearPropertyOverride(makeChannelId(elementId, propertyKey));
+                }
             }
         },
-        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, elementId, propertyKey, propertyType],
+        [isAutomated, hasKeyframeHere, channelId, tick, currentValue, elementId, propertyKey, propertyType, isDelinked],
     );
 
     const handleContextMenu = useCallback(

@@ -305,6 +305,8 @@ export interface SceneStoreActions {
     updateAutomationKeyframes: (channelId: string, keyframes: AutomationKeyframe[]) => void;
     /** Set a transient per-property override (Blender-style delink when auto key is off). */
     setPropertyOverride: (channelId: string, value: unknown) => void;
+    /** Clear a single transient property override (e.g. after manually keying a delinked property). */
+    clearPropertyOverride: (channelId: string) => void;
     /** Clear all transient property overrides (called when playhead moves or playback starts). */
     clearAllPropertyOverrides: () => void;
 }
@@ -1816,6 +1818,15 @@ const createSceneStoreState = (
             ...state,
             propertyOverrides: { ...state.propertyOverrides, [channelId]: value },
         }));
+    },
+
+    clearPropertyOverride: (channelId) => {
+        set((state) => {
+            if (!(channelId in state.propertyOverrides)) return state;
+            const next = { ...state.propertyOverrides };
+            delete next[channelId];
+            return { ...state, propertyOverrides: next };
+        });
     },
 
     clearAllPropertyOverrides: () => {
