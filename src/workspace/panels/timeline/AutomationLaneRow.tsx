@@ -654,6 +654,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // Interpolation picker (segment click)
     // -----------------------------------------------------------------------
     const [interpolationPicker, setInterpolationPicker] = useState<{ tick: number } | null>(null);
+    const [hoveredSegIndex, setHoveredSegIndex] = useState<number | null>(null);
 
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
         open: interpolationPicker !== null,
@@ -769,18 +770,21 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 style={{ display: 'block', cursor: dragging ? 'grabbing' : 'crosshair' }}
             >
                 {/* Interpolation lines */}
-                {elements.segments.map((seg, i) => (
-                    <line
-                        key={`line-${i}`}
-                        x1={seg.x1}
-                        y1={cy}
-                        x2={seg.x2}
-                        y2={cy}
-                        stroke="rgba(96,165,250,0.35)"
-                        strokeWidth={1}
-                        style={{ pointerEvents: 'none' }}
-                    />
-                ))}
+                {elements.segments.map((seg, i) => {
+                    const hovered = hoveredSegIndex === i;
+                    return (
+                        <line
+                            key={`line-${i}`}
+                            x1={seg.x1}
+                            y1={cy}
+                            x2={seg.x2}
+                            y2={cy}
+                            stroke={hovered ? 'rgba(147,197,253,0.9)' : 'rgba(96,165,250,0.35)'}
+                            strokeWidth={hovered ? 2 : 1}
+                            style={{ pointerEvents: 'none', filter: hovered ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined }}
+                        />
+                    );
+                })}
 
                 {/* Segment hit areas — transparent tall rects for click/context-menu */}
                 {elements.segments.map((seg, i) => (
@@ -793,6 +797,8 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         height={height}
                         fill="transparent"
                         style={{ cursor: 'pointer' }}
+                        onPointerEnter={() => setHoveredSegIndex(i)}
+                        onPointerLeave={() => setHoveredSegIndex(null)}
                         onClick={(e) => handleSegmentClick(e, seg.tick)}
                         onContextMenu={(e) => {
                             e.preventDefault();
