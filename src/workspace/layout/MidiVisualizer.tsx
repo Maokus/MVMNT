@@ -91,7 +91,7 @@ const InsertKeyframeController: React.FC = () => {
                                 elementId: selectedElement.id,
                                 propertyKey,
                                 valueType,
-                                initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }],
+                                initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'cubic' as const, direction: 'ease_in_out' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }],
                             },
                             { source: 'keyframe-hotkey' },
                         );
@@ -100,7 +100,7 @@ const InsertKeyframeController: React.FC = () => {
                             {
                                 type: 'addKeyframe',
                                 channelId,
-                                keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
+                                keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'cubic', direction: 'ease_in_out' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
                             },
                             { source: 'keyframe-hotkey' },
                         );

@@ -278,7 +278,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                             cmdOptions.transient = !session.finalize;
                         }
                         dispatchSceneCommand(
-                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [{ tick: currentTick, value, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }] },
+                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [{ tick: currentTick, value, easingId: 'linear', segmentInterpolation: { mode: 'cubic' as const, direction: 'ease_in_out' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }] },
                             cmdOptions,
                         );
                         return;

@@ -17,8 +17,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
-    mode: 'bezier',
-    direction: 'auto',
+    mode: 'cubic',
+    direction: 'ease_in_out',
 };
 
 export const DEFAULT_HANDLE_TYPE: HandleType = 'auto_clamped';

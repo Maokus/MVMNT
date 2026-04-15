@@ -220,7 +220,7 @@ export function createKeyframe(
         tick,
         value,
         easingId: 'linear',
-        segmentInterpolation: interpolation ?? { mode: 'bezier', direction: 'auto' },
+        segmentInterpolation: interpolation ?? { mode: 'cubic', direction: 'ease_in_out' },
         leftHandleType: 'auto_clamped',
         rightHandleType: 'auto_clamped',
     };
