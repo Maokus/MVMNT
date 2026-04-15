@@ -9,7 +9,7 @@
  *   - Parameter controls for back (overshoot) and elastic (amplitude, period)
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
 import {
     DEFAULT_BACK_OVERSHOOT,
@@ -156,17 +156,23 @@ const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSe
     // Local state for direction and params that updates live
     const [localDirection, setLocalDirection] = useState<EasingDirection>(current.direction);
     const [localParams, setLocalParams] = useState<SegmentInterpolationParams>(current.params ?? {});
+    // Tracks whether the user has explicitly picked a direction since the picker opened.
+    // If not, switching modes resets direction to 'auto'.
+    const hasExplicitDirection = useRef(false);
 
     const selectedMode = current.mode;
     const showDirection = MODES_WITH_DIRECTION.has(selectedMode);
     const showParams = MODES_WITH_PARAMS.has(selectedMode);
 
     const handleModeSelect = useCallback((mode: SegmentInterpolationMode) => {
+        const direction: EasingDirection = hasExplicitDirection.current ? localDirection : 'auto';
+        if (!hasExplicitDirection.current) setLocalDirection('auto');
         setLocalParams({});
-        onSelect({ mode, direction: localDirection, params: undefined });
+        onSelect({ mode, direction, params: undefined });
     }, [onSelect, localDirection]);
 
     const handleDirectionChange = useCallback((direction: EasingDirection) => {
+        hasExplicitDirection.current = true;
         setLocalDirection(direction);
         onSelect({ mode: selectedMode, direction, params: localParams });
     }, [onSelect, selectedMode, localParams]);

@@ -284,7 +284,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         };
         window.addEventListener('pointerup', handleWindowPointerUp);
         return () => window.removeEventListener('pointerup', handleWindowPointerUp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDragging]);
 
     return (
