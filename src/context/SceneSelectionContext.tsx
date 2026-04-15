@@ -10,7 +10,7 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId, findKeyframeAtTick, type AutomationValueType } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface SceneSelectionState {
@@ -273,14 +273,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                                 elementId,
                                 propertyKey: key,
                                 valueType,
-                                initialKeyframes: [{
-                                    tick: currentTick,
-                                    value,
-                                    easingId: 'linear',
-                                    segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const },
-                                    leftHandleType: 'auto_clamped' as const,
-                                    rightHandleType: 'auto_clamped' as const,
-                                }],
+                                initialKeyframes: [createKeyframe(currentTick, value)],
                             },
                             {
                                 source: 'SceneSelectionContext.updateElementConfig',

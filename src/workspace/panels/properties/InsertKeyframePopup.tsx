@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import { makeChannelId } from '@automation/types';
+import { makeChannelId, createKeyframe } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
@@ -89,8 +89,6 @@ interface InsertKeyframePopupProps {
     schema: EnhancedConfigSchema;
     onClose: () => void;
 }
-
-const DEFAULT_INTERPOLATION = { mode: 'cubic' as const, direction: 'ease_in_out' as const };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -214,14 +212,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         propertyKey: prop.key,
                         valueType,
                         initialKeyframes: [
-                            {
-                                tick: tick > 0 ? tick : 0,
-                                value: currentValue,
-                                easingId: 'linear',
-                                segmentInterpolation: DEFAULT_INTERPOLATION,
-                                leftHandleType: 'auto_clamped' as const,
-                                rightHandleType: 'auto_clamped' as const,
-                            },
+                            createKeyframe(tick > 0 ? tick : 0, currentValue),
                         ],
                     },
                     cmdOptions,
@@ -231,14 +222,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                     {
                         type: 'addKeyframe',
                         channelId,
-                        keyframe: {
-                            tick,
-                            value: currentValue,
-                            easingId: 'linear',
-                            segmentInterpolation: DEFAULT_INTERPOLATION,
-                            leftHandleType: 'auto_clamped',
-                            rightHandleType: 'auto_clamped',
-                        },
+                        keyframe: createKeyframe(tick, currentValue),
                     },
                     cmdOptions,
                 );

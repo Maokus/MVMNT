@@ -12,14 +12,9 @@ import type {
     SegmentInterpolation,
 } from './types';
 
-// ---------------------------------------------------------------------------
-// Default constants
-// ---------------------------------------------------------------------------
-
-export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
-    mode: 'cubic',
-    direction: 'ease_in_out',
-};
+// Default constants are defined in types.ts to avoid circular imports.
+// We re-export them here for convenience.
+export { DEFAULT_SEGMENT_INTERPOLATION } from './types';
 
 export const DEFAULT_HANDLE_TYPE: HandleType = 'auto_clamped';
 

@@ -148,6 +148,15 @@ export interface KeyframesBindingState {
 }
 
 // ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
+    mode: 'bezier',
+    direction: 'auto',
+};
+
+// ---------------------------------------------------------------------------
 // Utility functions
 // ---------------------------------------------------------------------------
 
@@ -220,7 +229,7 @@ export function createKeyframe(
         tick,
         value,
         easingId: 'linear',
-        segmentInterpolation: interpolation ?? { mode: 'cubic', direction: 'ease_in_out' },
+        segmentInterpolation: interpolation ?? DEFAULT_SEGMENT_INTERPOLATION,
         leftHandleType: 'auto_clamped',
         rightHandleType: 'auto_clamped',
     };

@@ -7,7 +7,7 @@ import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/form/inputs/FormInput';
 import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
-import { makeChannelId, findKeyframeAtTick } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
@@ -278,7 +278,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                             cmdOptions.transient = !session.finalize;
                         }
                         dispatchSceneCommand(
-                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [{ tick: currentTick, value, easingId: 'linear', segmentInterpolation: { mode: 'cubic' as const, direction: 'ease_in_out' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }] },
+                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [createKeyframe(currentTick, value)] },
                             cmdOptions,
                         );
                         return;

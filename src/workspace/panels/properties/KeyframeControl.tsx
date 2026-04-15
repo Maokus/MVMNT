@@ -10,7 +10,7 @@
 import React, { useCallback } from 'react';
 import { useCurrentTick, useAutomationChannel, useKeyframeAtTick } from '@automation/hooks';
 import { dispatchSceneCommand, type SceneCommandOptions } from '@state/scene/commandGateway';
-import { makeChannelId } from '@automation/types';
+import { makeChannelId, createKeyframe } from '@automation/types';
 import type { AutomationValueType } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
 
@@ -73,11 +73,10 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
 
                 const segInterp = valueType === 'string'
                     ? { mode: 'constant' as const, direction: 'auto' as const }
-                    : { mode: 'cubic' as const, direction: 'ease_in_out' as const };
-                const initialKeyframes =
-                    tick > 0
-                        ? [{ tick, value: currentValue, easingId: 'linear', segmentInterpolation: segInterp, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }]
-                        : [{ tick: 0, value: currentValue, easingId: 'linear', segmentInterpolation: segInterp, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }];
+                    : undefined;
+                const initialKeyframes = [
+                    createKeyframe(tick > 0 ? tick : 0, currentValue, segInterp),
+                ];
 
 
                 dispatchSceneCommand(
@@ -102,14 +101,11 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 );
             } else {
                 // Add keyframe at current tick with current value
-                const addSegInterp = channel?.valueType === 'string'
-                    ? { mode: 'constant' as const, direction: 'auto' as const }
-                    : { mode: 'cubic' as const, direction: 'ease_in_out' as const };
                 dispatchSceneCommand(
                     {
                         type: 'addKeyframe',
                         channelId: channelId!,
-                        keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: addSegInterp, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
+                        keyframe: createKeyframe(tick, currentValue, channel?.valueType === 'string' ? { mode: 'constant' as const, direction: 'auto' as const } : undefined),
                     },
                     { source: 'keyframe-control' },
                 );
