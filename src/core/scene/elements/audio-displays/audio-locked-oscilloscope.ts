@@ -11,7 +11,7 @@ import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-f
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
 const DEFAULT_LINE_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 
 registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchWaveform' }]);
 
