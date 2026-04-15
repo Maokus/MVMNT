@@ -145,6 +145,13 @@ export class BasicShapesElement extends SceneElement {
                         description: 'Draw the arc in the anticlockwise direction.',
                         visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                     }),
+                    prop.select('circleFillStyle', 'Fill Style', 'segment', [
+                        { value: 'segment', label: 'Segment' },
+                        { value: 'sector', label: 'Sector (pie)' },
+                    ], {
+                        description: 'Segment closes with a chord; sector closes back to the centre (pie-slice).',
+                        visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
+                    }),
                     prop.number('sides', 'Sides', 3, {
                         min: 3, max: 12, step: 1,
                         description: 'Number of polygon vertices (3 = triangle, 4 = rhombus, 6 = hexagon, etc.).',
@@ -227,12 +234,14 @@ export class BasicShapesElement extends SceneElement {
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
                 const dashGap = props.dashGap ?? 4;
+                const circleFillStyle = (props.circleFillStyle ?? 'segment') as 'segment' | 'sector';
                 const arc = new Arc(0, 0, r, startAngle, endAngle, anticlockwise, {
                     fillColor: effectiveFill,
                     strokeColor: effectiveStroke,
                     strokeWidth,
                 });
                 arc.lineCap = lineCap;
+                arc.arcFillStyle = circleFillStyle;
                 if (dashLength > 0) arc.lineDash = [dashLength, dashGap];
                 if (hasShadow) arc.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = arc;

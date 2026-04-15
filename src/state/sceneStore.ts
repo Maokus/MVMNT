@@ -1013,6 +1013,19 @@ const createSceneStoreState = (
                 }
             }
 
+            // Update keyframes binding channelId references to point to the cloned channels
+            for (const [key, binding] of Object.entries(clonedBindings)) {
+                if (binding.type === 'keyframes') {
+                    const oldChannelId = makeChannelId(sourceId, key);
+                    if (binding.channelId === oldChannelId) {
+                        clonedBindings[key] = {
+                            type: 'keyframes',
+                            channelId: makeChannelId(newId, key),
+                        };
+                    }
+                }
+            }
+
             return {
                 ...state,
                 elements: nextElements,
