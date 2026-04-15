@@ -160,6 +160,8 @@ export type TimelineState = {
     reorderTracks: (order: string[]) => Promise<void>;
     setTimelineViewTicks: (startTick: number, endTick: number) => void;
     selectTracks: (ids: string[]) => void;
+    _clipGroupDrag: { delta: number; trackIds: string[] } | null;
+    _setClipGroupDrag: (drag: { delta: number; trackIds: string[] } | null) => void;
     setPlaybackRangeTicks: (startTick?: number, endTick?: number) => void;
     setPlaybackRangeExplicitTicks: (startTick?: number, endTick?: number) => void;
     setRowHeight: (h: number) => void;
@@ -431,6 +433,7 @@ function createInitialTimelineSlice(): Pick<
     | 'rowHeight'
     | 'hybridCacheRollout'
     | 'tempoAlignedDiagnostics'
+    | '_clipGroupDrag'
 > {
     return {
         timeline: {
@@ -462,6 +465,7 @@ function createInitialTimelineSlice(): Pick<
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),
         },
         selection: { selectedTrackIds: [] },
+        _clipGroupDrag: null,
         midiCache: {},
         timelineView: { startTick: 0, endTick: Math.round(beatsToTicks(DEFAULT_TIMING_CONTEXT, 120)) },
         playbackRange: undefined,
@@ -909,6 +913,10 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     selectTracks(ids: string[]) {
         set(() => ({ selection: { selectedTrackIds: [...ids] } }));
+    },
+
+    _setClipGroupDrag(drag) {
+        set(() => ({ _clipGroupDrag: drag }));
     },
 
     ingestMidiToCache(
