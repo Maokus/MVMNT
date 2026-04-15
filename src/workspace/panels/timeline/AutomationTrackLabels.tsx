@@ -73,19 +73,21 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     >
                         <FaAngleRight className="text-[8px]" />
                     </button>
-                    <button
-                        className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
-                            ? 'text-blue-400 bg-blue-900/30'
-                            : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                            }`}
-                        title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCurve();
-                        }}
-                    >
-                        <FaChartLine className="text-[8px]" />
-                    </button>
+                    {channel?.valueType !== 'string' && (
+                        <button
+                            className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
+                                ? 'text-blue-400 bg-blue-900/30'
+                                : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
+                                }`}
+                            title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCurve();
+                            }}
+                        >
+                            <FaChartLine className="text-[8px]" />
+                        </button>
+                    )}
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
                         title={`Remove automation: ${propertyKey}`}
@@ -103,7 +105,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                 </div>
             </div>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
-            {curveExpanded && (
+            {curveExpanded && channel?.valueType !== 'string' && (
                 <div
                     className="border-b border-neutral-800/60 bg-neutral-900/30 flex items-center px-6"
                     style={{ height: curveHeight }}

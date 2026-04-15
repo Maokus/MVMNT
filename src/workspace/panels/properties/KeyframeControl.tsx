@@ -22,7 +22,7 @@ interface KeyframeControlProps {
     isDelinked?: boolean;
 }
 
-const AUTOMATABLE_TYPES = new Set(['number', 'range', 'boolean', 'color', 'colorAlpha']);
+const AUTOMATABLE_TYPES = new Set(['number', 'range', 'boolean', 'color', 'colorAlpha', 'string', 'font']);
 
 /** Map a PropertyDefinition.type to an AutomationValueType. Returns null if not automatable. */
 export function resolveAutomationValueType(propertyType: string): AutomationValueType | null {
@@ -35,6 +35,9 @@ export function resolveAutomationValueType(propertyType: string): AutomationValu
         case 'color':
         case 'colorAlpha':
             return 'color';
+        case 'string':
+        case 'font':
+            return 'string';
         default:
             return null;
     }
@@ -68,10 +71,13 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 const valueType = resolveAutomationValueType(propertyType);
                 if (!valueType) return;
 
+                const segInterp = valueType === 'string'
+                    ? { mode: 'constant' as const, direction: 'auto' as const }
+                    : { mode: 'bezier' as const, direction: 'auto' as const };
                 const initialKeyframes =
                     tick > 0
-                        ? [{ tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }]
-                        : [{ tick: 0, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier' as const, direction: 'auto' as const }, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }];
+                        ? [{ tick, value: currentValue, easingId: 'linear', segmentInterpolation: segInterp, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }]
+                        : [{ tick: 0, value: currentValue, easingId: 'linear', segmentInterpolation: segInterp, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }];
 
 
                 dispatchSceneCommand(
@@ -96,11 +102,14 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 );
             } else {
                 // Add keyframe at current tick with current value
+                const addSegInterp = channel?.valueType === 'string'
+                    ? { mode: 'constant' as const, direction: 'auto' as const }
+                    : { mode: 'bezier' as const, direction: 'auto' as const };
                 dispatchSceneCommand(
                     {
                         type: 'addKeyframe',
                         channelId: channelId!,
-                        keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: { mode: 'bezier', direction: 'auto' }, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
+                        keyframe: { tick, value: currentValue, easingId: 'linear', segmentInterpolation: addSegInterp, leftHandleType: 'auto_clamped', rightHandleType: 'auto_clamped' },
                     },
                     { source: 'keyframe-control' },
                 );

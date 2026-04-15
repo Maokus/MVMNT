@@ -236,14 +236,18 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const nextKf = i < kfs.length - 1 ? kfs[i + 1] : null;
 
             // Left half: shape determined by the PREVIOUS segment's interpolation
-            const leftShape = prevKf
-                ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
-                : 'diamond';
+            const leftShape: KfHalfShape = channel.valueType === 'string'
+                ? (prevKf ? 'square' : 'diamond')
+                : prevKf
+                    ? getKfHalfShape(prevKf.segmentInterpolation, kf.leftHandleType, 'left')
+                    : 'diamond';
 
             // Right half: shape determined by THIS keyframe's outgoing segment
-            const rightShape = nextKf
-                ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
-                : 'diamond';
+            const rightShape: KfHalfShape = channel.valueType === 'string'
+                ? (nextKf ? 'square' : 'diamond')
+                : nextKf
+                    ? getKfHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
+                    : 'diamond';
 
             diamonds.push({ kf, x, leftShape, rightShape });
 

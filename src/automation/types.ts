@@ -109,7 +109,7 @@ export interface AutomationKeyframe {
 export type AutomationInterpolation = 'linear' | 'stepped' | 'eased';
 
 /** The JS value type stored in keyframes — drives evaluation strategy. */
-export type AutomationValueType = 'number' | 'color' | 'boolean';
+export type AutomationValueType = 'number' | 'color' | 'boolean' | 'string';
 
 /** One automation channel: a single animated property on a single element. */
 export interface AutomationChannel {

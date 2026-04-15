@@ -88,8 +88,8 @@ export class AutomationCurve {
 
         if (!next) return prev.value;
 
-        // Boolean values are always stepped
-        if (this.valueType === 'boolean') return prev.value;
+        // Boolean and string values are always stepped
+        if (this.valueType === 'boolean' || this.valueType === 'string') return prev.value;
 
         // Compute local t within the segment
         const span = next.tick - prev.tick;

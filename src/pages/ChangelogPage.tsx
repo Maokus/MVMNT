@@ -22,9 +22,10 @@ const ChangelogPage: React.FC = () => {
                     <ChangelogEntry version="0.15.0" date="11-4-26" notes={[
                         'Implemented automation system',
                         [
-                            'Eased automation curves',
-                            'Cmd/ctrl D to make repeated animations',
+                            'Full visual curve editing and interpolation',
                             'Added tempo automation',
+                            'i to add keyframe',
+                            'blender-style auto keying'
                         ],
                         'Added community tab',
                         [
@@ -34,6 +35,7 @@ const ChangelogPage: React.FC = () => {
                         'Misc Improvements/new content',
                         [
                             'Add basic shapes element',
+                            'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
                         ],
                         'Implemented custom element system and api',
