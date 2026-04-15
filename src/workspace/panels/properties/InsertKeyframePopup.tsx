@@ -189,10 +189,11 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     );
 
     const insertKeyframeForProp = useCallback(
-        (prop: AutomatableProperty) => {
+        (prop: AutomatableProperty, mergeKey?: string) => {
             const channelId = makeChannelId(elementId, prop.key);
             const isAutomated = !!automationChannels[channelId];
             const currentValue = getCurrentValue(prop);
+            const cmdOptions = { source: 'insert-keyframe-popup', mergeKey };
 
             if (!isAutomated) {
                 const valueType = resolveAutomationValueType(prop.type);
@@ -214,7 +215,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                             },
                         ],
                     },
-                    { source: 'insert-keyframe-popup' },
+                    cmdOptions,
                 );
             } else {
                 dispatchSceneCommand(
@@ -230,7 +231,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                             rightHandleType: 'auto_clamped',
                         },
                     },
-                    { source: 'insert-keyframe-popup' },
+                    cmdOptions,
                 );
                 if (propertyOverrides[channelId] !== undefined) {
                     useSceneStore.getState().clearPropertyOverride(channelId);
@@ -250,11 +251,12 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
 
     const handleSelectPreset = useCallback(
         (preset: ShortcutPreset) => {
+            const mergeKey = `preset-keyframes:${preset.id}:${Date.now()}`;
             const validProps = preset.propertyKeys
                 .map((key) => allProperties.find((p) => p.key === key))
                 .filter(Boolean) as AutomatableProperty[];
             for (const prop of validProps) {
-                insertKeyframeForProp(prop);
+                insertKeyframeForProp(prop, mergeKey);
             }
             onClose();
         },
