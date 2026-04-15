@@ -39,6 +39,7 @@ const ChangelogPage: React.FC = () => {
                             'More note animations for TUPR/MNPR',
                             'Internally store MIDI as binary to reduce file sizes',
                             'Improve timeline navigation',
+                            'Change color picker'
                         ],
                         'Implemented custom element system and api',
                         [
@@ -46,6 +47,7 @@ const ChangelogPage: React.FC = () => {
                             'Embed plugins into save files',
                             'DevEx quality of life scripts',
                             'Support midi cc in midi ingestion and expose via api',
+                            'Element property factories',
                             'Improve version conflict management'
                         ],
                         'Extended renderobject system',

@@ -152,8 +152,8 @@ export interface KeyframesBindingState {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
-    mode: 'bezier',
-    direction: 'auto',
+    mode: 'cubic',
+    direction: 'ease_in_out',
 };
 
 // ---------------------------------------------------------------------------

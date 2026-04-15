@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColorResult } from '@uiw/color-convert';
-import Chrome from '@uiw/react-color-chrome';
-import { GithubPlacement } from '@uiw/react-color-github';
+import Sketch from '@uiw/react-color-sketch';
 
 import {
     FloatingPortal,
@@ -117,7 +116,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
                         data-preserve-selection="true"
                         {...getFloatingProps()}
                     >
-                        <Chrome color={currentColor} showAlpha={false} onChange={handleColorChange} placement={GithubPlacement.Bottom} />
+                        <Sketch color={currentColor} disableAlpha onChange={handleColorChange} />
                     </div>
                 </FloatingPortal>
             )}

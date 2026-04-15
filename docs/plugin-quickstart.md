@@ -32,55 +32,34 @@ Follow the prompts. Your new file will appear at `src/plugins/<your-plugin>/<ele
 // src/plugins/my-plugin/flash-box.ts
 import {
     SceneElement,
-    asNumber,
-    asTrimmedString,
+    prop,
+    insertElementGroups,
     Rectangle,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
 export class FlashBoxElement extends SceneElement {
     constructor(id = 'flashBox', config: Record<string, unknown> = {}) {
         super('flash-box', id, config);
     }
 
-    static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        return {
-            ...base,
-            name: 'Flash Box',
-            description: 'A box that pulses with time',
-            category: 'custom',
-            groups: [
-                ...base.groups.filter((g) => g.variant !== 'advanced'),
+    static override getConfigSchema() {
+        return insertElementGroups(
+            super.getConfigSchema(),
+            { name: 'Flash Box', description: 'A box that pulses with time', category: 'custom' },
+            [
                 {
                     id: 'appearance',
                     label: 'Appearance',
                     variant: 'basic',
                     collapsed: false,
                     properties: [
-                        {
-                            key: 'boxColor',
-                            type: 'colorAlpha',
-                            label: 'Color',
-                            default: '#3B82F6FF',
-                            runtime: { transform: asTrimmedString, defaultValue: '#3B82F6FF' },
-                        },
-                        {
-                            key: 'size',
-                            type: 'number',
-                            label: 'Size',
-                            default: 100,
-                            min: 10,
-                            max: 500,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 100 },
-                        },
+                        prop.colorAlpha('boxColor', 'Color', '#3B82F6FF'),
+                        prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
                     ],
                 },
-                ...base.groups.filter((g) => g.variant === 'advanced'),
-            ],
-        };
+            ]
+        );
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {
