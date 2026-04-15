@@ -141,21 +141,31 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                       p.groupLabel.toLowerCase().includes(q),
               );
 
-        // Alias promotion: if query exactly matches a shortcut alias, move the
-        // target property to the front of the list.
-        const aliasTarget = PROPERTY_ALIASES[q];
+        // Alias promotion: if query exactly matches a shortcut alias, ensure the
+        // target property is present and at the front of the list.
+        const aliasTarget = q ? PROPERTY_ALIASES[q] : undefined;
         if (aliasTarget) {
             const idx = matchingProps.findIndex((p) => p.key === aliasTarget);
-            if (idx > 0) {
+            if (idx === -1) {
+                // Not in filtered results (no textual match) — inject from allProperties
+                const aliasedProp = allProperties.find((p) => p.key === aliasTarget);
+                if (aliasedProp) matchingProps = [aliasedProp, ...matchingProps];
+            } else if (idx > 0) {
+                // Present but not first — move to front
                 const promoted = matchingProps[idx];
                 matchingProps = [promoted, ...matchingProps.slice(0, idx), ...matchingProps.slice(idx + 1)];
             }
         }
 
-        return [
-            ...matchingPresets.map((preset): ListItem => ({ kind: 'preset', preset })),
-            ...matchingProps.map((prop): ListItem => ({ kind: 'property', prop })),
-        ];
+        const presetItems = matchingPresets.map((preset): ListItem => ({ kind: 'preset', preset }));
+        const propItems = matchingProps.map((prop): ListItem => ({ kind: 'property', prop }));
+
+        // When there's an exact alias match, the target property comes first (above presets)
+        if (aliasTarget && propItems.length > 0) {
+            return [propItems[0], ...presetItems, ...propItems.slice(1)];
+        }
+
+        return [...presetItems, ...propItems];
     }, [allProperties, search]);
 
     // Reset active index when filter changes
