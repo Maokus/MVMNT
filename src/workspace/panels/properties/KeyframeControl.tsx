@@ -73,7 +73,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
 
                 const segInterp = valueType === 'string'
                     ? { mode: 'constant' as const, direction: 'auto' as const }
-                    : { mode: 'bezier' as const, direction: 'auto' as const };
+                    : { mode: 'cubic' as const, direction: 'ease_in_out' as const };
                 const initialKeyframes =
                     tick > 0
                         ? [{ tick, value: currentValue, easingId: 'linear', segmentInterpolation: segInterp, leftHandleType: 'auto_clamped' as const, rightHandleType: 'auto_clamped' as const }]
@@ -104,7 +104,7 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
                 // Add keyframe at current tick with current value
                 const addSegInterp = channel?.valueType === 'string'
                     ? { mode: 'constant' as const, direction: 'auto' as const }
-                    : { mode: 'bezier' as const, direction: 'auto' as const };
+                    : { mode: 'cubic' as const, direction: 'ease_in_out' as const };
                 dispatchSceneCommand(
                     {
                         type: 'addKeyframe',

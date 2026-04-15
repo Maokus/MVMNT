@@ -126,46 +126,45 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     const filteredItems = useMemo<ListItem[]>(() => {
         const q = search.toLowerCase().trim();
 
-        // Shortcut presets — show all when empty, filter by label/id otherwise
         const matchingPresets = SHORTCUT_PRESETS.filter(
             (p) => !q || p.label.toLowerCase().includes(q) || p.id.includes(q),
         );
 
-        // Individual properties
-        let matchingProps = !q
-            ? allProperties
-            : allProperties.filter(
-                  (p) =>
-                      p.label.toLowerCase().includes(q) ||
-                      p.key.toLowerCase().includes(q) ||
-                      p.groupLabel.toLowerCase().includes(q),
-              );
-
-        // Alias promotion: if query exactly matches a shortcut alias, ensure the
-        // target property is present and at the front of the list.
-        const aliasTarget = q ? PROPERTY_ALIASES[q] : undefined;
-        if (aliasTarget) {
-            const idx = matchingProps.findIndex((p) => p.key === aliasTarget);
-            if (idx === -1) {
-                // Not in filtered results (no textual match) — inject from allProperties
-                const aliasedProp = allProperties.find((p) => p.key === aliasTarget);
-                if (aliasedProp) matchingProps = [aliasedProp, ...matchingProps];
-            } else if (idx > 0) {
-                // Present but not first — move to front
-                const promoted = matchingProps[idx];
-                matchingProps = [promoted, ...matchingProps.slice(0, idx), ...matchingProps.slice(idx + 1)];
-            }
+        if (!q) {
+            return [
+                ...matchingPresets.map((preset): ListItem => ({ kind: 'preset', preset })),
+                ...allProperties.map((prop): ListItem => ({ kind: 'property', prop })),
+            ];
         }
 
-        const presetItems = matchingPresets.map((preset): ListItem => ({ kind: 'preset', preset }));
-        const propItems = matchingProps.map((prop): ListItem => ({ kind: 'property', prop }));
+        const allMatchingProps = allProperties.filter(
+            (p) =>
+                p.label.toLowerCase().includes(q) ||
+                p.key.toLowerCase().includes(q) ||
+                p.groupLabel.toLowerCase().includes(q),
+        );
 
-        // When there's an exact alias match, the target property comes first (above presets)
-        if (aliasTarget && propItems.length > 0) {
-            return [propItems[0], ...presetItems, ...propItems.slice(1)];
-        }
+        // Tier 1: exact alias match (e.g. "x" → Offset X)
+        const aliasTarget = PROPERTY_ALIASES[q];
+        const aliasedProp = aliasTarget ? allProperties.find((p) => p.key === aliasTarget) : undefined;
 
-        return [...presetItems, ...propItems];
+        // Tier 2: exact label match (case-insensitive), excluding the alias target
+        const exactLabelProps = allMatchingProps.filter(
+            (p) => p.label.toLowerCase() === q && p.key !== aliasedProp?.key,
+        );
+
+        // Tier 4: loose matches — everything not already in tier 1 or 2
+        const priorityKeys = new Set<string>(exactLabelProps.map((p) => p.key));
+        if (aliasedProp) priorityKeys.add(aliasedProp.key);
+        const looseProps = allMatchingProps.filter((p) => !priorityKeys.has(p.key));
+
+        // Final order: alias → exact label → presets → loose
+        const result: ListItem[] = [];
+        if (aliasedProp) result.push({ kind: 'property', prop: aliasedProp });
+        for (const p of exactLabelProps) result.push({ kind: 'property', prop: p });
+        for (const preset of matchingPresets) result.push({ kind: 'preset', preset });
+        for (const p of looseProps) result.push({ kind: 'property', prop: p });
+        return result;
     }, [allProperties, search]);
 
     // Reset active index when filter changes
