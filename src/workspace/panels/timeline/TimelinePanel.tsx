@@ -774,9 +774,10 @@ const TimelinePanel: React.FC = () => {
                     e.preventDefault();
                     break;
                 // Arrow keys → nudge playhead (skip if a scene element nudge already handled it)
+                // Skip if Ctrl/Cmd are pressed (reserved for single-tick step in useTransportBridge)
                 case 'ArrowLeft':
                 case 'ArrowRight': {
-                    if (e.defaultPrevented) break;
+                    if (e.defaultPrevented || e.ctrlKey || e.metaKey) break;
                     const nudge = e.shiftKey
                         ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) // 1 bar
                         : CANONICAL_PPQ; // 1 beat
