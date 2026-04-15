@@ -37,6 +37,8 @@ const ChangelogPage: React.FC = () => {
                             'Add basic shapes element',
                             'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
+                            'Internally store MIDI as binary to reduce file sizes',
+                            'Improve timeline navigation',
                         ],
                         'Implemented custom element system and api',
                         [
