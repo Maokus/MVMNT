@@ -1,6 +1,6 @@
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 
-export type QuantizeSetting = 'off' | 'bar' | 'quarter' | 'eighth' | 'sixteenth';
+export type QuantizeSetting = 'off' | 'bar' | 'quarter' | 'eighth' | 'sixteenth' | 'thirty-second';
 
 export type SnapQuantizeOption = Exclude<QuantizeSetting, 'off'>;
 
@@ -9,10 +9,11 @@ export const TIMELINE_SNAP_OPTIONS: ReadonlyArray<{
     label: string;
     shortLabel: string;
 }> = [
-    { value: 'bar', label: 'Bar', shortLabel: 'Bar' },
+    { value: 'bar', label: '1/1 (bar)', shortLabel: '1/1' },
     { value: 'quarter', label: '1/4 note', shortLabel: '1/4' },
     { value: 'eighth', label: '1/8 note', shortLabel: '1/8' },
     { value: 'sixteenth', label: '1/16 note', shortLabel: '1/16' },
+    { value: 'thirty-second', label: '1/32 note', shortLabel: '1/32' },
 ] as const;
 
 export function formatQuantizeLabel(setting: QuantizeSetting): string {
@@ -40,6 +41,8 @@ export function quantizeSettingToBeats(setting: QuantizeSetting, beatsPerBar: nu
             return 0.5;
         case 'sixteenth':
             return 0.25;
+        case 'thirty-second':
+            return 0.125;
         default:
             return null;
     }

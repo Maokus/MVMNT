@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     FloatingFocusManager,
     FloatingPortal,
@@ -29,11 +29,10 @@ import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import { FaPlus, FaEllipsisV, FaMagnet, FaCircle, FaExpand, FaObjectGroup, FaCrosshairs } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaMagnet, FaCircle, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 import {
     formatQuantizeLabel,
-    formatQuantizeShortLabel,
     TIMELINE_SNAP_OPTIONS,
     type QuantizeSetting,
     type SnapQuantizeOption,
@@ -509,6 +508,10 @@ const TimelinePanel: React.FC = () => {
     const setAutoKeying = useTimelineStore((s) => s.setAutoKeying);
     // Auto-follow enabled by default per new UX spec
     const [follow, setFollow] = useState(true);
+    // Quantize state tracked here for the 's' hotkey
+    const quantize = useTimelineStore((s) => s.transport.quantize);
+    const lastSnapRef = useRef<QuantizeSetting>('bar');
+    useEffect(() => { if (quantize !== 'off') lastSnapRef.current = quantize; }, [quantize]);
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(null);
     const [rightPaneEl, setRightPaneEl] = useState<HTMLDivElement | null>(null);
     const spaceDownRef = useRef(false);
@@ -773,6 +776,15 @@ const TimelinePanel: React.FC = () => {
                     frameSelection();
                     e.preventDefault();
                     break;
+                // S → toggle snapping on/off
+                case 's':
+                case 'S': {
+                    const snapState = useTimelineStore.getState();
+                    const q = snapState.transport.quantize;
+                    snapState.setQuantize(q !== 'off' ? 'off' : lastSnapRef.current);
+                    e.preventDefault();
+                    break;
+                }
                 // Arrow keys → nudge playhead (skip if a scene element nudge already handled it)
                 // Skip if Ctrl/Cmd are pressed (reserved for single-tick step in useTransportBridge)
                 case 'ArrowLeft':
@@ -1027,12 +1039,9 @@ const HeaderRightControls: React.FC<{
             lastNonOffQuantizeRef.current = quantize;
         }
     }, [quantize]);
-    const snapSelectId = useId();
     const magnetActive = quantize !== 'off';
     const currentQuantizeLabel = formatQuantizeLabel(quantize);
     const pendingQuantizeLabel = formatQuantizeLabel(lastNonOffQuantizeRef.current);
-    const currentSnapSummary = magnetActive ? formatQuantizeShortLabel(quantize) : 'Off';
-    const pendingSnapSummary = formatQuantizeShortLabel(lastNonOffQuantizeRef.current);
     const snapSelectValue = (magnetActive ? quantize : lastNonOffQuantizeRef.current) as SnapQuantizeOption;
     // Global timing state
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
@@ -1143,62 +1152,51 @@ const HeaderRightControls: React.FC<{
                     />
                 </label>
             </div>
-            {/* Zoom slider remains inline */}
-            <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
-                <span>Zoom</span>
-                <input aria-label="Timeline zoom" className="w-[120px]" type="range" min={0} max={100} step={1} value={zoomVal} onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    setZoomVal(v);
-                    const newRange = rangeFromSlider(v);
-                    const center = (view.startTick + view.endTick) / 2;
-                    const newStart = Math.round(center - newRange / 2);
-                    const newEnd = Math.round(newStart + newRange);
-                    setTimelineViewTicks(newStart, newEnd);
-                }} />
-            </label>
-            {/* View preset buttons */}
+            {/* Snap group: magnet toggle + compact snap dropdown */}
             <div className="flex items-center gap-1">
                 <button
-                    className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center gap-1"
-                    title="Fit all content (Shift+1)"
-                    onClick={onFitAll}
+                    aria-label={
+                        magnetActive
+                            ? `Disable snapping (${currentQuantizeLabel})`
+                            : `Enable snapping (${pendingQuantizeLabel})`
+                    }
+                    title={
+                        magnetActive
+                            ? `Snapping: ${currentQuantizeLabel} — click or press S to turn off`
+                            : `Snapping off — click or press S to turn on (${pendingQuantizeLabel})`
+                    }
+                    onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
+                    className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${magnetActive
+                        ? 'bg-blue-600/70 text-white border-blue-400/70'
+                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                        }`}
                 >
-                    <FaExpand className="text-neutral-300" />
+                    <FaMagnet />
                 </button>
-                <button
-                    className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center gap-1"
-                    title="Zoom to selection (Shift+2)"
-                    onClick={onZoomToSelection}
+                <select
+                    aria-label="Snap quantize"
+                    className={`bg-neutral-900/60 border border-neutral-700 rounded px-1 py-[3px] text-[11px] cursor-pointer focus:outline-none transition-colors ${magnetActive ? 'text-white border-blue-400/70' : 'text-neutral-400'}`}
+                    value={snapSelectValue}
+                    onChange={(e) => setQuantize(e.target.value as SnapQuantizeOption)}
                 >
-                    <FaObjectGroup className="text-neutral-300" />
-                </button>
-                <button
-                    className="px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center gap-1"
-                    title="Center on playhead (F)"
-                    onClick={onCenterOnPlayhead}
-                >
-                    <FaCrosshairs className="text-neutral-300" />
-                </button>
+                    {TIMELINE_SNAP_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                            {opt.shortLabel}
+                        </option>
+                    ))}
+                </select>
             </div>
-            {/* Quantize toggle (moved out of menu) */}
+            {/* Auto-follow playhead button */}
             <button
-                aria-label={
-                    magnetActive
-                        ? `Disable snapping (${currentQuantizeLabel})`
-                        : `Enable snapping (${pendingQuantizeLabel})`
-                }
-                title={
-                    magnetActive
-                        ? `Snapping: ${currentQuantizeLabel} (click to turn off)`
-                        : `Snapping: ${pendingQuantizeLabel} (click to turn on)`
-                }
-                onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${magnetActive
+                aria-label={follow ? 'Auto follow playhead: on' : 'Auto follow playhead: off'}
+                title={follow ? 'Auto follow playhead: on (click to disable)' : 'Auto follow playhead: off (click to enable)'}
+                onClick={() => setFollow && setFollow(!follow)}
+                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${follow
                     ? 'bg-blue-600/70 text-white border-blue-400/70'
                     : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
                     }`}
             >
-                <FaMagnet />
+                <FaArrowRight />
             </button>
             {/* Ellipsis menu trigger */}
             <button
@@ -1227,41 +1225,43 @@ const HeaderRightControls: React.FC<{
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
                         >
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="text-neutral-300">Auto follow playhead</span>
+                            {/* Zoom slider */}
+                            <label className="text-neutral-300 flex items-center gap-2" title="Adjust timeline zoom">
+                                <span>Zoom</span>
+                                <input aria-label="Timeline zoom" className="flex-1" type="range" min={0} max={100} step={1} value={zoomVal} onChange={(e) => {
+                                    const v = parseInt(e.target.value, 10);
+                                    setZoomVal(v);
+                                    const newRange = rangeFromSlider(v);
+                                    const center = (view.startTick + view.endTick) / 2;
+                                    const newStart = Math.round(center - newRange / 2);
+                                    const newEnd = Math.round(newStart + newRange);
+                                    setTimelineViewTicks(newStart, newEnd);
+                                }} />
+                            </label>
+                            {/* View preset buttons */}
+                            <div className="flex items-center gap-1" role="none">
                                 <button
-                                    className={`px-2 py-1 rounded border border-neutral-700 ${follow ? 'bg-blue-600/70 text-white' : 'bg-neutral-800/60 text-neutral-200'}`}
-                                    onClick={() => setFollow && setFollow(!follow)}
-                                    role="menuitemcheckbox"
-                                    aria-checked={!!follow}
+                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                    title="Fit all content (Shift+1)"
+                                    onClick={() => { onFitAll?.(); setMenuOpen(false); }}
                                 >
-                                    {follow ? 'On' : 'Off'}
+                                    <FaExpand className="text-neutral-300" />
+                                </button>
+                                <button
+                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                    title="Zoom to selection (Shift+2)"
+                                    onClick={() => { onZoomToSelection?.(); setMenuOpen(false); }}
+                                >
+                                    <FaObjectGroup className="text-neutral-300" />
+                                </button>
+                                <button
+                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                    title="Center on playhead (F)"
+                                    onClick={() => { onCenterOnPlayhead?.(); setMenuOpen(false); }}
+                                >
+                                    <FaCrosshairs className="text-neutral-300" />
                                 </button>
                             </div>
-                            <div className="flex flex-col gap-1" role="none">
-                                <label htmlFor={snapSelectId} className="text-xs font-medium uppercase tracking-wide text-neutral-400">
-                                    Snap to
-                                </label>
-                                <select
-                                    id={snapSelectId}
-                                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    value={snapSelectValue}
-                                    onChange={(e) => setQuantize(e.target.value as SnapQuantizeOption)}
-                                >
-                                    {TIMELINE_SNAP_OPTIONS.map((opt) => (
-                                        <option key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="m-0 text-[11px] leading-snug text-neutral-500">
-                                    Current: {currentSnapSummary}
-                                    {!magnetActive && ` (will use ${pendingSnapSummary} when enabled)`}
-                                </p>
-                            </div>
-                            <p className="m-0 text-[11px] leading-snug text-neutral-500">
-                                Scene dimensions and debug tools have moved to the scene settings modal next to the scene name.
-                            </p>
                         </div>
                     </FloatingFocusManager>
                 </FloatingPortal>

@@ -154,9 +154,24 @@ const KeyframeControl: React.FC<KeyframeControlProps> = ({
             onClick={handleClick}
             onContextMenu={handleContextMenu}
         >
-            <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond">
-                <path d="M5 0 L10 5 L5 10 L0 5 Z" />
-            </svg>
+            {!isAutomated ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-stopwatch">
+                    {/* Crown button */}
+                    <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
+                    {/* Stem */}
+                    <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
+                    {/* Face */}
+                    <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                    {/* Hour hand */}
+                    <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
+                    {/* Minute hand */}
+                    <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
+                </svg>
+            ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10" className="ae-keyframe-diamond">
+                    <path d="M5 0 L10 5 L5 10 L0 5 Z" />
+                </svg>
+            )}
         </button>
     );
 };

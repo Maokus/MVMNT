@@ -760,6 +760,15 @@
         fill: var(--twc-accent);
     }
 
+    .ae-keyframe-toggle.inactive .ae-keyframe-stopwatch {
+        color: #555;
+        transition: color 0.15s;
+    }
+
+    .ae-keyframe-toggle.inactive:hover .ae-keyframe-stopwatch {
+        color: var(--twc-accent);
+    }
+
     .ae-keyframe-toggle.automated .ae-keyframe-diamond path {
         fill: transparent;
         stroke: var(--twc-accent);

@@ -162,13 +162,9 @@ const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSe
     const showParams = MODES_WITH_PARAMS.has(selectedMode);
 
     const handleModeSelect = useCallback((mode: SegmentInterpolationMode) => {
-        // Reset direction to auto when switching modes
-        const direction: EasingDirection = 'auto';
-        const params: SegmentInterpolationParams | undefined = undefined;
-        setLocalDirection(direction);
         setLocalParams({});
-        onSelect({ mode, direction, params });
-    }, [onSelect]);
+        onSelect({ mode, direction: localDirection, params: undefined });
+    }, [onSelect, localDirection]);
 
     const handleDirectionChange = useCallback((direction: EasingDirection) => {
         setLocalDirection(direction);

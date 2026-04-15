@@ -864,7 +864,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setQuantize(q: QuantizeSetting) {
-        const allowed: QuantizeSetting[] = ['off', 'bar', 'quarter', 'eighth', 'sixteenth'];
+        const allowed: QuantizeSetting[] = ['off', 'bar', 'quarter', 'eighth', 'sixteenth', 'thirty-second'];
         const next = allowed.includes(q) ? q : 'off';
         set((s: TimelineState) => ({ transport: { ...s.transport, quantize: next } }));
     },

@@ -42,7 +42,8 @@ const PADDING_Y = 8;
 const POINT_RADIUS = 5;
 const HANDLE_RADIUS = 3.5;
 const HANDLE_HIT_RADIUS = 8;
-const SAMPLE_COUNT = 80;
+const SAMPLE_COUNT = 150;
+const COMPLEX_MODE_MIN_SAMPLES = 100;
 
 type EasingFn = (t: number) => number;
 function resolveLegacyEasing(id: string): EasingFn {
@@ -226,9 +227,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const b = kfs[i + 1];
             const aVal = typeof a.value === 'number' ? a.value : 0;
             const bVal = typeof b.value === 'number' ? b.value : 0;
-            const segSamples = Math.max(4, Math.round(SAMPLE_COUNT / Math.max(1, kfs.length - 1)));
-
             const interp = a.segmentInterpolation;
+            const base = Math.max(4, Math.round(SAMPLE_COUNT / Math.max(1, kfs.length - 1)));
+            const isComplexMode = interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
+            const segSamples = isComplexMode ? Math.max(base, COMPLEX_MODE_MIN_SAMPLES) : base;
 
             if (interp) {
                 // New interpolation system
