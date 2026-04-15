@@ -37,6 +37,8 @@ const PROPERTY_ALIASES: Record<string, string> = {
     sy: 'elementScaleY',
     r: 'elementRotation',
     t: 'elementOpacity',
+    ax: 'anchorX',
+    ay: 'anchorY',
 };
 
 type ShortcutPreset = {
@@ -50,8 +52,8 @@ const SHORTCUT_PRESETS: ShortcutPreset[] = [
     {
         id: 'all-transforms',
         label: 'All Transforms',
-        description: 'Offset X/Y · Scale X/Y · Rotation',
-        propertyKeys: ['offsetX', 'offsetY', 'elementScaleX', 'elementScaleY', 'elementRotation'],
+        description: 'Offset X/Y · Scale X/Y · Rotation · Anchor X/Y',
+        propertyKeys: ['offsetX', 'offsetY', 'elementScaleX', 'elementScaleY', 'elementRotation', 'anchorX', 'anchorY'],
     },
     {
         id: 'offsets',
