@@ -224,13 +224,6 @@ export class AlmamlikePianoRollElement extends SceneElement {
             playheadX + ((t - targetTime) / timeUnitDuration) * rollWidth;
         const yFromNote = (note: number) => (maxNote - note) * noteHeight;
 
-        // ── Layout bounds sentinel ──────────────────────────────────────────
-        {
-            const totalHeight = totalNotes * noteHeight;
-            const layout = new Rectangle(0, 0, rollWidth, totalHeight, null, null, 0);
-            (layout as any).setIncludeInLayoutBounds?.(true);
-            objects.push(layout);
-        }
 
         const effects: RenderObject[] = [];
 
@@ -302,11 +295,20 @@ export class AlmamlikePianoRollElement extends SceneElement {
             objects.push(ph);
         }
 
+        // ── Layout bounds sentinel ──────────────────────────────────────────
+        const totalHeight = totalNotes * noteHeight;
+        const layoutSentinel = new Rectangle(0, 0, rollWidth, totalHeight, null, null, 0);
+        (layoutSentinel as any).setIncludeInLayoutBounds?.(true);
+
         if (bloomRadius > 0) {
             const glow = new GlowLayer({ glowBlur: bloomRadius });
             glow.addChildren(objects);
-            return [glow];
+            // layoutSentinel must stay at the top level — the bounds system
+            // only traverses top-level objects and GlowLayer is excluded by default.
+            return [layoutSentinel, glow];
         }
+
+        objects.push(layoutSentinel);
         return objects;
     }
 }

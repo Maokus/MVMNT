@@ -332,13 +332,6 @@ export class CircularPianoRollElement extends SceneElement {
         const cx = 0;
         const cy = 0;
 
-        // ── Layout sentinel ──────────────────────────────────────────────────
-        {
-            const d = ringRadius + ringWidth / 2 + triggerIndicatorLength + 10;
-            const layout = new Rectangle(-d, -d, d * 2, d * 2, null, null, 0);
-            (layout as any).setIncludeInLayoutBounds?.(true);
-            objects.push(layout);
-        }
 
         // ── Query notes ──────────────────────────────────────────────────────
         const queryStart = targetTime - timeWindowDuration;
@@ -542,11 +535,20 @@ export class CircularPianoRollElement extends SceneElement {
             }
         }
 
+        // ── Layout sentinel ──────────────────────────────────────────────────
+        const d = ringRadius + ringWidth / 2 + triggerIndicatorLength + 10;
+        const layoutSentinel = new Rectangle(-d, -d, d * 2, d * 2, null, null, 0);
+        (layoutSentinel as any).setIncludeInLayoutBounds?.(true);
+
         if (bloomRadius > 0) {
             const glow = new GlowLayer({ glowBlur: bloomRadius });
             glow.addChildren(objects);
-            return [glow];
+            // layoutSentinel must stay at the top level — the bounds system
+            // only traverses top-level objects and GlowLayer is excluded by default.
+            return [layoutSentinel, glow];
         }
+
+        objects.push(layoutSentinel);
         return objects;
     }
 }

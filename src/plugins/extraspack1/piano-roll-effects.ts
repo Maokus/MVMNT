@@ -125,37 +125,26 @@ export function makeRng(seed: number): () => number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function drawDiamondMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
-    const s = size / 2;
+    const s = (size / 2) * scale;
     const d = new Poly(
         [cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy],
         withAlpha(color, alpha), null, 0
     );
     (d as any).setIncludeInLayoutBounds?.(false);
-    (d as any).setScale?.(scale);
     return [d];
 }
 
 export function drawHeartMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
-    const s = size * 0.55;
-    const heart = new BezierPath(cx, cy, [], {
-        fillColor: withAlpha(color, alpha),
-        strokeColor: null,
-        strokeWidth: 0,
-    });
-    heart.moveTo(0, s * 0.5);
-    heart.bezierCurveTo(-s, s, -s * 1.5, -s * 0.5, 0, -s * 0.5);
-    heart.bezierCurveTo(s * 1.5, -s * 0.5, s, s, 0, s * 0.5);
-    heart.closePath();
-    (heart as any).setIncludeInLayoutBounds?.(false);
-    (heart as any).setScale?.(scale);
-    return [heart];
+    const fontSize = Math.max(10, Math.round(size * scale));
+    const t = new Text(cx, cy, "❤", `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
+    (t as any).setIncludeInLayoutBounds?.(false);
+    return [t];
 }
 
 export function drawTextMarker(cx: number, cy: number, size: number, color: string, alpha: number, label: string, scale: number): RenderObject[] {
-    const fontSize = Math.max(10, Math.round(size * 0.8));
+    const fontSize = Math.max(10, Math.round(size * 0.8 * scale));
     const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
     (t as any).setIncludeInLayoutBounds?.(false);
-    (t as any).setScale?.(scale);
     return [t];
 }
 
