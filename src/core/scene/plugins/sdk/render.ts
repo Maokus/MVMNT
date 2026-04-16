@@ -17,4 +17,5 @@ export {
     Arc,
     GlowLayer,
     CompositeLayer,
+    ClipLayer,
 } from '@core/render/render-objects';
