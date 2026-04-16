@@ -240,11 +240,11 @@ export class CircularPianoRollElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.select('ringMode', 'Mode', 'ring', [
+                    prop.select('ringMode', 'Mode', 'polar', [
                         { value: 'ring', label: 'Ring (all notes share one ring)' },
                         { value: 'polar', label: 'Polar (pitch = radius, like a piano roll)' },
                     ]),
-                    prop.number('ringRadius', 'Outer Radius (px)', 200, { min: 40, max: 1000, step: 5 }),
+                    prop.number('ringRadius', 'Outer Radius (px)', 400, { min: 40, max: 1000, step: 5 }),
                     prop.number('ringWidth', 'Ring Width (px)', 20, {
                         min: 4, max: 120, step: 1,
                         visibleWhen: [{ key: 'ringMode', equals: 'ring' }],
@@ -280,7 +280,7 @@ export class CircularPianoRollElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.select('colorMode', 'Color Mode', 'pitch', [
+                    prop.select('colorMode', 'Color Mode', 'single', [
                         { value: 'pitch', label: 'By Pitch (Hue)' },
                         { value: 'single', label: 'Single Color' },
                     ]),
@@ -304,7 +304,7 @@ export class CircularPianoRollElement extends SceneElement {
                 variant: 'advanced',
                 collapsed: true,
                 properties: [
-                    prop.boolean('showRing', 'Show Background Ring', true),
+                    prop.boolean('showRing', 'Show Background Ring', false),
                     prop.colorAlpha('ringColor', 'Ring Color', '#2A2A3A88', {
                         visibleWhen: [{ key: 'showRing', truthy: true }],
                     }),
@@ -331,7 +331,7 @@ export class CircularPianoRollElement extends SceneElement {
                 collapsed: false,
                 description: 'Symbol that appears at the trigger point when a note plays.',
                 properties: [
-                    prop.select('markerType', 'Marker', 'diamond', [
+                    prop.select('markerType', 'Marker', 'none', [
                         { value: 'diamond', label: 'Diamond' },
                         { value: 'heart', label: 'Heart' },
                         { value: 'text', label: 'Text' },
@@ -352,7 +352,7 @@ export class CircularPianoRollElement extends SceneElement {
                 collapsed: false,
                 description: 'Effect that radiates from the trigger point when a note plays.',
                 properties: [
-                    prop.select('rippleType', 'Ripple', 'burst', [
+                    prop.select('rippleType', 'Ripple', 'none', [
                         { value: 'burst', label: 'Burst' },
                         { value: 'circle', label: 'Circle' },
                         { value: 'none', label: 'No Ripple' },

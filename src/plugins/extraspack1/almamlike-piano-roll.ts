@@ -23,13 +23,17 @@ import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 // Adjust these to change the feel of each effect without touching the logic.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** "press" — note squishes vertically when it crosses the playhead. */
+/** "press" — note translates downward while playing, then springs back up. */
 const PRESS_ANIM = {
-    /** 0 = no squish, 1 = completely flat at peak. */
-    squishFactor: 0.40,
-    /** Envelope: sin(π · progress), so squish peaks at progress ≈ 0.5 by default.
-     *  A lower peakAt shifts the peak earlier; unused here because sin already centres. */
-    _note: 'squish = squishFactor * sin(π * progress)',
+    /** Maximum downward shift as a fraction of noteHeight. */
+    maxPressFraction: 0.8,
+    /** Easing power for the downward motion (higher = snappier initial press). */
+    pressEasePower: 1.8,
+    /** Easing power for the return spring (higher = faster snap back). */
+    springEasePower: 2.5,
+    /** 0..1 — where in total progress the press peaks (starts returning). */
+    peakAt: 0.35,
+    _note: 'offset = maxPressFraction * noteHeight * envelope(progress)',
 };
 
 /** "pluck" — note briefly inflates then returns to normal. */
@@ -39,18 +43,25 @@ const PLUCK_ANIM = {
     _note: 'bounce = bounceFactor * sin(π * progress)',
 };
 
-/** "burst" ripple — radiating line rays from the hit point. */
+/** "burst" ripple — randomised tapered rays that ease-out from the hit point. */
 const BURST_RIPPLE = {
-    /** Number of radiating rays. */
-    numRays: 8,
+    /** Minimum number of rays (inclusive). */
+    minRays: 5,
+    /** Maximum number of rays (inclusive). */
+    maxRays: 11,
     /** Inner gap at origin (fraction of rippleRadius). */
-    innerFraction: 0.15,
-    /** Outer tip at full extension (fraction of rippleRadius at progress=1). */
+    innerFraction: 0.08,
+    /** Outer tip at full extension (fraction of rippleRadius). */
     outerFraction: 1.0,
-    /** Stroke width of each ray in px. */
-    strokeWidth: 2.5,
+    /** Power for ease-out curve: outRadius = rippleRadius * eased^(1/easeOutPower).
+     *  Higher = snappier extension that decelerates more abruptly. */
+    easeOutPower: 2.8,
+    /** Width of each ray at its base (inner end) in px. */
+    baseWidthPx: 5,
+    /** Max random angular jitter added to each ray's direction, in radians. */
+    angleJitter: 0.55,
     /** Progress at which rays begin to fade out (0..1). */
-    fadeFrom: 0.45,
+    fadeFrom: 0.40,
 };
 
 /** "circle" ripple — expanding ring from the hit point. */
@@ -66,7 +77,7 @@ const CIRCLE_RIPPLE = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Colour utilities
+// Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Return an rgba() colour string with the given alpha applied to a hex colour. */
@@ -76,6 +87,19 @@ function withAlpha(hex: string, alpha: number): string {
     const g = parseInt(clean.slice(2, 4), 16) || 0;
     const b = parseInt(clean.slice(4, 6), 16) || 0;
     return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+}
+
+/**
+ * Deterministic LCG pseudo-random number generator seeded by a note fingerprint.
+ * Using a seed (midiNote * 7919 + startTimeMs) keeps ray layouts stable across frames.
+ */
+function makeRng(seed: number): () => number {
+    let s = seed >>> 0;
+    return () => {
+        s = Math.imul(s, 1664525) + 1013904223;
+        s = s >>> 0;
+        return s / 0xffffffff;
+    };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,29 +157,62 @@ function drawBurstRipple(
     cx: number, cy: number,
     progress: number,
     rippleRadius: number,
-    color: string
+    color: string,
+    noteSeed: number
 ): RenderObject[] {
-    const { fadeFrom, innerFraction, outerFraction, numRays, strokeWidth } = BURST_RIPPLE;
+    const {
+        minRays, maxRays,
+        innerFraction, outerFraction,
+        easeOutPower,
+        baseWidthPx,
+        angleJitter,
+        fadeFrom,
+    } = BURST_RIPPLE;
+
     const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
     if (alpha <= 0) return [];
 
+    const rng = makeRng(noteSeed);
+
+    // Randomise ray count once per note (seed-stable across frames)
+    const numRays = minRays + Math.floor(rng() * (maxRays - minRays + 1));
+
+    // Ease-out: tip extends fast then decelerates
+    // eased(t) = 1 - (1-t)^easeOutPower
+    const eased = 1 - Math.pow(1 - progress, easeOutPower);
+
     const inner = rippleRadius * innerFraction;
-    const outer = rippleRadius * (innerFraction + (outerFraction - innerFraction) * progress);
-    const rayColor = withAlpha(color, alpha);
+    const outerTip = rippleRadius * (innerFraction + (outerFraction - innerFraction) * eased);
+    const halfBase = baseWidthPx / 2;
+
     const out: RenderObject[] = [];
 
     for (let i = 0; i < numRays; i++) {
-        const angle = (i / numRays) * Math.PI * 2;
+        // Base angle: evenly spaced, then offset by per-ray jitter (seed-stable)
+        const baseAngle = (i / numRays) * Math.PI * 2;
+        const jitter = (rng() - 0.5) * 2 * angleJitter;
+        const angle = baseAngle + jitter;
+
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-        const line = new Line(
-            cx + cos * inner, cy + sin * inner,
-            cx + cos * outer, cy + sin * outer,
-            rayColor,
-            strokeWidth
-        );
-        (line as any).setIncludeInLayoutBounds?.(false);
-        out.push(line);
+        // Perpendicular unit vector for the base width
+        const px = -sin;
+        const py = cos;
+
+        // Tapered triangle: two base corners at inner radius, pointed tip at outerTip
+        const bx = cx + cos * inner;
+        const by = cy + sin * inner;
+        const tip = new BezierPath(0, 0, [], {
+            fillColor: withAlpha(color, alpha),
+            strokeColor: null,
+            strokeWidth: 0,
+        });
+        tip.moveTo(bx + px * halfBase, by + py * halfBase);    // base-left
+        tip.lineTo(bx - px * halfBase, by - py * halfBase);    // base-right
+        tip.lineTo(cx + cos * outerTip, cy + sin * outerTip);  // pointed tip
+        tip.closePath();
+        (tip as any).setIncludeInLayoutBounds?.(false);
+        out.push(tip);
     }
     return out;
 }
@@ -186,9 +243,22 @@ function drawCircleRipple(
 // ─────────────────────────────────────────────────────────────────────────────
 
 function getPressTransform(progress: number, noteHeight: number): { dy: number; dh: number } {
-    const env = Math.sin(Math.PI * progress);
-    const dh = -noteHeight * PRESS_ANIM.squishFactor * env;
-    return { dy: -dh / 2, dh };
+    const { maxPressFraction, peakAt, pressEasePower, springEasePower } = PRESS_ANIM;
+    const maxOffset = noteHeight * maxPressFraction;
+
+    // Two-phase: press down (0→peakAt) then spring back (peakAt→1)
+    let envelope: number;
+    if (progress <= peakAt) {
+        // Ease-in downward press: starts fast, decelerates to peak
+        const t = progress / peakAt;
+        envelope = Math.pow(t, 1 / pressEasePower);
+    } else {
+        // Ease-out spring back: fast return that slows as it reaches rest
+        const t = (progress - peakAt) / (1 - peakAt);
+        envelope = 1 - Math.pow(t, 1 / springEasePower);
+    }
+
+    return { dy: maxOffset * envelope, dh: 0 };
 }
 
 function getPluckTransform(progress: number, noteHeight: number): { dy: number; dh: number } {
@@ -227,11 +297,11 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.number('rollWidth', 'Roll Width (px)', 800, { min: 100, max: 4000, step: 10 }),
+                    prop.number('rollWidth', 'Roll Width (px)', 1200, { min: 100, max: 4000, step: 10 }),
                     prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
                     prop.number('minNote', 'Min MIDI Note', 30, { min: 0, max: 127, step: 1 }),
                     prop.number('maxNote', 'Max MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                    prop.number('noteHeight', 'Note Height (px)', 12, { min: 4, max: 60, step: 1 }),
+                    prop.number('noteHeight', 'Note Height (px)', 20, { min: 4, max: 60, step: 1 }),
                     prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, { min: 0, max: 1, step: 0.01 }),
                 ],
             },
@@ -241,7 +311,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.colorAlpha('noteColor', 'Note Color', '#FF6B6BCC'),
+                    prop.colorAlpha('noteColor', 'Note Color', '#FFFFFFFF'),
                     prop.number('noteCornerRadius', 'Corner Radius (px)', 2, { min: 0, max: 20, step: 1 }),
                 ],
             },
@@ -251,8 +321,8 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 variant: 'advanced',
                 collapsed: true,
                 properties: [
-                    prop.boolean('showPlayhead', 'Show Playhead', true),
-                    prop.colorAlpha('playheadColor', 'Playhead Color', '#FF6B6BFF', {
+                    prop.boolean('showPlayhead', 'Show Playhead', false),
+                    prop.colorAlpha('playheadColor', 'Playhead Color', '#FFFFFFFF', {
                         visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                     }),
                     prop.number('playheadLineWidth', 'Playhead Width (px)', 2, {
@@ -277,7 +347,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                     prop.string('markerText', 'Marker Text', '♪', {
                         visibleWhen: [{ key: 'markerType', equals: 'text' }],
                     }),
-                    prop.number('markerSize', 'Marker Size (px)', 20, { min: 8, max: 80, step: 1 }),
+                    prop.number('markerSize', 'Marker Size (px)', 40, { min: 8, max: 80, step: 1 }),
                     prop.color('markerColor', 'Marker Color', '#FFFFFF'),
                     prop.number('markerDuration', 'Marker Duration (s)', 0.5, { min: 0.05, max: 3, step: 0.05 }),
                 ],
@@ -289,12 +359,12 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 collapsed: false,
                 description: 'Effect that emanates from the playhead when a note is hit.',
                 properties: [
-                    prop.select('rippleType', 'Ripple', 'burst', [
+                    prop.select('rippleType', 'Ripple', 'circle', [
                         { value: 'burst', label: 'Burst' },
                         { value: 'circle', label: 'Circle' },
                         { value: 'none', label: 'No Ripple' },
                     ]),
-                    prop.number('rippleRadius', 'Ripple Radius (px)', 40, {
+                    prop.number('rippleRadius', 'Ripple Radius (px)', 70, {
                         min: 10, max: 200, step: 1,
                         visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
                     }),
@@ -428,23 +498,22 @@ export class AlmamlikePianoRollElement extends SceneElement {
             const drawLeft = Math.max(0, xNoteStart);
             const drawRight = Math.min(rollWidth, xNoteEnd);
 
+            // Compute animation transform regardless of visibility so effectCy tracks the note
+            let animDy = 0;
+            let animDh = 0;
+            if (animType !== 'none' && timeSinceHit >= 0 && timeSinceHit <= animDuration) {
+                const progress = timeSinceHit / animDuration;
+                const transform =
+                    animType === 'press' ? getPressTransform(progress, noteHeight) :
+                    animType === 'pluck' ? getPluckTransform(progress, noteHeight) :
+                    null;
+                if (transform) { animDy = transform.dy; animDh = transform.dh; }
+            }
+
+            // ── Note body ────────────────────────────────────────────────────
             if (drawRight > 0 && drawLeft < rollWidth && drawRight > drawLeft) {
-                let rectY = yFromNote(n.note);
-                let rectH = noteHeight;
-
-                // Apply note-body animation when the note has just been hit
-                if (animType !== 'none' && timeSinceHit >= 0 && timeSinceHit <= animDuration) {
-                    const progress = timeSinceHit / animDuration;
-                    const transform =
-                        animType === 'press' ? getPressTransform(progress, noteHeight) :
-                        animType === 'pluck' ? getPluckTransform(progress, noteHeight) :
-                        null;
-                    if (transform) {
-                        rectY += transform.dy;
-                        rectH = Math.max(1, rectH + transform.dh);
-                    }
-                }
-
+                const rectY = yFromNote(n.note) + animDy;
+                const rectH = Math.max(1, noteHeight + animDh);
                 const rect = new Rectangle(drawLeft, rectY, drawRight - drawLeft, rectH, noteColor);
                 if (noteCornerRadius > 0) (rect as any).setCornerRadius?.(noteCornerRadius);
                 (rect as any).setIncludeInLayoutBounds?.(false);
@@ -455,7 +524,10 @@ export class AlmamlikePianoRollElement extends SceneElement {
             // Only trigger when the note has been hit (timeSinceHit >= 0)
             if (timeSinceHit >= 0) {
                 const effectCx = playheadX;
-                const effectCy = yFromNote(n.note) + noteHeight / 2;
+                // Marker follows note's animated vertical centre
+                const effectCy = yFromNote(n.note) + animDy + (noteHeight + animDh) / 2;
+                // Stable seed per note instance for consistent burst ray layouts
+                const noteSeed = n.note * 7919 + Math.round(startTime * 100);
 
                 // Marker
                 if (markerType !== 'none' && timeSinceHit <= markerDuration) {
@@ -476,7 +548,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                     const rippleProgress = timeSinceHit / rippleDuration;
 
                     if (rippleType === 'burst') {
-                        effects.push(...drawBurstRipple(effectCx, effectCy, rippleProgress, rippleRadius, rippleColor));
+                        effects.push(...drawBurstRipple(effectCx, effectCy, rippleProgress, rippleRadius, rippleColor, noteSeed));
                     } else if (rippleType === 'circle') {
                         effects.push(...drawCircleRipple(effectCx, effectCy, rippleProgress, rippleRadius, rippleColor));
                     }
