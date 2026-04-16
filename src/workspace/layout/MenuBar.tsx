@@ -96,6 +96,20 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             }}
                             title="Show onboarding / help"
                         >help</button>
+                        <Link
+                            to="/community"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#cccccc',
+                                cursor: 'pointer',
+                                padding: '4px 6px',
+                                borderRadius: 4,
+                                textDecoration: 'none',
+                                fontSize: 12
+                            }}
+                            title="Browse community templates & plugins"
+                        >community</Link>
                     </nav>
                 </div>
 

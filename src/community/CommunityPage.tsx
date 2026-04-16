@@ -88,9 +88,14 @@ const CommunityPage: React.FC = () => {
             <p className="mt-2 text-neutral-400 text-sm">Browse and share templates & plugins</p>
           </div>
           <div className="flex flex-col items-end gap-3">
-            <Link to="/" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">
-              Back to Home
-            </Link>
+            <div className="flex gap-2">
+              <Link to="/" className="px-4 py-2 rounded bg-neutral-700 hover:bg-neutral-600 text-sm font-medium text-neutral-300">
+                Back to Home
+              </Link>
+              <Link to="/workspace" className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium text-white">
+                Back to Workspace
+              </Link>
+            </div>
             <CommunityAuthBar user={user} onAuthChange={setUser} />
           </div>
         </div>
