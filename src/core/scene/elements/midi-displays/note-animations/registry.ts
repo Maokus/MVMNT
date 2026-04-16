@@ -21,11 +21,6 @@ export function registerAnimation(def: AnimationDefinition) {
 }
 
 export function createAnimationInstance(type: string): BaseNoteAnimation {
-    if (type === 'none') {
-        const fallback = animationRegistry.get('expand') || [...animationRegistry.values()][0];
-        if (!fallback) throw new Error('No animations registered');
-        return new fallback.class();
-    }
     const def = animationRegistry.get(type) || animationRegistry.get('expand') || [...animationRegistry.values()][0];
     if (!def) throw new Error('No animations registered');
     return new def.class();

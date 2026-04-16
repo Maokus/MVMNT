@@ -3,7 +3,7 @@
   "name": "Extras Pack 1",
   "version": "1.0.1",
   "apiVersion": "^1.0.0",
-  "description": "Custom plugin providing 3 elements",
+  "description": "Custom plugin providing 4 elements",
   "author": "Your Name",
   "elements": [
     {
@@ -26,6 +26,13 @@
       "category": "Extras Pack 1",
       "description": "popcat",
       "entry": "popcat-midi-display.ts"
+    },
+    {
+      "type": "almamlike-piano-roll",
+      "name": "Almamlike Piano Roll",
+      "category": "Extras Pack 1",
+      "description": "A piano roll like the moving notes piano roll but with the symbol",
+      "entry": "almamlike-piano-roll.ts"
     }
   ]
 }
