@@ -22,9 +22,10 @@ const ChangelogPage: React.FC = () => {
                     <ChangelogEntry version="0.15.0" date="11-4-26" notes={[
                         'Implemented automation system',
                         [
-                            'Eased automation curves',
-                            'Cmd/ctrl D to make repeated animations',
+                            'Full visual curve editing and interpolation',
                             'Added tempo automation',
+                            'i to add keyframe',
+                            'blender-style auto keying'
                         ],
                         'Added community tab',
                         [
@@ -34,7 +35,11 @@ const ChangelogPage: React.FC = () => {
                         'Misc Improvements/new content',
                         [
                             'Add basic shapes element',
+                            'Add MIDI cc monitor element',
                             'More note animations for TUPR/MNPR',
+                            'Internally store MIDI as binary to reduce file sizes',
+                            'Improve timeline navigation',
+                            'Change color picker'
                         ],
                         'Implemented custom element system and api',
                         [
@@ -42,6 +47,7 @@ const ChangelogPage: React.FC = () => {
                             'Embed plugins into save files',
                             'DevEx quality of life scripts',
                             'Support midi cc in midi ingestion and expose via api',
+                            'Element property factories',
                             'Improve version conflict management'
                         ],
                         'Extended renderobject system',

@@ -15,7 +15,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 const DEFAULT_BAR_COLOR = '#60A5FAFF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 const DEFAULT_MIN_FREQUENCY = 20;
 const DEFAULT_MAX_FREQUENCY = 20000;
 const MAX_FREQUENCY_LIMIT = 48000;

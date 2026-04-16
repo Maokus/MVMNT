@@ -19,6 +19,7 @@ export const BUILTIN_ELEMENT_TYPES = [
     'notesPlayedTracker',
     'notesPlayingDisplay',
     'chordEstimateDisplay',
+    'ccMonitor',
     'audioSpectrum',
     'audioVolumeMeter',
     'audioWaveform',

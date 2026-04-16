@@ -5,6 +5,7 @@ import FormInput, { type FormInputChange } from '@workspace/form/inputs/FormInpu
 import { useMacros } from '@context/MacroContext';
 import { FaLink } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
+import { hoveredPropertyRef } from './hoveredPropertyRef';
 
 type SupportedFormInputType =
     | 'text'
@@ -49,6 +50,7 @@ interface PropertyGroupPanelProps {
     values: { [key: string]: any };
     macroAssignments: { [key: string]: string };
     elementId: string;
+    delinkedKeys?: Set<string>;
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
     onCollapseToggle: (groupId: string) => void;
@@ -60,6 +62,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     values,
     macroAssignments,
     elementId,
+    delinkedKeys,
     onValueChange,
     onMacroAssignment,
     onCollapseToggle,
@@ -400,11 +403,12 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         const inputType = resolvedInputType;
         const hasAnimationIcon = canAssignMacro(property.type);
+        const isDelinked = delinkedKeys?.has(property.key) ?? false;
 
         return (
             <div
                 key={property.key}
-                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}`}
+                className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
                 style={
                     nested
                         ? {
@@ -413,6 +417,14 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                         }
                         : undefined
                 }
+                onMouseEnter={isAutomatableType(property.type) ? () => {
+                    hoveredPropertyRef.current = { elementId, propertyKey: property.key, propertyType: property.type };
+                } : undefined}
+                onMouseLeave={isAutomatableType(property.type) ? () => {
+                    if (hoveredPropertyRef.current?.propertyKey === property.key) {
+                        hoveredPropertyRef.current = null;
+                    }
+                } : undefined}
             >
                 <div className="ae-property-label">
                     <span className="ae-property-name" title={property.description}>
@@ -424,6 +436,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                             propertyKey={property.key}
                             propertyType={property.type}
                             currentValue={values[property.key]}
+                            isDelinked={isDelinked}
                         />
                     )}
                 </div>

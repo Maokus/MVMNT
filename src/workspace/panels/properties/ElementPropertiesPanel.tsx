@@ -7,10 +7,12 @@ import type { SceneCommandOptions } from '@state/scene';
 import type { FormInputChange } from '@workspace/form/inputs/FormInput';
 import { FaCopy, FaPaste, FaRotate } from 'react-icons/fa6';
 import { useCurrentTick } from '@automation/hooks';
-import { makeChannelId, findKeyframeAtTick } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe } from '@automation/types';
 import { useSceneStore } from '@state/sceneStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { automationEvaluator } from '@automation/automation-evaluator';
+import { resolveAutomationValueType } from './KeyframeControl';
 
 interface ElementPropertiesPanelProps {
     elementId: string;
@@ -59,8 +61,36 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const macroLookup = useMemo(() => new Map((macroList as any[]).map((macro: any) => [macro.name, macro])), [macroList]);
     const currentTick = useCurrentTick();
     const automationChannels = useSceneStore(useCallback((s) => s.automation.channels, []));
+    const autoKeying = useTimelineStore((s) => s.transport.autoKeying);
+    const propertyOverrides = useSceneStore(useCallback((s) => s.propertyOverrides, []));
+
+    // Fast property-type lookup used by auto-keying logic
+    const propertyTypeMap = useMemo(() => {
+        const map = new Map<string, string>();
+        enhancedSchema?.groups.forEach((group) => {
+            group.properties.forEach((prop) => map.set(prop.key, prop.type));
+        });
+        return map;
+    }, [enhancedSchema]);
 
     const bindingsMemo = useMemo(() => ({ ...(bindings ?? {}) }), [bindings, refreshToken]);
+
+    const delinkedKeys = useMemo(() => {
+        const keys = new Set<string>();
+        if (!enhancedSchema) return keys;
+        enhancedSchema.groups.forEach((group) => {
+            group.properties.forEach((property) => {
+                const binding = bindingsMemo[property.key];
+                if (binding?.type === 'keyframes') {
+                    const chId = makeChannelId(elementId, property.key);
+                    if (propertyOverrides[chId] !== undefined) {
+                        keys.add(property.key);
+                    }
+                }
+            });
+        });
+        return keys;
+    }, [enhancedSchema, bindingsMemo, propertyOverrides, elementId]);
 
     const handleMacroStoreUpdate = useCallback(() => {
         setMacroListenerKey((prev) => prev + 1);
@@ -99,21 +129,28 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                     }
                 } else if (binding?.type === 'keyframes') {
                     // Evaluate automation at current tick for display.
-                    // Read directly from automationChannels (hook-captured, always current) first.
-                    // This avoids stale evaluator-curve-cache results when a keyframe was just
-                    // added/modified at the current tick — the exact-match path bypasses the cache.
+                    // Check transient override first (set when auto key is off and user manually
+                    // changes a keyframed property — clears automatically on scrub/play).
                     const chId = makeChannelId(elementId, property.key);
-                    const channel = automationChannels[chId];
-                    if (channel) {
-                        const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
-                        if (kfAtTick !== null) {
-                            nextValues[property.key] = kfAtTick.value;
-                        } else {
-                            const evaluated = automationEvaluator.evaluate(chId, currentTick);
-                            nextValues[property.key] = evaluated ?? property.default;
-                        }
+                    const override = propertyOverrides[chId];
+                    if (override !== undefined) {
+                        nextValues[property.key] = override;
                     } else {
-                        nextValues[property.key] = property.default ?? null;
+                        // Read directly from automationChannels (hook-captured, always current) first.
+                        // This avoids stale evaluator-curve-cache results when a keyframe was just
+                        // added/modified at the current tick — the exact-match path bypasses the cache.
+                        const channel = automationChannels[chId];
+                        if (channel) {
+                            const kfAtTick = findKeyframeAtTick(channel.keyframes, currentTick);
+                            if (kfAtTick !== null) {
+                                nextValues[property.key] = kfAtTick.value;
+                            } else {
+                                const evaluated = automationEvaluator.evaluate(chId, currentTick);
+                                nextValues[property.key] = evaluated ?? property.default;
+                            }
+                        } else {
+                            nextValues[property.key] = property.default ?? null;
+                        }
                     }
                 } else if (binding?.type === 'constant') {
                     nextValues[property.key] = binding.value ?? property.default;
@@ -149,6 +186,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         refreshToken,
         currentTick,
         automationChannels,
+        propertyOverrides,
     ]);
 
     const propertyPassesVisibility = useCallback(
@@ -226,26 +264,32 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 ...(linked ?? {}),
             }));
 
-            // If property is automated, dispatch addKeyframe at current tick instead of config change
-            const chId = makeChannelId(elementId, key);
-            const automationChannelsNow = useSceneStore.getState().automation.channels;
-            if (automationChannelsNow[chId]) {
-                const session = meta?.mergeSession;
-                const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
-                if (session) {
-                    cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
-                    cmdOptions.transient = !session.finalize;
+            // Auto-keying ON, property not yet automated: create the channel with an initial keyframe.
+            // SceneSelectionContext.updateElementConfig handles the "channel already exists" case.
+            if (autoKeying) {
+                const chId = makeChannelId(elementId, key);
+                if (!useSceneStore.getState().automation.channels[chId]) {
+                    const valueType = resolveAutomationValueType(propertyTypeMap.get(key) ?? '');
+                    if (valueType) {
+                        const session = meta?.mergeSession;
+                        const cmdOptions: SceneCommandOptions = { source: 'property-panel' };
+                        if (session) {
+                            cmdOptions.mergeKey = `kf-drag:${chId}:${session.id}`;
+                            cmdOptions.transient = !session.finalize;
+                        }
+                        dispatchSceneCommand(
+                            { type: 'enablePropertyAutomation', elementId, propertyKey: key, valueType, initialKeyframes: [createKeyframe(currentTick, value)] },
+                            cmdOptions,
+                        );
+                        return;
+                    }
                 }
-                dispatchSceneCommand(
-                    {
-                        type: 'addKeyframe',
-                        channelId: chId,
-                        keyframe: { tick: currentTick, value: value, easingId: 'linear' },
-                    },
-                    cmdOptions,
-                );
-                return;
+                // Channel exists: fall through to onConfigChange, which will dispatch addKeyframe
             }
+
+            // Auto-keying OFF: falls through to onConfigChange unconditionally.
+            // SceneSelectionContext.updateElementConfig will dispatch updateElementConfig for all keys,
+            // so any keyframed property's rendered value will revert to the keyframed value on scrub.
 
             if (onConfigChange) {
                 let options: Omit<SceneCommandOptions, 'source'> | undefined;
@@ -270,7 +314,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                 onConfigChange(elementId, patch, options);
             }
         },
-        [elementId, onConfigChange, currentTick],
+        [elementId, onConfigChange, currentTick, autoKeying, propertyTypeMap],
     );
 
     const handleMacroAssignment = useCallback(
@@ -492,6 +536,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         values={propertyValues}
                         macroAssignments={macroAssignments}
                         elementId={elementId}
+                        delinkedKeys={delinkedKeys}
                         onValueChange={handleValueChange}
                         onMacroAssignment={handleMacroAssignment}
                         onCollapseToggle={handleCollapseToggle}

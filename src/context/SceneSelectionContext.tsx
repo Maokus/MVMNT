@@ -10,7 +10,7 @@ import {
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
 import { shallow } from 'zustand/shallow';
-import { makeChannelId, findKeyframeAtTick } from '@automation/types';
+import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 
 interface SceneSelectionState {
@@ -76,6 +76,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     const role = element.getAttribute('role');
     return role === 'textbox' || role === 'combobox';
+}
+
+/** Infer AutomationValueType from a raw value for auto-key channel creation (canvas drag path). */
+function inferValueTypeForAutoKey(value: unknown): AutomationValueType | null {
+    if (typeof value === 'number') return 'number';
+    if (typeof value === 'boolean') return 'boolean';
+    return null;
 }
 
 interface SceneSelectionProviderProps {
@@ -216,31 +223,71 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         (elementId: string, changes: { [key: string]: any }, options?: Omit<SceneCommandOptions, 'source'>) => {
             if (!elementId) return;
 
-            // For each property being changed, check if it has automation.
+            // For each property being changed, check if it has automation AND autoKeying is on.
             // If so, dispatch addKeyframe instead of overwriting the binding.
             const automationChannels = useSceneStore.getState().automation.channels;
             const currentTick = useTimelineStore.getState().timeline.currentTick;
+            const autoKeying = useTimelineStore.getState().transport.autoKeying;
             const automatedKeys: string[] = [];
             const nonAutomatedChanges: Record<string, any> = {};
 
             for (const [key, value] of Object.entries(changes)) {
                 const chId = makeChannelId(elementId, key);
-                if (automationChannels[chId]) {
+                if (autoKeying && automationChannels[chId]) {
+                    // Auto key ON + channel already exists: add a keyframe at current tick.
                     automatedKeys.push(key);
                     const channel = automationChannels[chId];
                     const existingKf = findKeyframeAtTick(channel.keyframes, currentTick);
                     const easingId = existingKf?.easingId ?? 'linear';
+                    const segmentInterpolation = existingKf?.segmentInterpolation
+                        ?? channel.defaultInterpolation
+                        ?? { mode: 'bezier' as const, direction: 'auto' as const };
+                    const leftHandleType = existingKf?.leftHandleType ?? ('auto_clamped' as const);
+                    const rightHandleType = existingKf?.rightHandleType ?? ('auto_clamped' as const);
                     dispatchSceneCommand(
                         {
                             type: 'addKeyframe',
                             channelId: chId,
-                            keyframe: { tick: currentTick, value, easingId },
+                            keyframe: {
+                                tick: currentTick,
+                                value,
+                                easingId,
+                                segmentInterpolation: { ...segmentInterpolation },
+                                leftHandleType,
+                                rightHandleType,
+                            },
                         },
                         {
                             source: 'SceneSelectionContext.updateElementConfig',
                             ...(options ?? {}),
                         },
                     );
+                } else if (autoKeying && !automationChannels[chId]) {
+                    // Auto key ON + no channel yet: create automation channel with initial keyframe.
+                    const valueType = inferValueTypeForAutoKey(value);
+                    if (valueType) {
+                        automatedKeys.push(key);
+                        dispatchSceneCommand(
+                            {
+                                type: 'enablePropertyAutomation',
+                                elementId,
+                                propertyKey: key,
+                                valueType,
+                                initialKeyframes: [createKeyframe(currentTick, value)],
+                            },
+                            {
+                                source: 'SceneSelectionContext.updateElementConfig',
+                                ...(options ?? {}),
+                            },
+                        );
+                    } else {
+                        nonAutomatedChanges[key] = value;
+                    }
+                } else if (!autoKeying && automationChannels[chId]) {
+                    // Auto key OFF + channel exists: temporarily delink (Blender-style).
+                    // Store an override so the new value shows immediately, but the keyframed
+                    // binding is untouched — scrubbing the playhead clears the override.
+                    useSceneStore.getState().setPropertyOverride(chId, value);
                 } else {
                     nonAutomatedChanges[key] = value;
                 }

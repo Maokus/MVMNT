@@ -13,9 +13,9 @@ interface DefaultPluginDescriptor {
 
 const DEFAULT_PLUGINS: DefaultPluginDescriptor[] = [
     {
-        id: 'extraspack1',
+        id: 'midipack1',
         version: '1.0.1',
-        assetPath: 'default-plugins/extraspack1-1.0.1.mvmnt-plugin',
+        assetPath: 'default-plugins/midipack1-1.0.1.mvmnt-plugin',
         defaultEnabled: false,
         skipVersionCheck: false,
     },

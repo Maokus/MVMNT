@@ -19,7 +19,7 @@ function clamp01(value: number): number {
 }
 
 const DEFAULT_METER_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 
 registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
 

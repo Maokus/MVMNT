@@ -131,7 +131,7 @@ export type SceneCommand =
           channelId: string;
           tick: number;
           /** Partial patch — only provided fields are updated. */
-          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>>;
+          patch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId' | 'segmentInterpolation' | 'leftHandle' | 'rightHandle' | 'leftHandleType' | 'rightHandleType'>>;
       }
     | {
           type: 'moveKeyframe';
@@ -564,6 +564,22 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!channel) return null;
             const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
             if (!existing) return null;
+            // If removing the last keyframe, undo must re-enable the channel
+            if (channel.keyframes.length === 1) {
+                return {
+                    redo: [cloneCommand(command)],
+                    undo: [
+                        {
+                            type: 'enablePropertyAutomation',
+                            elementId: channel.elementId,
+                            propertyKey: channel.propertyKey,
+                            valueType: channel.valueType,
+                            interpolation: channel.interpolation,
+                            initialKeyframes: [{ ...existing }],
+                        },
+                    ],
+                };
+            }
             return {
                 redo: [cloneCommand(command)],
                 undo: [
@@ -580,9 +596,14 @@ function buildSceneCommandPatch(state: SceneStoreState, command: SceneCommand): 
             if (!channel) return null;
             const existing = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
             if (!existing) return null;
-            const undoPatch: Partial<Pick<AutomationKeyframe, 'value' | 'easingId'>> = {};
+            const undoPatch: typeof command.patch = {};
             if ('value' in command.patch) undoPatch.value = existing.value;
             if ('easingId' in command.patch) undoPatch.easingId = existing.easingId;
+            if ('segmentInterpolation' in command.patch) undoPatch.segmentInterpolation = existing.segmentInterpolation;
+            if ('leftHandle' in command.patch) undoPatch.leftHandle = existing.leftHandle;
+            if ('rightHandle' in command.patch) undoPatch.rightHandle = existing.rightHandle;
+            if ('leftHandleType' in command.patch) undoPatch.leftHandleType = existing.leftHandleType;
+            if ('rightHandleType' in command.patch) undoPatch.rightHandleType = existing.rightHandleType;
             return {
                 redo: [cloneCommand(command)],
                 undo: [
@@ -784,7 +805,17 @@ function applyStoreCommand(store: SceneStoreState, command: SceneCommand) {
             const channel = store.automation.channels[command.channelId];
             if (!channel) break;
             const nextKeyframes = removeKeyframeAtTick(channel.keyframes, command.tick);
-            store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            if (nextKeyframes.length === 0) {
+                // Last keyframe removed — auto-disable the channel
+                const removed = channel.keyframes.find((kf) => Math.abs(kf.tick - command.tick) < 0.5);
+                const fallback: unknown = removed?.value ?? 0;
+                store.removeAutomationChannel(command.channelId);
+                store.updateBindings(channel.elementId, {
+                    [channel.propertyKey]: { type: 'constant', value: fallback },
+                });
+            } else {
+                store.updateAutomationKeyframes(command.channelId, nextKeyframes);
+            }
             break;
         }
         case 'updateKeyframe': {

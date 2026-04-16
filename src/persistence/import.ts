@@ -1,6 +1,9 @@
 import { validateSceneEnvelope } from './validate';
 import { DocumentGateway } from './document-gateway';
 import type { SceneExportEnvelope, ScenePluginDependency } from './export';
+import { isMidiBinary } from '@core/midi/midi-encoder';
+import { parseMIDIArrayBuffer } from '@core/midi/midi-library';
+import { buildNotesFromMIDI } from '@core/midi/midi-ingest';
 import {
     deserializeAudioFeatureCache,
     type SerializedAudioFeatureCache,
@@ -358,10 +361,10 @@ function buildDocumentShape(
     };
 }
 
-function restoreMidiCache(
+async function restoreMidiCache(
     midiSection: any,
     midiPayloads: Map<string, Uint8Array>
-): { cache: Record<string, any>; warnings: string[] } {
+): Promise<{ cache: Record<string, any>; warnings: string[] }> {
     if (!midiSection || typeof midiSection !== 'object') {
         return { cache: {}, warnings: [] };
     }
@@ -384,11 +387,21 @@ function restoreMidiCache(
             warnings.push(`Missing MIDI payload for cache ${cacheId}`);
             continue;
         }
-        try {
-            const parsed = JSON.parse(decodeSceneText(payload));
-            restored[cacheId] = parsed;
-        } catch (error) {
-            warnings.push(`Failed to parse MIDI payload for cache ${cacheId}: ${(error as Error).message}`);
+        if (isMidiBinary(payload)) {
+            try {
+                const buffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength) as ArrayBuffer;
+                const midiData = await parseMIDIArrayBuffer(buffer);
+                restored[cacheId] = buildNotesFromMIDI(midiData);
+            } catch (error) {
+                warnings.push(`Failed to parse binary MIDI for cache ${cacheId}: ${(error as Error).message}`);
+            }
+        } else {
+            try {
+                const parsed = JSON.parse(decodeSceneText(payload));
+                restored[cacheId] = parsed;
+            } catch (error) {
+                warnings.push(`Failed to parse MIDI payload for cache ${cacheId}: ${(error as Error).message}`);
+            }
         }
     }
     return { cache: restored, warnings };
@@ -636,7 +649,7 @@ export async function importScene(input: ImportSceneInput): Promise<ImportSceneR
     }
 
     const { doc, featureWarnings } = buildDocumentShape(envelope, audioFeaturePayloads);
-    const midiRestoration = restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
+    const midiRestoration = await restoreMidiCache(envelope?.timeline?.midiCache, midiPayloads);
     doc.midiCache = midiRestoration.cache;
     DocumentGateway.apply(doc as any);
 

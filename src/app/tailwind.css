@@ -706,6 +706,19 @@
         @apply bg-white/5;
     }
 
+    .ae-property-delinked {
+        background-color: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .ae-property-delinked:hover {
+        background-color: rgba(245, 158, 11, 0.13);
+    }
+
+    .ae-property-delinked .ae-property-name {
+        color: #f59e0b;
+    }
+
     .ae-property-label {
         @apply flex items-center gap-1 shrink-0 min-w-0;
     }
@@ -747,6 +760,15 @@
         fill: var(--twc-accent);
     }
 
+    .ae-keyframe-toggle.inactive .ae-keyframe-stopwatch {
+        color: #555;
+        transition: color 0.15s;
+    }
+
+    .ae-keyframe-toggle.inactive:hover .ae-keyframe-stopwatch {
+        color: var(--twc-accent);
+    }
+
     .ae-keyframe-toggle.automated .ae-keyframe-diamond path {
         fill: transparent;
         stroke: var(--twc-accent);
@@ -783,7 +805,7 @@
     /* Easing picker */
     .ae-easing-picker {
         @apply flex flex-col gap-1;
-        max-height: 240px;
+        max-height: 340px;
         overflow-y: auto;
     }
 
@@ -842,6 +864,59 @@
     .ae-easing-close:hover {
         color: rgba(255, 255, 255, 0.8);
         background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Interpolation picker — direction and parameter controls */
+    .ae-interp-section {
+        @apply mt-1 pt-1;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ae-direction-buttons {
+        @apply flex gap-0.5 mt-0.5;
+    }
+
+    .ae-direction-btn {
+        @apply flex-1 text-[9px] py-0.5 rounded cursor-pointer;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.5);
+        transition: all 0.15s;
+    }
+
+    .ae-direction-btn:hover {
+        border-color: rgba(96, 165, 250, 0.4);
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .ae-direction-btn.selected {
+        background: rgba(96, 165, 250, 0.2);
+        border-color: #60a5fa;
+        color: #93bbfc;
+    }
+
+    .ae-param-row {
+        @apply flex items-center gap-2 mt-0.5 px-1;
+    }
+
+    .ae-param-slider {
+        @apply flex-1;
+        height: 4px;
+        accent-color: #60a5fa;
+    }
+
+    .ae-param-value {
+        @apply text-[9px] tabular-nums;
+        color: rgba(255, 255, 255, 0.5);
+        min-width: 28px;
+        text-align: right;
+    }
+
+    .ae-handle-type-select {
+        @apply text-[9px] rounded px-1 py-0.5;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.7);
     }
 
     /* Automation lane context menu */

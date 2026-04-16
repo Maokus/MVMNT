@@ -53,7 +53,7 @@ const ContributePage: React.FC = () => {
                         <h2 className="text-xl font-bold text-white mb-1">Spread the word</h2>
                         <p className="text-neutral-400 text-sm mb-4">
                             Sharing the project helps it grow and reach people who might find it useful.
-                            Follows, stars, and subscriptions all make a real difference.
+                            The best support you can give is to make something and share it!
                         </p>
                         <div className="flex flex-wrap gap-3">
                             <a

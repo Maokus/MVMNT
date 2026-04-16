@@ -5,18 +5,73 @@
  * list of automatable properties. Selecting a property either enables automation
  * (if not yet automated) and inserts a keyframe, or adds a keyframe to an
  * existing automation channel.
+ *
+ * Shortcut presets (All Transforms, Offsets, Scales) appear at the top and
+ * insert keyframes for multiple properties at once.
+ *
+ * Property aliases promote a specific property to first result:
+ *   x → Offset X, y → Offset Y, sx → Scale X, sy → Scale Y,
+ *   r → Rotation, t → Opacity
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
-import { makeChannelId } from '@automation/types';
+import { makeChannelId, createKeyframe } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useCurrentTick } from '@automation/hooks';
 import { useSceneStore } from '@state/sceneStore';
 import type { ConstantBindingState, ElementBindings } from '@state/sceneStore';
 import { resolveAutomationValueType } from './KeyframeControl';
 import type { EnhancedConfigSchema } from '@core/types';
+
+// ---------------------------------------------------------------------------
+// Shortcut data
+// ---------------------------------------------------------------------------
+
+/** Maps a shortcut alias to the property key it should promote to first result. */
+const PROPERTY_ALIASES: Record<string, string> = {
+    x: 'offsetX',
+    y: 'offsetY',
+    sx: 'elementScaleX',
+    sy: 'elementScaleY',
+    r: 'elementRotation',
+    t: 'elementOpacity',
+    ax: 'anchorX',
+    ay: 'anchorY',
+};
+
+type ShortcutPreset = {
+    id: string;
+    label: string;
+    description: string;
+    propertyKeys: string[];
+};
+
+const SHORTCUT_PRESETS: ShortcutPreset[] = [
+    {
+        id: 'all-transforms',
+        label: 'All Transforms',
+        description: 'Offset X/Y · Scale X/Y · Rotation · Anchor X/Y',
+        propertyKeys: ['offsetX', 'offsetY', 'elementScaleX', 'elementScaleY', 'elementRotation', 'anchorX', 'anchorY'],
+    },
+    {
+        id: 'offsets',
+        label: 'Offsets',
+        description: 'Offset X · Offset Y',
+        propertyKeys: ['offsetX', 'offsetY'],
+    },
+    {
+        id: 'scales',
+        label: 'Scales',
+        description: 'Scale X · Scale Y',
+        propertyKeys: ['elementScaleX', 'elementScaleY'],
+    },
+];
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface AutomatableProperty {
     key: string;
@@ -25,6 +80,10 @@ interface AutomatableProperty {
     type: string;
 }
 
+type ListItem =
+    | { kind: 'preset'; preset: ShortcutPreset }
+    | { kind: 'property'; prop: AutomatableProperty };
+
 interface InsertKeyframePopupProps {
     position: { x: number; y: number };
     elementId: string;
@@ -32,6 +91,10 @@ interface InsertKeyframePopupProps {
     schema: EnhancedConfigSchema;
     onClose: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     position,
@@ -46,6 +109,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
     const listRef = useRef<HTMLDivElement>(null);
     const tick = useCurrentTick();
     const automationChannels = useSceneStore((state) => state.automation.channels);
+    const propertyOverrides = useSceneStore((state) => state.propertyOverrides);
 
     const allProperties = useMemo<AutomatableProperty[]>(() => {
         const result: AutomatableProperty[] = [];
@@ -59,22 +123,54 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
         return result;
     }, [schema]);
 
-    const filtered = useMemo<AutomatableProperty[]>(() => {
+    const filteredItems = useMemo<ListItem[]>(() => {
         const q = search.toLowerCase().trim();
-        if (!q) return allProperties;
-        return allProperties.filter(
+
+        const matchingPresets = SHORTCUT_PRESETS.filter(
+            (p) => !q || p.label.toLowerCase().includes(q) || p.id.includes(q),
+        );
+
+        if (!q) {
+            return [
+                ...matchingPresets.map((preset): ListItem => ({ kind: 'preset', preset })),
+                ...allProperties.map((prop): ListItem => ({ kind: 'property', prop })),
+            ];
+        }
+
+        const allMatchingProps = allProperties.filter(
             (p) =>
                 p.label.toLowerCase().includes(q) ||
                 p.key.toLowerCase().includes(q) ||
                 p.groupLabel.toLowerCase().includes(q),
         );
+
+        // Tier 1: exact alias match (e.g. "x" → Offset X)
+        const aliasTarget = PROPERTY_ALIASES[q];
+        const aliasedProp = aliasTarget ? allProperties.find((p) => p.key === aliasTarget) : undefined;
+
+        // Tier 2: exact label match (case-insensitive), excluding the alias target
+        const exactLabelProps = allMatchingProps.filter(
+            (p) => p.label.toLowerCase() === q && p.key !== aliasedProp?.key,
+        );
+
+        // Tier 4: loose matches — everything not already in tier 1 or 2
+        const priorityKeys = new Set<string>(exactLabelProps.map((p) => p.key));
+        if (aliasedProp) priorityKeys.add(aliasedProp.key);
+        const looseProps = allMatchingProps.filter((p) => !priorityKeys.has(p.key));
+
+        // Final order: alias → exact label → presets → loose
+        const result: ListItem[] = [];
+        if (aliasedProp) result.push({ kind: 'property', prop: aliasedProp });
+        for (const p of exactLabelProps) result.push({ kind: 'property', prop: p });
+        for (const preset of matchingPresets) result.push({ kind: 'preset', preset });
+        for (const p of looseProps) result.push({ kind: 'property', prop: p });
+        return result;
     }, [allProperties, search]);
 
     // Reset active index when filter changes
     useEffect(() => {
         setActiveIndex(0);
     }, [search]);
-
 
     // Scroll active item into view
     useEffect(() => {
@@ -88,6 +184,8 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             const channelId = makeChannelId(elementId, prop.key);
             const isAutomated = !!automationChannels[channelId];
             if (isAutomated) {
+                const override = propertyOverrides[channelId];
+                if (override !== undefined) return override;
                 return automationEvaluator.evaluate(channelId, tick);
             }
             const binding = bindings[prop.key];
@@ -96,14 +194,15 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             }
             return undefined;
         },
-        [elementId, bindings, automationChannels, tick],
+        [elementId, bindings, automationChannels, propertyOverrides, tick],
     );
 
-    const handleSelect = useCallback(
-        (prop: AutomatableProperty) => {
+    const insertKeyframeForProp = useCallback(
+        (prop: AutomatableProperty, mergeKey?: string) => {
             const channelId = makeChannelId(elementId, prop.key);
             const isAutomated = !!automationChannels[channelId];
             const currentValue = getCurrentValue(prop);
+            const cmdOptions = { source: 'insert-keyframe-popup', mergeKey };
 
             if (!isAutomated) {
                 const valueType = resolveAutomationValueType(prop.type);
@@ -114,43 +213,71 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                         elementId,
                         propertyKey: prop.key,
                         valueType,
-                        initialKeyframes: [{ tick: tick > 0 ? tick : 0, value: currentValue, easingId: 'linear' }],
+                        initialKeyframes: [
+                            createKeyframe(tick > 0 ? tick : 0, currentValue),
+                        ],
                     },
-                    { source: 'insert-keyframe-popup' },
+                    cmdOptions,
                 );
             } else {
                 dispatchSceneCommand(
                     {
                         type: 'addKeyframe',
                         channelId,
-                        keyframe: { tick, value: currentValue, easingId: 'linear' },
+                        keyframe: createKeyframe(tick, currentValue),
                     },
-                    { source: 'insert-keyframe-popup' },
+                    cmdOptions,
                 );
+                if (propertyOverrides[channelId] !== undefined) {
+                    useSceneStore.getState().clearPropertyOverride(channelId);
+                }
+            }
+        },
+        [elementId, tick, automationChannels, propertyOverrides, getCurrentValue],
+    );
+
+    const handleSelect = useCallback(
+        (prop: AutomatableProperty) => {
+            insertKeyframeForProp(prop);
+            onClose();
+        },
+        [insertKeyframeForProp, onClose],
+    );
+
+    const handleSelectPreset = useCallback(
+        (preset: ShortcutPreset) => {
+            const mergeKey = `preset-keyframes:${preset.id}:${Date.now()}`;
+            const validProps = preset.propertyKeys
+                .map((key) => allProperties.find((p) => p.key === key))
+                .filter(Boolean) as AutomatableProperty[];
+            for (const prop of validProps) {
+                insertKeyframeForProp(prop, mergeKey);
             }
             onClose();
         },
-        [elementId, tick, automationChannels, getCurrentValue, onClose],
+        [allProperties, insertKeyframeForProp, onClose],
     );
 
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+                setActiveIndex((i) => Math.min(i + 1, filteredItems.length - 1));
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setActiveIndex((i) => Math.max(i - 1, 0));
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                const prop = filtered[activeIndex];
-                if (prop) handleSelect(prop);
+                const item = filteredItems[activeIndex];
+                if (!item) return;
+                if (item.kind === 'preset') handleSelectPreset(item.preset);
+                else handleSelect(item.prop);
             } else if (e.key === 'Escape') {
                 e.preventDefault();
                 onClose();
             }
         },
-        [filtered, activeIndex, handleSelect, onClose],
+        [filteredItems, activeIndex, handleSelect, handleSelectPreset, onClose],
     );
 
     // Clamp position to stay within viewport
@@ -188,26 +315,49 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
                 </div>
 
                 <div ref={listRef} className="max-h-56 overflow-y-auto py-1">
-                    {filtered.length === 0 ? (
+                    {filteredItems.length === 0 ? (
                         <div className="px-3 py-2 text-[12px] text-neutral-500 select-none">
                             No matching properties
                         </div>
                     ) : (
-                        filtered.map((prop, i) => {
-                            const isAutomated = !!automationChannels[makeChannelId(elementId, prop.key)];
+                        filteredItems.map((item, i) => {
                             const isActive = i === activeIndex;
+                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-700/70' : 'hover:bg-neutral-700/40'}`;
+
+                            if (item.kind === 'preset') {
+                                return (
+                                    <button
+                                        key={item.preset.id}
+                                        type="button"
+                                        className={baseClass}
+                                        onMouseEnter={() => setActiveIndex(i)}
+                                        onClick={() => handleSelectPreset(item.preset)}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-sm flex-shrink-0 mt-px bg-sky-500" />
+                                        <span className="flex-1 min-w-0">
+                                            <span className="text-[13px] text-sky-300 block truncate">
+                                                {item.preset.label}
+                                            </span>
+                                            <span className="text-[11px] text-neutral-500 block truncate">
+                                                {item.preset.description}
+                                            </span>
+                                        </span>
+                                    </button>
+                                );
+                            }
+
+                            const { prop } = item;
+                            const isAutomated = !!automationChannels[makeChannelId(elementId, prop.key)];
                             return (
                                 <button
                                     key={prop.key}
                                     type="button"
-                                    className={`w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-700/70' : 'hover:bg-neutral-700/40'
-                                        }`}
+                                    className={baseClass}
                                     onMouseEnter={() => setActiveIndex(i)}
                                     onClick={() => handleSelect(prop)}
                                 >
                                     <span
-                                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-px ${isAutomated ? 'bg-yellow-400' : 'bg-neutral-600'
-                                            }`}
+                                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-px ${isAutomated ? 'bg-yellow-400' : 'bg-neutral-600'}`}
                                         title={isAutomated ? 'Already automated' : 'Not yet automated'}
                                     />
                                     <span className="flex-1 min-w-0">

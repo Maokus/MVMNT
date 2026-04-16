@@ -220,7 +220,18 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         };
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Enter') {
+                e.currentTarget.blur();
+                return;
+            }
+            if (e.key === 'i') {
+                e.preventDefault();
+                e.stopPropagation();
+                // Commit the current value, then forward the keypress from a non-input
+                // context so InsertKeyframeController can handle it.
+                e.currentTarget.blur();
+                document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', bubbles: true, cancelable: true }));
+            }
         };
 
         return (

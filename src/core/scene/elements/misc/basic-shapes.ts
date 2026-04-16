@@ -53,7 +53,7 @@ export class BasicShapesElement extends SceneElement {
                         description: 'Outline color. Set alpha to 0 for no stroke.',
                     }),
                     prop.number('strokeWidth', 'Stroke Width (px)', 0, {
-                        min: 0, max: 60, step: 1,
+                        min: 0, step: 1,
                         description: 'Width of the stroke in pixels (0 = no stroke).',
                     }),
                     prop.select('lineCap', 'Line Cap', 'butt', [
@@ -131,18 +131,25 @@ export class BasicShapesElement extends SceneElement {
                             { key: 'shapeType', notEquals: 'line' },
                         ],
                     }),
-                    prop.range('startAngle', 'Start Angle (°)', 0, {
-                        min: 0, max: 360, step: 1,
-                        description: 'Arc start angle in degrees (0 = right, 90 = down).',
+                    prop.number('startAngle', 'Start Angle (rad)', 0, {
+                        min: 0, max: 6.28, step: 0.01,
+                        description: 'Arc start angle in radians (0 = right, π/2 = down).',
                         visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                     }),
-                    prop.range('endAngle', 'End Angle (°)', 360, {
-                        min: 0, max: 360, step: 1,
-                        description: 'Arc end angle in degrees (360 = full circle).',
+                    prop.number('endAngle', 'End Angle (rad)', 6.28, {
+                        min: 0, max: 6.28, step: 0.01,
+                        description: 'Arc end angle in radians (2π ≈ 6.28 = full circle).',
                         visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                     }),
                     prop.boolean('anticlockwise', 'Anticlockwise', false, {
                         description: 'Draw the arc in the anticlockwise direction.',
+                        visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
+                    }),
+                    prop.select('circleFillStyle', 'Fill Style', 'segment', [
+                        { value: 'segment', label: 'Segment' },
+                        { value: 'sector', label: 'Sector (pie)' },
+                    ], {
+                        description: 'Segment closes with a chord; sector closes back to the centre (pie-slice).',
                         visibleWhen: [{ key: 'shapeType', equals: 'circle' }],
                     }),
                     prop.number('sides', 'Sides', 3, {
@@ -204,11 +211,13 @@ export class BasicShapesElement extends SceneElement {
         const hasShadow = this.#alphaFromHex(shadowColor) > 0;
 
         let ro: RenderObject;
+        let layoutBounds = { w: 0, h: 0 };
 
         switch (shapeType) {
             case 'rectangle': {
                 const w = Math.max(1, props.rectWidth ?? 200);
                 const h = Math.max(1, props.rectHeight ?? 120);
+                layoutBounds = { w, h };
                 const cr = props.cornerRadius ?? 0;
                 const rect = new Rectangle(-w / 2, -h / 2, w, h, effectiveFill, effectiveStroke, strokeWidth);
                 rect.cornerRadius = cr;
@@ -218,18 +227,21 @@ export class BasicShapesElement extends SceneElement {
             }
             case 'circle': {
                 const r = Math.max(1, props.radius ?? 100);
-                const startAngle = (props.startAngle ?? 0) * DEG_TO_RAD;
-                const endAngle = (props.endAngle ?? 360) * DEG_TO_RAD;
+                layoutBounds = { w: r * 2, h: r * 2 };
+                const startAngle = props.startAngle ?? 0;
+                const endAngle = props.endAngle ?? Math.PI * 2;
                 const anticlockwise = props.anticlockwise ?? false;
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
                 const dashGap = props.dashGap ?? 4;
+                const circleFillStyle = (props.circleFillStyle ?? 'segment') as 'segment' | 'sector';
                 const arc = new Arc(0, 0, r, startAngle, endAngle, anticlockwise, {
                     fillColor: effectiveFill,
                     strokeColor: effectiveStroke,
                     strokeWidth,
                 });
                 arc.lineCap = lineCap;
+                arc.arcFillStyle = circleFillStyle;
                 if (dashLength > 0) arc.lineDash = [dashLength, dashGap];
                 if (hasShadow) arc.setShadow(shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
                 ro = arc;
@@ -237,6 +249,7 @@ export class BasicShapesElement extends SceneElement {
             }
             case 'triangle': {
                 const r = Math.max(1, props.radius ?? 100);
+                layoutBounds = { w: r * 2, h: r * 2 };
                 const sides = Math.max(3, Math.round(props.sides ?? 3));
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
@@ -255,6 +268,7 @@ export class BasicShapesElement extends SceneElement {
             }
             case 'line': {
                 const len = Math.max(1, props.lineLength ?? 200);
+                layoutBounds = { w: len, h: 0 };
                 const lineCap = (props.lineCap ?? 'butt') as CanvasLineCap;
                 const dashLength = props.dashLength ?? 0;
                 const dashGap = props.dashGap ?? 4;
@@ -270,8 +284,13 @@ export class BasicShapesElement extends SceneElement {
         }
 
         ro.blendMode = blendMode === 'source-over' ? null : blendMode;
+        ro.setIncludeInLayoutBounds(false);
 
-        return [ro];
+        // Create invisible layout element to stabilize bounds
+        const layoutRect = new Rectangle(-layoutBounds.w / 2, -layoutBounds.h / 2, layoutBounds.w, layoutBounds.h, null, null, 0);
+        (layoutRect as any).isLayoutElement = true;
+
+        return [layoutRect, ro];
     }
 
     /** Parse alpha channel from a 8-char hex color like '#rrggbbaa'. Returns 0–255. */

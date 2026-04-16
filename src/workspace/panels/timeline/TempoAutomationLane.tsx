@@ -46,6 +46,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
     // Context menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tick: number } | null>(null);
+    const [interpNotAvailMenu, setInterpNotAvailMenu] = useState<{ x: number; y: number } | null>(null);
 
     // BPM axis range (auto-fit)
     const { bpmMin, bpmMax } = useMemo(() => {
@@ -241,6 +242,15 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const handleBackgroundClick = useCallback(() => {
         setSelectedTick(null);
         setContextMenu(null);
+        setInterpNotAvailMenu(null);
+    }, []);
+
+    const handleSvgContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Keyframe diamond onContextMenu handlers call stopPropagation, so this
+        // only fires for right-clicks on the lane background.
+        setInterpNotAvailMenu({ x: e.clientX, y: e.clientY });
     }, []);
 
     // Keyboard delete
@@ -274,7 +284,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         };
         window.addEventListener('pointerup', handleWindowPointerUp);
         return () => window.removeEventListener('pointerup', handleWindowPointerUp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDragging]);
 
     return (
@@ -294,6 +304,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 className="block"
                 onDoubleClick={handleDoubleClick}
                 onClick={handleBackgroundClick}
+                onContextMenu={handleSvgContextMenu}
                 onPointerMove={isDragging ? handlePointerMove : undefined}
                 onPointerUp={isDragging ? handlePointerUp : undefined}
                 onPointerCancel={isDragging ? () => { setDragState(null); setDraftPos(null); } : undefined}
@@ -401,6 +412,19 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         >
                             Delete keyframe
                         </button>
+                    </div>
+                </>
+            )}
+
+            {/* Interpolation not available notice */}
+            {interpNotAvailMenu && (
+                <>
+                    <div className="fixed inset-0 z-[9990]" onClick={() => setInterpNotAvailMenu(null)} />
+                    <div
+                        className="fixed z-[9991] min-w-[200px] rounded border border-neutral-700 bg-neutral-900/95 px-3 py-2 shadow-xl text-[12px] text-neutral-400"
+                        style={{ left: interpNotAvailMenu.x, top: interpNotAvailMenu.y }}
+                    >
+                        Interpolation not available for tempo automation
                     </div>
                 </>
             )}

@@ -1,6 +1,6 @@
 # Plugin API Migration Guide
 
-_Last Updated: 5 March 2026_
+_Last Updated: 14 April 2026_
 
 This guide migrates plugin-facing code from internal host imports to the stable public Plugin API.
 
@@ -132,10 +132,8 @@ Template references:
 ## Import Policy
 
 - Preferred and supported: `@mvmnt/plugin-sdk`
-- Temporary legacy compatibility: selected `@core/*`, `@audio/*`, `@utils/*` imports
-- Unsupported and blocked by plugin build validation: host internals such as `@state/*`, `@selectors/*`, `@persistence/*`, `@constants/*`, and similar aliases
-
-Legacy internal imports are still resolved at runtime today but should be migrated. A future release will remove that compatibility bridge.
+- Legacy compatibility: selected `@core/*`, `@audio/*`, `@utils/*` imports still resolve at runtime and produce a build warning but are not blocked
+- Blocked by plugin build validation: `@state/*`, `@selectors/*`, `@persistence/*`, `@constants/*`, `@types/*`, `@app/*`, and other host-internal aliases
 
 ### Timeline unavailable
 

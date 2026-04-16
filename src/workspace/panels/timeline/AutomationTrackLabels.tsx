@@ -1,10 +1,10 @@
 import React, { useCallback } from 'react';
-import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight } from 'react-icons/fa';
+import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight, FaSearch } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from './constants';
 import { useCurveHeight } from './curveHeightContext';
 
 /** Channel row label with curve toggle and remove button. */
@@ -73,19 +73,21 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                     >
                         <FaAngleRight className="text-[8px]" />
                     </button>
-                    <button
-                        className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
-                            ? 'text-blue-400 bg-blue-900/30'
-                            : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                            }`}
-                        title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCurve();
-                        }}
-                    >
-                        <FaChartLine className="text-[8px]" />
-                    </button>
+                    {channel?.valueType !== 'string' && (
+                        <button
+                            className={`flex items-center justify-center w-4 h-4 rounded ${curveExpanded
+                                ? 'text-blue-400 bg-blue-900/30'
+                                : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
+                                }`}
+                            title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCurve();
+                            }}
+                        >
+                            <FaChartLine className="text-[8px]" />
+                        </button>
+                    )}
                     <button
                         className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
                         title={`Remove automation: ${propertyKey}`}
@@ -103,7 +105,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
                 </div>
             </div>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
-            {curveExpanded && (
+            {curveExpanded && channel?.valueType !== 'string' && (
                 <div
                     className="border-b border-neutral-800/60 bg-neutral-900/30 flex items-center px-6"
                     style={{ height: curveHeight }}
@@ -120,6 +122,7 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
     const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
     const expanded = useAutomationExpanded(elementId);
     const channels = useElementChannels(elementId);
+    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
 
     const toggleExpanded = useCallback(() => {
         useSceneStore.setState((state) => {
@@ -135,6 +138,15 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
 
     if (!element || channels.length === 0) return null;
 
+    const lowerQuery = searchQuery.toLowerCase().trim();
+    const visibleChannels = lowerQuery
+        ? channels.filter((ch) => ch.propertyKey.toLowerCase().includes(lowerQuery))
+        : channels;
+
+    if (lowerQuery && visibleChannels.length === 0) return null;
+
+    const isExpanded = lowerQuery ? true : expanded;
+
     return (
         <>
             {/* Element header row */}
@@ -142,15 +154,15 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
                 className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800/40"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
                 onClick={toggleExpanded}
-                title={expanded ? 'Collapse automation channels' : 'Expand automation channels'}
+                title={isExpanded ? 'Collapse automation channels' : 'Expand automation channels'}
             >
-                {expanded ? <FaChevronDown className="text-[9px]" /> : <FaChevronRight className="text-[9px]" />}
+                {isExpanded ? <FaChevronDown className="text-[9px]" /> : <FaChevronRight className="text-[9px]" />}
                 <span className="text-[11px] font-medium truncate">{elementId}</span>
-                <span className="text-[10px] text-neutral-500 truncate">({channels.length})</span>
+                <span className="text-[10px] text-neutral-500 truncate">({visibleChannels.length})</span>
             </div>
 
             {/* Channel rows (when expanded) */}
-            {expanded && channels.map((ch) => (
+            {isExpanded && visibleChannels.map((ch) => (
                 <ChannelRow
                     key={ch.id}
                     channelId={ch.id}
@@ -165,8 +177,15 @@ const ElementAutomationGroup: React.FC<{ elementId: string }> = ({ elementId }) 
 /** Left-column labels for the automation section, rendered below track rows. */
 const AutomationTrackLabels: React.FC = () => {
     const automatedIds = useAutomatedElementIds();
+    const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
 
     if (automatedIds.length === 0) return null;
+
+    const setSearchQuery = (q: string) => {
+        useSceneStore.setState((s) => ({
+            interaction: { ...s.interaction, automationSearchQuery: q },
+        }));
+    };
 
     return (
         <div className="automation-labels border-t border-neutral-700">
@@ -175,7 +194,27 @@ const AutomationTrackLabels: React.FC = () => {
                 className="flex items-center px-2 border-b border-neutral-800 bg-neutral-900/60 text-neutral-500"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
             >
-                <span className="text-[10px] font-semibold uppercase tracking-wider">Automation</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider flex-1">Automation</span>
+            </div>
+
+            {/* Search bar */}
+            <div className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40" style={{ height: AUTOMATION_SEARCH_HEIGHT }}>
+                <FaSearch className="text-[9px] text-neutral-500 shrink-0" />
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter properties…"
+                    className="flex-1 bg-transparent text-[11px] text-neutral-300 placeholder-neutral-600 outline-none min-w-0"
+                />
+                {searchQuery && (
+                    <button
+                        className="text-neutral-500 hover:text-neutral-200"
+                        onClick={() => setSearchQuery('')}
+                    >
+                        <FaTimes className="text-[9px]" />
+                    </button>
+                )}
             </div>
 
             {/* Element groups */}

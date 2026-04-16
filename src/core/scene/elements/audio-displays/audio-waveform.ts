@@ -12,7 +12,7 @@ const { descriptor: WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: '
 
 const DEFAULT_PRIMARY_LINE_COLOR = '#22D3EEFF';
 const DEFAULT_SECONDARY_LINE_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 
 type WaveformSide = 'both' | 'sideA' | 'sideB';
 type WaveformChannel = 'left' | 'right' | 'mid' | 'side';

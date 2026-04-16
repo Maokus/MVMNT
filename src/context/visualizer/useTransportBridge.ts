@@ -23,6 +23,35 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
 
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
+            const ctrlOrCmd = e.ctrlKey || e.metaKey;
+
+            if (ctrlOrCmd && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+                const target = e.target as HTMLElement | null;
+                const tag = target?.tagName;
+                let isEditing = false;
+                if (target) {
+                    if (target.isContentEditable) {
+                        isEditing = true;
+                    } else if (tag === 'TEXTAREA') {
+                        isEditing = true;
+                    } else if (tag === 'INPUT') {
+                        const type = (target as HTMLInputElement).type;
+                        const textLike = ['text', 'search', 'url', 'tel', 'email', 'password'];
+                        if (textLike.includes(type)) isEditing = true;
+                    }
+                }
+                if (isEditing) return;
+                e.preventDefault();
+                try {
+                    const st = useTimelineStore.getState();
+                    const next = e.code === 'ArrowLeft'
+                        ? Math.max(0, st.timeline.currentTick - 1)
+                        : st.timeline.currentTick + 1;
+                    st.seekTick(next);
+                } catch {}
+                return;
+            }
+
             if (e.code === 'Space' || e.key === ' ') {
                 const target = e.target as HTMLElement | null;
                 const tag = target?.tagName;

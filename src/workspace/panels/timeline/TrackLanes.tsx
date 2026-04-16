@@ -95,10 +95,13 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
 
         const [dragging, setDragging] = useState(false);
         const [dragTick, setDragTick] = useState<number | null>(null);
-        const startRef = useRef<{ startX: number; baseOffsetTick: number; alt: boolean } | null>(null);
+        const startRef = useRef<{ startX: number; baseOffsetTick: number; alt: boolean; groupBaseOffsets: Record<string, number> } | null>(null);
         const [resizing, setResizing] = useState<null | { type: 'left' | 'right'; startX: number; baseStart: number; baseEnd: number; alt: boolean }>(null);
         const [didMove, setDidMove] = useState(false);
         const isSelected = useTimelineStore((s) => s.selection.selectedTrackIds.includes(trackId));
+        const selectedTrackIds = useTimelineStore((s) => s.selection.selectedTrackIds);
+        const groupDrag = useTimelineStore((s) => s._clipGroupDrag);
+        const setClipGroupDrag = useTimelineStore((s) => s._setClipGroupDrag);
         const quantize = useTimelineStore((s) => s.transport.quantize);
 
         // Compute local clip extent from cached MIDI and optional region trimming
@@ -144,7 +147,15 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             if (!track) return;
             // Begin dragging the track block
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            startRef.current = { startX: e.clientX, baseOffsetTick: track?.offsetTicks || 0, alt: !!e.altKey };
+            // Capture base offsets for all co-selected tracks so we can move them together
+            const groupBaseOffsets: Record<string, number> = {};
+            if (isSelected && selectedTrackIds.length > 1) {
+                const storeState = useTimelineStore.getState();
+                for (const id of selectedTrackIds) {
+                    groupBaseOffsets[id] = storeState.tracks[id]?.offsetTicks ?? 0;
+                }
+            }
+            startRef.current = { startX: e.clientX, baseOffsetTick: track?.offsetTicks || 0, alt: !!e.altKey, groupBaseOffsets };
             setDragging(true);
             setDidMove(false);
             onHoverSnapX(null);
@@ -195,6 +206,11 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             setDragTick(snapped);
             onHoverSnapX(toX(snapped, laneWidth));
             if (Math.abs(dx) > 2) setDidMove(true);
+            // Broadcast delta to co-selected clips for visual group drag
+            const groupIds = Object.keys(startRef.current.groupBaseOffsets);
+            if (groupIds.length > 1) {
+                setClipGroupDrag({ delta: snapped - startRef.current.baseOffsetTick, trackIds: groupIds });
+            }
         };
         const onPointerUp = (e: React.PointerEvent) => {
             if (resizing) {
@@ -207,7 +223,18 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             const fallback = track?.offsetTicks ?? 0;
             const finalTick = dragTick != null ? dragTick : fallback;
             const clampedFinal = allowNegativeOffset ? finalTick : Math.max(0, finalTick);
-            void setTrackOffsetTicks(trackId, clampedFinal);
+            const groupBaseOffsets = startRef.current?.groupBaseOffsets ?? {};
+            const groupIds = Object.keys(groupBaseOffsets);
+            if (groupIds.length > 1) {
+                const delta = clampedFinal - (startRef.current?.baseOffsetTick ?? fallback);
+                for (const id of groupIds) {
+                    const newOffset = groupBaseOffsets[id] + delta;
+                    void setTrackOffsetTicks(id, allowNegativeOffset ? newOffset : Math.max(0, newOffset));
+                }
+            } else {
+                void setTrackOffsetTicks(trackId, clampedFinal);
+            }
+            setClipGroupDrag(null);
             setDragTick(null);
             onHoverSnapX(null);
             // Click selection when not moved
@@ -224,7 +251,11 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             const baseEnd = track.regionEndTick ?? localEndTick;
             setResizing({ type: which, startX: e.clientX, baseStart, baseEnd, alt: !!e.altKey });
         };
-        const offsetTick = dragTick != null ? dragTick : (track?.offsetTicks || 0);
+        const offsetTick = dragTick != null
+            ? dragTick
+            : (groupDrag && groupDrag.trackIds.includes(trackId)
+                ? (track?.offsetTicks || 0) + groupDrag.delta
+                : (track?.offsetTicks || 0));
         const rawAbsStart = offsetTick + localStartTick;
         const rawAbsEnd = offsetTick + localEndTick;
         const absStartTick = allowNegativeOffset ? rawAbsStart : Math.max(0, rawAbsStart);
@@ -560,6 +591,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
     const onBackgroundPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
         if (e.button !== 0) return; // left click only for marquee
+        if (activeTab !== 'clips') return; // marquee is clips-view only
         if (!containerRef.current) return;
         // Ignore clicks that start on a clip (so clip dragging works)
         const target = e.target as HTMLElement;
@@ -690,8 +722,8 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             {/* Playhead overlay */}
             <div className="absolute top-0 bottom-0 w-0 border-l border-red-400 pointer-events-none" style={{ left: playheadX }} />
 
-            {/* Marquee selection overlay */}
-            {marquee && (
+            {/* Marquee selection overlay — clips view only */}
+            {activeTab === 'clips' && marquee && (
                 <div
                     className="absolute top-0 bottom-0 bg-blue-400/10 border-x border-blue-400 pointer-events-none"
                     style={{ left: Math.min(marquee.x1, marquee.x2), width: Math.abs(marquee.x2 - marquee.x1) }}

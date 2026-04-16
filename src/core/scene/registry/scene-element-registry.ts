@@ -222,6 +222,7 @@ export class SceneElementRegistry {
         this.registerElementFromClass('notesPlayedTracker', elements.NotesPlayedTrackerElement);
         this.registerElementFromClass('notesPlayingDisplay', elements.NotesPlayingDisplayElement);
         this.registerElementFromClass('chordEstimateDisplay', elements.ChordEstimateDisplayElement);
+        this.registerElementFromClass('ccMonitor', elements.CCMonitorElement);
 
         this.registerElementFromClass('audioSpectrum', elements.AudioSpectrumElement);
         this.registerElementFromClass('audioVolumeMeter', elements.AudioVolumeMeterElement);
