@@ -11,4 +11,4 @@ Workflow: write source in src/plugins/<name>/ → npm run build-plugin → find 
 
 Tracking
 --------
-- extraspack1/  tracked in git (default pack, shipped in public/default-plugins/)
+- midipack1/  tracked in git (default pack, shipped in public/default-plugins/)

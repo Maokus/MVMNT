@@ -1,6 +1,6 @@
 {
-  "id": "extraspack1",
-  "name": "Extras Pack 1",
+  "id": "midipack1",
+  "name": "Midi Pack 1",
   "version": "1.0.1",
   "apiVersion": "^1.0.0",
   "description": "Custom plugin providing 5 elements",
@@ -9,35 +9,35 @@
     {
       "type": "collision-midi-display",
       "name": "Collision Midi Display",
-      "category": "Extras Pack 1",
+      "category": "Midi Pack 1",
       "description": "MIDI display which shows notes as the collision of shapes",
       "entry": "collision-midi-display.ts"
     },
     {
       "type": "trackerlike-midi-display",
       "name": "Trackerlike Midi Display",
-      "category": "Extras Pack 1",
+      "category": "Midi Pack 1",
       "description": "A midi display that uses text to display notes",
       "entry": "trackerlike-midi-display.ts"
     },
     {
       "type": "popcat-midi-display",
       "name": "Popcat Midi Display",
-      "category": "Extras Pack 1",
+      "category": "Midi Pack 1",
       "description": "popcat",
       "entry": "popcat-midi-display.ts"
     },
     {
       "type": "almamlike-piano-roll",
       "name": "Almamlike Piano Roll",
-      "category": "Extras Pack 1",
+      "category": "Midi Pack 1",
       "description": "A piano roll like the moving notes piano roll but with the symbol",
       "entry": "almamlike-piano-roll.ts"
     },
     {
       "type": "circular-piano-roll",
       "name": "Circular Piano Roll",
-      "category": "Extras Pack 1",
+      "category": "Midi Pack 1",
       "description": "Piano roll, but circle!",
       "entry": "circular-piano-roll.ts"
     }

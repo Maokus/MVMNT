@@ -18,7 +18,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Trackerlike Midi Display',
             description: 'A tracker-style MIDI display showing notes per beat in monospace text',
-            category: 'extraspack1',
+            category: 'midipack1',
         }, [
             {
                 id: 'midiSource',
