@@ -8,6 +8,7 @@ import {
     Rectangle,
     Text,
     Line,
+    GlowLayer,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
@@ -145,6 +146,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                         min: 0.05, max: 2, step: 0.05,
                         visibleWhen: [{ key: 'animationType', notEquals: 'none' }],
                     }),
+                    prop.number('bloomRadius', 'Bloom', 0, { min: 0, max: 60, step: 1 }),
                 ],
             },
         ]);
@@ -204,6 +206,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
         const animType = (p.animationType as string) ?? 'press';
         // For press: springDuration after note ends. For pluck: total duration.
         const animDuration = Math.max(0.05, (p.animationDuration as number) ?? 0.3);
+        const bloomRadius = Math.max(0, (p.bloomRadius as number) ?? 0);
 
         // ── Query window ────────────────────────────────────────────────────
         const maxEffectDuration = Math.max(markerDuration, rippleDuration, animDuration);
@@ -299,6 +302,11 @@ export class AlmamlikePianoRollElement extends SceneElement {
             objects.push(ph);
         }
 
+        if (bloomRadius > 0) {
+            const glow = new GlowLayer({ glowBlur: bloomRadius });
+            glow.addChildren(objects);
+            return [glow];
+        }
         return objects;
     }
 }

@@ -166,3 +166,4 @@ This produces `dist/com.example.my-plugin-1.0.0.mvmnt-plugin` — a single file 
 - **`targetTime` is in seconds.** Use `api.timing.secondsToBeats(targetTime)` when you need beat-relative positioning.
 - **Keep render objects under ~1000 per frame.** For dense displays, use `limitRenderObjects` from the SDK.
 - **Graceful degradation.** Always guard `getPluginHostApi()` results — the host API may not be ready on the first few frames.
+- **Animation math is built in.** Use `clamp`, `remap`, `lerp`, `FloatCurve`, and the `easings` dictionary from `@mvmnt/plugin-sdk/animation` instead of reinventing interpolation helpers.

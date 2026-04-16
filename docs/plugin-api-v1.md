@@ -1,6 +1,6 @@
 # Plugin API v1
 
-_Last Updated: 14 April 2026_
+_Last Updated: 16 April 2026_
 
 This document defines the stable host API available to plugins at runtime.
 
@@ -22,17 +22,50 @@ Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, et
 **To author plugins, you must either:**
 
 - Work inside this repository (recommended for first-party elements).
-- Build your plugin against the repo as a peer and configure the same path alias in your own `tsconfig.json`:
+- Build your plugin against the repo as a peer and configure the same path aliases in your own `tsconfig.json`:
 
   ```json
   {
     "paths": {
-      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"]
+      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"],
+      "@mvmnt/plugin-sdk/*": ["path/to/MVMNT/src/core/scene/plugins/sdk/*"]
     }
   }
   ```
 
 Do **not** attempt to `npm install @mvmnt/plugin-sdk` — no such package exists. The bundle produced by your build tool must not include the SDK source; the host injects it at load time.
+
+## SDK Submodules
+
+The SDK is organised into domain submodules. You can import everything from the top-level barrel, or import only what you need from a specific submodule for clarity:
+
+```ts
+// Top-level barrel — always works, includes everything
+import { selectNotes, clamp, remap, easings } from '@mvmnt/plugin-sdk';
+
+// Domain submodule — explicit and tree-shake friendly
+import { clamp, remap, easings, FloatCurve } from '@mvmnt/plugin-sdk/animation';
+import { selectNotes, timelineApi }           from '@mvmnt/plugin-sdk/timeline';
+import { audioApi, sampleAudio }              from '@mvmnt/plugin-sdk/audio';
+import { timingApi, beatsToSeconds }          from '@mvmnt/plugin-sdk/timing';
+import { Rectangle, BezierPath, Arc }         from '@mvmnt/plugin-sdk/render';
+import { SceneElement, prop }                 from '@mvmnt/plugin-sdk/scene';
+import { getPluginHostApi, PLUGIN_CAPABILITIES, MissingCapabilityError } from '@mvmnt/plugin-sdk/api';
+import { withRenderSafety, limitRenderObjects } from '@mvmnt/plugin-sdk/safety';
+import { noteName, loadBundledAsset }         from '@mvmnt/plugin-sdk/utils';
+```
+
+| Submodule | Contents |
+|---|---|
+| `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions) |
+| `render` | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, … |
+| `scene` | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`, config schema types |
+| `api` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, … |
+| `timeline` | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, … |
+| `audio` | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, … |
+| `timing` | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, … |
+| `safety` | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError` |
+| `utils` | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader |
 
 ## Capabilities
 
@@ -228,7 +261,37 @@ const label = api.utilities.midiNoteToName(60); // C4
 
 ## SDK Utilities
 
-These helpers are exported from `@mvmnt/plugin-sdk` and do not require a capability access call.
+These helpers are exported from `@mvmnt/plugin-sdk` (or the corresponding submodule) and do not require a capability access call.
+
+### Animation math (`animation` submodule)
+
+```ts
+import { clamp, lerp, invLerp, remap, FloatCurve, easings } from '@mvmnt/plugin-sdk/animation';
+```
+
+- `clamp(v, min, max)` — clamp a number to a range
+- `lerp(a, b, t)` — linear interpolation between two values
+- `invLerp(a, b, v)` — inverse lerp; returns the `t` that produces `v`
+- `remap(inMin, inMax, outMin, outMax, v)` — map a value from one range to another (clamped)
+- `FloatCurve` — piecewise linear interpolation with per-segment easing; pass `[factor, value, easingFn?]` tuples
+- `easings` — dictionary of 31 named easing functions (`easeOutQuad`, `easeInElastic`, `easeInOutBack`, etc.)
+
+Example — fade-out alpha over a ripple lifetime:
+
+```ts
+const alpha = remap(fadeFrom, 1, 1, 0, progress);
+```
+
+Example — custom curve with easing:
+
+```ts
+const curve = new FloatCurve([
+    [0,   0, easings.easeOutCubic],
+    [0.6, 1],
+    [1,   0, easings.easeInQuad],
+]);
+const scale = curve.valAt(progress);
+```
 
 ### Property factories (`prop`, `insertElementGroups`)
 

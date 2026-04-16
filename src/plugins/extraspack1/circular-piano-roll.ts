@@ -10,6 +10,7 @@ import {
     Text,
     Line,
     Arc,
+    GlowLayer,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
@@ -251,6 +252,7 @@ export class CircularPianoRollElement extends SceneElement {
                         min: 0.05, max: 2, step: 0.05,
                         visibleWhen: [{ key: 'pulseOnHit', truthy: true }],
                     }),
+                    prop.number('bloomRadius', 'Bloom', 0, { min: 0, max: 60, step: 1 }),
                 ],
             },
         ]);
@@ -325,6 +327,7 @@ export class CircularPianoRollElement extends SceneElement {
 
         const pulseOnHit = (p.pulseOnHit as boolean) ?? true;
         const animDuration = Math.max(0.05, (p.animationDuration as number) ?? 0.25);
+        const bloomRadius = Math.max(0, (p.bloomRadius as number) ?? 0);
 
         const cx = 0;
         const cy = 0;
@@ -539,6 +542,11 @@ export class CircularPianoRollElement extends SceneElement {
             }
         }
 
+        if (bloomRadius > 0) {
+            const glow = new GlowLayer({ glowBlur: bloomRadius });
+            glow.addChildren(objects);
+            return [glow];
+        }
         return objects;
     }
 }

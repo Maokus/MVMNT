@@ -19,14 +19,16 @@ export class CheckersPatternElement extends SceneElement {
                 collapsed: false,
                 description: 'Checkerboard colors and square size',
                 properties: [
+                    prop.number('patternWidth', 'Width', 640, { min: 10, max: 4000, step: 1 }),
+                    prop.number('patternHeight', 'Height', 360, { min: 10, max: 4000, step: 1 }),
                     prop.number('squareWidth', 'Square Width', 80, { min: 4, max: 400, step: 1 }),
                     prop.number('squareHeight', 'Square Height', 80, { min: 4, max: 400, step: 1 }),
                     prop.colorAlpha('color1', 'Color 1', '#222222FF'),
                     prop.colorAlpha('color2', 'Color 2', '#444444FF'),
                 ],
                 presets: [
-                    { id: 'blackWhite', label: 'Black & White', values: { squareWidth: 80, squareHeight: 80, color1: '#000000FF', color2: '#FFFFFFFF' } },
-                    { id: 'blueGold', label: 'Blue & Gold', values: { squareWidth: 60, squareHeight: 60, color1: '#1E3A8AFF', color2: '#F59E0BFF' } },
+                    { id: 'blackWhite', label: 'Black & White', values: { patternWidth: 640, patternHeight: 360, squareWidth: 80, squareHeight: 80, color1: '#000000FF', color2: '#FFFFFFFF' } },
+                    { id: 'blueGold', label: 'Blue & Gold', values: { patternWidth: 640, patternHeight: 360, squareWidth: 60, squareHeight: 60, color1: '#1E3A8AFF', color2: '#F59E0BFF' } },
                 ],
             },
             {
@@ -48,8 +50,8 @@ export class CheckersPatternElement extends SceneElement {
         const props = this.getSchemaProps();
         if (!props.visible) return [];
 
-        const w: number = props.width;
-        const h: number = props.height;
+        const w: number = props.patternWidth;
+        const h: number = props.patternHeight;
         const squareW: number = props.squareWidth;
         const squareH: number = props.squareHeight;
         const color1: string = props.color1;

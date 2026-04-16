@@ -124,17 +124,18 @@ export function makeRng(seed: number): () => number {
 // Marker helpers (centred at cx, cy)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function drawDiamondMarker(cx: number, cy: number, size: number, color: string, alpha: number): RenderObject[] {
+export function drawDiamondMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
     const s = size / 2;
     const d = new Poly(
         [cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy],
         withAlpha(color, alpha), null, 0
     );
     (d as any).setIncludeInLayoutBounds?.(false);
+    (d as any).setScale?.(scale);
     return [d];
 }
 
-export function drawHeartMarker(cx: number, cy: number, size: number, color: string, alpha: number): RenderObject[] {
+export function drawHeartMarker(cx: number, cy: number, size: number, color: string, alpha: number, scale: number): RenderObject[] {
     const s = size * 0.55;
     const heart = new BezierPath(cx, cy, [], {
         fillColor: withAlpha(color, alpha),
@@ -146,13 +147,15 @@ export function drawHeartMarker(cx: number, cy: number, size: number, color: str
     heart.bezierCurveTo(s * 1.5, -s * 0.5, s, s, 0, s * 0.5);
     heart.closePath();
     (heart as any).setIncludeInLayoutBounds?.(false);
+    (heart as any).setScale?.(scale);
     return [heart];
 }
 
-export function drawTextMarker(cx: number, cy: number, size: number, color: string, alpha: number, label: string): RenderObject[] {
+export function drawTextMarker(cx: number, cy: number, size: number, color: string, alpha: number, label: string, scale: number): RenderObject[] {
     const fontSize = Math.max(10, Math.round(size * 0.8));
     const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
     (t as any).setIncludeInLayoutBounds?.(false);
+    (t as any).setScale?.(scale);
     return [t];
 }
 
@@ -355,13 +358,27 @@ export function pushHitEffects(
     } = opts;
 
     if (markerType !== 'none' && timeSinceHit <= markerDuration) {
-        const alpha = anim.remap(0, markerDuration, 1, 0, timeSinceHit);
+        const t = timeSinceHit / markerDuration; // 0..1 over lifetime
+
+        // Scale: ease-out on appear (0→1 in first 30%), ease-in on exit (1→0 in last 70%)
+        const APPEAR_FRAC = 0.3;
+        let scale: number;
+        if (t < APPEAR_FRAC) {
+            scale = anim.easings.easeOutBack(t / APPEAR_FRAC);
+        } else {
+            scale = anim.easings.easeInCubic(1 - (t - APPEAR_FRAC) / (1 - APPEAR_FRAC));
+        }
+        scale = Math.max(0, scale);
+
+        // Alpha follows scale so there's no ghost at zero size
+        const alpha = scale;
+
         if (markerType === 'diamond') {
-            effects.push(...drawDiamondMarker(hitX, hitY, markerSize, markerColor, alpha));
+            effects.push(...drawDiamondMarker(hitX, hitY, markerSize, markerColor, alpha, scale));
         } else if (markerType === 'heart') {
-            effects.push(...drawHeartMarker(hitX, hitY, markerSize, markerColor, alpha));
+            effects.push(...drawHeartMarker(hitX, hitY, markerSize, markerColor, alpha, scale));
         } else if (markerType === 'text') {
-            effects.push(...drawTextMarker(hitX, hitY, markerSize, markerColor, alpha, markerText));
+            effects.push(...drawTextMarker(hitX, hitY, markerSize, markerColor, alpha, markerText, scale));
         }
     }
 
