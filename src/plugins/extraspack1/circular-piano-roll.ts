@@ -10,13 +10,15 @@ import {
     Text,
     Line,
     Arc,
-    BezierPath,
-    Poly,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
 import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
+import {
+    withAlpha,
+    pushHitEffects,
+} from './piano-roll-effects';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animation / effect constants
@@ -27,32 +29,9 @@ const PULSE_ANIM = {
     widthScale: 2.5,
 };
 
-const BURST_RIPPLE = {
-    numRays: 8,
-    innerFraction: 0.12,
-    outerFraction: 1.0,
-    strokeWidth: 2.5,
-    fadeFrom: 0.45,
-};
-
-const CIRCLE_RIPPLE = {
-    strokeWidth: 2,
-    startFraction: 0.05,
-    endFraction: 1.0,
-    fadeFrom: 0.35,
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function withAlpha(hex: string, alpha: number): string {
-    const clean = hex.replace('#', '').slice(0, 6);
-    const r = parseInt(clean.slice(0, 2), 16) || 0;
-    const g = parseInt(clean.slice(2, 4), 16) || 0;
-    const b = parseInt(clean.slice(4, 6), 16) || 0;
-    return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
-}
 
 function hslToHex(h: number, s: number, l: number): string {
     s /= 100; l /= 100;
@@ -67,79 +46,6 @@ function hslToHex(h: number, s: number, l: number): string {
 function pitchToColor(note: number, saturation: number, lightness: number): string {
     const hue = ((note % 12) / 12) * 360;
     return hslToHex(hue, saturation, lightness);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Marker helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function drawDiamondMarker(cx: number, cy: number, size: number, color: string, alpha: number): RenderObject[] {
-    const s = size / 2;
-    const d = new Poly(
-        [cx, cy - s, cx + s, cy, cx, cy + s, cx - s, cy],
-        withAlpha(color, alpha), null, 0
-    );
-    (d as any).setIncludeInLayoutBounds?.(false);
-    return [d];
-}
-
-function drawHeartMarker(cx: number, cy: number, size: number, color: string, alpha: number): RenderObject[] {
-    const s = size * 0.55;
-    const heart = new BezierPath(cx, cy, [], {
-        fillColor: withAlpha(color, alpha),
-        strokeColor: null,
-        strokeWidth: 0,
-    });
-    heart.moveTo(0, s * 0.5);
-    heart.bezierCurveTo(-s, s, -s * 1.5, -s * 0.5, 0, -s * 0.5);
-    heart.bezierCurveTo(s * 1.5, -s * 0.5, s, s, 0, s * 0.5);
-    heart.closePath();
-    (heart as any).setIncludeInLayoutBounds?.(false);
-    return [heart];
-}
-
-function drawTextMarker(cx: number, cy: number, size: number, color: string, alpha: number, label: string): RenderObject[] {
-    const fontSize = Math.max(10, Math.round(size * 0.8));
-    const t = new Text(cx, cy, label, `bold ${fontSize}px sans-serif`, withAlpha(color, alpha), 'center', 'middle');
-    (t as any).setIncludeInLayoutBounds?.(false);
-    return [t];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Ripple helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function drawBurstRipple(cx: number, cy: number, progress: number, rippleRadius: number, color: string): RenderObject[] {
-    const { fadeFrom, innerFraction, outerFraction, numRays, strokeWidth } = BURST_RIPPLE;
-    const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
-    if (alpha <= 0) return [];
-    const inner = rippleRadius * innerFraction;
-    const outer = rippleRadius * (innerFraction + (outerFraction - innerFraction) * progress);
-    const rayColor = withAlpha(color, alpha);
-    const out: RenderObject[] = [];
-    for (let i = 0; i < numRays; i++) {
-        const angle = (i / numRays) * Math.PI * 2;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const line = new Line(cx + cos * inner, cy + sin * inner, cx + cos * outer, cy + sin * outer, rayColor, strokeWidth);
-        (line as any).setIncludeInLayoutBounds?.(false);
-        out.push(line);
-    }
-    return out;
-}
-
-function drawCircleRipple(cx: number, cy: number, progress: number, rippleRadius: number, color: string): RenderObject[] {
-    const { fadeFrom, startFraction, endFraction, strokeWidth } = CIRCLE_RIPPLE;
-    const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
-    if (alpha <= 0) return [];
-    const radius = rippleRadius * (startFraction + (endFraction - startFraction) * progress);
-    const ring = new Arc(cx, cy, radius, 0, Math.PI * 2, false, {
-        fillColor: null,
-        strokeColor: withAlpha(color, alpha),
-        strokeWidth,
-    });
-    (ring as any).setIncludeInLayoutBounds?.(false);
-    return [ring];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,37 +81,6 @@ function drawPolarGrid(
 
 /** Convert clock-degrees (0 = top, clockwise) to standard math radians. */
 const clockDegToRad = (deg: number) => (deg - 90) * Math.PI / 180;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared hit-effects helper (used by both modes)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function _pushHitEffects(
-    effects: RenderObject[],
-    hitX: number, hitY: number,
-    timeSinceHit: number,
-    markerType: string, markerText: string, markerSize: number, markerColor: string, markerDuration: number,
-    rippleType: string, rippleRadius: number, rippleColor: string, rippleDuration: number,
-): void {
-    if (markerType !== 'none' && timeSinceHit <= markerDuration) {
-        const alpha = 1 - timeSinceHit / markerDuration;
-        if (markerType === 'diamond') {
-            effects.push(...drawDiamondMarker(hitX, hitY, markerSize, markerColor, alpha));
-        } else if (markerType === 'heart') {
-            effects.push(...drawHeartMarker(hitX, hitY, markerSize, markerColor, alpha));
-        } else if (markerType === 'text') {
-            effects.push(...drawTextMarker(hitX, hitY, markerSize, markerColor, alpha, markerText));
-        }
-    }
-    if (rippleType !== 'none' && timeSinceHit <= rippleDuration) {
-        const rippleProgress = timeSinceHit / rippleDuration;
-        if (rippleType === 'burst') {
-            effects.push(...drawBurstRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor));
-        } else if (rippleType === 'circle') {
-            effects.push(...drawCircleRipple(hitX, hitY, rippleProgress, rippleRadius, rippleColor));
-        }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Element
@@ -463,8 +338,7 @@ export class CircularPianoRollElement extends SceneElement {
         }
 
         // ── Query notes ──────────────────────────────────────────────────────
-        const maxEffectDuration = Math.max(markerDuration, rippleDuration, pulseOnHit ? animDuration : 0);
-        const queryStart = targetTime - maxEffectDuration;
+        const queryStart = targetTime - timeWindowDuration;
         const queryEnd = targetTime + timeWindowDuration;
 
         const notes = api.timeline.selectNotesInWindow({
@@ -536,9 +410,11 @@ export class CircularPianoRollElement extends SceneElement {
                 }
 
                 if (timeSinceHit >= 0) {
-                    _pushHitEffects(effects, triggerX, triggerY, timeSinceHit,
+                    pushHitEffects(effects, triggerX, triggerY, timeSinceHit, {
                         markerType, markerText, markerSize, markerColor, markerDuration,
-                        rippleType, rippleRadius, rippleColor, rippleDuration);
+                        rippleType, rippleRadius, rippleColor, rippleDuration,
+                        circleRippleConfig: { startFraction: 0.05 },
+                    });
                 }
             }
 
@@ -645,9 +521,11 @@ export class CircularPianoRollElement extends SceneElement {
                     const hitX = cx + noteRadius * Math.cos(triggerAngle);
                     const hitY = cy + noteRadius * Math.sin(triggerAngle);
 
-                    _pushHitEffects(effects, hitX, hitY, timeSinceHit,
+                    pushHitEffects(effects, hitX, hitY, timeSinceHit, {
                         markerType, markerText, markerSize, markerColor, markerDuration,
-                        rippleType, rippleRadius, rippleColor, rippleDuration);
+                        rippleType, rippleRadius, rippleColor, rippleDuration,
+                        circleRippleConfig: { startFraction: 0.05 },
+                    });
                 }
             }
 
