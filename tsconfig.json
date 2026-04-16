@@ -82,6 +82,9 @@
       ],
       "@mvmnt/plugin-sdk": [
         "core/scene/plugins/plugin-sdk"
+      ],
+      "@mvmnt/plugin-sdk/*": [
+        "core/scene/plugins/sdk/*"
       ]
     }
   },

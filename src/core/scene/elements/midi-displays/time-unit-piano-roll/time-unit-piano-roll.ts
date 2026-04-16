@@ -1,5 +1,5 @@
 // TimeUnitPianoRoll scene element with Property Binding System
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyDescriptor } from '@core/scene/elements/base';
+import { SceneElement } from '@core/scene/elements/base';
 import { EnhancedConfigSchema, type PropertyDefinition } from '@core/types.js';
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { Line, Text, RenderObject, Rectangle, GlowLayer } from '@core/render/render-objects';
@@ -10,6 +10,7 @@ import { TimingManager } from '@core/timing/timing-manager';
 import { getPluginHostApi, PLUGIN_CAPABILITIES, noteName } from '@mvmnt/plugin-sdk';
 import { debugLog } from '@utils/debug-log';
 import { normalizeColorAlphaValue, ensureEightDigitHex } from '@utils/color';
+import { insertElementGroups, prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6BCC';
@@ -46,9 +47,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
         const channelColorDefaults = [
             '#ff6b6b',
             '#4ecdc4',
@@ -108,23 +106,20 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 acc[`channel${index}Color`] = color;
                 return acc;
             }, {});
-        const channelColorProperties: PropertyDefinition[] = Array.from({ length: 16 }, (_, i) => ({
-            key: `channel${i}Color`,
-            type: 'color',
-            label: `Channel ${i + 1}`,
-            default: channelColorDefaults[i],
-            visibleWhen: [
-                { key: 'showNotes', truthy: true },
-                { key: 'useChannelColors', truthy: true },
-            ],
-        }));
+        const channelColorProperties: PropertyDefinition[] = Array.from({ length: 16 }, (_, i) =>
+            prop.color(`channel${i}Color`, `Channel ${i + 1}`, channelColorDefaults[i], {
+                visibleWhen: [
+                    { key: 'showNotes', truthy: true },
+                    { key: 'useChannelColors', truthy: true },
+                ],
+            })
+        );
 
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Time Unit Piano Roll',
             description: 'Piano roll visualization split into time-aligned windows.',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
+        }, [
                 {
                     id: 'midiSource',
                     label: 'MIDI Source',
@@ -132,13 +127,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: false,
                     description: 'Choose which MIDI track drives the piano roll.',
                     properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
+                        prop.midiTrack('midiTrackId', 'MIDI Track', {
                             description: 'Pick a track from the current timeline session.',
-                        },
+                        }),
                     ],
                     presets: [
                         { id: 'leadTrack', label: 'Lead Track', values: {} },
@@ -152,43 +143,13 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: false,
                     description: 'Configure viewport width, time window, and pitch range.',
                     properties: [
-                        {
-                            key: 'rollWidth',
-                            type: 'number',
-                            label: 'Roll Width (px)',
-                            default: DEFAULT_ROLL_WIDTH,
-                            min: 200,
-                            max: 4000,
-                            step: 50,
+                        prop.number('rollWidth', 'Roll Width (px)', DEFAULT_ROLL_WIDTH, {
+                            min: 200, max: 4000, step: 50,
                             description: 'Width of the scrolling window in pixels.',
-                        },
-                        {
-                            key: 'timeUnitBars',
-                            type: 'number',
-                            label: 'Time Unit (bars)',
-                            default: 1,
-                            min: 1,
-                            max: 8,
-                            step: 1,
-                        },
-                        {
-                            key: 'minNote',
-                            type: 'number',
-                            label: 'Minimum MIDI Note',
-                            default: 30,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                        },
-                        {
-                            key: 'maxNote',
-                            type: 'number',
-                            label: 'Maximum MIDI Note',
-                            default: 72,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                        },
+                        }),
+                        prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
+                        prop.number('minNote', 'Minimum MIDI Note', 30, { min: 0, max: 127, step: 1 }),
+                        prop.number('maxNote', 'Maximum MIDI Note', 72, { min: 0, max: 127, step: 1 }),
                     ],
                     presets: [
                         {
@@ -215,84 +176,42 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: false,
                     description: 'Control how note blocks render within the window.',
                     properties: [
-                        { key: 'showNotes', type: 'boolean', label: 'Show Notes', default: true },
-                        {
-                            key: 'useChannelColors',
-                            type: 'boolean',
-                            label: 'Use Per-Channel Colors',
-                            default: false,
+                        prop.boolean('showNotes', 'Show Notes', true),
+                        prop.boolean('useChannelColors', 'Use Per-Channel Colors', false, {
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteColor',
-                            type: 'colorAlpha',
-                            label: 'Note Color',
-                            default: DEFAULT_NOTE_COLOR,
+                        }),
+                        prop.colorAlpha('noteColor', 'Note Color', DEFAULT_NOTE_COLOR, {
                             visibleWhen: [
                                 { key: 'showNotes', truthy: true },
                                 { key: 'useChannelColors', falsy: true },
                             ],
-                        },
-                        {
-                            key: 'noteHeight',
-                            type: 'number',
-                            label: 'Note Height (px)',
-                            default: 20,
-                            min: 4,
-                            max: 40,
-                            step: 1,
+                        }),
+                        prop.number('noteHeight', 'Note Height (px)', 20, {
+                            min: 4, max: 40, step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteCornerRadius',
-                            type: 'number',
-                            label: 'Note Corner Radius (px)',
-                            default: 2,
-                            min: 0,
-                            max: 20,
-                            step: 1,
+                        }),
+                        prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
+                            min: 0, max: 20, step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteStrokeColor',
-                            type: 'color',
-                            label: 'Note Stroke Color',
-                            default: '#ffffff',
+                        }),
+                        prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
                             visibleWhen: [
                                 { key: 'showNotes', truthy: true },
                                 { key: 'noteStrokeWidth', truthy: true },
                             ],
-                        },
-                        {
-                            key: 'noteStrokeWidth',
-                            type: 'number',
-                            label: 'Note Stroke Width (px)',
-                            default: 0,
-                            min: 0,
-                            max: 10,
-                            step: 1,
+                        }),
+                        prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
+                            min: 0, max: 10, step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteGlowBlur',
-                            type: 'number',
-                            label: 'Note Glow Blur (px)',
-                            default: 0,
-                            min: 0,
-                            max: 50,
-                            step: 1,
+                        }),
+                        prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
+                            min: 0, max: 50, step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
-                        {
-                            key: 'noteGlowOpacity',
-                            type: 'number',
-                            label: 'Note Glow Opacity',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
-                        },
+                        }),
                         ...channelColorProperties,
                     ],
                     presets: [
@@ -371,34 +290,18 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Horizontal grid lines for pitch reference.',
                     properties: [
-                        { key: 'showNoteGrid', type: 'boolean', label: 'Show Note Grid', default: true },
-                        {
-                            key: 'noteGridColor',
-                            type: 'color',
-                            label: 'Grid Line Color',
-                            default: '#333333',
+                        prop.boolean('showNoteGrid', 'Show Note Grid', true),
+                        prop.color('noteGridColor', 'Grid Line Color', '#333333', {
                             visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        },
-                        {
-                            key: 'noteGridLineWidth',
-                            type: 'number',
-                            label: 'Grid Line Width (px)',
-                            default: 1,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
+                        }),
+                        prop.number('noteGridLineWidth', 'Grid Line Width (px)', 1, {
+                            min: 0.5, max: 10, step: 0.5,
                             visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        },
-                        {
-                            key: 'noteGridOpacity',
-                            type: 'number',
-                            label: 'Grid Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('noteGridOpacity', 'Grid Opacity', 1, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showNoteGrid', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -431,51 +334,25 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Vertical grid lines for beats and bars.',
                     properties: [
-                        { key: 'showBeatGrid', type: 'boolean', label: 'Show Beat Grid', default: true },
-                        {
-                            key: 'beatGridBarColor',
-                            type: 'color',
-                            label: 'Bar Line Color',
-                            default: '#666666',
+                        prop.boolean('showBeatGrid', 'Show Beat Grid', true),
+                        prop.color('beatGridBarColor', 'Bar Line Color', '#666666', {
                             visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        },
-                        {
-                            key: 'beatGridBeatColor',
-                            type: 'color',
-                            label: 'Beat Line Color',
-                            default: '#444444',
+                        }),
+                        prop.color('beatGridBeatColor', 'Beat Line Color', '#444444', {
                             visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        },
-                        {
-                            key: 'beatGridBarWidth',
-                            type: 'number',
-                            label: 'Bar Line Width (px)',
-                            default: 2,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
+                        }),
+                        prop.number('beatGridBarWidth', 'Bar Line Width (px)', 2, {
+                            min: 0.5, max: 10, step: 0.5,
                             visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        },
-                        {
-                            key: 'beatGridBeatWidth',
-                            type: 'number',
-                            label: 'Beat Line Width (px)',
-                            default: 1,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
+                        }),
+                        prop.number('beatGridBeatWidth', 'Beat Line Width (px)', 1, {
+                            min: 0.5, max: 10, step: 0.5,
                             visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        },
-                        {
-                            key: 'beatGridOpacity',
-                            type: 'number',
-                            label: 'Grid Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('beatGridOpacity', 'Grid Opacity', 1, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showBeatGrid', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -503,58 +380,28 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Optional static keyboard rendered alongside the roll.',
                     properties: [
-                        { key: 'showPiano', type: 'boolean', label: 'Show Piano', default: false },
-                        {
-                            key: 'pianoWidth',
-                            type: 'number',
-                            label: 'Piano Width (px)',
-                            default: 0,
-                            min: 80,
-                            max: 300,
-                            step: 10,
+                        prop.boolean('showPiano', 'Show Piano', false),
+                        prop.number('pianoWidth', 'Piano Width (px)', 0, {
+                            min: 80, max: 300, step: 10,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
-                        {
-                            key: 'whiteKeyColor',
-                            type: 'color',
-                            label: 'White Key Color',
-                            default: '#f0f0f0',
+                        }),
+                        prop.color('whiteKeyColor', 'White Key Color', '#f0f0f0', {
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
-                        {
-                            key: 'blackKeyColor',
-                            type: 'color',
-                            label: 'Black Key Color',
-                            default: '#555555',
+                        }),
+                        prop.color('blackKeyColor', 'Black Key Color', '#555555', {
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
-                        {
-                            key: 'pianoOpacity',
-                            type: 'number',
-                            label: 'Piano Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('pianoOpacity', 'Piano Opacity', 1, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
-                        {
-                            key: 'pianoRightBorderColor',
-                            type: 'color',
-                            label: 'Piano Right Border',
-                            default: '#333333',
+                        }),
+                        prop.color('pianoRightBorderColor', 'Piano Right Border', '#333333', {
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
-                        {
-                            key: 'pianoRightBorderWidth',
-                            type: 'number',
-                            label: 'Piano Right Border Width (px)',
-                            default: 2,
-                            min: 0,
-                            max: 10,
-                            step: 1,
+                        }),
+                        prop.number('pianoRightBorderWidth', 'Piano Right Border Width (px)', 2, {
+                            min: 0, max: 10, step: 1,
                             visibleWhen: [{ key: 'showPiano', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -587,81 +434,37 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Configure note name overlays along the piano.',
                     properties: [
-                        { key: 'showNoteLabels', type: 'boolean', label: 'Show Note Labels', default: true },
-                        {
-                            key: 'noteLabelFontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
+                        prop.boolean('showNoteLabels', 'Show Note Labels', true),
+                        prop.font('noteLabelFontFamily', 'Font Family', 'Inter', {
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelFontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 10,
-                            min: 6,
-                            max: 32,
-                            step: 1,
+                        }),
+                        prop.number('noteLabelFontSize', 'Font Size (px)', 10, {
+                            min: 6, max: 32, step: 1,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelFontColor',
-                            type: 'color',
-                            label: 'Font Color',
-                            default: '#ffffff',
+                        }),
+                        prop.color('noteLabelFontColor', 'Font Color', '#ffffff', {
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelInterval',
-                            type: 'number',
-                            label: 'Label Interval',
-                            default: 1,
-                            min: 1,
-                            max: 24,
-                            step: 1,
+                        }),
+                        prop.number('noteLabelInterval', 'Label Interval', 1, {
+                            min: 1, max: 24, step: 1,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelStartNote',
-                            type: 'number',
-                            label: 'Label Start Note',
-                            default: 0,
-                            min: 0,
-                            max: 127,
-                            step: 1,
+                        }),
+                        prop.number('noteLabelStartNote', 'Label Start Note', 0, {
+                            min: 0, max: 127, step: 1,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelOffsetX',
-                            type: 'number',
-                            label: 'Offset X (px)',
-                            default: -10,
-                            min: -200,
-                            max: 200,
-                            step: 1,
+                        }),
+                        prop.number('noteLabelOffsetX', 'Offset X (px)', -10, {
+                            min: -200, max: 200, step: 1,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelOffsetY',
-                            type: 'number',
-                            label: 'Offset Y (px)',
-                            default: 0,
-                            min: -200,
-                            max: 200,
-                            step: 1,
+                        }),
+                        prop.number('noteLabelOffsetY', 'Offset Y (px)', 0, {
+                            min: -200, max: 200, step: 1,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
-                        {
-                            key: 'noteLabelOpacity',
-                            type: 'number',
-                            label: 'Label Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('noteLabelOpacity', 'Label Opacity', 1, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showNoteLabels', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -684,61 +487,29 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Configure beat/bar text above the grid.',
                     properties: [
-                        { key: 'showBeatLabels', type: 'boolean', label: 'Show Beat Labels', default: true },
-                        {
-                            key: 'beatLabelFontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
+                        prop.boolean('showBeatLabels', 'Show Beat Labels', true),
+                        prop.font('beatLabelFontFamily', 'Font Family', 'Inter', {
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
-                        {
-                            key: 'beatLabelFontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 12,
-                            min: 6,
-                            max: 48,
-                            step: 1,
+                        }),
+                        prop.number('beatLabelFontSize', 'Font Size (px)', 12, {
+                            min: 6, max: 48, step: 1,
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
-                        {
-                            key: 'beatLabelFontColor',
-                            type: 'color',
-                            label: 'Font Color',
-                            default: '#ffffff',
+                        }),
+                        prop.color('beatLabelFontColor', 'Font Color', '#ffffff', {
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
-                        {
-                            key: 'beatLabelOffsetY',
-                            type: 'number',
-                            label: 'Offset Y (px)',
-                            default: -5,
-                            min: -200,
-                            max: 200,
-                            step: 1,
+                        }),
+                        prop.number('beatLabelOffsetY', 'Offset Y (px)', -5, {
+                            min: -200, max: 200, step: 1,
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
-                        {
-                            key: 'beatLabelOffsetX',
-                            type: 'number',
-                            label: 'Offset X (px)',
-                            default: 5,
-                            min: -200,
-                            max: 200,
-                            step: 1,
+                        }),
+                        prop.number('beatLabelOffsetX', 'Offset X (px)', 5, {
+                            min: -200, max: 200, step: 1,
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
-                        {
-                            key: 'beatLabelOpacity',
-                            type: 'number',
-                            label: 'Label Opacity',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.05,
+                        }),
+                        prop.number('beatLabelOpacity', 'Label Opacity', 1, {
+                            min: 0, max: 1, step: 0.05,
                             visibleWhen: [{ key: 'showBeatLabels', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -761,40 +532,12 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Choose how notes animate when they enter or exit the window.',
                     properties: [
-                        {
-                            key: 'animationType',
-                            type: 'select',
-                            label: 'Animation Type',
-                            default: 'expand',
-                            options: [...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' }],
-                        },
-                        {
-                            key: 'attackDuration',
-                            type: 'number',
-                            label: 'Attack Duration (s)',
-                            default: 0.3,
-                            min: 0,
-                            max: 10,
-                            step: 0.05,
-                        },
-                        {
-                            key: 'decayDuration',
-                            type: 'number',
-                            label: 'Decay Duration (s)',
-                            default: 0.3,
-                            min: 0,
-                            max: 10,
-                            step: 0.05,
-                        },
-                        {
-                            key: 'releaseDuration',
-                            type: 'number',
-                            label: 'Release Duration (s)',
-                            default: 0.3,
-                            min: 0,
-                            max: 10,
-                            step: 0.05,
-                        },
+                        prop.select('animationType', 'Animation Type', 'expand', [
+                            ...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' },
+                        ]),
+                        prop.number('attackDuration', 'Attack Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
+                        prop.number('decayDuration', 'Decay Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
+                        prop.number('releaseDuration', 'Release Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
                     ],
                     presets: [
                         {
@@ -831,24 +574,14 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     collapsed: true,
                     description: 'Style the static playhead indicator.',
                     properties: [
-                        { key: 'showPlayhead', type: 'boolean', label: 'Show Playhead', default: true },
-                        {
-                            key: 'playheadColor',
-                            type: 'colorAlpha',
-                            label: 'Playhead Color',
-                            default: '#ff6b6bff',
+                        prop.boolean('showPlayhead', 'Show Playhead', true),
+                        prop.colorAlpha('playheadColor', 'Playhead Color', '#ff6b6bff', {
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        },
-                        {
-                            key: 'playheadLineWidth',
-                            type: 'number',
-                            label: 'Playhead Line Width (px)',
-                            default: 2,
-                            min: 1,
-                            max: 10,
-                            step: 1,
+                        }),
+                        prop.number('playheadLineWidth', 'Playhead Line Width (px)', 2, {
+                            min: 1, max: 10, step: 1,
                             visibleWhen: [{ key: 'showPlayhead', truthy: true }],
-                        },
+                        }),
                     ],
                     presets: [
                         {
@@ -872,273 +605,66 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         { id: 'hidden', label: 'Hidden', values: { showPlayhead: false } },
                     ],
                 },
-                ...baseAdvancedGroups,
-            ],
-        };
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {
-        const props = this.getSchemaProps({
-            timeUnitBars: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(1, Math.round(numeric));
-                },
-                defaultValue: 1,
-            },
-            showPiano: { transform: asBoolean, defaultValue: false },
-            pianoWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0,
-            },
-            rollWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: DEFAULT_ROLL_WIDTH,
-            },
-            showNoteGrid: { transform: asBoolean, defaultValue: true },
-            showNoteLabels: { transform: asBoolean, defaultValue: true },
-            showNotes: { transform: asBoolean, defaultValue: true },
-            minNote: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    if (numeric === undefined) return undefined;
-                    return Math.max(0, Math.min(127, Math.floor(numeric)));
-                },
-                defaultValue: 30,
-            },
-            maxNote: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    if (numeric === undefined) return undefined;
-                    return Math.max(0, Math.min(127, Math.floor(numeric)));
-                },
-                defaultValue: 72,
-            },
-            showBeatGrid: { transform: asBoolean, defaultValue: true },
-            showBeatLabels: { transform: asBoolean, defaultValue: true },
-            noteHeight: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    if (numeric === undefined) return undefined;
-                    return Math.max(4, Math.min(40, numeric));
-                },
-                defaultValue: 20,
-            },
-            showPlayhead: { transform: asBoolean, defaultValue: true },
-            playheadLineWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 2,
-            },
-            playheadColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
-            whiteKeyColor: { transform: asTrimmedString, defaultValue: '#f0f0f0' },
-            blackKeyColor: { transform: asTrimmedString, defaultValue: '#555555' },
-            pianoOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            pianoRightBorderColor: { transform: asTrimmedString, defaultValue: '#333333' },
-            pianoRightBorderWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 2,
-            },
-            noteGridColor: { transform: asTrimmedString, defaultValue: '#333333' },
-            noteGridLineWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 1,
-            },
-            noteGridOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            beatGridBarColor: { transform: asTrimmedString, defaultValue: '#666666' },
-            beatGridBeatColor: { transform: asTrimmedString, defaultValue: '#444444' },
-            beatGridBarWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 2,
-            },
-            beatGridBeatWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 1,
-            },
-            beatGridOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            noteLabelFontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
-            noteLabelFontSize: { transform: asNumber, defaultValue: 10 },
-            noteLabelFontColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
-            noteLabelInterval: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(1, Math.round(numeric));
-                },
-                defaultValue: 1,
-            },
-            noteLabelStartNote: { transform: asNumber, defaultValue: 0 },
-            noteLabelOffsetX: { transform: asNumber, defaultValue: -10 },
-            noteLabelOffsetY: { transform: asNumber, defaultValue: 0 },
-            noteLabelOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            beatLabelFontFamily: { transform: asTrimmedString, defaultValue: 'Inter' },
-            beatLabelFontSize: { transform: asNumber, defaultValue: 12 },
-            beatLabelFontColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
-            beatLabelOffsetY: { transform: asNumber, defaultValue: -5 },
-            beatLabelOffsetX: { transform: asNumber, defaultValue: 5 },
-            beatLabelOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 1,
-            },
-            midiTrackId: {
-                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                defaultValue: null,
-            },
-            noteCornerRadius: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 2,
-            },
-            noteStrokeColor: { transform: asTrimmedString, defaultValue: '#ffffff' },
-            noteStrokeWidth: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0,
-            },
-            noteGlowBlur: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0,
-            },
-            noteGlowOpacity: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, Math.min(1, numeric));
-                },
-                defaultValue: 0.5,
-            },
-            animationType: { transform: asTrimmedString, defaultValue: 'expand' },
-            attackDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-            decayDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-            releaseDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-            useChannelColors: { transform: asBoolean, defaultValue: false },
-            noteColor: { transform: asTrimmedString, defaultValue: '#ff6b6b' },
-            channel0Color: { transform: asTrimmedString },
-        });
+        const props = this.getSchemaProps();
 
         const renderObjects: RenderObject[] = [];
 
         // timeOffset removed; targetTime used directly
         const effectiveTime = targetTime;
-        const timeUnitBars = props.timeUnitBars ?? 1;
+        const timeUnitBars = Math.max(1, Math.round(props.timeUnitBars ?? 1));
         const showPiano = props.showPiano ?? false;
-        const pianoWidth = showPiano ? props.pianoWidth ?? 0 : 0;
-        const rollWidth = props.rollWidth ?? DEFAULT_ROLL_WIDTH;
+        const pianoWidth = showPiano ? Math.max(0, props.pianoWidth ?? 0) : 0;
+        const rollWidth = Math.max(0, props.rollWidth ?? DEFAULT_ROLL_WIDTH);
         const effectiveRollWidth = rollWidth;
         const showNoteGrid = props.showNoteGrid ?? true;
         const showNoteLabels = props.showNoteLabels ?? true;
         const showNotes = props.showNotes ?? true;
-        const minNote = props.minNote ?? 30;
-        const maxNote = props.maxNote ?? 72;
+        const minNote = Math.max(0, Math.min(127, Math.floor(props.minNote ?? 30)));
+        const maxNote = Math.max(0, Math.min(127, Math.floor(props.maxNote ?? 72)));
         const showBeatGrid = props.showBeatGrid ?? true;
         const showBeatLabels = props.showBeatLabels ?? true;
-        const noteHeight = props.noteHeight ?? 20;
+        const noteHeight = Math.max(4, Math.min(40, props.noteHeight ?? 20));
         const showPlayhead = props.showPlayhead ?? true;
-        const playheadLineWidth = props.playheadLineWidth ?? 2;
+        const playheadLineWidth = Math.max(0, props.playheadLineWidth ?? 2);
         const playheadColor = props.playheadColor ?? '#ff6b6b';
         const whiteKeyColor = props.whiteKeyColor ?? '#f0f0f0';
         const blackKeyColor = props.blackKeyColor ?? '#555555';
-        const pianoOpacity = props.pianoOpacity ?? 1;
+        const pianoOpacity = Math.max(0, Math.min(1, props.pianoOpacity ?? 1));
         const pianoRightBorderColor = props.pianoRightBorderColor ?? '#333333';
-        const pianoRightBorderWidth = props.pianoRightBorderWidth ?? 2;
+        const pianoRightBorderWidth = Math.max(0, props.pianoRightBorderWidth ?? 2);
         const noteGridColor = props.noteGridColor ?? '#333333';
-        const noteGridLineWidth = props.noteGridLineWidth ?? 1;
-        const noteGridOpacity = props.noteGridOpacity ?? 1;
+        const noteGridLineWidth = Math.max(0, props.noteGridLineWidth ?? 1);
+        const noteGridOpacity = Math.max(0, Math.min(1, props.noteGridOpacity ?? 1));
         const beatGridBarColor = props.beatGridBarColor ?? '#666666';
         const beatGridBeatColor = props.beatGridBeatColor ?? '#444444';
-        const beatGridBarWidth = props.beatGridBarWidth ?? 2;
-        const beatGridBeatWidth = props.beatGridBeatWidth ?? 1;
-        const beatGridOpacity = props.beatGridOpacity ?? 1;
+        const beatGridBarWidth = Math.max(0, props.beatGridBarWidth ?? 2);
+        const beatGridBeatWidth = Math.max(0, props.beatGridBeatWidth ?? 1);
+        const beatGridOpacity = Math.max(0, Math.min(1, props.beatGridOpacity ?? 1));
         const noteLabelFontSelection = props.noteLabelFontFamily ?? 'Inter';
         const { family: noteLabelFontFamily, weight: noteLabelFontWeightPart } =
-            parseFontSelection(noteLabelFontSelection);
+            parseFontSelection(noteLabelFontSelection as string);
         const noteLabelFontSize = props.noteLabelFontSize ?? 10;
         const noteLabelFontColor = props.noteLabelFontColor ?? '#ffffff';
         const noteLabelFontWeight = (noteLabelFontWeightPart || '400').toString();
-        const noteLabelInterval = props.noteLabelInterval ?? 1;
+        const noteLabelInterval = Math.max(1, Math.round(props.noteLabelInterval ?? 1));
         const noteLabelStartNote = props.noteLabelStartNote ?? 0;
         const noteLabelOffsetX = props.noteLabelOffsetX ?? -10;
         const noteLabelOffsetY = props.noteLabelOffsetY ?? 0;
-        const noteLabelOpacity = props.noteLabelOpacity ?? 1;
+        const noteLabelOpacity = Math.max(0, Math.min(1, props.noteLabelOpacity ?? 1));
         const beatLabelFontSelection = props.beatLabelFontFamily ?? 'Inter';
         const { family: beatLabelFontFamily, weight: beatLabelFontWeightPart } =
-            parseFontSelection(beatLabelFontSelection);
+            parseFontSelection(beatLabelFontSelection as string);
         const beatLabelFontSize = props.beatLabelFontSize ?? 12;
         const beatLabelFontColor = props.beatLabelFontColor ?? '#ffffff';
         const beatLabelFontWeight = (beatLabelFontWeightPart || '400').toString();
         const beatLabelOffsetY = props.beatLabelOffsetY ?? -5;
         const beatLabelOffsetX = props.beatLabelOffsetX ?? 5;
-        const beatLabelOpacity = props.beatLabelOpacity ?? 1;
+        const beatLabelOpacity = Math.max(0, Math.min(1, props.beatLabelOpacity ?? 1));
+        const attackDuration = Math.max(0, props.attackDuration ?? 0.3);
         const { api, status } = getPluginHostApi([PLUGIN_CAPABILITIES.timelineRead]);
         const timelineState = status === 'ok' ? api?.timeline.getStateSnapshot() : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
@@ -1207,7 +733,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
         }> = [];
         try {
             const trackId = props.midiTrackId;
-            const effectiveTrackIds = trackId ? [trackId] : [];
+            const effectiveTrackIds = trackId ? [trackId as string] : [];
             if (effectiveTrackIds.length > 0) {
                 // Query two-window span (prev + current) so release animation frames still have note segments
                 const currentWin = this.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
@@ -1219,7 +745,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;
-                const queryEnd = currentWin.end+props.attackDuration;
+                const queryEnd = currentWin.end + attackDuration;
                 const events = status === 'ok' && api
                     ? api.timeline.selectNotesInWindow({
                     trackIds: effectiveTrackIds,
@@ -1255,19 +781,17 @@ export class TimeUnitPianoRollElement extends SceneElement {
         );
         if (showNotes && windowedNoteBlocks.length > 0) {
             const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
-            // Only include pianoWidth if showPiano is true
-            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
                 { noteHeight, minNote, maxNote, pianoWidth, rollWidth: effectiveRollWidth },
                 noteBlocks,
                 effectiveTime
             );
             // Apply note style customizations
-            const noteCornerRadius = props.noteCornerRadius ?? 0;
+            const noteCornerRadius = Math.max(0, props.noteCornerRadius ?? 0);
             const noteStrokeColor = props.noteStrokeColor ?? undefined;
-            const noteStrokeWidth = props.noteStrokeWidth ?? 0;
-            const noteGlowBlur = props.noteGlowBlur ?? 0;
-            const noteGlowOpacity = props.noteGlowOpacity ?? 0.5;
+            const noteStrokeWidth = Math.max(0, props.noteStrokeWidth ?? 0);
+            const noteGlowBlur = Math.max(0, props.noteGlowBlur ?? 0);
+            const noteGlowOpacity = Math.max(0, Math.min(1, props.noteGlowOpacity ?? 0.5));
             (animatedRenderObjects as any[]).forEach((obj) => {
                 if (!obj) return;
                 // Animation-generated objects should not affect layout bounds
@@ -1310,8 +834,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 timeUnitBars
             );
             const beatsPerBarForGrid = this.timingManager.beatsPerBar || 4;
-            // Only include pianoWidth if showPiano is true
-            const effectivePianoWidth = showPiano ? pianoWidth : 0;
             const beatLines = this._createBeatGridLines(
                 windowStart,
                 windowEnd,
@@ -1389,7 +911,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                 effectiveRollWidth,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
-                playheadColor
+                playheadColor as string
             );
             (ph as any[]).forEach((l) => {
                 (l as any).setIncludeInLayoutBounds?.(false);
@@ -1415,7 +937,6 @@ export class TimeUnitPianoRollElement extends SceneElement {
         noteHeight: number
     ): RenderObject[] {
         const lines: RenderObject[] = [];
-        const totalHeight = (maxNote - minNote + 1) * noteHeight;
         const x1 = pianoWidth;
         const x2 = pianoWidth + rollWidth;
         // draw line at each note boundary
@@ -1563,63 +1084,24 @@ export class TimeUnitPianoRollElement extends SceneElement {
 
     // Public getters for animation properties (used by AnimationController)
     getAnimationType(): string {
-        const props = this.getSchemaProps({
-            animationType: { transform: asTrimmedString, defaultValue: 'expand' },
-        });
-        return props.animationType ?? 'expand';
+        return (this.getSchemaProps().animationType as string | undefined) ?? 'expand';
     }
 
     // ADSR phase durations
     getAttackDuration(): number {
-        const props = this.getSchemaProps({
-            attackDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-        });
-        return props.attackDuration ?? 0.3;
+        return Math.max(0, (this.getSchemaProps().attackDuration as number | undefined) ?? 0.3);
     }
 
     getDecayDuration(): number {
-        const props = this.getSchemaProps({
-            decayDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-        });
-        return props.decayDuration ?? 0.3;
+        return Math.max(0, (this.getSchemaProps().decayDuration as number | undefined) ?? 0.3);
     }
 
     getReleaseDuration(): number {
-        const props = this.getSchemaProps({
-            releaseDuration: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(0, numeric);
-                },
-                defaultValue: 0.3,
-            },
-        });
-        return props.releaseDuration ?? 0.3;
+        return Math.max(0, (this.getSchemaProps().releaseDuration as number | undefined) ?? 0.3);
     }
 
     getTimeUnitBars(): number {
-        const props = this.getSchemaProps({
-            timeUnitBars: {
-                transform: (value, element) => {
-                    const numeric = asNumber(value, element);
-                    return numeric === undefined ? undefined : Math.max(1, Math.round(numeric));
-                },
-                defaultValue: 1,
-            },
-        });
-        return props.timeUnitBars ?? 1;
+        return Math.max(1, Math.round((this.getSchemaProps().timeUnitBars as number | undefined) ?? 1));
     }
 
     setTimeUnitBars(bars: number): this {
@@ -1642,26 +1124,15 @@ export class TimeUnitPianoRollElement extends SceneElement {
      * Get channel colors for MIDI channels
      */
     getChannelColors(): string[] {
-        const props = this.getSchemaProps({
-            useChannelColors: { transform: asBoolean, defaultValue: false },
-            noteColor: { transform: (value) => normalizeColorAlphaValue(value, DEFAULT_NOTE_COLOR) },
-            channel0Color: { transform: asTrimmedString },
-        });
-        const rawBaseColor = props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR;
+        const props = this.getSchemaProps();
+        const rawBaseColor = (props.noteColor ?? props.channel0Color ?? DEFAULT_NOTE_COLOR) as string;
         const baseColor = normalizeColorAlphaValue(rawBaseColor, DEFAULT_NOTE_COLOR);
         if (!props.useChannelColors) {
             return Array.from({ length: 16 }, () => baseColor);
         }
 
-        const channelDescriptors: Record<string, PropertyDescriptor<string | undefined, this>> = {};
-        for (let i = 0; i < 16; i++) {
-            channelDescriptors[`channel${i}Color`] = { transform: asTrimmedString };
-        }
-        const channelColors = this.getSchemaProps(channelDescriptors);
-
         return Array.from({ length: 16 }, (_, index) => {
-            const key = `channel${index}Color` as const;
-            const rawChannelColor = (channelColors[key] as string | undefined) ?? baseColor;
+            const rawChannelColor = (props[`channel${index}Color`] as string | undefined) ?? baseColor;
             return normalizeColorAlphaValue(rawChannelColor, baseColor);
         });
     }

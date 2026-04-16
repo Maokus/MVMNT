@@ -1,6 +1,6 @@
 # Creating Custom Elements
 
-_Last Updated: 12 April 2026_
+_Last Updated: 14 April 2026_
 
 This guide explains how to create custom scene elements for MVMNT using the plugin system.
 
@@ -27,7 +27,7 @@ Key concepts:
 - **Scene Elements**: Visual objects that render on the canvas (shapes, text, effects, etc.)
 - **Plugin System**: Bundles custom elements for distribution and runtime loading
 - **Property Bindings**: Dynamic property system supporting constants, macros, and data-driven values
-- **Render Objects**: Low-level primitives (Rectangle, Circle, Text, etc.) that define visual output
+- **Render Objects**: Low-level primitives (Rectangle, Arc, Text, etc.) that define visual output
 
 ## Public Plugin API (Required)
 
@@ -268,7 +268,61 @@ static override getConfigSchema(): EnhancedConfigSchema {
 }
 ```
 
-**Property Definition Structure:**
+**Property Factory Helpers (Recommended):**
+
+`@mvmnt/plugin-sdk` exports the `prop` object and `insertElementGroups` helper. These reduce boilerplate by pre-filling the `runtime` transform and removing the need to manually split base groups:
+
+```typescript
+import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+
+static override getConfigSchema(): EnhancedConfigSchema {
+    return insertElementGroups(super.getConfigSchema(), {
+        name: 'My Element',
+        description: 'Element description',
+        category: 'Custom',
+    }, [
+        {
+            id: 'myGroup',
+            label: 'My Settings',
+            variant: 'basic',
+            collapsed: false,
+            properties: [
+                prop.number('size', 'Size', 100, { min: 10, max: 500, step: 1 }),
+                prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+                prop.boolean('showLabel', 'Show Label', true),
+                prop.select('mode', 'Mode', 'circle', ['circle', 'square']),
+                prop.midiTrack('midiTrackId', 'MIDI Track'),
+                prop.audioTrack('audioTrackId', 'Audio Track'),
+                prop.font('fontFamily', 'Font', 'Inter'),
+                prop.string('label', 'Label', 'Hello'),
+                prop.file('imageFile', 'Image', { accept: 'image/*' }),
+            ],
+        },
+    ]);
+}
+```
+
+`insertElementGroups(base, overrides, pluginGroups)` inserts your groups between the base element's basic and advanced groups automatically.
+
+Available `prop.*` factories:
+
+| Factory | Type | Notes |
+|---|---|---|
+| `prop.number(key, label, default, opts?)` | `number` | `opts`: `min`, `max`, `step` |
+| `prop.range(key, label, default, opts?)` | `range` | Same as number but renders as a slider |
+| `prop.boolean(key, label, default, opts?)` | `boolean` | Checkbox |
+| `prop.string(key, label, default, opts?)` | `string` | Plain text input |
+| `prop.colorAlpha(key, label, default, opts?)` | `colorAlpha` | 8-digit hex with alpha |
+| `prop.color(key, label, default, opts?)` | `color` | Opaque hex color |
+| `prop.select(key, label, default, choices, opts?)` | `select` | `choices`: strings or `{ value, label }` objects |
+| `prop.font(key, label, default, opts?)` | `font` | Google Fonts picker |
+| `prop.midiTrack(key, label, opts?)` | `timelineTrackRef` | MIDI track selector |
+| `prop.audioTrack(key, label, opts?)` | `timelineTrackRef` | Audio track selector |
+| `prop.file(key, label, opts?)` | `file` | File picker; `opts.accept` for MIME filter |
+
+All factories accept an optional last `opts` argument with `description` and `visibleWhen` fields.
+
+**Manual Property Definition Structure** (verbose form, still supported):
 
 ```typescript
 {
@@ -289,11 +343,13 @@ static override getConfigSchema(): EnhancedConfigSchema {
 
 **Common Property Types:**
 - `number`: Numeric input with min/max/step
+- `range`: Range slider
 - `boolean`: Checkbox
 - `string`: Text input
-- `colorAlpha`: Color picker with alpha
+- `colorAlpha`: Color picker with alpha channel (8-digit hex `#RRGGBBAA`)
+- `color`: Opaque color picker
 - `select`: Dropdown with options
-- `timelineTrackRef`: Reference to timeline track
+- `timelineTrackRef`: Reference to a timeline track (use `prop.midiTrack` / `prop.audioTrack` for typed variants)
 - `file`: File picker — add `accept` to filter by MIME type (e.g. `accept: 'image/*'`)
 - `font`: Font selector (returns a font selection object; use `parseFontSelection` and `ensureFontLoaded` from the SDK)
 
@@ -346,12 +402,16 @@ protected override _buildRenderObjects(
 ```
 
 **Available Render Objects:**
-- `Rectangle(x, y, width, height, color)`
-- `Circle(x, y, radius, color)`
-- `Text(x, y, text, font, color, align, baseline)`
-- `Line(x1, y1, x2, y2, color, lineWidth)`
-- `Path(points, color, lineWidth, closed)`
-- `Image(x, y, width, height, imageData)`
+- `Rectangle(x, y, width, height, color)` — solid filled rectangle
+- `Text(x, y, text, font, color, align, baseline)` — text string
+- `Line(x1, y1, x2, y2, color, lineWidth)` — straight line segment
+- `Image(x, y, width, height, imageData)` — bitmap image
+- `Arc(x, y, radius, startAngle?, endAngle?, anticlockwise?, options?)` — arc or filled circle; options accept `fillColor`, `strokeColor`, `strokeWidth`
+- `Poly(points, fillColor?, strokeColor?, strokeWidth?)` — closed or open polygon
+- `BezierPath(x, y, commands, options?)` — bezier path with fill/stroke options
+- `AnimatedGif(x, y, width, height, provider, playbackSpeed, opacity?, options?)` — animated GIF; `provider` comes from a `GIFFrameDataProvider`
+- `GlowLayer(options?)` — composite layer that applies a glow effect to its children; add children via the layer's child list
+- `CompositeLayer(layerBlendMode?)` — composite layer that renders children with a custom canvas blend mode
 
 ### Lifecycle Hooks
 
@@ -384,7 +444,7 @@ Elements can bind properties to various data sources for dynamic behavior.
 Example: Creating an audio-reactive element
 
 ```typescript
-import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { getPluginHostApi, PLUGIN_CAPABILITIES, Arc } from '@mvmnt/plugin-sdk';
 
 const REQUIRED_CAPS = [PLUGIN_CAPABILITIES.audioFeaturesRead] as const;
 
@@ -414,7 +474,7 @@ export class MyAudioElement extends SceneElement {
         // Use volume to drive visualization
         const size = 50 + volume * 200;
         
-        return [new Circle(0, 0, size, props.color)];
+        return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
     }
 }
 ```
@@ -475,7 +535,7 @@ protected override _buildRenderObjects(_config: unknown, targetTime: number): Re
     
     const size = 50 + phase * 25;
     
-    return [new Circle(0, 0, size, props.color)];
+    return [new Arc(0, 0, size, 0, Math.PI * 2, false, { fillColor: props.color })];
 }
 ```
 
@@ -592,10 +652,15 @@ protected override onPropertyChanged(key: string, oldValue: unknown, newValue: u
 - Verify default values in schema match runtime defaults
 - Clear browser cache if schema changes aren't reflected
 
-**Audio/MIDI not working:**
-- Call `registerFeatureRequirements()` at module level
-- Check `audioTrackId` or `midiTrackId` is set
+**Audio not working:**
+- Check `audioTrackId` is set and the track exists in the timeline
+- Verify `getPluginHostApi` returns `status === 'ok'` with `audioFeaturesRead` capability
+- Call `registerFeatureRequirements(this, [...])` in your element constructor for features you intend to sample (this pre-warms the audio cache)
+
+**MIDI not working:**
+- Check `midiTrackId` is set
 - Verify track exists in timeline
+- Confirm `getPluginHostApi` returns `status === 'ok'` with `timelineRead` capability
 
 **Performance issues:**
 - Limit render object count (use `maxObjects` check)

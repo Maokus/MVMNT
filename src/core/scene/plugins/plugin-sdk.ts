@@ -1,137 +1,17 @@
-import { registerFeatureRequirements, type AudioFeatureRequirement } from '@audio/audioElementMetadata';
 import type { PluginCapabilityMap } from '@core/scene/plugins/host-api/plugin-api';
 import { timelineApi, audioApi, timingApi, utilitiesApi } from '@core/scene/plugins/plugin-sdk-capabilities';
 
-// Public plugin SDK exports. Keep this file intentionally narrow and stable.
-export {
-    SceneElement,
-    asNumber,
-    asBoolean,
-    asString,
-    asTrimmedString,
-    type PropertyTransform,
-    type PropertyDescriptor,
-    type PropertyDescriptorMap,
-    type PropertySnapshot,
-} from '@core/scene/elements/base';
-export {
-    RenderObject,
-    EmptyRenderObject,
-    Rectangle,
-    Text,
-    Line,
-    Image,
-    AnimatedGif,
-    Poly,
-    BezierPath,
-    Arc,
-    GlowLayer,
-    CompositeLayer,
-} from '@core/render/render-objects';
-export {
-    PLUGIN_API_VERSION,
-    PLUGIN_CAPABILITIES,
-    type PluginHostApi,
-    type PluginHostCapability,
-    type PluginCapabilityMap,
-} from '@core/scene/plugins/host-api/plugin-api';
-export {
-    getPluginHostApi,
-    type PluginHostApiResolution,
-    type PluginHostApiStatus,
-    type GetPluginHostApiOptions,
-} from '@core/scene/plugins/host-api/get-plugin-host-api';
-export {
-    PluginApiError,
-    MissingHostError,
-    UnsupportedVersionError,
-    MissingCapabilityError,
-} from '@core/scene/plugins/plugin-errors';
-export {
-    selectNotes,
-    selectAllNotes,
-    selectDistinctNotes,
-    selectNotesByPitch,
-    getNoteRange,
-    getTimelineDuration,
-    getMidiTracks,
-    groupNotesByPitch,
-    selectCC,
-    getSustainState,
-    sampleAudio,
-    sampleAudioRange,
-    timeToBeats,
-    beatsToTime,
-    timeToTicks,
-    ticksToTime,
-    beatToTicks,
-    ticksToBeat,
-    noteName,
-} from '@core/scene/plugins/plugin-sdk-shortcuts';
-export {
-    timelineApi,
-    audioApi,
-    timingApi,
-    utilitiesApi,
-};
-export { registerFeatureRequirements };
-export type { AudioFeatureRequirement };
-export type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
-export type { FeatureDataResult, FeatureInput } from '@audio/features/sceneApi';
-export type { TimelineNoteEvent, TimelineCCEvent, TempoMapEntry } from '@core/timing/types';
-export {
-    withRenderSafety,
-    limitRenderObjects,
-    checkCapability,
-    DEFAULT_SAFETY_CONFIG,
-    type PluginSafetyConfig,
-    PluginSafetyError,
-} from '@core/scene/plugins/plugin-safety';
-export {
-    normalizeColorAlphaValue,
-    ensureEightDigitHex,
-} from '@utils/color';
-export {
-    loadGoogleFont,
-    loadGoogleFontAsync,
-    ensureFontLoaded,
-    isFontLoaded,
-    parseFontSelection,
-    type LoadFontOptions,
-} from '@fonts/font-loader';
-export type { ParsedFontSelection } from '@state/scene/fonts';
-export {
-    quantizeSettingToBeats,
-    quantizeSettingToTicks,
-    formatQuantizeLabel,
-    formatQuantizeShortLabel,
-    type QuantizeSetting,
-    type SnapQuantizeOption,
-} from '@state/timeline/quantize';
-export {
-    beatsToSeconds,
-    secondsToBeats,
-    getSecondsPerBeat,
-} from '@core/timing/tempo-utils';
+// Public plugin SDK — domain-based re-exports. Keep this file intentionally narrow and stable.
 
-/**
- * Load a bundled asset from the plugin's assets/ directory by its relative path.
- *
- * Returns a blob URL that can be used as an `<img src>`, CSS `url()`, or passed
- * to `new window.Image()`. The URL is valid for the lifetime of the plugin.
- *
- * This stub is replaced at runtime by the plugin loader with a version bound to
- * this plugin's asset registry. In dev mode (Vite), import assets directly:
- * `import logoUrl from './assets/logo.png?url'`
- */
-export function loadBundledAsset(_path: string): Promise<string> {
-    return Promise.reject(
-        new Error(
-            '[MVMNT] loadBundledAsset() is only available in production-bundled plugins. ' +
-            'In dev mode, import assets directly: import url from "./assets/logo.png?url"'
-        )
-    );
-}
+export * from './sdk/scene';
+export * from './sdk/render';
+export * from './sdk/api';
+export * from './sdk/timeline';
+export * from './sdk/audio';
+export * from './sdk/timing';
+export * from './sdk/safety';
+export * from './sdk/utils';
+export * from './sdk/animation';
 
 // ============================================================================
 // COMPILE-TIME ASSERTION: Prevent API Drift
@@ -143,7 +23,7 @@ export function loadBundledAsset(_path: string): Promise<string> {
  *
  * When adding a new capability:
  * 1. Add it to plugin-sdk-capabilities.ts (createCapabilityProxy call)
- * 2. Export it from this file
+ * 2. Export it from sdk/api.ts (or the relevant submodule) and ensure it re-exports here
  * 3. Add the key → export mapping below
  */
 type _CapabilityExportMap = Record<keyof PluginCapabilityMap, unknown>;

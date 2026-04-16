@@ -29,7 +29,8 @@ yarn-error.log*
 
 /src/plugins/*
 !/src/plugins/plugins_go_here.txt
-!/src/plugins/extraspack1
+!/src/plugins/midipack1
+!/src/plugins/patternspack1
 
 /dist/*
 

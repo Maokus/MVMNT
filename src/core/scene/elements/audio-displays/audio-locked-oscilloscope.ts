@@ -1,4 +1,4 @@
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
+import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Poly, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
@@ -6,11 +6,12 @@ import { normalizeChannelSelectorInput, sampleFeatureFrame, selectChannelSample 
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 const { descriptor: PITCH_WAVEFORM_DESCRIPTOR } = createFeatureDescriptor({ feature: 'pitchWaveform' });
 
 const DEFAULT_LINE_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 
 registerFeatureRequirements('audioLockedOscilloscope', [{ feature: 'pitchWaveform' }]);
 
@@ -42,101 +43,66 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Audio Locked Oscilloscope',
             description: 'Displays a single pitch-locked waveform cycle.',
             category: 'Audio Displays',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'lockedOscilloscopeBasics',
-                    label: 'Pitch Waveform',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        }, [
+            {
+                id: 'lockedOscilloscopeBasics',
+                label: 'Pitch Waveform',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.audioTrack('audioTrackId', 'Audio Track'),
+                    {
+                        key: 'channelSelector',
+                        type: 'string',
+                        label: 'Channel',
+                        default: null,
+                        runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                    },
+                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
+                    prop.number('height', 'Height (px)', 140, { min: 20, max: 800, step: 1 }),
+                    {
+                        key: 'lineColor',
+                        type: 'colorAlpha',
+                        label: 'Line Color',
+                        default: DEFAULT_LINE_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
+                            defaultValue: DEFAULT_LINE_COLOR,
+                        },
+                    },
+                    {
+                        key: 'lineWidth',
+                        type: 'number',
+                        label: 'Line Width (px)',
+                        default: 2,
+                        min: 0.5,
+                        max: 10,
+                        step: 0.5,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
                             },
+                            defaultValue: 2,
                         },
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                    },
+                    {
+                        key: 'backgroundColor',
+                        type: 'colorAlpha',
+                        label: 'Background',
+                        default: DEFAULT_BACKGROUND_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                            defaultValue: DEFAULT_BACKGROUND_COLOR,
                         },
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 420,
-                            min: 40,
-                            max: 1600,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 420 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 140,
-                            min: 20,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 140 },
-                        },
-                        {
-                            key: 'lineColor',
-                            type: 'colorAlpha',
-                            label: 'Line Color',
-                            default: DEFAULT_LINE_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_LINE_COLOR),
-                                defaultValue: DEFAULT_LINE_COLOR,
-                            },
-                        },
-                        {
-                            key: 'lineWidth',
-                            type: 'number',
-                            label: 'Line Width (px)',
-                            default: 2,
-                            min: 0.5,
-                            max: 10,
-                            step: 0.5,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0.5, 10);
-                                },
-                                defaultValue: 2,
-                            },
-                        },
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background',
-                            default: DEFAULT_BACKGROUND_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                                defaultValue: DEFAULT_BACKGROUND_COLOR,
-                            },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+                    },
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

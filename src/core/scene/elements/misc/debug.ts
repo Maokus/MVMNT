@@ -1,6 +1,7 @@
-import { SceneElement, asBoolean } from '../base';
+import { SceneElement } from '../base';
 import { EnhancedConfigSchema } from '@core/types';
 import { EmptyRenderObject, Rectangle, RenderObject, Text } from '@core/render/render-objects';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 // Minimal DebugElement for testing/inheritance demonstration
 export class DebugElement extends SceneElement {
@@ -17,38 +18,26 @@ export class DebugElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Debug',
             description: 'Debugging information display',
             category: 'Misc',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'debugSettings',
-                    label: 'Debug Tools',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Toggle helper visuals for layout debugging.',
-                    properties: [
-                        {
-                            key: 'showDots',
-                            type: 'boolean',
-                            label: 'Show Alignment Dots',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                    ],
-                    presets: [
-                        { id: 'dotsOn', label: 'Dots Visible', values: { showDots: true } },
-                        { id: 'dotsOff', label: 'Dots Hidden', values: { showDots: false } },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'debugSettings',
+                label: 'Debug Tools',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Toggle helper visuals for layout debugging.',
+                properties: [
+                    prop.boolean('showDots', 'Show Alignment Dots', true),
+                ],
+                presets: [
+                    { id: 'dotsOn', label: 'Dots Visible', values: { showDots: true } },
+                    { id: 'dotsOff', label: 'Dots Hidden', values: { showDots: false } },
+                ],
+            },
+        ]);
     }
 
     /**

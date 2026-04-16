@@ -1,18 +1,11 @@
 // Notes Playing Display: show currently playing notes per channel/track
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
+import { SceneElement } from '../base';
 import { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-import type { SceneElementInterface } from '@core/types.js';
-
-const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
-    if (!normalized) return undefined;
-    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
-    return allowed.includes(normalized) ? normalized : undefined;
-};
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 export class NotesPlayingDisplayElement extends SceneElement {
     constructor(id: string = 'notesPlayingDisplay', config: { [key: string]: any } = {}) {
@@ -20,119 +13,61 @@ export class NotesPlayingDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Notes Playing Display',
             description: 'Displays active notes and velocities per track/channel (timeline-backed)',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'playingContent',
-                    label: 'Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Select which MIDI track(s) feed the live note readout.',
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
-                            },
-                        },
-                        {
-                            key: 'showAllAvailableTracks',
-                            type: 'boolean',
-                            label: 'Show All Tracks When Idle',
-                            default: false,
-                            runtime: { transform: asBoolean, defaultValue: false },
-                        },
-                    ],
-                    presets: [
-                        { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
-                        { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Tweak alignment and spacing for the note list.',
-                    properties: [
-                        {
-                            key: 'textJustification',
-                            type: 'select',
-                            label: 'Text Alignment',
-                            default: 'left',
-                            options: [
-                                { value: 'left', label: 'Left' },
-                                { value: 'right', label: 'Right' },
-                            ],
-                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
-                        },
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 30,
-                            min: 6,
-                            max: 72,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 30 },
-                        },
-                        {
-                            key: 'color',
-                            type: 'color',
-                            label: 'Text Color',
-                            default: '#cccccc',
-                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
-                        },
-                        {
-                            key: 'lineSpacing',
-                            type: 'number',
-                            label: 'Line Spacing (px)',
-                            default: 4,
-                            min: 0,
-                            max: 40,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 4 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'compact',
-                            label: 'Compact List',
-                            values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
-                        },
-                        {
-                            id: 'stageReadout',
-                            label: 'Stage Readout',
-                            values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
-                        },
-                        {
-                            id: 'monitor',
-                            label: 'Monitor Overlay',
-                            values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
-                        },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'playingContent',
+                label: 'Source',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Select which MIDI track(s) feed the live note readout.',
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track'),
+                    prop.boolean('showAllAvailableTracks', 'Show All Tracks When Idle', false),
+                ],
+                presets: [
+                    { id: 'singleTrack', label: 'Single Track', values: { showAllAvailableTracks: false } },
+                    { id: 'multiTrack', label: 'Multi-Track Overview', values: { showAllAvailableTracks: true } },
+                ],
+            },
+            {
+                id: 'appearance',
+                label: 'Typography',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Tweak alignment and spacing for the note list.',
+                properties: [
+                    prop.select('textJustification', 'Text Alignment', 'left', [
+                        { value: 'left', label: 'Left' },
+                        { value: 'right', label: 'Right' },
+                    ]),
+                    prop.font('fontFamily', 'Font Family', 'Inter'),
+                    prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                    prop.color('color', 'Text Color', '#cccccc'),
+                    prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                ],
+                presets: [
+                    {
+                        id: 'compact',
+                        label: 'Compact List',
+                        values: { fontSize: 24, lineSpacing: 2, color: '#cbd5f5' },
+                    },
+                    {
+                        id: 'stageReadout',
+                        label: 'Stage Readout',
+                        values: { fontSize: 36, lineSpacing: 6, color: '#f8fafc' },
+                    },
+                    {
+                        id: 'monitor',
+                        label: 'Monitor Overlay',
+                        values: { fontSize: 28, lineSpacing: 4, color: '#22d3ee' },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

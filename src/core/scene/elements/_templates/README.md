@@ -57,7 +57,7 @@ When using a template as a starting point:
 
 ### Host Plugin API Access
 
-Plugin-facing templates must use the public host API helper from `@core/scene/plugins`:
+Plugin-facing templates must use the public host API helper from `@mvmnt/plugin-sdk`:
 
 - `getPluginHostApi(requiredCapabilities?)`
 - `PLUGIN_CAPABILITIES`

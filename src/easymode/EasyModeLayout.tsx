@@ -177,6 +177,10 @@ const EasyModeLayout: React.FC = () => {
                 </div>
             </header>
 
+            <div className="border-b border-yellow-600/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+                <span className="font-semibold">⚠️ Easy Mode is deprecated</span> and will be removed in a future version. We recommend using Advanced Mode for the best experience.
+            </div>
+
             <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="flex-1 overflow-hidden border-b border-neutral-800">

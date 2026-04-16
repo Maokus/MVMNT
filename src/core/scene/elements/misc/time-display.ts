@@ -1,5 +1,6 @@
 // Time display element for showing current time with property bindings
-import { SceneElement, asBoolean, asNumber, asTrimmedString } from '../base';
+import { SceneElement } from '../base';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { Text, Rectangle, RenderObject } from '@core/render/render-objects';
 import { TimingManager } from '@core/timing';
 import { EnhancedConfigSchema } from '@core/types.js';
@@ -30,89 +31,52 @@ export class TimeDisplayElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Time Display',
             description: 'Current time and beat position display',
             category: 'Misc',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'timeDisplay',
-                    label: 'Time Display',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Adjust offsets and typography for the timer.',
-                    properties: [
-                        {
-                            key: 'offsetBars',
-                            type: 'number',
-                            label: 'Offset Bars',
-                            default: 0,
-                            description: 'Shift the displayed musical + real time by this many bars (can be negative).',
-                            min: -512,
-                            max: 512,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'showProgress',
-                            type: 'boolean',
-                            label: 'Show Progress Bars',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            description: 'Font family (Google Fonts supported).',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'textColor',
-                            type: 'color',
-                            label: 'Primary Text Color',
-                            default: '#FFFFFF',
-                            description: 'Color for the main time and beat numbers.',
-                            runtime: { transform: asTrimmedString, defaultValue: '#FFFFFF' },
-                        },
-                        {
-                            key: 'textSecondaryColor',
-                            type: 'color',
-                            label: 'Secondary Text Color',
-                            default: 'rgba(255, 255, 255, 0.9)',
-                            description: 'Color for labels and secondary text.',
-                            runtime: {
-                                transform: asTrimmedString,
-                                defaultValue: 'rgba(255, 255, 255, 0.9)',
-                            },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'concertTimer',
-                            label: 'Concert Timer',
-                            values: { fontFamily: 'Inter|600', textColor: '#f8fafc', textSecondaryColor: '#cbd5f5' },
-                        },
-                        {
-                            id: 'techOverlay',
-                            label: 'Tech Overlay',
-                            values: { fontFamily: 'Inter|500', textColor: '#22d3ee', textSecondaryColor: '#94a3b8' },
-                        },
-                        {
-                            id: 'minimalClock',
-                            label: 'Minimal Clock',
-                            values: { fontFamily: 'Inter|400', textColor: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
-                        },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'timeDisplay',
+                label: 'Time Display',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Adjust offsets and typography for the timer.',
+                properties: [
+                    prop.number('offsetBars', 'Offset Bars', 0, {
+                        min: -512, max: 512, step: 1,
+                        description: 'Shift the displayed musical + real time by this many bars (can be negative).',
+                    }),
+                    prop.boolean('showProgress', 'Show Progress Bars', true),
+                    prop.font('fontFamily', 'Font Family', 'Inter', {
+                        description: 'Font family (Google Fonts supported).',
+                    }),
+                    prop.color('textColor', 'Primary Text Color', '#FFFFFF', {
+                        description: 'Color for the main time and beat numbers.',
+                    }),
+                    prop.color('textSecondaryColor', 'Secondary Text Color', 'rgba(255, 255, 255, 0.9)', {
+                        description: 'Color for labels and secondary text.',
+                    }),
+                ],
+                presets: [
+                    {
+                        id: 'concertTimer',
+                        label: 'Concert Timer',
+                        values: { fontFamily: 'Inter|600', textColor: '#f8fafc', textSecondaryColor: '#cbd5f5' },
+                    },
+                    {
+                        id: 'techOverlay',
+                        label: 'Tech Overlay',
+                        values: { fontFamily: 'Inter|500', textColor: '#22d3ee', textSecondaryColor: '#94a3b8' },
+                    },
+                    {
+                        id: 'minimalClock',
+                        label: 'Minimal Clock',
+                        values: { fontFamily: 'Inter|400', textColor: '#f5f5f5', textSecondaryColor: '#a3a3a3' },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

@@ -1,10 +1,11 @@
-import { SceneElement, asBoolean, asNumber, asTrimmedString, type PropertyTransform } from '../base';
+import { SceneElement, asNumber, type PropertyTransform } from '../base';
 import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeChannelSelectorInput, selectChannelSample } from '@audio/audioFeatureUtils';
 import { normalizeColorAlphaValue } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -18,17 +19,9 @@ function clamp01(value: number): number {
 }
 
 const DEFAULT_METER_COLOR = '#F472B6FF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 
 registerFeatureRequirements('audioVolumeMeter', [{ feature: 'rms' }]);
-
-const normalizeOrientation: PropertyTransform<'vertical' | 'horizontal', SceneElementInterface> = (value, element) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase();
-    return normalized === 'horizontal' ? 'horizontal' : 'vertical';
-};
-
-const normalizeAudioTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
-    asTrimmedString(value, element) ?? null;
 
 const clampSmoothing: PropertyTransform<number, SceneElementInterface> = (value, element) => {
     const numeric = asNumber(value, element);
@@ -48,130 +41,67 @@ export class AudioVolumeMeterElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Audio Volume Meter',
             description: 'Minimal RMS meter for quick debugging of audio levels.',
             category: 'Audio Displays',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'volumeMeterBasics',
-                    label: 'Volume Meter',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: { transform: normalizeAudioTrackId, defaultValue: null },
+        }, [
+            {
+                id: 'volumeMeterBasics',
+                label: 'Volume Meter',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.audioTrack('audioTrackId', 'Audio Track'),
+                    {
+                        key: 'channelSelector',
+                        type: 'string',
+                        label: 'Channel',
+                        default: null,
+                        runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                    },
+                    prop.select('orientation', 'Orientation', 'vertical', [
+                        { label: 'Vertical', value: 'vertical' },
+                        { label: 'Horizontal', value: 'horizontal' },
+                    ]),
+                    prop.number('width', 'Width (px)', 48, { min: 10, max: 400, step: 1 }),
+                    prop.number('height', 'Height (px)', 240, { min: 20, max: 800, step: 1 }),
+                    prop.number('minValue', 'Minimum Value', 0, { min: 0, max: 1, step: 0.01 }),
+                    prop.number('maxValue', 'Maximum Value', 1, { min: 0.1, max: 4, step: 0.01 }),
+                    {
+                        key: 'meterColor',
+                        type: 'colorAlpha',
+                        label: 'Meter Color',
+                        default: DEFAULT_METER_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_METER_COLOR),
+                            defaultValue: DEFAULT_METER_COLOR,
                         },
-                        {
-                            key: 'channelSelector',
-                            type: 'string',
-                            label: 'Channel',
-                            default: null,
-                            runtime: { transform: normalizeChannelSelector, defaultValue: null },
+                    },
+                    {
+                        key: 'backgroundColor',
+                        type: 'colorAlpha',
+                        label: 'Background',
+                        default: DEFAULT_BACKGROUND_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                            defaultValue: DEFAULT_BACKGROUND_COLOR,
                         },
-                        {
-                            key: 'orientation',
-                            type: 'select',
-                            label: 'Orientation',
-                            default: 'vertical',
-                            options: [
-                                { label: 'Vertical', value: 'vertical' },
-                                { label: 'Horizontal', value: 'horizontal' },
-                            ],
-                            runtime: { transform: normalizeOrientation, defaultValue: 'vertical' },
-                        },
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 48,
-                            min: 10,
-                            max: 400,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 48 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 240,
-                            min: 20,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 240 },
-                        },
-                        {
-                            key: 'minValue',
-                            type: 'number',
-                            label: 'Minimum Value',
-                            default: 0,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'maxValue',
-                            type: 'number',
-                            label: 'Maximum Value',
-                            default: 1,
-                            min: 0.1,
-                            max: 4,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'meterColor',
-                            type: 'colorAlpha',
-                            label: 'Meter Color',
-                            default: DEFAULT_METER_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_METER_COLOR),
-                                defaultValue: DEFAULT_METER_COLOR,
-                            },
-                        },
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background',
-                            default: DEFAULT_BACKGROUND_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                                defaultValue: DEFAULT_BACKGROUND_COLOR,
-                            },
-                        },
-                        {
-                            key: 'showValue',
-                            type: 'boolean',
-                            label: 'Show Value Label',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'smoothing',
-                            type: 'number',
-                            label: 'Smoothing',
-                            default: 0,
-                            min: 0,
-                            max: 64,
-                            step: 1,
-                            runtime: { transform: clampSmoothing, defaultValue: 0 },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+                    },
+                    prop.boolean('showValue', 'Show Value Label', true),
+                    {
+                        key: 'smoothing',
+                        type: 'number',
+                        label: 'Smoothing',
+                        default: 0,
+                        min: 0,
+                        max: 64,
+                        step: 1,
+                        runtime: { transform: clampSmoothing, defaultValue: 0 },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

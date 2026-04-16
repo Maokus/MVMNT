@@ -39,6 +39,7 @@ const AboutPage: React.FC = () => {
                                 <li><a href="https://www.youtube.com/@2L3L" target="_blank">2L&L</a></li>
                                 <li>Weivblank</li>
                                 <li>Tnky</li>
+                                <li>ivlayz</li>
                             </ul>
                         </section>
                         <section>

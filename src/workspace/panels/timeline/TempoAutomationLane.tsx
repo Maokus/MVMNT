@@ -4,6 +4,8 @@ import { useTickScale } from './useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from './constants';
 import TempoKeyframeLabel from './TempoKeyframeLabel';
 import type { TempoKeyframe } from '@core/timing/types';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { quantizeSettingToBeats } from '@state/timeline/quantize';
 
 const DIAMOND_SIZE = 7;
 const PADDING_Y = 12;
@@ -31,7 +33,22 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const removeTempoKeyframe = useTimelineStore((s) => s.removeTempoKeyframe);
     const moveTempoKeyframe = useTimelineStore((s) => s.moveTempoKeyframe);
     const updateTempoKeyframeBpm = useTimelineStore((s) => s.updateTempoKeyframeBpm);
+    const quantize = useTimelineStore((s) => s.transport.quantize);
+    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const ppq = CANONICAL_PPQ;
     const { toX, toTick } = useTickScale();
+
+    const snapTick = useCallback(
+        (candidateTick: number, altKey?: boolean) => {
+            if (altKey) return Math.max(0, Math.round(candidateTick));
+            if (quantize === 'off') return Math.max(0, Math.round(candidateTick));
+            const beatLength = quantizeSettingToBeats(quantize, bpb);
+            if (!beatLength) return Math.max(0, Math.round(candidateTick));
+            const resolution = Math.max(1, Math.round(beatLength * ppq));
+            return Math.max(0, Math.round(candidateTick / resolution) * resolution);
+        },
+        [quantize, bpb, ppq],
+    );
 
     const keyframes = tempoAutomation?.keyframes ?? [];
     const [selectedTick, setSelectedTick] = useState<number | null>(null);
@@ -46,6 +63,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
     // Context menu
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tick: number } | null>(null);
+    const [interpNotAvailMenu, setInterpNotAvailMenu] = useState<{ x: number; y: number; tick?: number } | null>(null);
 
     // BPM axis range (auto-fit)
     const { bpmMin, bpmMax } = useMemo(() => {
@@ -129,7 +147,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             if (!rect) return;
             const localX = e.clientX - rect.left;
             const localY = e.clientY - rect.top;
-            const tick = toTick(localX, width);
+            const tick = snapTick(toTick(localX, width), e.altKey);
             const bpm = Math.max(1, Math.min(999, Math.round(yToBpm(localY))));
             addTempoKeyframe(tick, bpm);
         },
@@ -177,7 +195,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
             if (axis === 'horizontal' || axis === 'none') {
                 const localX = e.clientX - rect.left;
-                newTick = Math.max(0, toTick(localX, width));
+                newTick = snapTick(toTick(localX, width), e.altKey);
             }
             if (axis === 'vertical' || axis === 'none') {
                 const localY = e.clientY - rect.top;
@@ -223,24 +241,35 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         (e: React.MouseEvent, tick: number) => {
             e.preventDefault();
             e.stopPropagation();
-            setContextMenu({ x: e.clientX, y: e.clientY, tick });
+            setInterpNotAvailMenu({ x: e.clientX, y: e.clientY, tick });
             setSelectedTick(tick);
         },
         [],
     );
 
     const handleDeleteKeyframe = useCallback(() => {
-        if (contextMenu) {
+        if (interpNotAvailMenu?.tick != null) {
+            removeTempoKeyframe(interpNotAvailMenu.tick);
+            setInterpNotAvailMenu(null);
+            setSelectedTick(null);
+        } else if (contextMenu) {
             removeTempoKeyframe(contextMenu.tick);
             setContextMenu(null);
             setSelectedTick(null);
         }
-    }, [contextMenu, removeTempoKeyframe]);
+    }, [interpNotAvailMenu, contextMenu, removeTempoKeyframe]);
 
     // Background click to deselect
     const handleBackgroundClick = useCallback(() => {
         setSelectedTick(null);
         setContextMenu(null);
+        setInterpNotAvailMenu(null);
+    }, []);
+
+    const handleSvgContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setInterpNotAvailMenu({ x: e.clientX, y: e.clientY });
     }, []);
 
     // Keyboard delete
@@ -274,7 +303,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         };
         window.addEventListener('pointerup', handleWindowPointerUp);
         return () => window.removeEventListener('pointerup', handleWindowPointerUp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDragging]);
 
     return (
@@ -294,6 +323,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 className="block"
                 onDoubleClick={handleDoubleClick}
                 onClick={handleBackgroundClick}
+                onContextMenu={handleSvgContextMenu}
                 onPointerMove={isDragging ? handlePointerMove : undefined}
                 onPointerUp={isDragging ? handlePointerUp : undefined}
                 onPointerCancel={isDragging ? () => { setDragState(null); setDraftPos(null); } : undefined}
@@ -328,13 +358,31 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                     </text>
                 )}
 
-                {/* Stepped curve */}
+                {/* Stepped curve — right-click shows interpolation-not-available */}
+                {curvePath && (
+                    <path
+                        d={curvePath}
+                        fill="none"
+                        stroke="rgba(251,191,36,0.5)"
+                        strokeWidth={8}
+                        strokeLinecap="round"
+                        opacity={0}
+                        className="cursor-pointer"
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setInterpNotAvailMenu({ x: e.clientX, y: e.clientY });
+                        }}
+                    />
+                )}
+                {/* Stepped curve visible */}
                 {curvePath && (
                     <path
                         d={curvePath}
                         fill="none"
                         stroke="rgba(251,191,36,0.5)"
                         strokeWidth={1.5}
+                        className="pointer-events-none"
                     />
                 )}
 
@@ -401,6 +449,29 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         >
                             Delete keyframe
                         </button>
+                    </div>
+                </>
+            )}
+
+            {/* Interpolation not available notice */}
+            {interpNotAvailMenu && (
+                <>
+                    <div className="fixed inset-0 z-[9990]" onClick={() => setInterpNotAvailMenu(null)} />
+                    <div
+                        className="fixed z-[9991] min-w-[200px] rounded border border-neutral-700 bg-neutral-900/95 shadow-xl text-[12px] overflow-hidden"
+                        style={{ left: interpNotAvailMenu.x, top: interpNotAvailMenu.y }}
+                    >
+                        <div className="px-3 py-2 text-neutral-400 border-b border-neutral-800">
+                            Interpolation not available for tempo automation
+                        </div>
+                        {interpNotAvailMenu.tick != null && (
+                            <button
+                                className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-red-900/40 hover:text-red-300"
+                                onClick={handleDeleteKeyframe}
+                            >
+                                Delete keyframe
+                            </button>
+                        )}
                     </div>
                 </>
             )}

@@ -40,6 +40,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
   const [ratingLoading, setRatingLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInstallWarning, setShowInstallWarning] = useState(false);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -296,7 +297,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             )}
             {item.type === 'plugin' && !isInstalled && (
               <button
-                onClick={handleInstall}
+                onClick={() => setShowInstallWarning(true)}
                 disabled={actioning}
                 className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
               >
@@ -323,6 +324,35 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             )}
           </div>
         </div>
+
+        {showInstallWarning && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-neutral-900 p-8 text-center">
+            <p className="text-base font-semibold text-white">Install this plugin?</p>
+            <p className="mt-3 text-[13px] text-neutral-300 leading-relaxed">
+              Installing <span className="font-semibold text-white">{item.title}</span> will allow{' '}
+              {item.uploader_username
+                ? <><span className="font-semibold text-white">{item.uploader_username}</span>'s code</>
+                : 'the plugin author\'s code'
+              }{' '}
+              to run on your computer. Only install plugins from authors you trust.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowInstallWarning(false)}
+                className="rounded border border-neutral-600 px-4 py-2 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowInstallWarning(false); handleInstall(); }}
+                disabled={actioning}
+                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              >
+                <FaBolt className="text-[11px]" /> Install
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

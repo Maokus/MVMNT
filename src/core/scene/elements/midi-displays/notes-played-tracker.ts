@@ -1,17 +1,11 @@
 // Notes Played Tracker element: shows counts of played notes and events from a MIDI file
-import { SceneElement, asNumber, asTrimmedString, type PropertyTransform } from '../base';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@core/types.js';
+import { SceneElement } from '../base';
+import type { EnhancedConfigSchema } from '@core/types.js';
 import { RenderObject, Text } from '@core/render/render-objects';
 // Timeline-backed migration: remove per-element MidiManager usage
 import { ensureFontLoaded, parseFontSelection } from '@fonts/font-loader';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
-
-const normalizeTextAlignment: PropertyTransform<CanvasTextAlign, SceneElementInterface> = (value, element) => {
-    const normalized = asTrimmedString(value, element)?.toLowerCase() as CanvasTextAlign | undefined;
-    if (!normalized) return undefined;
-    const allowed: CanvasTextAlign[] = ['left', 'right', 'center', 'start', 'end'];
-    return allowed.includes(normalized) ? normalized : undefined;
-};
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 export class NotesPlayedTrackerElement extends SceneElement {
     // Phase 3 reference pattern: intentionally consume timeline data through the public plugin API.
@@ -20,109 +14,58 @@ export class NotesPlayedTrackerElement extends SceneElement {
     }
 
     static getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const baseBasicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const baseAdvancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Notes Played Tracker',
             description: 'Displays how many notes/events have played so far (timeline-backed)',
             category: 'MIDI Displays',
-            groups: [
-                ...baseBasicGroups,
-                {
-                    id: 'trackerSource',
-                    label: 'Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Select the MIDI track whose progress is tracked.',
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
-                            },
-                        },
-                    ],
-                    presets: [
-                        { id: 'leadTrack', label: 'Lead Track', values: {} },
-                        { id: 'rhythmTrack', label: 'Rhythm Track', values: {} },
-                    ],
-                },
-                {
-                    id: 'appearance',
-                    label: 'Typography',
-                    variant: 'basic',
-                    collapsed: false,
-                    description: 'Adjust alignment and styling for the counters.',
-                    properties: [
-                        {
-                            key: 'textJustification',
-                            type: 'select',
-                            label: 'Text Alignment',
-                            default: 'left',
-                            options: [
-                                { value: 'left', label: 'Left' },
-                                { value: 'right', label: 'Right' },
-                            ],
-                            runtime: { transform: normalizeTextAlignment, defaultValue: 'left' as CanvasTextAlign },
-                        },
-                        {
-                            key: 'fontFamily',
-                            type: 'font',
-                            label: 'Font Family',
-                            default: 'Inter',
-                            description: 'Choose the font family (Google Fonts supported).',
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                        {
-                            key: 'fontSize',
-                            type: 'number',
-                            label: 'Font Size (px)',
-                            default: 30,
-                            min: 6,
-                            max: 72,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 30 },
-                        },
-                        {
-                            key: 'color',
-                            type: 'color',
-                            label: 'Text Color',
-                            default: '#cccccc',
-                            runtime: { transform: asTrimmedString, defaultValue: '#cccccc' },
-                        },
-                        {
-                            key: 'lineSpacing',
-                            type: 'number',
-                            label: 'Line Spacing (px)',
-                            default: 4,
-                            min: 0,
-                            max: 40,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 4 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'studio',
-                            label: 'Studio Monitor',
-                            values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
-                        },
-                        { id: 'sidebar', label: 'Sidebar', values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 } },
-                        {
-                            id: 'bigBoard',
-                            label: 'Big Board',
-                            values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
-                        },
-                    ],
-                },
-                ...baseAdvancedGroups,
-            ],
-        };
+        }, [
+            {
+                id: 'trackerSource',
+                label: 'Source',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Select the MIDI track whose progress is tracked.',
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track'),
+                ],
+                presets: [
+                    { id: 'leadTrack', label: 'Lead Track', values: {} },
+                    { id: 'rhythmTrack', label: 'Rhythm Track', values: {} },
+                ],
+            },
+            {
+                id: 'appearance',
+                label: 'Typography',
+                variant: 'basic',
+                collapsed: false,
+                description: 'Adjust alignment and styling for the counters.',
+                properties: [
+                    prop.select('textJustification', 'Text Alignment', 'left', [
+                        { value: 'left', label: 'Left' },
+                        { value: 'right', label: 'Right' },
+                    ]),
+                    prop.font('fontFamily', 'Font Family', 'Inter', {
+                        description: 'Choose the font family (Google Fonts supported).',
+                    }),
+                    prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                    prop.color('color', 'Text Color', '#cccccc'),
+                    prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                ],
+                presets: [
+                    {
+                        id: 'studio',
+                        label: 'Studio Monitor',
+                        values: { fontSize: 28, color: '#f8fafc', lineSpacing: 6 },
+                    },
+                    { id: 'sidebar', label: 'Sidebar', values: { fontSize: 22, color: '#22d3ee', lineSpacing: 3 } },
+                    {
+                        id: 'bigBoard',
+                        label: 'Big Board',
+                        values: { fontSize: 36, color: '#f97316', lineSpacing: 8 },
+                    },
+                ],
+            },
+        ]);
     }
 
     protected _buildRenderObjects(config: any, targetTime: number): RenderObject[] {

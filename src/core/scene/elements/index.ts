@@ -22,6 +22,7 @@ export { MovingNotesPianoRollElement } from './midi-displays/moving-notes-piano-
 export { NotesPlayedTrackerElement } from './midi-displays/notes-played-tracker';
 export { NotesPlayingDisplayElement } from './midi-displays/notes-playing-display';
 export { ChordEstimateDisplayElement } from './midi-displays/chord-estimate-display';
+export { CCMonitorElement } from './midi-displays/cc-monitor';
 export { AudioSpectrumElement } from './audio-displays/audio-spectrum';
 export { AudioVolumeMeterElement } from './audio-displays/audio-volume-meter';
 export { AudioWaveformElement } from './audio-displays/audio-waveform';

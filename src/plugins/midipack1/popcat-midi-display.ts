@@ -3,35 +3,21 @@ import {
     Image,
     Text,
     Rectangle,
-    asNumber,
-    asBoolean,
-    asTrimmedString,
     getPluginHostApi,
     PLUGIN_CAPABILITIES,
     parseFontSelection,
     ensureFontLoaded,
-    type PropertyTransform,
+    prop,
+    insertElementGroups,
     type RenderObject,
 } from '@mvmnt/plugin-sdk';
-import type { EnhancedConfigSchema, SceneElementInterface } from '@mvmnt/plugin-sdk';
+import type { EnhancedConfigSchema } from '@mvmnt/plugin-sdk';
 
-const normalizeMidiTrackId: PropertyTransform<string | null, SceneElementInterface> = (value, element) =>
-    asTrimmedString(value, element) ?? null;
-
-const normalizeImageSource: PropertyTransform<string | File | null, SceneElementInterface> = (value) => {
+const normalizeImageSource = (value: unknown): string | File | null => {
     if (value == null) return null;
     if (typeof value === 'string') return value;
     if (value instanceof File) return value;
     return null;
-};
-
-const normalizePlayAnimation: PropertyTransform<'jump' | 'bump' | 'none', SceneElementInterface> = (
-    value,
-    element
-) => {
-    const str = asTrimmedString(value, element)?.toLowerCase();
-    if (str === 'jump' || str === 'bump' || str === 'none') return str as 'jump' | 'bump' | 'none';
-    return 'none';
 };
 
 const ANIM_DURATION_MS = 100;
@@ -111,219 +97,119 @@ export class PopcatMidiDisplayElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Popcat Midi Display',
             description: 'Displays popcat reacting to MIDI notes',
-            category: 'extraspack1',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'midiSource',
-                    label: 'MIDI Source',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'midiTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'MIDI Track',
-                            default: null,
-                            allowedTrackTypes: ['midi'],
-                            description: 'MIDI track to monitor for notes',
-                            runtime: { transform: normalizeMidiTrackId, defaultValue: null },
-                        },
-                    ],
-                },
-                {
-                    id: 'noteFilter',
-                    label: 'Note Filter',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'manyCats',
-                            type: 'boolean',
-                            label: 'Many Cats',
-                            default: true,
-                            description:
-                                'Display a grid of cats, one per distinct note in the track',
-                            runtime: { transform: asBoolean, defaultValue: false },
-                        },
-                        {
-                            key: 'noteSelect',
-                            type: 'number',
-                            label: 'Note Select',
-                            default: 0,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description: 'Only activate on this MIDI note (0 = any note)',
-                            visibleWhen: [{ key: 'manyCats', falsy: true }],
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'offset',
-                            type: 'number',
-                            label: 'Offset',
-                            default: 0,
-                            min: 0,
-                            max: 127,
-                            step: 1,
-                            description: 'Skip this many of the lowest notes before placing cats (0 = start from the lowest note)',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'numCats',
-                            type: 'number',
-                            label: 'Num Cats',
-                            default: 128,
-                            min: 1,
-                            max: 128,
-                            step: 1,
-                            description: 'Maximum number of cats to display',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 12 },
-                        },
-                        {
-                            key: 'numRows',
-                            type: 'number',
-                            label: 'Num Rows',
-                            default: 3,
-                            min: 1,
-                            max: 16,
-                            step: 1,
-                            description: 'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'xSpacing',
-                            type: 'number',
-                            label: 'X Spacing',
-                            default: 8,
-                            min: 0,
-                            max: 200,
-                            step: 1,
-                            description: 'Horizontal gap in pixels between cats',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 8 },
-                        },
-                        {
-                            key: 'ySpacing',
-                            type: 'number',
-                            label: 'Y Spacing',
-                            default: 8,
-                            min: 0,
-                            max: 200,
-                            step: 1,
-                            description: 'Vertical gap in pixels between rows',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asNumber, defaultValue: 8 },
-                        },
-                        {
-                            key: 'noteLabels',
-                            type: 'boolean',
-                            label: 'Note Labels',
-                            default: false,
-                            description: 'Show MIDI note names below each cat',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }],
-                            runtime: { transform: asBoolean, defaultValue: false },
-                        },
-                        {
-                            key: 'labelFontFamily',
-                            type: 'font',
-                            label: 'Label Font',
-                            default: 'Inter',
-                            description: 'Font family for note name labels (Google Fonts supported).',
-                            visibleWhen: [{ key: 'manyCats', truthy: true }, { key: 'noteLabels', truthy: true }],
-                            runtime: { transform: asTrimmedString, defaultValue: 'Inter' },
-                        },
-                    ],
-                },
-                {
-                    id: 'sprites',
-                    label: 'Sprites',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'idleSprite',
-                            type: 'file',
-                            label: 'Idle Sprite',
-                            default: null,
-                            accept: 'image/*',
-                            description: 'Image shown when no note is playing. Defaults to popcat2.',
-                            runtime: { transform: normalizeImageSource, defaultValue: null },
-                        },
-                        {
-                            key: 'activeSprite',
-                            type: 'file',
-                            label: 'Active Sprite',
-                            default: null,
-                            accept: 'image/*',
-                            description: 'Image shown when a note is playing. Defaults to popcat1.',
-                            runtime: { transform: normalizeImageSource, defaultValue: null },
-                        },
-                    ],
-                },
-                {
-                    id: 'animation',
-                    label: 'Animation',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'playAnimation',
-                            type: 'select',
-                            label: 'Play Animation',
-                            default: 'jump',
-                            options: [
-                                { value: 'none', label: 'None' },
-                                { value: 'jump', label: 'Jump' },
-                                { value: 'bump', label: 'Bump' },
-                            ],
-                            description: 'Animation triggered when a note starts playing',
-                            runtime: { transform: normalizePlayAnimation, defaultValue: 'jump' as const },
-                        },
-                    ],
-                },
-                {
-                    id: 'imageSize',
-                    label: 'Image Size',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'imageWidth',
-                            type: 'number',
-                            label: 'Width',
-                            default: 200,
-                            min: 20,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 200 },
-                        },
-                        {
-                            key: 'imageHeight',
-                            type: 'number',
-                            label: 'Height',
-                            default: 200,
-                            min: 20,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 200 },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+            category: 'midipack1',
+        }, [
+            {
+                id: 'midiSource',
+                label: 'MIDI Source',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.midiTrack('midiTrackId', 'MIDI Track', { description: 'MIDI track to monitor for notes' }),
+                ],
+            },
+            {
+                id: 'noteFilter',
+                label: 'Note Filter',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.boolean('manyCats', 'Many Cats', true, {
+                        description: 'Display a grid of cats, one per distinct note in the track',
+                    }),
+                    prop.number('noteSelect', 'Note Select', 0, {
+                        min: 0, max: 127, step: 1,
+                        description: 'Only activate on this MIDI note (0 = any note)',
+                        visibleWhen: [{ key: 'manyCats', falsy: true }],
+                    }),
+                    prop.number('offset', 'Offset', 0, {
+                        min: 0, max: 127, step: 1,
+                        description: 'Skip this many of the lowest notes before placing cats (0 = start from the lowest note)',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.number('numCats', 'Num Cats', 128, {
+                        min: 1, max: 128, step: 1,
+                        description: 'Maximum number of cats to display',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.number('numRows', 'Num Rows', 3, {
+                        min: 1, max: 16, step: 1,
+                        description: 'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.number('xSpacing', 'X Spacing', 8, {
+                        min: 0, max: 200, step: 1,
+                        description: 'Horizontal gap in pixels between cats',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.number('ySpacing', 'Y Spacing', 8, {
+                        min: 0, max: 200, step: 1,
+                        description: 'Vertical gap in pixels between rows',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.boolean('noteLabels', 'Note Labels', false, {
+                        description: 'Show MIDI note names below each cat',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }],
+                    }),
+                    prop.font('labelFontFamily', 'Label Font', 'Inter', {
+                        description: 'Font family for note name labels (Google Fonts supported).',
+                        visibleWhen: [{ key: 'manyCats', truthy: true }, { key: 'noteLabels', truthy: true }],
+                    }),
+                ],
+            },
+            {
+                id: 'sprites',
+                label: 'Sprites',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    {
+                        key: 'idleSprite',
+                        type: 'file',
+                        label: 'Idle Sprite',
+                        default: null,
+                        accept: 'image/*',
+                        description: 'Image shown when no note is playing. Defaults to popcat2.',
+                        runtime: { transform: normalizeImageSource, defaultValue: null },
+                    },
+                    {
+                        key: 'activeSprite',
+                        type: 'file',
+                        label: 'Active Sprite',
+                        default: null,
+                        accept: 'image/*',
+                        description: 'Image shown when a note is playing. Defaults to popcat1.',
+                        runtime: { transform: normalizeImageSource, defaultValue: null },
+                    },
+                ],
+            },
+            {
+                id: 'animation',
+                label: 'Animation',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.select('playAnimation', 'Play Animation', 'jump', [
+                        { value: 'none', label: 'None' },
+                        { value: 'jump', label: 'Jump' },
+                        { value: 'bump', label: 'Bump' },
+                    ], { description: 'Animation triggered when a note starts playing' }),
+                ],
+            },
+            {
+                id: 'imageSize',
+                label: 'Image Size',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.number('imageWidth', 'Width', 200, { min: 20, max: 800, step: 1 }),
+                    prop.number('imageHeight', 'Height', 200, { min: 20, max: 800, step: 1 }),
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

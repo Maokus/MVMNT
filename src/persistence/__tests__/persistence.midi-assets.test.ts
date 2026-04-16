@@ -59,7 +59,7 @@ describe('MIDI asset packaging', () => {
         }));
     });
 
-    it('stores MIDI cache entries as external assets in packaged exports', async () => {
+    it('stores MIDI cache entries as binary .mid files in packaged exports', async () => {
         const result = await exportScene();
         if (!result.ok || result.mode !== 'zip-package') {
             throw new Error('Expected packaged export result');
@@ -68,12 +68,20 @@ describe('MIDI asset packaging', () => {
         const midiEntry = result.envelope.timeline.midiCache.track1;
         expect(midiEntry).toBeDefined();
         expect(midiEntry.assetRef).toMatch(/^assets\/midi\//);
+        expect(midiEntry.assetRef).toMatch(/\.mid$/);
         expect(midiEntry.assetId).toBeDefined();
         expect(midiEntry.notes?.count).toBe(1);
         expect(midiEntry.midiData).toBeUndefined();
 
         const zip = unzipSync(result.zip);
-        expect(zip[midiEntry.assetRef]).toBeDefined();
+        const payloadBytes = zip[midiEntry.assetRef];
+        expect(payloadBytes).toBeDefined();
+
+        // Verify the payload is a binary MIDI file (starts with MThd)
+        expect(payloadBytes[0]).toBe(0x4d); // M
+        expect(payloadBytes[1]).toBe(0x54); // T
+        expect(payloadBytes[2]).toBe(0x68); // h
+        expect(payloadBytes[3]).toBe(0x64); // d
 
         useTimelineStore.setState((state: any) => ({
             ...state,
@@ -89,7 +97,7 @@ describe('MIDI asset packaging', () => {
         expect(restored?.midiData?.events?.length).toBeGreaterThan(0);
     });
 
-    it('sanitizes circular references in MIDI cache entries before serialization', async () => {
+    it('exports successfully despite circular references in MIDI cache entries', async () => {
         const baseEntry = buildMidiCacheEntry();
         const detail: any = {
             trackIndex: 0,
@@ -139,11 +147,11 @@ describe('MIDI asset packaging', () => {
         const zip = unzipSync(result.zip);
         const payloadBytes = zip[midiEntry.assetRef];
         expect(payloadBytes).toBeDefined();
-        const payloadJson = new TextDecoder().decode(payloadBytes);
-        const parsed = JSON.parse(payloadJson);
-        expect(parsed.__mvmntMidiAssetVersion).toBe(1);
-        expect(parsed?.midiData?.trackDetails?.[0]?.events?.[0]?.trackDetail).toBeUndefined();
-        expect(parsed?.midiData?.events?.[0]?.linkedDetail?.self).toBeUndefined();
-        expect(Array.isArray(parsed?.notesRaw)).toBe(true);
+
+        // Payload must be a valid binary MIDI file
+        expect(payloadBytes[0]).toBe(0x4d); // M
+        expect(payloadBytes[1]).toBe(0x54); // T
+        expect(payloadBytes[2]).toBe(0x68); // h
+        expect(payloadBytes[3]).toBe(0x64); // d
     });
 });

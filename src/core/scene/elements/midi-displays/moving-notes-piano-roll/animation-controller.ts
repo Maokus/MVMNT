@@ -9,7 +9,7 @@ type MidiLikeNote = {
     startBeat?: number;
     endBeat?: number;
 };
-import { RenderObject } from '@core/render/render-objects';
+import { Rectangle, RenderObject } from '@core/render/render-objects';
 
 export interface BuildConfig {
     noteHeight: number;
@@ -106,7 +106,13 @@ export class MovingNotesAnimationController {
             const channelColors = this.owner.getChannelColors();
             const color = channelColors[channel % channelColors.length];
 
-            const inst = this._getAnimationInstance(animationType === 'none' ? 'expand' : animationType);
+            if (!animationEnabled) {
+                const rect = new Rectangle(x, y, width, noteHeight, color);
+                (rect as any).setIncludeInLayoutBounds?.(false);
+                renderObjects.push(rect);
+                continue;
+            }
+            const inst = this._getAnimationInstance(animationType);
             const progress = Math.max(0, Math.min(1, vis.progress));
             const phase = vis.type as AnimationPhase;
             const objs = inst.render({

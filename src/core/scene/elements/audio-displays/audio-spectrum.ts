@@ -5,6 +5,7 @@ import type { FeatureDataResult } from '@audio/features/sceneApi';
 import { registerFeatureRequirements } from '@audio/audioElementMetadata';
 import { normalizeColorAlphaValue } from '@utils/color';
 import { getPluginHostApi, PLUGIN_CAPABILITIES } from '@mvmnt/plugin-sdk';
+import { prop, insertElementGroups } from '@core/scene/plugins/plugin-sdk-prop-factories';
 
 function clamp(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) return min;
@@ -14,7 +15,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 const DEFAULT_BAR_COLOR = '#60A5FAFF';
-const DEFAULT_BACKGROUND_COLOR = '#0F172A59';
+const DEFAULT_BACKGROUND_COLOR = '#0F172A00';
 const DEFAULT_MIN_FREQUENCY = 20;
 const DEFAULT_MAX_FREQUENCY = 20000;
 const MAX_FREQUENCY_LIMIT = 48000;
@@ -198,205 +199,125 @@ export class AudioSpectrumElement extends SceneElement {
     }
 
     static override getConfigSchema(): EnhancedConfigSchema {
-        const base = super.getConfigSchema();
-        const basicGroups = base.groups.filter((group) => group.variant !== 'advanced');
-        const advancedGroups = base.groups.filter((group) => group.variant === 'advanced');
-        return {
-            ...base,
+        return insertElementGroups(super.getConfigSchema(), {
             name: 'Audio Spectrum',
             description: 'Compact magnitude bars for inspecting spectral data.',
             category: 'Audio Displays',
-            groups: [
-                ...basicGroups,
-                {
-                    id: 'spectrumBasics',
-                    label: 'Spectrum',
-                    variant: 'basic',
-                    collapsed: false,
-                    properties: [
-                        {
-                            key: 'audioTrackId',
-                            type: 'timelineTrackRef',
-                            label: 'Audio Track',
-                            default: null,
-                            allowedTrackTypes: ['audio'],
-                            runtime: {
-                                transform: (value, element) => asTrimmedString(value, element) ?? null,
-                                defaultValue: null,
+        }, [
+            {
+                id: 'spectrumBasics',
+                label: 'Spectrum',
+                variant: 'basic',
+                collapsed: false,
+                properties: [
+                    prop.audioTrack('audioTrackId', 'Audio Track'),
+                    {
+                        key: 'barCount',
+                        type: 'number',
+                        label: 'Bars',
+                        default: 48,
+                        min: 4,
+                        max: 256,
+                        step: 1,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                if (numeric === undefined) return undefined;
+                                return clamp(Math.floor(numeric), 4, 512);
                             },
+                            defaultValue: 48,
                         },
-                        {
-                            key: 'barCount',
-                            type: 'number',
-                            label: 'Bars',
-                            default: 48,
-                            min: 4,
-                            max: 256,
-                            step: 1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    if (numeric === undefined) return undefined;
-                                    return clamp(Math.floor(numeric), 4, 512);
-                                },
-                                defaultValue: 48,
+                    },
+                    prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
+                    prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
+                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
+                    prop.number('height', 'Height (px)', 180, { min: 40, max: 800, step: 1 }),
+                    {
+                        key: 'primaryColor',
+                        type: 'colorAlpha',
+                        label: 'Color',
+                        default: DEFAULT_BAR_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BAR_COLOR),
+                            defaultValue: DEFAULT_BAR_COLOR,
+                        },
+                    },
+                    {
+                        key: 'backgroundColor',
+                        type: 'colorAlpha',
+                        label: 'Background',
+                        default: DEFAULT_BACKGROUND_COLOR,
+                        runtime: {
+                            transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
+                            defaultValue: DEFAULT_BACKGROUND_COLOR,
+                        },
+                    },
+                    {
+                        key: 'display',
+                        type: 'select',
+                        label: 'Display Mode',
+                        default: 'bar',
+                        options: [
+                            { label: 'Bars', value: 'bar' },
+                            { label: 'Line', value: 'line' },
+                            { label: 'Dots', value: 'dot' },
+                        ],
+                        runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
+                    },
+                    prop.number('thickness', 'Thickness', 4, { min: 0.5, max: 64, step: 0.5 }),
+                    {
+                        key: 'scale',
+                        type: 'select',
+                        label: 'Frequency Scale',
+                        default: 'mel',
+                        options: [
+                            { label: 'Linear', value: 'linear' },
+                            { label: 'Logarithmic', value: 'log' },
+                            { label: 'Mel', value: 'mel' },
+                        ],
+                        runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
+                    },
+                    prop.number('tilt', 'Tilt Factor', 0, { min: -1, max: 1, step: 0.01 }),
+                    prop.number('gain', 'Gain', 1, { min: 0, max: 10, step: 0.01 }),
+                    {
+                        key: 'minFrequency',
+                        type: 'number',
+                        label: 'Min Frequency (Hz)',
+                        default: DEFAULT_MIN_FREQUENCY,
+                        min: 0,
+                        max: MAX_FREQUENCY_LIMIT,
+                        step: 1,
+                        runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
+                    },
+                    {
+                        key: 'maxFrequency',
+                        type: 'number',
+                        label: 'Max Frequency (Hz)',
+                        default: DEFAULT_MAX_FREQUENCY,
+                        min: 1,
+                        max: MAX_FREQUENCY_LIMIT,
+                        step: 1,
+                        runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
+                    },
+                    {
+                        key: 'smoothing',
+                        type: 'number',
+                        label: 'Smoothing',
+                        default: 0,
+                        min: 0,
+                        max: 64,
+                        step: 1,
+                        runtime: {
+                            transform: (value, element) => {
+                                const numeric = asNumber(value, element);
+                                return numeric === undefined ? undefined : clamp(numeric, 0, 64);
                             },
+                            defaultValue: 0,
                         },
-                        {
-                            key: 'minDecibels',
-                            type: 'number',
-                            label: 'Minimum Value',
-                            default: -80,
-                            min: -80,
-                            max: 0,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: -80 },
-                        },
-                        {
-                            key: 'maxDecibels',
-                            type: 'number',
-                            label: 'Maximum Value',
-                            default: 0,
-                            min: -80,
-                            max: 24,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'width',
-                            type: 'number',
-                            label: 'Width (px)',
-                            default: 420,
-                            min: 40,
-                            max: 1600,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 420 },
-                        },
-                        {
-                            key: 'height',
-                            type: 'number',
-                            label: 'Height (px)',
-                            default: 180,
-                            min: 40,
-                            max: 800,
-                            step: 1,
-                            runtime: { transform: asNumber, defaultValue: 180 },
-                        },
-                        {
-                            key: 'primaryColor',
-                            type: 'colorAlpha',
-                            label: 'Color',
-                            default: DEFAULT_BAR_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BAR_COLOR),
-                                defaultValue: DEFAULT_BAR_COLOR,
-                            },
-                        },
-                        {
-                            key: 'backgroundColor',
-                            type: 'colorAlpha',
-                            label: 'Background',
-                            default: DEFAULT_BACKGROUND_COLOR,
-                            runtime: {
-                                transform: (value) => normalizeColorAlphaValue(value, DEFAULT_BACKGROUND_COLOR),
-                                defaultValue: DEFAULT_BACKGROUND_COLOR,
-                            },
-                        },
-                        {
-                            key: 'display',
-                            type: 'select',
-                            label: 'Display Mode',
-                            default: 'bar',
-                            options: [
-                                { label: 'Bars', value: 'bar' },
-                                { label: 'Line', value: 'line' },
-                                { label: 'Dots', value: 'dot' },
-                            ],
-                            runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
-                        },
-                        {
-                            key: 'thickness',
-                            type: 'number',
-                            label: 'Thickness',
-                            default: 4,
-                            min: 0.5,
-                            max: 64,
-                            step: 0.5,
-                            runtime: { transform: asNumber, defaultValue: 4 },
-                        },
-                        {
-                            key: 'scale',
-                            type: 'select',
-                            label: 'Frequency Scale',
-                            default: 'mel',
-                            options: [
-                                { label: 'Linear', value: 'linear' },
-                                { label: 'Logarithmic', value: 'log' },
-                                { label: 'Mel', value: 'mel' },
-                            ],
-                            runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
-                        },
-                        {
-                            key: 'tilt',
-                            type: 'number',
-                            label: 'Tilt Factor',
-                            default: 0,
-                            min: -1,
-                            max: 1,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'gain',
-                            type: 'number',
-                            label: 'Gain',
-                            default: 1,
-                            min: 0,
-                            max: 10,
-                            step: 0.01,
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'minFrequency',
-                            type: 'number',
-                            label: 'Min Frequency (Hz)',
-                            default: DEFAULT_MIN_FREQUENCY,
-                            min: 0,
-                            max: MAX_FREQUENCY_LIMIT,
-                            step: 1,
-                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MIN_FREQUENCY },
-                        },
-                        {
-                            key: 'maxFrequency',
-                            type: 'number',
-                            label: 'Max Frequency (Hz)',
-                            default: DEFAULT_MAX_FREQUENCY,
-                            min: 1,
-                            max: MAX_FREQUENCY_LIMIT,
-                            step: 1,
-                            runtime: { transform: normalizeFrequency, defaultValue: DEFAULT_MAX_FREQUENCY },
-                        },
-                        {
-                            key: 'smoothing',
-                            type: 'number',
-                            label: 'Smoothing',
-                            default: 0,
-                            min: 0,
-                            max: 64,
-                            step: 1,
-                            runtime: {
-                                transform: (value, element) => {
-                                    const numeric = asNumber(value, element);
-                                    return numeric === undefined ? undefined : clamp(numeric, 0, 64);
-                                },
-                                defaultValue: 0,
-                            },
-                        },
-                    ],
-                },
-                ...advancedGroups,
-            ],
-        };
+                    },
+                ],
+            },
+        ]);
     }
 
     protected override _buildRenderObjects(_config: unknown, targetTime: number): RenderObject[] {

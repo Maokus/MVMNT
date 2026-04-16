@@ -5,17 +5,10 @@ Directory relationships
 src/plugins/<name>/       Plugin TypeScript source. Run `npm run build-plugin` to
                           compile a plugin into a distributable .mvmnt-plugin bundle.
 
-public/default-plugins/   Runtime-installed .mvmnt-plugin bundles served by the dev
-                          server and included in production builds. MVMNT loads these
-                          automatically on startup. Drop a compiled bundle here to make
-                          it a default/built-in pack.
-
 dist/                     Stale build output from plugin compilation (gitignored).
 
-Workflow: write source in src/plugins/<name>/ → npm run build-plugin → copy the
-resulting .mvmnt-plugin file to public/default-plugins/ if it should ship by default.
+Workflow: write source in src/plugins/<name>/ → npm run build-plugin → find built plugin in /dist
 
 Tracking
 --------
-- extraspack1/  tracked in git (default pack, shipped in public/default-plugins/)
-- myplugin3/    local-only, not tracked in git
+- midipack1/  tracked in git (default pack, shipped in public/default-plugins/)

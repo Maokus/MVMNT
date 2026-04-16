@@ -1,6 +1,6 @@
 # Plugin API v1
 
-_Last Updated: 19 March 2026_
+_Last Updated: 16 April 2026_
 
 This document defines the stable host API available to plugins at runtime.
 
@@ -22,17 +22,50 @@ Plugin code should treat internal aliases (`@core/*`, `@audio/*`, `@state/*`, et
 **To author plugins, you must either:**
 
 - Work inside this repository (recommended for first-party elements).
-- Build your plugin against the repo as a peer and configure the same path alias in your own `tsconfig.json`:
+- Build your plugin against the repo as a peer and configure the same path aliases in your own `tsconfig.json`:
 
   ```json
   {
     "paths": {
-      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"]
+      "@mvmnt/plugin-sdk": ["path/to/MVMNT/src/core/scene/plugins/plugin-sdk"],
+      "@mvmnt/plugin-sdk/*": ["path/to/MVMNT/src/core/scene/plugins/sdk/*"]
     }
   }
   ```
 
 Do **not** attempt to `npm install @mvmnt/plugin-sdk` — no such package exists. The bundle produced by your build tool must not include the SDK source; the host injects it at load time.
+
+## SDK Submodules
+
+The SDK is organised into domain submodules. You can import everything from the top-level barrel, or import only what you need from a specific submodule for clarity:
+
+```ts
+// Top-level barrel — always works, includes everything
+import { selectNotes, clamp, remap, easings } from '@mvmnt/plugin-sdk';
+
+// Domain submodule — explicit and tree-shake friendly
+import { clamp, remap, easings, FloatCurve } from '@mvmnt/plugin-sdk/animation';
+import { selectNotes, timelineApi }           from '@mvmnt/plugin-sdk/timeline';
+import { audioApi, sampleAudio }              from '@mvmnt/plugin-sdk/audio';
+import { timingApi, beatsToSeconds }          from '@mvmnt/plugin-sdk/timing';
+import { Rectangle, BezierPath, Arc }         from '@mvmnt/plugin-sdk/render';
+import { SceneElement, prop }                 from '@mvmnt/plugin-sdk/scene';
+import { getPluginHostApi, PLUGIN_CAPABILITIES, MissingCapabilityError } from '@mvmnt/plugin-sdk/api';
+import { withRenderSafety, limitRenderObjects } from '@mvmnt/plugin-sdk/safety';
+import { noteName, loadBundledAsset }         from '@mvmnt/plugin-sdk/utils';
+```
+
+| Submodule | Contents |
+|---|---|
+| `animation` | `clamp`, `lerp`, `invLerp`, `remap`, `FloatCurve`, `EasingFn`, `easings` (31 named easing functions) |
+| `render` | `Rectangle`, `Text`, `Line`, `Image`, `Arc`, `BezierPath`, `Poly`, `GlowLayer`, `CompositeLayer`, … |
+| `scene` | `SceneElement`, property descriptors, `prop` factory, `insertElementGroups`, config schema types |
+| `api` | `PLUGIN_CAPABILITIES`, `getPluginHostApi`, `PluginApiError`, `MissingCapabilityError`, … |
+| `timeline` | `timelineApi`, `selectNotes`, `selectAllNotes`, `getMidiTracks`, `TimelineNoteEvent`, … |
+| `audio` | `audioApi`, `sampleAudio`, `registerFeatureRequirements`, `FeatureDataResult`, … |
+| `timing` | `timingApi`, `timeToBeats`, `beatsToSeconds`, `quantizeSettingToBeats`, … |
+| `safety` | `withRenderSafety`, `limitRenderObjects`, `checkCapability`, `PluginSafetyError` |
+| `utils` | `noteName`, `groupNotesByPitch`, `loadBundledAsset`, color helpers, font loader |
 
 ## Capabilities
 
@@ -138,14 +171,25 @@ const label = noteName(60); // 'C4'
 
 Available helpers:
 
-- `selectNotes(trackIds, startSec, endSec)` — Select notes in time window
-- `sampleAudio(trackId, feature, time, options?)` — Sample feature at a time
-- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` — Sample feature over a range
-- `timeToBeats(seconds)` — Convert seconds to beats
-- `beatsToTime(beats)` — Convert beats to seconds
-- `timeToTicks(seconds)` — Convert seconds to ticks
-- `ticksToTime(ticks)` — Convert ticks to seconds
-- `noteName(noteNumber)` — Get MIDI note name (e.g. `'C4'`)
+- `selectNotes(trackIds, startSec, endSec)` — notes from specific tracks in a window
+- `selectAllNotes(startSec, endSec)` — notes from all tracks in a window
+- `selectDistinctNotes(args?)` — sorted unique note numbers
+- `selectNotesByPitch(note, args?)` — all events for a single pitch
+- `getNoteRange(args?)` — `{ min, max }` pitch range, or null
+- `getTimelineDuration()` — scene duration in seconds
+- `getMidiTracks()` — all MIDI tracks
+- `groupNotesByPitch(notes)` — pure utility; groups a note array into a `Map<number, TimelineNoteEvent[]>` sorted by pitch
+- `selectCC(args)` — CC events in a window: `{ trackIds?, controller?, startSec, endSec }`
+- `getSustainState(args)` — sustain pedal state at a time: `{ trackIds?, timeSec }`
+- `sampleAudio(trackId, feature, time, options?)` — sample feature at a time
+- `sampleAudioRange(trackId, feature, startTime, endTime, stepSec, options?)` — sample feature over a range
+- `timeToBeats(seconds)` — convert seconds to beats
+- `beatsToTime(beats)` — convert beats to seconds
+- `timeToTicks(seconds)` — convert seconds to ticks
+- `ticksToTime(ticks)` — convert ticks to seconds
+- `beatToTicks(beats)` — convert beats to ticks
+- `ticksToBeat(ticks)` — convert ticks to beats
+- `noteName(noteNumber)` — get MIDI note name (e.g. `'C4'`)
 
 ## API Surface
 
@@ -153,10 +197,18 @@ Available helpers:
 
 Requires `timeline.read` capability.
 
-- `getStateSnapshot(): TimelineState | null`
-- `selectNotesInWindow({ trackIds, startSec, endSec }): TimelineNoteEvent[]`
+- `getStateSnapshot(): TimelineState | null` — raw timeline store state snapshot
+- `selectNotesInWindow({ trackIds, startSec, endSec }): TimelineNoteEvent[]` — notes from specific tracks in a time window
+- `selectAllNotesInWindow({ startSec, endSec }): TimelineNoteEvent[]` — notes from all MIDI tracks in a time window
+- `selectDistinctNoteNumbers(args?): number[]` — sorted unique MIDI note numbers; omit args for all tracks/time
+- `selectNotesByPitch(note, args?): TimelineNoteEvent[]` — all events for a single pitch; omit args for all tracks/time
+- `getNoteRange(args?): { min: number; max: number } | null` — min/max pitch in the given window; null if no notes
+- `getTimelineDuration(): number` — scene duration in seconds
 - `getTrackById(trackId): Track | null`
 - `getTracksByIds(trackIds): Track[]`
+- `getMidiTracks(): Track[]` — all MIDI tracks
+- `selectCCInWindow({ trackIds?, controller?, startSec, endSec }): TimelineCCEvent[]` — MIDI CC events in a window, optionally filtered by controller number
+- `getSustainStateAtTime({ trackIds?, timeSec }): boolean` — whether sustain pedal (CC 64) is held
 
 ```ts
 const state = api.timeline.getStateSnapshot();
@@ -206,6 +258,73 @@ Requires `midi.utils` capability (always available).
 ```ts
 const label = api.utilities.midiNoteToName(60); // C4
 ```
+
+## SDK Utilities
+
+These helpers are exported from `@mvmnt/plugin-sdk` (or the corresponding submodule) and do not require a capability access call.
+
+### Animation math (`animation` submodule)
+
+```ts
+import { clamp, lerp, invLerp, remap, FloatCurve, easings } from '@mvmnt/plugin-sdk/animation';
+```
+
+- `clamp(v, min, max)` — clamp a number to a range
+- `lerp(a, b, t)` — linear interpolation between two values
+- `invLerp(a, b, v)` — inverse lerp; returns the `t` that produces `v`
+- `remap(inMin, inMax, outMin, outMax, v)` — map a value from one range to another (clamped)
+- `FloatCurve` — piecewise linear interpolation with per-segment easing; pass `[factor, value, easingFn?]` tuples
+- `easings` — dictionary of 31 named easing functions (`easeOutQuad`, `easeInElastic`, `easeInOutBack`, etc.)
+
+Example — fade-out alpha over a ripple lifetime:
+
+```ts
+const alpha = remap(fadeFrom, 1, 1, 0, progress);
+```
+
+Example — custom curve with easing:
+
+```ts
+const curve = new FloatCurve([
+    [0,   0, easings.easeOutCubic],
+    [0.6, 1],
+    [1,   0, easings.easeInQuad],
+]);
+const scale = curve.valAt(progress);
+```
+
+### Property factories (`prop`, `insertElementGroups`)
+
+See [Creating Custom Elements — Property Factory Helpers](creating-custom-elements.md#configuration-schema) for the full reference. Summary:
+
+```ts
+import { prop, insertElementGroups } from '@mvmnt/plugin-sdk';
+```
+
+`prop.*` factories build complete `PropertyDefinition` objects with the correct `runtime` transform pre-filled. `insertElementGroups` places your property groups between the base element's basic and advanced groups without boilerplate.
+
+### Asset loading (`loadBundledAsset`)
+
+```ts
+import { loadBundledAsset } from '@mvmnt/plugin-sdk';
+
+const url = await loadBundledAsset('assets/logo.png');
+// url is a blob: URL valid for the lifetime of the plugin
+```
+
+In production bundles, `loadBundledAsset('path')` resolves a path from the plugin's `assets/` directory to a blob URL. In Vite dev mode, import assets directly instead:
+
+```ts
+import logoUrl from './assets/logo.png?url';
+```
+
+### Types
+
+- `TimelineNoteEvent` — MIDI note event `{ note, startSec, endSec, velocity, trackId, … }`
+- `TimelineCCEvent` — MIDI CC event `{ controller, value, timeSec, trackId, … }`
+- `TempoMapEntry` — tempo map entry used in timing calculations
+- `FeatureInput` — union of audio feature names (e.g. `'rms'`, `'spectrum'`, `'waveform'`)
+- `FeatureDataResult` — returned by `sampleFeatureAtTime`
 
 ## Capability Discovery
 

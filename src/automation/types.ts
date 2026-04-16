@@ -7,6 +7,71 @@
  */
 
 // ---------------------------------------------------------------------------
+// Interpolation mode types
+// ---------------------------------------------------------------------------
+
+/**
+ * Interpolation mode for a segment between two keyframes.
+ * - constant/linear/bezier: basic modes
+ * - Semantic presets: easing families evaluated with a direction modifier
+ */
+export type SegmentInterpolationMode =
+    | 'constant'
+    | 'linear'
+    | 'bezier'
+    | 'sine'
+    | 'quad'
+    | 'cubic'
+    | 'quart'
+    | 'quint'
+    | 'expo'
+    | 'circ'
+    | 'back'
+    | 'bounce'
+    | 'elastic';
+
+/**
+ * Easing direction for semantic preset modes.
+ * 'auto' resolves to ease_in_out for smooth families, ease_out for dynamic.
+ */
+export type EasingDirection = 'auto' | 'ease_in' | 'ease_out' | 'ease_in_out';
+
+/**
+ * Bezier handle constraint type.
+ * - free: fully independent handle movement
+ * - aligned: opposite handles share tangent direction, independent length
+ * - vector: handle points straight at the neighboring keyframe
+ * - auto: Catmull-Rom tangent, auto-computed
+ * - auto_clamped: auto with overshoot prevention
+ */
+export type HandleType = 'free' | 'aligned' | 'vector' | 'auto' | 'auto_clamped';
+
+/** A bezier handle offset, relative to the keyframe's tick and value. */
+export interface BezierHandle {
+    /** Tick offset from the keyframe position. */
+    dt: number;
+    /** Value offset from the keyframe value. */
+    dv: number;
+}
+
+/** Optional parameters for parameterized easing modes. */
+export interface SegmentInterpolationParams {
+    /** Back overshoot factor. Default: 1.70158 */
+    overshoot?: number;
+    /** Elastic amplitude. Default: 1.0 */
+    amplitude?: number;
+    /** Elastic oscillation period. Default: 0.3 */
+    period?: number;
+}
+
+/** Per-segment interpolation descriptor, stored on the outgoing keyframe. */
+export interface SegmentInterpolation {
+    mode: SegmentInterpolationMode;
+    direction: EasingDirection;
+    params?: SegmentInterpolationParams;
+}
+
+// ---------------------------------------------------------------------------
 // Keyframe
 // ---------------------------------------------------------------------------
 
@@ -16,8 +81,24 @@ export interface AutomationKeyframe {
     tick: number;
     /** The property value at this tick (number, hex color string, or boolean). */
     value: unknown;
-    /** Key into the easing library applied *from* this keyframe to the next. */
+    /**
+     * Legacy easing ID applied from this keyframe to the next.
+     * Kept for backward compatibility; new code should use segmentInterpolation.
+     */
     easingId: string;
+
+    // -- New hybrid interpolation fields (all optional for backward compat) --
+
+    /** Per-segment interpolation mode, direction, and parameters (outgoing). */
+    segmentInterpolation?: SegmentInterpolation;
+    /** Left (incoming) bezier handle, relative to this keyframe. */
+    leftHandle?: BezierHandle;
+    /** Right (outgoing) bezier handle, relative to this keyframe. */
+    rightHandle?: BezierHandle;
+    /** Left handle constraint type. */
+    leftHandleType?: HandleType;
+    /** Right handle constraint type. */
+    rightHandleType?: HandleType;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,7 +109,7 @@ export interface AutomationKeyframe {
 export type AutomationInterpolation = 'linear' | 'stepped' | 'eased';
 
 /** The JS value type stored in keyframes — drives evaluation strategy. */
-export type AutomationValueType = 'number' | 'color' | 'boolean';
+export type AutomationValueType = 'number' | 'color' | 'boolean' | 'string';
 
 /** One automation channel: a single animated property on a single element. */
 export interface AutomationChannel {
@@ -40,10 +121,15 @@ export interface AutomationChannel {
     propertyKey: string;
     /** Keyframes sorted ascending by tick. */
     keyframes: AutomationKeyframe[];
-    /** Interpolation mode for the channel. */
+    /**
+     * Legacy channel-level interpolation mode.
+     * @deprecated Use per-keyframe segmentInterpolation instead.
+     */
     interpolation: AutomationInterpolation;
     /** The value type — determines evaluation strategy. */
     valueType: AutomationValueType;
+    /** Default interpolation for newly created keyframes on this channel. */
+    defaultInterpolation?: SegmentInterpolation;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,8 +148,33 @@ export interface KeyframesBindingState {
 }
 
 // ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_SEGMENT_INTERPOLATION: SegmentInterpolation = {
+    mode: 'cubic',
+    direction: 'ease_in_out',
+};
+
+// ---------------------------------------------------------------------------
 // Utility functions
 // ---------------------------------------------------------------------------
+
+/** Deep-clone a single keyframe, including nested handle and interpolation objects. */
+export function cloneKeyframe(kf: AutomationKeyframe): AutomationKeyframe {
+    const clone: AutomationKeyframe = { tick: kf.tick, value: kf.value, easingId: kf.easingId };
+    if (kf.segmentInterpolation) {
+        clone.segmentInterpolation = {
+            ...kf.segmentInterpolation,
+            params: kf.segmentInterpolation.params ? { ...kf.segmentInterpolation.params } : undefined,
+        };
+    }
+    if (kf.leftHandle) clone.leftHandle = { ...kf.leftHandle };
+    if (kf.rightHandle) clone.rightHandle = { ...kf.rightHandle };
+    if (kf.leftHandleType) clone.leftHandleType = kf.leftHandleType;
+    if (kf.rightHandleType) clone.rightHandleType = kf.rightHandleType;
+    return clone;
+}
 
 /** Build the canonical channel ID for an element + property pair. */
 export function makeChannelId(elementId: string, propertyKey: string): string {
@@ -99,6 +210,28 @@ export function createChannel(
         keyframes: [],
         interpolation,
         valueType,
+        defaultInterpolation: {
+            mode: interpolation === 'stepped' ? 'constant'
+                : interpolation === 'linear' ? 'linear'
+                : 'bezier',
+            direction: 'auto',
+        },
+    };
+}
+
+/** Create a keyframe with sensible defaults for the new interpolation system. */
+export function createKeyframe(
+    tick: number,
+    value: unknown,
+    interpolation?: SegmentInterpolation,
+): AutomationKeyframe {
+    return {
+        tick,
+        value,
+        easingId: 'linear',
+        segmentInterpolation: interpolation ?? DEFAULT_SEGMENT_INTERPOLATION,
+        leftHandleType: 'auto_clamped',
+        rightHandleType: 'auto_clamped',
     };
 }
 
@@ -158,9 +291,12 @@ export function cloneChannel(channel: AutomationChannel, newElementId?: string):
         id: makeChannelId(elementId, channel.propertyKey),
         elementId,
         propertyKey: channel.propertyKey,
-        keyframes: channel.keyframes.map((kf) => ({ ...kf })),
+        keyframes: channel.keyframes.map(cloneKeyframe),
         interpolation: channel.interpolation,
         valueType: channel.valueType,
+        defaultInterpolation: channel.defaultInterpolation
+            ? { ...channel.defaultInterpolation, params: channel.defaultInterpolation.params ? { ...channel.defaultInterpolation.params } : undefined }
+            : undefined,
     };
 }
 

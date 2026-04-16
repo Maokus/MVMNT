@@ -18,6 +18,7 @@ export class Arc extends RenderObject {
     shadowOffsetY: number;
     globalAlpha: number;
     fillRule: CanvasFillRule;
+    arcFillStyle: 'segment' | 'sector';
 
     constructor(
         x: number,
@@ -50,6 +51,7 @@ export class Arc extends RenderObject {
         this.shadowOffsetY = 0;
         this.globalAlpha = 1;
         this.fillRule = options?.fillRule ?? 'nonzero';
+        this.arcFillStyle = 'segment';
     }
 
     setRadius(radius: number): this {
@@ -131,7 +133,13 @@ export class Arc extends RenderObject {
         if (this.lineDash.length && hasStroke) ctx.setLineDash(this.lineDash);
 
         ctx.beginPath();
+        if (this.arcFillStyle === 'sector') {
+            ctx.moveTo(0, 0);
+        }
         ctx.arc(0, 0, this.radius, this.startAngle, this.endAngle, this.anticlockwise);
+        if (this.arcFillStyle === 'sector') {
+            ctx.closePath();
+        }
 
         const doFill = !!this.fillColor;
         if (doFill) {
