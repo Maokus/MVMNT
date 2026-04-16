@@ -8,6 +8,8 @@ import {
     Poly,
     Text,
     type RenderObject,
+    clamp,
+    remap,
 } from '@mvmnt/plugin-sdk';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,7 +171,7 @@ export function drawCircleRipple(
     config?: Partial<CircleRippleConfig>
 ): RenderObject[] {
     const { strokeWidth, startFraction, endFraction, fadeFrom } = { ...CIRCLE_RIPPLE_DEFAULTS, ...config };
-    const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
+    const alpha = remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
     const radius = rippleRadius * (startFraction + (endFraction - startFraction) * progress);
     const ring = new Arc(cx, cy, radius, 0, Math.PI * 2, false, {
@@ -199,7 +201,7 @@ export function drawTriangleBurstRipple(
         easeOutPower, baseWidthPx, angleJitter, fadeFrom,
     } = { ...TRIANGLE_BURST_DEFAULTS, ...config };
 
-    const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
+    const alpha = remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
 
     const rng = makeRng(noteSeed);
@@ -250,7 +252,7 @@ export function drawLineBurstRipple(
     config?: Partial<LineBurstRippleConfig>
 ): RenderObject[] {
     const { numRays, innerFraction, outerFraction, strokeWidth, fadeFrom } = { ...LINE_BURST_DEFAULTS, ...config };
-    const alpha = progress > fadeFrom ? 1 - (progress - fadeFrom) / (1 - fadeFrom + 1e-9) : 1;
+    const alpha = remap(fadeFrom, 1, 1, 0, progress);
     if (alpha <= 0) return [];
     const inner = rippleRadius * innerFraction;
     const outer = rippleRadius * (innerFraction + (outerFraction - innerFraction) * progress);
@@ -293,12 +295,12 @@ export function getPressTransform(
 
     if (timeSinceHit <= noteDuration) {
         // Press-in phase: quick ease-in to full press, then hold
-        const t = Math.min(timeSinceHit / PRESS_ANIM.pressInDuration, 1);
+        const t = clamp(timeSinceHit / PRESS_ANIM.pressInDuration, 0, 1);
         const envelope = Math.pow(t, 1 / PRESS_ANIM.pressEasePower);
         return { dy: maxOffset * envelope, dh: 0 };
     } else {
         // Spring-back phase after note ends
-        const t = (timeSinceHit - noteDuration) / springDuration;
+        const t = clamp((timeSinceHit - noteDuration) / springDuration, 0, 1);
         if (t >= 1) return { dy: 0, dh: 0 };
         const envelope = 1 - Math.pow(t, 1 / PRESS_ANIM.springEasePower);
         return { dy: maxOffset * envelope, dh: 0 };
@@ -352,7 +354,7 @@ export function pushHitEffects(
     } = opts;
 
     if (markerType !== 'none' && timeSinceHit <= markerDuration) {
-        const alpha = 1 - timeSinceHit / markerDuration;
+        const alpha = remap(0, markerDuration, 1, 0, timeSinceHit);
         if (markerType === 'diamond') {
             effects.push(...drawDiamondMarker(hitX, hitY, markerSize, markerColor, alpha));
         } else if (markerType === 'heart') {
