@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { useTimelineStore } from '@state/timelineStore';
 import { useTickScale } from './useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from './constants';
@@ -62,8 +63,25 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     draftPosRef.current = draftPos;
 
     // Context menu
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tick: number } | null>(null);
-    const [interpNotAvailMenu, setInterpNotAvailMenu] = useState<{ x: number; y: number; tick?: number } | null>(null);
+    const [interpNotAvailMenu, setInterpNotAvailMenu] = useState<{ tick?: number } | null>(null);
+
+    const { refs: interpRefs, floatingStyles: interpFloatingStyles } = useFloating({
+        open: interpNotAvailMenu !== null,
+        placement: 'bottom-start',
+        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+    });
+
+    useEffect(() => {
+        if (!interpNotAvailMenu) return;
+        const close = (e: PointerEvent) => {
+            const el = interpRefs.floating.current;
+            if (el && el.contains(e.target as Node)) return;
+            setInterpNotAvailMenu(null);
+        };
+        window.addEventListener('pointerdown', close, true);
+        return () => window.removeEventListener('pointerdown', close, true);
+    }, [interpNotAvailMenu, interpRefs.floating]);
 
     // BPM axis range (auto-fit)
     const { bpmMin, bpmMax } = useMemo(() => {
@@ -241,10 +259,11 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         (e: React.MouseEvent, tick: number) => {
             e.preventDefault();
             e.stopPropagation();
-            setInterpNotAvailMenu({ x: e.clientX, y: e.clientY, tick });
+            interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+            setInterpNotAvailMenu({ tick });
             setSelectedTick(tick);
         },
-        [],
+        [interpRefs],
     );
 
     const handleDeleteKeyframe = useCallback(() => {
@@ -252,25 +271,21 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             removeTempoKeyframe(interpNotAvailMenu.tick);
             setInterpNotAvailMenu(null);
             setSelectedTick(null);
-        } else if (contextMenu) {
-            removeTempoKeyframe(contextMenu.tick);
-            setContextMenu(null);
-            setSelectedTick(null);
         }
-    }, [interpNotAvailMenu, contextMenu, removeTempoKeyframe]);
+    }, [interpNotAvailMenu, removeTempoKeyframe]);
 
     // Background click to deselect
     const handleBackgroundClick = useCallback(() => {
         setSelectedTick(null);
-        setContextMenu(null);
         setInterpNotAvailMenu(null);
     }, []);
 
     const handleSvgContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setInterpNotAvailMenu({ x: e.clientX, y: e.clientY });
-    }, []);
+        interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+        setInterpNotAvailMenu({});
+    }, [interpRefs]);
 
     // Keyboard delete
     const handleKeyDown = useCallback(
@@ -312,6 +327,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             tabIndex={0}
             onKeyDown={handleKeyDown}
             onPointerDown={(e) => e.stopPropagation()}
+            onContextMenu={handleSvgContextMenu}
         >
             {/* Header spacer (mirrors left-column header) */}
             <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
@@ -371,7 +387,8 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setInterpNotAvailMenu({ x: e.clientX, y: e.clientY });
+                            interpRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                            setInterpNotAvailMenu({});
                         }}
                     />
                 )}
@@ -435,31 +452,14 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 })}
             </svg>
 
-            {/* Context menu */}
-            {contextMenu && (
-                <>
-                    <div className="fixed inset-0 z-[9990]" onClick={() => setContextMenu(null)} />
-                    <div
-                        className="fixed z-[9991] min-w-[120px] rounded border border-neutral-700 bg-neutral-900/95 py-1 shadow-xl text-[12px]"
-                        style={{ left: contextMenu.x, top: contextMenu.y }}
-                    >
-                        <button
-                            className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-red-900/40 hover:text-red-300"
-                            onClick={handleDeleteKeyframe}
-                        >
-                            Delete keyframe
-                        </button>
-                    </div>
-                </>
-            )}
-
             {/* Interpolation not available notice */}
             {interpNotAvailMenu && (
-                <>
-                    <div className="fixed inset-0 z-[9990]" onClick={() => setInterpNotAvailMenu(null)} />
+                <FloatingPortal>
                     <div
-                        className="fixed z-[9991] min-w-[200px] rounded border border-neutral-700 bg-neutral-900/95 shadow-xl text-[12px] overflow-hidden"
-                        style={{ left: interpNotAvailMenu.x, top: interpNotAvailMenu.y }}
+                        ref={interpRefs.setFloating}
+                        className="z-50 min-w-[200px] rounded border border-neutral-700 bg-neutral-900/95 shadow-xl text-[12px] overflow-hidden"
+                        style={interpFloatingStyles}
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
                         <div className="px-3 py-2 text-neutral-400 border-b border-neutral-800">
                             Interpolation not available for tempo automation
@@ -473,7 +473,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                             </button>
                         )}
                     </div>
-                </>
+                </FloatingPortal>
             )}
         </div>
     );
