@@ -152,13 +152,14 @@ function drawPolarGrid(
     innerRadius: number, outerRadius: number,
     minNote: number, maxNote: number,
     color: string,
+    arcStart: number, arcEnd: number,
     objects: RenderObject[]
 ): void {
     const totalNotes = maxNote - minNote + 1;
     const laneHeight = (outerRadius - innerRadius) / totalNotes;
     for (let i = 0; i <= totalNotes; i++) {
         const r = innerRadius + i * laneHeight;
-        const separator = new Arc(cx, cy, r, 0, Math.PI * 2, false, {
+        const separator = new Arc(cx, cy, r, arcStart, arcEnd, false, {
             fillColor: null,
             strokeColor: color,
             strokeWidth: 0.5,
@@ -172,12 +173,8 @@ function drawPolarGrid(
 // Angle helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRIGGER_ANGLE_MAP: Record<string, number> = {
-    top:    -Math.PI / 2,
-    right:   0,
-    bottom:  Math.PI / 2,
-    left:    Math.PI,
-};
+/** Convert clock-degrees (0 = top, clockwise) to standard math radians. */
+const clockDegToRad = (deg: number) => (deg - 90) * Math.PI / 180;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared hit-effects helper (used by both modes)
@@ -266,12 +263,9 @@ export class CircularPianoRollElement extends SceneElement {
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                     }),
                     prop.number('timeWindowBars', 'Time Window (bars)', 2, { min: 1, max: 16, step: 1 }),
-                    prop.select('triggerAngle', 'Trigger Position', 'top', [
-                        { value: 'top', label: 'Top' },
-                        { value: 'right', label: 'Right' },
-                        { value: 'bottom', label: 'Bottom' },
-                        { value: 'left', label: 'Left' },
-                    ]),
+                    prop.number('startAngle', 'Start Angle (°)', 0, { min: 0, max: 360, step: 1 }),
+                    prop.number('endAngle', 'End Angle (°)', 360, { min: 0, max: 360, step: 1 }),
+                    prop.number('playheadPosition', 'Playhead Position', 0.5, { min: 0, max: 1, step: 0.01 }),
                 ],
             },
             {
@@ -308,13 +302,13 @@ export class CircularPianoRollElement extends SceneElement {
                     prop.colorAlpha('ringColor', 'Ring Color', '#2A2A3A88', {
                         visibleWhen: [{ key: 'showRing', truthy: true }],
                     }),
-                    prop.boolean('showPolarGrid', 'Show Pitch Grid Lines', true, {
+                    prop.boolean('showPolarGrid', 'Show Pitch Grid Lines', false, {
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                     }),
                     prop.colorAlpha('polarGridColor', 'Grid Line Color', '#FFFFFF18', {
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }, { key: 'showPolarGrid', truthy: true }],
                     }),
-                    prop.boolean('showTriggerIndicator', 'Show Trigger Indicator', true),
+                    prop.boolean('showTriggerIndicator', 'Show Trigger Indicator', false),
                     prop.colorAlpha('triggerColor', 'Trigger Color', '#FFFFFFFF', {
                         visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }],
                     }),
@@ -417,7 +411,17 @@ export class CircularPianoRollElement extends SceneElement {
         const minNote = Math.max(0, Math.min(127, Math.floor((p.minNote as number) ?? 36)));
         const maxNote = Math.max(0, Math.min(127, Math.floor((p.maxNote as number) ?? 84)));
         const polarNoteHeight = Math.max(1, (p.polarNoteHeight as number) ?? 8);
-        const triggerAngle = TRIGGER_ANGLE_MAP[(p.triggerAngle as string) ?? 'top'] ?? TRIGGER_ANGLE_MAP.top;
+
+        // Arc geometry
+        const startAngleDeg = (p.startAngle as number) ?? 0;
+        const endAngleDeg = (p.endAngle as number) ?? 360;
+        const playheadPosition = Math.max(0, Math.min(1, (p.playheadPosition as number) ?? 0.5));
+        const startAngleRad = clockDegToRad(startAngleDeg);
+        let arcSpanDeg = ((endAngleDeg - startAngleDeg) % 360 + 360) % 360;
+        if (arcSpanDeg === 0) arcSpanDeg = 360; // equal start/end = full circle
+        const arcSpanRad = arcSpanDeg * Math.PI / 180;
+        const endAngleRad = startAngleRad + arcSpanRad;
+        const triggerAngle = startAngleRad + playheadPosition * arcSpanRad;
 
         const colorMode = (p.colorMode as string) ?? 'pitch';
         const noteColor = (p.noteColor as string) ?? '#FF6B6BCC';
@@ -471,7 +475,7 @@ export class CircularPianoRollElement extends SceneElement {
 
         // ── Time → angle ─────────────────────────────────────────────────────
         const timeToAngle = (t: number) =>
-            triggerAngle + ((t - targetTime) / timeWindowDuration) * Math.PI * 2;
+            triggerAngle + ((t - targetTime) / timeWindowDuration) * arcSpanRad;
 
         const effects: RenderObject[] = [];
 
@@ -481,7 +485,7 @@ export class CircularPianoRollElement extends SceneElement {
         if (ringMode === 'ring') {
             // Background ring
             if (showRing) {
-                const bg = new Arc(cx, cy, ringRadius, 0, Math.PI * 2, false, {
+                const bg = new Arc(cx, cy, ringRadius, startAngleRad, endAngleRad, false, {
                     fillColor: null,
                     strokeColor: ringColor,
                     strokeWidth: ringWidth,
@@ -510,10 +514,8 @@ export class CircularPianoRollElement extends SceneElement {
                 const angleEnd = timeToAngle(endTime);
 
                 if (angleEnd > angleStart) {
-                    const visibleStart = triggerAngle - Math.PI * 2;
-                    const visibleEnd = triggerAngle + Math.PI * 2;
-                    const clampedStart = Math.max(angleStart, visibleStart);
-                    const clampedEnd = Math.min(angleEnd, visibleEnd);
+                    const clampedStart = Math.max(angleStart, startAngleRad);
+                    const clampedEnd = Math.min(angleEnd, endAngleRad);
 
                     if (clampedEnd > clampedStart) {
                         let arcStrokeWidth = ringWidth;
@@ -569,11 +571,11 @@ export class CircularPianoRollElement extends SceneElement {
             const radiusFromNote = (note: number) =>
                 innerRadius + (note - minNote + 0.5) * laneHeight;
 
-            // Background fill ring (full annulus)
+            // Background fill ring (partial annulus)
             if (showRing) {
                 // Draw as a wide arc centred on the midpoint radius
                 const midRadius = (innerRadius + ringRadius) / 2;
-                const bg = new Arc(cx, cy, midRadius, 0, Math.PI * 2, false, {
+                const bg = new Arc(cx, cy, midRadius, startAngleRad, endAngleRad, false, {
                     fillColor: null,
                     strokeColor: ringColor,
                     strokeWidth: radialSpan,
@@ -582,9 +584,9 @@ export class CircularPianoRollElement extends SceneElement {
                 objects.push(bg);
             }
 
-            // Pitch grid lines (concentric rings at lane boundaries)
+            // Pitch grid lines (concentric arcs at lane boundaries)
             if (showPolarGrid) {
-                drawPolarGrid(cx, cy, innerRadius, ringRadius, minNote, maxNote, polarGridColor, objects);
+                drawPolarGrid(cx, cy, innerRadius, ringRadius, minNote, maxNote, polarGridColor, startAngleRad, endAngleRad, objects);
             }
 
             // Trigger radial line from inner to outer radius
@@ -613,10 +615,8 @@ export class CircularPianoRollElement extends SceneElement {
                 const angleEnd = timeToAngle(endTime);
 
                 if (angleEnd > angleStart) {
-                    const visibleStart = triggerAngle - Math.PI * 2;
-                    const visibleEnd = triggerAngle + Math.PI * 2;
-                    const clampedStart = Math.max(angleStart, visibleStart);
-                    const clampedEnd = Math.min(angleEnd, visibleEnd);
+                    const clampedStart = Math.max(angleStart, startAngleRad);
+                    const clampedEnd = Math.min(angleEnd, endAngleRad);
 
                     if (clampedEnd > clampedStart) {
                         const noteRadius = radiusFromNote(n.note);
