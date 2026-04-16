@@ -2,6 +2,15 @@ import { unzipSync } from 'fflate';
 import { parseModule } from 'meriyah';
 import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
 import * as pluginSdkModule from '@core/scene/plugins/plugin-sdk';
+import * as pluginSdkAnimationModule from '@core/scene/plugins/sdk/animation';
+import * as pluginSdkApiModule from '@core/scene/plugins/sdk/api';
+import * as pluginSdkAudioModule from '@core/scene/plugins/sdk/audio';
+import * as pluginSdkRenderModule from '@core/scene/plugins/sdk/render';
+import * as pluginSdkSafetyModule from '@core/scene/plugins/sdk/safety';
+import * as pluginSdkSceneModule from '@core/scene/plugins/sdk/scene';
+import * as pluginSdkTimelineModule from '@core/scene/plugins/sdk/timeline';
+import * as pluginSdkTimingModule from '@core/scene/plugins/sdk/timing';
+import * as pluginSdkUtilsModule from '@core/scene/plugins/sdk/utils';
 import { usePluginStore, type PluginManifest } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
 import { PluginSettingsStore } from '@persistence/plugin-settings-store';
@@ -29,6 +38,15 @@ interface LoadPluginOptions {
 
 const PLUGIN_RUNTIME_MODULES: Record<string, unknown> = {
     '@mvmnt/plugin-sdk': pluginSdkModule,
+    '@mvmnt/plugin-sdk/animation': pluginSdkAnimationModule,
+    '@mvmnt/plugin-sdk/api': pluginSdkApiModule,
+    '@mvmnt/plugin-sdk/audio': pluginSdkAudioModule,
+    '@mvmnt/plugin-sdk/render': pluginSdkRenderModule,
+    '@mvmnt/plugin-sdk/safety': pluginSdkSafetyModule,
+    '@mvmnt/plugin-sdk/scene': pluginSdkSceneModule,
+    '@mvmnt/plugin-sdk/timeline': pluginSdkTimelineModule,
+    '@mvmnt/plugin-sdk/timing': pluginSdkTimingModule,
+    '@mvmnt/plugin-sdk/utils': pluginSdkUtilsModule,
 };
 
 const LEGACY_INTERNAL_PREFIXES = ['@core/', '@audio/', '@utils/'];
