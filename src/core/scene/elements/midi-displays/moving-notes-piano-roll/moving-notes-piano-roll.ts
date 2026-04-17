@@ -121,10 +121,6 @@ export class MovingNotesPianoRollElement extends SceneElement {
                             description: 'Legacy single-track selector used when no list is specified.',
                         }),
                     ],
-                    presets: [
-                        { id: 'leadTrack', label: 'Lead Track', values: {} },
-                        { id: 'accompaniment', label: 'Accompaniment', values: {} },
-                    ],
                 },
                 {
                     id: 'dimensions',

@@ -801,32 +801,36 @@ export class SceneElement implements SceneElementInterface {
                 },
                 {
                     id: 'basicTransform',
-                    label: 'Position & Scale',
+                    label: 'Position, Rotation & Scale',
                     variant: 'basic',
                     collapsed: false,
                     description: 'Set the element position and size adjustments relative to its default layout.',
                     properties: [
                         prop.number('offsetX', 'Offset X (px)', 0, {
-                            min: -10000, max: 10000, step: 1,
+                            step: 1,
                             description: 'Horizontal position offset in pixels.',
                         }),
                         prop.number('offsetY', 'Offset Y (px)', 0, {
-                            min: -10000, max: 10000, step: 1,
+                            step: 1,
                             description: 'Vertical position offset in pixels.',
                         }),
+                        prop.number('elementRotation', 'Rotation', 0, {
+                            step: 0.01,
+                            description: 'Element rotation in radians.',
+                        }),
                         prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
-                            min: 0.01, max: 5, step: 0.01,
+                            step: 0.01,
                             description: 'Horizontal scaling factor.',
                         }),
                         prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
-                            min: 0.01, max: 5, step: 0.01,
+                            step: 0.01,
                             description: 'Vertical scaling factor.',
                         }),
                     ],
                 },
                 {
                     id: 'advancedAnchor',
-                    label: 'Anchor & Rotation',
+                    label: 'Anchor & Skew',
                     variant: 'advanced',
                     collapsed: true,
                     description: 'Advanced pivot, rotation, and skew controls.',
@@ -839,16 +843,12 @@ export class SceneElement implements SceneElementInterface {
                             min: 0, max: 1, step: 0.01,
                             description: 'Vertical anchor point (0 = top, 1 = bottom).',
                         }),
-                        prop.number('elementRotation', 'Rotation', 0, {
-                            min: -Math.PI * 2, max: Math.PI * 2, step: 0.01,
-                            description: 'Element rotation in radians.',
-                        }),
                         prop.number('elementSkewX', 'Skew X', 0, {
-                            min: -Math.PI / 4, max: Math.PI / 4, step: 0.01,
+                            step: 0.01,
                             description: 'Horizontal skew in radians.',
                         }),
                         prop.number('elementSkewY', 'Skew Y', 0, {
-                            min: -Math.PI / 4, max: Math.PI / 4, step: 0.01,
+                            step: 0.01,
                             description: 'Vertical skew in radians.',
                         }),
                     ],
