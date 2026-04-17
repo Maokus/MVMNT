@@ -6,7 +6,7 @@
  * - Drag empty space → draw selection box, select enclosed keyframes
  * - Click diamond → select keyframe (shift-click to multi-select)
  * - Drag diamond → move keyframe(s) — delta-based, all selected kfs move together
- * - Right-click diamond → handle-type menu (same as curve pane)
+ * - Right-click diamond → interpolation picker (same as segment right-click)
  * - Click segment line → interpolation picker
  * - Delete key → remove selected keyframes
  *
@@ -206,19 +206,10 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         [selectedKeyframes],
     );
 
-    // Set of outgoing-keyframe ticks for segments where both endpoints are selected.
-    // A segment is selected when the user has selected two consecutive keyframes.
-    const selectedSegmentTicks = useMemo(() => {
-        const selectedTickSet = new Set(selectedKeyframes.map((k) => k.tick));
-        const result = new Set<number>();
-        const kfs = channel.keyframes;
-        for (let i = 0; i < kfs.length - 1; i++) {
-            if (selectedTickSet.has(kfs[i].tick) && selectedTickSet.has(kfs[i + 1].tick)) {
-                result.add(kfs[i].tick);
-            }
-        }
-        return result;
-    }, [selectedKeyframes, channel.keyframes]);
+    // Set of selected keyframe ticks for this channel — a segment is highlighted when its outgoing kf is selected.
+    const selectedKfTickSet = useMemo(() => {
+        return new Set(selectedKeyframes.map((k) => k.tick));
+    }, [selectedKeyframes]);
 
     // Diamonds (with half-shapes) and segment hit areas
     const elements = useMemo(() => {
@@ -628,75 +619,45 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     const handleInterpolationSelect = useCallback(
         (interpolation: SegmentInterpolation) => {
             if (!interpolationPicker) return;
-            // Read fresh selection from store to avoid stale-closure issues through
-            // the InterpolationPicker → handleModeSelect → onSelect callback chain.
             const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
             const channelTickSet = new Set(
                 allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
             );
-            const kfs = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
-            const selectedSegs = new Set<number>();
-            for (let i = 0; i < kfs.length - 1; i++) {
-                if (channelTickSet.has(kfs[i].tick) && channelTickSet.has(kfs[i + 1].tick)) {
-                    selectedSegs.add(kfs[i].tick);
-                }
-            }
-            const isSelectedSeg = selectedSegs.has(interpolationPicker.tick);
-            console.debug('[AutomationLaneRow] handleInterpolationSelect', {
-                pickerTick: interpolationPicker.tick,
-                channelId: channel.id,
-                allSelectedTicks: allSelected.map(k => `${k.channelId}@${k.tick}`),
-                channelTickSet: [...channelTickSet],
-                selectedSegs: [...selectedSegs],
-                isSelectedSeg,
-            });
-            if (isSelectedSeg && selectedSegs.size > 1) {
-                selectedSegs.forEach((tick) => {
+            const isPartOfSelection = channelTickSet.has(interpolationPicker.tick);
+            if (isPartOfSelection && allSelected.length > 1) {
+                for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
-                        {
-                            type: 'updateKeyframe',
-                            channelId: channel.id,
-                            tick,
-                            patch: { segmentInterpolation: interpolation },
-                        },
+                        { type: 'updateKeyframe', channelId, tick, patch: { segmentInterpolation: interpolation } },
                         { source: 'automation-lane' },
                     );
-                });
+                }
             } else {
                 dispatchSceneCommand(
-                    {
-                        type: 'updateKeyframe',
-                        channelId: channel.id,
-                        tick: interpolationPicker.tick,
-                        patch: { segmentInterpolation: interpolation },
-                    },
+                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch: { segmentInterpolation: interpolation } },
                     { source: 'automation-lane' },
                 );
             }
-            // Apply to selected segments in other channels
-            if (isSelectedSeg) {
-                const otherChannelIds = [...new Set(
-                    allSelected.filter((k) => k.channelId !== channel.id).map((k) => k.channelId),
-                )];
-                for (const otherChannelId of otherChannelIds) {
-                    const otherTickSet = new Set(
-                        allSelected.filter((k) => k.channelId === otherChannelId).map((k) => k.tick),
-                    );
-                    const otherKfs = useSceneStore.getState().automation.channels[otherChannelId]?.keyframes ?? [];
-                    for (let i = 0; i < otherKfs.length - 1; i++) {
-                        if (otherTickSet.has(otherKfs[i].tick) && otherTickSet.has(otherKfs[i + 1].tick)) {
-                            dispatchSceneCommand(
-                                {
-                                    type: 'updateKeyframe',
-                                    channelId: otherChannelId,
-                                    tick: otherKfs[i].tick,
-                                    patch: { segmentInterpolation: interpolation },
-                                },
-                                { source: 'automation-lane' },
-                            );
-                        }
-                    }
+        },
+        [interpolationPicker, channel.id],
+    );
+
+    const handleHandleTypeChange = useCallback(
+        (type: HandleType) => {
+            if (!interpolationPicker) return;
+            const patch = { leftHandleType: type, rightHandleType: type };
+            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const isPartOfSelection = allSelected.some(
+                (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
+            );
+            if (isPartOfSelection && allSelected.length > 1) {
+                for (const { channelId, tick } of allSelected) {
+                    dispatchSceneCommand({ type: 'updateKeyframe', channelId, tick, patch }, { source: 'automation-lane' });
                 }
+            } else {
+                dispatchSceneCommand(
+                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch },
+                    { source: 'automation-lane' },
+                );
             }
         },
         [interpolationPicker, channel.id],
@@ -707,6 +668,15 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         const kf = channel.keyframes.find((k) => Math.abs(k.tick - interpolationPicker.tick) < 0.5);
         return kf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
     }, [interpolationPicker, channel.keyframes]);
+
+    const pickerHandleType = useMemo((): HandleType | null => {
+        if (!interpolationPicker || pickerCurrent.mode !== 'bezier') return null;
+        const kf = channel.keyframes.find((k) => Math.abs(k.tick - interpolationPicker.tick) < 0.5);
+        if (!kf) return null;
+        const l = kf.leftHandleType ?? 'auto_clamped';
+        const r = kf.rightHandleType ?? 'auto_clamped';
+        return l === r ? l : null;
+    }, [interpolationPicker, channel.keyframes, pickerCurrent.mode]);
 
     // -----------------------------------------------------------------------
     // Render
@@ -732,7 +702,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 {/* Interpolation lines */}
                 {elements.segments.map((seg, i) => {
                     const hovered = hoveredSegIndex === i;
-                    const selected = selectedSegmentTicks.has(seg.tick);
+                    const selected = selectedKfTickSet.has(seg.tick);
                     return (
                         <line
                             key={`line-${i}`}
@@ -793,6 +763,17 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             data-kf="1"
                             style={{ cursor: dragging ? 'grabbing' : 'grab' }}
                             onPointerDown={(e) => handleKfPointerDown(e, kf)}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - kf.tick) < 0.5);
+                                if (kfIdx < 0 || channel.keyframes.length < 2) return;
+                                const pickerTick = kfIdx < channel.keyframes.length - 1
+                                    ? kf.tick
+                                    : channel.keyframes[kfIdx - 1].tick;
+                                pickerRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                                setInterpolationPicker({ tick: pickerTick });
+                            }}
                         >
                             <path
                                 d={shapePath(leftShape, rightShape, x, cy, dSize)}
@@ -912,6 +893,8 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         <InterpolationPicker
                             current={pickerCurrent}
                             onSelect={handleInterpolationSelect}
+                            handleType={pickerHandleType}
+                            onHandleTypeChange={handleHandleTypeChange}
                         />
                         <button
                             type="button"

@@ -108,8 +108,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     const [hoveredHandle, setHoveredHandle] = useState<{ tick: number; side: 'left' | 'right' } | null>(null);
 
-    const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
-
     // --- Range controls (state lives in CurveRangeContext, controls live in the label column) ---
     const { autoRange, manualMin, manualMax } = useCurveRange(channel.id);
     const { displayedRefs } = useCurveRangeControls();
@@ -117,13 +115,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
         open: interpolationPicker !== null,
         placement: 'bottom-start',
-        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
-        whileElementsMounted: autoUpdate,
-    });
-
-    const { refs: kfMenuRefs, floatingStyles: kfMenuFloatingStyles } = useFloating({
-        open: kfHandleMenu !== null,
-        placement: 'right-start',
         middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
         whileElementsMounted: autoUpdate,
     });
@@ -139,18 +130,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         window.addEventListener('pointerdown', close, true);
         return () => window.removeEventListener('pointerdown', close, true);
     }, [interpolationPicker]);
-
-    // Close handle-type menu on outside click
-    useEffect(() => {
-        if (!kfHandleMenu) return;
-        const close = (e: PointerEvent) => {
-            const el = kfMenuRefs.floating.current;
-            if (el && el.contains(e.target as Node)) return;
-            setKfHandleMenu(null);
-        };
-        window.addEventListener('pointerdown', close, true);
-        return () => window.removeEventListener('pointerdown', close, true);
-    }, [kfHandleMenu]);
 
     // Resolve the property step, min, and max from the element schema
     const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
@@ -436,16 +415,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             [channel.id],
         ),
     );
-    const selectedSegmentTicks = useMemo(() => {
-        const result = new Set<number>();
-        const kfs = channel.keyframes;
-        for (let i = 0; i < kfs.length - 1; i++) {
-            if (selectedKeyframeTicks.has(kfs[i].tick) && selectedKeyframeTicks.has(kfs[i + 1].tick)) {
-                result.add(kfs[i].tick);
-            }
-        }
-        return result;
-    }, [selectedKeyframeTicks, channel.keyframes]);
+    const selectedSegmentTicks = selectedKeyframeTicks;
 
     // Bezier handle visual data
     const handleVisuals = useMemo(() => {
@@ -745,69 +715,41 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const channelTickSet = new Set(
                 allSelected.filter((k) => k.channelId === channel.id).map((k) => k.tick),
             );
-            const kfs = useSceneStore.getState().automation.channels[channel.id]?.keyframes ?? [];
-            const selectedSegs = new Set<number>();
-            for (let i = 0; i < kfs.length - 1; i++) {
-                if (channelTickSet.has(kfs[i].tick) && channelTickSet.has(kfs[i + 1].tick)) {
-                    selectedSegs.add(kfs[i].tick);
-                }
-            }
-            const isSelectedSeg = selectedSegs.has(interpolationPicker.tick);
-            console.debug('[AutomationCurvePane] handleInterpolationSelect', {
-                pickerTick: interpolationPicker.tick,
-                channelId: channel.id,
-                allSelectedTicks: allSelected.map(k => `${k.channelId}@${k.tick}`),
-                channelTickSet: [...channelTickSet],
-                selectedSegs: [...selectedSegs],
-                isSelectedSeg,
-            });
-            if (isSelectedSeg && selectedSegs.size > 1) {
-                selectedSegs.forEach((tick) => {
+            const isPartOfSelection = channelTickSet.has(interpolationPicker.tick);
+            if (isPartOfSelection && allSelected.length > 1) {
+                for (const { channelId, tick } of allSelected) {
                     dispatchSceneCommand(
-                        {
-                            type: 'updateKeyframe',
-                            channelId: channel.id,
-                            tick,
-                            patch: { segmentInterpolation: interpolation },
-                        },
+                        { type: 'updateKeyframe', channelId, tick, patch: { segmentInterpolation: interpolation } },
                         { source: 'curve-editor' },
                     );
-                });
+                }
             } else {
                 dispatchSceneCommand(
-                    {
-                        type: 'updateKeyframe',
-                        channelId: channel.id,
-                        tick: interpolationPicker.tick,
-                        patch: { segmentInterpolation: interpolation },
-                    },
+                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch: { segmentInterpolation: interpolation } },
                     { source: 'curve-editor' },
                 );
             }
-            // Apply to selected segments in other channels
-            if (isSelectedSeg) {
-                const otherChannelIds = [...new Set(
-                    allSelected.filter((k) => k.channelId !== channel.id).map((k) => k.channelId),
-                )];
-                for (const otherChannelId of otherChannelIds) {
-                    const otherTickSet = new Set(
-                        allSelected.filter((k) => k.channelId === otherChannelId).map((k) => k.tick),
-                    );
-                    const otherKfs = useSceneStore.getState().automation.channels[otherChannelId]?.keyframes ?? [];
-                    for (let i = 0; i < otherKfs.length - 1; i++) {
-                        if (otherTickSet.has(otherKfs[i].tick) && otherTickSet.has(otherKfs[i + 1].tick)) {
-                            dispatchSceneCommand(
-                                {
-                                    type: 'updateKeyframe',
-                                    channelId: otherChannelId,
-                                    tick: otherKfs[i].tick,
-                                    patch: { segmentInterpolation: interpolation },
-                                },
-                                { source: 'curve-editor' },
-                            );
-                        }
-                    }
+        },
+        [interpolationPicker, channel.id],
+    );
+
+    const handleHandleTypeChange = useCallback(
+        (type: HandleType) => {
+            if (!interpolationPicker) return;
+            const patch = { leftHandleType: type, rightHandleType: type };
+            const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const isPartOfSelection = allSelected.some(
+                (k) => k.channelId === channel.id && Math.abs(k.tick - interpolationPicker.tick) < 0.5,
+            );
+            if (isPartOfSelection && allSelected.length > 1) {
+                for (const { channelId, tick } of allSelected) {
+                    dispatchSceneCommand({ type: 'updateKeyframe', channelId, tick, patch }, { source: 'curve-editor' });
                 }
+            } else {
+                dispatchSceneCommand(
+                    { type: 'updateKeyframe', channelId: channel.id, tick: interpolationPicker.tick, patch },
+                    { source: 'curve-editor' },
+                );
             }
         },
         [interpolationPicker, channel.id],
@@ -856,6 +798,15 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         const kf = channel.keyframes.find((k) => Math.abs(k.tick - interpolationPicker.tick) < 0.5);
         return kf?.segmentInterpolation ?? DEFAULT_SEGMENT_INTERPOLATION;
     }, [interpolationPicker, channel.keyframes]);
+
+    const pickerHandleType = useMemo((): HandleType | null => {
+        if (!interpolationPicker || pickerCurrent.mode !== 'bezier') return null;
+        const kf = channel.keyframes.find((k) => Math.abs(k.tick - interpolationPicker.tick) < 0.5);
+        if (!kf) return null;
+        const l = kf.leftHandleType ?? 'auto_clamped';
+        const r = kf.rightHandleType ?? 'auto_clamped';
+        return l === r ? l : null;
+    }, [interpolationPicker, channel.keyframes, pickerCurrent.mode]);
 
     return (
         <div className="ae-curve-pane relative" style={{ height, width }}>
@@ -993,17 +944,15 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             }}
                             onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
                             onContextMenu={(e) => {
-                                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
-                                if (kfIdx < 0) return;
-                                const kfs = channel.keyframes;
-                                const adjacentBezier =
-                                    (kfIdx > 0 && kfs[kfIdx - 1].segmentInterpolation?.mode === 'bezier') ||
-                                    (kfIdx < kfs.length - 1 && kfs[kfIdx].segmentInterpolation?.mode === 'bezier');
-                                if (!adjacentBezier) return;
-                                e.stopPropagation();
                                 e.preventDefault();
-                                kfMenuRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
-                                setKfHandleMenu({ tick: pt.tick });
+                                e.stopPropagation();
+                                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
+                                if (kfIdx < 0 || channel.keyframes.length < 2) return;
+                                const pickerTick = kfIdx < channel.keyframes.length - 1
+                                    ? pt.tick
+                                    : channel.keyframes[kfIdx - 1].tick;
+                                pickerRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                                setInterpolationPicker({ tick: pickerTick });
                             }}
                         />
                     );
@@ -1032,6 +981,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         <InterpolationPicker
                             current={pickerCurrent}
                             onSelect={handleInterpolationSelect}
+                            handleType={pickerHandleType}
+                            onHandleTypeChange={handleHandleTypeChange}
                         />
                         <button
                             type="button"
@@ -1043,71 +994,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     </div>
                 </FloatingPortal>
             )}
-            {/* Handle type menu (click on keyframe adjacent to bezier segment) */}
-            {kfHandleMenu && (() => {
-                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - kfHandleMenu.tick) < 0.5);
-                const kf = kfIdx >= 0 ? channel.keyframes[kfIdx] : null;
-                if (!kf) return null;
-                const currentLeft = kf.leftHandleType ?? 'auto_clamped';
-                const currentRight = kf.rightHandleType ?? 'auto_clamped';
-                const currentType = currentLeft === currentRight ? currentLeft : null;
-                const handleTypes: Array<{ type: HandleType; label: string }> = [
-                    { type: 'auto_clamped', label: 'Auto (Clamped)' },
-                    { type: 'auto', label: 'Auto' },
-                    { type: 'free', label: 'Free' },
-                    { type: 'aligned', label: 'Aligned' },
-                    { type: 'vector', label: 'Vector' },
-                ];
-                const setHandleType = (type: HandleType) => {
-                    const patch: { leftHandleType?: HandleType; rightHandleType?: HandleType } = {
-                        leftHandleType: type,
-                        rightHandleType: type,
-                    };
-                    const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
-                    const isSelectedKf = allSelected.some(
-                        (k) => k.channelId === channel.id && Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
-                    );
-                    if (isSelectedKf && allSelected.length > 1) {
-                        allSelected.forEach(({ channelId, tick }) => {
-                            dispatchSceneCommand(
-                                { type: 'updateKeyframe', channelId, tick, patch },
-                                { source: 'curve-editor' },
-                            );
-                        });
-                    } else {
-                        dispatchSceneCommand(
-                            { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
-                            { source: 'curve-editor' },
-                        );
-                    }
-                    setKfHandleMenu(null);
-                };
-                return (
-                    <FloatingPortal>
-                        <div
-                            ref={kfMenuRefs.setFloating}
-                            className="ae-context-menu z-50"
-                            style={kfMenuFloatingStyles}
-                            onPointerDown={(e) => e.stopPropagation()}
-                        >
-                            <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
-                                Handle Type
-                            </div>
-                            {handleTypes.map(({ type, label }) => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    className="ae-context-menu-item"
-                                    style={currentType === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
-                                    onClick={() => setHandleType(type)}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                    </FloatingPortal>
-                );
-            })()}
         </div>
     );
 };

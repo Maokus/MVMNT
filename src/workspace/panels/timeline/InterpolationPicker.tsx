@@ -18,6 +18,7 @@ import {
 } from '@automation/interpolation-defaults';
 import type {
     EasingDirection,
+    HandleType,
     SegmentInterpolation,
     SegmentInterpolationMode,
     SegmentInterpolationParams,
@@ -30,6 +31,8 @@ import type {
 interface InterpolationPickerProps {
     current: SegmentInterpolation;
     onSelect: (interpolation: SegmentInterpolation) => void;
+    handleType?: HandleType | null;
+    onHandleTypeChange?: (type: HandleType) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +71,14 @@ const MODES_WITH_DIRECTION: ReadonlySet<SegmentInterpolationMode> = new Set([
 ]);
 
 const MODES_WITH_PARAMS: ReadonlySet<SegmentInterpolationMode> = new Set(['back', 'elastic']);
+
+const HANDLE_TYPE_OPTIONS: Array<{ type: HandleType; label: string }> = [
+    { type: 'auto_clamped', label: 'Auto (Clamped)' },
+    { type: 'auto', label: 'Auto' },
+    { type: 'free', label: 'Free' },
+    { type: 'aligned', label: 'Aligned' },
+    { type: 'vector', label: 'Vector' },
+];
 
 // ---------------------------------------------------------------------------
 // SVG Thumbnail
@@ -152,7 +163,7 @@ const DIRECTION_OPTIONS: Array<{ value: EasingDirection; label: string }> = [
 // Main component
 // ---------------------------------------------------------------------------
 
-const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSelect }) => {
+const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSelect, handleType, onHandleTypeChange }) => {
     // Local state for direction and params that updates live
     const [localDirection, setLocalDirection] = useState<EasingDirection>(current.direction);
     const [localParams, setLocalParams] = useState<SegmentInterpolationParams>(current.params ?? {});
@@ -282,6 +293,25 @@ const InterpolationPicker: React.FC<InterpolationPickerProps> = ({ current, onSe
                         <span className="ae-param-value">
                             {(localParams.period ?? DEFAULT_ELASTIC_PERIOD).toFixed(2)}
                         </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Bezier handle type controls */}
+            {selectedMode === 'bezier' && onHandleTypeChange && (
+                <div className="ae-interp-section">
+                    <div className="ae-easing-group-label">Handle Type</div>
+                    <div className="ae-direction-buttons">
+                        {HANDLE_TYPE_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.type}
+                                type="button"
+                                className={`ae-direction-btn ${handleType === opt.type ? 'selected' : ''}`}
+                                onClick={() => onHandleTypeChange(opt.type)}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}
