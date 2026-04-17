@@ -78,6 +78,7 @@ interface AutomatableProperty {
     label: string;
     groupLabel: string;
     type: string;
+    default?: unknown;
 }
 
 type ListItem =
@@ -116,7 +117,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
         for (const group of schema.groups) {
             for (const prop of group.properties) {
                 if (resolveAutomationValueType(prop.type)) {
-                    result.push({ key: prop.key, label: prop.label, groupLabel: group.label, type: prop.type });
+                    result.push({ key: prop.key, label: prop.label, groupLabel: group.label, type: prop.type, default: prop.default });
                 }
             }
         }
@@ -192,7 +193,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({
             if (binding?.type === 'constant') {
                 return (binding as ConstantBindingState).value;
             }
-            return undefined;
+            return prop.default;
         },
         [elementId, bindings, automationChannels, propertyOverrides, tick],
     );
