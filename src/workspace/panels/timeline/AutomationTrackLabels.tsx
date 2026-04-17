@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { FaChevronDown, FaChevronRight, FaTimes, FaChartLine, FaAngleLeft, FaAngleRight, FaSearch } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -6,6 +6,139 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
 import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from './constants';
 import { useCurveHeight } from './curveHeightContext';
+import { useCurveRange, useCurveRangeControls } from './curveRangeContext';
+
+/** Range controls shown in the left-column spacer when the curve editor is open. */
+const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> = ({ channelId, curveHeight }) => {
+    const { autoRange, manualMin, manualMax } = useCurveRange(channelId);
+    const { setAutoRange, setManualRange, displayedRefs } = useCurveRangeControls();
+
+    const [minText, setMinText] = useState(() => manualMin.toFixed(2));
+    const [maxText, setMaxText] = useState(() => manualMax.toFixed(2));
+
+    const commitMin = useCallback((text: string) => {
+        const v = parseFloat(text);
+        if (!isNaN(v)) {
+            setManualRange(channelId, v, manualMax);
+            setMinText(v.toFixed(2));
+        } else {
+            setMinText(manualMin.toFixed(2));
+        }
+    }, [channelId, manualMin, manualMax, setManualRange]);
+
+    const commitMax = useCallback((text: string) => {
+        const v = parseFloat(text);
+        if (!isNaN(v)) {
+            setManualRange(channelId, manualMin, v);
+            setMaxText(v.toFixed(2));
+        } else {
+            setMaxText(manualMax.toFixed(2));
+        }
+    }, [channelId, manualMin, manualMax, setManualRange]);
+
+    const handleToggleAuto = useCallback(() => {
+        if (autoRange) {
+            // switching to manual — seed from current animated values
+            const displayed = displayedRefs.current[channelId];
+            const seedMin = displayed?.min ?? manualMin;
+            const seedMax = displayed?.max ?? manualMax;
+            setMinText(seedMin.toFixed(2));
+            setMaxText(seedMax.toFixed(2));
+            setManualRange(channelId, seedMin, seedMax);
+        } else {
+            setAutoRange(channelId, true);
+        }
+    }, [autoRange, channelId, manualMin, manualMax, displayedRefs, setAutoRange, setManualRange]);
+
+    // Sync display text when autoRange is re-enabled
+    const prevAutoRange = React.useRef(autoRange);
+    if (prevAutoRange.current !== autoRange) {
+        prevAutoRange.current = autoRange;
+        if (autoRange) {
+            const displayed = displayedRefs.current[channelId];
+            if (displayed) {
+                setMinText(displayed.min.toFixed(2));
+                setMaxText(displayed.max.toFixed(2));
+            }
+        }
+    }
+
+    const inputStyle = (disabled: boolean): React.CSSProperties => ({
+        width: 44,
+        fontSize: 9,
+        padding: '1px 3px',
+        background: 'rgba(0,0,0,0.4)',
+        border: `1px solid ${disabled ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.18)'}`,
+        borderRadius: 3,
+        color: disabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.85)',
+        textAlign: 'right' as const,
+        outline: 'none',
+    });
+
+    return (
+        <div
+            className="border-b border-neutral-800/60 bg-neutral-900/30 flex flex-col items-center justify-between py-1"
+            style={{ height: curveHeight, width: '100%' }}
+        >
+            {/* Max input */}
+            <input
+                type="text"
+                style={inputStyle(autoRange)}
+                value={autoRange
+                    ? ((displayedRefs.current[channelId]?.max ?? manualMax).toFixed(2))
+                    : maxText}
+                readOnly={autoRange}
+                onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
+                onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
+                onBlur={(e) => { if (!autoRange) commitMax(e.currentTarget.value); }}
+                onKeyDown={(e) => {
+                    if (!autoRange && e.key === 'Enter') {
+                        commitMax((e.target as HTMLInputElement).value);
+                        (e.target as HTMLInputElement).blur();
+                    }
+                }}
+            />
+
+            {/* Auto toggle button */}
+            <button
+                type="button"
+                style={{
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    borderRadius: 3,
+                    border: `1px solid ${autoRange ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
+                    background: autoRange ? 'rgba(96,165,250,0.2)' : 'rgba(0,0,0,0.4)',
+                    color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.45)',
+                    cursor: 'pointer',
+                    lineHeight: 1.5,
+                    userSelect: 'none',
+                }}
+                onClick={handleToggleAuto}
+            >
+                auto
+            </button>
+
+            {/* Min input */}
+            <input
+                type="text"
+                style={inputStyle(autoRange)}
+                value={autoRange
+                    ? ((displayedRefs.current[channelId]?.min ?? manualMin).toFixed(2))
+                    : minText}
+                readOnly={autoRange}
+                onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
+                onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
+                onBlur={(e) => { if (!autoRange) commitMin(e.currentTarget.value); }}
+                onKeyDown={(e) => {
+                    if (!autoRange && e.key === 'Enter') {
+                        commitMin((e.target as HTMLInputElement).value);
+                        (e.target as HTMLInputElement).blur();
+                    }
+                }}
+            />
+        </div>
+    );
+};
 
 /** Channel row label with curve toggle and remove button. */
 const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: string }> = ({
@@ -106,12 +239,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
             </div>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
             {curveExpanded && channel?.valueType !== 'string' && (
-                <div
-                    className="border-b border-neutral-800/60 bg-neutral-900/30 flex items-center px-6"
-                    style={{ height: curveHeight }}
-                >
-                    <span className="text-[9px] text-neutral-500">Curve</span>
-                </div>
+                <CurveRangeControls channelId={channelId} curveHeight={curveHeight} />
             )}
         </>
     );

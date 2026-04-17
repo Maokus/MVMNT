@@ -13,7 +13,7 @@
  * - Drag resize handle at bottom to change pane height
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     useFloating,
     autoUpdate,
@@ -23,10 +23,13 @@ import {
     FloatingPortal,
 } from '@floating-ui/react';
 import { useTickScale } from './useTickScale';
+import { useCurveRange, useCurveRangeControls } from './curveRangeContext';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
 import InterpolationPicker from './InterpolationPicker';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
+import { sceneElementRegistry } from '@core/scene/registry/scene-element-registry';
+import type { EnhancedConfigSchema } from '@core/types';
 import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
 import { computeAutoHandles, DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import easings from '@math/animation/easing';
@@ -103,13 +106,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
 
-    // --- Range controls ---
-    const [autoRange, setAutoRange] = useState(true);
-    const [manualMin, setManualMin] = useState(0);
-    const [manualMax, setManualMax] = useState(1);
-    // Pending text while typing (so we don't commit on every keystroke)
-    const [minText, setMinText] = useState('');
-    const [maxText, setMaxText] = useState('');
+    // --- Range controls (state lives in CurveRangeContext, controls live in the label column) ---
+    const { autoRange, manualMin, manualMax } = useCurveRange(channel.id);
+    const { displayedRefs } = useCurveRangeControls();
 
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
         open: interpolationPicker !== null,
@@ -208,23 +207,42 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return { minVal: mn - pad, maxVal: mx + pad };
     }, [channel.keyframes, channel.valueType]);
 
-    // Target range: auto or manual
-    const targetMin = autoRange ? autoMinVal : manualMin;
-    const targetMax = autoRange ? autoMaxVal : manualMax;
-
-    // Sync manual inputs when switching to auto or when auto values change while auto is on
-    useLayoutEffect(() => {
-        if (autoRange) {
-            setManualMin(autoMinVal);
-            setManualMax(autoMaxVal);
-            setMinText(autoMinVal.toFixed(2));
-            setMaxText(autoMaxVal.toFixed(2));
+    // Resolve the property step from the element schema for minimum span enforcement
+    const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
+    const propertyStep = useMemo(() => {
+        if (!elementType) return undefined;
+        const schema = sceneElementRegistry.getSchema(elementType) as (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] }) | null;
+        if (!schema?.groups) return undefined;
+        for (const group of schema.groups) {
+            const prop = group.properties?.find((p) => p.key === channel.propertyKey);
+            if (prop?.step !== undefined && prop.step > 0) return prop.step;
         }
-    }, [autoRange, autoMinVal, autoMaxVal]);
+        return undefined;
+    }, [elementType, channel.propertyKey]);
+
+    // Minimum visual span = property step (so the graph never collapses to a flat line)
+    const enforceMinSpan = useCallback((mn: number, mx: number): [number, number] => {
+        if (propertyStep === undefined) return [mn, mx];
+        const span = mx - mn;
+        if (span >= propertyStep) return [mn, mx];
+        const mid = (mn + mx) / 2;
+        return [mid - propertyStep / 2, mid + propertyStep / 2];
+    }, [propertyStep]);
+
+    // Raw auto range (computed from keyframes)
+    const [rawAutoMin, rawAutoMax] = [autoMinVal, autoMaxVal];
+    const [enforcedAutoMin, enforcedAutoMax] = enforceMinSpan(rawAutoMin, rawAutoMax);
+
+    // Target range: auto (with min span) or manual (with min span)
+    const [targetMin, targetMax] = useMemo(() => {
+        if (autoRange) return [enforcedAutoMin, enforcedAutoMax];
+        return enforceMinSpan(manualMin, manualMax);
+    }, [autoRange, enforcedAutoMin, enforcedAutoMax, manualMin, manualMax, enforceMinSpan]);
 
     // Smoothed display range — lerps toward target each animation frame
-    const displayedMinRef = useRef(targetMin);
-    const displayedMaxRef = useRef(targetMax);
+    // Uses per-channel animated value refs (shared with label controls for seeding manual mode)
+    const animMinRef = useRef(targetMin);
+    const animMaxRef = useRef(targetMax);
     const [displayedMin, setDisplayedMin] = useState(targetMin);
     const [displayedMax, setDisplayedMax] = useState(targetMax);
     const smoothAnimRef = useRef<number | null>(null);
@@ -234,20 +252,22 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         const SNAP_THRESHOLD = 1e-4;
 
         const animate = () => {
-            const dMin = targetMin - displayedMinRef.current;
-            const dMax = targetMax - displayedMaxRef.current;
+            const dMin = targetMin - animMinRef.current;
+            const dMax = targetMax - animMaxRef.current;
             if (Math.abs(dMin) < SNAP_THRESHOLD && Math.abs(dMax) < SNAP_THRESHOLD) {
-                displayedMinRef.current = targetMin;
-                displayedMaxRef.current = targetMax;
+                animMinRef.current = targetMin;
+                animMaxRef.current = targetMax;
+                displayedRefs.current[channel.id] = { min: targetMin, max: targetMax };
                 setDisplayedMin(targetMin);
                 setDisplayedMax(targetMax);
                 smoothAnimRef.current = null;
                 return;
             }
-            displayedMinRef.current += dMin * LERP;
-            displayedMaxRef.current += dMax * LERP;
-            setDisplayedMin(displayedMinRef.current);
-            setDisplayedMax(displayedMaxRef.current);
+            animMinRef.current += dMin * LERP;
+            animMaxRef.current += dMax * LERP;
+            displayedRefs.current[channel.id] = { min: animMinRef.current, max: animMaxRef.current };
+            setDisplayedMin(animMinRef.current);
+            setDisplayedMax(animMaxRef.current);
             smoothAnimRef.current = requestAnimationFrame(animate);
         };
 
@@ -256,7 +276,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => {
             if (smoothAnimRef.current !== null) cancelAnimationFrame(smoothAnimRef.current);
         };
-    }, [targetMin, targetMax]);
+    }, [targetMin, targetMax, channel.id, displayedRefs]);
 
     const minVal = displayedMin;
     const maxVal = displayedMax;
@@ -903,114 +923,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     />
                 ))}
             </svg>
-
-            {/* Range controls overlay — left side */}
-            <div
-                className="absolute left-0 top-0 bottom-0 flex flex-col items-center justify-between py-1 pointer-events-none"
-                style={{ width: 48, zIndex: 1 }}
-            >
-                {/* Max input */}
-                <input
-                    type="text"
-                    className="pointer-events-auto"
-                    style={{
-                        width: 44,
-                        fontSize: 9,
-                        padding: '1px 3px',
-                        background: 'rgba(0,0,0,0.55)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: 3,
-                        color: autoRange ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
-                        textAlign: 'right',
-                        outline: 'none',
-                    }}
-                    value={autoRange ? displayedMax.toFixed(2) : maxText}
-                    readOnly={autoRange}
-                    onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.target.select(); }}
-                    onBlur={() => {
-                        if (!autoRange) {
-                            const v = parseFloat(maxText);
-                            if (!isNaN(v)) setManualMax(v);
-                            else setMaxText(manualMax.toFixed(2));
-                        }
-                    }}
-                    onKeyDown={(e) => {
-                        if (!autoRange && e.key === 'Enter') {
-                            const v = parseFloat(maxText);
-                            if (!isNaN(v)) setManualMax(v);
-                            else setMaxText(manualMax.toFixed(2));
-                            (e.target as HTMLInputElement).blur();
-                        }
-                    }}
-                />
-
-                {/* Auto button */}
-                <button
-                    type="button"
-                    className="pointer-events-auto"
-                    style={{
-                        fontSize: 9,
-                        padding: '1px 5px',
-                        borderRadius: 3,
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        background: autoRange ? 'rgba(96,165,250,0.25)' : 'rgba(0,0,0,0.4)',
-                        color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.4)',
-                        cursor: 'pointer',
-                        letterSpacing: '0.03em',
-                        lineHeight: 1.4,
-                    }}
-                    onClick={() => {
-                        if (!autoRange) {
-                            setAutoRange(true);
-                        } else {
-                            setAutoRange(false);
-                            setManualMin(autoMinVal);
-                            setManualMax(autoMaxVal);
-                            setMinText(autoMinVal.toFixed(2));
-                            setMaxText(autoMaxVal.toFixed(2));
-                        }
-                    }}
-                >
-                    auto
-                </button>
-
-                {/* Min input */}
-                <input
-                    type="text"
-                    className="pointer-events-auto"
-                    style={{
-                        width: 44,
-                        fontSize: 9,
-                        padding: '1px 3px',
-                        background: 'rgba(0,0,0,0.55)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: 3,
-                        color: autoRange ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
-                        textAlign: 'right',
-                        outline: 'none',
-                    }}
-                    value={autoRange ? displayedMin.toFixed(2) : minText}
-                    readOnly={autoRange}
-                    onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
-                    onFocus={(e) => { if (!autoRange) e.target.select(); }}
-                    onBlur={() => {
-                        if (!autoRange) {
-                            const v = parseFloat(minText);
-                            if (!isNaN(v)) setManualMin(v);
-                            else setMinText(manualMin.toFixed(2));
-                        }
-                    }}
-                    onKeyDown={(e) => {
-                        if (!autoRange && e.key === 'Enter') {
-                            const v = parseFloat(minText);
-                            if (!isNaN(v)) setManualMin(v);
-                            else setMinText(manualMin.toFixed(2));
-                            (e.target as HTMLInputElement).blur();
-                        }
-                    }}
-                />
-            </div>
 
             {/* Resize handle */}
             <div
