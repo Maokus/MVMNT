@@ -61,6 +61,7 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
     const channels = useElementChannels(elementId);
     const element = useSceneStore(useCallback((s) => s.elements[elementId], [elementId]));
     const searchQuery = useSceneStore((s) => s.interaction.automationSearchQuery);
+    const { toX } = useTickScale();
 
     if (!element || channels.length === 0) return null;
 
@@ -73,13 +74,28 @@ const ElementAutomationLanes: React.FC<{ elementId: string; width: number }> = (
 
     const isExpanded = lowerQuery ? true : expanded;
 
+    // Collect unique keyframe ticks across all channels for the dot indicators
+    const kfTicks = Array.from(new Set(channels.flatMap((ch) => ch.keyframes.map((kf) => kf.tick))));
+
     return (
         <>
-            {/* Element header spacer (mirrors left-column header height) */}
+            {/* Element header spacer with keyframe dot indicators */}
             <div
-                className="border-b border-neutral-800"
+                className="relative border-b border-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
-            />
+            >
+                {kfTicks.map((tick) => {
+                    const x = toX(tick, width);
+                    if (x < 0 || x > width) return null;
+                    return (
+                        <div
+                            key={tick}
+                            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-400 pointer-events-none"
+                            style={{ left: x, width: 4, height: 4 }}
+                        />
+                    );
+                })}
+            </div>
 
             {/* Channel lane rows (when expanded) */}
             {isExpanded && visibleChannels.map((ch) => (

@@ -1,10 +1,9 @@
 import React from 'react';
-import { FaEye, FaEyeSlash, FaTrash } from 'react-icons/fa';
+import { FaTrash } from 'react-icons/fa';
 import { useTimelineStore } from '@state/timelineStore';
 
 const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
     const track = useTimelineStore((s) => s.tracks[trackId]);
-    const setEnabled = useTimelineStore((s) => s.setTrackEnabled);
     const removeTrack = useTimelineStore((s) => s.removeTrack);
     const selected = useTimelineStore((s) => s.selection.selectedTrackIds.includes(trackId));
     const selectTracks = useTimelineStore((s) => s.selectTracks);
@@ -29,19 +28,6 @@ const TrackEditorRow: React.FC<{ trackId: string }> = ({ trackId }) => {
             style={{ height: rowHeight, minHeight: rowHeight, fontSize: baseFontSize }}
         >
             <div className="flex items-center gap-2 min-w-0">
-                {/* Eye toggle */}
-                <button
-                    className={`flex items-center justify-center rounded border ${track.enabled ? 'border-neutral-600 text-neutral-200' : 'border-neutral-700 text-neutral-500 opacity-80'}`}
-                    title={track.enabled ? 'Disable track' : 'Enable track'}
-                    aria-label={track.enabled ? 'Disable track' : 'Enable track'}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        void setEnabled(trackId, !track.enabled);
-                    }}
-                    style={{ width: controlSize, height: controlSize }}
-                >
-                    {track.enabled ? <FaEye /> : <FaEyeSlash />}
-                </button>
                 {/* Name */}
                 <div className="truncate text-neutral-200" title={track.name}>{track.name}</div>
                 {/* Mute / Solo (audio only for now, easily extend) */}

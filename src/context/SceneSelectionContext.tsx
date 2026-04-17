@@ -408,7 +408,6 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
     const deleteElement = useCallback(
         (elementId: string) => {
-            if (!window.confirm(`Delete element "${elementId}"?`)) return;
             const ok = runSceneCommand(
                 { type: 'removeElement', elementId },
                 'SceneSelectionContext.deleteElement'
