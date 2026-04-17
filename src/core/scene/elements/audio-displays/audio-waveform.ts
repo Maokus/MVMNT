@@ -561,8 +561,6 @@ export class AudioWaveformElement extends SceneElement {
                         type: 'number',
                         label: 'Window (seconds)',
                         default: 0.12,
-                        min: 0.01,
-                        max: 100,
                         step: 0.01,
                         runtime: {
                             transform: (value, element) => {
@@ -572,8 +570,8 @@ export class AudioWaveformElement extends SceneElement {
                             defaultValue: 0.12,
                         },
                     },
-                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
-                    prop.number('height', 'Height (px)', 140, { min: 20, max: 800, step: 1 }),
+                    prop.number('width', 'Width (px)', 420, { step: 1 }),
+                    prop.number('height', 'Height (px)', 140, { step: 1 }),
                     {
                         key: 'side',
                         type: 'select',
@@ -662,8 +660,6 @@ export class AudioWaveformElement extends SceneElement {
                         type: 'number',
                         label: 'Line Width (px)',
                         default: 2,
-                        min: 1,
-                        max: 6,
                         step: 0.5,
                         runtime: {
                             transform: (value, element) => {
@@ -678,8 +674,6 @@ export class AudioWaveformElement extends SceneElement {
                         type: 'number',
                         label: 'Gain',
                         default: 1,
-                        min: 0,
-                        max: 10,
                         step: 0.1,
                         runtime: {
                             transform: (value, element) => {
@@ -694,8 +688,6 @@ export class AudioWaveformElement extends SceneElement {
                         type: 'number',
                         label: 'Density',
                         default: 1,
-                        min: 0.1,
-                        max: 1,
                         step: 0.05,
                         runtime: {
                             transform: (value, element) => {
@@ -710,8 +702,6 @@ export class AudioWaveformElement extends SceneElement {
                         type: 'number',
                         label: 'Start Offset',
                         default: 0.5,
-                        min: 0,
-                        max: 1,
                         step: 0.01,
                         runtime: {
                             transform: (value, element) => {

@@ -45,9 +45,9 @@ export class NotesPlayingDisplayElement extends SceneElement {
                         { value: 'right', label: 'Right' },
                     ]),
                     prop.font('fontFamily', 'Font Family', 'Inter'),
-                    prop.number('fontSize', 'Font Size (px)', 30, { min: 6, max: 72, step: 1 }),
+                    prop.number('fontSize', 'Font Size (px)', 30, { step: 1 }),
                     prop.color('color', 'Text Color', '#cccccc'),
-                    prop.number('lineSpacing', 'Line Spacing (px)', 4, { min: 0, max: 40, step: 1 }),
+                    prop.number('lineSpacing', 'Line Spacing (px)', 4, { step: 1 }),
                 ],
                 presets: [
                     {

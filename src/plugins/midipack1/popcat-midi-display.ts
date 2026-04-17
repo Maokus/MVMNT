@@ -135,17 +135,17 @@ export class PopcatMidiDisplayElement extends SceneElement {
                         visibleWhen: [{ key: 'manyCats', truthy: true }],
                     }),
                     prop.number('numRows', 'Num Rows', 3, {
-                        min: 1, max: 16, step: 1,
+                        step: 1,
                         description: 'Number of rows to distribute cats across. Notes fill left to right, bottom to top.',
                         visibleWhen: [{ key: 'manyCats', truthy: true }],
                     }),
                     prop.number('xSpacing', 'X Spacing', 8, {
-                        min: 0, max: 200, step: 1,
+                        step: 1,
                         description: 'Horizontal gap in pixels between cats',
                         visibleWhen: [{ key: 'manyCats', truthy: true }],
                     }),
                     prop.number('ySpacing', 'Y Spacing', 8, {
-                        min: 0, max: 200, step: 1,
+                        step: 1,
                         description: 'Vertical gap in pixels between rows',
                         visibleWhen: [{ key: 'manyCats', truthy: true }],
                     }),
@@ -204,8 +204,8 @@ export class PopcatMidiDisplayElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.number('imageWidth', 'Width', 200, { min: 20, max: 800, step: 1 }),
-                    prop.number('imageHeight', 'Height', 200, { min: 20, max: 800, step: 1 }),
+                    prop.number('imageWidth', 'Width', 200, { step: 1 }),
+                    prop.number('imageHeight', 'Height', 200, { step: 1 }),
                 ],
             },
         ]);

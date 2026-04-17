@@ -49,11 +49,11 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.number('rollWidth', 'Roll Width (px)', 1200, { min: 100, max: 4000, step: 10 }),
+                    prop.number('rollWidth', 'Roll Width (px)', 1200, { step: 10 }),
                     prop.number('timeUnitBars', 'Time Window (bars)', 2, { min: 1, max: 8, step: 1 }),
                     prop.number('minNote', 'Min MIDI Note', 30, { min: 0, max: 127, step: 1 }),
                     prop.number('maxNote', 'Max MIDI Note', 72, { min: 0, max: 127, step: 1 }),
-                    prop.number('noteHeight', 'Note Height (px)', 20, { min: 4, max: 60, step: 1 }),
+                    prop.number('noteHeight', 'Note Height (px)', 20, { step: 1 }),
                     prop.number('playheadPosition', 'Playhead Position (0–1)', 0.25, { min: 0, max: 1, step: 0.01 }),
                 ],
             },
@@ -64,7 +64,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 collapsed: false,
                 properties: [
                     prop.colorAlpha('noteColor', 'Note Color', '#FFFFFFFF'),
-                    prop.number('noteCornerRadius', 'Corner Radius (px)', 2, { min: 0, max: 20, step: 1 }),
+                    prop.number('noteCornerRadius', 'Corner Radius (px)', 2, { step: 1 }),
                 ],
             },
             {
@@ -78,7 +78,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                         visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                     }),
                     prop.number('playheadLineWidth', 'Playhead Width (px)', 2, {
-                        min: 1, max: 10, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'showPlayhead', truthy: true }],
                     }),
                 ],
@@ -99,7 +99,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                     prop.string('markerText', 'Marker Text', '♪', {
                         visibleWhen: [{ key: 'markerType', equals: 'text' }],
                     }),
-                    prop.number('markerSize', 'Marker Size (px)', 40, { min: 8, max: 80, step: 1 }),
+                    prop.number('markerSize', 'Marker Size (px)', 40, { step: 1 }),
                     prop.color('markerColor', 'Marker Color', '#FFFFFF'),
                     prop.number('markerDuration', 'Marker Duration (s)', 0.5, { min: 0.05, max: 3, step: 0.05 }),
                 ],
@@ -117,7 +117,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                         { value: 'none', label: 'No Ripple' },
                     ]),
                     prop.number('rippleRadius', 'Ripple Radius (px)', 70, {
-                        min: 10, max: 200, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
                     }),
                     prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
@@ -145,7 +145,7 @@ export class AlmamlikePianoRollElement extends SceneElement {
                         min: 0.05, max: 2, step: 0.05,
                         visibleWhen: [{ key: 'animationType', notEquals: 'none' }],
                     }),
-                    prop.number('bloomRadius', 'Bloom', 0, { min: 0, max: 60, step: 1 }),
+                    prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
                 ],
             },
             {
@@ -157,11 +157,11 @@ export class AlmamlikePianoRollElement extends SceneElement {
                 properties: [
                     prop.boolean('enableShake', 'Enable Shake', false),
                     prop.number('zoomIntensity', 'Zoom Intensity', 5, {
-                        min: 0, max: 50, step: 0.5,
+                        step: 0.5,
                         visibleWhen: [{ key: 'enableShake', truthy: true }],
                     }),
                     prop.number('shakeIntensity', 'Shake Intensity', 8, {
-                        min: 0, max: 100, step: 0.5,
+                        step: 0.5,
                         visibleWhen: [{ key: 'enableShake', truthy: true }],
                     }),
                 ],

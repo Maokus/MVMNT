@@ -35,7 +35,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
                 collapsed: false,
                 properties: [
                     prop.number('division', 'Division (rows per beat)', 1, { min: 1, max: 32, step: 1, description: '1 = quarter notes, 2 = 8th, 4 = 16th, etc.' }),
-                    prop.number('rowCount', 'Rows per page', 8, { min: 1, max: 64, step: 1 }),
+                    prop.number('rowCount', 'Rows per page', 8, { step: 1 }),
                     prop.number('columns', 'Note columns', 1, { min: 1, max: 8, step: 1, description: 'How many simultaneous notes to show per row' }),
                     prop.boolean('showTrackName', 'Show Track Name', true),
                 ],
@@ -46,7 +46,7 @@ export class TrackerlikeMidiDisplayElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.number('fontSize', 'Font Size', 16, { min: 8, max: 64, step: 1 }),
+                    prop.number('fontSize', 'Font Size', 16, { step: 1 }),
                     prop.colorAlpha('textColor', 'Text Color', '#e2e8f0FF'),
                     prop.colorAlpha('activeColor', 'Active Row Color', '#10B981FF'),
                     prop.colorAlpha('headerColor', 'Header Color', '#94a3b8FF'),

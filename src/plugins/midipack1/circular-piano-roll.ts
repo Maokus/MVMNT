@@ -116,13 +116,13 @@ export class CircularPianoRollElement extends SceneElement {
                         { value: 'ring', label: 'Ring (all notes share one ring)' },
                         { value: 'polar', label: 'Polar (pitch = radius, like a piano roll)' },
                     ]),
-                    prop.number('ringRadius', 'Outer Radius (px)', 400, { min: 40, max: 1000, step: 5 }),
+                    prop.number('ringRadius', 'Outer Radius (px)', 400, { step: 5 }),
                     prop.number('ringWidth', 'Ring Width (px)', 20, {
-                        min: 4, max: 120, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'ringMode', equals: 'ring' }],
                     }),
                     prop.number('innerRadius', 'Inner Radius (px)', 60, {
-                        min: 10, max: 900, step: 5,
+                        step: 5,
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                     }),
                     prop.number('minNote', 'Min MIDI Note', 36, {
@@ -134,7 +134,7 @@ export class CircularPianoRollElement extends SceneElement {
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                     }),
                     prop.number('polarNoteHeight', 'Note Lane Height (px)', 8, {
-                        min: 1, max: 60, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'ringMode', equals: 'polar' }],
                     }),
                     prop.number('timeWindowBars', 'Time Window (bars)', 2, { min: 1, max: 16, step: 1 }),
@@ -188,7 +188,7 @@ export class CircularPianoRollElement extends SceneElement {
                         visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }],
                     }),
                     prop.number('triggerIndicatorLength', 'Trigger Line Length (px)', 30, {
-                        min: 5, max: 120, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'showTriggerIndicator', truthy: true }, { key: 'ringMode', equals: 'ring' }],
                     }),
                 ],
@@ -209,7 +209,7 @@ export class CircularPianoRollElement extends SceneElement {
                     prop.string('markerText', 'Marker Text', '♪', {
                         visibleWhen: [{ key: 'markerType', equals: 'text' }],
                     }),
-                    prop.number('markerSize', 'Marker Size (px)', 22, { min: 8, max: 80, step: 1 }),
+                    prop.number('markerSize', 'Marker Size (px)', 22, { step: 1 }),
                     prop.color('markerColor', 'Marker Color', '#FFFFFF'),
                     prop.number('markerDuration', 'Marker Duration (s)', 0.4, { min: 0.05, max: 3, step: 0.05 }),
                 ],
@@ -227,7 +227,7 @@ export class CircularPianoRollElement extends SceneElement {
                         { value: 'none', label: 'No Ripple' },
                     ]),
                     prop.number('rippleRadius', 'Ripple Radius (px)', 50, {
-                        min: 10, max: 300, step: 1,
+                        step: 1,
                         visibleWhen: [{ key: 'rippleType', notEquals: 'none' }],
                     }),
                     prop.color('rippleColor', 'Ripple Color', '#FFFFFF', {
@@ -251,7 +251,7 @@ export class CircularPianoRollElement extends SceneElement {
                         min: 0.05, max: 2, step: 0.05,
                         visibleWhen: [{ key: 'pulseOnHit', truthy: true }],
                     }),
-                    prop.number('bloomRadius', 'Bloom', 0, { min: 0, max: 60, step: 1 }),
+                    prop.number('bloomRadius', 'Bloom', 0, { step: 1 }),
                 ],
             },
         ]);

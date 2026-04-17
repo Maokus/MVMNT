@@ -28,8 +28,8 @@ export class ParticlesPatternElement extends SceneElement {
                 collapsed: false,
                 description: 'Element dimensions.',
                 properties: [
-                    prop.number('elementWidth', 'Width', 1000, { min: 10, max: 4000, step: 1 }),
-                    prop.number('elementHeight', 'Height', 1000, { min: 10, max: 4000, step: 1 }),
+                    prop.number('elementWidth', 'Width', 1000, { step: 1 }),
+                    prop.number('elementHeight', 'Height', 1000, { step: 1 }),
                 ],
                 presets: [],
             },
@@ -41,7 +41,7 @@ export class ParticlesPatternElement extends SceneElement {
                 description: 'Controls movement speed and direction.',
                 properties: [
                     prop.number('gravity', 'Gravity', 80, {
-                        min: 0, max: 2000, step: 1,
+                        step: 1,
                         description: 'Particle speed in pixels per second.',
                     }),
                     prop.number('gravityDirection', 'Direction (°)', 90, {
@@ -62,9 +62,9 @@ export class ParticlesPatternElement extends SceneElement {
                 collapsed: false,
                 description: 'Particle appearance settings.',
                 properties: [
-                    prop.number('particleCount', 'Count', 40, { min: 1, max: 500, step: 1 }),
+                    prop.number('particleCount', 'Count', 40, { step: 1 }),
                     prop.number('particleSize', 'Size', 3, {
-                        min: 1, max: 300, step: 1,
+                        step: 1,
                         description: 'Max particle radius in pixels.',
                     }),
                     prop.number('particleOpacity', 'Opacity', 0.7, { min: 0, max: 1, step: 0.01 }),

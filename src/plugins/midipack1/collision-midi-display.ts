@@ -55,17 +55,17 @@ export class CollisionMidiDisplayElement extends SceneElement {
                 variant: 'basic',
                 collapsed: false,
                 properties: [
-                    prop.number('noteSize', 'Note Size', 40, { min: 10, max: 120, step: 1 }),
+                    prop.number('noteSize', 'Note Size', 40, { step: 1 }),
                     prop.number('minNote', 'Min Note', 0, { min: 0, max: 127, step: 1, description: 'Only display notes at or above this MIDI note number' }),
                     prop.number('maxNote', 'Max Note', 127, { min: 0, max: 127, step: 1, description: 'Only display notes at or below this MIDI note number' }),
-                    prop.number('gap', 'Gap', 16, { min: 4, max: 80, step: 1 }),
-                    prop.number('spacing', 'Spacing', 12, { min: 0, max: 60, step: 1 }),
+                    prop.number('gap', 'Gap', 16, { step: 1 }),
+                    prop.number('spacing', 'Spacing', 12, { step: 1 }),
                     prop.colorAlpha('squareColor', 'Square Color', '#334155FF'),
                     prop.colorAlpha('squareActiveColor', 'Square Active Color', '#6366F1FF', { description: 'Color the square takes on while the note is being held' }),
                     prop.colorAlpha('circleColor', 'Circle Color', '#10B981FF'),
                     prop.boolean('showNoteNames', 'Show Note Names', true),
                     prop.font('labelFontFamily', 'Note Label Font', 'Inter', { description: 'Font family for note name labels (Google Fonts supported).' }),
-                    prop.number('labelFontSize', 'Note Label Font Size', 0, { min: 0, max: 96, step: 1, description: '0 = auto (scales with note size)' }),
+                    prop.number('labelFontSize', 'Note Label Font Size', 0, { step: 1, description: '0 = auto (scales with note size)' }),
                 ],
                 presets: [
                     {

@@ -62,8 +62,8 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         default: null,
                         runtime: { transform: normalizeChannelSelector, defaultValue: null },
                     },
-                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
-                    prop.number('height', 'Height (px)', 140, { min: 20, max: 800, step: 1 }),
+                    prop.number('width', 'Width (px)', 420, { step: 1 }),
+                    prop.number('height', 'Height (px)', 140, { step: 1 }),
                     {
                         key: 'lineColor',
                         type: 'colorAlpha',
@@ -79,8 +79,6 @@ export class AudioLockedOscilloscopeElement extends SceneElement {
                         type: 'number',
                         label: 'Line Width (px)',
                         default: 2,
-                        min: 0.5,
-                        max: 10,
                         step: 0.5,
                         runtime: {
                             transform: (value, element) => {

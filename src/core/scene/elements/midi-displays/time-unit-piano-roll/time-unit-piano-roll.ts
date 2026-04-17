@@ -144,7 +144,7 @@ export class TimeUnitPianoRollElement extends SceneElement {
                     description: 'Configure viewport width, time window, and pitch range.',
                     properties: [
                         prop.number('rollWidth', 'Roll Width (px)', DEFAULT_ROLL_WIDTH, {
-                            min: 200, max: 4000, step: 50,
+                            step: 50,
                             description: 'Width of the scrolling window in pixels.',
                         }),
                         prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
@@ -187,11 +187,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             ],
                         }),
                         prop.number('noteHeight', 'Note Height (px)', 20, {
-                            min: 4, max: 40, step: 1,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteCornerRadius', 'Note Corner Radius (px)', 2, {
-                            min: 0, max: 20, step: 1,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.color('noteStrokeColor', 'Note Stroke Color', '#ffffff', {
@@ -201,11 +201,11 @@ export class TimeUnitPianoRollElement extends SceneElement {
                             ],
                         }),
                         prop.number('noteStrokeWidth', 'Note Stroke Width (px)', 0, {
-                            min: 0, max: 10, step: 1,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteGlowBlur', 'Note Glow Blur (px)', 0, {
-                            min: 0, max: 50, step: 1,
+                            step: 1,
                             visibleWhen: [{ key: 'showNotes', truthy: true }],
                         }),
                         prop.number('noteGlowOpacity', 'Note Glow Opacity', 0.5, {
@@ -535,9 +535,9 @@ export class TimeUnitPianoRollElement extends SceneElement {
                         prop.select('animationType', 'Animation Type', 'expand', [
                             ...getAnimationSelectOptions(), { value: 'none', label: 'No Animation' },
                         ]),
-                        prop.number('attackDuration', 'Attack Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
-                        prop.number('decayDuration', 'Decay Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
-                        prop.number('releaseDuration', 'Release Duration (s)', 0.3, { min: 0, max: 10, step: 0.05 }),
+                        prop.number('attackDuration', 'Attack Duration (s)', 0.3, { step: 0.05 }),
+                        prop.number('decayDuration', 'Decay Duration (s)', 0.3, { step: 0.05 }),
+                        prop.number('releaseDuration', 'Release Duration (s)', 0.3, { step: 0.05 }),
                     ],
                     presets: [
                         {

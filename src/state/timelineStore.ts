@@ -462,7 +462,7 @@ function createInitialTimelineSlice(): Pick<
             rate: 1.0,
             // Quantize enabled by default (bar snapping)
             quantize: 'bar',
-            adaptiveSnap: false,
+            adaptiveSnap: true,
             autoKeying: false,
             loopStartTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 2)),
             loopEndTick: Math.round(timingSecondsToTicks(DEFAULT_TIMING_CONTEXT, 5)),

@@ -230,8 +230,8 @@ export class AudioSpectrumElement extends SceneElement {
                     },
                     prop.number('minDecibels', 'Minimum Value', -80, { min: -80, max: 0, step: 1 }),
                     prop.number('maxDecibels', 'Maximum Value', 0, { min: -80, max: 24, step: 1 }),
-                    prop.number('width', 'Width (px)', 420, { min: 40, max: 1600, step: 1 }),
-                    prop.number('height', 'Height (px)', 180, { min: 40, max: 800, step: 1 }),
+                    prop.number('width', 'Width (px)', 420, { step: 1 }),
+                    prop.number('height', 'Height (px)', 180, { step: 1 }),
                     {
                         key: 'primaryColor',
                         type: 'colorAlpha',
@@ -264,7 +264,7 @@ export class AudioSpectrumElement extends SceneElement {
                         ],
                         runtime: { transform: normalizeSpectrumDisplay, defaultValue: 'bar' },
                     },
-                    prop.number('thickness', 'Thickness', 4, { min: 0.5, max: 64, step: 0.5 }),
+                    prop.number('thickness', 'Thickness', 4, { step: 0.5 }),
                     {
                         key: 'scale',
                         type: 'select',
@@ -277,8 +277,8 @@ export class AudioSpectrumElement extends SceneElement {
                         ],
                         runtime: { transform: normalizeSpectrumScale, defaultValue: 'linear' },
                     },
-                    prop.number('tilt', 'Tilt Factor', 0, { min: -1, max: 1, step: 0.01 }),
-                    prop.number('gain', 'Gain', 1, { min: 0, max: 10, step: 0.01 }),
+                    prop.number('tilt', 'Tilt Factor', 0, { step: 0.01 }),
+                    prop.number('gain', 'Gain', 1, { step: 0.01 }),
                     {
                         key: 'minFrequency',
                         type: 'number',
@@ -304,8 +304,6 @@ export class AudioSpectrumElement extends SceneElement {
                         type: 'number',
                         label: 'Smoothing',
                         default: 0,
-                        min: 0,
-                        max: 64,
                         step: 1,
                         runtime: {
                             transform: (value, element) => {

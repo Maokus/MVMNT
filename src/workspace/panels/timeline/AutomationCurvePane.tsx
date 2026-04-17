@@ -154,13 +154,14 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
     // Compute auto value range for vertical mapping — includes handle positions so
     // handles never appear clipped beyond the curve pane height.
+    // If property has explicit min/max constraints, use those as bounds.
     const { minVal: autoMinVal, maxVal: autoMaxVal } = useMemo(() => {
         if (channel.valueType === 'boolean' || channel.valueType === 'color') {
             return { minVal: 0, maxVal: 1 };
         }
         const kfs = channel.keyframes;
         const vals = kfs.map((kf) => typeof kf.value === 'number' ? kf.value : 0);
-        if (vals.length === 0) return { minVal: 0, maxVal: 1 };
+        if (vals.length === 0) return { minVal: propertyMin ?? 0, maxVal: propertyMax ?? 1 };
 
         // Include effective handle absolute values so they stay visible
         for (let i = 0; i < kfs.length; i++) {
@@ -203,25 +204,36 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
         let mn = Math.min(...vals);
         let mx = Math.max(...vals);
+
+        // If property has explicit min/max, use them as bounds
+        if (propertyMin !== undefined) mn = Math.min(mn, propertyMin);
+        if (propertyMax !== undefined) mx = Math.max(mx, propertyMax);
+
         if (mn === mx) {
             mn -= 0.5;
             mx += 0.5;
         }
         const pad = (mx - mn) * 0.1;
         return { minVal: mn - pad, maxVal: mx + pad };
-    }, [channel.keyframes, channel.valueType]);
+    }, [channel.keyframes, channel.valueType, propertyMin, propertyMax]);
 
-    // Resolve the property step from the element schema for minimum span enforcement
+    // Resolve the property step, min, and max from the element schema
     const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
-    const propertyStep = useMemo(() => {
-        if (!elementType) return undefined;
+    const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
+        if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
         const schema = sceneElementRegistry.getSchema(elementType) as (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] }) | null;
-        if (!schema?.groups) return undefined;
+        if (!schema?.groups) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
         for (const group of schema.groups) {
             const prop = group.properties?.find((p) => p.key === channel.propertyKey);
-            if (prop?.step !== undefined && prop.step > 0) return prop.step;
+            if (prop) {
+                return {
+                    propertyStep: prop.step !== undefined && prop.step > 0 ? prop.step : undefined,
+                    propertyMin: prop.min,
+                    propertyMax: prop.max,
+                };
+            }
         }
-        return undefined;
+        return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
     }, [elementType, channel.propertyKey]);
 
     // Minimum visual span = property step (so the graph never collapses to a flat line)

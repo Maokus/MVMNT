@@ -18,10 +18,10 @@ export class CheckersPatternElement extends SceneElement {
                 collapsed: false,
                 description: 'Checkerboard colors and square size',
                 properties: [
-                    prop.number('patternWidth', 'Width', 640, { min: 10, max: 4000, step: 1 }),
-                    prop.number('patternHeight', 'Height', 360, { min: 10, max: 4000, step: 1 }),
-                    prop.number('squareWidth', 'Square Width', 80, { min: 4, max: 400, step: 1 }),
-                    prop.number('squareHeight', 'Square Height', 80, { min: 4, max: 400, step: 1 }),
+                    prop.number('patternWidth', 'Width', 640, { step: 1 }),
+                    prop.number('patternHeight', 'Height', 360, { step: 1 }),
+                    prop.number('squareWidth', 'Square Width', 80, { step: 1 }),
+                    prop.number('squareHeight', 'Square Height', 80, { step: 1 }),
                     prop.colorAlpha('color1', 'Color 1', '#222222FF'),
                     prop.colorAlpha('color2', 'Color 2', '#444444FF'),
                 ],
@@ -38,7 +38,7 @@ export class CheckersPatternElement extends SceneElement {
                 description: 'Pan direction and speed',
                 properties: [
                     prop.number('motionAngle', 'Motion Angle (deg)', 0, { min: 0, max: 360, step: 1, description: '0 = right, 90 = down' }),
-                    prop.number('motionSpeed', 'Motion Speed (px/s)', 60, { min: 0, max: 2000, step: 1 }),
+                    prop.number('motionSpeed', 'Motion Speed (px/s)', 60, { step: 1 }),
                 ],
                 presets: [],
             },
