@@ -34,6 +34,7 @@ import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import { copyChannel, getClipboard } from '@automation/clipboard';
+import { useSnapTicks } from './useSnapTicks';
 import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation, HandleType } from '@automation/types';
 import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import InterpolationPicker from './InterpolationPicker';
@@ -186,18 +187,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // -----------------------------------------------------------------------
     // Snap helper
     // -----------------------------------------------------------------------
-    const snapTick = useCallback(
-        (candidateTick: number, altKey?: boolean) => {
-            if (altKey) return Math.max(0, Math.round(candidateTick));
-            const target: QuantizeSetting = quantize;
-            if (target === 'off') return Math.max(0, Math.round(candidateTick));
-            const beatLength = quantizeSettingToBeats(target, bpb);
-            if (!beatLength) return Math.max(0, Math.round(candidateTick));
-            const resolution = Math.max(1, Math.round(beatLength * ppq));
-            return Math.max(0, Math.round(candidateTick / resolution) * resolution);
-        },
-        [quantize, bpb, ppq],
-    );
+    const snapTick = useSnapTicks();
 
     const isSelected = useCallback(
         (tick: number) => selectedKeyframes.some((k) => Math.abs(k.tick - tick) < 0.5),
@@ -798,9 +788,9 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             y2={cy}
                             stroke={
                                 selected && hovered ? 'rgba(255,255,255,0.95)' :
-                                selected ? 'rgba(147,197,253,0.9)' :
-                                hovered ? 'rgba(147,197,253,0.9)' :
-                                'rgba(96,165,250,0.35)'
+                                    selected ? 'rgba(147,197,253,0.9)' :
+                                        hovered ? 'rgba(147,197,253,0.9)' :
+                                            'rgba(96,165,250,0.35)'
                             }
                             strokeWidth={selected || hovered ? 2 : 1}
                             style={{ pointerEvents: 'none', filter: (selected || hovered) ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined }}

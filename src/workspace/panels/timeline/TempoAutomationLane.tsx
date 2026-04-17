@@ -7,6 +7,7 @@ import TempoKeyframeLabel from './TempoKeyframeLabel';
 import type { TempoKeyframe } from '@core/timing/types';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats } from '@state/timeline/quantize';
+import { useSnapTicks } from './useSnapTicks';
 
 const DIAMOND_SIZE = 7;
 const PADDING_Y = 12;
@@ -39,17 +40,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const ppq = CANONICAL_PPQ;
     const { toX, toTick } = useTickScale();
 
-    const snapTick = useCallback(
-        (candidateTick: number, altKey?: boolean) => {
-            if (altKey) return Math.max(0, Math.round(candidateTick));
-            if (quantize === 'off') return Math.max(0, Math.round(candidateTick));
-            const beatLength = quantizeSettingToBeats(quantize, bpb);
-            if (!beatLength) return Math.max(0, Math.round(candidateTick));
-            const resolution = Math.max(1, Math.round(beatLength * ppq));
-            return Math.max(0, Math.round(candidateTick / resolution) * resolution);
-        },
-        [quantize, bpb, ppq],
-    );
+    const snapTick = useSnapTicks();
 
     const keyframes = tempoAutomation?.keyframes ?? [];
     const [selectedTick, setSelectedTick] = useState<number | null>(null);

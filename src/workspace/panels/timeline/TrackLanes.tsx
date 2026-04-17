@@ -6,6 +6,7 @@ import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel, quantizeSettingToBeats, getAdaptiveSnapSetting, getAdaptiveGridSubdivisions, type QuantizeSetting } from '@state/timeline/quantize';
+import { useSnapTicks } from './useSnapTicks';
 import type { AudioTrack } from '@audio/audioTypes';
 import AutomationLanes from './AutomationLanes';
 import TempoAutomationLane from './TempoAutomationLane';
@@ -16,46 +17,28 @@ type Props = {
     activeTab: 'clips' | 'automation';
 };
 
-// Tick-domain snapping: snap to selected denomination when quantize !== 'off', or forceSnap for bar snapping.
-function useSnapTicks() {
-    const quantize = useTimelineStore((s) => s.transport.quantize);
-    const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
-    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
-    const view = useTimelineStore((s) => s.timelineView);
-    const ppq = CANONICAL_PPQ; // unified PPQ
-    return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean, allowNegative = false) => {
-        const clamp = (val: number) => {
-            const rounded = Math.round(val);
-            return allowNegative ? rounded : Math.max(0, rounded);
-        };
-        if (altKey) return clamp(candidateTick);
-        let target: QuantizeSetting;
-        if (forceSnap) {
-            target = 'bar';
-        } else if (adaptiveSnap && quantize !== 'off') {
-            target = getAdaptiveSnapSetting(view.endTick - view.startTick, bpb, ppq);
-        } else {
-            target = quantize;
-        }
-        if (target === 'off') return clamp(candidateTick);
-        const beatLength = quantizeSettingToBeats(target, bpb);
-        if (!beatLength) return clamp(candidateTick);
-        const resolution = Math.max(1, Math.round(beatLength * ppq));
-        return clamp(Math.round(candidateTick / resolution) * resolution);
-    }, [quantize, adaptiveSnap, bpb, ppq, view.startTick, view.endTick]);
-}
+// Tick-domain snapping: see useSnapTicks.ts (shared hook)
 
 const GridLines: React.FC<{ width: number; height: number } & { startTick: number; endTick: number }> = ({ width, height, startTick, endTick }) => {
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
     const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
+    const quantize = useTimelineStore((s) => s.transport.quantize);
     const ppq = CANONICAL_PPQ; // unified PPQ
     const { toX } = useTickScale();
     const ticksPerBar = bpb * ppq;
 
     const { showBeats, showEighths, showSixteenths } = useMemo(() => {
-        if (!adaptiveSnap) return { showBeats: true, showEighths: false, showSixteenths: false };
-        return getAdaptiveGridSubdivisions(width, endTick - startTick, bpb, ppq);
-    }, [adaptiveSnap, width, startTick, endTick, bpb, ppq]);
+        if (adaptiveSnap) {
+            return getAdaptiveGridSubdivisions(width, endTick - startTick, bpb, ppq);
+        }
+        // Match grid density to the selected snap denomination
+        const q = quantize === 'off' ? 'quarter' : quantize;
+        return {
+            showBeats: q === 'quarter' || q === 'eighth' || q === 'sixteenth' || q === 'thirty-second',
+            showEighths: q === 'eighth' || q === 'sixteenth' || q === 'thirty-second',
+            showSixteenths: q === 'sixteenth' || q === 'thirty-second',
+        };
+    }, [adaptiveSnap, quantize, width, startTick, endTick, bpb, ppq]);
 
     const lines = useMemo(() => {
         const firstBar = Math.max(0, Math.floor(startTick / ticksPerBar) - 1);
