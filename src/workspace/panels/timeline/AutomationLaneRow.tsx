@@ -149,6 +149,8 @@ interface DragState {
     offsetX: number;
     /** All other selected keyframes (across all channels) that should move with the primary. */
     peers: PeerKf[];
+    /** Unique ID for this drag session — shared across all merge keys so all moves undo together. */
+    sessionId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,7 +309,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const kfX = toX(kf.tick, width);
             const offsetX = svgX - kfX;
 
-            setDragging({ kfTick: kf.tick, baseTick: kf.tick, offsetX, peers });
+            setDragging({ kfTick: kf.tick, baseTick: kf.tick, offsetX, peers, sessionId: `${Date.now()}-${Math.random()}` });
         },
         [channel.id, channel.elementId, toX, width, setDragging],
     );
@@ -326,7 +328,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 // Delta-based: subtract click offset so kf sticks to where it was grabbed
                 const targetSVGX = svgX - drag.offsetX;
                 const candTick = toTick(targetSVGX, width);
-                const snapped = snapTick(candTick, e.altKey);
+                const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
 
                 // Collision avoidance: if the snapped destination is occupied by a different
                 // keyframe, bump by ±1 tick (direction of travel) until a free slot is found.
@@ -359,7 +361,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         },
                         {
                             source: 'automation-lane',
-                            mergeKey: `kf-move:${channel.id}:${drag.baseTick}`,
+                            mergeKey: `kf-move:${drag.sessionId}`,
                             transient: true,
                         },
                     );
@@ -368,7 +370,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                     const updatedPeers = drag.peers.map((peer) => {
                         const newPeerTick = snapTick(
                             Math.max(0, peer.baseTick + delta),
-                            e.altKey,
+                            e.ctrlKey || e.metaKey,
                         );
                         if (newPeerTick !== peer.curTick) {
                             dispatchSceneCommand(
@@ -380,7 +382,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                                 },
                                 {
                                     source: 'automation-lane',
-                                    mergeKey: `kf-move:${peer.channelId}:${peer.baseTick}`,
+                                    mergeKey: `kf-move:${drag.sessionId}`,
                                     transient: true,
                                 },
                             );
@@ -432,7 +434,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                         },
                         {
                             source: 'automation-lane',
-                            mergeKey: `kf-move:${channel.id}:${drag.baseTick}`,
+                            mergeKey: `kf-move:${drag.sessionId}`,
                             transient: false,
                         },
                     );
@@ -448,7 +450,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             },
                             {
                                 source: 'automation-lane',
-                                mergeKey: `kf-move:${peer.channelId}:${peer.baseTick}`,
+                                mergeKey: `kf-move:${drag.sessionId}`,
                                 transient: false,
                             },
                         );
@@ -499,7 +501,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
             const rect = svgRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const candTick = toTick(x, width);
-            const snapped = snapTick(candTick, e.altKey);
+            const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
             const interpolatedValue = interpolateAtTick(channel, snapped);
             const defaultInterp = channel.defaultInterpolation ?? { mode: 'bezier' as const, direction: 'auto' as const };
             dispatchSceneCommand(

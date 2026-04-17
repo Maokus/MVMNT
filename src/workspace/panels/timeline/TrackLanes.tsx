@@ -175,7 +175,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                     groupBaseOffsets[id] = storeState.tracks[id]?.offsetTicks ?? 0;
                 }
             }
-            startRef.current = { startX: e.clientX, baseOffsetTick: track?.offsetTicks || 0, alt: !!e.altKey, groupBaseOffsets };
+            startRef.current = { startX: e.clientX, baseOffsetTick: track?.offsetTicks || 0, alt: !!(e.ctrlKey || e.metaKey), groupBaseOffsets };
             setDragging(true);
             setDidMove(false);
             onHoverSnapX(null);
@@ -188,7 +188,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                 const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
                 const baseLocal = resizing.type === 'left' ? resizing.baseStart : resizing.baseEnd;
                 const candidateAbs = Math.max(0, (track?.offsetTicks || 0) + baseLocal + deltaTicks);
-                const snappedAbs = snapTicks(candidateAbs, e.altKey, false);
+                const snappedAbs = snapTicks(candidateAbs, e.ctrlKey || e.metaKey, false);
                 const absOffset = track?.offsetTicks || 0;
                 const minAbs = absOffset + dataStartTick;
                 const maxAbs = absOffset + dataEndTick;
@@ -220,7 +220,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             if (!dragging || !startRef.current) return;
             const dx = e.clientX - startRef.current.startX;
             const deltaTicks = Math.round((dx / Math.max(1, laneWidth)) * (view.endTick - view.startTick));
-            const altActive = !!(e.altKey || startRef.current.alt);
+            const altActive = !!((e.ctrlKey || e.metaKey) || startRef.current.alt);
             const candidate = startRef.current.baseOffsetTick + deltaTicks;
             const snapped = snapTicks(candidate, altActive, false, allowNegativeOffset);
             setDragTick(snapped);
@@ -269,7 +269,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
             const baseStart = track.regionStartTick ?? localStartTick;
             const baseEnd = track.regionEndTick ?? localEndTick;
-            setResizing({ type: which, startX: e.clientX, baseStart, baseEnd, alt: !!e.altKey });
+            setResizing({ type: which, startX: e.clientX, baseStart, baseEnd, alt: !!(e.ctrlKey || e.metaKey) });
         };
         const offsetTick = dragTick != null
             ? dragTick
@@ -514,7 +514,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const candTick = toTick(x, width);
-        const snapped = snapTicks(candTick, e.altKey, true);
+        const snapped = snapTicks(candTick, e.ctrlKey || e.metaKey, true);
         setHoverX(toX(snapped, width));
     };
     const onDragLeave = () => setHoverX(null);
@@ -525,7 +525,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const candTick = toTick(x, width);
-        const snappedTick = snapTicks(candTick, e.altKey, true);
+        const snappedTick = snapTicks(candTick, e.ctrlKey || e.metaKey, true);
         const offsetTicks = Math.max(0, snappedTick);
 
         const files = Array.from(e.dataTransfer.files || []);

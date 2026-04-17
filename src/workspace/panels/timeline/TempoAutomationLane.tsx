@@ -156,7 +156,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             if (!rect) return;
             const localX = e.clientX - rect.left;
             const localY = e.clientY - rect.top;
-            const tick = snapTick(toTick(localX, width), e.altKey);
+            const tick = snapTick(toTick(localX, width), e.ctrlKey || e.metaKey);
             const bpm = Math.max(1, Math.min(999, Math.round(yToBpm(localY))));
             addTempoKeyframe(tick, bpm);
         },
@@ -204,7 +204,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
 
             if (axis === 'horizontal' || axis === 'none') {
                 const localX = e.clientX - rect.left;
-                newTick = snapTick(toTick(localX, width), e.altKey);
+                newTick = snapTick(toTick(localX, width), e.ctrlKey || e.metaKey);
             }
             if (axis === 'vertical' || axis === 'none') {
                 const localY = e.clientY - rect.top;

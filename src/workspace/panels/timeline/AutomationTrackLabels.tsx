@@ -77,65 +77,69 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     return (
         <div
-            className="border-b border-neutral-800/60 bg-neutral-900/30 flex flex-col items-center justify-between py-1"
+            className="border-b border-neutral-800/60 bg-neutral-900/30 flex flex-col items-center justify-center py-1"
             style={{ height: curveHeight, width: '100%' }}
         >
-            {/* Max input */}
-            <input
-                type="text"
-                style={inputStyle(autoRange)}
-                value={autoRange
-                    ? ((displayedRefs.current[channelId]?.max ?? manualMax).toFixed(2))
-                    : maxText}
-                readOnly={autoRange}
-                onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
-                onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                onBlur={(e) => { if (!autoRange) commitMax(e.currentTarget.value); }}
-                onKeyDown={(e) => {
-                    if (!autoRange && e.key === 'Enter') {
-                        commitMax((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).blur();
-                    }
-                }}
-            />
+            <div>
+                {/* Min input */}
+                <input
+                    type="text"
+                    style={inputStyle(autoRange)}
+                    value={autoRange
+                        ? ((displayedRefs.current[channelId]?.min ?? manualMin).toFixed(2))
+                        : minText}
+                    readOnly={autoRange}
+                    onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
+                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { if (!autoRange) commitMin(e.currentTarget.value); }}
+                    onKeyDown={(e) => {
+                        if (!autoRange && e.key === 'Enter') {
+                            commitMin((e.target as HTMLInputElement).value);
+                            (e.target as HTMLInputElement).blur();
+                        }
+                    }}
+                />
+                -
+                {/* Max input */}
+                <input
+                    type="text"
+                    style={inputStyle(autoRange)}
+                    value={autoRange
+                        ? ((displayedRefs.current[channelId]?.max ?? manualMax).toFixed(2))
+                        : maxText}
+                    readOnly={autoRange}
+                    onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
+                    onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
+                    onBlur={(e) => { if (!autoRange) commitMax(e.currentTarget.value); }}
+                    onKeyDown={(e) => {
+                        if (!autoRange && e.key === 'Enter') {
+                            commitMax((e.target as HTMLInputElement).value);
+                            (e.target as HTMLInputElement).blur();
+                        }
+                    }}
+                />
 
-            {/* Auto toggle button */}
-            <button
-                type="button"
-                style={{
-                    fontSize: 9,
-                    padding: '1px 6px',
-                    borderRadius: 3,
-                    border: `1px solid ${autoRange ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                    background: autoRange ? 'rgba(96,165,250,0.2)' : 'rgba(0,0,0,0.4)',
-                    color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.45)',
-                    cursor: 'pointer',
-                    lineHeight: 1.5,
-                    userSelect: 'none',
-                }}
-                onClick={handleToggleAuto}
-            >
-                auto
-            </button>
+                {/* Auto toggle button */}
+                <button
+                    type="button"
+                    style={{
+                        fontSize: 9,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        border: `1px solid ${autoRange ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
+                        background: autoRange ? 'rgba(96,165,250,0.2)' : 'rgba(0,0,0,0.4)',
+                        color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.45)',
+                        cursor: 'pointer',
+                        lineHeight: 1.5,
+                        userSelect: 'none',
+                        marginLeft: '6px',
+                    }}
+                    onClick={handleToggleAuto}
+                >
+                    auto
+                </button>
 
-            {/* Min input */}
-            <input
-                type="text"
-                style={inputStyle(autoRange)}
-                value={autoRange
-                    ? ((displayedRefs.current[channelId]?.min ?? manualMin).toFixed(2))
-                    : minText}
-                readOnly={autoRange}
-                onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
-                onFocus={(e) => { if (!autoRange) e.currentTarget.select(); }}
-                onBlur={(e) => { if (!autoRange) commitMin(e.currentTarget.value); }}
-                onKeyDown={(e) => {
-                    if (!autoRange && e.key === 'Enter') {
-                        commitMin((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).blur();
-                    }
-                }}
-            />
+            </div>
         </div>
     );
 };
@@ -183,6 +187,7 @@ const ChannelRow: React.FC<{ channelId: string; elementId: string; propertyKey: 
             <div
                 className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800/60 text-neutral-400 hover:bg-neutral-800/30"
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
+                onDoubleClick={toggleCurve}
             >
                 <span className="text-[11px] truncate">{propertyKey}</span>
                 <div className="flex items-center gap-1">
