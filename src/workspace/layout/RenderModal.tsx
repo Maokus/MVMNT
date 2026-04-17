@@ -6,6 +6,7 @@ import type { ExportSettings } from '@context/visualizer/types';
 // @ts-ignore
 import { canEncodeVideo, getEncodableVideoCodecs, canEncodeAudio, getEncodableAudioCodecs } from 'mediabunny';
 import { ensureMp3EncoderRegistered } from '@export/mp3-encoder-loader';
+import { ensureAacEncoderRegistered } from '@export/aac-encoder-loader';
 import { calculateAutoBitrate, estimateFileSize, type EstimationParams, type FileSizeEstimate } from '@export/fileSizeEstimator';
 
 interface RenderModalProps {
@@ -62,7 +63,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         videoCodec: exportSettings.videoCodec || (initialContainer === 'webm' ? 'vp9' : 'h264'),
         videoBitrateSetting: initialVideoBitrateSetting,
         videoBitrate: exportSettings.videoBitrate || 0,
-        audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'mp3'),
+        audioCodec: persistedAudioCodec || (initialContainer === 'webm' ? 'opus' : 'aac'),
         audioBitrate: exportSettings.audioBitrate || 192000,
         audioSampleRate: exportSettings.audioSampleRate || 'auto',
         audioChannels: exportSettings.audioChannels === 1 ? 1 : 2,
@@ -112,14 +113,15 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                     const normalizeCodec = (codec: unknown) => {
                         if (typeof codec !== 'string') return null;
                         const id = codec.toLowerCase();
-                        if (id === 'mp4a.40.2' || id === 'audio/aac' || id === 'aac-lc' || id === 'aac') return null;
+                        // Normalize AAC variant strings to canonical 'aac'
+                        if (id === 'mp4a.40.2' || id === 'audio/aac' || id === 'aac-lc') return 'aac';
                         return codec;
                     };
-                    const preferOrder = ['pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
+                    const preferOrder = ['aac', 'pcm-s16', 'mp3', 'opus', 'vorbis', 'flac'];
                     const discovered = Array.isArray(acs)
                         ? acs.map(normalizeCodec).filter((c): c is string => Boolean(c))
                         : [];
-                    const merged = Array.from(new Set(['pcm-s16', 'mp3', ...discovered]));
+                    const merged = Array.from(new Set(['aac', 'pcm-s16', 'mp3', ...discovered]));
                     const ordered = [
                         ...preferOrder.filter((c) => merged.includes(c)),
                         ...merged.filter((c) => !preferOrder.includes(c)),
@@ -143,7 +145,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         if (!autoAudioCodecSelection && currentAvailable) return;
         const priority = form.container === 'webm'
             ? ['opus', 'vorbis', 'flac', 'pcm-s16', 'mp3']
-            : ['mp3', 'pcm-s16', 'opus', 'vorbis', 'flac'];
+            : ['aac', 'mp3', 'pcm-s16', 'opus', 'vorbis', 'flac'];
         const preferred = priority.find((c) => audioCodecs.includes(c)) || audioCodecs[0];
         if (preferred && preferred !== form.audioCodec) {
             updateForm({ audioCodec: preferred });
@@ -175,10 +177,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
         updateForm({ audioCodec: codec });
     }, [updateForm]);
 
-    // Prefetch MP3 encoder chunk when user selects mp3 to reduce latency at export time.
+    // Prefetch MP3/AAC encoder chunk when user selects those codecs to reduce latency at export time.
     useEffect(() => {
         if (form.audioCodec === 'mp3') {
             ensureMp3EncoderRegistered();
+        } else if (form.audioCodec === 'aac') {
+            ensureAacEncoderRegistered();
         }
     }, [form.audioCodec]);
 

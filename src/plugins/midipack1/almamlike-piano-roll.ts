@@ -149,6 +149,24 @@ export class AlmamlikePianoRollElement extends SceneElement {
                     prop.number('bloomRadius', 'Bloom', 0, { min: 0, max: 60, step: 1 }),
                 ],
             },
+            {
+                id: 'shake',
+                label: 'Shake',
+                variant: 'basic',
+                collapsed: true,
+                description: 'Camera shake and zoom that triggers when a note crosses the playhead.',
+                properties: [
+                    prop.boolean('enableShake', 'Enable Shake', false),
+                    prop.number('zoomIntensity', 'Zoom Intensity', 5, {
+                        min: 0, max: 50, step: 0.5,
+                        visibleWhen: [{ key: 'enableShake', truthy: true }],
+                    }),
+                    prop.number('shakeIntensity', 'Shake Intensity', 8, {
+                        min: 0, max: 100, step: 0.5,
+                        visibleWhen: [{ key: 'enableShake', truthy: true }],
+                    }),
+                ],
+            },
         ]);
     }
 
@@ -208,6 +226,10 @@ export class AlmamlikePianoRollElement extends SceneElement {
         const animDuration = Math.max(0.05, (p.animationDuration as number) ?? 0.3);
         const bloomRadius = Math.max(0, (p.bloomRadius as number) ?? 0);
 
+        const enableShake = (p.enableShake as boolean) ?? false;
+        const zoomIntensity = Math.max(0, (p.zoomIntensity as number) ?? 5);
+        const shakeIntensity = Math.max(0, (p.shakeIntensity as number) ?? 8);
+
         // ── Query window ────────────────────────────────────────────────────
         const maxEffectDuration = Math.max(markerDuration, rippleDuration, animDuration);
         const windowStart = targetTime - playheadPosition * timeUnitDuration;
@@ -223,6 +245,36 @@ export class AlmamlikePianoRollElement extends SceneElement {
         const xFromTime = (t: number) =>
             playheadX + ((t - targetTime) / timeUnitDuration) * rollWidth;
         const yFromNote = (note: number) => (maxNote - note) * noteHeight;
+
+        // ── Shake / zoom ────────────────────────────────────────────────────
+        // First pass: compute peak shake strength from recent note hits.
+        let shakeStrength = 0;
+        if (enableShake) {
+            const shakeDecay = 0.25; // seconds
+            for (const n of notes) {
+                const tsh = targetTime - n.startTime;
+                if (tsh >= 0 && tsh < shakeDecay) {
+                    shakeStrength = Math.max(shakeStrength, 1 - tsh / shakeDecay);
+                }
+            }
+        }
+        const shakeOffsetX = enableShake
+            ? Math.sin(targetTime * 60 * Math.PI) * shakeIntensity * shakeStrength
+            : 0;
+        const shakeOffsetY = enableShake
+            ? Math.cos(targetTime * 78 * Math.PI) * shakeIntensity * shakeStrength
+            : 0;
+        const zoomScale = enableShake
+            ? 1 + (zoomIntensity / 100) * shakeStrength
+            : 1;
+        const zoomOriginX = playheadX;
+        const zoomOriginY = (totalNotes * noteHeight) / 2;
+
+        const applyShake = (x: number, y: number): [number, number] => {
+            const sx = zoomOriginX + (x - zoomOriginX) * zoomScale + shakeOffsetX;
+            const sy = zoomOriginY + (y - zoomOriginY) * zoomScale + shakeOffsetY;
+            return [sx, sy];
+        };
 
 
         const effects: RenderObject[] = [];
@@ -262,9 +314,11 @@ export class AlmamlikePianoRollElement extends SceneElement {
 
             // ── Note body ────────────────────────────────────────────────────
             if (drawRight > 0 && drawLeft < rollWidth && drawRight > drawLeft) {
-                const rectY = yFromNote(n.note) + animDy;
+                const rawY = yFromNote(n.note) + animDy;
                 const rectH = Math.max(1, noteHeight + animDh);
-                const rect = new Rectangle(drawLeft, rectY, drawRight - drawLeft, rectH, noteColor);
+                const [sx, sy] = applyShake(drawLeft, rawY);
+                const [sx2] = applyShake(drawRight, rawY);
+                const rect = new Rectangle(sx, sy, sx2 - sx, rectH * zoomScale, noteColor);
                 if (noteCornerRadius > 0) (rect as any).setCornerRadius?.(noteCornerRadius);
                 (rect as any).setIncludeInLayoutBounds?.(false);
                 objects.push(rect);
@@ -272,8 +326,10 @@ export class AlmamlikePianoRollElement extends SceneElement {
 
             // ── Hit effects ─────────────────────────────────────────────────
             if (timeSinceHit >= 0) {
-                const effectCx = playheadX;
-                const effectCy = yFromNote(n.note) + animDy + (noteHeight + animDh) / 2;
+                const [effectCx, effectCy] = applyShake(
+                    playheadX,
+                    yFromNote(n.note) + animDy + (noteHeight + animDh) / 2,
+                );
                 const noteSeed = n.note * 7919 + Math.round(startTime * 100);
 
                 pushHitEffects(effects, effectCx, effectCy, timeSinceHit, {
@@ -290,7 +346,8 @@ export class AlmamlikePianoRollElement extends SceneElement {
         // ── Playhead line ───────────────────────────────────────────────────
         if (showPlayhead) {
             const totalHeight = totalNotes * noteHeight;
-            const ph = new Line(playheadX, 0, playheadX, totalHeight, playheadColor, playheadLineWidth);
+            const [phX] = applyShake(playheadX, 0);
+            const ph = new Line(phX, 0, phX, totalHeight, playheadColor, playheadLineWidth);
             (ph as any).setIncludeInLayoutBounds?.(false);
             objects.push(ph);
         }
