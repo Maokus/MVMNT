@@ -13,7 +13,7 @@
  * - Drag resize handle at bottom to change pane height
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import {
     useFloating,
     autoUpdate,
@@ -67,9 +67,9 @@ function buildHandlePatch(
         const dist = Math.sqrt(dt * dt + dv * dv);
         if (dist > 0) {
             const scale = frozenOppLength / dist;
-            const oppKey     = side === 'left' ? 'rightHandle'     : 'leftHandle';
+            const oppKey = side === 'left' ? 'rightHandle' : 'leftHandle';
             const oppTypeKey = side === 'left' ? 'rightHandleType' : 'leftHandleType';
-            patch[oppKey]     = { dt: -dt * scale, dv: -dv * scale };
+            patch[oppKey] = { dt: -dt * scale, dv: -dv * scale };
             patch[oppTypeKey] = 'aligned';
         }
     }
@@ -102,6 +102,14 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
     const [hoveredHandle, setHoveredHandle] = useState<{ tick: number; side: 'left' | 'right' } | null>(null);
 
     const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
+
+    // --- Range controls ---
+    const [autoRange, setAutoRange] = useState(true);
+    const [manualMin, setManualMin] = useState(0);
+    const [manualMax, setManualMax] = useState(1);
+    // Pending text while typing (so we don't commit on every keystroke)
+    const [minText, setMinText] = useState('');
+    const [maxText, setMaxText] = useState('');
 
     const { refs: pickerRefs, floatingStyles: pickerFloatingStyles } = useFloating({
         open: interpolationPicker !== null,
@@ -141,9 +149,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => window.removeEventListener('pointerdown', close, true);
     }, [kfHandleMenu]);
 
-    // Compute value range for vertical mapping — includes handle positions so
+    // Compute auto value range for vertical mapping — includes handle positions so
     // handles never appear clipped beyond the curve pane height.
-    const { minVal, maxVal } = useMemo(() => {
+    const { minVal: autoMinVal, maxVal: autoMaxVal } = useMemo(() => {
         if (channel.valueType === 'boolean' || channel.valueType === 'color') {
             return { minVal: 0, maxVal: 1 };
         }
@@ -157,7 +165,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const val = typeof kf.value === 'number' ? kf.value : 0;
             const prev = i > 0 ? kfs[i - 1] : null;
             const next = i < kfs.length - 1 ? kfs[i + 1] : null;
-            const showLeft  = i > 0 && kfs[i - 1].segmentInterpolation?.mode === 'bezier';
+            const showLeft = i > 0 && kfs[i - 1].segmentInterpolation?.mode === 'bezier';
             const showRight = i < kfs.length - 1 && kf.segmentInterpolation?.mode === 'bezier';
 
             if (showLeft) {
@@ -199,6 +207,59 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         const pad = (mx - mn) * 0.1;
         return { minVal: mn - pad, maxVal: mx + pad };
     }, [channel.keyframes, channel.valueType]);
+
+    // Target range: auto or manual
+    const targetMin = autoRange ? autoMinVal : manualMin;
+    const targetMax = autoRange ? autoMaxVal : manualMax;
+
+    // Sync manual inputs when switching to auto or when auto values change while auto is on
+    useLayoutEffect(() => {
+        if (autoRange) {
+            setManualMin(autoMinVal);
+            setManualMax(autoMaxVal);
+            setMinText(autoMinVal.toFixed(2));
+            setMaxText(autoMaxVal.toFixed(2));
+        }
+    }, [autoRange, autoMinVal, autoMaxVal]);
+
+    // Smoothed display range — lerps toward target each animation frame
+    const displayedMinRef = useRef(targetMin);
+    const displayedMaxRef = useRef(targetMax);
+    const [displayedMin, setDisplayedMin] = useState(targetMin);
+    const [displayedMax, setDisplayedMax] = useState(targetMax);
+    const smoothAnimRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const LERP = 0.12; // per-frame factor (~60fps → ~150ms visual half-life)
+        const SNAP_THRESHOLD = 1e-4;
+
+        const animate = () => {
+            const dMin = targetMin - displayedMinRef.current;
+            const dMax = targetMax - displayedMaxRef.current;
+            if (Math.abs(dMin) < SNAP_THRESHOLD && Math.abs(dMax) < SNAP_THRESHOLD) {
+                displayedMinRef.current = targetMin;
+                displayedMaxRef.current = targetMax;
+                setDisplayedMin(targetMin);
+                setDisplayedMax(targetMax);
+                smoothAnimRef.current = null;
+                return;
+            }
+            displayedMinRef.current += dMin * LERP;
+            displayedMaxRef.current += dMax * LERP;
+            setDisplayedMin(displayedMinRef.current);
+            setDisplayedMax(displayedMaxRef.current);
+            smoothAnimRef.current = requestAnimationFrame(animate);
+        };
+
+        if (smoothAnimRef.current !== null) cancelAnimationFrame(smoothAnimRef.current);
+        smoothAnimRef.current = requestAnimationFrame(animate);
+        return () => {
+            if (smoothAnimRef.current !== null) cancelAnimationFrame(smoothAnimRef.current);
+        };
+    }, [targetMin, targetMax]);
+
+    const minVal = displayedMin;
+    const maxVal = displayedMax;
 
     const valueToY = useCallback(
         (val: number) => {
@@ -723,7 +784,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 {gridLines.map((gl, i) => (
                     <g key={i}>
                         <line x1={0} y1={gl.y} x2={width} y2={gl.y} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
-                        <text x={4} y={gl.y - 2} fill="rgba(255,255,255,0.25)" fontSize={9}>{gl.label}</text>
+                        <text x={54} y={gl.y - 2} fill="rgba(255,255,255,0.25)" fontSize={9}>{gl.label}</text>
                     </g>
                 ))}
 
@@ -770,54 +831,54 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     const isHoverLeft = hoveredHandle?.tick === hv.tick && hoveredHandle?.side === 'left';
                     const isHoverRight = hoveredHandle?.tick === hv.tick && hoveredHandle?.side === 'right';
                     return (
-                    <g key={`handle-${hv.tick}`}>
-                        {hv.showLeft && (
-                            <>
-                                <line
-                                    x1={hv.kfX} y1={hv.kfY} x2={hv.leftX} y2={hv.leftY}
-                                    stroke={isHoverLeft ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
-                                    pointerEvents="none"
-                                />
-                                <circle
-                                    cx={hv.leftX} cy={hv.leftY} r={HANDLE_RADIUS}
-                                    fill={isHoverLeft ? '#fde047' : (hv.leftIsAuto ? 'transparent' : '#facc15')}
-                                    stroke={isHoverLeft ? '#fef08a' : '#facc15'} strokeWidth={isHoverLeft ? 2 : 1.5}
-                                    pointerEvents="none"
-                                />
-                                <circle
-                                    cx={hv.leftX} cy={hv.leftY} r={HANDLE_HIT_RADIUS}
-                                    fill="transparent"
-                                    style={{ cursor: 'grab' }}
-                                    onPointerDown={(e) => handleHandleDown(e, hv.tick, 'left')}
-                                    onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'left' })}
-                                    onPointerLeave={() => setHoveredHandle(null)}
-                                />
-                            </>
-                        )}
-                        {hv.showRight && (
-                            <>
-                                <line
-                                    x1={hv.kfX} y1={hv.kfY} x2={hv.rightX} y2={hv.rightY}
-                                    stroke={isHoverRight ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
-                                    pointerEvents="none"
-                                />
-                                <circle
-                                    cx={hv.rightX} cy={hv.rightY} r={HANDLE_RADIUS}
-                                    fill={isHoverRight ? '#fde047' : (hv.rightIsAuto ? 'transparent' : '#facc15')}
-                                    stroke={isHoverRight ? '#fef08a' : '#facc15'} strokeWidth={isHoverRight ? 2 : 1.5}
-                                    pointerEvents="none"
-                                />
-                                <circle
-                                    cx={hv.rightX} cy={hv.rightY} r={HANDLE_HIT_RADIUS}
-                                    fill="transparent"
-                                    style={{ cursor: 'grab' }}
-                                    onPointerDown={(e) => handleHandleDown(e, hv.tick, 'right')}
-                                    onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'right' })}
-                                    onPointerLeave={() => setHoveredHandle(null)}
-                                />
-                            </>
-                        )}
-                    </g>
+                        <g key={`handle-${hv.tick}`}>
+                            {hv.showLeft && (
+                                <>
+                                    <line
+                                        x1={hv.kfX} y1={hv.kfY} x2={hv.leftX} y2={hv.leftY}
+                                        stroke={isHoverLeft ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
+                                        pointerEvents="none"
+                                    />
+                                    <circle
+                                        cx={hv.leftX} cy={hv.leftY} r={HANDLE_RADIUS}
+                                        fill={isHoverLeft ? '#fde047' : (hv.leftIsAuto ? 'transparent' : '#facc15')}
+                                        stroke={isHoverLeft ? '#fef08a' : '#facc15'} strokeWidth={isHoverLeft ? 2 : 1.5}
+                                        pointerEvents="none"
+                                    />
+                                    <circle
+                                        cx={hv.leftX} cy={hv.leftY} r={HANDLE_HIT_RADIUS}
+                                        fill="transparent"
+                                        style={{ cursor: 'grab' }}
+                                        onPointerDown={(e) => handleHandleDown(e, hv.tick, 'left')}
+                                        onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'left' })}
+                                        onPointerLeave={() => setHoveredHandle(null)}
+                                    />
+                                </>
+                            )}
+                            {hv.showRight && (
+                                <>
+                                    <line
+                                        x1={hv.kfX} y1={hv.kfY} x2={hv.rightX} y2={hv.rightY}
+                                        stroke={isHoverRight ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)'} strokeWidth={1}
+                                        pointerEvents="none"
+                                    />
+                                    <circle
+                                        cx={hv.rightX} cy={hv.rightY} r={HANDLE_RADIUS}
+                                        fill={isHoverRight ? '#fde047' : (hv.rightIsAuto ? 'transparent' : '#facc15')}
+                                        stroke={isHoverRight ? '#fef08a' : '#facc15'} strokeWidth={isHoverRight ? 2 : 1.5}
+                                        pointerEvents="none"
+                                    />
+                                    <circle
+                                        cx={hv.rightX} cy={hv.rightY} r={HANDLE_HIT_RADIUS}
+                                        fill="transparent"
+                                        style={{ cursor: 'grab' }}
+                                        onPointerDown={(e) => handleHandleDown(e, hv.tick, 'right')}
+                                        onPointerEnter={() => setHoveredHandle({ tick: hv.tick, side: 'right' })}
+                                        onPointerLeave={() => setHoveredHandle(null)}
+                                    />
+                                </>
+                            )}
+                        </g>
                     );
                 })}
 
@@ -842,6 +903,114 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     />
                 ))}
             </svg>
+
+            {/* Range controls overlay — left side */}
+            <div
+                className="absolute left-0 top-0 bottom-0 flex flex-col items-center justify-between py-1 pointer-events-none"
+                style={{ width: 48, zIndex: 1 }}
+            >
+                {/* Max input */}
+                <input
+                    type="text"
+                    className="pointer-events-auto"
+                    style={{
+                        width: 44,
+                        fontSize: 9,
+                        padding: '1px 3px',
+                        background: 'rgba(0,0,0,0.55)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 3,
+                        color: autoRange ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
+                        textAlign: 'right',
+                        outline: 'none',
+                    }}
+                    value={autoRange ? displayedMax.toFixed(2) : maxText}
+                    readOnly={autoRange}
+                    onChange={(e) => { if (!autoRange) setMaxText(e.target.value); }}
+                    onFocus={(e) => { if (!autoRange) e.target.select(); }}
+                    onBlur={() => {
+                        if (!autoRange) {
+                            const v = parseFloat(maxText);
+                            if (!isNaN(v)) setManualMax(v);
+                            else setMaxText(manualMax.toFixed(2));
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (!autoRange && e.key === 'Enter') {
+                            const v = parseFloat(maxText);
+                            if (!isNaN(v)) setManualMax(v);
+                            else setMaxText(manualMax.toFixed(2));
+                            (e.target as HTMLInputElement).blur();
+                        }
+                    }}
+                />
+
+                {/* Auto button */}
+                <button
+                    type="button"
+                    className="pointer-events-auto"
+                    style={{
+                        fontSize: 9,
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        background: autoRange ? 'rgba(96,165,250,0.25)' : 'rgba(0,0,0,0.4)',
+                        color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.4)',
+                        cursor: 'pointer',
+                        letterSpacing: '0.03em',
+                        lineHeight: 1.4,
+                    }}
+                    onClick={() => {
+                        if (!autoRange) {
+                            setAutoRange(true);
+                        } else {
+                            setAutoRange(false);
+                            setManualMin(autoMinVal);
+                            setManualMax(autoMaxVal);
+                            setMinText(autoMinVal.toFixed(2));
+                            setMaxText(autoMaxVal.toFixed(2));
+                        }
+                    }}
+                >
+                    auto
+                </button>
+
+                {/* Min input */}
+                <input
+                    type="text"
+                    className="pointer-events-auto"
+                    style={{
+                        width: 44,
+                        fontSize: 9,
+                        padding: '1px 3px',
+                        background: 'rgba(0,0,0,0.55)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 3,
+                        color: autoRange ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
+                        textAlign: 'right',
+                        outline: 'none',
+                    }}
+                    value={autoRange ? displayedMin.toFixed(2) : minText}
+                    readOnly={autoRange}
+                    onChange={(e) => { if (!autoRange) setMinText(e.target.value); }}
+                    onFocus={(e) => { if (!autoRange) e.target.select(); }}
+                    onBlur={() => {
+                        if (!autoRange) {
+                            const v = parseFloat(minText);
+                            if (!isNaN(v)) setManualMin(v);
+                            else setMinText(manualMin.toFixed(2));
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (!autoRange && e.key === 'Enter') {
+                            const v = parseFloat(minText);
+                            if (!isNaN(v)) setManualMin(v);
+                            else setMinText(manualMin.toFixed(2));
+                            (e.target as HTMLInputElement).blur();
+                        }
+                    }}
+                />
+            </div>
 
             {/* Resize handle */}
             <div
