@@ -88,9 +88,6 @@ And the matching `plugin.json`:
   "elements": [
     {
       "type": "flash-box",
-      "name": "Flash Box",
-      "category": "custom",
-      "description": "A box that pulses with time",
       "entry": "flash-box.ts"
     }
   ]

@@ -1,6 +1,11 @@
 import { unzipSync } from 'fflate';
 import { supabase } from '../lib/supabase';
 
+export interface CommunityTag {
+  id: string;
+  name: string;
+}
+
 export interface CommunityItem {
   id: string;
   user_id: string;
@@ -18,6 +23,7 @@ export interface CommunityItem {
   plugin_uid: string | null;
   version: string | null;
   uploader_username: string | null;
+  tags: string[];
 }
 
 export type SortBy = 'newest' | 'top_rated' | 'most_downloaded';
@@ -34,13 +40,38 @@ const SORT_MAP: Record<SortBy, { column: string; ascending: boolean }[]> = {
   most_downloaded: [{ column: 'downloads_count', ascending: false }],
 };
 
-export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: number) {
+export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: number, filterTags?: string[]) {
+  // If filtering by tags, first get matching item IDs
+  let tagFilterIds: string[] | null = null;
+  if (filterTags && filterTags.length > 0) {
+    const { data: tagRows, error: tagErr } = await supabase
+      .from('community_item_tags')
+      .select('item_id, community_tags!inner(name)')
+      .in('community_tags.name', filterTags);
+    if (tagErr) throw tagErr;
+
+    // Items must match ALL selected tags
+    const itemTagCounts: Record<string, number> = {};
+    for (const row of tagRows ?? []) {
+      itemTagCounts[row.item_id] = (itemTagCounts[row.item_id] ?? 0) + 1;
+    }
+    tagFilterIds = Object.entries(itemTagCounts)
+      .filter(([, count]) => count >= filterTags.length)
+      .map(([id]) => id);
+
+    if (tagFilterIds.length === 0) return [];
+  }
+
   let query = supabase
     .from('community_items')
     .select('*');
 
   if (filterType !== 'all') {
     query = query.eq('type', filterType);
+  }
+
+  if (tagFilterIds) {
+    query = query.in('id', tagFilterIds);
   }
 
   for (const { column, ascending } of SORT_MAP[sortBy]) {
@@ -54,22 +85,28 @@ export async function fetchItems(sortBy: SortBy, filterType: FilterType, page: n
   const { data, error } = await query;
   if (error) throw error;
 
-  const items = (data ?? []) as Omit<CommunityItem, 'uploader_username'>[];
+  const items = (data ?? []) as Omit<CommunityItem, 'uploader_username' | 'tags'>[];
+  const itemIds = items.map((i) => i.id);
 
-  // Batch fetch usernames for all uploaders
+  // Batch fetch usernames and tags in parallel
   const userIds = [...new Set(items.map((i) => i.user_id))];
-  let usernameMap: Record<string, string> = {};
-  if (userIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .in('id', userIds);
-    usernameMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.username]));
-  }
+
+  const [usernameMap, tagsMap] = await Promise.all([
+    (async () => {
+      if (userIds.length === 0) return {} as Record<string, string>;
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+      return Object.fromEntries((profiles ?? []).map((p) => [p.id, p.username]));
+    })(),
+    fetchItemTagsBatch(itemIds),
+  ]);
 
   return items.map((item) => ({
     ...item,
     uploader_username: usernameMap[item.user_id] ?? null,
+    tags: tagsMap[item.id] ?? [],
   })) as CommunityItem[];
 }
 
@@ -270,4 +307,70 @@ export function semverGt(a: string, b: string): boolean {
   if (aMaj !== bMaj) return aMaj > bMaj;
   if (aMin !== bMin) return aMin > bMin;
   return (aPatch ?? 0) > (bPatch ?? 0);
+}
+
+// ─── Tags ──────────────────────────────────────────────
+
+/** Fetch all existing tags (for autocomplete). */
+export async function fetchAllTags(): Promise<CommunityTag[]> {
+  const { data, error } = await supabase
+    .from('community_tags')
+    .select('id, name')
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as CommunityTag[];
+}
+
+/** Batch-fetch tags for a list of item IDs. Returns map of itemId → tag names. */
+async function fetchItemTagsBatch(itemIds: string[]): Promise<Record<string, string[]>> {
+  if (itemIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('community_item_tags')
+    .select('item_id, community_tags(name)')
+    .in('item_id', itemIds);
+  if (error) throw error;
+
+  const result: Record<string, string[]> = {};
+  for (const row of data ?? []) {
+    const tag = row.community_tags as unknown as { name: string } | null;
+    if (tag) {
+      (result[row.item_id] ??= []).push(tag.name);
+    }
+  }
+  return result;
+}
+
+/** Get or create a tag by name. Returns the tag ID. */
+async function getOrCreateTag(name: string): Promise<string> {
+  const normalized = name.toLowerCase().trim();
+  // Try to find existing
+  const { data: existing } = await supabase
+    .from('community_tags')
+    .select('id')
+    .eq('name', normalized)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  // Create new
+  const { data: created, error } = await supabase
+    .from('community_tags')
+    .insert({ name: normalized })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return created.id;
+}
+
+/** Set tags for an item (replaces all existing tags). */
+export async function setItemTags(itemId: string, tagNames: string[]) {
+  // Remove all existing tags for this item
+  await supabase.from('community_item_tags').delete().eq('item_id', itemId);
+
+  if (tagNames.length === 0) return;
+
+  // Get or create each tag, then insert junction rows
+  const tagIds = await Promise.all(tagNames.map(getOrCreateTag));
+  const rows = tagIds.map((tagId) => ({ item_id: itemId, tag_id: tagId }));
+  const { error } = await supabase.from('community_item_tags').insert(rows);
+  if (error) throw error;
 }

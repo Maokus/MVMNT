@@ -161,9 +161,6 @@ export class SimpleBoxElement extends SceneElement {
   "elements": [
     {
       "type": "simple-box",
-      "name": "Simple Box",
-      "category": "custom",
-      "description": "A colored rectangle element",
       "entry": "simple-box.ts"
     }
   ]

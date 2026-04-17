@@ -262,7 +262,6 @@ export async function loadPlugin(
                     {
                         pluginId: manifest.id,
                         overrideCategory: manifest.name,
-                        capabilities: elementManifest.capabilities,
                     }
                 );
 

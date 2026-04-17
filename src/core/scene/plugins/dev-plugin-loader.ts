@@ -33,11 +33,7 @@ interface PluginManifest {
 
 interface PluginElementDefinition {
     type: string;
-    name: string;
-    category?: string;
-    description?: string;
     entry: string;
-    capabilities?: string[];
 }
 
 interface LoadResult {
@@ -175,7 +171,6 @@ async function loadElement(
         sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
             pluginId,
             overrideCategory: pluginName,
-            capabilities: element.capabilities,
         });
 
         // Wire loadBundledAsset() to the Vite dev-server asset path for this element type.

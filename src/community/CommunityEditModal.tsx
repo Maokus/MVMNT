@@ -2,7 +2,8 @@ import React, { useCallback, useState, useRef } from 'react';
 import { FaXmark, FaFloppyDisk } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import type { CommunityItem } from './communityApi';
-import { updateItem, parsePluginManifest, getThumbnailUrl } from './communityApi';
+import { updateItem, parsePluginManifest, getThumbnailUrl, setItemTags } from './communityApi';
+import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityEditModalProps {
   item: CommunityItem;
@@ -20,6 +21,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [detectedUid, setDetectedUid] = useState<string | null>(item.plugin_uid);
   const [detectedVersion, setDetectedVersion] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>(item.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +71,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
         pluginUid: detectedUid ?? undefined,
         version: item.type === 'plugin' && version.trim() ? version.trim() : undefined,
       });
+      await setItemTags(item.id, tags);
       onSaved();
       onClose();
     } catch (err: any) {
@@ -76,7 +79,7 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
     } finally {
       setSaving(false);
     }
-  }, [item.id, item.type, user.id, title, description, version, thumbnailFile, mainFile, detectedUid, onSaved, onClose]);
+  }, [item.id, item.type, user.id, title, description, version, thumbnailFile, mainFile, detectedUid, tags, onSaved, onClose]);
 
   const inputClass = "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none";
 
@@ -188,6 +191,9 @@ const CommunityEditModal: React.FC<CommunityEditModalProps> = ({ item, user, onC
               </div>
             )}
           </div>
+
+          {/* Tags */}
+          <CommunityTagInput tags={tags} onChange={setTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 

@@ -1,7 +1,7 @@
 {
   "id": "patternspack1",
   "name": "Patterns Pack 1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.0.0",
   "description": "Custom plugin providing 2 elements",
   "author": "Your Name",

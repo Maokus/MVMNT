@@ -214,6 +214,15 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
               <p className="mt-0.5 text-xs text-neutral-500">by {item.uploader_username}</p>
             )}
             {item.description && <p className="mt-1 text-neutral-400 text-[13px]">{item.description}</p>}
+            {item.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.tags.map((tag) => (
+                  <span key={tag} className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[11px] text-neutral-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Stats */}

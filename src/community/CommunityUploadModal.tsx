@@ -1,7 +1,8 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { FaXmark, FaUpload } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
-import { uploadItem, parsePluginManifest } from './communityApi';
+import { uploadItem, parsePluginManifest, setItemTags } from './communityApi';
+import CommunityTagInput from './CommunityTagInput';
 
 interface CommunityUploadModalProps {
   user: User;
@@ -20,6 +21,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [pluginUid, setPluginUid] = useState<string | null>(null);
   const [pluginVersion, setPluginVersion] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thumbInputRef = useRef<HTMLInputElement>(null);
@@ -68,11 +70,14 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     setUploading(true);
 
     try {
-      await uploadItem(
+      const itemId = await uploadItem(
         user.id, type, title, description, thumbnailFile, mainFile,
         pluginUid ?? undefined,
         pluginVersion ?? undefined,
       );
+      if (tags.length > 0) {
+        await setItemTags(itemId, tags);
+      }
       onUploaded();
       onClose();
     } catch (err: any) {
@@ -80,7 +85,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
     } finally {
       setUploading(false);
     }
-  }, [user.id, type, title, description, thumbnailFile, mainFile, pluginUid, pluginVersion, onUploaded, onClose]);
+  }, [user.id, type, title, description, thumbnailFile, mainFile, pluginUid, pluginVersion, tags, onUploaded, onClose]);
 
   const inputClass = "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none";
 
@@ -203,6 +208,9 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({ user, onClo
               <p className="mt-1 text-xs text-yellow-500">Could not read manifest — plugin_uid won't be set.</p>
             )}
           </div>
+
+          {/* Tags */}
+          <CommunityTagInput tags={tags} onChange={setTags} />
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 

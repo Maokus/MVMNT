@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaXmark } from 'react-icons/fa6';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import CommunityAuthBar from './CommunityAuthBar';
@@ -8,7 +8,7 @@ import CommunityGrid from './CommunityGrid';
 import CommunityDetailModal from './CommunityDetailModal';
 import CommunityUploadModal from './CommunityUploadModal';
 import CommunityEditModal from './CommunityEditModal';
-import { fetchItems, type CommunityItem, type SortBy, type FilterType } from './communityApi';
+import { fetchItems, fetchAllTags, type CommunityItem, type CommunityTag, type SortBy, type FilterType } from './communityApi';
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -33,6 +33,10 @@ const CommunityPage: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<CommunityItem | null>(null);
   const [editItem, setEditItem] = useState<CommunityItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<CommunityTag[]>([]);
+  const [tagSearch, setTagSearch] = useState('');
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
 
   // Get initial session
   useEffect(() => {
@@ -41,10 +45,15 @@ const CommunityPage: React.FC = () => {
     });
   }, []);
 
+  // Load available tags
+  useEffect(() => {
+    fetchAllTags().then(setAllTags).catch(() => {});
+  }, []);
+
   const loadItems = useCallback(async (pageNum: number, append: boolean) => {
     setLoading(true);
     try {
-      const data = await fetchItems(sortBy, filterType, pageNum);
+      const data = await fetchItems(sortBy, filterType, pageNum, selectedTags.length > 0 ? selectedTags : undefined);
       if (append) {
         setItems((prev) => [...prev, ...data]);
       } else {
@@ -56,7 +65,7 @@ const CommunityPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, filterType]);
+  }, [sortBy, filterType, selectedTags]);
 
   // Reload when sort/filter changes
   useEffect(() => {
@@ -71,9 +80,9 @@ const CommunityPage: React.FC = () => {
   };
 
   const handleItemChanged = useCallback(() => {
-    // Refresh the list
     setPage(0);
     loadItems(0, false);
+    fetchAllTags().then(setAllTags).catch(() => {});
   }, [loadItems]);
 
   const selectClass = "rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none cursor-pointer";
@@ -143,6 +152,72 @@ const CommunityPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
             >
               <FaPlus className="text-[10px]" /> Upload
+            </button>
+          )}
+        </div>
+
+        {/* Tag Filter */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {selectedTags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded bg-indigo-900/50 border border-indigo-700/50 px-2 py-1 text-xs text-indigo-300"
+            >
+              {tag}
+              <button
+                onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
+                className="text-indigo-400 hover:text-white"
+                aria-label={`Remove tag filter ${tag}`}
+              >
+                <FaXmark className="text-[8px]" />
+              </button>
+            </span>
+          ))}
+          <div className="relative">
+            <input
+              type="text"
+              value={tagSearch}
+              onChange={(e) => {
+                setTagSearch(e.target.value.toLowerCase());
+                setShowTagDropdown(true);
+              }}
+              onFocus={() => setShowTagDropdown(true)}
+              onBlur={() => setTimeout(() => setShowTagDropdown(false), 150)}
+              placeholder="Filter by tag..."
+              className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 placeholder-neutral-500 focus:border-indigo-500 focus:outline-none w-36"
+            />
+            {showTagDropdown && (
+              <div className="absolute z-10 mt-1 w-48 rounded border border-neutral-700 bg-neutral-900 shadow-lg max-h-48 overflow-y-auto">
+                {allTags
+                  .filter((t) => t.name.includes(tagSearch) && !selectedTags.includes(t.name))
+                  .slice(0, 10)
+                  .map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSelectedTags((prev) => [...prev, tag.name]);
+                        setTagSearch('');
+                        setShowTagDropdown(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-xs text-neutral-300 hover:bg-indigo-600 hover:text-white"
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+                {allTags.filter((t) => t.name.includes(tagSearch) && !selectedTags.includes(t.name)).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-neutral-500">No tags found</div>
+                )}
+              </div>
+            )}
+          </div>
+          {selectedTags.length > 0 && (
+            <button
+              onClick={() => setSelectedTags([])}
+              className="text-xs text-neutral-500 hover:text-neutral-300"
+            >
+              Clear all
             </button>
           )}
         </div>

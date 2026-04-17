@@ -163,16 +163,6 @@ function validateManifest(manifest, pluginDir) {
                 }
             }
             
-            if (!element.name || typeof element.name !== 'string') {
-                errors.push(`${elementPrefix}: Missing or invalid "name" field`);
-            }
-            
-            if (!element.category || typeof element.category !== 'string') {
-                errors.push(`${elementPrefix}: Missing or invalid "category" field`);
-            }
-            // Note: We allow any string for category to support plugin-specific categories
-            // Standard categories are: shapes, effects, text, particles, audio-reactive, midi, utility, custom
-            
             if (!element.entry || typeof element.entry !== 'string') {
                 errors.push(`${elementPrefix}: Missing or invalid "entry" field`);
             } else {
@@ -187,17 +177,6 @@ function validateManifest(manifest, pluginDir) {
                 }
             }
             
-            // Validate capabilities if present
-            if (element.capabilities && !Array.isArray(element.capabilities)) {
-                errors.push(`${elementPrefix}: "capabilities" must be an array`);
-            } else if (element.capabilities) {
-                const validCapabilities = ['audio-analysis', 'midi-events', 'network', 'storage'];
-                element.capabilities.forEach(cap => {
-                    if (!validCapabilities.includes(cap)) {
-                        errors.push(`${elementPrefix}: Invalid capability "${cap}": must be one of ${validCapabilities.join(', ')}`);
-                    }
-                });
-            }
         });
     }
     
@@ -212,7 +191,7 @@ async function bundleElement(element, pluginDir, outputDir) {
     const outputFileName = element.entry.replace(/\.ts$/, '.js');
     const outputPath = path.join(outputDir, 'elements', outputFileName);
     
-    console.log(`  Bundling ${element.name} (${element.type})...`);
+    console.log(`  Bundling ${element.type}...`);
     
     try {
         await build({
@@ -239,7 +218,7 @@ async function bundleElement(element, pluginDir, outputDir) {
         
         return outputFileName;
     } catch (error) {
-        throw new Error(`Failed to bundle ${element.name}: ${error.message}`);
+        throw new Error(`Failed to bundle ${element.type}: ${error.message}`);
     }
 }
 
@@ -370,7 +349,7 @@ async function buildPlugin(pluginDir, outPath = null) {
     for (const element of manifest.elements) {
         const entryPath = path.join(pluginDir, element.entry);
         const elementCode = fs.readFileSync(entryPath, 'utf8');
-        const errors = validateElementClass(elementCode, element.name);
+        const errors = validateElementClass(elementCode, element.type);
         classValidationErrors.push(...errors);
     }
     if (classValidationErrors.length > 0) {
@@ -388,7 +367,7 @@ async function buildPlugin(pluginDir, outPath = null) {
     for (const element of manifest.elements) {
         const entryPath = path.join(pluginDir, element.entry);
         const elementCode = fs.readFileSync(entryPath, 'utf8');
-        const { errors, warnings } = validateElementImports(elementCode, element.name);
+        const { errors, warnings } = validateElementImports(elementCode, element.type);
         importValidationErrors.push(...errors);
         importValidationWarnings.push(...warnings);
     }
@@ -426,7 +405,7 @@ async function buildPlugin(pluginDir, outPath = null) {
             ...element,
             entry: `elements/${bundledEntry}`,
         });
-        console.log(`  ✓ ${element.name}`);
+        console.log(`  ✓ ${element.type}`);
     }
     console.log();
     
@@ -488,7 +467,7 @@ async function buildPlugin(pluginDir, outPath = null) {
     console.log(`Size: ${sizeKB} KB`);
     console.log(`Elements: ${manifest.elements.length}`);
     manifest.elements.forEach(element => {
-        console.log(`  - ${element.name} (${element.type})`);
+        console.log(`  - ${element.type}`);
     });
     console.log();
 }
