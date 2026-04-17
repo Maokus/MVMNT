@@ -70,7 +70,6 @@ export const selectNotesInWindow = (
         const cacheKey = track.midiSourceId ?? tid;
         const cache = s.midiCache[cacheKey];
         if (!cache) continue;
-        const tpq = CANONICAL_PPQ; // normalized
         const offsetSec = getTrackOffsetSeconds(s, track);
         const regionStartTick = track.regionStartTick ?? 0;
         const regionEndTick = track.regionEndTick ?? Number.POSITIVE_INFINITY;
@@ -82,19 +81,13 @@ export const selectNotesInWindow = (
             const endBeat = n.endBeat !== undefined ? n.endBeat : n.endTick / CANONICAL_PPQ;
             // Region clipping in tick space
             if (n.endTick <= regionStartTick || n.startTick >= regionEndTick) continue;
-            const clippedStartTick = Math.max(n.startTick, regionStartTick);
-            const clippedEndTick = Math.min(n.endTick, regionEndTick);
-            const clippedStartBeat = clippedStartTick / CANONICAL_PPQ;
-            const clippedEndBeat = clippedEndTick / CANONICAL_PPQ;
             const noteStartSec = convertBeatsToSeconds(s.timeline.masterTempoMap, startBeat, spbFallback);
             const noteEndSec = convertBeatsToSeconds(s.timeline.masterTempoMap, endBeat, spbFallback);
             const localStart = noteStartSec;
             const localEnd = noteEndSec;
             if (localEnd <= localStartSec || localStart >= localEndSec) continue;
-            const clippedStartSec = Math.max(localStart, localStartSec);
-            const clippedEndSec = Math.min(localEnd, localEndSec);
-            const timelineStartSec = clippedStartSec + offsetSec;
-            const timelineEndSec = clippedEndSec + offsetSec;
+            const timelineStartSec = localStart + offsetSec;
+            const timelineEndSec = localEnd + offsetSec;
             res.push({
                 trackId: tid,
                 note: n.note,

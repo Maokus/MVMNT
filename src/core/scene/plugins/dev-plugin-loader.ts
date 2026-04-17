@@ -90,7 +90,7 @@ function validateManifest(manifest: any): manifest is PluginManifest {
     }
     
     for (const element of manifest.elements) {
-        if (!element.type || !element.name || !element.entry) {
+        if (!element.type || !element.entry) {
             return false;
         }
     }
@@ -174,7 +174,7 @@ async function loadElement(
         // and conflicts with built-in types are caught correctly
         sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
             pluginId,
-            overrideCategory: element.category ?? pluginName,
+            overrideCategory: pluginName,
             capabilities: element.capabilities,
         });
 

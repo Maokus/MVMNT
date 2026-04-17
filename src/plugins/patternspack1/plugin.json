@@ -8,14 +8,10 @@
   "elements": [
     {
       "type": "checkers-pattern",
-      "name": "Checkers Pattern",
-      "description": "A passive checkerboard pattern",
       "entry": "checkers-pattern.ts"
     },
     {
       "type": "particles-pattern",
-      "name": "Particles Pattern",
-      "description": "Particles!!!",
       "entry": "particles-pattern.ts"
     }
   ]

@@ -23,43 +23,20 @@ const TEMPLATES = {
     'basic-shape': {
         file: 'basic-shape.ts',
         className: 'BasicShapeElement',
-        name: 'Basic Shape',
-        description: 'A customizable geometric shape',
-        category: 'Custom',
     },
     'audio-reactive': {
         file: 'audio-reactive.ts',
         className: 'AudioReactiveElement',
-        name: 'Audio Reactive',
-        description: 'Shape that reacts to audio volume',
-        category: 'Custom',
     },
     'midi-notes': {
         file: 'midi-notes.ts',
         className: 'MidiNotesElement',
-        name: 'MIDI Notes',
-        description: 'Display currently playing MIDI notes',
-        category: 'Custom',
     },
     'text-display': {
         file: 'text-display.ts',
         className: 'TextDisplayElement',
-        name: 'Text Display',
-        description: 'Display customizable text',
-        category: 'Custom',
     },
 };
-
-const CATEGORIES = [
-    'shapes',
-    'effects',
-    'text',
-    'particles',
-    'audio-reactive',
-    'midi',
-    'utility',
-    'custom'
-];
 
 // Helper to prompt user input
 function prompt(question) {
@@ -154,7 +131,7 @@ function checkElementTypeUniqueness(elementType) {
                 if (pluginJson.elements) {
                     for (const element of pluginJson.elements) {
                         if (element.type === elementType) {
-                            return `Element type "${elementType}" already exists in plugin "${pluginJson.name}"`;
+                            return `Element type "${elementType}" already exists in plugin "${pluginJson.id}"`;
                         }
                     }
                 }
@@ -168,20 +145,17 @@ function checkElementTypeUniqueness(elementType) {
 }
 
 // Generate plugin.json
-function generatePluginJson(pluginId, pluginName, elementType, elementName, elementDescription, entryFile) {
+function generatePluginJson(pluginId, pluginName, elementType, entryFile) {
     return {
         id: pluginId,
         name: pluginName,
         version: '1.0.0',
         apiVersion: '^1.0.0',
-        description: `Custom plugin providing ${elementName}`,
+        description: `Custom plugin`,
         author: 'Your Name',
         elements: [
             {
                 type: elementType,
-                name: elementName,
-                category: pluginName, // Use plugin ID as category
-                description: elementDescription,
                 entry: entryFile
             }
         ]
@@ -189,40 +163,30 @@ function generatePluginJson(pluginId, pluginName, elementType, elementName, elem
 }
 
 // Add element to existing plugin.json
-function addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile) {
+function addElementToPlugin(pluginJsonPath, elementType, entryFile) {
     const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-    
+
     // Check if element type already exists in this plugin
     if (pluginJson.elements.some(el => el.type === elementType)) {
         throw new Error(`Element type "${elementType}" already exists in this plugin`);
     }
-    
+
     // Add new element
     pluginJson.elements.push({
         type: elementType,
-        name: elementName,
-        category: pluginJson.name, // Use plugin ID as category
-        description: elementDescription,
         entry: entryFile
     });
-    
-    // Update description if it was auto-generated
-    if (pluginJson.elements.length > 1) {
-        pluginJson.description = `Custom plugin providing ${pluginJson.elements.length} elements`;
-    }
-    
+
     fs.writeFileSync(pluginJsonPath, JSON.stringify(pluginJson, null, 2));
     return pluginJson;
 }
 
 // Customize template content
-function customizeTemplate(templateContent, elementType, className, elementName, elementDescription, pluginId) {
+function customizeTemplate(templateContent, elementType, className, pluginId) {
     return templateContent
         .replace(/export class \w+Element/g, `export class ${className}`)
         .replace(/super\('[\w-]+'/g, `super('${elementType}'`)
         .replace(/constructor\(id: string = '\w+'/g, `constructor(id: string = '${elementType}'`)
-        .replace(/name: '[^']+'/g, `name: '${elementName}'`)
-        .replace(/description: '[^']+'/g, `description: '${elementDescription}'`)
         .replace(/category: '[^']+'/g, `category: '${pluginId}'`);
 }
 
@@ -274,17 +238,14 @@ async function main() {
         elementType = toKebabCase(elementType);
         validationError = validateElementType(elementType);
     }
-    
+
     // Check uniqueness
     const uniquenessError = checkElementTypeUniqueness(elementType);
     if (uniquenessError) {
         console.error(`Error: ${uniquenessError}`);
         process.exit(1);
     }
-    
-    const elementName = await prompt(`Element Display Name [${toTitleCase(elementType)}]: `) || toTitleCase(elementType);
-    const elementDescription = await prompt('Element Description: ') || `A custom ${elementName} element`;
-    
+
     // Step 3: Choose template
     console.log('\nAvailable templates:');
     Object.keys(TEMPLATES).forEach((key, index) => {
@@ -335,7 +296,7 @@ async function main() {
             process.exit(1);
         }
         
-        pluginJson = addElementToPlugin(pluginJsonPath, elementType, elementName, elementDescription, entryFile);
+        pluginJson = addElementToPlugin(pluginJsonPath, elementType, entryFile);
         console.log(`✓ Updated plugin.json (now has ${pluginJson.elements.length} elements)`);
     } else {
         // Create new plugin
@@ -347,8 +308,6 @@ async function main() {
             pluginId,
             pluginName,
             elementType,
-            elementName,
-            elementDescription,
             entryFile
         );
         
@@ -364,8 +323,6 @@ async function main() {
         templateContent,
         elementType,
         className,
-        elementName,
-        elementDescription,
         pluginId
     );
     
@@ -375,7 +332,7 @@ async function main() {
     console.log('\n' + '='.repeat(60));
     console.log('Success!');
     console.log('='.repeat(60));
-    console.log(`\nElement "${elementName}" (${elementType}) added to plugin: ${pluginJson.name}`);
+    console.log(`\nElement "${elementType}" added to plugin: ${pluginJson.name}`);
     console.log(`Plugin location: ${path.relative(projectRoot, pluginDir)}`);
     console.log(`\nNext steps:`);
     console.log(`  1. Start the dev server: npm run dev`);

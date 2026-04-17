@@ -152,6 +152,25 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         return () => window.removeEventListener('pointerdown', close, true);
     }, [kfHandleMenu]);
 
+    // Resolve the property step, min, and max from the element schema
+    const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
+    const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
+        if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
+        const schema = sceneElementRegistry.getSchema(elementType) as (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] }) | null;
+        if (!schema?.groups) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
+        for (const group of schema.groups) {
+            const prop = group.properties?.find((p) => p.key === channel.propertyKey);
+            if (prop) {
+                return {
+                    propertyStep: prop.step !== undefined && prop.step > 0 ? prop.step : undefined,
+                    propertyMin: prop.min,
+                    propertyMax: prop.max,
+                };
+            }
+        }
+        return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
+    }, [elementType, channel.propertyKey]);
+
     // Compute auto value range for vertical mapping — includes handle positions so
     // handles never appear clipped beyond the curve pane height.
     // If property has explicit min/max constraints, use those as bounds.
@@ -216,25 +235,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         const pad = (mx - mn) * 0.1;
         return { minVal: mn - pad, maxVal: mx + pad };
     }, [channel.keyframes, channel.valueType, propertyMin, propertyMax]);
-
-    // Resolve the property step, min, and max from the element schema
-    const elementType = useSceneStore(useCallback((s) => s.elements[channel.elementId]?.type, [channel.elementId]));
-    const { propertyStep, propertyMin, propertyMax } = useMemo(() => {
-        if (!elementType) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        const schema = sceneElementRegistry.getSchema(elementType) as (EnhancedConfigSchema & { groups?: EnhancedConfigSchema['groups'] }) | null;
-        if (!schema?.groups) return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-        for (const group of schema.groups) {
-            const prop = group.properties?.find((p) => p.key === channel.propertyKey);
-            if (prop) {
-                return {
-                    propertyStep: prop.step !== undefined && prop.step > 0 ? prop.step : undefined,
-                    propertyMin: prop.min,
-                    propertyMax: prop.max,
-                };
-            }
-        }
-        return { propertyStep: undefined, propertyMin: undefined, propertyMax: undefined };
-    }, [elementType, channel.propertyKey]);
 
     // Minimum visual span = property step (so the graph never collapses to a flat line)
     const enforceMinSpan = useCallback((mn: number, mx: number): [number, number] => {
