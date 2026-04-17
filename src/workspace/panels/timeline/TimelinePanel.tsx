@@ -29,7 +29,7 @@ import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
 import type { MIDIData, MIDITrackDetails } from '@core/types';
-import { FaPlus, FaEllipsisV, FaMagnet, FaCircle, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight } from 'react-icons/fa';
+import { FaPlus, FaEllipsisV, FaMagnet, FaCircle, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight, FaMagic } from 'react-icons/fa';
 import { sharedTimingManager } from '@state/timelineStore';
 import {
     formatQuantizeLabel,
@@ -1033,6 +1033,8 @@ const HeaderRightControls: React.FC<{
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const setQuantize = useTimelineStore((s) => s.setQuantize);
+    const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
+    const setAdaptiveSnap = useTimelineStore((s) => s.setAdaptiveSnap);
     const lastNonOffQuantizeRef = useRef<QuantizeSetting>('bar');
     useEffect(() => {
         if (quantize !== 'off') {
@@ -1152,8 +1154,9 @@ const HeaderRightControls: React.FC<{
                     />
                 </label>
             </div>
-            {/* Snap group: magnet toggle + compact snap dropdown */}
-            <div className="flex items-center gap-1">
+            {/* Snap group: three-segment pill — [magnet | snap denominator | adaptive] */}
+            <div className="flex items-stretch rounded-md border border-neutral-700 overflow-hidden text-[11px]">
+                {/* Segment 1: Snap enable toggle */}
                 <button
                     aria-label={
                         magnetActive
@@ -1166,16 +1169,25 @@ const HeaderRightControls: React.FC<{
                             : `Snapping off — click or press S to turn on (${pendingQuantizeLabel})`
                     }
                     onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
-                    className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${magnetActive
-                        ? 'bg-blue-600/70 text-white border-blue-400/70'
-                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                    className={`px-2 py-1 flex items-center justify-center transition-colors ${magnetActive
+                        ? 'bg-blue-600/70 text-white'
+                        : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
                         }`}
                 >
                     <FaMagnet />
                 </button>
+                {/* Divider */}
+                <div className="w-px bg-neutral-700 self-stretch" />
+                {/* Segment 2: Snap denominator select */}
                 <select
                     aria-label="Snap quantize"
-                    className={`bg-neutral-900/60 border border-neutral-700 rounded px-1 py-[3px] text-[11px] cursor-pointer focus:outline-none transition-colors ${magnetActive ? 'text-white border-blue-400/70' : 'text-neutral-400'}`}
+                    disabled={adaptiveSnap}
+                    className={`bg-neutral-900/60 px-1 py-[3px] cursor-pointer focus:outline-none transition-colors border-0 ${adaptiveSnap
+                            ? 'text-neutral-600 cursor-not-allowed opacity-50'
+                            : magnetActive
+                                ? 'text-white'
+                                : 'text-neutral-400'
+                        }`}
                     value={snapSelectValue}
                     onChange={(e) => setQuantize(e.target.value as SnapQuantizeOption)}
                 >
@@ -1185,6 +1197,20 @@ const HeaderRightControls: React.FC<{
                         </option>
                     ))}
                 </select>
+                {/* Divider */}
+                <div className="w-px bg-neutral-700 self-stretch" />
+                {/* Segment 3: Adaptive snap toggle */}
+                <button
+                    aria-label={adaptiveSnap ? 'Adaptive snapping: on — click to use fixed snap' : 'Adaptive snapping: off — click to enable zoom-aware snap'}
+                    title={adaptiveSnap ? 'Adaptive snapping on — snap denominator adjusts with zoom' : 'Adaptive snapping off — click to enable zoom-aware snapping'}
+                    onClick={() => setAdaptiveSnap(!adaptiveSnap)}
+                    className={`px-2 py-1 flex items-center justify-center transition-colors ${adaptiveSnap
+                        ? 'bg-blue-600/70 text-white'
+                        : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                        }`}
+                >
+                    <FaMagic />
+                </button>
             </div>
             {/* Auto-follow playhead button */}
             <button

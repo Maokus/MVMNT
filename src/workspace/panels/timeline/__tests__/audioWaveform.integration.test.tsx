@@ -86,7 +86,7 @@ describe('AudioWaveform integration in TrackLanes', () => {
             selection: { selectedTrackIds: [] },
             timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
             timelineView: { startTick: 0, endTick: 800 },
-            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1, quantize: 'bar', autoKeying: false },
+            transport: { state: 'idle', isPlaying: false, loopEnabled: false, rate: 1, quantize: 'bar', adaptiveSnap: false, autoKeying: false },
             rowHeight: 60,
         }, true);
     });

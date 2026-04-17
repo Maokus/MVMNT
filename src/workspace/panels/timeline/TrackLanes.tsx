@@ -5,7 +5,7 @@ import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTickScale } from './useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
-import { formatQuantizeShortLabel, quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
+import { formatQuantizeShortLabel, quantizeSettingToBeats, getAdaptiveSnapSetting, getAdaptiveGridSubdivisions, type QuantizeSetting } from '@state/timeline/quantize';
 import type { AudioTrack } from '@audio/audioTypes';
 import AutomationLanes from './AutomationLanes';
 import TempoAutomationLane from './TempoAutomationLane';
@@ -19,7 +19,9 @@ type Props = {
 // Tick-domain snapping: snap to selected denomination when quantize !== 'off', or forceSnap for bar snapping.
 function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
+    const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const view = useTimelineStore((s) => s.timelineView);
     const ppq = CANONICAL_PPQ; // unified PPQ
     return useCallback((candidateTick: number, altKey?: boolean, forceSnap?: boolean, allowNegative = false) => {
         const clamp = (val: number) => {
@@ -27,39 +29,74 @@ function useSnapTicks() {
             return allowNegative ? rounded : Math.max(0, rounded);
         };
         if (altKey) return clamp(candidateTick);
-        const target: QuantizeSetting = forceSnap ? 'bar' : quantize;
+        let target: QuantizeSetting;
+        if (forceSnap) {
+            target = 'bar';
+        } else if (adaptiveSnap && quantize !== 'off') {
+            target = getAdaptiveSnapSetting(view.endTick - view.startTick, bpb, ppq);
+        } else {
+            target = quantize;
+        }
         if (target === 'off') return clamp(candidateTick);
         const beatLength = quantizeSettingToBeats(target, bpb);
         if (!beatLength) return clamp(candidateTick);
         const resolution = Math.max(1, Math.round(beatLength * ppq));
         return clamp(Math.round(candidateTick / resolution) * resolution);
-    }, [quantize, bpb, ppq]);
+    }, [quantize, adaptiveSnap, bpb, ppq, view.startTick, view.endTick]);
 }
 
 const GridLines: React.FC<{ width: number; height: number } & { startTick: number; endTick: number }> = ({ width, height, startTick, endTick }) => {
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
     const ppq = CANONICAL_PPQ; // unified PPQ
     const { toX } = useTickScale();
     const ticksPerBar = bpb * ppq;
+
+    const { showBeats, showEighths, showSixteenths } = useMemo(() => {
+        if (!adaptiveSnap) return { showBeats: true, showEighths: false, showSixteenths: false };
+        return getAdaptiveGridSubdivisions(width, endTick - startTick, bpb, ppq);
+    }, [adaptiveSnap, width, startTick, endTick, bpb, ppq]);
+
     const lines = useMemo(() => {
         const firstBar = Math.max(0, Math.floor(startTick / ticksPerBar) - 1);
         const lastBar = Math.floor(endTick / ticksPerBar) + 1;
-        const arr: Array<{ tick: number; isBar: boolean }> = [];
+        const arr: Array<{ tick: number; level: 'bar' | 'beat' | 'eighth' | 'sixteenth' }> = [];
+
         for (let bar = firstBar; bar <= lastBar; bar++) {
             for (let beat = 0; beat < bpb; beat++) {
-                const tick = bar * ticksPerBar + beat * ppq; // beat boundary
-                if (tick < startTick - ppq || tick > endTick + ppq) continue;
-                arr.push({ tick, isBar: beat === 0 });
+                const beatTick = bar * ticksPerBar + beat * ppq;
+                const subdivisions = showSixteenths ? 4 : showEighths ? 2 : 1;
+                for (let sub = 0; sub < subdivisions; sub++) {
+                    const tick = beatTick + sub * (ppq / subdivisions);
+                    if (tick < startTick - ppq || tick > endTick + ppq) continue;
+                    let level: 'bar' | 'beat' | 'eighth' | 'sixteenth';
+                    if (beat === 0 && sub === 0) level = 'bar';
+                    else if (sub === 0) level = 'beat';
+                    else if (subdivisions === 4 && sub === 2) level = 'eighth';
+                    else level = 'sixteenth';
+                    // Skip beat/sub lines if not showing them
+                    if (level === 'beat' && !showBeats) continue;
+                    arr.push({ tick, level });
+                }
             }
         }
         return arr;
-    }, [startTick, endTick, ticksPerBar, bpb, ppq]);
+    }, [startTick, endTick, ticksPerBar, bpb, ppq, showBeats, showEighths, showSixteenths]);
+
+    const colorForLevel = (level: 'bar' | 'beat' | 'eighth' | 'sixteenth') => {
+        switch (level) {
+            case 'bar': return 'rgba(255,255,255,0.25)';
+            case 'beat': return 'rgba(255,255,255,0.08)';
+            case 'eighth': return 'rgba(255,255,255,0.05)';
+            case 'sixteenth': return 'rgba(255,255,255,0.03)';
+        }
+    };
+
     return (
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden>
             {lines.map((g, i) => {
                 const x = toX(g.tick, width);
-                const col = g.isBar ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)';
-                return <line key={i} x1={x} x2={x} y1={0} y2={height} stroke={col} strokeWidth={1} />;
+                return <line key={i} x1={x} x2={x} y1={0} y2={height} stroke={colorForLevel(g.level)} strokeWidth={1} />;
             })}
         </svg>
     );
