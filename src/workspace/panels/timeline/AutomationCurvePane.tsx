@@ -314,12 +314,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         [height],
     );
 
-    // Build sampled curve path showing the actual interpolation
-    const curvePath = useMemo(() => {
+    // Build sampled curve path per segment for highlight support
+    const curveSegments = useMemo(() => {
         const kfs = channel.keyframes;
-        if (kfs.length < 2) return '';
+        if (kfs.length < 2) return [] as Array<{ tick: number; points: string }>;
 
-        const pts: string[] = [];
+        const result: Array<{ tick: number; points: string }> = [];
         for (let i = 0; i < kfs.length - 1; i++) {
             const a = kfs[i];
             const b = kfs[i + 1];
@@ -330,6 +330,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const isComplexMode = interp?.mode === 'elastic' || interp?.mode === 'bounce' || interp?.mode === 'back';
             const segSamples = isComplexMode ? Math.max(base, COMPLEX_MODE_MIN_SAMPLES) : base;
 
+            const pts: string[] = [];
             if (interp) {
                 // New interpolation system
                 if (interp.mode === 'constant') {
@@ -341,6 +342,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     pts.push(`${xA.toFixed(1)},${yA.toFixed(1)}`);
                     pts.push(`${xB.toFixed(1)},${yA.toFixed(1)}`);
                     pts.push(`${xB.toFixed(1)},${yB.toFixed(1)}`);
+                    result.push({ tick: a.tick, points: pts.join(' ') });
                     continue;
                 }
 
@@ -376,6 +378,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         const y = valueToY(val);
                         pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
                     }
+                    result.push({ tick: a.tick, points: pts.join(' ') });
                     continue;
                 }
 
@@ -403,8 +406,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
                 }
             }
+            result.push({ tick: a.tick, points: pts.join(' ') });
         }
-        return pts.join(' ');
+        return result;
     }, [channel, toX, width, valueToY]);
 
     // Control points
@@ -420,6 +424,28 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             };
         });
     }, [channel.keyframes, toX, width, valueToY]);
+
+    // Selection state for highlighting keyframes and segments
+    const selectedKeyframeTicks = useSceneStore(
+        useCallback(
+            (s) => new Set(
+                s.interaction.automationSelectedKeyframes
+                    .filter((k) => k.channelId === channel.id)
+                    .map((k) => k.tick),
+            ),
+            [channel.id],
+        ),
+    );
+    const selectedSegmentTicks = useMemo(() => {
+        const result = new Set<number>();
+        const kfs = channel.keyframes;
+        for (let i = 0; i < kfs.length - 1; i++) {
+            if (selectedKeyframeTicks.has(kfs[i].tick) && selectedKeyframeTicks.has(kfs[i + 1].tick)) {
+                result.add(kfs[i].tick);
+            }
+        }
+        return result;
+    }, [selectedKeyframeTicks, channel.keyframes]);
 
     // Bezier handle visual data
     const handleVisuals = useMemo(() => {
@@ -850,17 +876,22 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     </g>
                 ))}
 
-                {/* Curve polyline */}
-                {curvePath && (
-                    <polyline
-                        points={curvePath}
-                        fill="none"
-                        stroke="rgba(96,165,250,0.6)"
-                        strokeWidth={1.5}
-                        strokeLinejoin="round"
-                        pointerEvents="none"
-                    />
-                )}
+                {/* Curve polyline — per-segment for selection highlighting */}
+                {curveSegments.map((seg) => {
+                    const isSelected = selectedSegmentTicks.has(seg.tick);
+                    return (
+                        <polyline
+                            key={`curve-${seg.tick}`}
+                            points={seg.points}
+                            fill="none"
+                            stroke={isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(96,165,250,0.6)'}
+                            strokeWidth={isSelected ? 2 : 1.5}
+                            strokeLinejoin="round"
+                            pointerEvents="none"
+                            style={isSelected ? { filter: 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' } : undefined}
+                        />
+                    );
+                })}
 
                 {/* Clickable segment hit areas */}
                 {points.map((pt, i) => {
@@ -945,32 +976,38 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 })}
 
                 {/* Control points */}
-                {points.map((pt) => (
-                    <circle
-                        key={pt.tick}
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={POINT_RADIUS}
-                        fill="#60a5fa"
-                        stroke="#93bbfc"
-                        strokeWidth={1.5}
-                        style={{ cursor: 'ns-resize' }}
-                        onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
-                        onContextMenu={(e) => {
-                            const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
-                            if (kfIdx < 0) return;
-                            const kfs = channel.keyframes;
-                            const adjacentBezier =
-                                (kfIdx > 0 && kfs[kfIdx - 1].segmentInterpolation?.mode === 'bezier') ||
-                                (kfIdx < kfs.length - 1 && kfs[kfIdx].segmentInterpolation?.mode === 'bezier');
-                            if (!adjacentBezier) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                            kfMenuRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
-                            setKfHandleMenu({ tick: pt.tick });
-                        }}
-                    />
-                ))}
+                {points.map((pt) => {
+                    const isSelected = selectedKeyframeTicks.has(pt.tick);
+                    return (
+                        <circle
+                            key={pt.tick}
+                            cx={pt.x}
+                            cy={pt.y}
+                            r={POINT_RADIUS}
+                            fill={isSelected ? '#ffffff' : '#60a5fa'}
+                            stroke={isSelected ? '#93bbfc' : '#93bbfc'}
+                            strokeWidth={isSelected ? 2 : 1.5}
+                            style={{
+                                cursor: 'grab',
+                                filter: isSelected ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined,
+                            }}
+                            onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
+                            onContextMenu={(e) => {
+                                const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
+                                if (kfIdx < 0) return;
+                                const kfs = channel.keyframes;
+                                const adjacentBezier =
+                                    (kfIdx > 0 && kfs[kfIdx - 1].segmentInterpolation?.mode === 'bezier') ||
+                                    (kfIdx < kfs.length - 1 && kfs[kfIdx].segmentInterpolation?.mode === 'bezier');
+                                if (!adjacentBezier) return;
+                                e.stopPropagation();
+                                e.preventDefault();
+                                kfMenuRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
+                                setKfHandleMenu({ tick: pt.tick });
+                            }}
+                        />
+                    );
+                })}
             </svg>
 
             {/* Resize handle */}
