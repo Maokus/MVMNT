@@ -407,7 +407,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
 
         return (
             <div
-                key={property.key}
+                key={`${elementId}:${property.key}`}
                 className={`ae-property-row${nested ? ' ae-property-row-nested' : ''}${isDelinked ? ' ae-property-delinked' : ''}`}
                 style={
                     nested

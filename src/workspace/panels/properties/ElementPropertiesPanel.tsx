@@ -49,6 +49,15 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [propertyValues, setPropertyValues] = useState<PropertyValues>({});
     const [macroAssignments, setMacroAssignments] = useState<MacroAssignments>({});
     const [groupCollapseState, setGroupCollapseState] = useState<Record<string, boolean>>({});
+
+    // Reset property state synchronously when the element changes, so the panel never briefly
+    // shows the previous element's values before the useEffect has a chance to load new ones.
+    const [lastRenderedElementId, setLastRenderedElementId] = useState(elementId);
+    if (lastRenderedElementId !== elementId) {
+        setLastRenderedElementId(elementId);
+        setPropertyValues({});
+        setMacroAssignments({});
+    }
     const [macroListenerKey, setMacroListenerKey] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [elementClipboard, setElementClipboard] = useState<{
