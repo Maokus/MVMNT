@@ -69,17 +69,17 @@ describe('RenderModal export options behaviour', () => {
         mockGetEncodableAudioCodecs.mockClear();
     });
 
-    it('defaults audio codec to pcm-s16 when capabilities load', async () => {
+    it('defaults audio codec to aac when capabilities load', async () => {
         const { default: RenderModal } = await loadComponent();
         render(<RenderModal onClose={() => { }} />);
 
         await selectVideoFormat();
 
         const select = await screen.findByLabelText('Audio Codec');
-        expect((select as HTMLSelectElement).value).toBe('pcm-s16');
+        expect((select as HTMLSelectElement).value).toBe('aac');
 
         const options = Array.from(select.querySelectorAll('option')).map((o) => o.value);
-        expect(options[0]).toBe('pcm-s16');
+        expect(options[0]).toBe('aac');
         expect(options).toContain('mp3');
         expect(options).toContain('opus');
     });

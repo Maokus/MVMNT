@@ -957,8 +957,15 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                         style={{ cursor: 'ns-resize' }}
                         onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
                         onContextMenu={(e) => {
-                            e.preventDefault();
+                            const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - pt.tick) < 0.5);
+                            if (kfIdx < 0) return;
+                            const kfs = channel.keyframes;
+                            const adjacentBezier =
+                                (kfIdx > 0 && kfs[kfIdx - 1].segmentInterpolation?.mode === 'bezier') ||
+                                (kfIdx < kfs.length - 1 && kfs[kfIdx].segmentInterpolation?.mode === 'bezier');
+                            if (!adjacentBezier) return;
                             e.stopPropagation();
+                            e.preventDefault();
                             kfMenuRefs.setReference({ getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0) });
                             setKfHandleMenu({ tick: pt.tick });
                         }}
@@ -999,15 +1006,14 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     </div>
                 </FloatingPortal>
             )}
-            {/* Handle type menu (right-click on keyframe) */}
+            {/* Handle type menu (click on keyframe adjacent to bezier segment) */}
             {kfHandleMenu && (() => {
                 const kfIdx = channel.keyframes.findIndex((k) => Math.abs(k.tick - kfHandleMenu.tick) < 0.5);
                 const kf = kfIdx >= 0 ? channel.keyframes[kfIdx] : null;
                 if (!kf) return null;
-                const hasLeft = kfIdx > 0;
-                const hasRight = kfIdx < channel.keyframes.length - 1;
                 const currentLeft = kf.leftHandleType ?? 'auto_clamped';
                 const currentRight = kf.rightHandleType ?? 'auto_clamped';
+                const currentType = currentLeft === currentRight ? currentLeft : null;
                 const handleTypes: Array<{ type: HandleType; label: string }> = [
                     { type: 'auto_clamped', label: 'Auto (Clamped)' },
                     { type: 'auto', label: 'Auto' },
@@ -1015,8 +1021,11 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     { type: 'aligned', label: 'Aligned' },
                     { type: 'vector', label: 'Vector' },
                 ];
-                const setHandleType = (side: 'left' | 'right', type: HandleType) => {
-                    const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
+                const setHandleType = (type: HandleType) => {
+                    const patch: { leftHandleType?: HandleType; rightHandleType?: HandleType } = {
+                        leftHandleType: type,
+                        rightHandleType: type,
+                    };
                     const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
                     const isSelectedKf = allSelected.some(
                         (k) => k.channelId === channel.id && Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
@@ -1044,43 +1053,20 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             style={kfMenuFloatingStyles}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                            {hasLeft && (
-                                <>
-                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
-                                        Left Handle
-                                    </div>
-                                    {handleTypes.map(({ type, label }) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            className="ae-context-menu-item"
-                                            style={currentLeft === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
-                                            onClick={() => setHandleType('left', type)}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-                            {hasLeft && hasRight && <div className="ae-context-menu-divider" />}
-                            {hasRight && (
-                                <>
-                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
-                                        Right Handle
-                                    </div>
-                                    {handleTypes.map(({ type, label }) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            className="ae-context-menu-item"
-                                            style={currentRight === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
-                                            onClick={() => setHandleType('right', type)}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </>
-                            )}
+                            <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
+                                Handle Type
+                            </div>
+                            {handleTypes.map(({ type, label }) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    className="ae-context-menu-item"
+                                    style={currentType === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
+                                    onClick={() => setHandleType(type)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
                     </FloatingPortal>
                 );

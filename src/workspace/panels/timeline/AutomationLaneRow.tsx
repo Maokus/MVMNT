@@ -14,8 +14,8 @@
  * interpolation type of the adjacent segments:
  *   diamond   → linear or sharp end of an easing curve
  *   square    → constant (stepped)
- *   hourglass → bezier or soft end of an easing curve
- *   circle    → bezier with auto / auto-clamped handles
+ *   hourglass → soft end of an easing curve
+ *   circle    → bezier 
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -73,10 +73,7 @@ function getKfHalfShape(
     const { mode } = segInterp;
     if (mode === 'constant') return 'square';
     if (mode === 'linear') return 'diamond';
-    if (mode === 'bezier') {
-        const ht = handleType ?? 'auto_clamped';
-        return ht === 'auto' || ht === 'auto_clamped' ? 'circle' : 'hourglass';
-    }
+    if (mode === 'bezier') return 'circle';
     // Semantic easing — resolve 'auto' direction
     const resolvedDir =
         segInterp.direction === 'auto'
@@ -712,41 +709,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     }, [interpolationPicker, channel.keyframes]);
 
     // -----------------------------------------------------------------------
-    // Handle-type menu (right-click on keyframe)
-    // -----------------------------------------------------------------------
-    const [kfHandleMenu, setKfHandleMenu] = useState<{ tick: number } | null>(null);
-
-    const { refs: kfMenuRefs, floatingStyles: kfMenuFloatingStyles } = useFloating({
-        open: kfHandleMenu !== null,
-        placement: 'right-start',
-        middleware: [offset(4), flip({ padding: 12 }), shift({ padding: 12 })],
-        whileElementsMounted: autoUpdate,
-    });
-
-    useEffect(() => {
-        if (!kfHandleMenu) return;
-        const close = (e: PointerEvent) => {
-            const el = kfMenuRefs.floating.current;
-            if (el && el.contains(e.target as Node)) return;
-            setKfHandleMenu(null);
-        };
-        window.addEventListener('pointerdown', close, true);
-        return () => window.removeEventListener('pointerdown', close, true);
-    }, [kfHandleMenu]);
-
-    const handleKfContextMenu = useCallback(
-        (e: React.MouseEvent, kf: AutomationKeyframe) => {
-            e.preventDefault();
-            e.stopPropagation(); // prevent channel context menu from opening
-            kfMenuRefs.setReference({
-                getBoundingClientRect: () => new DOMRect(e.clientX, e.clientY, 0, 0),
-            });
-            setKfHandleMenu({ tick: kf.tick });
-        },
-        [kfMenuRefs],
-    );
-
-    // -----------------------------------------------------------------------
     // Render
     // -----------------------------------------------------------------------
     const height = AUTOMATION_ROW_HEIGHT;
@@ -831,7 +793,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             data-kf="1"
                             style={{ cursor: dragging ? 'grabbing' : 'grab' }}
                             onPointerDown={(e) => handleKfPointerDown(e, kf)}
-                            onContextMenu={(e) => handleKfContextMenu(e, kf)}
                         >
                             <path
                                 d={shapePath(leftShape, rightShape, x, cy, dSize)}
@@ -963,94 +924,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 </FloatingPortal>
             )}
 
-            {/* Handle-type menu (keyframe right-click) */}
-            {kfHandleMenu && (() => {
-                const kfIdx = channel.keyframes.findIndex(
-                    (k) => Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
-                );
-                const kf = kfIdx >= 0 ? channel.keyframes[kfIdx] : null;
-                if (!kf) return null;
-                const hasLeft = kfIdx > 0;
-                const hasRight = kfIdx < channel.keyframes.length - 1;
-                const currentLeft = kf.leftHandleType ?? 'auto_clamped';
-                const currentRight = kf.rightHandleType ?? 'auto_clamped';
-                const handleTypes: Array<{ type: HandleType; label: string }> = [
-                    { type: 'auto_clamped', label: 'Auto (Clamped)' },
-                    { type: 'auto', label: 'Auto' },
-                    { type: 'free', label: 'Free' },
-                    { type: 'aligned', label: 'Aligned' },
-                    { type: 'vector', label: 'Vector' },
-                ];
-                const applyHandleType = (side: 'left' | 'right', type: HandleType) => {
-                    const patch = side === 'left' ? { leftHandleType: type } : { rightHandleType: type };
-                    const allSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
-                    const isSelectedKf = allSelected.some(
-                        (k) => k.channelId === channel.id && Math.abs(k.tick - kfHandleMenu.tick) < 0.5,
-                    );
-                    if (isSelectedKf && allSelected.length > 1) {
-                        allSelected.forEach(({ channelId, tick }) => {
-                            dispatchSceneCommand(
-                                { type: 'updateKeyframe', channelId, tick, patch },
-                                { source: 'automation-lane' },
-                            );
-                        });
-                    } else {
-                        dispatchSceneCommand(
-                            { type: 'updateKeyframe', channelId: channel.id, tick: kfHandleMenu.tick, patch },
-                            { source: 'automation-lane' },
-                        );
-                    }
-                    setKfHandleMenu(null);
-                };
-                return (
-                    <FloatingPortal>
-                        <div
-                            ref={kfMenuRefs.setFloating}
-                            className="ae-context-menu z-50"
-                            style={kfMenuFloatingStyles}
-                            onPointerDown={(e) => e.stopPropagation()}
-                        >
-                            {hasLeft && (
-                                <>
-                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
-                                        Left Handle
-                                    </div>
-                                    {handleTypes.map(({ type, label }) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            className="ae-context-menu-item"
-                                            style={currentLeft === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
-                                            onClick={() => applyHandleType('left', type)}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-                            {hasLeft && hasRight && <div className="ae-context-menu-divider" />}
-                            {hasRight && (
-                                <>
-                                    <div style={{ padding: '4px 8px 2px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)' }}>
-                                        Right Handle
-                                    </div>
-                                    {handleTypes.map(({ type, label }) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            className="ae-context-menu-item"
-                                            style={currentRight === type ? { fontWeight: 600, color: '#60a5fa' } : undefined}
-                                            onClick={() => applyHandleType('right', type)}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-                        </div>
-                    </FloatingPortal>
-                );
-            })()}
         </div>
     );
 };

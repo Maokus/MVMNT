@@ -9,6 +9,7 @@
         "@mediabunny/aac-encoder": "^1.40.1",
         "@mediabunny/mp3-encoder": "^1.18.0",
         "@supabase/supabase-js": "^2.102.1",
+        "@uiw/color-convert": "^2.10.1",
         "@uiw/react-color-sketch": "^2.10.1",
         "fflate": "^0.8.2",
         "gifuct-js": "^2.1.2",
