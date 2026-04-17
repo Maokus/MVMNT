@@ -39,7 +39,6 @@ export class CollisionMidiDisplayElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Collision Midi Display',
             description: 'MIDI display which shows notes as the collision of shapes',
-            category: 'midipack1',
         }, [
             {
                 id: 'midiSource',

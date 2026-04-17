@@ -33,7 +33,6 @@ export class AlmamlikePianoRollElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Almamlike Piano Roll',
             description: 'Notes scroll right-to-left; markers and ripples trigger when a note crosses the playhead.',
-            category: 'midipack1',
         }, [
             {
                 id: 'midiSource',

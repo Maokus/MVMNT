@@ -100,7 +100,6 @@ export class PopcatMidiDisplayElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Popcat Midi Display',
             description: 'Displays popcat reacting to MIDI notes',
-            category: 'midipack1',
         }, [
             {
                 id: 'midiSource',

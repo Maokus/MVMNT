@@ -20,7 +20,6 @@ export class ParticlesPatternElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Particles Pattern',
             description: 'Floating circles with configurable gravity and direction.',
-            category: 'patternspack1',
         }, [
             {
                 id: 'particlesBounds',

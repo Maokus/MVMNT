@@ -10,7 +10,6 @@ export class CheckersPatternElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Checkers Pattern',
             description: 'A scrolling checkerboard background pattern',
-            category: 'patternspack1',
         }, [
             {
                 id: 'checkerAppearance',

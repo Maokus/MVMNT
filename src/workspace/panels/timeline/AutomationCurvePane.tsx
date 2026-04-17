@@ -7,7 +7,7 @@
  * - Polyline/path between keyframes showing the interpolation-aware curve
  * - Control points at each keyframe (tick->x, value->y)
  * - Bezier handles shown when segment is in bezier mode
- * - Drag control point vertically -> updateKeyframe { value }
+ * - Drag control point horizontally+vertically -> moveKeyframe + updateKeyframe { value }
  * - Drag handle -> updateKeyframe { leftHandle/rightHandle }
  * - Click segment -> open interpolation picker
  * - Drag resize handle at bottom to change pane height
@@ -35,6 +35,7 @@ import { computeAutoHandles, DEFAULT_SEGMENT_INTERPOLATION } from '@automation/i
 import easings from '@math/animation/easing';
 import type { AutomationChannel, SegmentInterpolation, HandleType } from '@automation/types';
 import { useCurveHeight, useCurveHeightSetter } from './curveHeightContext';
+import { useSnapTicks } from './useSnapTicks';
 
 interface AutomationCurvePaneProps {
     channel: AutomationChannel;
@@ -81,15 +82,18 @@ function buildHandlePatch(
 
 const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, width }) => {
     const { toX, toTick } = useTickScale();
+    const snapTick = useSnapTicks();
     const height = useCurveHeight(channel.id);
     const setHeight = useCurveHeightSetter();
     const svgRef = useRef<SVGSVGElement | null>(null);
     const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
     const [dragging, setDragging] = useState<{
-        tick: number; startY: number; baseValue: number;
+        baseTick: number; startY: number; baseValue: number;
         frozenMinVal: number; frozenMaxVal: number;
     } | null>(null);
+    // Tracks the live tick during a drag (updated each frame to follow moveKeyframe).
+    const liveTickRef = useRef<number>(0);
 
     const [handleDrag, setHandleDrag] = useState<{
         tick: number; side: 'left' | 'right';
@@ -487,7 +491,8 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
             useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
-            setDragging({ tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
+            liveTickRef.current = tick;
+            setDragging({ baseTick: tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
         },
         [minVal, maxVal, channel.elementId],
     );
@@ -496,11 +501,21 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         (e: React.PointerEvent) => {
             if (dragging && svgRef.current) {
                 const rect = svgRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
+                const newTick = Math.max(0, snapTick(toTick(x, width), e.ctrlKey || e.metaKey));
                 const newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                const curTick = liveTickRef.current;
+                if (newTick !== curTick) {
+                    dispatchSceneCommand(
+                        { type: 'moveKeyframe', channelId: channel.id, fromTick: curTick, toTick: newTick },
+                        { source: 'curve-editor', mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`, transient: true },
+                    );
+                    liveTickRef.current = newTick;
+                }
                 dispatchSceneCommand(
-                    { type: 'updateKeyframe', channelId: channel.id, tick: dragging.tick, patch: { value: newVal } },
-                    { source: 'curve-editor', mergeKey: `curve-drag:${channel.id}:${dragging.tick}`, transient: true },
+                    { type: 'updateKeyframe', channelId: channel.id, tick: liveTickRef.current, patch: { value: newVal } },
+                    { source: 'curve-editor', mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`, transient: true },
                 );
                 return;
             }
@@ -543,7 +558,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 );
             }
         },
-        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick],
     );
 
     const handlePointerUp = useCallback(
@@ -552,11 +567,21 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 try { (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
                 if (svgRef.current) {
                     const rect = svgRef.current.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
+                    const newTick = Math.max(0, snapTick(toTick(x, width), e.ctrlKey || e.metaKey));
                     const newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                    const curTick = liveTickRef.current;
+                    if (newTick !== curTick) {
+                        dispatchSceneCommand(
+                            { type: 'moveKeyframe', channelId: channel.id, fromTick: curTick, toTick: newTick },
+                            { source: 'curve-editor', mergeKey: `curve-drag-move:${channel.id}:${dragging.baseTick}`, transient: false },
+                        );
+                        liveTickRef.current = newTick;
+                    }
                     dispatchSceneCommand(
-                        { type: 'updateKeyframe', channelId: channel.id, tick: dragging.tick, patch: { value: newVal } },
-                        { source: 'curve-editor', mergeKey: `curve-drag:${channel.id}:${dragging.tick}`, transient: false },
+                        { type: 'updateKeyframe', channelId: channel.id, tick: liveTickRef.current, patch: { value: newVal } },
+                        { source: 'curve-editor', mergeKey: `curve-drag-val:${channel.id}:${dragging.baseTick}`, transient: false },
                     );
                 }
                 setDragging(null);
@@ -597,7 +622,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 setHandleDrag(null);
             }
         },
-        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick],
     );
 
     // --- Handle drag start ---

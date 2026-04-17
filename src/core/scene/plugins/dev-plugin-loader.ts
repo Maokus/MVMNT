@@ -34,7 +34,7 @@ interface PluginManifest {
 interface PluginElementDefinition {
     type: string;
     name: string;
-    category: string;
+    category?: string;
     description?: string;
     entry: string;
     capabilities?: string[];
@@ -90,7 +90,7 @@ function validateManifest(manifest: any): manifest is PluginManifest {
     }
     
     for (const element of manifest.elements) {
-        if (!element.type || !element.name || !element.category || !element.entry) {
+        if (!element.type || !element.name || !element.entry) {
             return false;
         }
     }
@@ -130,7 +130,8 @@ async function loadPluginManifest(pluginPath: string): Promise<PluginManifest | 
 async function loadElement(
     pluginPath: string,
     element: PluginElementDefinition,
-    pluginId: string
+    pluginId: string,
+    pluginName: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         // Construct the module path
@@ -173,7 +174,7 @@ async function loadElement(
         // and conflicts with built-in types are caught correctly
         sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
             pluginId,
-            overrideCategory: element.category,
+            overrideCategory: element.category ?? pluginName,
             capabilities: element.capabilities,
         });
 
@@ -228,7 +229,7 @@ async function loadPlugin(pluginPath: string): Promise<LoadResult | null> {
     
     // Load each element
     for (const element of manifest.elements) {
-        const result = await loadElement(pluginPath, element, manifest.id);
+        const result = await loadElement(pluginPath, element, manifest.id, manifest.name);
         
         if (result.success) {
             elementsLoaded++;

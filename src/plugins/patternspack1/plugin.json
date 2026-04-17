@@ -9,14 +9,12 @@
     {
       "type": "checkers-pattern",
       "name": "Checkers Pattern",
-      "category": "Patterns Pack 1",
       "description": "A passive checkerboard pattern",
       "entry": "checkers-pattern.ts"
     },
     {
       "type": "particles-pattern",
       "name": "Particles Pattern",
-      "category": "Patterns Pack 1",
       "description": "Particles!!!",
       "entry": "particles-pattern.ts"
     }

@@ -96,7 +96,6 @@ export class CircularPianoRollElement extends SceneElement {
         return insertElementGroups(super.getConfigSchema(), {
             name: 'Circular Piano Roll',
             description: 'Notes travel around a ring and play when they reach the trigger point.',
-            category: 'midipack1',
         }, [
             {
                 id: 'midiSource',

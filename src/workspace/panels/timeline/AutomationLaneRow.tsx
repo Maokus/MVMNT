@@ -35,6 +35,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import { copyChannel, getClipboard } from '@automation/clipboard';
 import { useSnapTicks } from './useSnapTicks';
+import { useCurveEditorExpanded } from '@automation/hooks';
 import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation, HandleType } from '@automation/types';
 import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import InterpolationPicker from './InterpolationPicker';
@@ -190,6 +191,18 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     // Snap helper
     // -----------------------------------------------------------------------
     const snapTick = useSnapTicks();
+
+    // Toggle curve pane (same behavior as double-clicking the label)
+    const curveExpanded = useCurveEditorExpanded(channel.id);
+    const toggleCurve = useCallback(() => {
+        useSceneStore.setState((state) => {
+            const list = state.interaction.automationExpandedCurves;
+            const next = curveExpanded
+                ? list.filter((id) => id !== channel.id)
+                : [...list, channel.id];
+            return { interaction: { ...state.interaction, automationExpandedCurves: next } };
+        });
+    }, [channel.id, curveExpanded]);
 
     const isSelected = useCallback(
         (tick: number) => selectedKeyframes.some((k) => Math.abs(k.tick - tick) < 0.5),
@@ -490,37 +503,14 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
     );
 
     // -----------------------------------------------------------------------
-    // Double-click on background → add keyframe
+    // Double-click anywhere → toggle curve pane
     // -----------------------------------------------------------------------
     const handleDoubleClick = useCallback(
         (e: React.MouseEvent<SVGSVGElement>) => {
-            const target = e.target as SVGElement;
-            if (target.closest('[data-kf]')) return;
-            if (target.closest('[data-seg]')) return;
-            if (!svgRef.current) return;
-            const rect = svgRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const candTick = toTick(x, width);
-            const snapped = snapTick(candTick, e.ctrlKey || e.metaKey);
-            const interpolatedValue = interpolateAtTick(channel, snapped);
-            const defaultInterp = channel.defaultInterpolation ?? { mode: 'bezier' as const, direction: 'auto' as const };
-            dispatchSceneCommand(
-                {
-                    type: 'addKeyframe',
-                    channelId: channel.id,
-                    keyframe: {
-                        tick: snapped,
-                        value: interpolatedValue,
-                        easingId: 'linear',
-                        segmentInterpolation: { ...defaultInterp },
-                        leftHandleType: 'auto_clamped',
-                        rightHandleType: 'auto_clamped',
-                    },
-                },
-                { source: 'automation-lane' },
-            );
+            e.stopPropagation();
+            toggleCurve();
         },
-        [channel, toTick, width, snapTick],
+        [toggleCurve],
     );
 
     // -----------------------------------------------------------------------

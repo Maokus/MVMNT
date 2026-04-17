@@ -261,7 +261,7 @@ export async function loadPlugin(
                     ElementClass,
                     {
                         pluginId: manifest.id,
-                        overrideCategory: elementManifest.category,
+                        overrideCategory: elementManifest.category ?? manifest.name,
                         capabilities: elementManifest.capabilities,
                     }
                 );
@@ -532,7 +532,7 @@ function validateManifest(manifest: any): string | null {
 
     // Validate each element
     for (const element of manifest.elements) {
-        const elemRequired = ['type', 'name', 'category', 'entry'];
+        const elemRequired = ['type', 'name', 'entry'];
         for (const field of elemRequired) {
             if (!element[field]) {
                 return `Invalid manifest: element missing required field '${field}'`;
