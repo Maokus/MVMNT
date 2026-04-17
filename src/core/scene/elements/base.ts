@@ -1,5 +1,6 @@
 // Enhanced Base SceneElement class with Property Binding System
 import { EnhancedConfigSchema, PropertyDefinition, SceneElementInterface } from '@core/types.js';
+import { prop } from '@core/scene/plugins/plugin-sdk-prop-factories';
 import { EmptyRenderObject, RenderObject } from '@core/render/render-objects';
 import {
     PropertyBinding,
@@ -787,52 +788,15 @@ export class SceneElement implements SceneElementInterface {
                     collapsed: false,
                     description: 'Control whether the element is visible and how it blends with other layers.',
                     properties: [
-                        {
-                            key: 'visible',
-                            type: 'boolean',
-                            label: 'Visible',
-                            default: true,
-                            runtime: { transform: asBoolean, defaultValue: true },
-                        },
-                        {
-                            key: 'elementOpacity',
-                            type: 'number',
-                            label: 'Opacity (0–1)',
-                            default: 1,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
+                        prop.boolean('visible', 'Visible', true),
+                        prop.number('elementOpacity', 'Opacity (0–1)', 1, {
+                            min: 0, max: 1, step: 0.01,
                             description: 'Element transparency (0 = transparent, 1 = opaque).',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'zIndex',
-                            type: 'number',
-                            label: 'Layer Order',
-                            default: 0,
-                            min: 0,
-                            max: 100,
-                            step: 1,
+                        }),
+                        prop.number('zIndex', 'Layer Order', 0, {
+                            min: 0, max: 100, step: 1,
                             description: 'Stacking order for overlapping layers (higher values appear on top).',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'fullyVisible',
-                            label: 'Fully Visible',
-                            values: { visible: true, elementOpacity: 1 },
-                        },
-                        {
-                            id: 'ghostedOverlay',
-                            label: 'Ghosted Overlay',
-                            values: { visible: true, elementOpacity: 0.4 },
-                        },
-                        {
-                            id: 'hiddenLayer',
-                            label: 'Hidden Layer',
-                            values: { visible: false, elementOpacity: 0 },
-                        },
+                        }),
                     ],
                 },
                 {
@@ -842,67 +806,22 @@ export class SceneElement implements SceneElementInterface {
                     collapsed: false,
                     description: 'Set the element position and size adjustments relative to its default layout.',
                     properties: [
-                        {
-                            key: 'offsetX',
-                            type: 'number',
-                            label: 'Offset X (px)',
-                            default: 0,
-                            min: -10000,
-                            max: 10000,
-                            step: 1,
+                        prop.number('offsetX', 'Offset X (px)', 0, {
+                            min: -10000, max: 10000, step: 1,
                             description: 'Horizontal position offset in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'offsetY',
-                            type: 'number',
-                            label: 'Offset Y (px)',
-                            default: 0,
-                            min: -10000,
-                            max: 10000,
-                            step: 1,
+                        }),
+                        prop.number('offsetY', 'Offset Y (px)', 0, {
+                            min: -10000, max: 10000, step: 1,
                             description: 'Vertical position offset in pixels.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementScaleX',
-                            type: 'number',
-                            label: 'Scale X (multiplier)',
-                            default: 1,
-                            min: 0.01,
-                            max: 5,
-                            step: 0.01,
+                        }),
+                        prop.number('elementScaleX', 'Scale X (multiplier)', 1, {
+                            min: 0.01, max: 5, step: 0.01,
                             description: 'Horizontal scaling factor.',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                        {
-                            key: 'elementScaleY',
-                            type: 'number',
-                            label: 'Scale Y (multiplier)',
-                            default: 1,
-                            min: 0.01,
-                            max: 5,
-                            step: 0.01,
+                        }),
+                        prop.number('elementScaleY', 'Scale Y (multiplier)', 1, {
+                            min: 0.01, max: 5, step: 0.01,
                             description: 'Vertical scaling factor.',
-                            runtime: { transform: asNumber, defaultValue: 1 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'centered',
-                            label: 'Centered (100%)',
-                            values: { offsetX: 0, offsetY: 0, elementScaleX: 1, elementScaleY: 1 },
-                        },
-                        {
-                            id: 'scaledUp',
-                            label: 'Scaled Up 150%',
-                            values: { elementScaleX: 1.5, elementScaleY: 1.5 },
-                        },
-                        {
-                            id: 'scaledDown',
-                            label: 'Scaled Down 75%',
-                            values: { elementScaleX: 0.75, elementScaleY: 0.75 },
-                        },
+                        }),
                     ],
                 },
                 {
@@ -912,84 +831,26 @@ export class SceneElement implements SceneElementInterface {
                     collapsed: true,
                     description: 'Advanced pivot, rotation, and skew controls.',
                     properties: [
-                        {
-                            key: 'anchorX',
-                            type: 'number',
-                            label: 'Anchor X (0–1)',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
+                        prop.number('anchorX', 'Anchor X (0–1)', 0.5, {
+                            min: 0, max: 1, step: 0.01,
                             description: 'Horizontal anchor point (0 = left, 1 = right).',
-                            runtime: { transform: asNumber, defaultValue: 0.5 },
-                        },
-                        {
-                            key: 'anchorY',
-                            type: 'number',
-                            label: 'Anchor Y (0–1)',
-                            default: 0.5,
-                            min: 0,
-                            max: 1,
-                            step: 0.01,
+                        }),
+                        prop.number('anchorY', 'Anchor Y (0–1)', 0.5, {
+                            min: 0, max: 1, step: 0.01,
                             description: 'Vertical anchor point (0 = top, 1 = bottom).',
-                            runtime: { transform: asNumber, defaultValue: 0.5 },
-                        },
-                        {
-                            key: 'elementRotation',
-                            type: 'number',
-                            label: 'Rotation',
-                            default: 0,
-                            min: -Math.PI * 2,
-                            max: Math.PI * 2,
-                            step: 0.01,
+                        }),
+                        prop.number('elementRotation', 'Rotation', 0, {
+                            min: -Math.PI * 2, max: Math.PI * 2, step: 0.01,
                             description: 'Element rotation in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementSkewX',
-                            type: 'number',
-                            label: 'Skew X',
-                            default: 0,
-                            min: -Math.PI / 4,
-                            max: Math.PI / 4,
-                            step: 0.01,
+                        }),
+                        prop.number('elementSkewX', 'Skew X', 0, {
+                            min: -Math.PI / 4, max: Math.PI / 4, step: 0.01,
                             description: 'Horizontal skew in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                        {
-                            key: 'elementSkewY',
-                            type: 'number',
-                            label: 'Skew Y',
-                            default: 0,
-                            min: -Math.PI / 4,
-                            max: Math.PI / 4,
-                            step: 0.01,
+                        }),
+                        prop.number('elementSkewY', 'Skew Y', 0, {
+                            min: -Math.PI / 4, max: Math.PI / 4, step: 0.01,
                             description: 'Vertical skew in radians.',
-                            runtime: { transform: asNumber, defaultValue: 0 },
-                        },
-                    ],
-                    presets: [
-                        {
-                            id: 'centeredAnchor',
-                            label: 'Centered Anchor',
-                            values: {
-                                anchorX: 0.5,
-                                anchorY: 0.5,
-                                elementRotation: 0,
-                                elementSkewX: 0,
-                                elementSkewY: 0,
-                            },
-                        },
-                        {
-                            id: 'topLeftPivot',
-                            label: 'Top-Left Pivot',
-                            values: { anchorX: 0, anchorY: 0, elementRotation: 0, elementSkewX: 0, elementSkewY: 0 },
-                        },
-                        {
-                            id: 'rotated30',
-                            label: 'Rotate 30°',
-                            values: { elementRotation: 30 },
-                        },
+                        }),
                     ],
                 },
             ],
