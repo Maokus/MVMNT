@@ -674,7 +674,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         [minVal, maxVal, channel],
     );
 
-    // --- Segment click → interpolation picker ---
+    // --- Segment click → select left keyframe + open interpolation picker ---
     const handleSegmentClick = useCallback(
         (e: React.MouseEvent, tick: number) => {
             e.stopPropagation();
@@ -682,25 +682,18 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             const idx = kfs.findIndex((kf) => Math.abs(kf.tick - tick) < 0.5);
             if (idx < 0 || idx >= kfs.length - 1) return;
             const leftTick = kfs[idx].tick;
-            const rightTick = kfs[idx + 1].tick;
             if (e.shiftKey) {
                 useSceneStore.setState((state) => {
                     const existing = state.interaction.automationSelectedKeyframes;
                     const hasLeft = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - leftTick) < 0.5);
-                    const hasRight = existing.some((k) => k.channelId === channel.id && Math.abs(k.tick - rightTick) < 0.5);
-                    const toAdd: Array<{ channelId: string; tick: number }> = [];
-                    if (!hasLeft) toAdd.push({ channelId: channel.id, tick: leftTick });
-                    if (!hasRight) toAdd.push({ channelId: channel.id, tick: rightTick });
+                    const toAdd = hasLeft ? [] : [{ channelId: channel.id, tick: leftTick }];
                     return { interaction: { ...state.interaction, automationSelectedKeyframes: [...existing, ...toAdd] } };
                 });
             } else {
                 useSceneStore.setState((state) => ({
                     interaction: {
                         ...state.interaction,
-                        automationSelectedKeyframes: [
-                            { channelId: channel.id, tick: leftTick },
-                            { channelId: channel.id, tick: rightTick },
-                        ],
+                        automationSelectedKeyframes: [{ channelId: channel.id, tick: leftTick }],
                     },
                 }));
             }
