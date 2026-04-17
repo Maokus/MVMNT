@@ -269,7 +269,7 @@ export class PopcatMidiDisplayElement extends SceneElement {
         if (manyCats) {
             const offset = props.offset as number;
             const numCats = props.numCats as number;
-            const numRows = Math.max(1, props.numRows as number);
+            const numRows = Math.max(1, Math.round(props.numRows as number));
             const xSpacing = props.xSpacing as number;
             const ySpacing = props.ySpacing as number;
             const noteLabels = props.noteLabels as boolean;

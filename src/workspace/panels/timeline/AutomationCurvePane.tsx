@@ -224,16 +224,17 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         let mn = Math.min(...vals);
         let mx = Math.max(...vals);
 
-        // If property has explicit min/max, use them as bounds
-        if (propertyMin !== undefined) mn = Math.min(mn, propertyMin);
-        if (propertyMax !== undefined) mx = Math.max(mx, propertyMax);
-
         if (mn === mx) {
             mn -= 0.5;
             mx += 0.5;
         }
         const pad = (mx - mn) * 0.1;
-        return { minVal: mn - pad, maxVal: mx + pad };
+        let paddedMin = mn - pad;
+        let paddedMax = mx + pad;
+        // Clamp to property min/max so view never goes beyond property bounds
+        if (propertyMin !== undefined) paddedMin = Math.max(paddedMin, propertyMin);
+        if (propertyMax !== undefined) paddedMax = Math.min(paddedMax, propertyMax);
+        return { minVal: paddedMin, maxVal: paddedMax };
     }, [channel.keyframes, channel.valueType, propertyMin, propertyMax]);
 
     // Minimum visual span = property step (so the graph never collapses to a flat line)
@@ -516,7 +517,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
                 const newTick = Math.max(0, snapTick(toTick(x, width), e.ctrlKey || e.metaKey));
-                const newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                let newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                if (propertyMin !== undefined) newVal = Math.max(newVal, propertyMin);
+                if (propertyMax !== undefined) newVal = Math.min(newVal, propertyMax);
                 const curTick = liveTickRef.current;
                 if (newTick !== curTick) {
                     dispatchSceneCommand(
@@ -570,7 +573,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 );
             }
         },
-        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick, propertyMin, propertyMax],
     );
 
     const handlePointerUp = useCallback(
@@ -582,7 +585,9 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                     const x = e.clientX - rect.left;
                     const y = e.clientY - rect.top;
                     const newTick = Math.max(0, snapTick(toTick(x, width), e.ctrlKey || e.metaKey));
-                    const newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                    let newVal = yToValue(y, dragging.frozenMinVal, dragging.frozenMaxVal);
+                    if (propertyMin !== undefined) newVal = Math.max(newVal, propertyMin);
+                    if (propertyMax !== undefined) newVal = Math.min(newVal, propertyMax);
                     const curTick = liveTickRef.current;
                     if (newTick !== curTick) {
                         dispatchSceneCommand(
@@ -634,7 +639,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                 setHandleDrag(null);
             }
         },
-        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick],
+        [dragging, handleDrag, channel, height, toTick, toX, width, yToValue, valueToY, snapTick, propertyMin, propertyMax],
     );
 
     // --- Handle drag start ---
