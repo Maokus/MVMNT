@@ -201,43 +201,11 @@ async function main() {
     console.log('MVMNT Custom Element Scaffold');
     console.log('='.repeat(60));
     console.log();
-    
-    // Step 1: Get plugin name
-    let pluginId = await prompt('Plugin ID (e.g., myplugin): ');
-    let validationError = validatePluginName(pluginId);
-    while (validationError) {
-        console.error(`Error: ${validationError}`);
-        pluginId = await prompt('Plugin ID (e.g., myplugin): ');
-        validationError = validatePluginName(pluginId);
-    }
-    
-    // Determine plugin directory and decide whether to prompt for plugin display name.
-    const pluginsDir = path.join(projectRoot, 'src/plugins');
-    const pluginDirName = pluginId.split('.').pop();
-    const pluginDir = path.join(pluginsDir, pluginDirName);
 
-    let pluginName;
-    if (fs.existsSync(pluginDir)) {
-        // If plugin folder exists, use its plugin.json name if present, otherwise derive a title-case name.
-        const existingPluginJson = path.join(pluginDir, 'plugin.json');
-        if (fs.existsSync(existingPluginJson)) {
-            try {
-                const existing = JSON.parse(fs.readFileSync(existingPluginJson, 'utf8'));
-                pluginName = existing.name || toTitleCase(pluginDirName);
-            } catch (e) {
-                pluginName = toTitleCase(pluginDirName);
-            }
-        } else {
-            pluginName = toTitleCase(pluginDirName);
-        }
-    } else {
-        pluginName = await prompt('Plugin Name (e.g., My Plugin): ') || toTitleCase(pluginDirName);
-    }
-    
-    // Step 2: Get element type
+    // Step 1: Get element ID
     let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
     elementType = toKebabCase(elementType);
-    validationError = validateElementType(elementType);
+    let validationError = validateElementType(elementType);
     while (validationError) {
         console.error(`Error: ${validationError}`);
         elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
@@ -250,6 +218,40 @@ async function main() {
     if (uniquenessError) {
         console.error(`Error: ${uniquenessError}`);
         process.exit(1);
+    }
+
+    // Step 2: Get plugin ID (default derived from element ID)
+    const defaultPluginId = elementType;
+    let pluginId = (await prompt(`Plugin ID (e.g., myplugin) [${defaultPluginId}]: `)) || defaultPluginId;
+    validationError = validatePluginName(pluginId);
+    while (validationError) {
+        console.error(`Error: ${validationError}`);
+        pluginId = (await prompt(`Plugin ID (e.g., myplugin) [${defaultPluginId}]: `)) || defaultPluginId;
+        validationError = validatePluginName(pluginId);
+    }
+
+    // Determine plugin directory and decide whether to prompt for plugin display name.
+    const pluginsDir = path.join(projectRoot, 'src/plugins');
+    const pluginDirName = pluginId.split('.').pop();
+    const pluginDir = path.join(pluginsDir, pluginDirName);
+
+    let pluginName;
+    if (fs.existsSync(pluginDir)) {
+        // If plugin folder exists, use its plugin.json name if present, otherwise derive from element ID.
+        const existingPluginJson = path.join(pluginDir, 'plugin.json');
+        if (fs.existsSync(existingPluginJson)) {
+            try {
+                const existing = JSON.parse(fs.readFileSync(existingPluginJson, 'utf8'));
+                pluginName = existing.name || toTitleCase(elementType);
+            } catch (e) {
+                pluginName = toTitleCase(elementType);
+            }
+        } else {
+            pluginName = toTitleCase(elementType);
+        }
+    } else {
+        const defaultPluginName = toTitleCase(elementType);
+        pluginName = (await prompt(`Plugin Name (e.g., My Plugin) [${defaultPluginName}]: `)) || defaultPluginName;
     }
 
     // Step 3: Get element display name and description
