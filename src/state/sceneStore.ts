@@ -235,6 +235,7 @@ export interface SceneFontsState {
 
 export interface SceneStoreComputedExport {
     elements: SceneSerializedElement[];
+    elementErrors?: Array<{ id: string; type: string; message: string }>;
     sceneSettings: SceneSettingsState;
     macros?: SceneSerializedMacros;
     fontAssets?: Record<string, FontAsset>;
@@ -1703,11 +1704,18 @@ const createSceneStoreState = (
     exportSceneDraft: () => {
         const state = get();
         const elements: SceneSerializedElement[] = [];
+        const elementErrors: Array<{ id: string; type: string; message: string }> = [];
         state.order.forEach((id, idx) => {
             const element = state.elements[id];
             if (!element) return;
             const bindings = state.bindings.byElement[id] ?? {};
-            elements.push(serializeElement(element, bindings, idx));
+            try {
+                elements.push(serializeElement(element, bindings, idx));
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                elementErrors.push({ id, type: element.type, message });
+                console.warn(`[exportSceneDraft] Failed to serialize element ${id} (${element.type}):`, err);
+            }
         });
         const fontAssets = state.fonts.order.reduce((acc, id) => {
             const asset = state.fonts.assets[id];
@@ -1716,6 +1724,7 @@ const createSceneStoreState = (
         }, {} as Record<string, FontAsset>);
         return {
             elements,
+            ...(elementErrors.length > 0 ? { elementErrors } : {}),
             sceneSettings: { ...state.settings },
             macros: buildMacroPayload(state.macros),
             fontAssets: Object.keys(fontAssets).length ? fontAssets : undefined,

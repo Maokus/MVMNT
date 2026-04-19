@@ -23,18 +23,22 @@ const TEMPLATES = {
     'basic-shape': {
         file: 'basic-shape.ts',
         className: 'BasicShapeElement',
+        description: 'Renders a basic shape (e.g., rectangle or circle)'
     },
     'audio-reactive': {
         file: 'audio-reactive.ts',
         className: 'AudioReactiveElement',
+        description: 'Reacts to audio input (e.g., visualizes frequency spectrum or volume)'
     },
     'midi-notes': {
         file: 'midi-notes.ts',
         className: 'MidiNotesElement',
+        description: 'Visualizes MIDI notes (e.g., piano roll or falling notes)'
     },
     'text-display': {
         file: 'text-display.ts',
         className: 'TextDisplayElement',
+        description: 'Displays customizable text (e.g., song title, artist, or custom messages)'
     },
 };
 
@@ -182,12 +186,14 @@ function addElementToPlugin(pluginJsonPath, elementType, entryFile) {
 }
 
 // Customize template content
-function customizeTemplate(templateContent, elementType, className, pluginId) {
+function customizeTemplate(templateContent, elementType, className, pluginId, elementName, elementDescription) {
     return templateContent
         .replace(/export class \w+Element/g, `export class ${className}`)
         .replace(/super\('[\w-]+'/g, `super('${elementType}'`)
         .replace(/constructor\(id: string = '\w+'/g, `constructor(id: string = '${elementType}'`)
-        .replace(/category: '[^']+'/g, `category: '${pluginId}'`);
+        .replace(/category: '[^']+'/g, `category: '${pluginId}'`)
+        .replace(/name: '[^']+'/, `name: '${elementName}'`)
+        .replace(/description: '[^']+'/, `description: '${elementDescription}'`);
 }
 
 async function main() {
@@ -246,7 +252,12 @@ async function main() {
         process.exit(1);
     }
 
-    // Step 3: Choose template
+    // Step 3: Get element display name and description
+    const defaultElementName = toTitleCase(elementType);
+    const elementName = (await prompt(`Element Display Name (e.g., My Element) [${defaultElementName}]: `)) || defaultElementName;
+    const elementDescription = (await prompt('Element Description (e.g., A custom visualizer element): ')) || `A custom ${elementName.toLowerCase()} element`;
+
+    // Step 4: Choose template
     console.log('\nAvailable templates:');
     Object.keys(TEMPLATES).forEach((key, index) => {
         console.log(`  ${index + 1}. ${key} - ${TEMPLATES[key].description}`);
@@ -264,7 +275,7 @@ async function main() {
     const templateKey = templateKeys[templateIndex];
     const template = TEMPLATES[templateKey];
     
-    // Step 4: Create files
+    // Step 5: Create files
     console.log('\n' + '='.repeat(60));
     console.log('Creating element...');
     console.log('='.repeat(60));
@@ -323,7 +334,9 @@ async function main() {
         templateContent,
         elementType,
         className,
-        pluginId
+        pluginId,
+        elementName,
+        elementDescription
     );
     
     fs.writeFileSync(elementFile, customizedContent);
@@ -340,7 +353,7 @@ async function main() {
     console.log(`  3. Edit ${path.relative(projectRoot, elementFile)} to customize`);
     if (pluginJson.elements.length > 1) {
         console.log(`\nThis plugin now has ${pluginJson.elements.length} elements:`);
-        pluginJson.elements.forEach(el => console.log(`  - ${el.name} (${el.type})`));
+        pluginJson.elements.forEach(el => console.log(`  - (${el.type})`));
     }
     console.log(`\nSee docs/creating-custom-elements.md for more information.`);
 }

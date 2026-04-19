@@ -53,11 +53,17 @@ export const DocumentGateway = {
         let fontAssets: any = undefined;
         let fontLicensingAcknowledgedAt: number | undefined;
         let automation: any = undefined;
+        let elementWarnings: string[] | undefined;
 
         try {
             const snapshot = useSceneStore.getState().exportSceneDraft();
             if (Array.isArray(snapshot.elements)) {
                 elements = snapshot.elements.map((el: any) => ({ ...el }));
+            }
+            if (snapshot.elementErrors?.length) {
+                elementWarnings = snapshot.elementErrors.map(
+                    (e) => `Element "${e.id}" (${e.type}) could not be exported: ${e.message}`
+                );
             }
             if (snapshot.sceneSettings) {
                 sceneSettings = { ...snapshot.sceneSettings };
@@ -113,8 +119,17 @@ export const DocumentGateway = {
             metadata,
         };
 
-        if (!opts.includeEphemeral) return doc;
-        return Object.assign(doc, { __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView } });
+        if (!opts.includeEphemeral) {
+            if (elementWarnings?.length) {
+                return Object.assign(doc, { _warnings: elementWarnings });
+            }
+            return doc;
+        }
+        const withEphemeral = Object.assign(doc, { __ephemeral: { currentTick: timeline?.currentTick, transport, timelineView } });
+        if (elementWarnings?.length) {
+            return Object.assign(withEphemeral, { _warnings: elementWarnings });
+        }
+        return withEphemeral;
     },
 
     /** Serialize (stable) */

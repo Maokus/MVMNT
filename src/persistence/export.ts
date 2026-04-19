@@ -608,6 +608,7 @@ export async function exportScene(
         preflightWarnings.push(message);
     }
     const doc = DocumentGateway.build();
+    const docWarnings: string[] = (doc as any)._warnings ?? [];
     const state = useTimelineStore.getState();
     const metadataStore = (() => {
         try {
@@ -653,7 +654,7 @@ export async function exportScene(
 
     const fontResult = await collectFontAssets();
 
-    const warnings: string[] = [...preflightWarnings, ...collectResult.warnings];
+    const warnings: string[] = [...preflightWarnings, ...docWarnings, ...collectResult.warnings];
     if (collectResult.missingIds.length) {
         warnings.push(`Audio cache entries missing for: ${collectResult.missingIds.join(', ')}`);
     }
@@ -741,15 +742,26 @@ export async function exportScene(
         };
     }
 
-    const zip = buildZip(
-        envelope,
-        collectResult.assetPayloads,
-        midiAssets.assetPayloads,
-        fontResult.assetPayloads,
-        collectResult.waveformAssetPayloads,
-        featureAssets.assetPayloads,
-        pluginResult.pluginAssets
-    );
+    let zip: Uint8Array<ArrayBuffer>;
+    try {
+        zip = buildZip(
+            envelope,
+            collectResult.assetPayloads,
+            midiAssets.assetPayloads,
+            fontResult.assetPayloads,
+            collectResult.waveformAssetPayloads,
+            featureAssets.assetPayloads,
+            pluginResult.pluginAssets
+        );
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[exportScene] Failed to build zip:', err);
+        return {
+            ok: false,
+            errors: [{ message: `Export failed while packaging the file: ${message}` }],
+            warnings,
+        };
+    }
     return {
         ok: true,
         mode: 'zip-package',

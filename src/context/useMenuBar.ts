@@ -54,6 +54,16 @@ export const useMenuBar = ({
                 alert(res.errors?.map((e) => e.message).join('\n') || 'Export failed.');
                 return;
             }
+            if (res.warnings?.length) {
+                const elementWarnings = res.warnings.filter((w) => w.includes('could not be exported'));
+                if (elementWarnings.length) {
+                    console.warn('[saveScene] Some elements were skipped during export:', elementWarnings);
+                    alert(
+                        `Scene exported with warnings — ${elementWarnings.length} element(s) could not be exported and were skipped:\n\n` +
+                        elementWarnings.join('\n')
+                    );
+                }
+            }
             const safeName = nameToUse.replace(/[^a-zA-Z0-9]/g, '_') || 'scene';
             const { blob, mode } = res;
             const exportBlob =
