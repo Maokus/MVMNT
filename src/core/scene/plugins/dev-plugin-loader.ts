@@ -168,17 +168,17 @@ async function loadElement(
         
         // Register the element via the custom element path so pluginId is tracked
         // and conflicts with built-in types are caught correctly
-        sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
+        const registryKey = sceneElementRegistry.registerCustomElement(element.type, ElementClass, {
             pluginId,
             overrideCategory: pluginName,
         });
 
         // Wire loadBundledAsset() to the Vite dev-server asset path for this element type.
-        registerElementAssetLoader(element.type, (assetPath) =>
+        registerElementAssetLoader(registryKey, (assetPath) =>
             Promise.resolve(`${pluginPath}/assets/${assetPath}`)
         );
 
-        debugLog(`[DevPluginLoader] Registered element: ${element.type} from plugin ${pluginId}`);
+        debugLog(`[DevPluginLoader] Registered element: ${registryKey} from plugin ${pluginId}`);
         
         return { success: true };
     } catch (error) {

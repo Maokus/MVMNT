@@ -55,14 +55,21 @@ export class SceneElementRegistry {
     }
 
     /**
-     * Register a custom element from a plugin
-     * @throws {Error} if element type conflicts with built-in or already registered
+     * Register a custom element from a plugin.
+     *
+     * Plugin elements are stored under a composite key `${pluginId}:${type}` so that
+     * two different plugins can define elements with the same bare type name without
+     * colliding. The element instance's `type` property is also set to this composite
+     * key so that scene serialization stores the fully-qualified type.
+     *
+     * @returns The actual registry key used (composite for plugin elements, bare for others).
+     * @throws {Error} if element type conflicts with a built-in element or class is invalid.
      */
     registerCustomElement(
         type: string,
         ElementClass: RegisterableSceneElement,
         options: RegisterCustomElementOptions = {}
-    ): void {
+    ): string {
         // Validate type
         if (!type || typeof type !== 'string') {
             throw new Error(`Invalid element type: ${type}`);
@@ -73,18 +80,13 @@ export class SceneElementRegistry {
             throw new Error(`Cannot register custom element '${type}': conflicts with built-in element`);
         }
 
-        // Check for conflicts with other plugins
-        const existingPluginId = this.pluginTypes.get(type);
-        if (existingPluginId && existingPluginId !== options.pluginId) {
-            throw new Error(
-                `Cannot register custom element '${type}': already registered by plugin '${existingPluginId}'`
-            );
-        }
-
         // Validate class has required methods
         if (typeof (ElementClass as any)?.getConfigSchema !== 'function') {
             throw new Error(`Custom element class for '${type}' must have static getConfigSchema() method`);
         }
+
+        // Plugin elements use a composite key to avoid cross-plugin collisions.
+        const registryKey = options.pluginId ? `${options.pluginId}:${type}` : type;
 
         // Get base schema from class
         const baseSchema = ElementClass.getConfigSchema();
@@ -93,15 +95,23 @@ export class SceneElementRegistry {
             category: options.overrideCategory ?? baseSchema.category,
         };
 
-        // Register factory
-        const factory: SceneElementFactory = (config) => new ElementClass(config.id || type, config);
-        this.factories.set(type, factory);
-        this.schemas.set(type, schema);
+        // Register factory. Override element.type so the serialized scene stores the composite key.
+        const factory: SceneElementFactory = (config) => {
+            const el = new ElementClass(config.id || type, config);
+            if (options.pluginId) {
+                (el as any).type = registryKey;
+            }
+            return el;
+        };
+        this.factories.set(registryKey, factory);
+        this.schemas.set(registryKey, schema);
 
         // Track as plugin element
         if (options.pluginId) {
-            this.pluginTypes.set(type, options.pluginId);
+            this.pluginTypes.set(registryKey, options.pluginId);
         }
+
+        return registryKey;
     }
 
     /**

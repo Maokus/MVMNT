@@ -255,8 +255,9 @@ export async function loadPlugin(
                 // Load the element class dynamically
                 const ElementClass = await loadElementFromCode(code, elementManifest.type, manifest.id);
 
-                // Register the element
-                sceneElementRegistry.registerCustomElement(
+                // Register the element. The registry returns the actual key used
+                // (composite pluginId:type for plugin elements).
+                const registryKey = sceneElementRegistry.registerCustomElement(
                     elementManifest.type,
                     ElementClass,
                     {
@@ -267,10 +268,9 @@ export async function loadPlugin(
 
                 // Wire loadBundledAsset() for this element type.
                 const pluginId = manifest.id;
-                const elementType = elementManifest.type;
-                registerElementAssetLoader(elementType, (path) => loadBundledAssetForPlugin(pluginId, path));
+                registerElementAssetLoader(registryKey, (path) => loadBundledAssetForPlugin(pluginId, path));
 
-                registeredTypes.push(elementManifest.type);
+                registeredTypes.push(registryKey);
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 loadErrors.push(`Failed to load element '${elementManifest.type}': ${errorMsg}`);

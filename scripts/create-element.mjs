@@ -104,8 +104,8 @@ function validateElementType(type) {
     return null;
 }
 
-// Check if element type already exists
-function checkElementTypeUniqueness(elementType) {
+// Check if element type already exists within a specific plugin
+function checkElementTypeUniqueness(elementType, pluginId) {
     // Check built-in elements (simplified check)
     const builtInTypes = [
         'background', 'image', 'progressDisplay', 'textOverlay', 'timeDisplay',
@@ -113,38 +113,31 @@ function checkElementTypeUniqueness(elementType) {
         'notesPlayingDisplay', 'chordEstimateDisplay', 'audioSpectrum',
         'audioVolumeMeter', 'audioWaveform', 'audioLockedOscilloscope', 'debug'
     ];
-    
+
     if (builtInTypes.includes(elementType)) {
         return `Element type "${elementType}" conflicts with a built-in element`;
     }
-    
-    // Check existing plugins
+
+    // Check within the specific plugin only (different plugins may share type names —
+    // the registry namespaces them as pluginId:elementType at load time)
+    if (!pluginId) return null;
+
     const pluginsDir = path.join(projectRoot, 'src/plugins');
-    if (!fs.existsSync(pluginsDir)) {
-        return null;
-    }
-    
-    const pluginDirs = fs.readdirSync(pluginsDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory());
-    
-    for (const dir of pluginDirs) {
-        const pluginJsonPath = path.join(pluginsDir, dir.name, 'plugin.json');
-        if (fs.existsSync(pluginJsonPath)) {
-            try {
-                const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
-                if (pluginJson.elements) {
-                    for (const element of pluginJson.elements) {
-                        if (element.type === elementType) {
-                            return `Element type "${elementType}" already exists in plugin "${pluginJson.id}"`;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn(`Warning: Could not parse ${pluginJsonPath}`);
-            }
+    if (!fs.existsSync(pluginsDir)) return null;
+
+    const pluginDirName = pluginId.split('.').pop();
+    const pluginJsonPath = path.join(pluginsDir, pluginDirName, 'plugin.json');
+    if (!fs.existsSync(pluginJsonPath)) return null;
+
+    try {
+        const pluginJson = JSON.parse(fs.readFileSync(pluginJsonPath, 'utf8'));
+        if (pluginJson.elements?.some(el => el.type === elementType)) {
+            return `Element type "${elementType}" already exists in this plugin`;
         }
+    } catch (error) {
+        console.warn(`Warning: Could not parse ${pluginJsonPath}`);
     }
-    
+
     return null;
 }
 
@@ -202,31 +195,12 @@ async function main() {
     console.log('='.repeat(60));
     console.log();
 
-    // Step 1: Get element ID
-    let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
-    elementType = toKebabCase(elementType);
-    let validationError = validateElementType(elementType);
+    // Step 1: Get plugin ID
+    let pluginId = await prompt('Plugin ID (e.g., myplugin or com.example.myplugin): ');
+    let validationError = validatePluginName(pluginId);
     while (validationError) {
         console.error(`Error: ${validationError}`);
-        elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
-        elementType = toKebabCase(elementType);
-        validationError = validateElementType(elementType);
-    }
-
-    // Check uniqueness
-    const uniquenessError = checkElementTypeUniqueness(elementType);
-    if (uniquenessError) {
-        console.error(`Error: ${uniquenessError}`);
-        process.exit(1);
-    }
-
-    // Step 2: Get plugin ID (default derived from element ID)
-    const defaultPluginId = elementType;
-    let pluginId = (await prompt(`Plugin ID (e.g., myplugin) [${defaultPluginId}]: `)) || defaultPluginId;
-    validationError = validatePluginName(pluginId);
-    while (validationError) {
-        console.error(`Error: ${validationError}`);
-        pluginId = (await prompt(`Plugin ID (e.g., myplugin) [${defaultPluginId}]: `)) || defaultPluginId;
+        pluginId = await prompt('Plugin ID (e.g., myplugin or com.example.myplugin): ');
         validationError = validatePluginName(pluginId);
     }
 
@@ -237,20 +211,40 @@ async function main() {
 
     let pluginName;
     if (fs.existsSync(pluginDir)) {
-        // If plugin folder exists, use its plugin.json name if present, otherwise derive from element ID.
+        // If plugin folder exists, use its plugin.json name if present.
         const existingPluginJson = path.join(pluginDir, 'plugin.json');
         if (fs.existsSync(existingPluginJson)) {
             try {
                 const existing = JSON.parse(fs.readFileSync(existingPluginJson, 'utf8'));
-                pluginName = existing.name || toTitleCase(elementType);
+                pluginName = existing.name;
             } catch (e) {
-                pluginName = toTitleCase(elementType);
+                // will be derived from element ID below
             }
-        } else {
-            pluginName = toTitleCase(elementType);
         }
-    } else {
-        const defaultPluginName = toTitleCase(elementType);
+    }
+
+    // Step 2: Get element ID
+    let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
+    elementType = toKebabCase(elementType);
+    validationError = validateElementType(elementType);
+    while (validationError) {
+        console.error(`Error: ${validationError}`);
+        elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
+        elementType = toKebabCase(elementType);
+        validationError = validateElementType(elementType);
+    }
+
+    // Check uniqueness within plugin (different plugins may share type names —
+    // the registry namespaces them as pluginId:elementType at load time)
+    const uniquenessError = checkElementTypeUniqueness(elementType, pluginId);
+    if (uniquenessError) {
+        console.error(`Error: ${uniquenessError}`);
+        process.exit(1);
+    }
+
+    // Prompt for plugin name only when creating a new plugin
+    if (!pluginName) {
+        const defaultPluginName = toTitleCase(pluginId.split('.').pop());
         pluginName = (await prompt(`Plugin Name (e.g., My Plugin) [${defaultPluginName}]: `)) || defaultPluginName;
     }
 
