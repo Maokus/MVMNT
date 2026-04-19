@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import InsertKeyframePopup from '@workspace/panels/properties/InsertKeyframePopup';
+import TrackInputAssignPopup from '@workspace/components/TrackInputAssignPopup';
 import { hoveredPropertyRef } from '@workspace/panels/properties/hoveredPropertyRef';
 import { resolveAutomationValueType } from '@workspace/panels/properties/KeyframeControl';
 import { makeChannelId } from '@automation/types';
@@ -42,6 +43,43 @@ const SIDE_COLLAPSE_THRESHOLD = 120;
 const TIMELINE_MIN_HEIGHT = 160;
 const TIMELINE_HANDLE_HEIGHT = 8;
 const TIMELINE_COLLAPSE_THRESHOLD = 120;
+
+// Controller for the track input assignment popup shown after adding an element with track inputs.
+const TrackInputPopupController: React.FC = () => {
+    const { trackInputPopup, dismissTrackInputPopup, updateElementConfig, selectedElementId } = useSceneSelection();
+
+    // Dismiss when user selects a different element (or deselects)
+    useEffect(() => {
+        if (!trackInputPopup) return;
+        if (selectedElementId !== trackInputPopup.elementId) {
+            dismissTrackInputPopup();
+        }
+    }, [selectedElementId, trackInputPopup, dismissTrackInputPopup]);
+
+    if (!trackInputPopup) return null;
+
+    const handleAssign = (assignments: Record<string, string | string[] | null>) => {
+        const patch: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(assignments)) {
+            if (value !== null && !(Array.isArray(value) && value.length === 0)) {
+                patch[key] = value;
+            }
+        }
+        if (Object.keys(patch).length > 0) {
+            updateElementConfig(trackInputPopup.elementId, patch);
+        }
+        dismissTrackInputPopup();
+    };
+
+    return (
+        <TrackInputAssignPopup
+            elementId={trackInputPopup.elementId}
+            trackInputs={trackInputPopup.trackInputs}
+            onDismiss={dismissTrackInputPopup}
+            onAssign={handleAssign}
+        />
+    );
+};
 
 // Controller for the "i" key → insert keyframe popup. Must live inside SceneSelectionProvider.
 const InsertKeyframeController: React.FC = () => {
@@ -300,6 +338,7 @@ const MidiVisualizerInner: React.FC = () => {
             <SceneSelectionProvider>
                 <>
                     <InsertKeyframeController />
+                    <TrackInputPopupController />
                     <div className="main-workspace" ref={workspaceRef}>
                         <div className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}>
                             <PreviewPanel />

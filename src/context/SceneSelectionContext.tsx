@@ -13,6 +13,18 @@ import { shallow } from 'zustand/shallow';
 import { makeChannelId, findKeyframeAtTick, createKeyframe, type AutomationValueType } from '@automation/types';
 import { useTimelineStore } from '@state/timelineStore';
 
+export interface TrackInputDef {
+    key: string;
+    label: string;
+    allowedTrackTypes?: Array<'midi' | 'audio'>;
+    allowMultiple?: boolean;
+}
+
+export interface TrackInputPopupData {
+    elementId: string;
+    trackInputs: TrackInputDef[];
+}
+
 interface SceneSelectionState {
     selectedElementId: string | null;
     selectedElement: SelectedElementView | null;
@@ -20,6 +32,7 @@ interface SceneSelectionState {
     propertyPanelRefresh: number; // increments to force property panel value refresh without full element identity change
     visualizer: any;
     elements: any[];
+    trackInputPopup: TrackInputPopupData | null;
 }
 
 interface SceneSelectionActions {
@@ -37,6 +50,7 @@ interface SceneSelectionActions {
     duplicateElement: (elementId: string) => void;
     deleteElement: (elementId: string) => void;
     updateElementId: (oldId: string, newId: string) => boolean;
+    dismissTrackInputPopup: () => void;
 }
 
 interface SceneSelectionContextType extends SceneSelectionState, SceneSelectionActions { }
@@ -93,6 +107,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     const { visualizer } = useVisualizer() as any;
     const [selectedElementSchema, setSelectedElementSchema] = useState<any>(null);
     const [propertyPanelRefresh, setPropertyPanelRefresh] = useState(0);
+    const [trackInputPopup, setTrackInputPopup] = useState<TrackInputPopupData | null>(null);
 
     const storeSelection = useSceneSelectionStore();
     const storeElements = useSceneElements();
@@ -345,6 +360,27 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
             if (visualizer?.invalidateRender) visualizer.invalidateRender();
             setPropertyPanelRefresh((prev) => prev + 1);
             selectElement(uniqueId);
+
+            // Check if the new element has track input properties
+            const schema = sceneElementRegistry.getSchema(elementType) as any;
+            if (schema) {
+                const trackInputs: TrackInputDef[] = [];
+                for (const group of (schema.groups ?? [])) {
+                    for (const propDef of (group.properties ?? [])) {
+                        if (propDef.type === 'timelineTrackRef') {
+                            trackInputs.push({
+                                key: propDef.key,
+                                label: propDef.label,
+                                allowedTrackTypes: propDef.allowedTrackTypes,
+                                allowMultiple: propDef.allowMultiple,
+                            });
+                        }
+                    }
+                }
+                if (trackInputs.length > 0) {
+                    setTrackInputPopup({ elementId: uniqueId, trackInputs });
+                }
+            }
         },
         [generateUniqueElementId, runSceneCommand, visualizer, selectElement]
     );
@@ -443,6 +479,10 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         [runSceneCommand, visualizer, selectedElementId, selectElement]
     );
 
+    const dismissTrackInputPopup = useCallback(() => {
+        setTrackInputPopup(null);
+    }, []);
+
     const contextValue: SceneSelectionContextType = {
         selectedElementId,
         selectedElement,
@@ -450,6 +490,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         propertyPanelRefresh,
         visualizer,
         elements: storeElements,
+        trackInputPopup,
         selectElement,
         clearSelection,
         updateElementConfig,
@@ -460,6 +501,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         duplicateElement,
         deleteElement,
         updateElementId,
+        dismissTrackInputPopup,
     };
 
     useEffect(() => {
