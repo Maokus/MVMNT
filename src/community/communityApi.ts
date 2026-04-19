@@ -147,6 +147,18 @@ export async function uploadItem(
   pluginUid?: string,
   pluginVersion?: string,
 ) {
+  // Enforce global uniqueness of plugin IDs across all users
+  if (pluginUid) {
+    const { data: existing } = await supabase
+      .from('community_items')
+      .select('id')
+      .eq('plugin_uid', pluginUid)
+      .maybeSingle();
+    if (existing) {
+      throw new Error(`A plugin with ID "${pluginUid}" already exists in the community. Plugin IDs must be globally unique.`);
+    }
+  }
+
   const itemId = crypto.randomUUID();
   const thumbPath = `${userId}/${itemId}/thumb-${sanitizeFileName(thumbnailFile.name)}`;
   const filePath = `${userId}/${itemId}/${sanitizeFileName(mainFile.name)}`;

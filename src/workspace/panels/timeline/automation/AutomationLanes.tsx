@@ -35,6 +35,17 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
     const curveExpanded = useCurveEditorExpanded(channel.id);
     const curveHeight = useCurveHeight(channel.id);
 
+    const handleCurveDoubleClick = useCallback(() => {
+        useSceneStore.setState((state) => ({
+            interaction: {
+                ...state.interaction,
+                automationExpandedCurves: state.interaction.automationExpandedCurves.filter(
+                    (id) => id !== channel.id,
+                ),
+            },
+        }));
+    }, [channel.id]);
+
     return (
         <div data-channel-id={channel.id}>
             <div
@@ -47,6 +58,7 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
                 <div
                     className="border-b border-neutral-800/60"
                     style={{ height: curveHeight }}
+                    onDoubleClick={handleCurveDoubleClick}
                 >
                     <AutomationCurvePane channel={channel} width={width} />
                 </div>

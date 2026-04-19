@@ -223,6 +223,12 @@ async function main() {
         }
     }
 
+    // Prompt for plugin name only when creating a new plugin
+    if (!pluginName) {
+        const defaultPluginName = toTitleCase(pluginId.split('.').pop());
+        pluginName = (await prompt(`Plugin Name (e.g., My Plugin) [${defaultPluginName}]: `)) || defaultPluginName;
+    }
+
     // Step 2: Get element ID
     let elementType = await prompt('Element ID (kebab-case, e.g., my-element): ');
     elementType = toKebabCase(elementType);
@@ -240,12 +246,6 @@ async function main() {
     if (uniquenessError) {
         console.error(`Error: ${uniquenessError}`);
         process.exit(1);
-    }
-
-    // Prompt for plugin name only when creating a new plugin
-    if (!pluginName) {
-        const defaultPluginName = toTitleCase(pluginId.split('.').pop());
-        pluginName = (await prompt(`Plugin Name (e.g., My Plugin) [${defaultPluginName}]: `)) || defaultPluginName;
     }
 
     // Step 3: Get element display name and description
