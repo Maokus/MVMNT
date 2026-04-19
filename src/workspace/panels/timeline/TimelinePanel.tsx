@@ -809,12 +809,17 @@ const TimelinePanel: React.FC = () => {
     }, [fitAll, zoomToSelection, frameSelection]);
 
     // Keyboard: Delete key removes all currently selected tracks (batch) when focus isn't in a text-editable field.
+    // Skip if automation keyframes or scene elements are selected — those handlers take priority.
     useEffect(() => {
         const removeTracks = useTimelineStore.getState().removeTracks;
         const getSelection = () => useTimelineStore.getState().selection.selectedTrackIds;
         const handler = (e: KeyboardEvent) => {
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
             if (isEditableTarget(document.activeElement)) return;
+            const automationSelected = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            if (automationSelected.length > 0) return;
+            const selectedElementIds = useSceneStore.getState().interaction.selectedElementIds;
+            if (selectedElementIds.length > 0) return;
             const ids = getSelection();
             if (!ids.length) return;
             removeTracks(ids);

@@ -9,13 +9,13 @@ interface SaveSceneModalProps {
 export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneModalProps) {
     const [name, setName] = useState(initialName);
     const [error, setError] = useState<string | null>(null);
-    const [embedPlugins, setEmbedPlugins] = useState(false);
+    const [embedPlugins, setEmbedPlugins] = useState(true);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setName(initialName);
         setError(null);
-        setEmbedPlugins(false);
+        setEmbedPlugins(true);
     }, [initialName]);
 
     useEffect(() => {

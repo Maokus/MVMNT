@@ -91,6 +91,9 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
         const setTrackOffsetTicks = useTimelineStore((s) => s.setTrackOffsetTicks);
         const setTrackRegionTicks = useTimelineStore((s) => s.setTrackRegionTicks);
         const selectTracks = useTimelineStore((s) => s.selectTracks);
+        const updateTrack = useTimelineStore((s) => s.updateTrack);
+        const [editingName, setEditingName] = useState(false);
+        const [nameValue, setNameValue] = useState('');
         const midiCacheEntry = useTimelineStore((s) => {
             const t: any = s.tracks[trackId];
             if (t && t.type === 'midi') {
@@ -415,7 +418,39 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             />
                         )}
                         <div className="relative z-10 flex items-center gap-1">
-                            <span>{track?.name}</span>
+                            {editingName ? (
+                                <input
+                                    className="bg-transparent text-white outline-none border-b border-blue-400 w-[80px] text-[11px] min-w-0"
+                                    value={nameValue}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onChange={(e) => setNameValue(e.target.value)}
+                                    onBlur={() => {
+                                        const trimmed = nameValue.trim();
+                                        if (trimmed) updateTrack(trackId, { name: trimmed });
+                                        setEditingName(false);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const trimmed = nameValue.trim();
+                                            if (trimmed) updateTrack(trackId, { name: trimmed });
+                                            setEditingName(false);
+                                        } else if (e.key === 'Escape') {
+                                            setEditingName(false);
+                                        }
+                                        e.stopPropagation();
+                                    }}
+                                />
+                            ) : (
+                                <span
+                                    onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        setNameValue(track?.name ?? '');
+                                        setEditingName(true);
+                                    }}
+                                >{track?.name}</span>
+                            )}
                             <span className="opacity-80">{label}</span>
                             {track?.type === 'audio' ? (
                                 <>

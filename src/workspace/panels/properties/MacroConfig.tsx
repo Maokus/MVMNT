@@ -343,10 +343,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     };
 
     const handleDeleteMacro = (name: string) => {
-        if (window.confirm(`Are you sure you want to delete the macro "${name}"?`)) {
-            deleteMacro(name);
-            setMacros(prev => prev.filter(m => m.name !== name));
-        }
+        deleteMacro(name);
+        setMacros(prev => prev.filter(m => m.name !== name));
     };
 
     const handleShowAssignmentDialog = (macroName: string) => {
