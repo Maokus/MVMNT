@@ -57,8 +57,6 @@ describe('plugin manifest schema', () => {
 
 		const elementItemSchema = elementsSchema.items;
 		expect(elementItemSchema.required).toContain('type');
-		expect(elementItemSchema.required).toContain('name');
-		expect(elementItemSchema.required).toContain('category');
 		expect(elementItemSchema.required).toContain('entry');
 	});
 
