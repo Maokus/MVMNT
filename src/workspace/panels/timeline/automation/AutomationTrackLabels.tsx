@@ -4,9 +4,9 @@ import { useSceneStore } from '@state/sceneStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useAutomatedElementIds, useElementChannels, useAutomationExpanded, useCurveEditorExpanded } from '@automation/hooks';
-import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from './constants';
-import { useCurveHeight } from './curveHeightContext';
-import { useCurveRange, useCurveRangeControls } from './curveRangeContext';
+import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIGHT } from '../constants';
+import { useCurveHeight } from '../context/curveHeightContext';
+import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 
 /** Range controls shown in the left-column spacer when the curve editor is open. */
 const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> = ({ channelId, curveHeight }) => {

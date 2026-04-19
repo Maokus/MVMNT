@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useFloating, autoUpdate, flip, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { useTimelineStore } from '@state/timelineStore';
-import { useTickScale } from './useTickScale';
-import { AUTOMATION_HEADER_HEIGHT } from './constants';
+import { useTickScale } from '../hooks/useTickScale';
+import { AUTOMATION_HEADER_HEIGHT } from '../constants';
 import TempoKeyframeLabel from './TempoKeyframeLabel';
 import type { TempoKeyframe } from '@core/timing/types';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats } from '@state/timeline/quantize';
-import { useSnapTicks } from './useSnapTicks';
+import { useSnapTicks } from '../hooks/useSnapTicks';
 
 const DIAMOND_SIZE = 7;
 const PADDING_Y = 12;

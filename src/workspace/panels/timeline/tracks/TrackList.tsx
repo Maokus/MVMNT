@@ -1,9 +1,9 @@
 import React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { RULER_HEIGHT } from './constants';
+import { RULER_HEIGHT } from '../constants';
 import TrackEditorRow from './TrackEditorRow';
-import AutomationTrackLabels from './AutomationTrackLabels';
-import TempoLaneHeader from './TempoLaneHeader';
+import AutomationTrackLabels from '../automation/AutomationTrackLabels';
+import TempoLaneHeader from '../automation/TempoLaneHeader';
 
 interface TrackListProps {
     trackIds: string[];
@@ -17,8 +17,8 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
         <button
             type="button"
             className={`px-2 py-0.5 text-[10px] font-medium rounded ${activeTab === tab
-                    ? 'bg-blue-600/70 text-white'
-                    : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/60'
+                ? 'bg-blue-600/70 text-white'
+                : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/60'
                 }`}
             onClick={() => setActiveTab(tab)}
         >

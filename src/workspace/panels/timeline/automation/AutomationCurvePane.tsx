@@ -22,8 +22,8 @@ import {
     offset,
     FloatingPortal,
 } from '@floating-ui/react';
-import { useTickScale } from './useTickScale';
-import { useCurveRange, useCurveRangeControls } from './curveRangeContext';
+import { useTickScale } from '../hooks/useTickScale';
+import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { useSceneStore } from '@state/sceneStore';
 import InterpolationPicker from './InterpolationPicker';
@@ -34,8 +34,8 @@ import { evaluateSegmentBezier } from '@math/animation/cubic-bezier';
 import { computeAutoHandles, DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import easings from '@math/animation/easing';
 import type { AutomationChannel, SegmentInterpolation, HandleType } from '@automation/types';
-import { useCurveHeight, useCurveHeightSetter } from './curveHeightContext';
-import { useSnapTicks } from './useSnapTicks';
+import { useCurveHeight, useCurveHeightSetter } from '../context/curveHeightContext';
+import { useSnapTicks } from '../hooks/useSnapTicks';
 
 interface AutomationCurvePaneProps {
     channel: AutomationChannel;
@@ -500,10 +500,34 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
             e.stopPropagation();
             (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
             useSceneStore.getState().setInteractionState({ selectedElementIds: [channel.elementId] });
+
+            // Mirror the selection logic from AutomationLaneRow
+            const existing = useSceneStore.getState().interaction.automationSelectedKeyframes;
+            const clickedIsSelected = existing.some(
+                (k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5,
+            );
+            let newSelected: Array<{ channelId: string; tick: number }>;
+            if (e.shiftKey) {
+                const idx = existing.findIndex(
+                    (k) => k.channelId === channel.id && Math.abs(k.tick - tick) < 0.5,
+                );
+                newSelected =
+                    idx >= 0
+                        ? existing.filter((_, i) => i !== idx)
+                        : [...existing, { channelId: channel.id, tick }];
+            } else if (clickedIsSelected) {
+                newSelected = existing;
+            } else {
+                newSelected = [{ channelId: channel.id, tick }];
+            }
+            useSceneStore.setState((state) => ({
+                interaction: { ...state.interaction, automationSelectedKeyframes: newSelected },
+            }));
+
             liveTickRef.current = tick;
             setDragging({ baseTick: tick, startY: e.clientY, baseValue: value, frozenMinVal: minVal, frozenMaxVal: maxVal });
         },
-        [minVal, maxVal, channel.elementId],
+        [minVal, maxVal, channel.elementId, channel.id],
     );
 
     const handlePointerMove = useCallback(

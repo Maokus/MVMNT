@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
-import { CURVE_EDITOR_HEIGHT } from './constants';
+import { CURVE_EDITOR_HEIGHT } from '../constants';
 
 interface CurveHeightCtx {
     getHeight: (channelId: string) => number;

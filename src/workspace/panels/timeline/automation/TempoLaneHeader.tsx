@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from './constants';
+import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 
 /** Left-column header for the tempo automation lane. */
 const TempoLaneHeader: React.FC = () => {
@@ -50,8 +50,8 @@ const TempoLaneHeader: React.FC = () => {
                     )}
                     <button
                         className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${enabled
-                                ? 'border-amber-500/50 bg-amber-600/30 text-amber-300 hover:bg-amber-600/50'
-                                : 'border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
+                            ? 'border-amber-500/50 bg-amber-600/30 text-amber-300 hover:bg-amber-600/50'
+                            : 'border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
                             }`}
                         onClick={toggleEnabled}
                         title={enabled ? 'Disable tempo automation' : 'Enable tempo automation'}

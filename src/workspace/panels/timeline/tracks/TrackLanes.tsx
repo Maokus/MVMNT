@@ -2,15 +2,15 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { useTimelineStore } from '@state/timelineStore';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
-import { useTickScale } from './useTickScale';
+import { useTickScale } from '../hooks/useTickScale';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { formatQuantizeShortLabel, quantizeSettingToBeats, getAdaptiveSnapSetting, getAdaptiveGridSubdivisions, type QuantizeSetting } from '@state/timeline/quantize';
-import { useSnapTicks } from './useSnapTicks';
+import { useSnapTicks } from '../hooks/useSnapTicks';
 import type { AudioTrack } from '@audio/audioTypes';
-import AutomationLanes from './AutomationLanes';
-import TempoAutomationLane from './TempoAutomationLane';
-import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from './constants';
+import AutomationLanes from '../automation/AutomationLanes';
+import TempoAutomationLane from '../automation/TempoAutomationLane';
+import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 
 type Props = {
     trackIds: string[];
@@ -445,6 +445,7 @@ const TrackRowBlock: React.FC<{ trackId: string; laneWidth: number; laneHeight: 
                             ) : (
                                 <span
                                     onDoubleClick={(e) => {
+                                        console.log('double click');
                                         e.stopPropagation();
                                         setNameValue(track?.name ?? '');
                                         setEditingName(true);

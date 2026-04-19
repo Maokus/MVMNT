@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
-import TrackLanes from '../TrackLanes';
+import TrackLanes from '../tracks/TrackLanes';
 import { useTimelineStore } from '@state/timelineStore';
 
 // Mocks for jsdom environment

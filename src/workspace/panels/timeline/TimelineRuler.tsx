@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { RULER_HEIGHT } from './constants';
-import { useTickScale } from './useTickScale';
+import { useTickScale } from './hooks/useTickScale';
 import { sharedTimingManager } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
-import { useSnapTicks as useSnapTicksBase } from './useSnapTicks';
+import { useSnapTicks as useSnapTicksBase } from './hooks/useSnapTicks';
 
 // Adapter: ruler callers use { altKey, forceBar } opts; shared hook uses positional args.
 function useSnapTicks() {

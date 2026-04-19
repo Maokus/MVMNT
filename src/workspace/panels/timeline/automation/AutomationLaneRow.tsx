@@ -27,19 +27,19 @@ import {
     offset,
     FloatingPortal,
 } from '@floating-ui/react';
-import { useTickScale } from './useTickScale';
+import { useTickScale } from '../hooks/useTickScale';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene/commandGateway';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { quantizeSettingToBeats, type QuantizeSetting } from '@state/timeline/quantize';
 import { copyChannel, getClipboard } from '@automation/clipboard';
-import { useSnapTicks } from './useSnapTicks';
+import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useCurveEditorExpanded } from '@automation/hooks';
 import type { AutomationChannel, AutomationKeyframe, SegmentInterpolation, HandleType } from '@automation/types';
 import { DEFAULT_SEGMENT_INTERPOLATION } from '@automation/interpolation-defaults';
 import InterpolationPicker from './InterpolationPicker';
-import { AUTOMATION_ROW_HEIGHT } from './constants';
+import { AUTOMATION_ROW_HEIGHT } from '../constants';
 
 interface AutomationLaneRowProps {
     channel: AutomationChannel;
