@@ -94,13 +94,16 @@ Core workspace panels that make up the main editing interface:
 
 #### timeline/
 
--   **TimelinePanel.tsx** – Main timeline panel that integrates ruler, track list, and track lanes. Handles MIDI/audio file imports, multi-track decision prompts, scroll synchronization, and zoom controls.
--   **TrackEditorRow.tsx** – Individual track row in the timeline with waveform/note preview, trim handles, offset controls, and track-specific actions
--   **TrackList.tsx** – Sidebar list of track labels with selection and visibility controls
--   **TrackLanes.tsx** – Canvas-based rendering of track content in the timeline grid
--   **TimelineRuler.tsx** – Time ruler with tick marks, beat/bar labels, and playhead indicator
--   **MidiImportModeModal.tsx** – Dialog that prompts user to choose between single-track or multi-track import when loading MIDI files with multiple tracks
--   **useTickScale.ts** – Custom hook for calculating pixel-to-tick scaling based on zoom level and viewport size
+See `timeline/AGENTS.md` for the full breakdown. High-level summary:
+
+-   **TimelinePanel.tsx** – Root component; composes hooks and sub-components. Layout and wiring only.
+-   **TimelineRuler.tsx** – Tick/beat ruler with playhead scrubbing.
+-   **tracks/** – `TrackList`, `TrackLanes`, `TrackEditorRow` — track sidebar and content area.
+-   **automation/** – Automation curve lanes, keyframe UI, and tempo automation.
+-   **header/** – `TimeIndicator`, `HeaderRightControls` — header bar components.
+-   **modals/** – `MidiImportModeModal`, `MidiTempoImportModal` — import decision dialogs.
+-   **hooks/** – All extracted logic: import flows, pointer gestures, keyboard shortcuts, auto-follow, row sizing. See `hooks/AGENTS.md`.
+-   **utils/** – Pure helpers: `fileTypeUtils.ts` (MIDI/audio detection), `timelineNavUtils.ts` (zoom math).
 
 #### TransportControls.tsx
 
